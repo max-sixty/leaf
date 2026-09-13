@@ -40,6 +40,7 @@
 // auxiliary surfaces, send commands, or reconcile conversation DOM.
 import { drawnEdge } from "./drawn-edge.js";
 import { motion } from "./motion.js";
+import { setRuntimeRootStyle } from "./root-state.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -132,23 +133,15 @@ export function createChromeLayout({
       "--lf-shortcut-bar-right",
       (panelBeside ? commentsEdge.width() : 0) + "px",
     );
-    // Start at the line's ordinary foot. A covering sheet lifts it only where the sheet's
-    // own foot actually occupies the same pixels. The old posture-level answer lifted the
-    // line by every covering footer's height even when the footer stood wholly to its
-    // right — a two-dimensional collision inferred from one viewport breakpoint.
+    // The line keeps its viewport foot. A covering auxiliary surface makes it inert
+    // background, so content growing in that foreground surface is not a collision and
+    // cannot move the line.
     shortcutBarEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
-    let line = shortcutBarEl.getBoundingClientRect();
-    if (panelCovers() && line.height && overlaps(line, foot)) {
-      // The foot is the complete fixed region: composer plus the page's reaction strip
-      // when one is offered. offsetHeight retains the safe-area arithmetic owned by the
-      // stylesheet and follows a draft as its textarea grows.
-      shortcutBarEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
-      line = shortcutBarEl.getBoundingClientRect();
-    }
+    const line = shortcutBarEl.getBoundingClientRect();
     // The status shares the line's baseline when each occupies its own corner. If either
     // grows until their horizontal spans meet, stack the status above the line instead.
     bottomStatusEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
-    let status = bottomStatusEl.getBoundingClientRect();
+    const status = bottomStatusEl.getBoundingClientRect();
     if (
       !shortcutBarEl.inert &&
       line.height &&
@@ -156,25 +149,23 @@ export function createChromeLayout({
       overlapsAcross(status, line)
     ) {
       bottomStatusEl.style.bottom = `${innerHeight - line.top + 7}px`;
-      status = bottomStatusEl.getBoundingClientRect();
     } else if (panelCovers() && status.height && overlaps(status, foot)) {
+      // Unlike the inert shortcut guide, notices are live feedback from the foreground
+      // action and remain visible above the covering panel's foot.
       bottomStatusEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
-      status = bottomStatusEl.getBoundingClientRect();
     }
     // What a scroll region gives up is the part of the line that stands over it: the band
     // from the line's top down to that region's own foot, plus the air above the line.
     // Read off the rendered line rather than stated as a number, which is what keeps it
     // true when the line's face or its padding moves — and off each region's own foot,
-    // because the three do not end in the same place. The document ends at the foot of
-    // the window; the panel's list ends at the top of the complete panel foot, whose
-    // composer can grow to half the window with a draft.
+    // because the regions do not necessarily end in the same place. The document ends at
+    // the foot of the window.
     //
     // The band and not the height. The height alone leaves out every inset holding the
-    // line off the foot — the 14px above, a covering sheet's lift, the device's safe area
-    // — which spent 14 of the 20px of air on the inset and left the document's last line
-    // 5px clear rather than 20, and over a covering sheet was short by the whole lift:
-    // 148px of line standing on a reservation of 51. One box read rather than three
-    // numbers added up, so a fourth inset cannot be introduced without this following it.
+    // line off the foot — the 14px above and the device's safe area — which spent 14 of
+    // the 20px of air on the inset and left the document's last line 5px clear rather
+    // than 20. One box read rather than two numbers added up, so a third inset cannot be
+    // introduced without this following it.
     //
     // A bottom surface that is not rendered is a band nothing stands in, so nothing
     // reserves it. A region gives up only the deepest surface crossing its own width.
@@ -208,7 +199,7 @@ export function createChromeLayout({
     // reaches it, and it runs under the line at every width. It does not take the band
     // today, deliberately: `lf-toc`'s own rule in the default theme carries the reasoning
     // and the TODO, which is that the line has to be a hover or a foot and not both.
-    document.documentElement.style.setProperty("--lf-bottom-chrome-clear", clear);
+    setRuntimeRootStyle(document.documentElement, "--lf-bottom-chrome-clear", clear);
     // A tray's list is the page's other scroll region, in the corner the line is
     // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the
     // document's band is its band — and it states it twice, because it reaches
@@ -220,18 +211,10 @@ export function createChromeLayout({
     // takes the tray's width off the line's: a busy scope already fills a laptop's, so
     // the room it gives up is chips clipped off the right-hand end.
     reserveListClearance(clear);
-    // The panel's own list is the third scroll region the line can stand over. Its
-    // reservation follows the same rendered overlap as the lift: a covering sheet with a
-    // free lane beside it takes no room for a line that never reaches the list. Spent the
-    // same two ways a tray's is — the wheel reads the padding, a walk's scroll-into-view
-    // reads the scroll padding — and returned to the stylesheet's inset when there is no
-    // shared lane.
-    //
-    // Measured to this list's own foot, which is the top of the complete fixed panel foot
-    // rather than the window's. Giving it the document's band reserved the whole lift
-    // twice: the line is standing on the foot, not on the list, so a grown draft put its
-    // own height of blank paper under the last thread and parked a `t` walk that far short
-    // of the list's end.
+    // The panel list is its own scroll region. The inert guide no longer reaches it, but
+    // a live walk status remains above the covering panel and can stand over its list.
+    // Reserve only the rendered bottom surface that crosses the list, for both wheel and
+    // scroll-into-view landings, and restore the stylesheet's inset when none does.
     const listClear = panelIsOpen()
       ? (roomBelow(threadsBox.getBoundingClientRect()) ?? "")
       : "";

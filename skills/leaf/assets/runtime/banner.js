@@ -417,8 +417,10 @@ function renderStatusNow(state) {
     quiet,
     saved,
   });
-  const explanation =
+  let explanation =
     kind === "working" && activity.ts ? `${text} (${ago(activity.ts)})` : text;
+  if (kind === "working" && activity.counts.queued)
+    explanation += `. ${activity.counts.queued} more update${activity.counts.queued === 1 ? " is" : "s are"} queued.`;
   showStatus(kind, TONE[kind], summary, explanation);
 }
 

@@ -3534,16 +3534,17 @@ expire old keys</code></pre>
         have focused working pages in the package catalog.
       </p>
       <p id="bg-start">
-        Use the contents spine or Page Map to find a feature; each eyebrow lists its
-        element names. Leaf puts circular controls and status indicators at page edges.
-        Hover over one for its label, or Tab into a group and use ← / → and Enter. Press
+        Use the contents spine or Page Map to find a feature. A feature eyebrow lists
+        the literal <code>lf-*</code> code names for what that section demonstrates. On
+        a desktop, hover the compact spine or press <kbd>g</kbd> to reveal its labels
+        over the settled page; wide boards keep the same allocation while the map is
+        open. Leaf puts circular controls and status indicators at page edges. Hover
+        over one for its label, or Tab into a group and use ← / → and Enter. Press
         <kbd>a</kbd> to move through Asks. Changes persist on reload.
       </p>
 
       <section id="bg-core-surfaces">
-        <p class="eyebrow bg-feature-elements">
-          Leaf chrome · lf-toc · lf-ask · lf-options · lf-option
-        </p>
+        <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
         <h2>
           <strong>Asks</strong
           ><span class="bg-feature-detail">: decisions and answers</span>
@@ -3649,9 +3650,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-conversations">
-        <p class="eyebrow bg-feature-elements">
-          Thread control · inline thread · Threads panel
-        </p>
         <h2>
           <strong>Threads</strong
           ><span class="bg-feature-detail">: anchored conversations</span>
@@ -3691,7 +3689,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-reactions">
-        <p class="eyebrow bg-feature-elements">Reaction controls · reaction picker</p>
         <h2>
           <strong>Reactions</strong
           ><span class="bg-feature-detail">: short verdicts on a passage</span>
@@ -3723,26 +3720,30 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-margin-controls">
-        <p class="eyebrow bg-feature-elements">
-          lf-margin-entry-gallery · Action control · Disclosure control · Status
-          indicator · Agent ownership · lf-suggestion
-        </p>
+        <p class="eyebrow bg-feature-elements">lf-margin-entry</p>
         <h2>
           <strong>Margin entries</strong
-          ><span class="bg-feature-detail"
-            >: every rank, tone, and ownership stage</span
-          >
+          ><span class="bg-feature-detail">: every face, state, and projection</span>
         </h2>
         <p id="bg-margin-controls-guide">
-          <strong>Everything visible at once.</strong> The first row holds every rank,
-          behavior, and tone. The second compares agent ownership: whether the agent has
-          the item. No ownership treatment means not held; pickup uses a green icon; a
-          green interior means working. Ownership decorates the item's existing control.
-          The Activity dot remains only when there is no other control to carry that
-          treatment. These inert specimens use the same constructors and stylesheet as
-          the live controls and status indicators. Reload to see the one-time pulse as
-          Working arrives. A control dims only while its reader action is waiting for
-          the log to confirm it.
+          <strong>One inventory, using the production controls.</strong> A margin entry
+          is runtime-owned chrome whose shared code name is
+          <code>lf-margin-entry</code>, rather than an authored element type. Rank and
+          behavior cover every action, disclosure, status, tone, and ordering rank.
+          Agent workflow follows one reader move: Sent becomes Waiting when no agent
+          accepts it, Queued when an agent accepts it for a later turn, Picked up when a
+          turn opens, and Working while the agent prepares the result. Was working and
+          Picked up · turn ended keep unsettled work visible while it awaits
+          continuation. Pickup and work decorate the existing semantic control; a status
+          face carries the same workflow when no control survives. Face anatomy shows
+          the icon-or-glyph choice, a related-reading count, and the transient label
+          with its quieter context. Reader interaction compares rest, hover or keyboard
+          focus, an open disclosure, and a selected page reading. Hover and Tab onto the
+          live specimens to exercise their real feedback. The projection specimen stands
+          at this exhibit's margin; open Page Map to see that same contributed control
+          as a full labeled row. Reload to see the one-time pulse as Working arrives. A
+          control dims only while its reader action is waiting for the log to confirm
+          it.
         </p>
         <lf-margin-entry-gallery
           id="bg-margin-controls-specimens"
@@ -3756,7 +3757,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           The content changes immediately, and Undo dims while the event travels. A
           refused send restores the suggestion and puts Failed in words beside Retry and
           Cancel. Success leaves the changed content and an Undo control alone in the
-          cluster. Sent remains as a status until an agent picks the decision up.
+          cluster. The same Agent workflow reports the decision until the result settles
+          it.
         </p>
         <p id="bg-margin-control-workflow-line">
           The practice route uses
@@ -3776,9 +3778,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-status-guide">
           <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
           Save and Cancel controls; Save dims while it sends. The saved draft arrives
-          with a Waiting for pickup status. Its icon turns green when picked up; its
-          interior turns green, with one arrival pulse, while the agent works on it.
-          Hover for the control's action and current work description.
+          with a Waiting for pickup status. The same workflow moves onto the draft's
+          semantic control when picked up; its icon turns green, then its interior turns
+          green with one arrival pulse while the agent works. Hover for the control's
+          action and current work description.
         </p>
         <p id="bg-buttons-line">
           <strong>Combine roles.</strong> Use the
@@ -3811,16 +3814,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-reader-workflows">
-        <p class="eyebrow bg-feature-elements">
-          Approve version · Design mode · Draw mode · Kept draft
-        </p>
         <h2>
           <strong>Reader workflows</strong
           ><span class="bg-feature-detail">: approval and interface comments</span>
         </h2>
 
         <section id="bg-signoff">
-          <p class="eyebrow bg-feature-elements">Approve version · Undo</p>
           <h3>
             <strong>Sign-off</strong
             ><span class="bg-feature-detail">: approve a version</span>
@@ -3834,7 +3833,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-design-comments">
-          <p class="eyebrow bg-feature-elements">Design mode · interface comment</p>
           <h3>
             <strong>Design mode</strong
             ><span class="bg-feature-detail">: comment on the interface</span>
@@ -3847,7 +3845,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-drawing-comments">
-          <p class="eyebrow bg-feature-elements">Draw mode · drawing comment</p>
           <h3>
             <strong>Draw mode</strong
             ><span class="bg-feature-detail">: point with a freehand mark</span>
@@ -3861,7 +3858,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-kept-draft">
-          <p class="eyebrow bg-feature-elements">Kept draft · go-to destination</p>
           <h3>
             <strong>Kept draft</strong
             ><span class="bg-feature-detail"
@@ -3936,7 +3932,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-default-presentation">
-        <p class="eyebrow bg-feature-elements">Default package</p>
         <h2>
           <strong>Evidence widgets</strong
           ><span class="bg-feature-detail">: charts and structured views</span>
@@ -4200,8 +4195,8 @@ gallery/
         data-interaction-viewport="2"
       >
         <p class="eyebrow bg-feature-elements">
-          Core · lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board ·
-          lf-column · lf-card · Thread control · Threads panel
+          lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
+          lf-card
         </p>
         <h2 id="bg-interactions-title">
           <strong>Interactions</strong
@@ -4437,7 +4432,6 @@ switch --readers checkout-api,orders-api</code></pre>
       </section>
 
       <section id="bg-version-changes">
-        <p class="eyebrow bg-feature-elements">Versions menu · Change control</p>
         <h2>
           <strong>Version changes</strong
           ><span class="bg-feature-detail">: comparison evidence</span>
@@ -4450,17 +4444,15 @@ switch --readers checkout-api,orders-api</code></pre>
       </section>
 
       <section id="bg-delivery">
-        <p class="eyebrow bg-feature-elements">
-          lf-board · lf-column · lf-card · delivery indicators · continuation fade
-        </p>
+        <p class="eyebrow bg-feature-elements">lf-board · lf-column · lf-card</p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong
-          ><span class="bg-feature-detail">: work and handoff state</span>
+          ><span class="bg-feature-detail">: work and workflow state</span>
         </h2>
         <p id="bg-delivery-guide">
           Drag the card to Tried, use its grip with Enter and the arrows, or tap a
-          destination on a phone. Sent, Picked up, and Active report agent handoff. A
-          refused send offers Retry and Cancel.
+          destination on a phone. Sent, Picked up, and Working report the agent
+          workflow. A refused send offers Retry and Cancel.
         </p>
         <p id="bg-cut-guide">
           This board carries more columns than the page has room for, so it scrolls
@@ -4474,8 +4466,8 @@ switch --readers checkout-api,orders-api</code></pre>
           <lf-column id="bg-work-ready" label="Ready">
             <lf-card id="bg-work"
               ><strong>Check the sample route</strong>
-              A live work claim puts an Active indicator here because this card has no
-              other margin control to carry its activity dot.
+              A live work claim puts a Working indicator here because this card has no
+              other margin control to carry its workflow state.
             </lf-card>
           </lf-column>
           <lf-column id="bg-work-tried" label="Tried"></lf-column>

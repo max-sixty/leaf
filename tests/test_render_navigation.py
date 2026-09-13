@@ -7,55 +7,67 @@ import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_support import (
-    ADDRESSED_PAGE,
+from render_cases_interaction import (
     ASKS_PAGE,
+    COMMAND_HUB_EXAMPLE,
+    PANEL_PAGE,
+    SEATED_ASK_LAYER,
+    SEATED_ASK_WIDGETS,
+    SEATED_QUESTION_PAGE,
+    live_url,
+    panel_comment,
+)
+from render_cases_layout import (
+    in_threads_scrollport,
+    page_at_rest,
+)
+from render_cases_navigation import (
+    ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
-    BOARD_PAGE,
     CHIPS,
     CLIPPED_BY,
-    COMMAND_HUB_EXAMPLE,
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
     DIFF_PAGE,
     DISCLOSED_PAGE,
-    EXAMPLES,
-    FEATURE_GALLERY,
     FOOTED_PAGE,
-    INLINE_PAGE,
     INSIDE_ITS_OPTION,
-    LONG_PAGE,
     NOTED_PAGE,
     OVER_WORDS,
-    PAGE_FIXTURES,
-    PANEL_PAGE,
-    RENDERED,
-    ROOT,
-    SEATED_ASK_LAYER,
-    SEATED_ASK_WIDGETS,
-    SEATED_QUESTION_PAGE,
     TARGETS_PAGE,
-    TOKEN,
-    WHERE_I_STAND_PAGE,
     _publish,
     address_code,
     address_codes,
     card_body,
     composer_quote,
     go_to_address,
-    hold_selection,
-    in_threads_scrollport,
-    leaf_page,
-    live_url,
     mark_point,
+    painted,
+    pending_text,
+    standing_mark,
+    wait_for_pending_mark,
+    wait_hovered,
+    wait_standing,
+)
+from render_cases_widgets import (
+    WHERE_I_STAND_PAGE,
+)
+from render_harness import (
+    BOARD_PAGE,
+    EXAMPLES,
+    FEATURE_GALLERY,
+    INLINE_PAGE,
+    LONG_PAGE,
+    PAGE_FIXTURES,
+    RENDERED,
+    ROOT,
+    TOKEN,
+    hold_selection,
+    leaf_page,
     open_page,
     open_versions,
     opened_tab,
-    page_at_rest,
-    painted,
-    panel_comment,
     panel_settled,
-    pending_text,
     post_event,
     refuse,
     resized,
@@ -65,12 +77,8 @@ from render_support import (
     shortcut_bar_text,
     stamp_page,
     stamp_version_file,
-    standing_mark,
     told,
-    wait_for_pending_mark,
     wait_for_revision,
-    wait_hovered,
-    wait_standing,
     watched,
 )
 
@@ -144,7 +152,6 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
         f"() => document.querySelector('#left-reading .lf-pane-body').scrollTop < {left_position}"
     )
     assert errors == []
-    page.close()
 
 
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
@@ -170,7 +177,6 @@ def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     assert abs(readings[0] - readings[1]) > 100, readings
     expect(page.locator("#right-subject")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):
@@ -242,7 +248,6 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     expect(field).to_have_value(draft)
     assert "Left end" in pending_text(page)
     assert errors == []
-    page.close()
 
 
 def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser, serve):
@@ -273,7 +278,6 @@ def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser,
     assert readings["right"] > readings["left"] + 100, readings
     assert abs(readings["rightRelative"] - relative) < 3, (relative, readings)
     assert errors == []
-    page.close()
 
 
 def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
@@ -320,6 +324,11 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     page.locator("#left-start .lf-mark-note").click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
+    # The card shows before it is placed: opening it resets the placement and leaves it
+    # transparent at the viewport origin until the next frame's measurement lands. A
+    # non-empty box is visible to Playwright whatever its opacity, so the placement
+    # attribute the runtime writes with the position is what says the card has one.
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
     preview_geometry = preview.evaluate(
         """el => {
           const card = el.getBoundingClientRect();
@@ -348,7 +357,6 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-conversation-thread")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
@@ -397,7 +405,6 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
     assert left.evaluate("el => el.scrollTop") > 0
     assert right.evaluate("el => el.scrollTop") > 0
     assert errors == []
-    page.close()
 
 
 def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
@@ -430,7 +437,6 @@ def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
     assert queue.evaluate("el => el.scrollTop") == queue_before
     assert events_model.read_events(serve.page_dir) == events_before
     assert errors == []
-    page.close()
 
 
 def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
@@ -465,7 +471,6 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
     assert detail.evaluate("el => el.scrollTop") < detail_before
     assert queue.evaluate("el => el.scrollTop") == queue_before
     assert errors == []
-    page.close()
 
 
 def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
@@ -539,7 +544,6 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
         ["review-billing-legacy"],
     ]
     assert errors == []
-    page.close()
 
 
 def test_current_and_proposed_results_share_one_review_and_flow_in_order(
@@ -576,7 +580,6 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     assert boxes[0]["bottom"] <= boxes[1]["y"] + 1, boxes
     assert boxes[1]["bottom"] <= decision["y"] + 1, [*boxes, decision]
     assert errors == []
-    page.close()
 
 
 def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve):
@@ -634,7 +637,6 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
     assert proposed.evaluate("el => el.scrollTop") < proposed_after_current
     assert current.evaluate("el => el.scrollTop") == current_after_current
     assert errors == []
-    page.close()
 
 
 def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
@@ -683,7 +685,6 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
         ["comparison-policy-shared"]
     ]
     assert errors == []
-    page.close()
 
 
 def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
@@ -715,7 +716,6 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
     assert inner.evaluate("el => el.scrollTop") == 0
     assert sibling.evaluate("el => el.scrollTop") == 0
     assert errors == []
-    page.close()
 
 
 def test_the_feature_gallery_exercises_the_injected_core_surfaces(
@@ -824,7 +824,6 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         header_box["x"] + header_box["width"], abs=0.5
     ), (header_box, close_box)
     assert errors == []
-    page.close()
 
 
 def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser, serve):
@@ -853,7 +852,6 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
         "id", "bg-route-river"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, serve):
@@ -884,7 +882,6 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, s
     expect(page.locator(":target")).to_have_attribute("id", destination[1:])
     expect(target).to_be_in_viewport()
     assert errors == []
-    page.close()
 
 
 def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
@@ -945,7 +942,6 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     expect(retry).to_have_count(0)
 
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_command_hub_exercises_request_failure_retry_and_success(browser, serve):
@@ -1038,7 +1034,6 @@ def test_command_hub_exercises_request_failure_retry_and_success(browser, serve)
     expect(restart).to_be_disabled()
 
     assert errors == []
-    page.close()
 
 
 def test_the_feature_gallery_exercises_live_and_snapshotted_external_data(
@@ -1067,7 +1062,6 @@ def test_the_feature_gallery_exercises_live_and_snapshotted_external_data(
     )
 
     assert errors == []
-    page.close()
 
 
 def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
@@ -1134,7 +1128,6 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     assert errors == []
-    page.close()
 
 
 def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, serve):
@@ -1187,7 +1180,38 @@ def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, se
     expect(card).to_be_hidden()
 
     assert errors == []
-    page.close()
+
+
+def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):
+    """A region's frame names it for reading keys but does not live in its body."""
+    page, errors = open_page(
+        browser,
+        serve(READING_REGIONS_PAGE, anchored=[("left-head", "Left header")]),
+    )
+    resized(page, 1200, 900)
+    page.locator('[data-lf-margin-for="left-head"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    geometry = preview.evaluate(
+        """card => {
+          const box = card.getBoundingClientRect();
+          const pane = document.querySelector('#left-reading .lf-pane-body')
+            .getBoundingClientRect();
+          return {
+            box: box.toJSON(),
+            pane: pane.toJSON(),
+            viewport: {width: innerWidth, height: innerHeight},
+          };
+        }"""
+    )
+    assert geometry["box"]["left"] >= 0, geometry
+    assert geometry["box"]["right"] <= geometry["viewport"]["width"], geometry
+    assert (
+        geometry["box"]["left"] < geometry["pane"]["left"]
+        or geometry["box"]["right"] > geometry["pane"]["right"]
+    ), geometry
+    assert errors == []
 
 
 def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
@@ -1235,7 +1259,6 @@ def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
     tab.close()
     assert targets() == before
     browser_session.detach()
-    page.close()
 
 
 def test_an_external_link_says_and_opens_where_it_goes(
@@ -1281,7 +1304,6 @@ def test_an_external_link_says_and_opens_where_it_goes(
     expect(page).to_have_url(url)
     tab.close()
     assert errors == []
-    page.close()
 
 
 def test_an_addressed_link_leaves_the_reader_at_its_destination(
@@ -1322,7 +1344,6 @@ def test_an_addressed_link_leaves_the_reader_at_its_destination(
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
     tab.close()
     assert errors == []
-    page.close()
 
 
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):
@@ -1373,7 +1394,6 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     page.wait_for_url(re.compile(rf"{re.escape(prepare_href)}$"))
     expect(page.get_by_role("heading", name="Prepare", exact=True)).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
@@ -1511,7 +1531,6 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     )
     assert focus["width"] > 0 and focus["style"] != "none", focus
     assert errors == []
-    page.close()
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
@@ -1589,7 +1608,6 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     assert acts[-1]["widget"] == "live-question"
     assert acts[-1]["detail"] == {"options": ["lq-keep"]}
     assert errors == []
-    page.close()
 
 
 def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
@@ -1677,7 +1695,6 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     page.locator("#h").click()
     expect(position).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_questions_digits_are_drawn_whole(browser, serve):
@@ -1760,7 +1777,6 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
         f"the digits move between seats within one form: {seats}"
     )
     assert errors == []
-    page.close()
 
 
 def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
@@ -1898,7 +1914,6 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     )
     page.keyboard.press("Escape")
     assert errors == []
-    page.close()
 
 
 def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
@@ -1957,7 +1972,6 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     expect(second).to_have_class(re.compile(r"\blf-mark-hover\b"))
     wait_hovered(page, "neighbouring block")
     assert errors == []
-    page.close()
 
 
 def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
@@ -2014,7 +2028,6 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
         < page.locator(".lf-threads").bounding_box()["height"]
     )
     assert errors == []
-    page.close()
 
 
 def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
@@ -2095,7 +2108,6 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     )
     expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
@@ -2237,7 +2249,6 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     page.keyboard.press("Enter")
     expect(first.locator("textarea")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, serve):
@@ -2276,7 +2287,6 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     expect(page.locator(".lf-live")).to_contain_text("Thread 1 of 1")
 
     assert errors == []
-    page.close()
 
 
 def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser, serve):
@@ -2347,7 +2357,6 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         "border": "rgba(0, 0, 0, 0)",
     }
     assert errors == []
-    page.close()
 
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
@@ -2490,7 +2499,6 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         f"the current surface landed on inline thread content: {clearances}"
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("long_thread", [False, True], ids=["short", "long"])
@@ -2680,7 +2688,6 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             f"the pinned heading cut through a text line: {landing}"
         )
     assert errors == []
-    page.close()
 
 
 def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
@@ -2783,7 +2790,6 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
         "the posted marks went down with the standing one"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_hovered_thread_rebinds_to_a_replaced_anchor(browser, serve):
@@ -2832,7 +2838,6 @@ def test_a_hovered_thread_rebinds_to_a_replaced_anchor(browser, serve):
     }, f"the parked hover did not move from the detached v1 anchor to v2: {state}"
     expect(page.locator(".lf-thread")).to_have_class(re.compile(r"\blf-mark-hover\b"))
     assert errors == []
-    page.close()
 
 
 def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serve):
@@ -3002,7 +3007,6 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
         "the posted marks went down with the pointer's"
     )
     assert errors == []
-    page.close()
 
 
 def test_closing_the_panel_puts_down_the_card_it_was_lighting(browser, serve):
@@ -3036,7 +3040,6 @@ def test_closing_the_panel_puts_down_the_card_it_was_lighting(browser, serve):
     )
     wait_hovered(page, "")
     assert errors == []
-    page.close()
 
 
 def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
@@ -3167,7 +3170,6 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     assert "2 comments" in page.locator("#p1").aria_snapshot()
     assert "1 comment" in page.locator("#p2").aria_snapshot()
     assert errors == []
-    page.close()
 
 
 def test_generated_hints_fit_the_visible_screen(browser, serve):
@@ -3254,7 +3256,6 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     expect(page.locator(CHIPS)).to_have_count(0)
     expect(page.locator("#top")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
@@ -3477,7 +3478,6 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.wait_for_url(re.compile(r"#p2$"))
     expect(page.locator("#p2")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve):
@@ -3520,7 +3520,6 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     )
     expect(page.locator(".lf-notice")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
@@ -3556,7 +3555,6 @@ def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
     page.keyboard.type(address_code(page, "Link", "fn1"))
     page.wait_for_url(re.compile(r"#s1$"))
     assert errors == []
-    page.close()
 
 
 def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
@@ -3594,7 +3592,6 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
         f"hints are drawn over the shortcut bar that explains them: {fouled}"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
@@ -4075,7 +4072,6 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(ta1).to_have_value("gc1")
     expect(ta1).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
@@ -4106,7 +4102,6 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     expect(page.locator("a.lf-others-row").first).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
@@ -4152,7 +4147,6 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
     expect(position).to_have_text(re.compile(r"^Marker 2 of \d+$"))
 
     assert errors == []
-    page.close()
 
 
 def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
@@ -4188,7 +4182,6 @@ def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
     expect(page.locator(".lf-banner-menu .lf-others")).to_be_visible()
     expect(asks.first).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_completed_asks_tray_stays_reachable_through_its_banner_control(
@@ -4230,7 +4223,6 @@ def test_a_completed_asks_tray_stays_reachable_through_its_banner_control(
     page.keyboard.press("Shift+a")
     expect(page.locator(".lf-asks-row")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 # What the shortcut bar is saying, chip by chip. The word is the chip's own trailing span —
@@ -4294,7 +4286,6 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
             f"keycaps are the whole difference: {twice}"
         )
     assert errors == []
-    page.close()
 
 
 def test_a_completed_asks_tray_keeps_the_answer_visible(browser, serve):
@@ -4325,7 +4316,6 @@ def test_a_completed_asks_tray_keeps_the_answer_visible(browser, serve):
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-asks-answer")).to_have_text("First")
     assert errors == []
-    page.close()
 
 
 def test_an_asks_tray_says_when_a_revision_removes_its_last_ask(browser, serve):
@@ -4356,7 +4346,6 @@ def test_an_asks_tray_says_when_a_revision_removes_its_last_ask(browser, serve):
     expect(note).to_be_visible()
     expect(note).to_contain_text("Nothing is waiting on you")
     assert errors == []
-    page.close()
 
 
 def test_the_g_chord_opens_an_empty_page_map(browser, serve):
@@ -4387,7 +4376,6 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     )
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serve):
@@ -4452,7 +4440,6 @@ def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serv
     page.wait_for_url(re.compile(r"#bottom$"))
     expect(page.locator("#bottom")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, serve):
@@ -4484,7 +4471,6 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
     expect(page.locator(CHIPS)).to_have_count(1)
     page.keyboard.press("Escape")
     assert errors == []
-    page.close()
 
 
 def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
@@ -4546,7 +4532,6 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     expect(results).to_be_focused()
     page.keyboard.press("Escape")
     assert errors == []
-    page.close()
 
 
 def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
@@ -4606,7 +4591,6 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     expect(help_el).to_be_hidden()
     expect(opener).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_the_reference_runs_available_commands_and_explains_the_rest(browser, serve):
@@ -4831,7 +4815,6 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(help_el).to_be_hidden()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     assert errors == []
-    page.close()
 
 
 def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
@@ -4862,7 +4845,6 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     round_trip(page)
 
     assert errors == []
-    page.close()
 
 
 def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
@@ -4908,7 +4890,6 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     expect(page.locator("#note textarea")).to_have_count(0)
 
     assert errors == []
-    page.close()
 
 
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
@@ -4964,7 +4945,6 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     )
     page.keyboard.press("Escape")
     assert errors == []
-    page.close()
 
 
 def test_the_reference_reads_the_same_way_twice(browser, serve):
@@ -5046,7 +5026,6 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
         "Space scrolled the page instead of working the control it was promised on"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
@@ -5074,7 +5053,6 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(tabs.first).to_be_focused()
     expect(page.locator(".lf-walk-position")).to_have_text("Tab 1 of 2")
     assert errors == []
-    page.close()
 
 
 def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
@@ -5107,7 +5085,6 @@ def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
     expect(checkbox).to_be_checked()
     expect(checkbox).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve):
@@ -5183,7 +5160,6 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     page.wait_for_url(re.compile(r"#link-23$"))
     expect(page.locator(CHIPS)).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser, serve):
@@ -5240,7 +5216,6 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     expect(page.locator("#arrival")).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, serve):
@@ -5396,7 +5371,6 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
     page.keyboard.press("Enter")
     assert staged.evaluate("el => el.parentElement.open") is not opened_now
     assert errors == []
-    page.close()
 
 
 def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
@@ -5449,7 +5423,6 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
         expect(page.locator(control)).to_have_attribute("aria-expanded", "false")
 
     assert errors == []
-    page.close()
 
 
 def test_global_destinations_switch_from_a_covering_workspace(
@@ -5529,7 +5502,6 @@ def test_global_destinations_switch_from_a_covering_workspace(
     expect(page.locator(".lf-thread-panel")).to_be_visible()
 
     assert errors == []
-    page.close()
 
 
 def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, serve):
@@ -5579,7 +5551,6 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
-    page.close()
 
 
 def test_reference_does_not_restore_a_popover_across_modal_entry(browser, serve):
@@ -5633,7 +5604,6 @@ def test_reference_does_not_restore_a_popover_across_modal_entry(browser, serve)
     expect(versions).to_be_hidden()
     assert panel.evaluate("panel => panel.contains(document.activeElement)")
     assert errors == []
-    page.close()
 
 
 def test_the_key_line_says_what_a_press_will_do(browser, serve):
@@ -5723,7 +5693,6 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
@@ -5886,7 +5855,6 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
         "return to the passage"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
@@ -5933,7 +5901,6 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     expect(page.locator("#key-owning-widget")).to_have_attribute("data-fired", "Escape")
     expect(page.locator(".lf-version-menu")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
@@ -6061,7 +6028,6 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(page.locator("#return-outer")).to_be_hidden()
     expect(page.locator("body")).to_have_attribute("data-closed-frame", "outer")
     assert errors == []
-    page.close()
 
 
 def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
@@ -6381,7 +6347,6 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
         "data-fired", "1"
     )
     assert errors == []
-    page.close()
 
 
 def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, serve):
@@ -6413,7 +6378,6 @@ def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, se
     assert len(done) == 1, done
     assert done[0]["text"] == "Looks good"
     assert errors == []
-    page.close()
 
 
 def test_banner_destinations_use_transient_target_overlays(browser, serve):
@@ -6563,7 +6527,6 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     )
     expect(page.locator(".lf-command-reference-meta")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
@@ -6761,7 +6724,6 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     )
     assert native == {"ran": 1, "prevented": False}, native
     assert errors == []
-    page.close()
 
 
 def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
@@ -6804,7 +6766,6 @@ def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
     page.wait_for_function("before => scrollY < before", arg=before)
     assert page.locator("#local-down").get_attribute("data-pressed") is None
     assert errors == []
-    page.close()
 
 
 def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
@@ -6863,7 +6824,6 @@ def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
     expect(page.locator("#outer-scope")).to_have_attribute("data-f3", "1")
 
     assert errors == []
-    page.close()
 
 
 def test_an_unavailable_inner_escape_keeps_the_next_unwind_reachable(browser, serve):
@@ -6898,7 +6858,6 @@ def test_an_unavailable_inner_escape_keeps_the_next_unwind_reachable(browser, se
     )
 
     assert errors == []
-    page.close()
 
 
 def test_the_register_is_the_only_way_a_key_enters_the_runtime():
@@ -6952,7 +6911,6 @@ def test_native_controls_need_no_generic_space_binding(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-lift")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
@@ -6992,7 +6950,6 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.evaluate(press, ["l", False, True])  # the same event, answered
     expect(tray).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
@@ -7070,7 +7027,6 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
     page.keyboard.press("Shift+a")
     expect(page.locator("#second-decision")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_rest(
@@ -7206,7 +7162,6 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     )
     expect(visible_hints).to_have_count(2)
     assert errors == []
-    page.close()
 
 
 def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, serve):
@@ -7254,7 +7209,6 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     expect(help_el).to_contain_text("Move 60% of a page down")
     expect(help_el).to_contain_text("Move 60% of a page up")
     assert errors == []
-    page.close()
 
 
 def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, serve):
@@ -7409,9 +7363,10 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
 
     The room was measured as the line's height alone. Its own 14px inset came out of the
     20px of air that was supposed to be left over, so the document's last line cleared the
-    line by five pixels rather than twenty; over a covering sheet, which lifts the line by
-    the whole height of the panel's foot, the reservation was short by that lift. The band
-    from the line's top to a region's own foot is one measurement and covers every inset.
+    line by five pixels rather than twenty. The band from the line's top to a region's own
+    foot is one measurement and covers every inset. A covering sheet leaves that viewport
+    band unchanged: its growing foreground footer is not geometry owned by the background
+    line.
 
     The press is the other half. The line and its chips take no pointer events, so a
     control the line stands over on some scroll position is still a control. Its More
@@ -7435,20 +7390,18 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
         f"the document's last control ends in the shortcut bar's band: {ended}"
     )
 
-    # A covering sheet lifts the line over the whole of its own foot, and the band grows
-    # by that lift. This is where a reservation counting only the line's height parts
-    # company with the line: 148px of footprint standing on 51px of reserved room.
+    # A covering sheet makes the line inert background. Neither the sheet nor its footer
+    # can move the line; the document's existing band remains a reading reservation for
+    # the viewport-fixed line when the sheet closes again.
     resized(page, 420, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     page.evaluate(RENDERED)
     covered = page.evaluate(FOOT_ROOM)
-    # The lift is what this phase is about, so it has to have happened: without it the
-    # footprint is the resting one and the reservation below is the resting question again.
-    assert covered["footprint"] > ended["footprint"] + 20, (
-        f"the sheet never lifted the line, so the reservation is untested here: {covered}"
+    assert covered["footprint"] == pytest.approx(ended["footprint"], abs=1), (
+        f"the covering sheet moved the viewport-fixed line: {ended}, {covered}"
     )
     assert covered["reserved"] >= covered["footprint"] + 20, (
-        f"the sheet lifted the line off a reservation that never heard about it: {covered}"
+        f"the document lost the line's standing reservation: {covered}"
     )
     page.keyboard.press("Escape")
 
@@ -7487,7 +7440,6 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
         }"""
     ), "the line's own control stopped answering a press"
     assert errors == []
-    page.close()
 
 
 def test_the_expanded_key_line_stands_down_for_a_page_press_and_another_command(
@@ -7512,7 +7464,6 @@ def test_the_expanded_key_line_stands_down_for_a_page_press_and_another_command(
         line.locator('kbd[data-lf-sequence-step-state="pressed"]').first
     ).to_have_text("g")
     assert errors == []
-    page.close()
 
 
 def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser, serve):
@@ -7581,7 +7532,6 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
     expect(page.locator(".lf-shortcut-more")).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser, serve):
@@ -7626,7 +7576,6 @@ def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser,
         f"{probe['frames']} frames: {probe}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_select_keeps_its_native_typeahead_letters(browser, serve):
@@ -7643,7 +7592,6 @@ def test_a_select_keeps_its_native_typeahead_letters(browser, serve):
     expect(pick).to_have_value("cat")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
@@ -7686,7 +7634,6 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
         page.keyboard.press("Escape")
         expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
@@ -7767,7 +7714,6 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     expect(more).to_have_attribute("aria-label", "? more")
     expect(more).to_have_attribute("aria-keyshortcuts", "?")
     assert errors == []
-    page.close()
 
 
 def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
@@ -7900,7 +7846,6 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.mouse.up()
     assert "reply" not in shortcut_bar_text(page)
     assert errors == []
-    page.close()
 
 
 def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggestion(
@@ -7967,7 +7912,6 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
         "placeholder", re.compile(r"^Replacement text .*(⌘⏎|Ctrl\+⏎)$")
     )
     assert errors == []
-    page.close()
 
 
 def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
@@ -8056,7 +8000,6 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     shortcut_bar_text(page)
     assert re.search(r"(⌘⏎|Ctrl\+⏎)$", replies.nth(1).get_attribute("placeholder"))
     assert errors == []
-    page.close()
 
 
 def test_the_key_line_names_the_selected_comment_and_its_other_responses(
@@ -8104,7 +8047,6 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
     page.keyboard.press("Escape")
 
     assert errors == []
-    page.close()
 
 
 def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
@@ -8158,7 +8100,6 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     expect(close).to_have_attribute("data-shortcut-clicks", "1")
 
     assert errors == []
-    page.close()
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
@@ -8218,7 +8159,6 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
 
     round_trip(page)
     assert errors == []
-    page.close()
 
 
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):
@@ -8379,7 +8319,6 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("On a disclosure")
     page.keyboard.press("Escape")
     assert errors == []
-    page.close()
 
 
 def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
@@ -8445,7 +8384,6 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
     expect(line).to_contain_text("reply")
 
     assert errors == []
-    page.close()
 
 
 def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve):
@@ -8505,7 +8443,6 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
@@ -8618,7 +8555,6 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     expect(page.locator(".lf-composer")).to_contain_text("paragraph")
 
     assert errors == []
-    page.close()
 
 
 def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
@@ -8752,7 +8688,6 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     )
 
     assert errors == []
-    page.close()
 
 
 def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
@@ -8818,7 +8753,6 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(page.locator(".lf-general textarea")).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
@@ -8918,7 +8852,103 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
     assert errors == []
-    page.close()
+
+
+@pytest.mark.parametrize("gesture", ["keyboard", "pointer"])
+def test_commenting_on_a_closed_disclosure_leaves_it_closed(browser, serve, gesture):
+    """Reaching Comment may scroll a visible summary without revealing its contents."""
+    page, errors = open_page(browser, serve(DISCLOSED_PAGE))
+    disclosure = page.locator("#dsc")
+    summary = page.locator("#dsc-head")
+    expect(disclosure).not_to_have_attribute("open", "")
+
+    if gesture == "keyboard":
+        summary.focus()
+        page.keyboard.press("c")
+    else:
+        summary.click(modifiers=["Alt"])
+
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(disclosure).not_to_have_attribute("open", "")
+    assert errors == []
+
+
+def test_target_chooser_reveals_a_clipped_board_card_before_commenting(browser, serve):
+    """A visible sliver is enough to offer a hint, but not to place a response box.
+
+    On a phone the next board column peeks into view as the cue that the board scrolls.
+    Choosing its card must reveal the whole card before Comment is measured, while a
+    card already in view must not move the board underneath the reader.
+    """
+    source = next(example for example in EXAMPLES if example.stem == "triage-board")
+    url = serve(source)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+
+    def choose(page, selector):
+        page.keyboard.press("s")
+        expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+        code = page.evaluate(
+            """selector => {
+              const target = document.querySelector(selector).getBoundingClientRect();
+              return [...document.querySelectorAll('.lf-target-chooser-hint')]
+                .sort((a, b) => {
+                  const ar = a.getBoundingClientRect();
+                  const br = b.getBoundingClientRect();
+                  return Math.hypot(ar.left - target.left, ar.top - target.top)
+                    - Math.hypot(br.left - target.left, br.top - target.top);
+                })[0].dataset.lfHintCode;
+            }""",
+            selector,
+        )
+        page.keyboard.type(code)
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+
+    def board_reading(page, selector):
+        return page.evaluate(
+            """selector => {
+              const board = document.querySelector('#release-board');
+              const view = board.getBoundingClientRect();
+              const card = document.querySelector(selector).getBoundingClientRect();
+              return {
+                scrollLeft: board.scrollLeft,
+                visible: Math.max(
+                  0,
+                  Math.min(card.right, view.right, innerWidth)
+                    - Math.max(card.left, view.left, 0),
+                ),
+                width: card.width,
+              };
+            }""",
+            selector,
+        )
+
+    try:
+        page, errors = open_page(browser, url, context=context)
+        before = board_reading(page, "#card-migration")
+        assert before["visible"] == pytest.approx(before["width"], abs=1), before
+        choose(page, "#card-migration")
+        assert (
+            board_reading(page, "#card-migration")["scrollLeft"] == before["scrollLeft"]
+        )
+        assert errors == []
+        page.close()
+
+        page, errors = open_page(browser, url, context=context)
+        before = board_reading(page, "#card-tz")
+        assert 0 < before["visible"] < before["width"] / 4, before
+        choose(page, "#card-tz")
+        after = board_reading(page, "#card-tz")
+        assert after["visible"] == pytest.approx(after["width"], abs=1), after
+        assert after["scrollLeft"] > before["scrollLeft"], (before, after)
+        expect(page.locator(".lf-fab-input")).to_have_attribute(
+            "aria-label", re.compile("Digest email uses server timezone")
+        )
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
 
 
 def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
@@ -8954,7 +8984,14 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     )
     seen = """() => {
       const r = document.querySelector('#card0').getBoundingClientRect();
-      return {left: Math.round(r.left), onScreen: r.right > 0 && r.left < innerWidth};
+      const b = document.querySelector('#b').getBoundingClientRect();
+      return {
+        left: Math.round(r.left),
+        onScreen: r.right > 0 && r.left < innerWidth,
+        visible: Math.max(0, Math.min(r.right, b.right, innerWidth)
+          - Math.max(r.left, b.left, 0)),
+        width: r.width,
+      };
     }"""
 
     # The control: nothing scrolled, so the card is in front of the reader and stays put.
@@ -8967,6 +9004,26 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     assert page.evaluate(seen)["left"] == was["left"], (
         "the page moved under a reader who could already see the card"
     )
+    assert errors == []
+    page.close()
+
+    # The same stale standing with only the board's next-item cue left in view. The
+    # sliver is enough for the target to exist, but not enough to place its box against.
+    page, errors = open_page(browser, url)
+    page.locator("#card0 a").focus()
+    page.evaluate(
+        """() => {
+          const card = document.querySelector('#card0');
+          document.querySelector('#b').scrollLeft = card.getBoundingClientRect().width - 7;
+        }"""
+    )
+    was = page.evaluate(seen)
+    assert 0 < was["visible"] < was["width"] / 4, was
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    now = page.evaluate(seen)
+    assert now["visible"] == pytest.approx(now["width"], abs=1), now
+    assert errors == []
     page.close()
 
     # Carried out of its own scroller after the reader stood on it — focus first, because
@@ -8985,7 +9042,6 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
         "the box opened on a card the board had carried out of sight"
     )
     assert errors == []
-    page.close()
 
 
 def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
@@ -9012,7 +9068,6 @@ def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
-    page.close()
 
 
 def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serve):
@@ -9113,7 +9168,6 @@ def test_the_reference_hands_the_reader_back_to_the_page_they_were_reading(
         page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
     )
     assert errors == []
-    page.close()
 
 
 def test_a_reader_at_the_top_of_the_document_is_one_press_from_the_chrome(
@@ -9151,4 +9205,3 @@ def test_a_reader_at_the_top_of_the_document_is_one_press_from_the_chrome(
         f"it names"
     )
     assert errors == []
-    page.close()

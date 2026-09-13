@@ -30,7 +30,9 @@ export {
   MARGIN_ENTRY_SCHEMA,
   marginEntry,
   setMarginEntryState,
-  syncMarginAgentPhase,
+  syncMarginAgentWorkflow,
+  syncMarginEntryCount,
+  syncMarginEntrySelection,
   registerMarginContribution,
 } from "./margin-entries.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";

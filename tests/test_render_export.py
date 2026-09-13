@@ -27,13 +27,21 @@ from leaf import service as service_model
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.structure import UTF8_BOM, SourceDocument
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
+    REPORT_PAGE,
+)
+from render_cases_layout import (
+    serious_axe_violations,
+)
+from render_cases_widgets import (
     CUT_BOXES_PAGE,
+)
+from render_harness import (
     LONG_PAGE,
     PAGE_FIXTURES,
     REPLAYED_PAGE,
-    REPORT_PAGE,
     leaf_page,
     open_page,
     panel_settled,
@@ -42,7 +50,6 @@ from render_support import (
     resized,
     restarting,
     sending,
-    serious_axe_violations,
     watched,
 )
 
@@ -782,7 +789,6 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
     assert errors == []
-    page.close()
 
 
 def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
@@ -888,7 +894,6 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
         == generation
     )
-    page.close()
 
 
 def test_a_failed_bootstrap_hears_a_static_registry_generation(
@@ -937,7 +942,6 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
     assert len(probes) >= 2
     assert len(navigations) == 2
     expect(status).not_to_be_visible()
-    page.close()
 
 
 @pytest.mark.parametrize("interrupted", ["registry.json", "widgets/lf-options.js"])
@@ -1000,7 +1004,6 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         )
         assert restarted.returncode == 0, restarted.stdout + restarted.stderr
     assert errors == []
-    page.close()
 
 
 def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
@@ -1110,7 +1113,6 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     assert page.locator('link[rel="stylesheet"]').count() == 0
     assert page.locator("style").count() > 0
     assert errors == []
-    page.close()
 
 
 def test_exporting_an_example_leaves_the_live_preview_untouched(
@@ -1190,6 +1192,43 @@ def test_export_waits_for_the_snapshot_the_browser_can_receive(
     assert exported.startswith(UTF8_BOM)
 
 
+def test_export_state_route_follows_the_canonical_page_root(browser):
+    """A multiplexed page keeps its capability prefix when export reads state."""
+    page = browser.new_page()
+    page.set_content(
+        '<link rel="canonical" href="/p/page-capability/" data-lf-runtime>'
+    )
+    try:
+        assert (
+            exporting_model._state_url(
+                page,
+                "https://leaf.invalid/p/page-capability/versions/v2.html",
+            )
+            == "https://leaf.invalid/p/page-capability/api/state"
+        )
+    finally:
+        page.close()
+
+
+def test_export_state_route_refuses_a_missing_canonical_without_waiting():
+    """An absent root is known from the locator count, without an attribute wait."""
+
+    class MissingCanonical:
+        def count(self):
+            return 0
+
+        def get_attribute(self, _name):
+            pytest.fail("the absent canonical must not start an attribute wait")
+
+    class Page:
+        def locator(self, selector):
+            assert selector == 'link[rel="canonical"][data-lf-runtime]'
+            return MissingCanonical()
+
+    with pytest.raises(PlaywrightError, match="document has no canonical page root"):
+        exporting_model._state_url(Page(), "https://leaf.invalid/versions/v1.html")
+
+
 def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tmp_path):
     source = leaf_page("Café handoff", "<h1>Café handoff</h1>").replace(
         '<html lang="en">', '<html data-padding="' + "&" * 300 + '">'
@@ -1208,7 +1247,6 @@ def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tm
     page.goto(out.as_uri(), wait_until="load")
     assert page.evaluate("document.characterSet") == "UTF-8"
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
-    page.close()
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -1280,7 +1318,6 @@ def test_an_exported_scroll_cue_follows_its_native_scroller(
     assert end["position"] > 0.99, end
     assert (end["left"], end["right"]) == end_edges, end
     assert len({start["mask"], middle["mask"], end["mask"]}) == 3
-    page.close()
 
 
 def test_a_browser_too_old_to_copy_a_page_is_refused_by_its_own_version(
@@ -1344,7 +1381,6 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
     expect(page.locator(":target")).to_have_attribute("id", href[1:])
     assert page.locator("script").count() == 0
     assert errors == []
-    page.close()
 
 
 def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path):
@@ -1421,7 +1457,6 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     expect(page.locator(".lf-receipt")).to_have_count(0)
     expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("resolved", [False, True], ids=["open", "resolved"])
@@ -1554,7 +1589,7 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     # a second margin row of its own, so read the exact pencil the draft currently owns.
     edit = live.get_by_role("button", name="Edit d-open", exact=True)
     expect(edit).to_be_visible()
-    expect(edit).to_have_attribute("data-lf-agent-phase", "picked_up")
+    expect(edit).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(live.get_by_text("Outcome", exact=True)).to_have_count(0)
     live.close()
 
@@ -1567,13 +1602,12 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
     # Both seats a live handoff can speak from: the status row, and the phase on the
     # control that carries it.
-    expect(page.locator("[data-lf-agent-phase]")).to_have_count(0)
+    expect(page.locator("[data-lf-agent-workflow]")).to_have_count(0)
     expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
     expect(page.locator("#d-open")).to_contain_text(
         "The sample workshop is in the red room."
     )
     assert errors == []
-    page.close()
 
 
 def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
@@ -1607,7 +1641,6 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     expect(card.locator(":scope > .lf-quiet")).to_have_text("your change")
     expect(page.locator(".lf-chrome")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_a_copy_keeps_generated_native_controls_and_their_labels(
@@ -1936,7 +1969,6 @@ def test_comparison_export_keeps_both_results_and_the_recorded_choice(
     )
     assert page.locator("script, .lf-chrome").count() == 0
     assert errors == []
-    page.close()
 
 
 def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
@@ -1981,7 +2013,6 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     expect(page.locator("#t-parser")).to_have_attribute("status", "done")
     expect(page.locator("#t-feeders > .lf-chips")).to_contain_text("2/2 done")
     expect(page.locator("#t-parser > .lf-quiet")).to_contain_text("reported update")
-    page.close()
 
 
 def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_path):

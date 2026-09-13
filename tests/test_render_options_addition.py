@@ -6,15 +6,19 @@ import re
 import pytest
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASK_PAGE,
     ASK_WITH_CONTEXT_PAGE,
-    EXAMPLE_MEDIA,
+    sent_events,
+)
+from render_cases_layout import (
     button_radius,
+)
+from render_harness import (
+    EXAMPLE_MEDIA,
     open_page,
     round_trip,
     sending,
-    sent_events,
     told,
     undo,
 )
@@ -142,7 +146,6 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert add_box["y"] >= form_box["y"]
     assert add_box["y"] + add_box["height"] <= form_box["y"] + form_box["height"]
     assert errors == []
-    page.close()
 
 
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
@@ -182,7 +185,6 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     page.keyboard.press("Escape")
     expect(mark).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
@@ -255,7 +257,6 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 PASTE_IMAGE = """(textarea, encoded) => {
@@ -303,7 +304,6 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
         event for event in sent_events(serve.page_dir) if event["kind"] == "action"
     ]
     assert errors == []
-    page.close()
 
 
 def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
@@ -351,4 +351,3 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)
     assert errors == []
-    page.close()

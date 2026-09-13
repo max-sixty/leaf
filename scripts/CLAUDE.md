@@ -48,12 +48,13 @@ rules a new or changed example has to meet.
   `main`; it runs the local check before the first public operation, then verifies the
   exact release again after deployment. That production pass also sends one private
   comment and requires the hosted Codex task to publish a revision and reply. With
-  `LEAF_VERIFY_AGENT=1`, `verify-site.py` prints the request acknowledgement, activity
-  transitions, publication, reply, and changed-page presentation timings. A turn the
-  container settles with its own generation failure is asked once more, because that
-  settlement reports the model rather than the release; every other ending is a red
-  deployment on the first ask.
-  `verify-site-agent-local.sh` runs the same delivery, App Server, edit, publication,
+  `verify_site.py --agent`, the verifier prints the request acknowledgement, activity
+  transitions, publication, reply, and changed-page presentation timings. The Worker's
+  structured `startup_failed` reply triggers one retry; rate limits and all other
+  unsuccessful endings fail the deployment on the first ask. `worker/README.md` owns
+  the failure contract.
+  `uv run scripts/verify_site.py local` runs the same delivery, App Server, edit,
+  publication,
   reply, and browser-reload path against the host's Codex login. It bypasses the
   Cloudflare Worker, container resources, and outbound credential proxy, so
   it checks agent behavior without measuring production infrastructure.
@@ -73,7 +74,7 @@ rules a new or changed example has to meet.
   a Codex turn, its `turnId` also finds the model-request timings. Analytics Engine is
   aggregate product telemetry, not a log index.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws it and the three
-  photographs of the same staged scene beside it — the landing page's light and dark
+  photographs of the same staged scene beside it — the README's light and dark
   session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.
   Keep the latter while the product can make those frames stale.
 
@@ -83,6 +84,11 @@ rules a new or changed example has to meet.
 version sits in one table there, and each bundle lands in the package whose widget
 imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
+
+`scripts/vendor-src/pierre/` is Pierre's native generator source. Its `shiki-leaf.mjs`
+contains exactly one `/* LEAF_PIERRE_LANGUAGES */` sentinel; `vendor.py` replaces it
+with one `"<name>": () => import("@shikijs/langs/<name>"),` entry for every registry
+language before bundling.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
 which holds for `marked`, `sortable`, `beautiful-mermaid`, `floating-ui`, `highlight`,

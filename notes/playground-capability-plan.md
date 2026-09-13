@@ -8,7 +8,9 @@ page-specific JavaScript. It does not become a package merely because it is inte
 This plan closes the useful gaps left by the retired standalone playground skill without
 rebuilding a second, weaker page system inside Leaf. It builds on the
 [page-instance boundary](page-instance-boundary.md), especially page-owned dependency
-capture, page-owned declarations, and interactive export.
+capture, page-owned declarations, and interactive export, and on the
+[reactive browser runtime](reactive-browser-runtime.md) for the one public behavior API,
+semantic publisher, rendering lifecycle, and presentation barrier.
 
 ## Ownership
 
@@ -39,7 +41,9 @@ module calls after a gesture changes that source. Contributor names are unique a
 collide with control names. `lf-playground` remains the coordinator: restore, preset,
 reset, projection, copy, and submit all consume the same aggregate configuration, and
 every change event contains a fresh clone of it. Contributors do not keep a second
-durable history or submit their own competing action.
+durable history or submit their own competing action. This editable aggregate is local
+draft or reader-session state; only `Submit` enters the reactive semantic publisher and
+Leaf's shared event path.
 
 The final action keeps the existing `values` plus `instruction` shape; `values` becomes
 the aggregate configuration rather than renaming the action contract. Once page-owned
@@ -185,13 +189,16 @@ that copying candidate-specific configuration changes only the intended differen
 
 1. Land #3, the #4 recipes, and the stronger #8 author checklist. Repair the notification
    example by making pressure a normal scalar control in its one existing configuration.
-2. After boundary #1 and #2, add the aggregate configuration and instruction-provider
-   contracts, then build the structured data explorer (#2 and #6).
+2. After boundary #1 and #2 and the reactive runtime's public behavior contract, add the
+   aggregate configuration and instruction-provider contracts, then build the structured
+   data explorer (#2 and #6). Reuse the joint runtime validation fixture rather than
+   creating a second integration shape.
 3. Build the real-artifact A/B example and extract only the comparison mechanics it and
    an existing example actually share (#6).
 4. Implement the Targeting changes against core identity (#7), then compose it into a
    playground example.
-5. Add interactive export on the boundary plan's captured revision graph (#5).
+5. Add interactive export on the boundary plan's captured revision graph and the
+   reactive runtime's shared offline mode (#5).
 
 Each slice updates package declarations, guidance, generated references, website copy,
 and browser tests together. Future-tense rules move from this note into the owning

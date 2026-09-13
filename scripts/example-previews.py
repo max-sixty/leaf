@@ -115,21 +115,29 @@ def require_capture_fonts(page: Page) -> None:
 
 
 def update_catalog(previews: set[Path]) -> None:
-    """Point each example card at the content address of its new still."""
-    catalog = DOCS / "examples.html"
-    markup = catalog.read_text(encoding="utf-8")
+    """Point every linked example image at the content address of its new still."""
+    pages = {
+        path: path.read_text(encoding="utf-8") for path in sorted(DOCS.glob("*.html"))
+    }
+    updated = dict.fromkeys(previews, 0)
     for preview in sorted(previews):
         stem = preview.stem.removeprefix("example-")
         address = hashlib.sha256(preview.read_bytes()).hexdigest()[:16]
         pattern = re.compile(
-            rf'(<a class="example-link" href="/examples/{re.escape(stem)}/">\s*'
-            rf'<span class="example-preview">\s*<img src=")'
-            rf'/media/[0-9a-f]{{16}}\.jpg(")'
+            rf'(<a\b[^>]*\bhref="/examples/{re.escape(stem)}/"[^>]*>'
+            rf'(?:(?!</a>).)*?<img\b[^>]*\bsrc=")'
+            rf'/media/[0-9a-f]{{16}}\.jpg(")',
+            re.DOTALL,
         )
-        markup, count = pattern.subn(rf"\g<1>/media/{address}.jpg\g<2>", markup)
-        if count != 1:
+        for page, markup in pages.items():
+            pages[page], count = pattern.subn(
+                rf"\g<1>/media/{address}.jpg\g<2>", markup
+            )
+            updated[preview] += count
+        if updated[preview] == 0:
             raise RuntimeError(f"{stem}: expected one catalog preview")
-    catalog.write_text(markup, encoding="utf-8")
+    for page, markup in pages.items():
+        page.write_text(markup, encoding="utf-8")
 
 
 def run(*args: str, cwd: Path) -> str:

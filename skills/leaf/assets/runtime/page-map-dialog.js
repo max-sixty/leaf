@@ -25,7 +25,7 @@ import {
   marginEntryRecord,
   marginEntries,
   syncForwardedMarginEntryState,
-  syncMarginAgentPhase,
+  syncMarginAgentWorkflow,
   visibleMarginEntryLabel,
 } from "./margin-entries.js";
 
@@ -158,7 +158,7 @@ export function createPageMapDialog({
       // comparisons do: their pair is provenance rather than part of the account.
       context: item.mapContext,
     });
-    syncMarginAgentPhase(button, item.agentReceipt);
+    syncMarginAgentWorkflow(button, item.workflowReceipt);
     button.disabled = false;
   }
 
@@ -174,12 +174,15 @@ export function createPageMapDialog({
     button.dataset.lfTone = record.tone;
     button.dataset.lfRank = record.rank;
     button.dataset.lfState = record.state;
+    syncForwardedMarginEntryState(button, control);
     syncDialogFace(button, {
       ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
-      label: record.label,
+      // A widget may give its control a fuller accessible name than the shared record;
+      // Page Map keeps that name while appending the row's visible context.
+      label: control.getAttribute("aria-label") ?? record.label,
       visibleLabel: visibleMarginEntryLabel(record),
+      context: record.context,
     });
-    syncForwardedMarginEntryState(button, control);
   }
 
   function makeSheetAction(key) {

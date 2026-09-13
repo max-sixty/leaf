@@ -3,11 +3,18 @@
 import itertools
 import json
 import re
+import threading
 import time
+from urllib.parse import urlsplit
 
 import pytest
-from interact_support import append_command
+from interact_support import (
+    COMMAND_HUB_PACKAGE,
+    append_command,
+)
 from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf.render_gate import readings as render_gate_readings
@@ -15,36 +22,26 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASKS_PAGE,
+    CHANGE_SHAPES_PAGE,
+    PANEL_PAGE,
+)
+from render_cases_layout import (
     AUTHORED_LINES_PAGE,
     BARE_IDENTIFIERS_PAGE,
-    BOTH_STAMPS,
-    CHANGE_SHAPES_PAGE,
-    CODE_PAGE,
     COLORED_CODE_PAGE,
-    COMMAND_HUB_PACKAGE,
-    CORPUS_SOURCES,
     CUSTOM_WIDGET_PAGE,
     EDGE_IDS,
     EDGES,
-    EXAMPLES,
     FAINT_CODE_PAGE,
-    FEATURE_GALLERY,
     FLAT_SHADOW_PAGE,
     FLOATING_PAGE,
-    GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
     IDENTIFIERS_IN_CODE_PAGE,
     LINKED_CELLS_PAGE,
-    LONG_PAGE,
     LOOSE_SCROLLER_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
-    PAGE_FIXTURES,
-    PANEL_PAGE,
-    REPLY_HOST_PAGE,
     RESIZE_LOOP_EVENT,
     ROOM_EVERY_FRAME,
     SCROLLED_CONTAINER,
@@ -53,28 +50,47 @@ from render_support import (
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     TINTED_LINE_PAGE,
-    TYPED_PARTS_PAGE,
     UNANSWERED_CODE_PAGE,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
-    Traffic,
-    _traffic,
-    _until,
     apply_restore_case,
     arrival_findings,
-    author_test_widget,
     draw_edge,
     edge_settled,
     geometry,
-    leaf_page,
     motions,
     moved_at,
-    open_page,
     page_at_rest,
-    panel_settled,
-    primed,
     reader_view_restore_cases,
     resize_notice_after_last_probe,
+)
+from render_cases_navigation import (
+    CODE_PAGE,
+)
+from render_cases_widgets import (
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
+    TYPED_PARTS_PAGE,
+)
+from render_harness import (
+    BOTH_STAMPS,
+    CORPUS_SOURCES,
+    EXAMPLE_PACKAGES,
+    EXAMPLES,
+    FEATURE_GALLERY,
+    LONG_PAGE,
+    PAGE_FIXTURES,
+    REPLY_HOST_PAGE,
+    TOKEN,
+    Traffic,
+    _traffic,
+    _until,
+    author_test_widget,
+    leaf_page,
+    open_page,
+    panel_settled,
+    primed,
     resized,
 )
 
@@ -160,64 +176,245 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
         findings = render_gate_scheme.start_with_pre_upgrade_proof(
             page, serve(source, packages=())
         )
-        # Interception lives with the page; only the initial entry may be held.
-        page.reload()
-        render_checks_model.wait_for_probe(page, "runtimeStarted")
     finally:
         page.close()
 
     assert findings == ["authored main has no measurable pre-upgrade layout"]
 
 
-@pytest.mark.parametrize(
-    ("asset", "stage"),
-    [
-        ("versions/v1.html?*", "navigation"),
-        ("theme.css", "theme stylesheet"),
-        ("runtime/banner.js", "document load after releasing Leaf"),
-    ],
-)
-def test_startup_timeouts_name_the_blocked_stage_and_request(
-    browser, serve, monkeypatch, asset, stage
+def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, serve):
+    """A dropped subresource is the timeout the gate used to misattribute.
+
+    The runtime has already started and injected its banner by the time a held module
+    stalls the load event, so "the runtime never injected its banner" named the one
+    thing that had happened. The document stays at `interactive` with nothing logged
+    and no error raised, which leaves the open request as the only evidence of which
+    file never arrived — this is where the local server dropping a request the browser
+    wrote onto a socket it had already closed reaches the gate.
+    """
+    source = leaf_page("held module", "<h1>Waiting on a module</h1>")
+    page = browser.new_page()
+    page.set_default_timeout(5_000)
+    holding = []
+
+    def hold_module(route):
+        if holding or route.request.url.endswith("/leaf.js"):
+            route.continue_()
+            return
+        holding.append(route)
+
+    page.route("**/runtime/*.js", hold_module)
+    try:
+        with pytest.raises(RuntimeError) as stopped:
+            render_gate_scheme.start_with_pre_upgrade_proof(
+                page, serve(source, packages=())
+            )
+    finally:
+        for route in holding:
+            route.abort()
+        page.close()
+
+    assert holding, "the page asked for no runtime module, so nothing was held"
+    path = urlsplit(holding[0].request.url).path
+    assert str(stopped.value) == (
+        f"the document never reached load; still requesting {path}"
+    )
+
+
+def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
+    browser, serve
 ):
-    held = []
-    pages = []
+    """The proof holds the Leaf entry itself until after the theme stylesheet, so the
+    entry is open at every wait before that by the gate's own choice. Naming it
+    beside what the page is waiting for would point a reader at the hold rather than
+    at the file that never came."""
+    source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
+    page = browser.new_page()
+    page.set_default_timeout(5_000)
+    holding = []
 
-    def prepare(page):
+    def hold_theme(route):
+        holding.append(route)
+
+    page.route("**/theme.css", hold_theme)
+    try:
+        with pytest.raises(RuntimeError) as stopped:
+            render_gate_scheme.start_with_pre_upgrade_proof(
+                page, serve(source, packages=())
+            )
+    finally:
+        for route in holding:
+            route.abort()
+        page.close()
+
+    assert holding, "the page asked for no theme stylesheet, so nothing was held"
+    assert str(stopped.value) == (
+        "the document never reached its theme stylesheet; still requesting /theme.css"
+    )
+
+
+def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
+    browser, serve
+):
+    """Past the release the entry is the page's own request. What the wait above
+    leaves out is the hold, not the file — and a load event still waiting on an entry
+    the server accepted and then dropped is exactly the ending this reading exists to
+    name, so the release has to hand the entry back to the page."""
+    served = serve(leaf_page("dropped entry", "<h1>Dropped</h1>"), packages=())
+    asked = threading.Event()
+
+    class Drops(http_model.handler_for(serve.page_dir, TOKEN)):
+        """Answers everything but the Leaf entry, which it accepts and drops."""
+
+        def do_GET(self):
+            if self.path.startswith("/leaf.js"):
+                asked.set()
+                time.sleep(300)  # longer than any patience the gate could have
+                return
+            super().do_GET()
+
+    httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Drops)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    dropped = (
+        urlsplit(served)
+        ._replace(netloc=f"127.0.0.1:{httpd.server_address[1]}")
+        .geturl()
+    )
+    page = browser.new_page()
+    page.set_default_timeout(5_000)
+    try:
+        with pytest.raises(RuntimeError) as stopped:
+            render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
+    finally:
+        page.close()
+        httpd.shutdown()
+
+    assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
+    assert str(stopped.value) == (
+        "the document never reached load; still requesting /leaf.js"
+    )
+
+
+def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
+    browser, serve, monkeypatch
+):
+    """A server that refuses the document leaves the proof with nothing to wait for
+    and the page with no console message of its own. The status the gate collected is
+    the only thing that says why the wait stopped, so the named wait carries it."""
+    real_proof = render_gate_scheme.start_with_pre_upgrade_proof
+
+    def promptly(page, url):
         page.set_default_timeout(2_000)
-        page_held = []
+        return real_proof(page, url)
 
-        def hold(route):
-            page_held.append(route)
-            held.append(route)
+    monkeypatch.setattr(render_gate_scheme, "start_with_pre_upgrade_proof", promptly)
+    served = serve(leaf_page("refused", "<h1>Refused</h1>"), packages=())
+    refused = served.split("?")[0] + "?t=not-the-page-key"
 
-        close = page.close
-
-        def close_after_release():
-            for route in page_held:
-                route.continue_()
-            page.unroute(f"**/{asset}", hold)
-            close()
-
-        page.route(f"**/{asset}", hold)
-        monkeypatch.setattr(page, "close", close_after_release)
-        pages.append(page)
-
-    failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE, packages=())
+    failures, _notices, completed = render_gate_scheme._render_scheme(
+        browser, refused, "light", {"width": 1200, "height": 900}, 3_000, []
     )
 
-    # Release happens only when the gate has collected its failure and closes.
-    assert len(held) == len(pages) == 4
-    assert all(page.is_closed() for page in pages)
-    assert {failure.split("]", 1)[0] for failure in failures} == {"[light", "[dark"}
-    assert all(f"timed out waiting for {stage}" in failure for failure in failures)
-    assert all("unfinished requests: " in failure for failure in failures)
-    assert all(f"/{asset.split('?')[0]}" in failure for failure in failures)
-    assert all("test-page-key" not in failure for failure in failures)
-    assert all(
-        "runtime never injected its banner" not in failure for failure in failures
+    assert completed is False
+    assert len(failures) == 1
+    assert failures[0].startswith(
+        "[light] pre-upgrade proof failed: the document never reached an authored main"
     )
+    assert f"403 {refused}" in failures[0]
+
+
+def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
+    browser, serve, monkeypatch
+):
+    """The hold on the entry is also what keeps request interception installed, and
+    taking it down belongs after the document has loaded rather than at the release.
+
+    Playwright turns a page's interception off as soon as its last route handler is
+    spent, so a `times=1` hold is spent exactly when the module layer starts its
+    burst, and the burst loses requests to that transition: measured on the corpus
+    page over interleaved attempts, the document never reached load in 5 of 60 with
+    the single-shot hold and 0 of 60 with one registered across the load wait. The
+    ending is silent — `interactive` with a module still in flight, or with nothing in
+    flight at all — so nothing downstream can tell it from a page that is merely slow,
+    and the ordering is the only place it can be stated."""
+    page = browser.new_page()
+    registrations = []
+    order = []
+    route, unroute = page.route, page.unroute
+    wait_for_load_state = page.wait_for_load_state
+
+    def recorded_route(url, handler, **kwargs):
+        registrations.append((url, kwargs))
+        order.append(f"route {url}")
+        return route(url, handler, **kwargs)
+
+    def recorded_unroute(url, handler=None):
+        order.append(f"unroute {url}")
+        return unroute(url, handler)
+
+    def recorded_wait_for_load_state(state="load", **kwargs):
+        order.append(f"reached {state}")
+        return wait_for_load_state(state, **kwargs)
+
+    monkeypatch.setattr(page, "route", recorded_route)
+    monkeypatch.setattr(page, "unroute", recorded_unroute)
+    monkeypatch.setattr(page, "wait_for_load_state", recorded_wait_for_load_state)
+    source = leaf_page("entry hold", "<h1>Held before Leaf starts</h1>")
+    try:
+        assert (
+            render_gate_scheme.start_with_pre_upgrade_proof(
+                page, serve(source, packages=())
+            )
+            == []
+        )
+    finally:
+        page.close()
+
+    assert registrations == [("**/leaf.js", {})], registrations
+    assert order == ["route **/leaf.js", "reached load", "unroute **/leaf.js"], order
+
+
+def test_the_render_gate_arms_every_page_it_opens_against_an_empty_route_list(
+    browser, serve
+):
+    """The gate empties a page's route list, and that is what takes interception down.
+
+    It holds the Leaf entry through a route and takes that route away again, so the
+    `unroute` is a real teardown on a page nothing else has routed. A loaded document
+    is not an idle one: measured on the corpus page, `/api/state`, `/registry.json`
+    and `/icon.svg` are still open at that call, and losing the first is a page that
+    never finishes upgrading with nothing on the console to say so. The arm goes on
+    before any route the gate adds and is never taken away, so the list the browser
+    consults is never empty and no such transition is sent at all."""
+    per_page = []
+
+    def record_page(page):
+        calls = []
+        per_page.append(calls)
+        route, unroute = page.route, page.unroute
+
+        def recorded_route(url, handler, **kwargs):
+            calls.append(("route", url))
+            return route(url, handler, **kwargs)
+
+        def recorded_unroute(url, handler=None):
+            calls.append(("unroute", url))
+            return unroute(url, handler)
+
+        page.route = recorded_route
+        page.unroute = recorded_unroute
+
+    assert (
+        render_gate_model.render_version(
+            primed(browser, record_page), serve(BOUNDED_WORKSPACE_PAGE, packages=())
+        )
+        == []
+    )
+    arm = render_gate_scheme.INTERCEPTION_ARM
+    assert per_page, "the gate opened no page"
+    for calls in per_page:
+        assert calls[0] == ("route", arm), calls
+        assert ("unroute", arm) not in calls, calls
 
 
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
@@ -264,7 +461,6 @@ def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, s
     assert rows["lower"]["top"] >= rows["upper"]["bottom"] - 1, rows
     assert rows["footer"]["bottom"] <= 700, rows
     assert errors == []
-    page.close()
 
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
@@ -752,7 +948,6 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
     # one document; one seen here is the platform under load and says nothing.
     assert [e for e in errors if not render_gate_scheme.resize_observer_error(e)] == []
-    page.close()
 
 
 def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
@@ -844,24 +1039,22 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
                 "addEventListener('DOMContentLoaded', () => "
                 "console.error('ordinary error from first attempt'), {once: true});"
             )
+        if number < 4:  # every page in the first complete attempt
             resize_notice_after_last_probe(page)
-        elif number >= 4:  # the first attempt, then every confirming page
-            page.set_default_timeout(2_000)
-            # The gate owns the leaf.js hold; refuse an imported module so that
-            # the entry cannot shadow the fault with its own route.continue_().
-            page.route("**/runtime/banner.js", lambda route: route.abort())
+        else:  # every confirming page
+            page.route("**/_leaf/render-checks/index.js", lambda route: route.abort())
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE), served_timeout_ms=2_000
+        primed(browser, prepare), serve(LONG_PAGE)
     )
 
     assert any(
         "ordinary error from first attempt" in failure for failure in failures
     ), failures
-    assert any(
-        "runtime never injected its banner" in failure for failure in failures
-    ), failures
+    assert any("browser probe module failed" in failure for failure in failures), (
+        failures
+    )
     assert any(
         "confirming render attempt did not complete" in failure for failure in failures
     ), failures
@@ -884,17 +1077,15 @@ def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
     assert errors == [
         "window error: ResizeObserver loop completed with undelivered notifications."
     ], "a notice after the classified navigation was hidden too"
-    page.close()
 
 
 def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     every_load = (
         "addEventListener('DOMContentLoaded', () => {" + RESIZE_LOOP_EVENT + "});"
     )
-    page, errors = open_page(browser, serve(LONG_PAGE), init_script=every_load)
+    _page, errors = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
     assert errors == [render_gate_scheme.recurring_resize_observer_error("navigation")]
-    page.close()
 
 
 def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
@@ -905,7 +1096,9 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text("// Valid JavaScript, but no custom-element definition.\n")
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any(
         "upgraded widgets did not define their elements: <lf-callout>" in failure
@@ -939,7 +1132,7 @@ def test_the_render_gate_requires_a_declared_conversations_host(
     )
     module.write_text(source)
 
-    url = serve(CUSTOM_WIDGET_PAGE)
+    url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     assert render_gate_model.render_version(browser, url) == []
 
     module = serve.page_dir / "widgets" / "lf-callout.js"
@@ -974,7 +1167,9 @@ def test_the_render_gate_requires_a_visual_parts_provider(
     declarations["lf-callout"]["x-visual"] = {"parts": "parts"}
     registry_path.write_text(json.dumps(declarations, indent=2))
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any(
         "declares addressable visual parts but its module did not call "
@@ -1169,7 +1364,7 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
     failures, _notices, completed = render_gate_scheme._render_scheme(
         browser,
-        serve(CUSTOM_WIDGET_PAGE),
+        serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")),
         "light",
         {"width": 1200, "height": 900},
         3_000,
@@ -1194,7 +1389,9 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     monkeypatch.chdir(tmp_path)
     _author_lying_callout(tmp_path)
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any("x-verbatim" in f for f in failures), failures
     assert any("shadow roots the registry doesn't declare" in f for f in failures), (
@@ -1219,7 +1416,9 @@ def test_the_render_gate_checks_verbatim_words_in_each_color_scheme(
         "});\n"
     )
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
     assert len(dishonest) == 1, failures
@@ -1257,7 +1456,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
 <lf-shell mode="replace">Second page owner.</lf-shell>
 """,
     )
-    url = serve(page)
+    url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     events_model.append_event(
         serve.page_dir,
         {
@@ -1359,7 +1558,8 @@ def test_action_and_report_state_do_not_excuse_unrelated_verbatim_corruption(
             f"verbatim after {kind}",
             '<h1>Stateful prose</h1><lf-stateful id="owner">'
             "<p>Authored prose must remain.</p></lf-stateful>",
-        )
+        ),
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
     command = {
         "kind": kind,
@@ -1592,7 +1792,8 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
             "<p>Wrapper prose must remain.</p>"
             '<lf-stateful id="child"><p>Child prose.</p></lf-stateful>'
             "</lf-shell>",
-        )
+        ),
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
     append_command(
         serve.page_dir,
@@ -1679,7 +1880,7 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
         "  }\n"
         "});\n"
     )
-    url = serve(page)
+    url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     events_model.append_event(
         serve.page_dir,
         {
@@ -1756,7 +1957,9 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         ");\n"
     )
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any('never says "09:00"' in f for f in failures), failures
     assert any('paints kind="failure" and says nothing' in f for f in failures), (
@@ -1801,7 +2004,9 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
         ");\n"
     )
 
-    failures = render_gate_model.render_version(browser, serve(SHADOW_HOST_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(SHADOW_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any('never says "Escalated"' in f for f in failures), failures
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
@@ -1996,7 +2201,9 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
         ),
         IDENTIFIERS_IN_CODE_PAGE,
     )
-    page, errors = open_page(browser, serve(source))
+    page, errors = open_page(
+        browser, serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     resized(page, 540, 720)
     host = page.locator("lf-callout").first
     host.evaluate(
@@ -2234,7 +2441,6 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
         d == {"scrolls": "auto", "marked": True, "position": "relative"} for d in diffed
     ), f"the mark did not reach the diff's lines: {diffed}"
     assert errors == []
-    page.close()
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
@@ -3039,7 +3245,7 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
         )
     )
 
-    url = serve(CUSTOM_WIDGET_PAGE)
+    url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     page, errors = open_page(browser, url)
     widget = page.locator("#custom-note")
     expect(widget).to_have_attribute("data-lf-done", "1")
@@ -3049,7 +3255,6 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
         "border: getComputedStyle(el).borderTopWidth})"
     ) == {"display": "block", "border": "1px"}
     assert errors == []
-    page.close()
 
 
 def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
@@ -3132,7 +3337,6 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         for t in trapped
     )
     assert errors == []
-    page.close()
 
 
 def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):
@@ -3147,7 +3351,6 @@ def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):
         if finding["tag"] == "pre" and not finding["chrome"]
     ], trapped
     assert errors == []
-    page.close()
 
 
 def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, serve):
@@ -3283,7 +3486,11 @@ def test_the_gate_reports_a_trapped_margin_in_the_page_and_not_in_the_layer(
     )
     # A comment, so the thread list has a thread to draw and the layer's half of the
     # trap has a box to be trapped in.
-    url = serve(TRAP_PAIR_PAGE, anchored=[("tp-first", "signed-cookie fallback")])
+    url = serve(
+        TRAP_PAIR_PAGE,
+        anchored=[("tp-first", "signed-cookie fallback")],
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
+    )
     failures = render_gate_model.render_version(browser, url)
     trapped = [f for f in failures if "of inset and shows" in f]
     assert any("tp-inset" in f for f in trapped), (

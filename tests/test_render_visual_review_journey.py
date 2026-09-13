@@ -9,9 +9,137 @@ from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import media as media_model
 from playwright.sync_api import expect
-from render_support import leaf_page, open_page, sending, stamp_page, told
+from render_cases_layout import (
+    ring_faults,
+    standing_ring,
+)
+from render_harness import (
+    PAGE_FIXTURES,
+    leaf_page,
+    open_page,
+    resized,
+    sending,
+    stamp_page,
+    told,
+)
 
 pytestmark = pytest.mark.nightly
+
+VISUAL_REVIEW_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+)
+
+
+def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
+    """The evidence owns its useful range without containing its scroll boundary."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    stamp_page(
+        serve.page_dir,
+        leaf_page(
+            "visual inspection in flow",
+            """<h1>Review the package change</h1>
+<p style="min-height: 28rem">The review follows this context.</p>
+<section><lf-visual-review id="visual-review-run" source="gallery-visual-run"></lf-visual-review></section>
+<p style="min-height: 40rem">The decision record continues after the evidence.</p>""",
+        ),
+        "put visual inspection in document flow",
+    )
+    url = url.rsplit("/versions/", 1)[0] + "/?" + url.partition("?")[2]
+    page, errors = open_page(browser, url)
+    resized(page, 1000, 700)
+    widget = page.locator("#visual-review-run")
+    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
+    expect(widget.get_by_role("button", name="Expand inspection")).to_have_count(0)
+    widget.scroll_into_view_if_needed()
+    host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    widget.get_by_role("button", name="Full frame").click()
+    widget.get_by_role("button", name="100%").click()
+    page.wait_for_function(
+        "node => node.scrollHeight > node.clientHeight", arg=host.element_handle()
+    )
+    assert host.evaluate("node => getComputedStyle(node).overscrollBehaviorY") == "auto"
+    point = host.evaluate(
+        "node => { const r = node.getBoundingClientRect();"
+        " return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }"
+    )
+    page.mouse.move(point["x"], point["y"])
+    document_start = page.evaluate("document.scrollingElement.scrollTop")
+    page.mouse.wheel(0, 320)
+    page.wait_for_function("node => node.scrollTop > 0", arg=host.element_handle())
+    assert page.evaluate("document.scrollingElement.scrollTop") == document_start
+    assert errors == []
+
+
+def go_to(page, target, kind="Control"):
+    """Type the opaque hint painted beside one rendered destination."""
+    page.keyboard.press("g")
+    hints = page.locator(".lf-go-to-hint[data-lf-hint-code]")
+    expect(hints.first).to_be_visible()
+    code = target.evaluate(
+        """(target, kind) => {
+          const at = target.getBoundingClientRect();
+          const chips = [...document.querySelectorAll(
+            '.lf-go-to-hint[data-lf-hint-code]')]
+            .filter(chip => chip.dataset.lfGoToKind === kind);
+          return chips.map(chip => {
+            const box = chip.getBoundingClientRect();
+            return {code: chip.dataset.lfHintCode,
+              distance: Math.hypot(box.left - at.left, box.top - at.top)};
+          }).sort((a, b) => a.distance - b.distance)[0]?.code ?? null;
+        }""",
+        kind,
+    )
+    assert code, f"the rendered {kind.lower()} had no Go-to hint"
+    page.keyboard.type(code)
+
+
+def comment_on_target(page, target):
+    """Choose one rendered datum through Leaf's keyboard target map."""
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-chooser-hint[data-lf-hint-code]")
+    expect(hints.first).to_be_visible()
+    code = target.evaluate(
+        """target => {
+          const at = target.getBoundingClientRect();
+          const chips = [...document.querySelectorAll(
+            '.lf-target-chooser-hint[data-lf-hint-code]')];
+          return chips.map(chip => {
+            const box = chip.getBoundingClientRect();
+            return {code: chip.dataset.lfHintCode,
+              distance: Math.hypot(box.left - at.left, box.top - at.top)};
+          }).sort((a, b) => a.distance - b.distance)[0]?.code ?? null;
+        }"""
+    )
+    assert code, "the rendered datum had no target-chooser hint"
+    page.keyboard.type(code)
+
+
+def assert_keyboard_focus(page, control):
+    """The focused destination declares a visible treatment and is not covered."""
+    expect(control).to_be_focused()
+    focus = control.evaluate(
+        """node => {
+          const box = node.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            box.left + box.width / 2, box.top + box.height / 2);
+          return {
+            focusVisible: node.matches(':focus-visible'),
+            unobscured: Boolean(hit && (hit === node || node.contains(hit))),
+            inViewport: box.top >= 0 && box.left >= 0
+              && box.bottom <= innerHeight && box.right <= innerWidth,
+          };
+        }"""
+    )
+    assert focus == {
+        "focusVisible": True,
+        "unobscured": True,
+        "inViewport": True,
+    }, f"the keyboard destination has no visible, reachable focus treatment: {focus}"
+    ring = standing_ring(page)
+    assert ring, "the focused destination paints no keyboard ring"
+    assert not (faults := ring_faults([ring], "the focused destination")), "\n".join(
+        faults
+    )
 
 
 def target_document(title, body):
@@ -210,6 +338,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     data_model.cmd_data_set(review_dir, "journey-run", record)
 
     reader, errors = open_page(browser, review_url)
+    resized(reader, 1366, 768)
     response = reader.context.request.get(f"{target_base}v1.html")
     assert response.status == 403
     widget = reader.locator("#journey")
@@ -220,38 +349,160 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert first_images.evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
     )
-    with sending(reader, "the intended authenticated-navigation change"):
-        first.get_by_role("button", name="Looks right").click()
+    details = first.locator(".lf-vr-details")
+    details_summary = first.locator(".lf-vr-details-summary")
+    go_to(reader, details_summary, "Fold")
+    assert_keyboard_focus(reader, details_summary)
+    expect(details).to_have_attribute("open", "")
+    reader.keyboard.press("Enter")
+    expect(details).not_to_have_attribute("open", "")
+    overlay = widget.get_by_role("button", name="Overlay")
+    go_to(reader, overlay)
+    assert_keyboard_focus(reader, overlay)
+    expect(widget).to_have_attribute("data-inspection-mode", "overlay")
+    compare = widget.get_by_role("button", name="Compare")
+    go_to(reader, compare)
+    assert_keyboard_focus(reader, compare)
+    expect(widget).to_have_attribute("data-inspection-mode", "compare")
     reader.keyboard.press("ArrowDown")
+    expect(widget.get_by_role("combobox", name="Selected visual case")).to_have_value(
+        "follow-release-link"
+    )
+    assert_keyboard_focus(reader, compare)
+    reader.keyboard.press("ArrowUp")
+    expect(widget.get_by_role("combobox", name="Selected visual case")).to_have_value(
+        "open-release-list"
+    )
+    assert_keyboard_focus(reader, compare)
+    first_stage = first.locator(".lf-vr-shot-host")
+    assert first_stage.evaluate("node => node.scrollHeight > node.clientHeight")
+    reader.keyboard.press("d")
+    reader.wait_for_function(
+        "() => document.querySelector('[data-lf-datum=\"open-release-list\"] .lf-vr-shot-host').scrollTop > 0"
+    )
+    reader.keyboard.press("u")
+    reader.wait_for_function(
+        "() => document.querySelector('[data-lf-datum=\"open-release-list\"] .lf-vr-shot-host').scrollTop === 0"
+    )
+
+    first_looks_right = first.get_by_role("button", name="Looks right")
+    with sending(reader, "the intended authenticated-navigation change"):
+        go_to(reader, first_looks_right)
+    assert_keyboard_focus(reader, first_looks_right)
+    reader.keyboard.press("ArrowDown")
+    expect(widget.get_by_role("combobox", name="Selected visual case")).to_have_value(
+        "follow-release-link"
+    )
+    expect(second).to_have_attribute("aria-label", "Visual review case 2 of 2")
+    second_looks_right = second.get_by_role("button", name="Looks right")
+    assert_keyboard_focus(reader, second_looks_right)
     assert second.locator("lf-shot img").evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
     )
+    second_needs_work = second.get_by_role("button", name="Needs work")
     with sending(reader, "the missing return route"):
-        second.get_by_role("button", name="Needs work").click()
+        go_to(reader, second_needs_work)
+    assert_keyboard_focus(reader, second_needs_work)
 
-    second.click(modifiers=["Alt"])
+    comment_on_target(reader, second)
     field = reader.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    field.fill("Restore Back to releases on the candidate detail page.")
+    reader.keyboard.type("Restore Back to releases")
+    resized(reader, 390, 760)
+    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
+    expect(field).to_have_value("Restore Back to releases")
+    assert_keyboard_focus(reader, field)
+    field.evaluate("node => node.setSelectionRange(8, 12, 'backward')")
+    shifted = record | {
+        "cases": [
+            record["cases"][0],
+            record["cases"][1]
+            | {
+                "result": "The candidate detail page drops Back to releases and leaves the reader without a return route after checking the expanded audit context."
+            },
+        ]
+    }
+    data_model.cmd_data_set(review_dir, "journey-run", shifted)
+    told(reader)
+    expect(second.locator(".lf-vr-result")).to_contain_text("without a return route")
+    expect(field).to_have_value("Restore Back to releases")
+    assert_keyboard_focus(reader, field)
+    assert field.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [8, 12, "backward"]
+    reader.keyboard.press("Escape")
+    expect(field).to_be_hidden()
+    assert reader.evaluate("() => document.activeElement === document.body")
+    reader.keyboard.press("g")
+    reader.keyboard.press("Shift+t")
+    expect(reader.get_by_role("dialog")).to_be_visible()
+    expect(reader.locator(".lf-threads")).to_be_focused()
+    expect(reader.locator("body > main")).to_have_attribute("inert", "")
+    reader.keyboard.press("Escape")
+    expect(reader.get_by_role("dialog")).to_be_hidden()
+    assert reader.evaluate("() => document.activeElement === document.body")
+    reader.keyboard.press("g")
+    reader.keyboard.press("Shift+d")
+    expect(field).to_be_focused()
+    expect(field).to_have_value("Restore Back to releases")
+    assert_keyboard_focus(reader, field)
+
+    resized(reader, 1366, 768)
+    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
+    expect(field).to_have_value("Restore Back to releases")
+    assert_keyboard_focus(reader, field)
+    reader.keyboard.press("Escape")
+    expect(field).to_be_hidden()
+    assert reader.evaluate("() => document.activeElement === document.body")
+    reader.keyboard.press("g")
+    reader.keyboard.press("Shift+t")
+    expect(reader.get_by_role("dialog")).to_be_visible()
+    expect(reader.locator(".lf-threads")).to_be_focused()
+    expect(reader.locator("body > main")).not_to_have_attribute("inert", "")
+    reader.keyboard.press("Escape")
+    expect(reader.get_by_role("dialog")).to_be_hidden()
+    assert reader.evaluate("() => document.activeElement === document.body")
+    reader.keyboard.press("g")
+    reader.keyboard.press("Shift+d")
+    expect(field).to_be_focused()
+    expect(field).to_have_value("Restore Back to releases")
+    field.press("End")
+    reader.keyboard.type(" on the candidate detail page.")
     with sending(reader, "the navigation correction comment"):
         reader.keyboard.press("ControlOrMeta+Enter")
-    comment = [
+    comments = [
         event
         for event in events_model.read_events(review_dir)
-        if event["kind"] == "comment" and event.get("anchor", {}).get("datum")
-    ][-1]
+        if event["kind"] == "comment"
+    ]
+    assert comments, "the keyboard comment gesture wrote no comment"
+    comment = comments[-1]
     assert comment["anchor"] == {
         "section": "journey",
         "datum": "follow-release-link",
         "source": "journey-run",
         "data_revision": 1,
     }
+    review_events = [
+        event
+        for event in events_model.read_events(review_dir)
+        if event["kind"] == "action" and event["widget"] == "journey"
+    ]
+    assert [event["detail"] for event in review_events] == [
+        {"case": "open-release-list", "disposition": "looks-right"},
+        {"case": "follow-release-link", "disposition": "needs-work"},
+    ]
 
-    corrected = record | {
+    reader.keyboard.press("Escape")
+    reader.keyboard.press("Escape")
+    assert reader.evaluate("() => document.activeElement === document.body")
+    go_to(reader, compare)
+    assert_keyboard_focus(reader, compare)
+    corrected = shifted | {
         "candidate": {"revision": "northstar-18", "url": corrected_candidate},
         "cases": [
-            record["cases"][0],
-            record["cases"][1]
+            shifted["cases"][0],
+            shifted["cases"][1]
             | {
                 "result": "The candidate detail page keeps Back to releases beside the expanded audit line.",
                 "after": media["candidate-detail-corrected"],
@@ -260,6 +511,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     }
     data_model.cmd_data_set(review_dir, "journey-run", corrected)
     told(reader)
+    assert_keyboard_focus(reader, compare)
     expect(second).to_have_attribute("data-disposition", "needs-work")
     expect(second.locator(".lf-vr-result")).to_contain_text("keeps Back to releases")
     expect(second.locator("lf-shot")).to_have_attribute(
@@ -269,12 +521,25 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(corrected_image).to_have_js_property("complete", True)
     assert corrected_image.evaluate("image => image.naturalWidth") > 0
     with sending(reader, "the corrected navigation disposition"):
-        second.get_by_role("button", name="Looks right").click()
+        go_to(reader, second_looks_right)
     expect(second).to_have_attribute("data-disposition", "looks-right")
-    reader.get_by_role("button", name="Threads (1)", exact=True).click()
+    assert_keyboard_focus(reader, second_looks_right)
+    reader.keyboard.press("g")
+    reader.keyboard.press("Shift+t")
     threads = reader.get_by_role("dialog")
     expect(threads).to_contain_text("Restore Back to releases")
     expect(threads).to_contain_text("Outdated")
+
+    review_events = [
+        event
+        for event in events_model.read_events(review_dir)
+        if event["kind"] == "action" and event["widget"] == "journey"
+    ]
+    assert [event["detail"] for event in review_events] == [
+        {"case": "open-release-list", "disposition": "looks-right"},
+        {"case": "follow-release-link", "disposition": "needs-work"},
+        {"case": "follow-release-link", "disposition": "looks-right"},
+    ]
 
     standalone = exporting_model.export_page(
         browser, review_url, review_dir, "authenticated navigation review"

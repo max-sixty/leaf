@@ -6,7 +6,10 @@ import re
 from datetime import datetime, timedelta
 
 import pytest
-from interact_support import append_command
+from interact_support import (
+    SHIPPED_PACKAGES,
+    append_command,
+)
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -14,50 +17,55 @@ from leaf.served_state import page as served_page
 from leaf.validation import compatibility as validation_model
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
+    ASK_PAGE,
+    ASKS_PAGE,
+    HOLD_MOTION,
+    SCROLL_SETTLED,
+    SUGGESTION_PAGE,
+    live_url,
+)
+from render_cases_layout import (
     AIM_CURSOR,
     AIM_PAINT_PAGE,
     AIM_POINT,
     AIM_SEAM,
     AIM_SEAM_PAGE,
     AIMED,
-    ASK_PAGE,
-    ASKS_PAGE,
-    BOTH_STAMPS,
     CORNER_PAGE,
     DRAFT_MARK,
     EDGES,
-    EXAMPLES,
     FOCUS_IN_PAGE,
-    GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
-    HOLD_MOTION,
     LEGEND_TRUE,
-    LONG_PAGE,
     NAMED,
     PAGE_MARKUP,
-    PART_DIAGRAM_PAGE,
-    PART_DIAGRAM_V2,
-    PICTURE_PAGE,
-    RENDERED,
-    REPLAYED_PAGE,
     SCROLL_SETTLE_MS,
-    SCROLL_SETTLED,
-    SHADOW_VISUAL_LAYER,
-    SHADOW_VISUAL_PAGE,
-    SHADOW_VISUAL_WIDGETS,
-    SHIPPED_PACKAGES,
-    SPECIMEN_PAGE,
-    SUGGESTION_PAGE,
-    TYPED_PARTS_PAGE,
-    TYPED_PARTS_V2,
     aim_targets,
     draw_edge,
     edge_settled,
     geometry,
+)
+from render_cases_widgets import (
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
+    PART_DIAGRAM_PAGE,
+    PART_DIAGRAM_V2,
+    PICTURE_PAGE,
+    SHADOW_VISUAL_LAYER,
+    SHADOW_VISUAL_PAGE,
+    SHADOW_VISUAL_WIDGETS,
+    TYPED_PARTS_PAGE,
+    TYPED_PARTS_V2,
+)
+from render_harness import (
+    BOTH_STAMPS,
+    EXAMPLES,
+    LONG_PAGE,
+    RENDERED,
+    REPLAYED_PAGE,
+    SPECIMEN_PAGE,
     leaf_page,
-    live_url,
     open_page,
     panel_settled,
     resized,
@@ -165,7 +173,6 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     )
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
@@ -272,7 +279,6 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(preview).to_have_css("opacity", "1")
     expect(reply).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
@@ -344,20 +350,20 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
     )
     assert not placed["overlaps"], f"the composer covers its aimed element: {placed}"
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
     "width,panel_open", [(1440, False), (1440, True), (390, False)]
 )
-def test_a_growing_comment_starts_clear_then_uses_the_viewport(
+def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     browser, serve, width, panel_open
 ):
-    """The compact field avoids its target; its draft then gets the available viewport.
+    """A passage and its growing editor remain visible together.
 
-    A growing field may overlay page content instead of becoming a small scroller. Its
-    trailing actions stay with the last line, and its corners keep the first and last
-    line readable after the one-line capsule grows into an editor.
+    Without a horizontal rail, the compact field chooses the vertical side with more
+    reachable room. It keeps that side while growing and moves the reading region only
+    enough to reveal itself. Its trailing actions stay with the last line, and its
+    corners keep the first and last line readable after the capsule becomes an editor.
     """
     page, errors = open_page(
         browser,
@@ -394,6 +400,12 @@ def test_a_growing_comment_starts_clear_then_uses_the_viewport(
     expect(field).to_be_visible()
     field.click()
     compact = field.bounding_box()
+    placement = page.locator(".lf-fab-bar").get_attribute("data-lf-placement")
+    before_scroll = page.evaluate("scrollY")
+    if placement in {"top-end", "bottom-end"}:
+        assert placement == "bottom-end", (
+            "the page has substantially more reachable room below this passage"
+        )
     clear = """() => {
           const target = document.getElementById('passage').getBoundingClientRect();
           const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
@@ -422,6 +434,10 @@ def test_a_growing_comment_starts_clear_then_uses_the_viewport(
     field.fill(content)
     expect(field).to_have_value(content)
     expanded = field.bounding_box()
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
+    assert page.evaluate(clear), (
+        "the growing composer covers the passage it comments on"
+    )
     assert expanded["width"] > compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
@@ -434,6 +450,17 @@ def test_a_growing_comment_starts_clear_then_uses_the_viewport(
             expanded["x"] + expanded["width"]
             < page.locator(".lf-thread-panel").bounding_box()["x"]
         )
+    if placement == "bottom-end":
+        assert page.evaluate("scrollY") > before_scroll
+        revealed_scroll = page.evaluate("scrollY")
+        page.mouse.move(8, 450)
+        page.mouse.wheel(0, -200)
+        page.wait_for_function("before => scrollY < before", arg=revealed_scroll)
+        page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+        assert page.evaluate("scrollY") < revealed_scroll
+        expect(page.locator(".lf-fab-bar")).to_have_attribute(
+            "data-lf-placement", placement
+        )
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
     page.wait_for_function("() => scrollY >= 300")
@@ -442,7 +469,87 @@ def test_a_growing_comment_starts_clear_then_uses_the_viewport(
     expect(field).to_have_value("Brief")
     assert field.bounding_box()["height"] == compact["height"]
     assert errors == []
-    page.close()
+
+
+def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser, serve):
+    """The stable vertical choice reads both the visible band and scroll travel."""
+    passage = (
+        "A passage near the end of its page has more reachable room above it. "
+        + "Its full block must keep the same room while the viewport clips it. " * 5
+    )
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Comment above",
+                f'<div style="height: 100vh"></div><p id="passage">{passage}'
+                '</p><div style="height: 800px"></div>',
+            )
+        ),
+    )
+    resized(page, 390, 900)
+    page.evaluate(
+        "() => scrollTo({top: document.getElementById('passage').offsetTop - 300})"
+    )
+    page.evaluate(RENDERED)
+    paragraph = page.locator("#passage")
+    points = paragraph.evaluate(
+        """el => {
+          const node = el.firstChild;
+          const first = document.createRange(), last = document.createRange();
+          first.setStart(node, 2); first.setEnd(node, 3);
+          last.setStart(node, 18); last.setEnd(node, 19);
+          const a = first.getBoundingClientRect(), b = last.getBoundingClientRect();
+          return [[a.left, a.top + a.height / 2], [b.right, b.top + b.height / 2]];
+        }"""
+    )
+    select(page, *points)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    before_scroll = page.evaluate("scrollY")
+
+    field.fill(
+        "\n".join(
+            f"Line {line}: the whole comment remains above its passage."
+            for line in range(40)
+        )
+    )
+    page.evaluate(RENDERED)
+    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    assert page.evaluate("scrollY") < before_scroll
+    boxes = page.evaluate(
+        """() => {
+          const passage = document.getElementById('passage').getBoundingClientRect();
+          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          return {passageTop: passage.top, barBottom: bar.bottom};
+        }"""
+    )
+    assert boxes["barBottom"] <= boxes["passageTop"], boxes
+    float_height = bar.evaluate(
+        "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-float-h'))"
+    )
+    last_scroll = page.evaluate("scrollY")
+    maximum_scroll = page.evaluate(
+        "document.scrollingElement.scrollHeight - innerHeight"
+    )
+    assert maximum_scroll - last_scroll > 450
+    page.mouse.move(8, 450)
+    for _ in range(math.ceil((maximum_scroll - last_scroll) / 150)):
+        page.mouse.wheel(0, 150)
+        page.wait_for_function("before => scrollY > before", arg=last_scroll)
+        page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+        moved = page.evaluate("scrollY")
+        assert moved > last_scroll
+        assert bar.evaluate(
+            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-float-h'))"
+        ) == pytest.approx(float_height, abs=1)
+        last_scroll = moved
+    assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
+    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    assert errors == []
 
 
 def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, serve):
@@ -519,7 +626,6 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
         "the field left the column it was seated beside when the passage scrolled away"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
@@ -643,7 +749,6 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     assert abs(returned["width"] - compact["width"]) <= 1, (compact, returned)
     assert abs(returned["height"] - compact["height"]) <= 1, (compact, returned)
     assert errors == []
-    page.close()
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
@@ -702,7 +807,6 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
         <= 1
     )
     assert errors == []
-    page.close()
 
 
 def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
@@ -759,7 +863,6 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
     )
     assert page.evaluate("scrollY") == page_scroll
     assert errors == []
-    page.close()
 
 
 def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
@@ -796,7 +899,6 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     assert errors == []
-    page.close()
 
 
 def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
@@ -829,7 +931,6 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
         "Keep this comment connected while its paragraph changes width."
     )
     assert errors == []
-    page.close()
 
 
 def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
@@ -856,7 +957,6 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     )
     expect(field).to_have_value("Keep this comment connected when its paragraph moves.")
     assert errors == []
-    page.close()
 
 
 def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve):
@@ -892,7 +992,6 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
         "Keep this comment connected when its paragraph moves vertically."
     )
     assert errors == []
-    page.close()
 
 
 def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
@@ -957,7 +1056,6 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
         f"the legend did not follow height-only page growth: {before} then {after}"
     )
     assert errors == []
-    page.close()
 
 
 def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve):
@@ -999,7 +1097,6 @@ def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve)
     assert max(abs(reading["dx"]) for reading in readings) < 3
     assert max(abs(reading["dy"]) for reading in readings) < 3
     assert errors == []
-    page.close()
 
 
 def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_paint(
@@ -1084,7 +1181,6 @@ def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_pain
         and chrome_response["z"] > chrome_response["tray"]
     ), f"a response bar about the Asks sheet paints beneath it: {chrome_response}"
     assert errors == []
-    page.close()
 
 
 def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
@@ -1133,7 +1229,6 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
         is None
     ), "the target trace paints over the status label"
     assert errors == []
-    page.close()
 
 
 def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, serve):
@@ -1172,7 +1267,6 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     open_compact_comment(page)
     assert page.evaluate(DRAFT_MARK) == seam["at"]
     assert errors == []
-    page.close()
 
 
 def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, serve):
@@ -1204,7 +1298,6 @@ def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, se
     open_compact_comment(page)
     assert page.evaluate(DRAFT_MARK) == "p2"
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -1374,7 +1467,6 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         "never promised"
     )
     assert errors == []
-    page.close()
 
 
 def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
@@ -1422,7 +1514,6 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
         f"{page.evaluate(DRAFT_MARK)}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
@@ -1451,7 +1542,6 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
         e["action"] for e in events_model.read_events(serve.page_dir) if "action" in e
     ] == ["choose"]
     assert errors == []
-    page.close()
 
 
 def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
@@ -1494,7 +1584,6 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
     assert errors == []
-    page.close()
 
 
 def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
@@ -1517,7 +1606,6 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "t")
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser, serve):
@@ -1611,7 +1699,6 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(page.locator(".lf-inspect")).to_be_hidden()
     expect(page.locator(".lf-legend-box")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
@@ -1663,7 +1750,6 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
         "Design mode swallowed the disclosure's keyboard activation"
     )
     assert errors == []
-    page.close()
 
 
 def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, serve):
@@ -1751,7 +1837,6 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         if event["kind"] == "action" and event["widget"] == "reply-suggestion"
     ], "the inline margin entry action reached the durable log despite Design mode"
     assert errors == []
-    page.close()
 
 
 def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
@@ -1813,7 +1898,6 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
            }"""
     ), "the aim's box does not stand on the panel it names"
     assert errors == []
-    page.close()
 
 
 def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
@@ -1888,7 +1972,6 @@ def test_design_mode_leaves_prose_to_the_selection(browser, serve):
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text("layer · heading · t")
     assert errors == []
-    page.close()
 
 
 def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
@@ -1908,7 +1991,6 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     page.wait_for_function(BOTH_STAMPS)
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     assert errors == []
-    page.close()
 
 
 def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
@@ -1963,7 +2045,6 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     )
     assert aim["on"] == "p20" and abs(aim["dx"]) < 2 and abs(aim["dy"]) < 2, aim
     assert errors == []
-    page.close()
 
 
 def test_two_names_at_one_corner_step_apart(browser, serve):
@@ -1996,7 +2077,6 @@ def test_two_names_at_one_corner_step_apart(browser, serve):
     )
     assert clash is None, clash
     assert errors == []
-    page.close()
 
 
 def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coined(
@@ -2021,7 +2101,6 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
     node.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
     assert errors == []
-    page.close()
 
 
 def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
@@ -2067,7 +2146,6 @@ def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
     assert corners < 0.05, f"the empty corners changed by {corners:.0%}"
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
@@ -2104,7 +2182,6 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     ) == ["path", "line"]
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, serve):
@@ -2133,7 +2210,6 @@ def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, 
     ) == ["rect"]
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
@@ -2173,7 +2249,6 @@ def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, se
         "() => window.lfOldContour !== document.querySelector('.lf-visual-mark-shape > g > rect')"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
@@ -2244,7 +2319,6 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     expect(mark).to_have_class(re.compile(r"\blf-visual-mark-comment\b"))
     expect(mark).not_to_have_class(re.compile(r"\blf-visual-mark-pending\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, serve):
@@ -2292,7 +2366,6 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     ), (aimed, painted)
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
@@ -2333,7 +2406,6 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     assert aim_box["x"] + aim_box["width"] <= host_box["x"] + host_box["width"]
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
@@ -2424,7 +2496,6 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
         )"""
     )
     assert errors == []
-    page.close()
 
 
 def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, serve):
@@ -2455,7 +2526,6 @@ def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, se
     assert aim["bottom"] - node["bottom"] >= 1
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):
@@ -2506,7 +2576,6 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(diagram.locator(":scope > .lf-mark-note")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve):
@@ -2534,7 +2603,6 @@ def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve
     expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(handler).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_sequence_actor_is_an_addressable_visual_part(browser, serve):
@@ -2559,7 +2627,6 @@ sequenceDiagram
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Reader")
     expect(actor).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
@@ -2656,7 +2723,6 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     assert page.evaluate("() => !window.lfOldQueued.isConnected")
     expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serve):
@@ -2691,7 +2757,6 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     )
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
@@ -2736,7 +2801,6 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     )
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
@@ -2805,7 +2869,6 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
     )
     page.keyboard.up("Alt")
     assert errors == []
-    page.close()
 
 
 def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
@@ -2824,7 +2887,6 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serve):
@@ -2881,4 +2943,3 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
         "the key came up and the page went on offering the aim's press"
     )
     assert errors == []
-    page.close()

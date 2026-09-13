@@ -204,8 +204,8 @@ def ends_kept(items: list, pin: frozenset = frozenset()) -> list:
 def thread_digest(
     thread: dict, omit: frozenset = frozenset(), pin: frozenset = frozenset()
 ) -> dict:
-    """One conversation as a reader away from the panel needs it: the passage it
-    hangs on, who closed it, and what was said.
+    """One conversation as a reader away from the panel needs it: its current page
+    location or prior anchor when detached, who closed it, and what was said.
 
     `omit` drops messages by log sequence, which is how a delivery carries the
     exchange its own events land in without printing them twice. `pin` keeps a
@@ -217,6 +217,7 @@ def thread_digest(
     return {
         "id": thread["root"]["id"],
         "anchor": thread["anchor"],
+        "detached_from": thread["detached_from"],
         # Who closed it, or null for a thread still open — a thread an agent
         # closed is one the reader may never have answered.
         "resolved": thread["resolved"] and thread["resolved"]["author"],

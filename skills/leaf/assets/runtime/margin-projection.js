@@ -20,10 +20,11 @@
    Controls are ordered by interaction state, rank, contribution key, and
    control key. Generated readings follow contributed controls. One target's Threads
    share one reading and one card. Page Map also includes readings that deliberately
-   have no target control, such as durable state provenance. Canonical pickup and work
-   receipts color the exact thread reading or the target's surviving semantic control;
-   only a target without a carrier gets a separate activity reading. Aggregated thread
-   controls prefer working over picked up, while Page Map keeps each thread's phase.
+   have no target control, such as durable state provenance. One agent workflow carries
+   a reader move from its generated status into pickup and work on the exact thread
+   reading or the target's surviving semantic control; only a target without a carrier
+   gets a separate activity reading. Aggregated thread controls prefer working over
+   picked up, while Page Map keeps each thread's stage.
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
@@ -64,7 +65,8 @@ import {
   marginEntryStateRank,
   syncForwardedMarginEntryState,
   syncMarginEntryCount,
-  syncMarginAgentPhase,
+  syncMarginAgentWorkflow,
+  syncMarginEntrySelection,
   watchMarginContributions,
 } from "./margin-entries.js";
 import { mapButton } from "./page-map-dialog.js";
@@ -75,7 +77,11 @@ import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
-import { readingRegionFor, shownRegionBounds } from "./reading-regions.js";
+import {
+  containingReadingRegionFor,
+  readingRegionFor,
+  shownRegionBounds,
+} from "./reading-regions.js";
 import { panelWouldCover } from "./conversation/panel-elements.js";
 import { COVERING } from "./chrome-layout.js";
 
@@ -89,7 +95,7 @@ import { panel } from "./conversation/panel-elements.js";
 import { blockAt, closestAcross, elementById, inChrome, says } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
-import { agentWorkPhase, updateSequence, workClaimState } from "./updates.js";
+import { agentWorkflowStage, updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/state.js";
 import { threadKey } from "./conversation/model.js";
 
@@ -170,7 +176,7 @@ export function createMarginProjection({
       priority: 4,
       indication: true,
     },
-    activity: { label: "Active", icon: "activity", priority: 4 },
+    activity: { label: "Working", icon: "activity", priority: 4 },
   };
   const RESTING_MARGIN_ENTRY_BUDGET = 2;
   const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
@@ -312,7 +318,6 @@ export function createMarginProjection({
   previewClose.type = "button";
   previewClose.setAttribute("aria-label", "Dismiss conversation view");
   previewClose.title = "Dismiss conversation view (Esc)";
-  previewHead.append(previewTitle, previewClose);
   const previewNav = el("div", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(
@@ -327,8 +332,9 @@ export function createMarginProjection({
   previewNext.setAttribute("aria-label", "Next conversation");
   previewNext.title = "Next conversation";
   previewNav.append(previewPosition, previewPrevious, previewNext);
+  previewHead.append(previewTitle, previewNav, previewClose);
   const previewList = el("div", "lf-margin-preview-list");
-  preview.append(previewHead, previewNav, previewList);
+  preview.append(previewHead, previewList);
   let threadTransitionEpoch = 0;
   let threadTransitionMotions = [];
 
@@ -464,11 +470,14 @@ export function createMarginProjection({
     });
   }
 
-  let agentCarriers = new Set();
-  const agentReceipt = (items) =>
+  let workflowCarriers = new Set();
+  let selectedReadingCarriers = new Set();
+  const workflowReceipt = (items) =>
     items
-      .map((item) => item.agentReceipt)
-      .filter((receipt) => agentWorkPhase(receipt))
+      .map((item) => item.workflowReceipt)
+      .filter((receipt) =>
+        ["picked_up", "working"].includes(agentWorkflowStage(receipt)),
+      )
       .sort(
         (left, right) =>
           (left.phase === "active" ? 0 : 1) - (right.phase === "active" ? 0 : 1),
@@ -514,9 +523,7 @@ export function createMarginProjection({
   const entryState = (entry) => {
     const states = [
       ...entry.offers.map(marginContributionState),
-      ...entry.items.map(
-        (item) => item.state ?? item.acknowledgmentFace?.state ?? "idle",
-      ),
+      ...entry.items.map((item) => item.state ?? item.workflowFace?.state ?? "idle"),
     ];
     return (
       states.sort(
@@ -638,15 +645,15 @@ export function createMarginProjection({
   const secondaryReadings = (entry, primaryControl) =>
     readingChoices(entry).slice(primaryControl ? 0 : 1);
 
-  function threadMarginEntry(entry) {
+  function readingMarginEntry(entry, kind) {
     const marker = rows.get(entry.key);
-    if (marker && !marker.hidden && primaryReading(entry)?.kind === "comment")
-      return marker;
-    const choice = threadReading(entry);
+    if (marker && !marker.hidden && primaryReading(entry)?.kind === kind) return marker;
+    const choice = readingChoices(entry).find((candidate) => candidate.kind === kind);
     return choice
       ? (readingMarginEntries.get(readingKey(entry, choice)) ?? null)
       : null;
   }
+  const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
   const secondaryControls = (entry, primary) =>
     directControls(entry).filter(
       (control) => control !== primary && entry.shownControls.has(control),
@@ -697,7 +704,7 @@ export function createMarginProjection({
 
   function readingFace(choice) {
     return (
-      (choice?.items.length === 1 && choice.items[0].acknowledgmentFace) ||
+      (choice?.items.length === 1 && choice.items[0].workflowFace) ||
       KINDS[choice?.kind] ||
       KINDS.action
     );
@@ -706,7 +713,7 @@ export function createMarginProjection({
   function readingState(choice) {
     return (
       (choice?.items ?? [])
-        .map((item) => item.state ?? item.acknowledgmentFace?.state ?? "idle")
+        .map((item) => item.state ?? item.workflowFace?.state ?? "idle")
         .sort(
           (left, right) => marginEntryStateRank(left) - marginEntryStateRank(right),
         )[0] ?? "idle"
@@ -829,7 +836,7 @@ export function createMarginProjection({
     const controls =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     const target = controls.getBoundingClientRect();
-    const readingRegion = readingRegionFor(previewEntry?.target);
+    const readingRegion = containingReadingRegionFor(previewEntry?.target);
     const regionBounds = readingRegion && shownRegionBounds(readingRegion);
     const main = readingRegion
       ? null
@@ -1053,28 +1060,29 @@ export function createMarginProjection({
     );
   }
 
-  function acknowledgmentFace(receipt) {
+  function agentWorkflowFace(receipt) {
     const age = ago(receipt.ts);
-    if (receipt.phase === "active") {
+    const workflowStage = agentWorkflowStage(receipt);
+    if (["working", "was_working"].includes(workflowStage)) {
+      const state = workflowStage === "was_working" ? `Was working ${age}` : "Working";
       return {
         kind: "activity",
-        text: ["Active", receipt.detail, receipt.quiet ? "quiet" : null]
-          .filter(Boolean)
-          .join(" · "),
+        text: [state, receipt.detail].filter(Boolean).join(" · "),
         context: [age && `Checked in ${age}`, receipt.detail]
           .filter(Boolean)
           .join(" · "),
       };
     }
-    if (receipt.phase === "queued")
+    if (workflowStage === "queued")
       return { kind: "pickup", text: "Queued", context: age };
-    if (receipt.phase === "picked_up")
+    if (["picked_up", "picked_up_ended"].includes(workflowStage))
       return {
-        kind: receipt.dropped ? "waiting" : "pickup",
-        text: receipt.dropped ? "Picked up · turn ended" : "Picked up",
+        kind: workflowStage === "picked_up_ended" ? "waiting" : "pickup",
+        text:
+          workflowStage === "picked_up_ended" ? "Picked up · turn ended" : "Picked up",
         context: age,
       };
-    if (receipt.phase === "waiting")
+    if (workflowStage === "waiting")
       return {
         kind: "waiting",
         text: "Waiting for pickup",
@@ -1097,7 +1105,7 @@ export function createMarginProjection({
       const previous = threadReceipts.get(receipt.target.id);
       threadReceipts.set(
         receipt.target.id,
-        agentReceipt([{ agentReceipt: previous }, { agentReceipt: receipt }]),
+        workflowReceipt([{ workflowReceipt: previous }, { workflowReceipt: receipt }]),
       );
     }
     const representedThreads = new Set();
@@ -1117,7 +1125,7 @@ export function createMarginProjection({
           thread.root.text || anchorLabel(thread.anchor, thread.root.about),
         ),
         thread,
-        agentReceipt: threadReceipts.get(id),
+        workflowReceipt: threadReceipts.get(id),
         activate: () => showThread(id),
       });
     }
@@ -1180,15 +1188,15 @@ export function createMarginProjection({
       ]
         .filter(Boolean)
         .join(" · ");
-      const face = acknowledgmentFace(receipt);
+      const face = agentWorkflowFace(receipt);
       if (face.kind === "activity")
         activityAlreadyShown.add(`widget:${receipt.target.id}`);
       add(groups, target, {
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
         text: trimmed(`${face.text} · ${account}`),
-        acknowledgmentFace: KINDS[face.kind],
-        agentReceipt: receipt,
+        workflowFace: KINDS[face.kind],
+        workflowReceipt: receipt,
         ...(face.context ? { context: face.context } : {}),
         activate: () =>
           revealTarget(target, `${face.text}: ${account}`, scrollToElement),
@@ -1243,20 +1251,22 @@ export function createMarginProjection({
         const quiet =
           claimActivity.get(`${update.target.kind}:${update.target.id}`)?.quiet ??
           false;
+        const age = ago(update.ts);
         const account = [
           update.agent || "Agent",
           update.text || humanized(update.action),
-          quiet ? "quiet" : null,
+          quiet ? `Was working ${age}` : null,
         ]
           .filter(Boolean)
           .join(" · ");
-        const age = ago(update.ts);
         add(groups, target, {
           kind: "activity",
           id: `activity:${update.id}`,
           text: trimmed(account),
-          acknowledgmentFace: KINDS.activity,
-          agentReceipt: claimActivity.get(`${update.target.kind}:${update.target.id}`),
+          workflowFace: KINDS.activity,
+          workflowReceipt: claimActivity.get(
+            `${update.target.kind}:${update.target.id}`,
+          ),
           context: [age && `Checked in ${age}`, update.text]
             .filter(Boolean)
             .join(" · "),
@@ -1322,7 +1332,7 @@ export function createMarginProjection({
             .filter(
               (item) =>
                 item.marker === false ||
-                item.acknowledgmentFace ||
+                item.workflowFace ||
                 !represented.has(item.kind),
             )
             .sort(
@@ -1446,7 +1456,7 @@ export function createMarginProjection({
     const count = choice?.items.length ?? 0;
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}`;
     const subject =
-      count === 1 && choice.items[0].acknowledgmentFace ? choice.text : entry.title;
+      count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
     return `${reading}, ${index + 1} of ${anchored}, ${subject}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}`;
   }
 
@@ -1802,7 +1812,7 @@ export function createMarginProjection({
       writesRelation: false,
       writesSeat: false,
     });
-    syncMarginAgentPhase(row, agentReceipt(choice?.items ?? []));
+    syncMarginAgentWorkflow(row, workflowReceipt(choice?.items ?? []));
     row.onclick = behavior === "status" ? null : pressMarker;
     syncReadingRelation(row, choice);
     row.removeAttribute("aria-pressed");
@@ -1901,7 +1911,7 @@ export function createMarginProjection({
       state: readingState(choice),
       writesRelation: false,
     });
-    syncMarginAgentPhase(node, agentReceipt(choice.items));
+    syncMarginAgentWorkflow(node, workflowReceipt(choice.items));
     node.lfEntry = entry;
     node.lfChoice = choice;
     syncReadingRelation(node, choice);
@@ -2235,22 +2245,22 @@ export function createMarginProjection({
         ...new Set(pageInventory.flatMap((entry) => entry.offers.flatMap(controlsOf))),
       ]),
     );
-    const nextAgentCarriers = new Set();
+    const nextWorkflowCarriers = new Set();
     for (const entry of pageInventory) {
       entry.shownControls = shownControls;
       const primary = choosePrimary(entry);
-      const receipt = agentReceipt(entry.items);
+      const receipt = workflowReceipt(entry.items);
       if (primary && receipt) {
-        syncMarginAgentPhase(primary, receipt);
-        nextAgentCarriers.add(primary);
+        syncMarginAgentWorkflow(primary, receipt);
+        nextWorkflowCarriers.add(primary);
         entry.items = entry.items.filter(
-          (item) => !(item.acknowledgmentFace && agentReceipt([item])),
+          (item) => !(item.workflowFace && workflowReceipt([item])),
         );
       }
     }
-    for (const control of agentCarriers)
-      if (!nextAgentCarriers.has(control)) syncMarginAgentPhase(control, null);
-    agentCarriers = nextAgentCarriers;
+    for (const control of workflowCarriers)
+      if (!nextWorkflowCarriers.has(control)) syncMarginAgentWorkflow(control, null);
+    workflowCarriers = nextWorkflowCarriers;
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
     );
@@ -2853,6 +2863,25 @@ export function createMarginProjection({
   // moved the rows, and the card follows in that same frame, so a reader never sees it
   // standing above or below where its controls used to be.
 
+  // Standing selection belongs to the reading, not to focus or a particular feature's
+  // control. Resolve it through the same inventory that decides which reading is the
+  // visible marker and which is an unfolded option, then paint one shared state on the
+  // compact projection. An open disclosure continues to use aria-expanded instead.
+  function paintSelectedMarginEntries(selections) {
+    const selected = new Set();
+    for (const selection of selections) {
+      const entry = pageInventory.find(
+        (candidate) => candidate.target === selection.target,
+      );
+      const control = entry && readingMarginEntry(entry, selection.kind);
+      if (control?.isConnected) selected.add(control);
+    }
+    for (const control of selectedReadingCarriers)
+      if (!selected.has(control)) syncMarginEntrySelection(control, false);
+    for (const control of selected) syncMarginEntrySelection(control, true);
+    selectedReadingCarriers = selected;
+  }
+
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
   const unfoldedMarginEntries = () =>
     expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
@@ -2978,6 +3007,7 @@ export function createMarginProjection({
     keyboardRung,
     openInlineThread,
     openPageThread,
+    paintSelectedMarginEntries,
     marginEntryChoices,
     unfoldedMarginEntries,
     foldMarginEntryOptions,

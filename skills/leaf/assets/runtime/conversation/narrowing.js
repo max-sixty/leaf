@@ -46,7 +46,7 @@ export const narrowed = () =>
 
 const threadWords = (thread, group) =>
   [
-    anchorLabel(thread.anchor, thread.root.about),
+    anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about),
     group.label,
     ...thread.msgs.map((message) => message.text ?? message.token),
   ]
@@ -65,7 +65,10 @@ const matchesState = (thread, value = state) =>
           ? awaitsAgent(thread)
           : true);
 const matchesScope = (thread, value = scope) =>
-  !value || (value === "page" ? !thread.anchor : Boolean(thread.anchor));
+  !value ||
+  (value === "page"
+    ? !thread.anchor && !thread.detached_from
+    : Boolean(thread.anchor) || Boolean(thread.detached_from));
 const matchesSubject = (thread, value = subject) =>
   !value || (value === "layer") === (thread.root.about === "layer");
 const matchesGone = (_thread, group, value = onlyGone) =>
@@ -234,6 +237,41 @@ function clearNarrowing(nextState = "open") {
   onlyGone = false;
   findInput.value = "";
   return changed;
+}
+
+// A direct destination may replace every panel refinement. A fallible optimistic
+// transition captures this reading before it reveals that destination, so refusal can
+// put back the exact list the reader was operating rather than merely selecting the
+// thread's lifecycle again.
+export function retainNarrowing(refreshNarrowing) {
+  const reading = () => ({
+    finding,
+    words: findInput.value,
+    state,
+    scope,
+    subject,
+    onlyGone,
+  });
+  const same = (left, right) =>
+    right && Object.keys(left).every((key) => left[key] === right[key]);
+  const retained = reading();
+  let replacement = null;
+  return {
+    replaced: () => {
+      replacement = reading();
+    },
+    // Restore only while the direct arrival's view still stands. Typing in the
+    // optimistic reply box does not change this reading and must not strand a refused
+    // Reopen under the Open filter; changing the search or facets deliberately does.
+    restore: (before = null) => {
+      if (!same(reading(), replacement)) return false;
+      before?.();
+      ({ finding, state, scope, subject, onlyGone } = retained);
+      findInput.value = retained.words;
+      renarrow(refreshNarrowing);
+      return true;
+    },
+  };
 }
 
 export function widen(refreshNarrowing) {

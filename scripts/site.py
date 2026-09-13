@@ -29,8 +29,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Iterator
-from contextlib import contextmanager
+from dataclasses import replace
 from functools import partial
 from html.parser import HTMLParser
 from importlib import import_module
@@ -371,9 +370,10 @@ def publish_examples(out: Path, env: dict) -> None:
     shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
     for source in published_page_sources():
         published = out / "examples" / source.stem
+        fixture = read_fixture(source)
         prepare_page(
             published,
-            read_fixture(source),
+            replace(fixture, packages=(*fixture.packages, SITE_PACKAGE)),
             partial(leaf, env),
             final_status="idle",
             current_note="As published",
@@ -501,33 +501,20 @@ def publish_live_shells(
     return assets
 
 
-@contextmanager
-def build_environment() -> Iterator[dict[str, str]]:
-    """Yield the host environment with user Leaf overlays withheld."""
-    # The layer a visitor gets is the shipped one, plus this project's: a page dir
-    # vendors the user's ~/.config/leaf overlay too, and that one belongs to
-    # whoever is running the build. An empty config home is what withholds it —
-    # HOME stays, because uv keeps its cache there and a moved HOME re-downloads
-    # Playwright on every build. Dropping the session leaves these throwaway page
-    # directories nobody's, and so out of the watch guard.
-    #
-    # The state home stays whole, and wants no emptying beside the config one:
-    # what writes there is `server run`'s and `leaf wait`'s — the machine key,
-    # the session's claim — and a build runs neither.
-    env = {k: v for k, v in os.environ.items() if not k.startswith("LEAF_")}
+def build_environment() -> dict[str, str]:
+    """Keep the builder's host session identity out of published version notes."""
+    env = dict(os.environ)
     env.pop("CLAUDE_CODE_SESSION_ID", None)
     env.pop("CODEX_THREAD_ID", None)
-    with tempfile.TemporaryDirectory() as config_home:
-        env["XDG_CONFIG_HOME"] = config_home
-        yield env
+    env.pop("LEAF_SESSION_ID", None)
+    return env
 
 
 def build_examples(out: Path, *, catalog_previews: Path) -> None:
     """Build only the public example routes used to record catalog previews."""
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    with build_environment() as env:
-        publish_examples(out, env)
+    publish_examples(out, build_environment())
     publish_live_shells(out, catalog_previews, include_products=False)
 
 
@@ -540,8 +527,7 @@ def build(
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
 
-    with build_environment() as env:
-        publish_pages(out, env, catalog_previews)
+    publish_pages(out, build_environment(), catalog_previews)
     publish_live_shells(out, catalog_previews)
 
     if verify_links:

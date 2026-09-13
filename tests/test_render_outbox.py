@@ -9,32 +9,42 @@ from interact_support import append_command
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from playwright.sync_api import expect
-from render_support import (
-    BOARD_PAGE,
+from render_cases_interaction import (
     HOLD_MOTION,
+    SUGGESTION_PAGE,
+    live_url,
+)
+from render_cases_layout import (
+    unfolded_button,
+)
+from render_cases_navigation import (
+    NESTED_SUGGESTION,
+    UNDO_PAGE,
+    actions,
+    composer_quote,
+    mark_shows_beside_composer,
+    pending_text,
+)
+from render_cases_widgets import (
+    _painted_line,
+)
+from render_harness import (
+    BOARD_PAGE,
+    EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    NESTED_SUGGESTION,
     SETTLED_PAGE,
-    SUGGESTION_PAGE,
-    UNDO_PAGE,
     CutOff,
     Traffic,
-    _painted_line,
     _traffic,
     _until,
-    actions,
     author_test_widget,
-    composer_quote,
     holding,
     leaf_page,
-    live_url,
-    mark_shows_beside_composer,
     navigate,
     nudge,
     open_page,
     panel_settled,
-    pending_text,
     refuse,
     resized,
     round_trip,
@@ -42,7 +52,6 @@ from render_support import (
     stamp_page,
     told,
     undo,
-    unfolded_button,
     wait_for_revision,
     watched,
 )
@@ -94,7 +103,6 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     # The undo is not itself a gesture to take back, so the offer goes with it.
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     assert errors == []
-    page.close()
 
 
 def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
@@ -103,7 +111,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    threads = page.locator(".lf-threads > .lf-thread")
+    threads = page.locator(".lf-threads > .lf-thread:not([hidden])")
     threads.nth(0).locator(".lf-resolve").click()
     round_trip(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
@@ -127,7 +135,6 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
         if event["kind"] in {"resolve", "undo"} and event["author"] == "user"
     ] == ["resolve", "resolve", "undo"]
     assert errors == []
-    page.close()
 
 
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
@@ -167,7 +174,6 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
         ("undo", moved["id"])
     ]
     assert errors == []
-    page.close()
 
 
 def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
@@ -207,7 +213,6 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     assert [e["kind"] for e in events_model.read_events(d) if e["kind"] == "undo"] == []
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
@@ -254,7 +259,6 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
@@ -292,7 +296,6 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
@@ -331,7 +334,6 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     assert _traffic(page).sends == 1
     expect(page.locator(".lf-notice")).to_contain_text("is already in use")
     assert errors == []
-    page.close()
 
 
 def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
@@ -365,7 +367,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     page.route("**/api/state*", hold_older_state)
     with page.expect_request("**/api/state"):
         nudge(serve.page_dir)
-    page.wait_for_timeout(0)
+    holding(page, older, 1, "the older state read")
     assert len(older) == 1
     old_route = older[0]
     old_state = old_route.fetch().json()
@@ -485,7 +487,6 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # the routes and wait for any handler already running before their owning page goes.
     page.unroute_all(behavior="wait")
     assert all(error == reported.value.text or "400" in error for error in errors)
-    page.close()
 
 
 def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
@@ -551,7 +552,6 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     assert any("read failed" in error for error in errors)
-    page.close()
 
 
 def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
@@ -574,7 +574,7 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
         baffle.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the first queued action")
     expect(
         page.locator('[data-lf-margin-for="card-baffle"] [data-lf-behavior="status"]')
     ).to_have_count(0)
@@ -616,7 +616,7 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
                 "final": True,
             },
         )
-    page.wait_for_timeout(0)
+    holding(page, held, 2, "the second queued action")
     assert len(held) == 2
     second_attempt = second_request.value.post_data_json["attempt"]
     with page.expect_request(
@@ -627,7 +627,7 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
         )
     ):
         held[1].continue_()
-    page.wait_for_timeout(0)
+    holding(page, held, 3, "the third queued action")
     assert len(held) == 3
 
     # The accepted second response states "after heater", but the third gesture is
@@ -659,7 +659,6 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-heater", "card-baffle"]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
@@ -710,7 +709,7 @@ def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
                         "final": True,
                     },
                 )
-            page.wait_for_timeout(0)
+            holding(page, held, at + 2, "the next queued action")
         else:
             with page.expect_response(lambda response: "/api/event" in response.url):
                 held[at].fulfill(
@@ -735,7 +734,6 @@ def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
         "card-heater"
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
@@ -764,7 +762,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
         page.locator("#card-heater .lf-grip").focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the refused card move")
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -800,7 +798,6 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
         f"{motions}"
     )
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
@@ -872,7 +869,6 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
         "card-heater"
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
@@ -944,7 +940,9 @@ customElements.define("lf-outer-board", class extends HTMLElement {
   </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
 </lf-outer-board>""",
     )
-    page, errors = open_page(browser, serve(nested))
+    page, errors = open_page(
+        browser, serve(nested, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     page.route("**/api/state*", refuse)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -958,7 +956,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
               void sendAction(widget, 'move', detail);
             }); }"""
         )
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the outer-board move")
     page.evaluate(
         """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
           const widget = document.querySelector('#inner');
@@ -997,7 +995,6 @@ customElements.define("lf-outer-board", class extends HTMLElement {
         (event["widget"], event["detail"]["card"]) for event in actions(serve.page_dir)
     ] == [("inner", "inner-card")]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
@@ -1108,7 +1105,6 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         "card-baffle",
     ]
     assert errors
-    page.close()
 
 
 def test_accounting_an_action_projects_newer_same_widget_news_before_release(
@@ -1125,7 +1121,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
         heater.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the accounted action")
     assert len(held) == 1
     # Reads held until B is appended, so one complete state carries A and B: the
     # stream would otherwise have the page read A alone in the time B takes.
@@ -1163,7 +1159,6 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
         "card-baffle",
     ]
     assert errors == []
-    page.close()
 
 
 def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
@@ -1181,7 +1176,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
         heater.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the action later undone")
     assert len(held) == 1
     # Reads held until the undo is appended, so the first complete read reveals both.
     cut = CutOff().hold(page)
@@ -1206,7 +1201,6 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.unroute("**/api/event")
-    page.close()
 
 
 def test_a_first_complete_read_restores_its_own_already_undone_action(browser, serve):
@@ -1231,7 +1225,7 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
         heater.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the first-read action")
     assert len(held) == 1
     accepted_answer = held[0].fetch()
     attempt = held[0].request.post_data_json["attempt"]
@@ -1254,7 +1248,6 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.unroute("**/api/event")
-    page.close()
 
 
 def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
@@ -1278,7 +1271,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the suggestion settlement")
     accepted_answer = held[0].fetch()
     attempt = held[0].request.post_data_json["attempt"]
     accepted = next(
@@ -1303,7 +1296,6 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     page.wait_for_timeout(100)
     expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
     page.unroute("**/api/event")
-    page.close()
 
 
 def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve):
@@ -1315,7 +1307,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the accepted suggestion")
     # Append the accept while its browser response remains held, with the page's
     # reads held too, so one complete read accounts the accept and replays the reject.
     cut = CutOff().hold(page)
@@ -1350,7 +1342,6 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     page.wait_for_timeout(100)
     expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
     page.unroute("**/api/event")
-    page.close()
 
 
 def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
@@ -1364,7 +1355,7 @@ def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serv
         page.locator("#card-baffle .lf-grip").focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the first ordered action")
     assert len(held) == 1
     first_attempt = held[0].request.post_data_json["attempt"]
 
@@ -1383,7 +1374,7 @@ def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serv
         # and B goes out — within the stream's look, so the listener has to be armed
         # before the append rather than after it.
         first_answer = held[0].fetch()
-    page.wait_for_timeout(0)
+    holding(page, held, 2, "the second ordered action")
 
     assert len(held) == 2
     held[0].fulfill(response=first_answer)  # cleanup after B has proved release
@@ -1403,7 +1394,6 @@ def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serv
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, serve):
@@ -1419,7 +1409,7 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
         baffle.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the refused action")
 
     baffle.focus()
     page.keyboard.press("Enter")
@@ -1444,7 +1434,6 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     assert actions(serve.page_dir) == []
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
@@ -1502,7 +1491,6 @@ def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
@@ -1521,7 +1509,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
         ).click()
         draft.locator("textarea").fill("Local C")
         page.keyboard.press("Meta+Enter")
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the refused draft")
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
 
     append_command(
@@ -1561,7 +1549,6 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
         "Remote B"
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve):
@@ -1606,7 +1593,6 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
         "Local C",
     ]
     assert errors == []
-    page.close()
 
 
 def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
@@ -1651,7 +1637,6 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
         edit["id"],
     ]
     assert errors == []
-    page.close()
 
 
 def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serve):
@@ -1678,7 +1663,6 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serv
 
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
     assert errors == []
-    page.close()
 
 
 def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
@@ -1715,7 +1699,6 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
         if e["kind"] == "undo"
     ] == [accepted["id"]]
     assert errors == []
-    page.close()
 
 
 def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
@@ -1754,7 +1737,6 @@ def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
     page.wait_for_function(f"{marks} === 1")
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_undo_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
@@ -1768,7 +1750,6 @@ def test_undo_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
-    page.close()
 
 
 def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve):
@@ -1998,7 +1979,6 @@ def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve)
     )
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
     assert errors == []
-    page.close()
 
 
 def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
@@ -2060,7 +2040,6 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
         "the mark is showing and the composer prints the passage as well"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
@@ -2089,7 +2068,6 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
         arg=before,
     )
     assert errors == []
-    page.close()
 
 
 def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serve):
@@ -2133,7 +2111,6 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
         f"the box stands on the page's own text: {standing['touching']}"
     )
     assert errors == []
-    page.close()
 
 
 def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
@@ -2168,7 +2145,6 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
         "held open across the panel opening"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):
@@ -2220,7 +2196,6 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     quote = composer_quote(page)
     assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"
     assert errors == []
-    page.close()
 
 
 def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, serve):
@@ -2284,7 +2259,6 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     assert _traffic(page).sends == sent, "the drop that moved nothing sent a move"
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
@@ -2366,7 +2340,6 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
         route.continue_()
     round_trip(page)
     assert errors == []
-    page.close()
 
 
 def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
@@ -2482,7 +2455,6 @@ def test_a_failed_candidate_restores_the_prior_version_approval(browser, serve):
     nudge(serve.page_dir)
     expect(approval).to_have_text("✓ Version approved")
     assert errors == ["leaf: read failed: injected approval commit fault"]
-    page.close()
 
 
 def test_undo_waits_for_the_candidate_view_to_commit_or_roll_back(browser, serve):
@@ -2593,7 +2565,6 @@ def test_undo_waits_for_the_candidate_view_to_commit_or_roll_back(browser, serve
     )
     assert len([event for event in posts if event.get("kind") == "undo"]) == 1
     assert errors == ["leaf: read failed: injected candidate commit fault"]
-    page.close()
 
 
 def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
@@ -2639,7 +2610,6 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     ]
     assert len(expected) == 1, errors
     assert errors == expected
-    page.close()
 
 
 def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, serve):
@@ -2734,4 +2704,3 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     assert errors == ["leaf: read failed: injected wake candidate fault"]
-    page.close()

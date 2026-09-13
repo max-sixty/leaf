@@ -5,128 +5,31 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
+import urllib.error
+import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
+import click
 from leaf.render_gate.browser import launch_browser
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
-ORIGIN = os.environ.get("LEAF_SITE_ORIGIN", "https://leaf.page").rstrip("/")
-DIRECT_AGENT = os.environ.get("LEAF_VERIFY_DIRECT_AGENT") == "1"
+VERIFIER_SCRIPT = ROOT / "scripts" / "verify-site-browser.js"
 PAGES = (
     ("/", "product", True),
     ("/examples/triage-board/", "example", True),
     ("/examples/feature-gallery/versions/v1.html", "example", False),
 )
-PROFILE_SCRIPT = """(() => {
-  window.__leafStartup = {};
-  const snapshot = () => {
-    const resources = performance.getEntriesByType("resource");
-    const code = resources.filter(entry => {
-      const url = new URL(entry.name);
-      return url.origin === location.origin &&
-        (url.pathname.endsWith(".js") || url.pathname.endsWith(".css") ||
-         url.pathname.endsWith("/registry.json"));
-    });
-    const javascript = code.filter(entry => new URL(entry.name).pathname.endsWith(".js"));
-    const state = resources.filter(entry =>
-      new URL(entry.name).pathname.endsWith("/api/state"));
-    const bytes = entries => entries.reduce((total, entry) => total + entry.encodedBodySize, 0);
-    const lastResponse = entries =>
-      entries.length ? Math.max(...entries.map(entry => entry.responseEnd)) : null;
-    return {
-      at: performance.now(),
-      code_loaded: lastResponse(code),
-      js_loaded: lastResponse(javascript),
-      state_loaded: lastResponse(state),
-      requests: resources.length,
-      bytes: bytes(resources),
-      code_requests: code.length,
-      code_bytes: bytes(code),
-      js_requests: javascript.length,
-      js_bytes: bytes(javascript),
-    };
-  };
-  const record = () => {
-    const body = document.body;
-    if (!body) return;
-    for (const [name, attribute] of [
-      ["upgraded", "data-lf-upgraded"],
-      ["presented", "data-lf-presented"],
-    ]) {
-      if (body.hasAttribute(attribute) && !window.__leafStartup[name])
-        window.__leafStartup[name] = snapshot();
-    }
-  };
-  new MutationObserver(record).observe(document, {
-    attributes: true,
-    attributeFilter: ["data-lf-upgraded", "data-lf-presented"],
-    childList: true,
-    subtree: true,
-  });
-  record();
-})()"""
-STARTUP_READING = """() => {
-  const navigation = performance.getEntriesByType("navigation")[0];
-  return {
-    first_byte: navigation.responseStart,
-    document: navigation.responseEnd,
-    paint: Object.fromEntries(
-      performance.getEntriesByType("paint").map(entry => [entry.name, entry.startTime])
-    ),
-    ...window.__leafStartup,
-  };
-}"""
-VISIBLE_REPLY_INIT = """(() => {
-  window.__leafWatchVisibleAgentReply = () => {
-    const started = sessionStorage.getItem('leaf-visible-reply-started');
-    if (started === null || sessionStorage.getItem('leaf-visible-reply-at') !== null)
-      return;
-    const seen = new WeakSet();
-    const intersections = new IntersectionObserver(entries => {
-      const visible = entries.find(({isIntersecting, target}) =>
-        isIntersecting &&
-        target.querySelector('.lf-msg-text')?.textContent.trim() &&
-        target.checkVisibility()
-      );
-      if (!visible || sessionStorage.getItem('leaf-visible-reply-at') !== null) return;
-      sessionStorage.setItem('leaf-visible-reply-at', String(Date.now()));
-      mutations.disconnect();
-      intersections.disconnect();
-    });
-    const observe = () => {
-      for (const message of document.querySelectorAll('.lf-msg.claude')) {
-        if (!seen.has(message) && message.querySelector('.lf-msg-text')?.textContent.trim()) {
-          seen.add(message);
-          intersections.observe(message);
-        }
-      }
-    };
-    const mutations = new MutationObserver(observe);
-    mutations.observe(document, {attributes: true, childList: true, subtree: true});
-    observe();
-  };
-  window.__leafWatchVisibleAgentReply();
-})()"""
-VISIBLE_REPLY_WATCH = """() => {
-  const started = Date.now();
-  sessionStorage.setItem('leaf-visible-reply-started', String(started));
-  sessionStorage.removeItem('leaf-visible-reply-at');
-  window.__leafWatchVisibleAgentReply();
-  return started;
-}"""
-VISIBLE_REPLY_READING = """() => {
-  const visible = sessionStorage.getItem('leaf-visible-reply-at');
-  return visible === null ? null : Number(visible);
-}"""
-VISIBLE_REPLY_READY = """() =>
-  sessionStorage.getItem('leaf-visible-reply-at') !== null"""
 
 
 # One hosted Codex turn runs at the model's pace, not this gate's. `TURN_PATIENCE`
@@ -153,25 +56,6 @@ TURN_PRESENTATION = 120_000
 # unheld, listening, stalled or closed is not going to answer, so its wait ends at
 # `TURN_PATIENCE` rather than running out the limit.
 ANSWERING = frozenset({"queued", "handling", "working"})
-# The container's own settlement for a turn that ended without generating a reply,
-# mirroring `worker/server.py`'s `GENERATION_FAILURE_REPLY`. Reaching it is the
-# deployment working: the container noticed a turn that never completed, closed it,
-# and answered the reader's standing ask rather than leaving it open. What it says
-# about the release is only that this one generation did not happen, so the gate does
-# what the text itself asks for and sends one more message. A deployment that cannot
-# run a hosted turn settles the same way twice; a model-side failure does not.
-GENERATION_FAILURE_REPLY = (
-    "I couldn’t generate a reply just now. Please send a new message to try again."
-)
-MISSING_REPLY = (
-    "I finished without posting a reply. Please send a new message to try again."
-)
-RATE_LIMIT_REPLY = (
-    "This public demo is busy right now. Please wait a minute, then send a new message."
-)
-HOST_FAILURE_REPLIES = frozenset(
-    {GENERATION_FAILURE_REPLY, MISSING_REPLY, RATE_LIMIT_REPLY}
-)
 TURN_ASKS = 2
 
 
@@ -196,7 +80,7 @@ def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
 
     Presentation is every later check's precondition, so the timeout is where this
     gate stops, and the run log has held only the wait's own traceback: not the page
-    that stalled, and not how far it got. `PROFILE_SCRIPT` already records each
+    that stalled, and not how far it got. The browser verifier records each
     startup stamp as it lands, and the two stamps separate the two ways to stall —
     an upgrade that never settled leaves none, while a first state read that never
     answered leaves `upgraded` standing alone.
@@ -208,7 +92,7 @@ def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
 
 def observe_startup(page: Page) -> list[str]:
     """Every verifier page records milestones and the errors that stop reaching them."""
-    page.add_init_script(PROFILE_SCRIPT)
+    page.add_init_script(path=VERIFIER_SCRIPT)
     failures: list[str] = []
     page.on(
         "console",
@@ -226,7 +110,7 @@ def await_presentation(
     try:
         page.locator("body[data-lf-presented]").wait_for(timeout=timeout)
     except PlaywrightTimeout:
-        reached = page.evaluate("() => Object.keys(window.__leafStartup ?? {})")
+        reached = page.evaluate("window.__leafVerifier.startupMilestones")
         raise RuntimeError(unpresented(url, reached, failures)) from None
 
 
@@ -242,28 +126,26 @@ def activation_url(page_url: str, state: dict) -> str:
     return urljoin(page_url, f"api/view?{query}")
 
 
-def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> dict:
+def verify_page(
+    browser, path: str, kind: str, release: str, activate: bool, *, origin: str
+) -> dict:
     context = browser.new_context()
     page = context.new_page()
     failures = observe_startup(page)
-    url = urljoin(f"{ORIGIN}/", path.lstrip("/"))
+    url = urljoin(f"{origin}/", path.lstrip("/"))
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
 
-    identity = page.locator("script[data-lf-server]").evaluate(
-        "script => ({layer: script.dataset.lfLayer, release: script.dataset.lfRelease})"
-    )
+    identity = page.evaluate("window.__leafVerifier.identity")
     check(identity["release"] == release, f"{url} served release {identity['release']}")
     prefix = f"/_leaf-release/{release}/"
-    resources = page.evaluate(
-        "performance.getEntriesByType('resource').map(entry => entry.name)"
-    )
+    resources = page.evaluate("window.__leafVerifier.resourceNames")
     code = [
         resource
         for resource in resources
         if urlsplit(resource).path.endswith((".js", ".css", "registry.json"))
-        and urlsplit(resource).netloc == urlsplit(ORIGIN).netloc
+        and urlsplit(resource).netloc == urlsplit(origin).netloc
     ]
     check(code, f"{url} loaded no runtime resources")
     check(
@@ -276,7 +158,7 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         ),
         f"{url} opened a news stream before interaction",
     )
-    secure = urlsplit(ORIGIN).scheme == "https"
+    secure = urlsplit(origin).scheme == "https"
     identity_cookie = "__Host-leaf-page" if secure else "leaf-page-local"
     cookie_names = {cookie["name"] for cookie in context.cookies()}
     check(
@@ -293,23 +175,14 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         ),
         f"{url} activated a container before interaction",
     )
-    media = page.evaluate(
-        """async () => {
-          const script = document.querySelector("script[data-lf-server]");
-          const moduleUrl = new URL("runtime/media.js", new URL(script.dataset.lfEntry, location.origin));
-          return {
-            path: (await import(moduleUrl.href)).scopedMediaUrl("/media/0123456789abcdef.png"),
-            root: script.dataset.lfPageRoot,
-          };
-        }"""
-    )
+    media = page.evaluate("window.__leafVerifier.scopedMedia")
     expected_media = f"{media['root']}/media/0123456789abcdef.png"
     check(
         media["path"] == expected_media,
         f"{url} scoped private media into the release namespace: {media['path']}",
     )
     check(not failures, f"{url} reported browser errors: {failures}")
-    startup = page.evaluate(STARTUP_READING)
+    startup = page.evaluate("window.__leafVerifier.startupReading")
     if not activate:
         context.close()
         return startup
@@ -409,10 +282,10 @@ def startup_line(path: str, startup: dict) -> str:
     )
 
 
-def verify_cross_tab_activation(browser) -> None:
+def verify_cross_tab_activation(browser, *, origin: str) -> None:
     """One interacting tab must wake another tab sharing its browser session."""
     context = browser.new_context()
-    url = f"{ORIGIN}/examples/triage-board/"
+    url = f"{origin}/examples/triage-board/"
     leader = context.new_page()
     follower = context.new_page()
     for page in (leader, follower):
@@ -420,26 +293,19 @@ def verify_cross_tab_activation(browser) -> None:
         response = page.goto(url, wait_until="load", timeout=120_000)
         check(response is not None and response.ok, f"{url} did not load")
         await_presentation(page, url, failures)
-    follower.evaluate(
-        """() => {
-          window.__leafActivated = 0;
-          document.addEventListener("lf-session-active", () => window.__leafActivated++);
-        }"""
-    )
-    leader.evaluate(
-        """async () => {
-          const script = document.querySelector("script[data-lf-server]");
-          const moduleUrl = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
-          const client = await import(moduleUrl.href);
-          client.observeSession(new Response(null, {headers: {"Leaf-Session": "active"}}));
-        }"""
-    )
-    follower.wait_for_function("window.__leafActivated === 1", timeout=5_000)
+    follower.evaluate("window.__leafVerifier.observeCrossTabActivation")
+    leader.evaluate("window.__leafVerifier.activateSession")
+    follower.wait_for_function("window.__leafVerifier.crossTabActivated", timeout=5_000)
     context.close()
 
 
 def reader_session(
-    browser, url: str, state_url: str, release: str | None
+    browser,
+    url: str,
+    state_url: str,
+    release: str | None,
+    *,
+    direct_agent: bool = False,
 ) -> AgentSession | str:
     """One activated reader session, or the release its container served instead."""
     context = browser.new_context()
@@ -450,7 +316,7 @@ def reader_session(
     await_presentation(page, url, failures)
     passive = context.request.get(state_url, timeout=120_000)
     check(passive.ok, f"{state_url} returned {passive.status}")
-    if DIRECT_AGENT:
+    if direct_agent:
         reached = passive.headers.get("leaf-release")
         if release is not None and reached != release:
             context.close()
@@ -480,7 +346,9 @@ def reader_session(
     return AgentSession(context, page, failures, url, state_url, state_response.json())
 
 
-def agent_session(browser, release: str | None) -> AgentSession:
+def agent_session(
+    browser, release: str | None, *, origin: str, direct_agent: bool = False
+) -> AgentSession:
     """Open one reader session whose private container is serving `release`.
 
     The Worker keys a container on the reader session alone, so a session that lands
@@ -493,14 +361,16 @@ def agent_session(browser, release: str | None) -> AgentSession:
     and it takes a fresh session while a rollout drains. Nothing here writes: the
     turn is posted once, afterwards.
     """
-    url = f"{ORIGIN}/examples/triage-board/"
+    url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     # The release verification ahead of this pass already waited out most of the
     # rollout, so this is the tail of a drain rather than the drain, and this wait
     # plus the turn's `TURN_LIMIT` still has to sit inside the job's own budget.
     deadline = time.monotonic() + 180
     while True:
-        session = reader_session(browser, url, state_url, release)
+        session = reader_session(
+            browser, url, state_url, release, direct_agent=direct_agent
+        )
         if isinstance(session, AgentSession):
             return session
         check(release is not None, f"{url} returned no active release")
@@ -627,26 +497,19 @@ def agent_profile(profile: AgentProfile) -> dict:
     }
 
 
-def generation_failed(replies: list[dict]) -> bool:
+def startup_failed(replies: list[dict]) -> bool:
     """Whether the container settled this ask by reporting a turn that never ran."""
-    return any(reply["text"].strip() == GENERATION_FAILURE_REPLY for reply in replies)
+    return any(reply.get("failure") == "startup_failed" for reply in replies)
 
 
 def turn_failed(replies: list[dict]) -> bool:
     """Whether the host closed the turn with one of its failure receipts."""
-    return any(reply["text"].strip() in HOST_FAILURE_REPLIES for reply in replies)
+    return any("failure" in reply for reply in replies)
 
 
 def deployment_answer(replies: list[dict]) -> dict | None:
     """Return a real agent reply rather than a host-generated failure receipt."""
-    return next(
-        (
-            reply
-            for reply in replies
-            if reply["text"].strip() not in HOST_FAILURE_REPLIES
-        ),
-        None,
-    )
+    return next((reply for reply in replies if "failure" not in reply), None)
 
 
 def start_direct_agent(context, url: str, comment: dict) -> None:
@@ -685,6 +548,8 @@ def ask_for_the_heading(
     heading: str,
     profile: AgentProfile,
     ask: int,
+    *,
+    direct_agent: bool = False,
 ) -> dict:
     """Send one deployment-check comment through the reader's real composer."""
     text = (
@@ -695,7 +560,9 @@ def ask_for_the_heading(
     box.fill(text)
     if ask == 1:
         profile.started = time.monotonic()
-        profile.visible_reply_started_ms = page.evaluate(VISIBLE_REPLY_WATCH)
+        profile.visible_reply_started_ms = page.evaluate(
+            "window.__leafVerifier.startVisibleReplyClock"
+        )
     with page.expect_response(
         lambda response: (
             response.url.endswith("/api/event") and response.request.method == "POST"
@@ -727,7 +594,7 @@ def ask_for_the_heading(
     )
     check(comment is not None, f"{url} did not return its deployment-check comment")
     profile.event_ids.append(comment["id"])
-    if DIRECT_AGENT:
+    if direct_agent:
         start_direct_agent(context, url, comment)
     return comment
 
@@ -797,16 +664,13 @@ def ask_until_answered(
     state: dict,
     *,
     report: bool = True,
+    direct_agent: bool = False,
 ) -> AgentAsks:
     """Ask the deployed agent for `heading` until it answers or stops answering.
 
-    One outcome is asked again rather than reported. When the container settles an ask
-    with `GENERATION_FAILURE_REPLY`, the deployment has answered for itself correctly —
-    it caught a turn that never completed and told the reader to send a new message —
-    so this sends it, because a release that cannot run a hosted turn settles the same
-    way twice while a model-side failure does not. Every other ending is reported on
-    the first ask: a turn that completes without an agent-authored reply is the
-    deployed agent breaking its own contract.
+    A Worker startup failure is retried once while the pass has enough time for a
+    healthy turn. Rate limits and turns that stop without answering fail the pass
+    on the first ask. The reply's failure code owns this decision, not its wording.
     """
     published = None
     asks = 0
@@ -830,6 +694,7 @@ def ask_until_answered(
             heading,
             profile,
             asks,
+            direct_agent=direct_agent,
         )
         state, published, replies, answer = await_turn(
             context,
@@ -849,7 +714,7 @@ def ask_until_answered(
         # than opening a turn it cannot wait for.
         if answer is not None or not (
             asks < TURN_ASKS
-            and generation_failed(replies)
+            and startup_failed(replies)
             and deadline - time.monotonic() >= TURN_PATIENCE
         ):
             return AgentAsks(
@@ -860,12 +725,19 @@ def ask_until_answered(
             )
         if report:
             print(
-                f"↻ {url} settled its ask with the container's generation failure; "
-                "sending the new message that reply asks for"
+                f"↻ {url} settled its ask with a startup failure; "
+                "sending one new message"
             )
 
 
-def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> dict:
+def verify_agent_turn(
+    browser,
+    release: str | None,
+    *,
+    origin: str,
+    direct_agent: bool = False,
+    report: bool = True,
+) -> dict:
     """Require one deployed Codex turn to revise and answer a private page.
 
     A turn is a process, not a step: it may publish a checkpoint revision before the
@@ -881,8 +753,10 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
     page that says nothing is answering, while a page that says a turn is still on
     this comment holds it open to `TURN_LIMIT`.
     """
-    context, page, failures, url, state_url, state = agent_session(browser, release)
-    initial_startup = page.evaluate(STARTUP_READING)
+    context, page, failures, url, state_url, state = agent_session(
+        browser, release, origin=origin, direct_agent=direct_agent
+    )
+    initial_startup = page.evaluate("window.__leafVerifier.startupReading")
     if release is None:
         release = state.get("release")
         check(isinstance(release, str), f"{state_url} returned no release")
@@ -892,8 +766,6 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
     layer = state["layer"]["generation"]
     heading = f"Deployment {release[:8]} verified"
     page.locator(".lf-threads-toggle").click()
-    page.add_init_script(VISIBLE_REPLY_INIT)
-    page.evaluate(VISIBLE_REPLY_INIT)
     asked = ask_until_answered(
         context,
         page,
@@ -904,24 +776,18 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
         heading,
         state,
         report=report,
+        direct_agent=direct_agent,
     )
     turn, asks, revision, profile = asked
     try:
-        page.wait_for_function(VISIBLE_REPLY_READY, timeout=30_000)
+        page.wait_for_function(
+            "window.__leafVerifier.visibleReplyRecorded", timeout=30_000
+        )
     except PlaywrightTimeout:
         pass
-    visible_reply_at = page.evaluate(VISIBLE_REPLY_READING)
+    visible_reply_at = page.evaluate("window.__leafVerifier.visibleReplyAt")
     if visible_reply_at is None:
-        visible_reply_debug = page.evaluate(
-            """() => ({
-              panel: document.querySelector('.lf-thread-panel')?.checkVisibility(),
-              messages: [...document.querySelectorAll('.lf-msg')].map(node => ({
-                author: [...node.classList],
-                hasText: Boolean(node.querySelector('.lf-msg-text')?.textContent.trim()),
-                visible: node.checkVisibility(),
-              })),
-            })"""
-        )
+        visible_reply_debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
         raise RuntimeError(
             f"{url} reply never became visible in Threads: {visible_reply_debug}"
         )
@@ -958,7 +824,7 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
         f"{url} did not reload after its agent turn",
     )
     await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
-    startup = page.evaluate(STARTUP_READING)
+    startup = page.evaluate("window.__leafVerifier.startupReading")
     presented_at = startup.get("presented", {}).get("at")
     # Presentation no longer says the reload's first read landed: the runtime presents at
     # its own fixed wait whether or not the container has answered, and following the
@@ -973,8 +839,7 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
     followed_at = time.monotonic()
     try:
         page.wait_for_function(
-            "want => Number(document.querySelector('meta[name=\"lf-revision\"]')"
-            "?.content) >= want",
+            "window.__leafVerifier.revisionAtLeast",
             arg=published["revision"],
             timeout=TURN_PRESENTATION,
         )
@@ -988,9 +853,7 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
     # Which of the two ways this can fail: a browser still standing on the built
     # document never followed the agent's revision, while one that followed it and
     # shows another heading is the agent's edit rather than the reader's page.
-    shown = page.evaluate(
-        "() => document.querySelector('meta[name=\"lf-revision\"]')?.content ?? null"
-    )
+    shown = page.evaluate("window.__leafVerifier.revision")
     # A page standing on the built document has two ways to get there, and the banner
     # separates them: one whose first read answered was told revision 1 and stands under
     # that reading's activity line, while one that presented offline was never told
@@ -998,9 +861,7 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
     # see the read, so it reports what the page says about it. A presented page always
     # has this line — the chrome mounts it reading ‘Connecting…’ and every render
     # replaces its words — so there is no third answer to guard for.
-    banner = page.evaluate(
-        "() => document.querySelector('.lf-status-text')?.textContent?.trim() || null"
-    )
+    banner = page.evaluate("window.__leafVerifier.status")
     check(
         (shown or "").isdigit() and int(shown) >= published["revision"],
         f"{url} stands on revision {shown} rather than following the published "
@@ -1036,7 +897,7 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
         )
         print(startup_line("changed page", startup))
     result = {
-        "origin": ORIGIN,
+        "origin": origin,
         "release": release,
         "page": startup_profile(initial_startup),
         "comment": agent_profile(profile),
@@ -1054,39 +915,177 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
     return result
 
 
-def main() -> None:
-    """Verify one deployed release, or run the deployed agent turn against it.
+def target_origin(target: str) -> str:
+    """Require an HTTP origin; page paths belong to the verification journey."""
+    parsed = urlsplit(target)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise click.BadParameter("target must be local or an http(s) origin")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise click.BadParameter(
+            "target must be an origin without a path, query, or fragment"
+        )
+    return target.rstrip("/")
 
-    Container rollout is asynchronous and per allocation: a fresh reader session can
-    still reach the previous image seconds after another reached the new one. The
-    deploy step waits that out by re-running the release pass until it holds, so a
-    single coherent sample is what ends the wait. The agent pass therefore runs the
-    turn alone — re-sampling the release readings after the wait had already settled
-    them turned a rollout that was still draining into a red default branch.
+
+@contextmanager
+def local_adapter():
+    """Own a disposable website adapter and Codex home for one real agent journey.
+
+    The host's login is copied into a private temporary home. The adapter uses
+    resumable tasks there and owns their App Server; terminating it closes that
+    server before the temporary pages and task history are removed. Build and server
+    output stay in the diagnostic log, so a benchmark's stdout contains only JSON.
     """
-    if len(sys.argv) > 2:
-        raise SystemExit("usage: uv run scripts/verify-site.py [release]")
+    log = ROOT / ".tmp" / "website-agent-local.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary:
+        root = Path(temporary)
+        site = root / "site"
+        codex_home = root / "codex-home"
+        codex_home.mkdir(mode=0o700)
+        host_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+        shutil.copyfile(
+            ROOT / "worker" / "codex-config.toml", codex_home / "config.toml"
+        )
+        auth = codex_home / "auth.json"
+        shutil.copyfile(host_home / "auth.json", auth)
+        auth.chmod(0o600)
+        with log.open("w") as output:
+            try:
+                subprocess.run(
+                    [sys.executable, str(ROOT / "scripts" / "site.py")],
+                    cwd=ROOT,
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                    check=True,
+                )
+                shutil.copytree(ROOT / ".tmp" / "site", site)
+                release = json.loads((site / "_leaf" / "site.json").read_text())[
+                    "release"
+                ]
+                output.flush()
+                server_log_start = output.tell()
+                with subprocess.Popen(
+                    [sys.executable, str(ROOT / "worker" / "server.py")],
+                    cwd=ROOT,
+                    env={
+                        **os.environ,
+                        "CODEX_HOME": str(codex_home),
+                        "LEAF_SITE_ROOT": str(site),
+                    },
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                ) as server:
+                    try:
+                        origin = "http://127.0.0.1:8080"
+                        deadline = time.monotonic() + 30
+                        while True:
+                            if server.poll() is not None:
+                                raise RuntimeError(
+                                    "the local website adapter exited before becoming ready"
+                                )
+                            # The adapter emits this event only after binding its
+                            # listener. An unrelated process answering the port must
+                            # not satisfy readiness before our child has started.
+                            with log.open() as server_log:
+                                server_log.seek(server_log_start)
+                                ready = False
+                                for line in server_log:
+                                    if not line.endswith("\n"):
+                                        break
+                                    try:
+                                        record = json.loads(line)
+                                    except json.JSONDecodeError:
+                                        # stderr shares this log with the structured
+                                        # events, including startup tracebacks.
+                                        continue
+                                    if (
+                                        isinstance(record, dict)
+                                        and record.get("event")
+                                        == "container_http_ready"
+                                    ):
+                                        ready = True
+                                        break
+                            if ready:
+                                try:
+                                    with urllib.request.urlopen(
+                                        f"{origin}/health", timeout=1
+                                    ):
+                                        break
+                                except (urllib.error.URLError, TimeoutError):
+                                    pass
+                            if time.monotonic() >= deadline:
+                                raise RuntimeError(
+                                    "the local website adapter did not become ready"
+                                )
+                            time.sleep(0.1)
+                        yield origin, release
+                    finally:
+                        if server.poll() is None:
+                            server.terminate()
+                        server.wait()
+            except BaseException:
+                output.flush()
+                sys.stderr.write(log.read_text())
+                raise
+
+
+@click.command()
+@click.argument("target", default="https://leaf.page")
+@click.option("--release", help="Require this exact built release.")
+@click.option(
+    "--agent",
+    is_flag=True,
+    help="Verify one agent edit and reply instead of the release boundary.",
+)
+def main(target: str, release: str | None, agent: bool) -> None:
+    """Verify a deployed release, or run the agent journey against LOCAL or an origin.
+
+    The release and agent passes are separate: rollout verification settles the
+    release before the agent pass allocates its own private reader session.
+    """
+    if target == "local":
+        with local_adapter() as (origin, built):
+            check(
+                release is None or release == built,
+                "the requested release differs from the built site",
+            )
+            run_verification(origin, built, agent=True, direct_agent=True)
+        return
+    origin = target_origin(target)
     built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
-    release = sys.argv[1] if len(sys.argv) == 2 else built
-    check(release == built, "the requested release differs from the built site")
+    check(
+        release is None or release == built,
+        "the requested release differs from the built site",
+    )
+    run_verification(origin, release or built, agent=agent)
+
+
+def run_verification(
+    origin: str, release: str, *, agent: bool, direct_agent: bool = False
+) -> None:
+    """Run one browser check against explicit transport and release inputs."""
     with sync_playwright() as playwright:
         browser, browser_name = launch_browser(playwright)
         try:
-            if os.environ.get("LEAF_VERIFY_AGENT") == "1":
-                verify_agent_turn(browser, release)
-                target = "the local adapter" if DIRECT_AGENT else "leaf.page"
-                print(f"✓ {target} ran one agent turn on release {release}")
+            if agent:
+                verify_agent_turn(
+                    browser, release, origin=origin, direct_agent=direct_agent
+                )
+                print(f"✓ {origin} ran one agent turn on release {release}")
                 return
             print(
                 "Leaf startup profile (observed, not a pass/fail budget):", flush=True
             )
             for path, kind, activate in PAGES:
-                profile = verify_page(browser, path, kind, release, activate)
+                profile = verify_page(
+                    browser, path, kind, release, activate, origin=origin
+                )
                 print(startup_line(path, profile), flush=True)
-            verify_cross_tab_activation(browser)
+            verify_cross_tab_activation(browser, origin=origin)
         finally:
             browser.close()
-    print(f"✓ leaf.page serves release {release} in {browser_name}")
+    print(f"✓ {origin} serves release {release} in {browser_name}")
 
 
 if __name__ == "__main__":

@@ -150,9 +150,21 @@ html.lf-copy .lf-pane-body {
   overflow: visible;
   height: auto;
 }
+/* A copy of a root workspace is the whole workspace at the page's width. The screen
+ * box above is stated for the bounded posture, because only a bounded root holds the
+ * window; a copy holds nothing, so the same box has to follow from being the root
+ * rather than from the posture the page happened to be drawn in. Keying it on posture
+ * would also make the copy a reading of a race: entering copy mode resizes the body,
+ * the root fit observer answers on the next frame, and the column the copy is set in
+ * would depend on which of the two landed first. */
 html.lf-copy body > main:has(> .lf-workspace-reading[data-lf-workspace-context="root"]) {
+  box-sizing: border-box;
+  width: 100cqi;
+  max-width: none;
   height: auto;
-  padding-block: 72px 96px;
+  margin: 0;
+  padding: 72px var(--col-pad) 96px;
+  left: 0;
 }
 @media print {
   :is(.lf-workspace-reading, .lf-pane-reading, .lf-partition-reading),
@@ -1283,7 +1295,7 @@ lf-column { display: block; background: var(--field);
    where no script runs at all there is no name either, and the generated copy
    is the whole rendering, audible as well as visible. */
 lf-column::before,
-lf-column > [data-lf-said="label"] { display: block; font-size: 13px;
+lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-working-label);
             font-weight: 600; line-height: 1.5; color: var(--ink-2);
             padding: 2px var(--lf-card-inset) 10px; }
 lf-column::before { content: attr(label); }
@@ -1531,19 +1543,26 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
  * the question is also what leaves an lf-toc written into ordinary prose alone; the
  * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
+  /* The resting contents spine occupies one compact hit lane. Its labels reveal over
+   * the settled page: a transient pointer or keyboard state cannot renegotiate the
+   * document's width. The fixed map may overflow its 40px sidebar box, while only that
+   * compact lane receives an undisclosed pointer gesture. */
+  main:has(> aside.sidebar > lf-toc:only-child) {
+    --lf-sidebar-claim: 64px;
+    --lf-sidebar-shell-bound: calc(100cqi - var(--lf-sidebar-claim)
+      - 2 * var(--col-pad));
+    --lf-sidebar-free-left: max(0px, calc(50cqi + var(--lf-shift)
+      - min(var(--col), var(--lf-room)) / 2
+      - var(--lf-sidebar-claim) - var(--col-pad)));
+  }
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
       lf-toc { position: fixed;
                left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
                top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-               /* The generic sidebar guarantees a 240px map and its gutter. Once the
-                * reading column can stay centred with room left over, spend that empty
-                * margin on shorter labels until the map reaches 320px. */
-               width: clamp(
-                 calc(var(--sidebar) - var(--sp-4)),
-                 calc((100cqi - min(var(--col), var(--lf-room))) / 2
-                   + var(--lf-shift) - 2 * var(--sp-4)),
-                 320px);
+               z-index: 4;
+               width: 40px;
+               pointer-events: none;
                /* TODO: the shortcut bar covers this map's last entry — 21 of its 36 pixels,
                 * on every page with a spine, at every width, with nothing to scroll it
                 * clear. The map is the fourth region standing in the line's band and the
@@ -1563,10 +1582,12 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                margin: 0; }
       body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
       body[data-lf-sizing] lf-toc { transition: none; }
-      lf-toc .lf-toc-nav { height: 100%; border: 0; padding: 0;
+      lf-toc .lf-toc-nav { width: 320px; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
-                           pointer-events: none; }
-      lf-toc .lf-toc-nav::before { content: ""; position: absolute; inset: 0;
+                           pointer-events: none;
+                           transition: background-color .24s ease-out; }
+      lf-toc .lf-toc-nav::before { content: ""; position: absolute;
+                                   top: 0; bottom: 0; left: 0; width: 40px;
                                    z-index: 0; pointer-events: auto; }
       lf-toc .lf-toc-heading { display: none; }
       lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
@@ -1617,6 +1638,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc .lf-toc-nav:is(:hover, :focus-within),
       body[data-lf-go-to-active] lf-toc .lf-toc-nav {
         --lf-toc-label-opacity: 1;
+        background: color-mix(in srgb, var(--paper) 92%, transparent);
       }
       lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
         animation: lf-toc-enable-links 0s .24s forwards;
@@ -1628,10 +1650,15 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         -webkit-line-clamp: 1;
       }
       /* When the labels themselves exceed the map's height, this is an ordinary open,
-       * scrollable outline instead. It does not pretend that a rail and a displaced list
-       * share coordinates. */
+       * scrollable outline instead. Unlike the transient map, it is always interactive,
+       * so it keeps an opaque paper and fits the free gutter rather than covering the
+       * document beneath it. */
       lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
+        width: max(40px, min(320px,
+          calc(50cqi + var(--lf-shift) - min(var(--col), var(--lf-room)) / 2
+            - 2 * var(--sp-4))));
+        background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }
       lf-toc[data-lf-outline] .lf-toc-nav::before,
@@ -1824,22 +1851,6 @@ lf-chart:not(.lf-rendered) > pre,
 lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre {
              background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
              font: inherit; line-height: inherit; overflow: visible; }
-/* Until it has drawn, a drawing's box is not a drawing's box: what stands in it is the
-   authored source, which is evidence and reads at the column's width from the column's
-   own left edge. Both halves of the drawing rule are wrong for it — the room, since
-   there is no drawing to be around, and the row, whose whole job is placing one. The
-   rule is written against the `x-wide: drawing` declaration rather than against a tag,
-   so it stays here where every page reads it while the one drawing widget shipped today
-   travels in the `diagram` package. The runtime marks the element before any module
-   imports, so this is not a corner: the renderer is fetched lazily, so every diagram
-   spends its loading interval as source centred in most of the window, at an indent set
-   by its own longest line — three diagrams, three indents, none of them the column's. A page whose module
-   never arrives spends the rest of its life that way. `.lf-rendered` is this package's
-   word for a module having replaced its body, so this is the sentence theme.css's
-   `.lf-error` rule makes about a failure, said where the word for the other half
-   lives. */
-[data-lf-wide="drawing"]:not(.lf-rendered) { --lf-room: 0px; display: block; }
-
 /* A chart's colors are all here, and none of them are in its module. Plot leaves every
  * mark `currentColor` unless a color channel says otherwise, and lf-chart never passes
  * one — it gives each series' marks a class and nothing else — so `color` on that class

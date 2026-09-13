@@ -10,7 +10,10 @@ from urllib.parse import urlparse
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import (
+    append_command,
+    record_claim,
+)
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -23,55 +26,62 @@ from leaf import service as service_model
 from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
+    SHORT_SUGGESTION,
+    SUGGESTION_PAGE,
+    live_url,
+    sent_events,
+)
+from render_cases_layout import (
+    SHADOWED_DIFF,
+    token_colour,
+)
+from render_cases_navigation import (
     _CARD,
-    BOTH_STAMPS,
-    CHART_PAGE,
     DRAFT_EDITED,
     DRAFT_TEXT,
-    EXAMPLES,
-    FEATURE_GALLERY,
     FIRST_PRESENTATION,
-    GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
     JOURNEY_V1,
     JOURNEY_V2,
-    LONG_PAGE,
-    MANIFEST_DIFF_PAGE,
-    MULTI_HUNK_PATCH,
     SENTENCE,
-    SHADOWED_DIFF,
-    SHORT_SUGGESTION,
     SUGGEST_BLOCK,
-    SUGGESTION_PAGE,
     TAB_AND_DOT,
     TAB_TONE,
-    TOKEN,
-    TYPED_PARTS_PAGE,
     _card_done,
     _draft_says,
     _publish,
-    _traffic,
-    compare_with,
     composer_quote,
     data_projection_page,
+    live_watcher,
+)
+from render_cases_widgets import (
+    CHART_PAGE,
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
+    MANIFEST_DIFF_PAGE,
+    MULTI_HUNK_PATCH,
+    TYPED_PARTS_PAGE,
+)
+from render_harness import (
+    BOTH_STAMPS,
+    EXAMPLES,
+    FEATURE_GALLERY,
+    LONG_PAGE,
+    TOKEN,
+    _traffic,
+    compare_with,
     holding,
     leaf_page,
-    live_url,
-    live_watcher,
     nudge,
     open_page,
     open_versions,
     panel_settled,
-    record_claim,
     refuse,
     round_trip,
     select,
-    sent_events,
     stamp_page,
     ticked,
-    token_colour,
     told,
     undo,
     wait_for_revision,
@@ -571,7 +581,6 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
         })"""
     ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": None}
     assert errors == []
-    page.close()
 
 
 def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
@@ -668,7 +677,6 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
         "opens in a new tab"
     )
     assert errors == []
-    page.close()
 
 
 def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
@@ -711,7 +719,6 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
         ]
     }
     assert errors == []
-    page.close()
 
 
 def test_reading_regions_share_posture_allocation_and_transition_boundaries(
@@ -882,7 +889,6 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
         for transition in readings["transitions"]
     )
     assert errors == []
-    page.close()
 
 
 def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
@@ -984,7 +990,6 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
         "detachedMarkerCleared": True,
     }
     assert errors == []
-    page.close()
 
 
 def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serve):
@@ -1040,7 +1045,6 @@ def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serv
         "recorded": ["lf-index-action", "lf-index-report"],
     }
     assert errors == []
-    page.close()
 
 
 def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
@@ -1079,7 +1083,6 @@ def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
         "where": {"store": "session", "key": "refused"},
     }
     assert errors == []
-    page.close()
 
 
 def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
@@ -1861,7 +1864,6 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     )
     assert "rewritten since your decision" in page.locator("#draft-ops").aria_snapshot()
     assert errors == []
-    page.close()
 
 
 def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
@@ -1969,7 +1971,6 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
         "document.getElementById('card-x').classList.contains('lf-ins-block')"
     ), "the user's own honored drag marked as a change"
     assert errors == []
-    page.close()
 
 
 def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve):
@@ -2004,7 +2005,6 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
         "Foreign words held behind the drag."
     )
     assert errors == []
-    page.close()
 
 
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
@@ -2032,7 +2032,6 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
         "document.getElementById('card-x-note').classList.contains('lf-ins-block')"
     ), "the card's passenger marked as its own move"
     assert errors == []
-    page.close()
 
 
 def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve):
@@ -2065,7 +2064,6 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     assert accept["action"] == "accept" and accept["detail"] == {"resolves": "c1"}
     assert not any(e.get("kind") == "resolve" for e in events)
     assert errors == []
-    page.close()
 
 
 def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
@@ -2136,7 +2134,6 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
         if e["kind"] in ("action", "undo", "resolve", "unresolve")
     ] == ["accept", "reject", "undo"]
     assert errors == []
-    page.close()
 
 
 def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
@@ -2247,7 +2244,6 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(3)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def _asked(context):
@@ -2303,7 +2299,6 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert declared > len(modules) + 5, declared
     assert page.evaluate("() => !!customElements.get('lf-board')")
     assert errors == []
-    context.close()
 
 
 def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
@@ -2317,7 +2312,6 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
         "/vendor/beautiful-mermaid.esm.js"
     ]
     assert errors == []
-    context.close()
 
 
 def test_floating_ui_loads_only_when_a_reader_opens_a_response(browser, serve):
@@ -2333,7 +2327,6 @@ def test_floating_ui_loads_only_when_a_reader_opens_a_response(browser, serve):
         "/vendor/floating-ui.esm.js"
     ]
     assert errors == []
-    context.close()
 
 
 def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
@@ -2424,7 +2417,6 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     assert any(
         "Failed to fetch dynamically imported module" in error for error in errors
     )
-    page.close()
 
 
 def test_an_unavailable_floating_ui_module_withdraws_the_thread_preview(browser, serve):
@@ -2456,7 +2448,6 @@ def test_an_unavailable_floating_ui_module_withdraws_the_thread_preview(browser,
     assert any(
         "Failed to fetch dynamically imported module" in error for error in errors
     )
-    page.close()
 
 
 def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serve):
@@ -2496,7 +2487,6 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
     assert [p for p in asked if "pierre-diffs" in p] == ["/vendor/pierre-diffs.esm.js"]
     assert diff.locator(".lf-error").count() == 0
     assert errors == []
-    context.close()
 
 
 def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
@@ -2561,7 +2551,6 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     # Its module's own work, not the markup's: the pick control each option is chosen by.
     expect(options.locator("lf-option [data-lf-offer='checkbox']")).to_have_count(2)
     assert errors == []
-    context.close()
 
 
 def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serve):
@@ -2592,7 +2581,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     )
     with page.expect_request("**/api/state"):
         pass
-    page.wait_for_timeout(0)  # yield from the request event to its route callback
+    holding(page, older, 1, "the older state read")
     assert len(older) == 1
     old_route = older[0]
     old_state = old_route.fetch().json()
@@ -2602,7 +2591,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     page.locator(".lf-general textarea").fill("Newest **snapshot**")
     with page.expect_request("**/vendor/marked.esm.js"):
         page.locator(".lf-general button").click()
-    page.wait_for_timeout(0)  # yield from the request event to its route callback
+    holding(page, marked, 1, "the Markdown module")
     assert len(marked) == 1
 
     old_route.fulfill(json=old_state)
@@ -2613,7 +2602,6 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
     expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_a_page_hears_news_without_asking_for_it(browser, serve):
@@ -2638,7 +2626,6 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     assert _traffic(page).asked == asked + 1
     expect(page.locator(".lf-thread", has_text="News.")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, serve):
@@ -2690,7 +2677,6 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     assert files_model.read_json(serve.page_dir / "viewed.json")["t"] > 1.0
     expect(page.locator(".lf-thread", has_text="While away.")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_status_changes_coalesce_behind_one_state_read(browser, serve):
@@ -2736,7 +2722,6 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     told(page)
     expect(text).to_have_text(re.compile(r"^Claude is working — third"))
     assert errors == []
-    page.close()
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -2911,7 +2896,6 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
         "Server offline — reconnecting"
     )
     assert errors and all("503" in error for error in errors), errors
-    page.close()
 
 
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
@@ -2941,7 +2925,6 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
     assert errors == []
-    page.close()
 
 
 def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
@@ -2978,7 +2961,6 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     # The requests that failed while the server was down are the one thing the
     # console may hold; a page fault of the runtime's own would say something else.
     assert all("net::ERR" in error for error in errors), errors
-    page.close()
 
 
 def test_the_help_overlay_answers_to_one_owner(browser, serve):
@@ -3031,7 +3013,6 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page.mouse.click(300, 600)
     expect(page.locator(".lf-command-reference")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, dead_pid):
@@ -3104,6 +3085,17 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     [first_comment] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
     ]
+    with service_model.PageTransaction(d) as transaction:
+        session_model.record_pickup(transaction, [first_comment], phase="queued")
+    told(page)
+    expect(text).to_have_text(
+        re.compile(
+            r"^Claude is working — revising the plan \(.+\)\. "
+            r"1 more update is queued\.$"
+        )
+    )
+    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+
     events_model.append_event(
         d,
         {
@@ -3248,7 +3240,6 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     declare("idle")
     expect(text).to_have_text("Leaf closed")
-    page.close()
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
@@ -3291,7 +3282,6 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_thread_says_what_the_agent_is_doing_about_it(
@@ -3355,8 +3345,12 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         session_model.record_pickup(transaction, [comments[0]])
     told(page)
     expect(held_receipt).to_contain_text("✓ Picked up")
-    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
-    expect(other_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(held_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
+    expect(other_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(other_receipt).to_contain_text("✓ Sent")
@@ -3381,7 +3375,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         transaction.close_turn("s")
     told(page)
     expect(held_receipt).to_contain_text("○ Picked up · turn ended")
-    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(held_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up 1 update, but that turn ended. 2 updates are saved."
@@ -3396,13 +3392,19 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         told(page)
 
     status("working", "reading the reconnect traces", "--on", held)
-    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
-    expect(other_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(held_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
+    expect(other_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the banner above already says.
     expect(receipts).to_have_count(2)
-    expect(held_receipt).to_have_text("● Active — reading the reconnect traces")
+    expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
+        "● Working — reading the reconnect traces"
+    )
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(held_receipt).to_have_count(1)
     expect(other_receipt).to_have_count(1)
@@ -3432,7 +3434,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head '
         f'> .lf-receipt[data-receipt-id="{followup["id"]}"]'
     )
-    expect(held_receipt).to_have_text("● Active — reading the reconnect traces")
+    expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
+        "● Working — reading the reconnect traces"
+    )
     expect(followup_receipt).to_contain_text("✓ Sent")
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
@@ -3465,16 +3469,21 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
 
-    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(held_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # And a claim the agent renews after answering stands again: its line is on the thread
-    # a second time, which is a fact about now rather than about what was said. With no
-    # unanswered message to own it, the claim uses the full-width fallback.
+    # And a claim the agent renews after answering stands again. With no unanswered
+    # message to own it, the claim uses the root message that identifies the thread;
+    # conversation status never grows a separate footer row.
     status("working", "re-running it against the rolling deploy", "--on", held)
-    claim_receipt = held_thread.locator(":scope > .lf-receipt")
+    claim_receipt = held_thread.locator(
+        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-head > .lf-receipt'
+    )
     expect(held_receipt).to_have_count(0)
     expect(claim_receipt).to_contain_text("re-running it against the rolling deploy")
+    expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
     expect(receipts).to_have_count(2)
 
     # A conversation the reader has closed asks nothing and shows nothing, for the same
@@ -3502,7 +3511,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(claim_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve):
@@ -3539,7 +3547,6 @@ def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve)
         "Claude is handling 1 update"
     )
     assert errors == []
-    page.close()
 
 
 def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):
@@ -3571,7 +3578,6 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
         "node => getComputedStyle(node).color"
     ) == token_colour(page, "--warn-ink")
     assert errors == []
-    page.close()
 
 
 def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
@@ -3635,7 +3641,7 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     assert active.exit_code == 0, active.output
     page.set_viewport_size({"width": 340, "height": 800})
     told(page)
-    expect(receipt).to_contain_text("● Active — comparing the replacement")
+    expect(receipt).to_contain_text("● Working — comparing the replacement")
     assert receipt.evaluate(
         """node => {
           const head = node.parentElement;
@@ -3649,7 +3655,6 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     assert page.evaluate("() => window.__receiptMoves") == 0
     assert receipt.evaluate("node => node.getAnimations({ subtree: true }).length") == 0
     assert errors == []
-    page.close()
 
 
 def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
@@ -3662,9 +3667,10 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     roster's dead-row failure one level down, reached by exactly the command that makes
     two delegates possible.
 
-    The roster's answer is a word on the shared rope, and this says it the same way: a
-    tint alone is silence to whoever is listening rather than looking. Message metadata
-    keeps the message's one timestamp; the explicit `quiet` word carries the warning."""
+    The roster's answer is a point in time on the shared rope, and this says it as the
+    past tense of the same state: a tint alone is silence to whoever is listening rather
+    than looking. Message metadata keeps the message's one timestamp, so the state owns
+    the elapsed time rather than adding another badge beside itself."""
     page, errors = open_page(
         browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
     )
@@ -3673,6 +3679,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(".lf-receipt")
+    visible_work_line = work_line.locator(".lf-receipt-state")
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
 
@@ -3708,11 +3715,13 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     claim(events_model.now_iso())
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
-    expect(work_line).not_to_contain_text("quiet")
+    expect(visible_work_line).not_to_contain_text("Was working")
     expect(work_button).to_have_count(1)
-    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(held_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
+    expect(work_button).to_have_attribute("data-lf-agent-workflow", "working")
 
     quiet_ts = (datetime.now().astimezone() - timedelta(minutes=40)).isoformat(
         timespec="seconds"
@@ -3723,10 +3732,19 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
-    expect(work_line).to_contain_text("quiet")
+    expect(visible_work_line).to_have_text(
+        re.compile(r"^● Was working 40m ago — reading the reconnect traces$")
+    )
+    expect(work_line.locator(".lf-receipt-live")).to_have_text(
+        "● Was working — reading the reconnect traces"
+    )
     expect(work_line.locator("time")).to_have_count(0)
-    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
-    expect(work_button).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(held_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
+    expect(work_button).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(work_line.locator(".lf-receipt-state")).to_have_css(
         "color", token_colour(page, "--muted")
@@ -3751,13 +3769,17 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
-    expect(work_line).to_contain_text("quiet")
+    expect(visible_work_line).to_have_text(
+        re.compile(r"^● Was working 6m ago — reading the reconnect traces$")
+    )
     expect(work_line.locator("time")).to_have_count(0)
     assert work_line.locator(".lf-receipt-state").evaluate(
         "node => getComputedStyle(node).color"
     ) == token_colour(page, "--warn-ink")
 
-    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(held_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
 
     # Turn closure belongs to one exact session. An orchestrator ending its turn is
     # no evidence that a delegate abandoned a different update.
@@ -3774,20 +3796,24 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         ),
         session="delegate",
     )
-    expect(work_line).not_to_contain_text("quiet")
+    expect(visible_work_line).not_to_contain_text("Was working")
     expect(work_line.locator("time")).to_have_count(0)
-    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
-    expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
+    expect(held_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
+    expect(work_button).to_have_attribute("data-lf-agent-workflow", "working")
 
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
     record_claim(d, id="s")
     claim(events_model.now_iso())
-    expect(work_line).not_to_contain_text("quiet")
+    expect(visible_work_line).not_to_contain_text("Was working")
     expect(work_line).to_have_count(1)
-    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
-    expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
-    # The semantic Target button carries ownership; the thread card does not repeat it
+    expect(held_thread).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
+    expect(work_button).to_have_attribute("data-lf-agent-workflow", "working")
+    # The semantic Target button carries the workflow; the thread card does not repeat it
     # as a decorative gutter in either presentation.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
@@ -3796,17 +3822,18 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         f'.lf-margin-preview .lf-conversation-thread[data-thread="{held}"]'
     )
     expect(inline).to_be_visible()
-    expect(inline).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     claim(quiet_ts)
-    expect(inline.locator(".lf-receipt")).to_contain_text("quiet")
-    expect(inline).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(inline.locator(".lf-receipt-state")).to_have_text(
+        re.compile(r"^● Was working 40m ago — reading the reconnect traces$")
+    )
+    expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(inline.locator(".lf-receipt-state")).to_have_css(
         "color", token_colour(page, "--muted")
     )
     assert errors == []
-    page.close()
 
 
 def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
@@ -3884,7 +3911,6 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     drawn = page.evaluate("() => globalThis.__lfTabMarkWidth")
     assert drawn > 0, "the tab's mark is not an image the browser can decode"
     assert errors == []
-    page.close()
 
 
 def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
@@ -3974,7 +4000,6 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
     paper = render_checks_model.evaluate_probe(page, "paperWords")
     assert paper == screen, "paper dropped or rewrote projected data"
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -4208,7 +4233,6 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             else f"surface fixture: {expected_phase}"
         )
         assert errors and all(expected in error for error in errors), errors
-    page.close()
 
 
 def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve):
@@ -4232,7 +4256,6 @@ def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve
         "projectData(deployments) must receive the snapshot that supplied its records"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
@@ -4307,7 +4330,6 @@ customElements.define('lf-derived', class extends HTMLElement {
     expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
@@ -4354,7 +4376,6 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
         "the snapshot still claims it can refresh"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
@@ -4479,7 +4500,6 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     assert copy_errors == []
     copy.close()
     assert errors == []
-    page.close()
 
 
 def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
@@ -4525,7 +4545,6 @@ def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
     told(page)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
     assert errors == []
-    page.close()
 
 
 def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
@@ -4580,7 +4599,6 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
         page.locator(".lf-thread", has_text="This event must not disappear")
     ).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_conversation_timestamps_age_without_new_state(browser, serve):
@@ -4613,7 +4631,6 @@ def test_conversation_timestamps_age_without_new_state(browser, serve):
     ticked(page)
     expect(timestamp).to_have_text("3h ago")
     assert errors == []
-    page.close()
 
 
 def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
@@ -4644,7 +4661,6 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     ticked(page)
     expect(timestamp).to_have_text("1h ago")
     assert errors == []
-    page.close()
 
 
 def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
@@ -4679,7 +4695,6 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
         }"""
     ) == {"mutations": 0, "deliveries": 1}
     assert errors == []
-    page.close()
 
 
 def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
@@ -4738,7 +4753,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         "message": "mount failed",
     }
     assert errors == []
-    page.close()
 
 
 def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
@@ -4828,7 +4842,6 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
         "frozen": old,
     }
     assert errors == []
-    page.close()
 
 
 def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser, serve):
@@ -4890,7 +4903,6 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
     assert result["afterOlder"] == result["before"], result
     assert result["afterNewer"] == str(result["newerRevision"]), result
     assert errors == []
-    page.close()
 
 
 def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
@@ -4936,7 +4948,6 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
         "clock paint failed: paint broke",
         "clock paint failed: async broke",
     }
-    page.close()
 
 
 def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
@@ -4993,7 +5004,6 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
         sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
     )
     assert any("data subscriber failed: update projection failed" in e for e in errors)
-    page.close()
 
 
 def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
@@ -5028,7 +5038,6 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
     assert result["before"] == {"complete": False, "calls": 2, "ready": "1"}
     assert result["after"] == str(result["revision"])
     assert errors == []
-    page.close()
 
 
 def test_data_notification_waits_for_a_version_activation(browser, serve):
@@ -5107,7 +5116,6 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
     expect(page.locator("#lede")).to_have_text("Live status follows now.")
     assert errors == []
-    page.close()
 
 
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
@@ -5138,4 +5146,3 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     assert errors == []
-    context.close()

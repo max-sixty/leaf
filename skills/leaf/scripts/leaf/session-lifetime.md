@@ -10,7 +10,9 @@ and requests another reading at its next deadline; it does not run a second fold
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
+| exact delivery handling: event, target, detail, event floor | `handling` in `status.json` | `leaf delivery claim`, derived from an immutable delivery and current page state | when the move settles, another delivered move replaces it, the claim expires, or the claimant's lifetime ends |
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
+| live Codex reply: session, turn, exact response address, item, text, and completion state | optional `stream.reply` in `status.json` | the App Server connection bound to a delivery with one plain reply | the completed message becomes a durable reply, another operation settles it, or the stream fails or disconnects |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
@@ -21,13 +23,15 @@ and requests another reading at its next deadline; it does not run a second fold
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | never; every transport resolves the same immutable id |
 
 Delivery acceptance is a different fact from authored work, but it is exact agent
-activity. Pickup never rewrites `status.json`. Page activity counts one interaction
+activity. These facts project into one reader-facing **Agent workflow**; the browser
+does not present delivery status and work ownership as separate categories. Pickup
+never rewrites `status.json`. Page activity counts one interaction
 per subject and unit, for the newest unsettled reader move on it (a tick and the Done
-press that followed are one). A thread's local views may also retain **Active** beside
+press that followed are one). A thread's local views may also retain **Working** beside
 the earlier message that prompted its standing claim. On the subject's existing target
 margin entry or a compact local row, append is **Sent**, then **Waiting for pickup** after the short grace;
 Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
-later `status … --on` claim on the same reader move is **Active**. That same evidence
+later `status … --on` claim on the same reader move is **Working**. That same evidence
 makes page activity **queued**, **handling**, or **picked up; turn ended**. A reply,
 resolution, or authored state that honors the move settles the interaction; a later
 version note settles a page action whose verb has no authored record form, and a note
@@ -35,17 +39,23 @@ already standing when the move arrives cannot answer it.
 
 The activity fold defines precedence once. An unsettled opened interaction outranks
 a `waiting` declaration, so a receipt cannot say **Picked up** while the banner says
-the agent awaits the reader. A fresh `working` declaration is considered only when
-its recorded event floor reaches the obligations it could describe. Turn identity,
-not elapsed time, decides whether opened delivery belongs to the turn now running.
+the agent awaits the reader. A fresh `working` declaration whose recorded event floor
+reaches the standing obligations is current work. If newer interactions are only
+**Queued**, an otherwise current declaration or live Codex activity remains visible
+alongside them and the banner names both facts; the older event floor does not claim
+that work has started on the queued input. Turn identity, not elapsed time, decides
+whether opened delivery belongs to the turn now running.
 Fresh activity from the claimed Codex task's App Server outranks that declaration
 while its watcher is live. It is an observation bound to one turn and event floor,
 not a second work declaration; the declaration remains underneath and becomes current
 again when the turn or observer ends.
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
-or widget the work is about. A thread claim also records the current unanswered message,
-so one check-in keeps **Active** beside the words that prompted the work even when the
+or widget the work is about. `leaf delivery claim` instead records one event from an
+immutable delivery after checking under the page lock that the exact move remains
+outstanding; it never transfers a claim to newer input on the same subject. A thread
+claim also records the current unanswered message,
+so one check-in keeps **Working** beside the words that prompted the work even when the
 reader adds another comment. Widget work appears on the Target margin entry. These
 readings stand until the agent's next word in that thread. Nothing in a session touches `status.json`
 while its turn is over, so work handed to a delegate is renewed from the
@@ -67,9 +77,11 @@ that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
 Its unanswered-work guard reads `activity.obligations`, the same settled
 interaction projection the browser reads; it does not reconstruct conversations
-itself. An App Server turn's final assistant message is transcript output, not
-settlement evidence. The turn records the explicit Leaf reply, version, or request
-receipt before Stop can consider that obligation answered.
+itself. An App Server turn bound to one plain reply may finish that exact response
+with its completed final-answer item; the hook lets the provider turn close, and
+the observer commits the same text through the canonical reply writer when the
+terminal notification arrives. Every other turn records its explicit Leaf reply,
+version, or request receipt before Stop can consider the obligation answered.
 When the prompt hook opens a turn, it records a new `opened` transition for its
 acknowledged, unanswered moves. A plugin-free embedded host records the same
 transition from the queued turn's App Server `turn/started` notification. A
@@ -146,10 +158,16 @@ the same delivery for a later turn instead of using page input as steering. Its
 subscription spans the active turn, the queued turn's opening, and that turn's
 terminal notification, recording both `opened` and the exact turn close. A host
 that owns a starting connection closes only the matching Leaf claim turn on its
-terminal notification. It never converts the assistant final message into a Leaf
-reply or receipt. This is another carrier over the same delivery, page claim,
-event log, and activity projection, not another conversation store or response
-policy.
+terminal notification. A direct start carries the delivery id as its client message id
+and retains the structured delivery in the transcript; a queued turn carries the id in
+its exact pointer. The transcript therefore restores the same binding after a lost
+subscription. When the bound delivery has exactly one plain reply, the connection
+streams the assistant final message into that thread and commits the completed message
+through the ordinary reply operation. The delivery address survives a turn close or a
+later turn opening; those turn transitions govern activity, not response ownership.
+Every other response shape remains explicit. This is another carrier over the same
+delivery, page claim, event log, and activity projection, not another conversation
+store or response policy.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process printed and the lifetime it recorded, so a killed carrier costs

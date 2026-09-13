@@ -6,6 +6,7 @@
 export function createStanding({
   markHere,
   paintStanding,
+  paintSelectedMarginEntries,
   renderShortcutBar,
   paintGoToHints,
   paintTargetChooserHints,
@@ -16,6 +17,10 @@ export function createStanding({
   function paintStandingContent() {
     markHere();
     paintStanding();
+    // The page and its compact Page Map projection read the same standing after both
+    // feature painters have settled it. Selection changes only the entry representing
+    // that reading; focus, open state, and agent work keep their separate contours.
+    paintSelectedMarginEntries();
     // The shortcut bar is geometry for every Go-to and target-chooser hint painted around it. Render
     // its new words first, then let chrome-layout.js place that resulting
     // box before any consumer reads it. ResizeObserver remains the door for font, window,

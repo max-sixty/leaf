@@ -7,6 +7,9 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from interact_support import (
+    record_claim,
+)
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as conversation_model
@@ -14,30 +17,33 @@ from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
-from leaf.passages import enclosing_ids
+from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import version as render_gate_model
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
+    SEATED_ASK_LAYER,
+    SEATED_ASK_WIDGETS,
+    live_url,
+)
+from render_cases_navigation import (
+    composer_quote,
+)
+from render_cases_widgets import (
     AT_THE_HANDOVER,
-    BOTH_STAMPS,
     BROKEN_DIAGRAM_PAGE,
     CHROME_ROOM,
-    CORPUS_SOURCES,
     CUT_BOXES_PAGE,
     DIAGRAM_AND_RAIL_PAGE,
     DIAGRAM_ROOM,
     DRAWING_PLACEMENT,
     DRAWN_PAST_A_RAIL_PAGE,
-    EXAMPLES,
     FRAMED_SCROLLER_PAGE,
     FRAMED_WIDE_PAGE,
-    INLINE_PAGE,
     INLINE_REPLY_MARKUP,
     LATE_MARGIN_PAGE,
     LATE_MARGIN_WIDGET,
-    LONG_PAGE,
     NOTE_AND_WIDE_PAGE,
     NOTE_BAND,
     OWN_MARGIN_FURNITURE,
@@ -46,33 +52,36 @@ from render_support import (
     RAIL_BAND_PAGE,
     RAIL_BANDS,
     RAIL_FIT,
-    REPLY_HOST_PAGE,
     ROOM_GEOMETRY,
-    SEATED_ASK_LAYER,
-    SEATED_ASK_WIDGETS,
-    TOKEN,
     TWIN_V1,
     TWIN_V2,
     TYPED_PARTS_PAGE,
     WIDE_AND_NARROW_PAGE,
     WIDE_DIAGRAM_PAGE,
+    written_anchors,
+)
+from render_harness import (
+    BOTH_STAMPS,
+    CORPUS_SOURCES,
+    EXAMPLE_PACKAGES,
+    EXAMPLES,
+    INLINE_PAGE,
+    LONG_PAGE,
+    REPLY_HOST_PAGE,
+    TOKEN,
     author_test_widget,
-    composer_quote,
     leaf_page,
-    live_url,
     margins_laid_out,
     nudge,
     open_page,
     page_registry,
     panel_settled,
-    record_claim,
     refuse,
     resized,
     stamp_version_file,
     told,
     wait_for_revision,
     watched,
-    written_anchors,
 )
 
 pytestmark = pytest.mark.nightly
@@ -112,7 +121,6 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
     page.keyboard.type(code)
     expect(page.locator(".lf-live")).to_contain_text("Chosen list: Observed")
     assert errors == []
-    page.close()
 
 
 def test_a_shipped_log_replays_its_example_state(browser, serve):
@@ -496,7 +504,9 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     attribute the runtime turns into text, two paragraphs whose join is a space in one
     reading and nothing in the other. The generated corpus derives its tab bodies from
     these sources; its generation check owns that composition, while this sweep keeps
-    one file reading for every page an author can change."""
+    one file reading for every page an author can change. A page that authors only a
+    data-backed widget has no file passage to compare; its data anchors are covered at
+    their projection boundary."""
     # Suppress the shipped log while retaining companion data. This sweep
     # writes its own anchors and then compares the whole painted mark against
     # exactly those quotes; a seeded thread paints into the same highlight and
@@ -507,9 +517,20 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     url = serve(source, seed_log=False)
     d = serve.page_dir
     anchors = written_anchors(d, html)
-    # Focused package pages can carry one compact authored passage around a data-driven
-    # widget. Nine overlapping anchors still exercise section, prefix, and suffix
-    # resolution across the whole passage without forcing filler prose into the page.
+    document = structure_model.SourceDocument(html)
+    registry = registry_storage.load_registry(d)
+    authored = page_passages(document, registry).text
+    # A focused data-driven page may author only the widget that projects its words.
+    # Its data anchors are covered at that boundary; there is no file passage for this
+    # file-to-browser reading to exercise.
+    if not authored.strip():
+        assert anchors == []
+        assert any(
+            registry[node["tag"]].get("x-data") for node in document.by_id.values()
+        ), f"{source.stem} has neither authored passages nor a data-backed widget"
+        return
+    # Nine overlapping anchors exercise section, prefix, and suffix resolution across
+    # a compact authored passage without forcing filler prose into the page.
     assert len(anchors) >= 9, (
         f"only {len(anchors)} anchors over {source.stem}; sweep too thin"
     )
@@ -549,7 +570,6 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     wanted = re.sub(r"\s", "", "".join(quote for quote, _ in anchors))
     assert painted == wanted, f"anchors in {source.stem} painted text they don't name"
     assert errors == []
-    page.close()
 
 
 def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, serve):
@@ -586,7 +606,6 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
     )
     assert where == "p-original", f"the new copy took the comment ({where})"
     assert errors == []
-    page.close()
 
 
 def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypatch):
@@ -636,7 +655,6 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     assert ("comment", "claude") in kinds
     assert ("reply", "user") in kinds and ("resolve", "user") in kinds
     assert errors == []
-    page.close()
 
 
 def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, serve):
@@ -738,7 +756,6 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
     expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_text("this one does")
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("draft", [False, True], ids=["empty", "draft"])
@@ -824,7 +841,6 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     if draft:
         expect(composer).to_have_value(words)
     assert errors == []
-    page.close()
 
 
 def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
@@ -892,7 +908,6 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     expect(thread.locator(":scope > .lf-say textarea")).to_have_count(0)
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
@@ -952,7 +967,6 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(page.locator(".lf-thread textarea")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
@@ -995,7 +1009,6 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     nudge(d)
     told(page)
     assert errors == []
-    page.close()
 
 
 def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
@@ -1045,7 +1058,6 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
         "a click on prose was read as a click on a picture",
     ).not_to_be_visible()
     assert errors == []
-    page.close()
 
 
 def _edge_ink_changes(quiet, painted, target, clip, ink):
@@ -1143,7 +1155,6 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     )
 
     assert errors == []
-    page.close()
 
 
 def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, serve):
@@ -1192,7 +1203,6 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     )
     mark.evaluate("element => { element.style.removeProperty('visibility'); }")
     assert errors == []
-    page.close()
 
 
 def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, serve):
@@ -1242,7 +1252,6 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
     assert errors == []
-    page.close()
 
 
 def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
@@ -1268,7 +1277,6 @@ def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
         "a diagram's node surface must follow the page's scheme"
     )
     assert errors == []
-    page.close()
 
 
 def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve):
@@ -1325,7 +1333,6 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
     assert readings["monoFonts"], "class and ER literal rows exercise the mono face"
     assert set(readings["monoFonts"]) == {readings["expectedMonoFont"]}
     assert errors == []
-    page.close()
 
 
 def test_a_diagram_label_cannot_inject_markup_into_the_rendered_svg(browser, serve):
@@ -1348,7 +1355,6 @@ flowchart LR
     expect(page.locator("#flow img, #flow script")).to_have_count(0)
     assert not page.evaluate("() => !!window.lfInjected")
     assert errors == []
-    page.close()
 
 
 def test_unsupported_directives_fail_without_rejecting_keyword_nodes(browser, serve):
@@ -1398,7 +1404,6 @@ flowchart LR
     for node in ("click", "accTitle", "accDescr"):
         expect(page.locator(f'#keyword-nodes g[data-id="{node}"]')).to_be_visible()
     expect(page.locator("#keyword-nodes .lf-error")).to_have_count(0)
-    page.close()
 
 
 def test_a_quoted_label_holding_its_own_closer_is_refused(browser, serve):
@@ -1465,7 +1470,6 @@ flowchart LR
     expect(page.locator('#subgraph-title g[data-id="S"] text')).to_have_text(
         "Stage [1]"
     )
-    page.close()
 
 
 def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
@@ -1525,7 +1529,6 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     assert narrow["scrolls"], "a drawing wider than the room must scroll inside its box"
     assert narrow["sideways"] == 0, "nor may the page scroll sideways for it"
     assert errors == []
-    page.close()
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
@@ -1563,7 +1566,6 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(diagram).to_have_css("outline-style", "none")
     expect(mark).to_have_class(re.compile(r"\blf-visual-mark-here\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
@@ -1599,7 +1601,6 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
         f"and the widget with it: {at['widget']:.0f}px, so the message hangs into the "
         "margin behind a scrollbar"
     )
-    page.close()
 
 
 def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
@@ -1646,7 +1647,6 @@ def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
             f"#{source['id']}'s source starts at {source['at']:.0f}px and the column at "
             f"{at['left']:.0f}px: it is set as a drawing is placed rather than read"
         )
-    page.close()
 
 
 def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
@@ -1714,7 +1714,155 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     )
     assert at["sideways"] == 0, "the page must not scroll sideways for either"
     assert errors == []
+
+
+def test_available_space_uses_the_free_side_of_a_margin_resident(browser, serve):
+    """A resident removes only the side it occupies. The other side receives the
+    allocation that symmetry would otherwise strand, so an available surface reaches
+    the shell edge while remaining clear of the resident."""
+    source = leaf_page(
+        "available beside a contents spine",
+        """
+<aside class="sidebar"><lf-toc id="space-toc"></lf-toc></aside>
+<h1 id="t">Sessions</h1>
+<h2 id="before">Before</h2><p>The drawing follows.</p>
+<lf-diagram id="flow"><pre>
+graph LR
+  R[request] --> C{cookie valid?}
+  C -->|yes| S[read session from Redis]
+  S -->|hit| H[handle]
+  S -->|miss/outage| F[verify signed fallback]
+  F --> H
+  C -->|no| L[login]
+</pre></lf-diagram>
+<h2 id="after">After</h2><p>The drawing precedes this section.</p>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1726, 900)
+    at = page.evaluate("""() => {
+      const main = document.querySelector('main');
+      const ms = getComputedStyle(main), mb = main.getBoundingClientRect();
+      const box = document.getElementById('flow').getBoundingClientRect();
+      const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+      const toc = document.querySelector('lf-toc').getBoundingClientRect();
+      const body = document.body.getBoundingClientRect();
+      return {
+        box: {left: box.left, right: box.right, width: box.width},
+        column: {
+          left: mb.left + parseFloat(ms.paddingLeft),
+          right: mb.right - parseFloat(ms.paddingRight),
+        },
+        sidebar: {left: sidebar.left, right: sidebar.right},
+        toc: {left: toc.left, right: toc.right, width: toc.width},
+        stripRight: (() => {
+          const probe = document.createElement('i');
+          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--strip-r)';
+          main.append(probe);
+          const width = probe.getBoundingClientRect().width;
+          probe.remove();
+          return width;
+        })(),
+        roomRight: body.right - parseFloat(getComputedStyle(document.body).paddingRight),
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    }""")
+    assert at["box"]["left"] >= at["toc"]["right"] + 15, at
+    assert at["box"]["left"] < at["sidebar"]["left"] - 1, at
+    assert abs(at["box"]["right"] - (at["roomRight"] - at["stripRight"] - 24)) <= 1, at
+    assert at["box"]["width"] > 1080, at
+    assert at["box"]["left"] < at["column"]["left"] - 300, at
+    assert at["sideways"] == 0, at
+
+    assert errors == []
+
+
+def test_available_space_is_a_generic_package_capacity(browser, serve):
+    """An available surface with no sidebar receives the page room even when it is
+    ordinary compound markup. Diagram's source-sized layout must not be the mechanism
+    that grants the shared capacity. An ordinary prose-adjacent sidebar then withholds
+    its whole side, unlike the contents spine that declares its shell-edge occupancy."""
+    entry = {
+        "description": "A project package's compound review surface.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-space": "available",
+        "x-upgrade": False,
+        "x-example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
+    }
+    source = leaf_page(
+        "Available package surface",
+        """
+<style>
+lf-roomy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
+</style>
+<h1 id="t">Available package surface</h1>
+<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
+""",
+    )
+    page, errors = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
+    resized(page, 1726, 900)
+    at = page.locator("#roomy").evaluate("""el => {
+      const box = el.getBoundingClientRect();
+      const children = [...el.children].map(node => node.getBoundingClientRect().width);
+      return {
+        left: box.left, right: box.right, width: box.width, children,
+        room: (() => {
+          const probe = document.createElement('i');
+          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-room)';
+          el.append(probe);
+          const width = probe.getBoundingClientRect().width;
+          probe.remove();
+          return width;
+        })(),
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    }""")
+    assert abs(at["width"] - at["room"]) <= 1, at
+    assert at["width"] > 1600, at
+    assert abs(at["children"][0] - at["children"][1]) <= 1, at
+    assert at["children"][0] > 750, at
+    assert at["sideways"] == 0, at
+    assert errors == []
     page.close()
+
+    source = leaf_page(
+        "Available package surface with ordinary sidebar",
+        """
+<style>
+lf-roomy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
+</style>
+<aside class="sidebar">
+  <p>Reference</p><p>Supporting information</p><p>Helpful link</p>
+  <p>Further notes</p><p>Useful actions</p>
+</aside>
+<h1 id="t">Available package surface</h1>
+<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
+""",
+    )
+    page, errors = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
+    resized(page, 1726, 900)
+    at = page.evaluate("""() => {
+      const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+      const surface = document.querySelector('lf-roomy').getBoundingClientRect();
+      return {
+        sidebar: {left: sidebar.left, right: sidebar.right,
+                  top: sidebar.top, bottom: sidebar.bottom},
+        surface: {left: surface.left, right: surface.right,
+                  top: surface.top, bottom: surface.bottom, width: surface.width},
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    }""")
+    assert at["surface"]["top"] < at["sidebar"]["bottom"], at
+    assert at["surface"]["left"] >= at["sidebar"]["right"] + 23, at
+    assert at["surface"]["width"] > 1080, at
+    assert at["sideways"] == 0, at
+    assert errors == []
 
 
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
@@ -1722,7 +1870,7 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
 ):
     """A board's columns are as wide as what they hold and prose is set to a measure, so
     a page carrying both used to be a cramped board or a page widened past its own
-    measure for one exhibit. x-wide is which of the two a widget is, and the theme spends
+    measure for one exhibit. x-space declares the capacity a widget needs, and the theme spends
     the room the layout measured — so the exhibit grows, the prose does not move, and the
     axis they share is what keeps a page that mixes widths reading as one design.
 
@@ -1776,7 +1924,6 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     )
     assert narrow["sideways"] == 0, "nor scroll sideways on a narrow window"
     assert errors == []
-    page.close()
 
 
 def test_paper_keeps_the_column(browser, serve):
@@ -1811,7 +1958,6 @@ def test_paper_keeps_the_column(browser, serve):
         "has no window to take the room from, so what runs past it is off the page"
     )
     assert errors == []
-    page.close()
 
 
 def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
@@ -1863,7 +2009,6 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
         f"{printed['foot']:.0f}px under the last, for chrome it does not print"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
@@ -1904,7 +2049,6 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
         f"using {fit['widget']:.0f}px inside {fit['content']:.0f}px of content"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_room_is_measured_after_a_late_rail(browser, serve):
@@ -1965,7 +2109,6 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
         "of page"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_room_follows_a_margin_taken_after_the_handover(
@@ -2006,7 +2149,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         route.fulfill(status=204)
 
     page.route("**/margin-width", answer_after_the_handover)
-    page.goto(serve(LATE_MARGIN_PAGE))
+    page.goto(serve(LATE_MARGIN_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
     at_stamp = page.evaluate("() => window.__handover")
@@ -2043,7 +2186,6 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         f"{fit['content']:.0f}px of page"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
@@ -2094,6 +2236,9 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
             assert b["right"] <= at["pageRight"] + 1, (
                 f"at {width}px the {name} board is past the page's box as well"
             )
+            assert b["left"] >= at["pageLeft"] + at["pageGutter"] - 1, (
+                f"at {width}px the {name} board is past the page's own gutter"
+            )
         assert at["sideways"] == 0, f"at {width}px the page scrolls sideways"
         assert (
             at["plan"]["width"] >= at["column"]["right"] - at["column"]["left"] - 1
@@ -2116,7 +2261,35 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
         "row claims the margin at its own height, not down the whole page"
     )
     assert errors == []
-    page.close()
+
+
+def test_a_compact_spine_and_right_rail_leave_the_middle_room(browser, serve):
+    """A right-side action withholds only the right growth from a surface level with
+    it. The compact contents spine occupies the shell edge, so the empty band between
+    it and prose remains available on the left."""
+    source = RAIL_BAND_PAGE.replace(
+        '<h1 id="t">Release</h1>',
+        '<aside class="sidebar"><lf-toc id="rail-toc"></lf-toc></aside>'
+        '<h1 id="t">Release</h1><h2 id="change">Change</h2>',
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1726, 900)
+    margins_laid_out(page)
+    at = page.evaluate(RAIL_BANDS)
+    plan = at["plan"]
+    hanging = [row for row in at["rows"] if not row["docked"]]
+    assert page.locator("#plan").get_attribute("data-lf-yield") == "r"
+    assert hanging and any(
+        plan["top"] < row["bottom"] and plan["bottom"] > row["top"] for row in hanging
+    ), at
+    assert plan["right"] <= at["column"]["right"] + 1, at
+    assert plan["left"] < at["column"]["left"] - 300, at
+    for row in hanging:
+        across = plan["left"] < row["right"] and plan["right"] > row["left"]
+        down = plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
+        assert not (across and down), at
+    assert at["sideways"] == 0
+    assert errors == []
 
 
 def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
@@ -2205,7 +2378,6 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
     assert premise["clear"] and premise["overlap"] > 1, premise
     assert render_checks_model.evaluate_probe(page, "withheldRoom") == []
     assert errors == []
-    page.close()
 
 
 def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, serve):
@@ -2337,7 +2509,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     420px panel, and the explanation would be the half of it the panel could show.
 
     The mark that would do that is the one deliberately left out of the message render
-    (x-wide, the half of markDeclared the page keeps to itself). Nothing about a message
+    (x-space, the half of markDeclared the page keeps to itself). Nothing about a message
     says so, which is why this asks: the widget is in the panel, and the panel's width is
     what bounds it."""
     url = serve(REPLY_HOST_PAGE)
@@ -2374,7 +2546,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         const holder = el.closest('.lf-msg-body');
         const a = el.getBoundingClientRect(), b = holder.getBoundingClientRect();
         return { widget: a.width, message: b.width, past: a.right - b.right,
-                 marked: el.hasAttribute('data-lf-wide') };
+                 marked: el.hasAttribute('data-lf-space') };
     }""")
     assert not fit["marked"], (
         "a widget in a thread was handed the page's room; the panel is not the page"
@@ -2385,7 +2557,6 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         f"{fit['message']:.0f}px panel"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
@@ -2448,7 +2619,6 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
         "flow-root",
     ), f"the stacking rule never reached the panel at all: {forms['rp-argued']}"
     assert errors == []
-    page.close()
 
 
 def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
@@ -2486,7 +2656,12 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     answers to the room and never to its content (contain: inline-size, theme.css),
     and the row keeps its reservation inside the width it states (box-sizing:
     border-box, packages/default/theme.css)."""
-    page, errors = open_page(browser, serve(FRAMED_WIDE_PAGE))
+    source = FRAMED_WIDE_PAGE.replace(
+        '<h1 id="t">Framed</h1>',
+        '<aside class="sidebar"><lf-toc id="frame-toc"></lf-toc></aside>'
+        '<h1 id="t">Framed</h1>',
+    )
+    page, errors = open_page(browser, serve(source))
     boxes = page.evaluate("""() => {
         const box = (sel) => {
             const r = document.querySelector(sel).getBoundingClientRect();
@@ -2587,7 +2762,6 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         f"{boxes['inOwnBox']['right']:.0f}, box ends at {boxes['ownBox']['right']:.0f}"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
@@ -2664,7 +2838,6 @@ def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
     )
     assert closed_again["sideways"] == 0
     assert errors == []
-    page.close()
 
 
 def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
@@ -2721,7 +2894,6 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     )
     assert narrow["sideways"] == 0, "nor on a narrow one"
     assert errors == []
-    page.close()
 
 
 def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
@@ -2797,7 +2969,6 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     assert errors == []
     assert copy_errors == []
     copy.close()
-    page.close()
 
 
 def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
@@ -2835,7 +3006,6 @@ def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
         assert at["sideways"] == 0
 
     assert errors == []
-    page.close()
 
 
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
@@ -2872,6 +3042,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
       const ms = getComputedStyle(main), ss = getComputedStyle(sidebar);
       const mb = main.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
       const eb = exhibit.getBoundingClientRect();
+      const toc = document.querySelector('lf-toc').getBoundingClientRect();
+      const nav = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
       const marginClusters = [...document.querySelectorAll('.lf-margin-cluster')]
         .filter(node => node.checkVisibility());
       const marginRight = Math.max(0,
@@ -2890,11 +3062,17 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         strip, rail: measure('var(--strip-r)'), pageWidth: measure('100cqi'),
         float: ss.float, position: ss.position,
         sidebar: {left: sb.left, right: sb.right, top: sb.top, width: sb.width},
+        toc: {left: toc.left, right: toc.right, width: toc.width},
+        nav: {left: nav.left, right: nav.right, width: nav.width},
         column: {
           left: mb.left + parseFloat(ms.paddingLeft),
           right: mb.right - parseFloat(ms.paddingRight),
         },
         marginCount: marginClusters.length, marginRight,
+        document: {
+          width: document.documentElement.scrollWidth,
+          height: document.documentElement.scrollHeight,
+        },
         viewportWidth: document.documentElement.clientWidth,
         exhibit: {left: eb.left, right: eb.right},
       };
@@ -2907,12 +3085,12 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     resized(page, 1400, 900)
     margins_laid_out(page)
     roomy = page.evaluate(reading)
-    assert roomy["strip"] == 264
+    assert roomy["strip"] == 64
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
         f"the sidebar entered the prose column: {roomy}"
     )
-    assert roomy["sidebar"]["width"] == 240
+    assert roomy["sidebar"]["width"] == 40
     assert (
         abs(
             (roomy["column"]["left"] + roomy["column"]["right"]) / 2
@@ -2924,6 +3102,38 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         f"a wide exhibit painted into the sidebar's standing margin: {roomy}"
     )
     assert page.evaluate(sideways) == 0
+
+    # The real pointer route reveals a translucent map over the settled document. Its
+    # compact reservation and every unrelated box remain fixed under the reader's aim.
+    page.locator("lf-toc").hover()
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
+    )
+    expanded = page.evaluate(reading)
+    assert expanded["strip"] == 64 and expanded["sidebar"]["width"] == 40
+    assert expanded["toc"]["width"] == 40
+    assert expanded["nav"]["width"] == 320
+    assert expanded["column"] == roomy["column"]
+    assert expanded["exhibit"] == roomy["exhibit"]
+    assert expanded["document"] == roomy["document"]
+    page.locator("h1").hover()
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
+    )
+    page.keyboard.press("g")
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
+    )
+    revealed_by_keyboard = page.evaluate(reading)
+    assert revealed_by_keyboard["column"] == roomy["column"]
+    assert revealed_by_keyboard["exhibit"] == roomy["exhibit"]
+    assert revealed_by_keyboard["document"] == roomy["document"]
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
+    )
 
     # A left auxiliary surface and the page's own left margin are consecutive strips. The fixed
     # ToC follows the shell's left edge instead of remaining behind the Asks sheet.
@@ -2978,7 +3188,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     # one machine's fonts: this runner sets the same control 250px wide, and the 34px
     # difference is width the column has to give up. The window adds back whatever the
     # root scrollport holds outside the container query's own width.
-    exact = roomy["strip"] + 720 + roomy["rail"]
+    exact = max(1152, roomy["strip"] + 720 + roomy["rail"])
     resized(page, math.ceil(exact + roomy["viewportWidth"] - roomy["pageWidth"]), 900)
     margins_laid_out(page)
     tighter = page.evaluate(reading)
@@ -3059,7 +3269,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert printed["float"] == "none" and printed["position"] == "static"
     assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
     assert errors == []
-    page.close()
 
 
 def test_opposite_margin_residents_wait_for_the_room_they_need(
@@ -3224,7 +3433,6 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     expect(page.locator(".lf-banner")).to_be_visible()
 
     assert errors == []
-    page.close()
 
 
 # Everything an injected control still draws once the medium has taken the press away.
@@ -3319,7 +3527,6 @@ def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
     )
     page.emulate_media(media="screen")
     assert errors == []
-    page.close()
 
 
 def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
@@ -3329,4 +3536,3 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     page.goto(url.rsplit("?", 1)[0], wait_until="load")
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
-    page.close()

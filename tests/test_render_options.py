@@ -15,41 +15,48 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASK_PAGE,
     ASK_SHAPES_PAGE,
     ASK_WITH_CONTEXT_PAGE,
-    CARRIED_PAGE,
     CHIP_PAGE,
-    EXAMPLES,
     EXHIBIT_EXTENT,
     INLINE_CASE_PAGE,
     NESTED_ASK_PAGE,
     PAINTED_PAGE,
+    SETTLED_ASK_PAGE,
+    SPECIMEN_EXAMPLES,
+    STACKED_OPTIONS_PAGE,
+    TABLE_REPLY,
+    live_url,
+    sent_events,
+)
+from render_cases_layout import (
+    flip_point,
+)
+from render_cases_navigation import (
+    TWICE_PAGE,
+)
+from render_harness import (
+    CARRIED_PAGE,
+    EXAMPLE_PACKAGES,
+    EXAMPLES,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
-    SETTLED_ASK_PAGE,
     SETTLED_PAGE,
-    SPECIMEN_EXAMPLES,
     SPECIMEN_MARKUP,
     SPECIMEN_PAGE,
     SPECIMEN_TEXT,
-    STACKED_OPTIONS_PAGE,
-    TABLE_REPLY,
-    TWICE_PAGE,
     _traffic,
     _until,
     compare_with,
-    flip_point,
     hold_selection,
     holding,
     leaf_page,
-    live_url,
     open_page,
     resized,
     round_trip,
     sending,
-    sent_events,
     shortcut_bar_text,
     stamp_page,
     stamp_version_file,
@@ -100,7 +107,6 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         f"the chrome lost its own private pulse animation: {sampled}"
     )
     assert errors == []
-    page.close()
 
 
 def test_substantial_options_stack_and_align_their_facts(browser, serve):
@@ -232,7 +238,6 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         assert chip["x"] + chip["width"] <= gps["x"] + gps["width"], (
             "no chip the author wrote may cross the card's edge"
         )
-    page.close()
 
 
 def test_a_terse_variant_is_the_height_of_its_own_words(browser, serve):
@@ -278,7 +283,6 @@ def test_a_terse_variant_is_the_height_of_its_own_words(browser, serve):
             f"{name} says as much as cv-oak and is the same box: "
             f"{boxes[name]['height']} vs {short}"
         )
-    page.close()
 
 
 def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
@@ -299,7 +303,6 @@ def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
         "the rail still docks in a row this narrow"
     )
     assert rail["y"] + rail["height"] <= prose["y"], "the case has to clear the rail"
-    page.close()
 
 
 def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
@@ -334,7 +337,6 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["c-bearer"], "the diff read the mark as text the base version lacked"
     assert errors == []
-    page.close()
 
 
 def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve):
@@ -366,7 +368,6 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     expect(page.locator("#opt-bearer")).to_have_attribute("chosen", "")
     round_trip(page)
     assert errors == []
-    page.close()
 
 
 def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(
@@ -493,7 +494,6 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     landed = page.evaluate(clearance)
     assert landed >= 20, f"the shortcut bar covers the add field by {-landed}px"
     assert errors == []
-    page.close()
 
 
 def test_ask_addresses_are_screen_only_apparatus(browser, serve):
@@ -524,7 +524,6 @@ def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     page.emulate_media(media="print")
     expect(badges.first).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
@@ -658,7 +657,6 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
         == '"✓"'
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
@@ -700,7 +698,6 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
     assert readings, "the fixture contains no open option controls"
     assert all(reading["contrast"] >= 3 for reading in readings), readings
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -724,7 +721,6 @@ def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, ques
         "the answer control stands before its authored question"
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("group", ["cards", "rows"])
@@ -826,7 +822,6 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
         "answers rather than as one of them"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
@@ -1002,7 +997,6 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
             f"a quoted {card} card lifts under the pointer: "
             f"{page.locator(quiet).evaluate(shadow)} against {quiet_rest} at rest"
         )
-    page.close()
 
 
 def test_one_band_says_where_the_reader_is_standing(browser, serve):
@@ -1032,7 +1026,6 @@ def test_one_band_says_where_the_reader_is_standing(browser, serve):
         group.evaluate("el => parseFloat(getComputedStyle(el).borderTopWidth)") > 0
     ), "moving focus removed the group's permanent frame"
     assert errors == []
-    page.close()
 
 
 def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
@@ -1051,7 +1044,6 @@ def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
     expect(page.locator("#l-stage")).to_have_attribute("chosen", "")
     assert group.evaluate(frame) == before
     assert errors == []
-    page.close()
 
 
 def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serve):
@@ -1146,7 +1138,6 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
         page.locator("#job-heater .lf-pick").get_attribute("aria-label")
         == "selected: reversible Heat the bird bath — option 2 of 3"
     )
-    page.close()
 
 
 def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
@@ -1230,7 +1221,6 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
         == "choose any: Bar clamp — option 1 of 2"
     )
     assert errors == []
-    page.close()
 
 
 def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
@@ -1273,7 +1263,6 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
     )
 
     assert errors == []
-    page.close()
 
 
 def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
@@ -1301,7 +1290,6 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     assert page.locator("#out-drill > .lf-pick").evaluate(corner) < 0.5
     assert page.locator("#out-keys > .lf-pick").evaluate(corner) < 0.5
     assert errors == []
-    page.close()
 
 
 def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve):
@@ -1325,7 +1313,6 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
     expect(page.locator("#out-keys")).to_have_attribute("chosen", "")
     expect(page.locator("#inner > lf-option[chosen]")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve):
@@ -1354,7 +1341,6 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
     expect(page.locator("#out-drill")).to_have_attribute("chosen", "")
     expect(page.locator("#in-now")).to_have_attribute("chosen", "")
     assert errors == []
-    page.close()
 
 
 def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
@@ -1439,7 +1425,6 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
         if e["kind"] == "action"
     ] == [["ro-column"]]
     assert errors == []
-    page.close()
 
 
 def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
@@ -1497,7 +1482,6 @@ def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
         f"a row's mark stands past the words it answers for: {seen}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_row_label_keeps_the_spacing_it_was_written_with(browser, serve):
@@ -1529,7 +1513,6 @@ def test_a_row_label_keeps_the_spacing_it_was_written_with(browser, serve):
         f"{gap}px of room where the label asked for {space}px"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
@@ -1548,7 +1531,6 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
     expect(mark).to_have_text("selected")
     assert mark.evaluate(box) == before, "the press moved the mark it landed on"
     assert errors == []
-    page.close()
 
 
 def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):
@@ -1575,7 +1557,6 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
         "the chip stands outside the row's own words rather than among them"
     )
     assert errors == []
-    page.close()
 
 
 def test_one_chip_holds_every_short_fact(browser, serve):
@@ -1615,7 +1596,6 @@ def test_one_chip_holds_every_short_fact(browser, serve):
             f"{box['height']}px {first}"
         )
     assert errors == []
-    page.close()
 
 
 def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
@@ -1657,7 +1637,6 @@ def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
     )
     assert "went dark" in spoken and "failure" not in spoken, spoken
     assert errors == []
-    page.close()
 
 
 def test_a_pick_states_the_whole_set(browser, serve):
@@ -1705,7 +1684,6 @@ def test_a_pick_states_the_whole_set(browser, serve):
         page.locator('[data-lf-margin-for="bracket-decision"] .lf-margin-marker')
     ).to_have_attribute("data-lf-kinds", "ask")
     assert errors == []
-    page.close()
 
 
 def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
@@ -1714,7 +1692,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     """A widget needs no x-work declaration to acknowledge the reader's move.
 
     The owner's existing page-edge margin entry keeps its DOM identity while durable transport
-    acceptance advances Sent to Picked up and a real claim makes it Active. Once authored
+    acceptance advances Sent to Picked up and a real claim makes it Working. Once authored
     markup records the choice and completes the claim, the margin entry disappears; the widget
     carries the chosen state itself.
     """
@@ -1784,7 +1762,6 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
     expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_a_send_waits_for_the_send_before_it(browser, serve):
@@ -1840,7 +1817,6 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
         if e.get("action") == "choose"
     ] == [["br-steel"], ["br-cedar"]]
     assert errors == []
-    page.close()
 
 
 def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve):
@@ -1899,7 +1875,6 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
         ["job-mounts", "job-camera", "job-heater"],
     ]
     assert errors == []
-    page.close()
 
 
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
@@ -1983,7 +1958,6 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     wait_for_revision(page, 3)
     expect(page.locator(".lf-receipt")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
@@ -1998,7 +1972,9 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-option": option}))
 
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page, errors = open_page(
+        browser, serve(ASK_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -2032,7 +2008,6 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     assert picks == [("jobs", {"options": ["job-heater"]})], picks
     expect(page.locator("#job-mounts")).not_to_have_attribute("chosen", "")
     assert errors == []
-    page.close()
 
 
 def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
@@ -2076,7 +2051,6 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     told(page)
     expect(work_button).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, serve):
@@ -2115,7 +2089,6 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
     expect(work_button).to_have_css("border-radius", "50%")
     expect(work_button).to_have_css("height", "32px")
     assert errors == []
-    page.close()
 
 
 def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
@@ -2153,7 +2126,6 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
     # The copy medium: the same DOM with the affordance never handed to it.
     page.evaluate("() => document.documentElement.classList.add('lf-copy')")
     expect(box).to_be_hidden()
-    page.close()
 
 
 def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
@@ -2331,7 +2303,6 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
                 f"note at {found['note']}: the marking takes in a line the page never "
                 f"said"
             )
-    page.close()
 
 
 def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
@@ -2369,7 +2340,6 @@ def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
         f"the document scrolls sideways ({document}px against {column}px): the "
         f"exhibit widened the specimen instead of scrolling inside it"
     )
-    page.close()
 
 
 def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
@@ -2456,16 +2426,17 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     assert [(e["widget"], e["detail"]) for e in actions] == [
         ("rp-live", {"options": ["rp-stage"]})
     ]
-    receipt = page.locator(
-        f'#rp-live > .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
+    message = page.locator(".lf-msg:has(#rp-live)")
+    receipt = message.locator(
+        f':scope > .lf-msg-head > .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
     )
+    expect(page.locator("#rp-live > .lf-receipt")).to_have_count(0)
     expect(receipt).to_contain_text("✓ Sent")
     with service_model.PageTransaction(d) as transaction:
         session_model.record_pickup(transaction, actions)
     told(page)
     expect(receipt).to_contain_text("✓ Picked up")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
-    page.close()
 
 
 def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
@@ -2521,7 +2492,6 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
         == 0
     )
     assert errors == []
-    page.close()
 
 
 def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
@@ -2560,8 +2530,10 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     )
     done.click()
     round_trip(page)
-    receipts = question.locator(".lf-receipt")
+    message = question.locator(
+        "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' lf-msg ')][1]"
+    )
+    receipts = message.locator(":scope > .lf-msg-head > .lf-receipt")
     expect(receipts).to_have_count(1)
     expect(receipts).to_contain_text("Sent")
     assert errors == []
-    page.close()

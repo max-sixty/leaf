@@ -30,16 +30,15 @@ export function coveredWords({
   // shows only the part inside it, so a name ellipsised in a narrow column reads as
   // covering whatever stands beside it while the reader sees the ellipsis and nothing
   // else — the CallDiff root's own row, where the copy revealed a tab the live page keeps
-  // closed. Every clipping ancestor is intersected in, so the reading is the one the
-  // reader is given. The walk below stays in the light DOM, so the climb does too.
+  // closed. Every content ancestor is intersected in, so the reading is the one the
+  // reader is given. The document scrollport is the page's route to the rest of those
+  // words, not a content clip; stop before body just as the control reachability probe
+  // does. The walk below stays in the light DOM, so the climb does too.
   const painted = (el, drawn) => {
     let box = drawn;
-    // Root overflow belongs to the viewport, not the root element's client rect.
-    // That rect moves with document scrolling and cannot clip page-content words:
-    // this probe reads collisions throughout the page, including below the fold.
     for (
       let ancestor = el;
-      ancestor && ancestor !== document.documentElement && box;
+      ancestor && ancestor !== document.body && box;
       ancestor = ancestor.parentElement
     ) {
       const style = getComputedStyle(ancestor);
@@ -104,6 +103,30 @@ export function coveredWords({
 }
 
 // ---------- export: the page as one file ----------
+
+let exportPreparation = null;
+let exportPreparationError = null;
+let exportPreparationDone = false;
+
+export function prepareExport() {
+  if (exportPreparation) return;
+  const pending = [...document.querySelectorAll("*")]
+    .map((element) => element.lfPrepareExport?.())
+    .filter((result) => result?.then);
+  exportPreparation = Promise.all(pending).then(
+    () => {
+      exportPreparationDone = true;
+    },
+    (error) => {
+      exportPreparationError = error;
+    },
+  );
+}
+
+export function exportPrepared() {
+  if (exportPreparationError) throw exportPreparationError;
+  return exportPreparationDone;
+}
 
 // What a standalone copy drops. Scripts go because there is no server behind a file
 // and nothing left for them to reach; the runtime's own layer goes with them, since a

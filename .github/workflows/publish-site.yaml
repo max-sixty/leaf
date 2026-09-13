@@ -21,8 +21,11 @@ on:
       - 'example-previews.json'
       - 'scripts/example_data.py'
       - 'scripts/example_assets.py'
+      - 'scripts/page_fixtures.py'
       - 'scripts/preview.py'
       - 'scripts/site.py'
+      - 'scripts/verify-site-local.sh'
+      - 'scripts/verify_site.py'
       - 'worker/**'
       - 'Dockerfile.website'
       - '.github/workflows/publish-site.yaml'
@@ -114,8 +117,8 @@ jobs:
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
           deadline=$(( SECONDS + 900 ))
-          until uv run scripts/verify-site.py "$release"; do
+          until uv run scripts/verify_site.py --release "$release"; do
             (( SECONDS < deadline )) || exit 1
             sleep 10
           done
-          LEAF_VERIFY_AGENT=1 uv run scripts/verify-site.py "$release"
+          uv run scripts/verify_site.py --agent --release "$release"

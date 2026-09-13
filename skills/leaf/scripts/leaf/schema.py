@@ -50,15 +50,18 @@ ANSWER_ASK_INSTRUCTION = (
     "conversation with "
     "`response.kind: version` is answered by revising the page and resolving it; open a "
     "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
-    "needs an answer first. With one reply in the current opened delivery, use "
-    "`leaf reply <page> --text ...`; select an event with `--for <event-id>` when "
-    "several are pending. The reply validates and activates a changed source, and "
-    "leaves the conversation open for the reader."
+    "needs an answer first. With one reply in the current opened delivery, answer "
+    "through the active host's reply interface; CLI hosts use `leaf reply <page> "
+    "--text ...`. When several are pending, select an event with `--for <event-id>`. "
+    "An explicit reply validates and activates a changed source, and leaves the "
+    "conversation open for the reader."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "A wait result prints one immutable Leaf delivery envelope containing one page's "
     "complete ordered batch, conversation context, and capture-time response "
-    "requirements. The same envelope is available with `leaf delivery read <id>`."
+    "requirements. First run `leaf delivery claim <id>` so the page shows the exact "
+    "outstanding move as Working; the same envelope remains available with `leaf "
+    "delivery read <id>`."
 )
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
@@ -484,7 +487,7 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-wide": {"enum": ["box", "drawing"]},
+        "x-space": {"enum": ["wide", "available"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-work": WORK_SCHEMA,

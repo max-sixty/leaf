@@ -23,9 +23,14 @@ from playwright.sync_api import sync_playwright
 # agent started — a test runs `PLUGIN_ROOT / "bin" / "leaf"` instead, and gets
 # uv, the payload project and the environment uv syncs for it along with it.
 LEAF_COMMAND = [sys.executable, "-m", "leaf"]
-# Domain test modules import their assertions explicitly; these two support modules
-# own the shared fixtures and register them once for the complete suite.
-pytest_plugins = ("interact_support", "render_support")
+# Domain test modules import their assertions explicitly. Register only the modules
+# that own fixtures once for the complete suite.
+pytest_plugins = (
+    "interact_support",
+    "render_harness",
+    "render_cases_layout",
+    "render_cases_navigation",
+)
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it
@@ -58,7 +63,7 @@ class PagePool:
     needs nothing here.
 
     The lent page is moved to the caller's own path, not handed over where it
-    lies: a test that writes a project overlay beside its page reaches it as
+    lies: a test that selects a fixture package beside its page reaches it as
     `page_dir.parent / ".leaf"`, and `_no_page_outlives_its_test` sweeps
     `tmp_path` for a server still standing. It is left there when the test ends
     and moved again on the next loan, so the sweep runs while the page is still
@@ -242,21 +247,10 @@ CODEX_IDENTITY = ("CODEX_THREAD_ID", "LEAF_SESSION_ID", "LEAF_AGENT")
 def isolated_session(tmp_path_factory, monkeypatch):
     """The run is an agent session of its own, in state directories of its own.
 
-    Keep the developer's session out of every fixture. Their real
-    ~/.config/leaf overlay would otherwise change what init vendors and check
-    measures, and a page tagged with the session running the tests is a page the
-    loop-guard hook reports as an unattended page at the end of every turn —
-    a dozen throwaway fixtures per run.
-
-    Move what leaf reads and nothing else. `config_home` and `state_home` are
-    the whole of what it takes from the developer's home, so the two XDG
-    directories are the whole of the isolation. Moving HOME instead reaches past
-    them and takes uv's cache with it, and every `bin/leaf` subprocess then
-    resolves from scratch — the fixtures that export an example spent around two
-    minutes each fetching a Playwright the developer already had. What that bought
-    back was a pair of env overrides, UV_CACHE_DIR handing the cache back and
-    UV_OFFLINE forbidding the index it no longer needed to ask; scripts/site.py
-    had already found the shorter way, and says so where it builds its env.
+    Keep the developer's session and machine state out of every fixture. A page
+    tagged with the session running the tests is otherwise reported as unattended
+    by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
+    packages, while retaining HOME so subprocesses share the host's uv cache.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -273,7 +267,6 @@ def isolated_session(tmp_path_factory, monkeypatch):
     the sweep takes its root from here rather than from the environment, which
     it would read before this fixture sets it and after `monkeypatch` unsets it
     (tests/CLAUDE.md, "A process the suite starts ends with the run")."""
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
@@ -327,7 +320,7 @@ def dead_pid(spawn):
 
 
 @pytest.fixture(scope="session")
-def browser():
+def _browser():
     """Playwright's pinned Chromium headless shell, driven for the tests a static
     read can't answer: what a widget upgrades into, and what the site fits on.
 
@@ -336,14 +329,25 @@ def browser():
     per worker that requests it; the everyday smoke requests one, and the complete
     run can occupy all eight.
 
-    The scope does not reach isolation, which is per context: `new_page` opens a
-    fresh context per call, and a fresh context has empty `localStorage` and
-    `sessionStorage` — the state a `goto` inside one would carry over
-    (tests/CLAUDE.md, "Reloading is not resetting")."""
+    Each test receives this process through the function-scoped `browser` fixture,
+    which closes any contexts the test leaves open."""
     with sync_playwright() as p:
         b = p.chromium.launch()
         yield b
         b.close()
+
+
+@pytest.fixture
+def browser(_browser):
+    """The shared browser process, with context ownership scoped to one test.
+
+    `Browser.new_page` opens a fresh context, so local and session storage remain
+    isolated. Closing every remaining context at teardown makes that lifetime a
+    fixture guarantee instead of a convention repeated at the end of each journey.
+    """
+    yield _browser
+    for context in reversed(_browser.contexts):
+        context.close()
 
 
 @pytest.fixture(scope="session")

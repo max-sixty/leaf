@@ -1,6 +1,6 @@
 /* The gallery lays the runtime's own margin entry anatomy out for comparison. The package
  * owns only the specimen labels and grid; margin-projection.js and chrome.css remain the
- * sole owners of each margin entry's circle, icon, tone, rank, and ownership paint. */
+ * sole owners of each margin entry's circle, icon, tone, rank, and workflow paint. */
 lf-margin-entry-gallery {
   display: block;
   margin-block: var(--sp-4);
@@ -13,10 +13,6 @@ lf-margin-entry-gallery {
   align-items: start;
   padding-block: var(--sp-3);
   border-block-start: 1px solid var(--rule);
-}
-
-.margin-entry-gallery-group:last-child {
-  border-block-end: 1px solid var(--rule);
 }
 
 .margin-entry-gallery-heading {
@@ -72,14 +68,61 @@ lf-margin-entry-gallery {
 }
 
 /* The nearby words expose each fixed specimen, so its transient hover label would say
- * the same thing over the next cell. Suppress that one presentation without changing
- * the canonical label and accessible name the margin entry factory gives the control. */
-lf-margin-entry-gallery .lf-margin-entry > .lf-margin-entry-label {
+ * the same thing over the next cell. The two live discovery specimens opt back into
+ * that label. Suppress only the rest without changing the canonical label and accessible
+ * name the margin entry factory gives each control. */
+lf-margin-entry-gallery
+  .margin-entry-gallery-item
+  .lf-margin-entry:not([data-margin-entry-label-live])
+  > .lf-margin-entry-label {
   display: none;
+}
+
+.margin-entry-gallery-disclosure {
+  grid-column: 1 / -1;
+  padding-inline-start: calc(32px + var(--sp-2));
+  color: var(--muted);
+  font: 450 var(--t-6)/1.3 var(--sans);
+}
+
+.margin-entry-gallery-projection {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, .7fr) minmax(0, 3fr);
+  gap: var(--sp-3);
+  align-items: start;
+  padding-block: var(--sp-3);
+  border-block-start: 1px solid var(--rule);
+  border-block-end: 1px solid var(--rule);
+}
+
+.margin-entry-gallery-projection > .margin-entry-gallery-summary {
+  margin-block-start: 0;
+}
+
+.margin-entry-gallery-projection-guide,
+.margin-entry-gallery-projection-result {
+  grid-column: 2;
+  margin: 0;
+  color: var(--ink-2);
+  font: 450 var(--t-5)/1.45 var(--sans);
+}
+
+.margin-entry-gallery-projection-result {
+  padding-inline-start: var(--sp-2);
+  border-inline-start: 2px solid var(--accent);
 }
 
 @container lf-shell (max-width: 620px) {
   .margin-entry-gallery-group {
     grid-template-columns: 1fr;
+  }
+
+  .margin-entry-gallery-projection {
+    grid-template-columns: 1fr;
+  }
+
+  .margin-entry-gallery-projection-guide,
+  .margin-entry-gallery-projection-result {
+    grid-column: 1;
   }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record docs/demo.gif, the landing page's two session stills, and the site's card, by
+"""Record docs/demo.gif, the README's two session stills, and the site's card, by
 driving the shipped runtime through one round.
 
 The stills used to be shot by hand, which meant nothing regenerated them and nothing
@@ -29,9 +29,10 @@ from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
+RECORD_DEMO_BROWSER = Path(__file__).with_name("record-demo-browser.js")
 DEFAULT_OUTPUT = ROOT / "docs" / "demo.gif"
 GIF_SIZE = (1120, 700)
-# The viewport used for the landing page's representative stills.
+# The viewport used for the README's representative stills.
 STILL_SIZE = (1280, 953)
 # The card a shared link unfurls into. Every unfurler that draws one draws it at
 # 1.91:1, so the scene is shot at that shape rather than shot tall and cropped to it:
@@ -39,7 +40,7 @@ STILL_SIZE = (1280, 953)
 # where the banner and the thread's last line are. Shot at the size it is displayed,
 # so its words are rendered rather than resampled.
 CARD_SIZE = (1200, 630)
-# What one staged scene is photographed as: the landing page's light and dark stills,
+# What one staged scene is photographed as: the README's light and dark stills,
 # and the card. Each is a fresh context because a viewport and a color scheme are
 # context-level settings.
 STILLS = (
@@ -234,24 +235,7 @@ def wait_for_comment(page_dir: Path) -> str:
 
 def select_text(page: Page, selector: str, text: str) -> None:
     selected = page.evaluate(
-        """([selector, text]) => {
-            const walker = document.createTreeWalker(
-                document.querySelector(selector), NodeFilter.SHOW_TEXT
-            );
-            let node;
-            while ((node = walker.nextNode())) {
-                const at = node.data.indexOf(text);
-                if (at < 0) continue;
-                const range = document.createRange();
-                range.setStart(node, at);
-                range.setEnd(node, at + text.length);
-                const selection = getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-                return selection.toString();
-            }
-            return null;
-        }""",
+        "([selector, text]) => globalThis.__leafRecordDemo.selectText(selector, text)",
         [selector, text],
     )
     if selected != text:
@@ -625,6 +609,7 @@ def main() -> None:
                     reduced_motion="reduce",
                 )
                 page = context.new_page()
+                page.add_init_script(path=RECORD_DEMO_BROWSER)
                 page.goto(url)
                 frames, durations = record(page, waiter, page_dir)
                 # The GIF is written before the stills are shot, so a still that

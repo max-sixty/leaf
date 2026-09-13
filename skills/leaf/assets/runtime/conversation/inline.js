@@ -29,11 +29,11 @@ function paintConversationBody(body, message) {
     body.append(el("span", "lf-drawing-reference", "Drawing comment"));
 }
 
-// What a painted body was made from: the prose revision, and whether the Markdown
+// What a painted body was made from: the event and prose revisions, and whether the Markdown
 // renderer had arrived when it was painted. A message the reader sends paints in their
 // gesture, before the lazy import it needs has necessarily landed.
 const inlineRevision = (message) =>
-  `${message.edited?.id ?? ""}:${message.stream_state ? message.text : ""}:${markdownReady() ? "md" : "raw"}`;
+  `${message.id}:${message.edited?.id ?? ""}:${message.stream_state ? message.text : ""}:${markdownReady() ? "md" : "raw"}`;
 
 function conversationMessageNode(thread, message, commands) {
   // By its event, or — while the log is still answering for words the reader just sent —
@@ -165,7 +165,11 @@ function conversationThreadNode(
       settlementControl(t, { liveId, ...commands.settlement });
     actions = thread.querySelector(":scope > .lf-thread-head");
     if (!actions) actions = offer("header", "lf-thread-head");
-    actions.append(resolve);
+    // Reconcile rather than append: appending the retained control to the parent it
+    // already sits in still detaches and reinserts it, which drops the reader's focus
+    // to the body. Every repaint of an open card runs this line — a clock tick alone
+    // is enough — so an appended control could not be held long enough to press.
+    setChildren(actions, [resolve]);
     if (t.root.response?.kind !== "version") {
       tail = thread.querySelector(":scope > .lf-say");
       if (!tail) {
@@ -211,16 +215,12 @@ function conversationThreadNode(
       }
     }
   }
-  const receipts = [...thread.querySelectorAll(":scope > .lf-receipt")];
-  // Message-owned receipts live in their message headers. A direct child has no source
-  // message, so it is the full-width fallback immediately before the thread's tail.
   setChildren(
     thread,
     [
       ...(summary ? [summary] : []),
       ...(actions ? [actions] : []),
       ...messages,
-      ...receipts,
       ...(tail ? [tail] : []),
     ],
     removeNode,
@@ -236,12 +236,10 @@ function conversationThreadNode(
 export function renderThreadSurface(host, threads, commands, response = null) {
   const removeNode = (node) =>
     removeConversationNode(node, commands.reaction.closeReactionMode);
-  const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
   setChildren(
     host,
     [
       ...threads.map((thread) => conversationThreadNode(host, thread, true, commands)),
-      ...receipts,
       ...(response ? [response] : []),
     ],
     removeNode,
@@ -265,11 +263,9 @@ export function renderConversations(threads, commands) {
     const hold = registry[owner.localName]?.["x-conversation"]?.hold;
     const pending =
       !owned.length || hold || loadDraft("say:" + owner.id) !== null ? first : null;
-    const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
     setChildren(
       host,
       [
-        ...receipts,
         ...owned.map((thread) => conversationThreadNode(host, thread, false, commands)),
         ...(pending ? [pending] : []),
       ],

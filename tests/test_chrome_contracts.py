@@ -6,20 +6,66 @@ import re
 import pytest
 from PIL import Image
 from playwright.sync_api import expect
-from render_support import (
-    BANNER_ORDER,
-    LONG_PAGE,
+from render_cases_interaction import (
     SUGGESTION_PAGE,
-    _publish,
+    panel_comment,
+)
+from render_cases_layout import (
+    BANNER_ORDER,
     banner_control,
     button_radius,
-    compare_with,
-    open_page,
-    panel_comment,
-    panel_settled,
-    resized,
     token_colour,
 )
+from render_cases_navigation import (
+    _publish,
+)
+from render_harness import (
+    LONG_PAGE,
+    compare_with,
+    open_page,
+    panel_settled,
+    resized,
+)
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, scheme):
+    """The reply surround stays continuous as focus enters and leaves the conversation.
+
+    An opaque shared surface also lets a pinned reply cover scrolled messages without
+    introducing a differently colored band above its input.
+    """
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+    page, errors = open_page(browser, url, color_scheme=scheme)
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    preview = page.locator(".lf-margin-preview")
+    thread = preview.locator(".lf-conversation-thread")
+    surround = thread.locator(".lf-say")
+    reply = preview.get_by_role("button", name="Reply", exact=True)
+    editor = preview.locator("textarea")
+    expect(reply).to_be_visible()
+
+    for state in ("collapsed", "editing", "outside"):
+        if state == "editing":
+            reply.click()
+            expect(editor).to_be_focused()
+        elif state == "outside":
+            preview.get_by_role("button", name="Dismiss conversation").focus()
+        surface = thread.evaluate("""node => {
+          const color = getComputedStyle(node).backgroundColor;
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const paint = canvas.getContext('2d');
+          paint.fillStyle = color;
+          paint.fillRect(0, 0, 1, 1);
+          return {color, alpha: paint.getImageData(0, 0, 1, 1).data[3]};
+        }""")
+        assert surface["alpha"] == 255, (scheme, state, surface)
+        expect(surround).to_have_css("background-color", surface["color"])
+
+    assert errors == []
 
 
 @pytest.mark.parametrize("width", [320, 800])
@@ -163,7 +209,6 @@ def test_signoff_enabled_face_is_readable(browser, serve):
         "fill": token_colour(page, "--accent"),
     }, f"the banner's primary action lost its readable face: {paint}"
     assert errors == []
-    page.close()
 
 
 def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
@@ -213,7 +258,6 @@ def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
     door.evaluate("el => el.toggleAttribute('data-lf-news', true)")
     expect(door).to_have_css("border-top-color", token_colour(page, "--accent"))
     assert errors == []
-    page.close()
 
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
@@ -287,7 +331,6 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     expect(control).to_have_attribute("aria-expanded", "true")
     expect(control).to_have_css("background-color", token_colour(page, "--chip"))
     assert errors == []
-    page.close()
 
 
 def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
@@ -340,4 +383,3 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             == accent
         ), (width, panel_open, "the notice is covered by the panel or its scrim")
     assert errors == []
-    page.close()

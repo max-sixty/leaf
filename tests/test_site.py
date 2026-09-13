@@ -1588,9 +1588,12 @@ def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
         expect(status).to_have_text("Complete", timeout=10_000)
         expect(toggle).to_have_text("Replay")
         expect(toggle).to_be_enabled()
-        consume_browser_errors(
+        errors = consume_browser_errors(
             page, "contained Leaf page did not load Leaf", "net::ERR_FAILED"
         )
+        assert any(
+            "contained Leaf page did not load Leaf" in error for error in errors
+        ), errors
     finally:
         context.close()
 

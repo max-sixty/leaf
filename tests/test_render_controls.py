@@ -2821,7 +2821,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
             page.wait_for_function(SCROLLED)
         except PlaywrightTimeout:
             # The console with it: the press can move nothing because the runtime
-            # threw, and the `errors == []` below never runs once this fires.
+            # threw, and this names what it said.
             pytest.fail(
                 f"{key} moved nothing on a page nobody had clicked in: {page.lf_errors}"
             )

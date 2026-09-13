@@ -651,8 +651,8 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     # The example itself, so the data its markup selects is laid in beside it; its
     # conversation is not, because the asks the cascade answers are the markup's.
     url = serve(corpus, seed_log=False)
-    # The console is not the subject here: a reload mid-post leaves Chrome's own
-    # "Failed to load resource" behind, which is the navigation working.
+    # The interrupted request is absent from the new document's console: the navigation
+    # clears the old document and its in-flight trip together.
     page = open_page(browser, url)
 
     def slow(route):

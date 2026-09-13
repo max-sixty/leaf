@@ -2636,7 +2636,13 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     """
     page, errors = open_page(browser, _serve_preparing_thread(serve))
     prior_reading = page.locator("body").get_attribute("data-lf-reading")
-    page.evaluate("() => document.body.classList.add('lf-dragging')")
+    page.evaluate(
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, true);
+        }"""
+    )
     with page.expect_response("**/api/event"):
         page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     page.wait_for_function(
@@ -2690,7 +2696,13 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "candidate wake preparation")
 
-    page.evaluate("() => document.body.classList.remove('lf-dragging')")
+    page.evaluate(
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, false);
+        }"""
+    )
     page.title()  # cross the drag observer and projection retry checkpoints
     assert page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"

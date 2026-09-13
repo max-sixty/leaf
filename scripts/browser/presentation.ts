@@ -114,7 +114,10 @@ interface Waiter<DocumentToken extends object> {
   readonly resolve: (outcome: PresentationOutcome) => void;
 }
 
-interface RegionWaiter<DocumentToken extends object, Region> extends Waiter<DocumentToken> {
+interface RegionWaiter<
+  DocumentToken extends object,
+  Region,
+> extends Waiter<DocumentToken> {
   readonly regions: ReadonlySet<Region>;
   readonly cancelled?: () => boolean;
 }
@@ -157,8 +160,7 @@ export function createPresentationCoordinator<
 
   function regionOutcome(waiter: RegionWaiter<DocumentToken, Region>) {
     if (waiter.cancelled?.()) return "superseded";
-    if (document === null || !Object.is(waiter.document, document))
-      return "superseded";
+    if (document === null || !Object.is(waiter.document, document)) return "superseded";
     if (semanticEpoch > waiter.semanticEpoch) return "superseded";
     if (semanticEpoch < waiter.semanticEpoch || !barrier?.sealed) return null;
     return [...waiter.regions].some(
@@ -314,60 +316,68 @@ export function createPresentationCoordinator<
       retired: false,
     });
 
-    const present = async (
+    const present = (
       value: Value,
       completion: PromiseLike<Proof> | Proof,
       failSoft?: (reason: unknown) => Proof,
     ) => {
-      if (regions.get(region) !== record) {
-        await Promise.resolve(completion).catch(() => undefined);
-        return;
-      }
-      const ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof> = {
-        documentGeneration,
-        record,
-        ticketGeneration: ++record.ticketGeneration,
-        value,
-      };
-      record.ticket = ticket;
-      record.commit = null;
-      const presentingBarrier = barrier;
-      const member = presentingBarrier?.members.get(region);
-      if (presentingBarrier && member?.record === record) {
-        presentingBarrier.completed = false;
-        member.ticket = ticket;
-        member.commit = null;
-        member.retired = false;
-      }
-      // Replacing a region can also invalidate a domain-scoped wait whose semantic
-      // publication is unchanged, such as an older external-data revision.
-      resolveRegionWaiters();
-      try {
-        const proof = await completion;
-        finish(ticket, "committed", proof);
-      } catch (reason) {
-        if (!currentTicket(ticket)) return;
-        let proof: Proof | undefined;
-        let reported = reason;
-        let recovered = false;
-        if (failSoft) {
-          try {
-            proof = failSoft(reason);
-            recovered = true;
-          } catch (fallbackError) {
-            reported = new AggregateError(
-              [reason, fallbackError],
-              "presentation and fail-soft failed",
-            );
-          }
+      const ready = (async () => {
+        if (regions.get(region) !== record) {
+          await Promise.resolve(completion).catch(() => undefined);
+          return;
         }
-        reportFailure(reported);
-        // A renderer that supplies fallback proof has presented an explicit failure
-        // state. Without that proof the region remains pending: declaring the page
-        // presented would expose the partial rendering that just failed.
-        if (recovered) finish(ticket, "failed", proof);
-        else throw reported;
-      }
+        const ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof> = {
+          documentGeneration,
+          record,
+          ticketGeneration: ++record.ticketGeneration,
+          value,
+        };
+        record.ticket = ticket;
+        record.commit = null;
+        const presentingBarrier = barrier;
+        const member = presentingBarrier?.members.get(region);
+        if (presentingBarrier && member?.record === record) {
+          presentingBarrier.completed = false;
+          member.ticket = ticket;
+          member.commit = null;
+          member.retired = false;
+        }
+        // Replacing a region can also invalidate a domain-scoped wait whose semantic
+        // publication is unchanged, such as an older external-data revision.
+        resolveRegionWaiters();
+        try {
+          const proof = await completion;
+          finish(ticket, "committed", proof);
+        } catch (reason) {
+          if (!currentTicket(ticket)) return;
+          let proof: Proof | undefined;
+          let reported = reason;
+          let recovered = false;
+          if (failSoft) {
+            try {
+              proof = failSoft(reason);
+              recovered = true;
+            } catch (fallbackError) {
+              reported = new AggregateError(
+                [reason, fallbackError],
+                "presentation and fail-soft failed",
+              );
+            }
+          }
+          reportFailure(reported);
+          // A renderer that supplies fallback proof has presented an explicit failure
+          // state. Without that proof the region remains pending: declaring the page
+          // presented would expose the partial rendering that just failed.
+          if (recovered) finish(ticket, "failed", proof);
+          else throw reported;
+        }
+      })();
+      // The coordinator has already reported every rejection. Observe it here so a
+      // background renderer can deliberately leave its region pending without also
+      // creating a browser-level unhandled rejection. Callers that await `ready` still
+      // receive the same rejection and can turn it into an owning startup failure.
+      void ready.catch(() => undefined);
+      return ready;
     };
 
     const disconnect = () => {

@@ -3474,11 +3474,8 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     assert errors == []
 
 
-def test_report_words_follow_widget_state_while_projection_waits_for_a_drag(
-    browser, serve
-):
-    """The controller commits a report's prose and durable field together, while
-    the global drag gate independently withholds projection coverage and chrome."""
+def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
+    """The page-wide drag gate withholds widget views and projection coverage."""
     page, errors = open_page(browser, serve(ROSTER_PAGE))
     d = serve.page_dir
     row = page.locator("#ag-wren")
@@ -3500,7 +3497,13 @@ def test_report_words_follow_widget_state_while_projection_waits_for_a_drag(
     expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
 
-    page.evaluate("document.body.classList.add('lf-dragging')")
+    page.evaluate(
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, true);
+        }"""
+    )
     second = CliRunner().invoke(
         cli_model.cli,
         [
@@ -3514,11 +3517,17 @@ def test_report_words_follow_widget_state_while_projection_waits_for_a_drag(
     )
     assert second.exit_code == 0, second.output
     told(page)
-    expect(row).to_have_attribute("state", "idle")
-    expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
+    expect(row).to_have_attribute("state", "working")
+    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
 
-    page.evaluate("document.body.classList.remove('lf-dragging')")
+    page.evaluate(
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, false);
+        }"""
+    )
     expect(row).to_have_attribute("state", "idle")
     expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")

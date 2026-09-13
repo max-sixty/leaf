@@ -211,16 +211,12 @@ function conversationThreadNode(
       }
     }
   }
-  const receipts = [...thread.querySelectorAll(":scope > .lf-receipt")];
-  // Message-owned receipts live in their message headers. A direct child has no source
-  // message, so it is the full-width fallback immediately before the thread's tail.
   setChildren(
     thread,
     [
       ...(summary ? [summary] : []),
       ...(actions ? [actions] : []),
       ...messages,
-      ...receipts,
       ...(tail ? [tail] : []),
     ],
     removeNode,
@@ -236,12 +232,10 @@ function conversationThreadNode(
 export function renderThreadSurface(host, threads, commands, response = null) {
   const removeNode = (node) =>
     removeConversationNode(node, commands.reaction.closeReactionMode);
-  const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
   setChildren(
     host,
     [
       ...threads.map((thread) => conversationThreadNode(host, thread, true, commands)),
-      ...receipts,
       ...(response ? [response] : []),
     ],
     removeNode,
@@ -265,11 +259,9 @@ export function renderConversations(threads, commands) {
     const hold = registry[owner.localName]?.["x-conversation"]?.hold;
     const pending =
       !owned.length || hold || loadDraft("say:" + owner.id) !== null ? first : null;
-    const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
     setChildren(
       host,
       [
-        ...receipts,
         ...owned.map((thread) => conversationThreadNode(host, thread, false, commands)),
         ...(pending ? [pending] : []),
       ],

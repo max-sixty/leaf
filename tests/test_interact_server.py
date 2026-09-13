@@ -34,6 +34,7 @@ from interact_support import (
     neighbour_page,
     publish,
     record_claim,
+    running_http_server,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -3584,21 +3585,19 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
         ("127.0.0.1", 0),
         http_model.handler_for(page_dir, TOKEN, protocol_version="HTTP/1.1"),
     )
-    thread = threading.Thread(target=http11.serve_forever, daemon=True)
-    thread.start()
-    peer = http.client.HTTPConnection(
-        f"127.0.0.1:{http11.server_address[1]}", timeout=2
-    )
-    try:
-        peer.putrequest("POST", "/api/event")
-        peer.putheader("Content-Length", str(1 << 30))
-        peer.putheader("Content-Type", "application/json")
-        peer.endheaders()
-        refused = peer.getresponse()
-        refusal = json.loads(refused.read())
-    finally:
-        peer.close()
-        http11.shutdown()
+    with running_http_server(http11):
+        peer = http.client.HTTPConnection(
+            f"127.0.0.1:{http11.server_address[1]}", timeout=2
+        )
+        try:
+            peer.putrequest("POST", "/api/event")
+            peer.putheader("Content-Length", str(1 << 30))
+            peer.putheader("Content-Type", "application/json")
+            peer.endheaders()
+            refused = peer.getresponse()
+            refusal = json.loads(refused.read())
+        finally:
+            peer.close()
     assert (refused.status, refusal) == (
         403,
         {"ok": False, "error": schema_model.NO_KEY, "final": True},
@@ -3647,9 +3646,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             page_snapshot=snapshot,
         ),
     )
-    thread = threading.Thread(target=preview.serve_forever, daemon=True)
-    thread.start()
-    try:
+    with running_http_server(preview):
         status, body = fetch(
             f"{server}/api/event", data=json.dumps(comment).encode(), token=None
         )
@@ -3703,9 +3700,6 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             ), (name, status, answer)
             assert answer.get("attempt") == event["attempt"], (name, answer)
             assert answer.get("error"), (name, answer)
-    finally:
-        preview.shutdown()
-
     # The refusals decided before the body is a dict at all, which the parsed rows above
     # cannot reach. These name no attempt because the door has nothing to read one out
     # of, but each is safely final: parsing failed before an append could begin, so the
@@ -4370,9 +4364,7 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
         )
         for directory in (page_dir, second)
     ]
-    for httpd in servers:
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    try:
+    with running_http_server(servers[0]), running_http_server(servers[1]):
         first, other = (f"http://127.0.0.1:{h.server_address[1]}" for h in servers)
         opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
@@ -4383,9 +4375,6 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
         # authorization, and a 403 here raises rather than returns.
         with opener.open(f"{other}/api/state") as onward:
             assert onward.status == 200
-    finally:
-        for httpd in servers:
-            httpd.shutdown()
 
 
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
@@ -4546,13 +4535,9 @@ def test_others_ships_on_a_network_facing_bind_too(page_dir):
     httpd = hosting_model.LeafHTTPServer(
         ("0.0.0.0", 0), http_model.handler_for(page_dir, TOKEN)
     )
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    try:
+    with running_http_server(httpd):
         port = httpd.server_address[1]
         state = json.loads(fetch(f"http://127.0.0.1:{port}/api/state")[1])
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
 

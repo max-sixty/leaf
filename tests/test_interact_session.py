@@ -46,6 +46,7 @@ from interact_support import (
     stamp,
     start_server_command,
     state_json,
+    wait_for,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -89,18 +90,6 @@ def delivered(output: str) -> tuple[dict, dict, list[dict]]:
     assert payload["format"] == delivery_model.DELIVERY_FORMAT
     [batch] = payload["batches"]
     return payload, batch, batch["events"]
-
-
-def wait_for(read, accepts, *, failure: str, timeout: float = 10):
-    """Return the first accepted reading, or fail with the last one observed."""
-    deadline = time.monotonic() + timeout
-    while True:
-        reading = read()
-        if accepts(reading):
-            return reading
-        if time.monotonic() >= deadline:
-            pytest.fail(f"{failure}; last reading was {reading!r}")
-        time.sleep(0.05)
 
 
 def fake_codex_cli(tmp_path: Path) -> tuple[Path, Path]:

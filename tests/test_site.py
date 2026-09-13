@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pytest
 from example_data import catalog_sources, data_operations, example_versions
+from interact_support import running_http_server
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf.event_log import _parse_events, read_events
@@ -40,7 +41,6 @@ from render_harness import (
     consume_browser_errors,
     navigate,
     open_page,
-    running_http_server,
     select,
     sending,
     watched,

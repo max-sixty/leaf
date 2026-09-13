@@ -33,7 +33,6 @@ import math
 import os
 import re
 import shutil
-import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -380,20 +379,6 @@ REPLAYED_PAGE = leaf_page(
 # A page's key is minted per page; fixed here so a test can build a URL for a
 # server it did not start.
 TOKEN = "test-page-key"
-
-
-@contextmanager
-def running_http_server(httpd):
-    """Serve an HTTP fixture and close every thread and socket it creates."""
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield httpd
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join(timeout=5)
-        assert not thread.is_alive(), "the fixture HTTP server did not stop"
 
 
 @pytest.fixture

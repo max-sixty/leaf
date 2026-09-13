@@ -1198,7 +1198,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-entry")
-    expect(buttons).to_have_count(13)
+    expect(buttons).to_have_count(18)
     records = buttons.evaluate_all(
         """buttons => buttons.map(button => ({
           behavior: button.dataset.lfBehavior,
@@ -1218,18 +1218,55 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
         ("rank", "ranks"),
     ):
         assert {record[record_axis] for record in records} == set(grammar[grammar_axis])
-    assert set(
-        buttons.evaluate_all("rows => rows.map(row => getComputedStyle(row).cursor)")
-    ) == {"default"}
 
     def specimen(name):
         return atlas.locator(
             f'[data-margin-entry-specimen="{name}"] > .lf-margin-entry'
         )
 
+    for name in ("label + context", "hover or focus", "open"):
+        expect(specimen(name)).to_have_css("cursor", "pointer")
+    for name in (
+        "save",
+        "cancel",
+        "accept",
+        "reject",
+        "thread",
+        "more",
+        "sent",
+        "glyph face",
+        "count badge",
+        "not held",
+        "picked up",
+        "working",
+        "activity fallback",
+        "resting",
+        "selected",
+    ):
+        expect(specimen(name)).to_have_css("cursor", "default")
+
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
-        ["Rank and behavior", "Agent ownership", "Reader selection"]
+        [
+            "Rank and behavior",
+            "Face anatomy",
+            "Agent ownership",
+            "Reader interaction",
+            "Projection",
+        ]
     )
+
+    glyph = specimen("glyph face")
+    expect(glyph.locator(".lf-margin-entry-glyph")).to_have_text("🤔")
+    count = specimen("count badge")
+    expect(count.locator(":scope > .lf-margin-count")).to_have_text("3")
+    label = specimen("label + context")
+    label.hover()
+    expect(label.locator(".lf-margin-entry-label-word")).to_have_text(
+        "Label + context…"
+    )
+    expect(label.locator(".lf-margin-entry-context")).to_have_text("Patch ready")
+    expect(label.locator(".lf-margin-entry-label")).to_have_css("visibility", "visible")
+    page.mouse.move(0, 0)
 
     not_held = specimen("not held")
     picked_up = specimen("picked up")
@@ -1266,7 +1303,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(
         atlas.locator('[data-margin-entry-specimen="sent"] > .lf-margin-entry')
     ).to_have_attribute("role", "status")
-    not_selected = specimen("not selected")
+    not_selected = specimen("resting")
     selected = specimen("selected")
     expect(not_selected).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
@@ -1287,11 +1324,16 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
             "Thread",
             "More",
             "Sent",
+            "Glyph face",
+            "Count badge",
+            "Label + context",
             "Not held",
             "Picked up",
             "Working",
             "Activity fallback",
-            "Not selected",
+            "Resting",
+            "Hover or focus",
+            "Open",
             "Selected",
         ]
     )
@@ -1301,6 +1343,60 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(
         page.locator("#bg-margin-controls > .eyebrow.bg-feature-elements")
     ).to_have_text("lf-margin-entry")
+
+    interactive = specimen("hover or focus")
+    interactive.hover()
+    expect(interactive).to_have_css("background-color", token_colour(page, "--chip"))
+    expect(interactive).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(interactive.locator(".lf-margin-entry-label")).to_have_css(
+        "visibility", "visible"
+    )
+    page.mouse.move(0, 0)
+    interactive.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(interactive).to_be_focused()
+    expect(interactive).to_have_css("outline-style", "solid")
+
+    opened = specimen("open")
+    opened_result = atlas.locator(
+        '[data-margin-entry-specimen="open"] .margin-entry-gallery-disclosure'
+    )
+    expect(opened).to_have_attribute("aria-expanded", "true")
+    expect(opened).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(opened_result).to_be_visible()
+    opened.click()
+    expect(opened).to_have_attribute("aria-expanded", "false")
+    expect(opened_result).to_be_hidden()
+
+    projection = page.locator(
+        '[data-lf-margin-for="bg-margin-controls-specimens"]'
+    ).get_by_role("button", name="Inspect projection", exact=True)
+    expect(projection).to_be_visible()
+    projection.hover()
+    expect(projection.locator(".lf-margin-entry-label-word")).to_have_text(
+        "Inspect projection…"
+    )
+    expect(projection.locator(".lf-margin-entry-context")).to_have_text(
+        "Compact face · full row"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    map_projection = dialog.get_by_role(
+        "button", name="Inspect projection, Compact face · full row", exact=True
+    )
+    expect(map_projection).to_be_visible()
+    expect(map_projection.locator(".lf-page-map-action-label-word")).to_have_text(
+        "Inspect projection…"
+    )
+    expect(map_projection.locator(".lf-page-map-action-context")).to_have_text(
+        "Compact face · full row"
+    )
+    map_projection.click()
+    expect(dialog).to_be_hidden()
+    expect(projection).to_have_attribute("aria-expanded", "true")
+    expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
 
     assert errors == []
     page.close()
@@ -1484,7 +1580,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
         "bg-margin-controls": (
-            "Margin entries: every rank, tone, ownership, and selection state",
+            "Margin entries: every face, state, and projection",
             "#bg-margin-controls-guide",
             "#bg-margin-controls-specimens",
         ),
@@ -1536,7 +1632,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         for heading in headings
         if "margin entr" in heading.casefold()
     ] == [
-        "Margin entries: every rank, tone, ownership, and selection state",
+        "Margin entries: every face, state, and projection",
         "Margin entry lifecycle: act, fail, settle, and hand off",
     ]
     expect(page.locator("#bg-buttons-line #bg-crowded")).to_be_visible()
@@ -1747,7 +1843,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    proxy = dialog.get_by_role("button", name="Inspect source", exact=True)
+    proxy = dialog.get_by_role("button", name="Inspect source, Patch ready", exact=True)
     expect(proxy).to_be_visible()
     assert proxy.evaluate(
         """button => ({
@@ -1769,7 +1865,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
         "rank": "reading",
         "state": "engaged",
         "label": "Inspect source…",
-        "context": None,
+        "context": "Patch ready",
         "expanded": "true",
         "pressed": "true",
         "popup": "dialog",

@@ -1295,7 +1295,7 @@ lf-column { display: block; background: var(--field);
    where no script runs at all there is no name either, and the generated copy
    is the whole rendering, audible as well as visible. */
 lf-column::before,
-lf-column > [data-lf-said="label"] { display: block; font-size: 13px;
+lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-working-label);
             font-weight: 600; line-height: 1.5; color: var(--ink-2);
             padding: 2px var(--lf-card-inset) 10px; }
 lf-column::before { content: attr(label); }

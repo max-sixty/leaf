@@ -13,8 +13,8 @@
  * turn on telling them apart. What the page *says* is set in a text serif: prose
  * a user reads closely and points at. Dense working surfaces such as tables
  * use the sans too: their words are compared across rows rather than read in sequence.
- * What the page *labels* — an eyebrow, a
- * column heading, a chip, the headings across a table, a metric's caption — is
+ * A table's own column headings go with them, quieter rather than tracked.
+ * What the page *labels* — an eyebrow, a chip, a metric's caption — is
  * apparatus, set in the UI sans at small sizes with tracking, so it reads as
  * machinery around the argument rather than as part of it. What it *shows* is mono:
  * code, diffs, trees, timestamps. The runtime's own chrome takes the same sans
@@ -194,10 +194,12 @@
      `available` surface is not held to this number. */
   --wide: 1080px;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
-     the column below holds about 74 of them. These are the prose's hierarchy; a size
+     the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
+     --t-working-label is the shared compact heading between its two smallest rungs. A size
      that has to fit something states its own number where it is set — a code block
      against the characters it takes across, a step badge against its disc. */
-  --t-6: 11.5px; --t-5: 14px; --t-4: 17px; --t-3: 20px; --t-2: 24px; --t-1: 31px;
+  --t-6: 11.5px; --t-working-label: 13px; --t-5: 14px; --t-4: 17px;
+  --t-3: 20px; --t-2: 24px; --t-1: 31px;
   --code-size: 12.5px; --code-line: 19px;
   --serif: Charter, "Bitstream Charter", "Iowan Old Style", Georgia, ui-serif, serif;
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -863,7 +865,7 @@ tr > :last-child { padding-right: 0; }
    says which kind it is for, so neither resets the other — a row's name shares its
    values' working face and size, while the
    column headings are quieter. Both keep the author's capitalization. */
-th:not([scope="row"]) { font-size: 13px;
+th:not([scope="row"]) { font-size: var(--t-working-label);
      color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 th[scope="row"] { font-weight: 600; }

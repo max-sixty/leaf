@@ -65,9 +65,12 @@ uv run pytest tests --run-nightly
 ```
 
 `scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,
-and CI fonts. Its default reproduces the everyday job; pass a failed nightly
-file, node id, or marker selection to reproduce that surface. It needs a Docker
-daemon that can run `linux/amd64`.
+and CI fonts. It is a platform diagnostic rather than the normal local gate, so
+it requires an explicit pytest selection: pass `tests` to reproduce the everyday
+job, or a failed nightly file, node id, or marker selection to reproduce that
+surface. Its default emulated image needs a Docker daemon that can run
+`linux/amd64`; `LEAF_SUITE_NATIVE=1` keeps the CI fonts but gives up installed
+Chrome so the browser can run natively on Apple silicon.
 
 The developer environment comes from the one `pyproject.toml` and `uv.lock` at
 the repo root, which is also the payload project: `uv sync` installs `leaf`

@@ -6,6 +6,7 @@ import { containsAcross } from "../passages.js";
 import { COVERING } from "../chrome-layout.js";
 import { registerReadingArrangement } from "../reading-regions.js";
 import { el } from "../widget-elements.js";
+import { createThreadListView } from "./thread-list-view.js";
 
 export const panel = el("dialog", "lf-ui lf-thread-panel");
 panel.id = "lf-threads";
@@ -61,7 +62,7 @@ export const scopeButtons = {
 };
 export const subjectButtons = {
   content: filterButton("subject", "content", "Content"),
-  layer: filterButton("subject", "layer", "Layer"),
+  design: filterButton("subject", "design", "Design"),
 };
 export const goneBtn = filterButton("gone", "gone", "No longer here");
 goneBtn.hidden = true;
@@ -79,7 +80,8 @@ filterControls.append(
   facetRow,
 );
 
-export const threadsBox = el("div", "lf-threads");
+export const threadsBox = createThreadListView();
+threadsBox.className = "lf-threads";
 threadsBox.tabIndex = -1;
 threadsBox.setAttribute("role", "group");
 threadsBox.setAttribute("aria-label", "Threads");

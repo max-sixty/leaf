@@ -1,28 +1,14 @@
-/* Applying a complete server state, and what a refused application gives back.
+/* Prepare asynchronously, adopt one semantic root synchronously, then present it.
 
-   `receiveState` is the only door for a complete server state. Three callers use it: a
-   read of `GET /api/state`, an accepted POST answer, and a deferred version activation
-   that has become available. The clock retries explicitly deferred widget projections
-   without replaying a whole state. An unchanged page performs no state paint. It:
-
-   1. verifies the layer generation;
-   2. rejects an answer taken before the one it holds, and an event sequence older than
-      `lastEventSeq`;
-   3. loads the Markdown renderer before any message body needs it;
-   4. installs candidate `events` and renders all log-derived surfaces;
-   5. awaits thread-widget upgrades and initial capture, then presents the widget projection;
-   6. advances `lastEventSeq` only after the whole state renders;
-   7. accounts for pending attempts;
-   8. dispatches `lf-actions` after replay.
-
-   If any required render throws, `receiveState` restores the prior event list, phase,
-   sequence, and held answer. A candidate history may be visible only during its own
-   application. Focus, undo, draft settlement, and later asynchronous wakeups must not
-   consume a log tail the page did not adopt. */
-
+   Complete readings are ordered by transaction time, event sequence, and active
+   revision. Preparation may overlap; the adoption boundary judges the candidate
+   again and folds it with the latest local attempts. Accepted truth never rolls back
+   when a view fails. Failed presentation reports visibly and leaves pending receipt
+   accounting untouched, so another reading can retry from that same semantic root. */
 import { LIVE_ROOT } from "./storage.js";
 import { runtime } from "./context.js";
-import { sameLayer } from "./layer-client.js";
+import { applicationState } from "./semantic-state.js";
+import { reportPageError, sameLayer } from "./layer-client.js";
 import { importWidgets } from "./widget-loader.js";
 import { observeServerNow } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
@@ -30,70 +16,36 @@ import { notice } from "./notifications.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { loadMarked } from "./conversation/messages.js";
 
-// What an application writes to the runtime and a refused one gives back, the three
-// current-document facts included, so the chooser re-renders from the restored state.
-const APPLICATION_RUNTIME_FIELDS = Object.freeze([
-  "agent",
-  "activity",
-  "browser",
-  "currentLabel",
-  "currentRevision",
-  "currentStamp",
-  "events",
-  "lastEventSeq",
-  "reading",
-  "restoringState",
-  "state",
-  "statePhase",
-  "view",
-]);
-
 export function createStateApplication({
   prepareActivation,
   acceptData,
   notifyDataSubscribers,
-  replaceClaimState,
   isSignoffDeclared,
   paintApproval,
   renderStatus,
   renderVersions,
   stateSignoff,
   renderOthers,
-  retainConversationFocus,
   applyConversation,
+  renderAsks,
+  prepareProjection,
   presentProjection,
   accountPending,
   panelIsOpen,
-  updateFab,
-  refreshHover,
-  repaint,
   paintKeys,
 }) {
   let agentMsgCount = -1;
-  // Which frozen markup has already been read for the modules it needs. A state read
-  // carries the whole log, an event's markup never changes, and the parse is the only
-  // way to know which tags are in it — so each one is read once rather than on every
-  // poll of a conversation that may be full of widgets.
   const markupRead = new Set();
-  // Polls and POST answers may overlap, but an application owns its document and
-  // newly connected thread widgets through upgrade, capture, and projection. Every
-  // read waits for that application before judging its own revision and sequence.
-  let applying = null;
   let stateApplying = false;
   let admission = Promise.resolve();
 
-  async function enterApplication() {
+  async function runSerialized(operation) {
     const prior = admission;
     let release;
     admission = new Promise((resolve) => {
       release = resolve;
     });
     await prior;
-    return release;
-  }
-
-  async function runSerialized(operation) {
-    const release = await enterApplication();
     try {
       return await operation();
     } finally {
@@ -101,305 +53,112 @@ export function createStateApplication({
     }
   }
 
-  // Whether an answer was taken before the one the page holds. Answers cross — a read
-  // held by a slow proxy or a test while a later one lands, a POST's answer beside a
-  // read — and the log's sequence and the data's revision order everything in a state
-  // but the reading, which is a hash with no order of its own. The server stamps each
-  // answer with the moment it was taken, inside the transaction every answer is built
-  // under, so this is the order they were taken in whichever order they land. Equal is
-  // not before: deferred activation may reapply the held answer itself.
-  const takenBefore = (state) =>
-    runtime.state !== null && state.taken < runtime.state.taken;
-
-  // These surfaces all describe the complete state being applied. A candidate may
-  // paint them before a later widget preparation or commit step refuses the read, so
-  // recovery must repaint the same set from the prior state.
-  const renderStateChrome = (state) => {
-    renderStatus(state);
-    renderVersions(state);
-    stateSignoff(isSignoffDeclared());
-    paintApproval();
-    renderOthers(state);
-  };
+  const stale = (state) =>
+    runtime.state !== null &&
+    (state.taken < runtime.state.taken ||
+      state.browser.basis.through_seq < runtime.lastEventSeq ||
+      state.active.revision < runtime.active.revision);
 
   async function receiveState(state) {
-    // Every state this page reads passes here — the poll's, and the one an accepted
-    // event response carries — so the generation is checked once for both rather than
-    // at each door it arrives through.
     if (!sameLayer(state.layer.generation)) return;
     if (typeof state.taken !== "number")
       throw new TypeError("state must say when it was taken");
-    // Events and source snapshots are independent authorities serialized by the same page
-    // transaction but observed through overlapping responses. Their revisions form a pair,
-    // not one total order: a response with an older event tail may still carry the newest
-    // data. Accept that component before the event gate, and never move either one backward.
+    // Source revisions are independently monotone, even in a crossed older log read.
     const dataChanged = acceptData(state.data);
-    const notifyChangedData = async () => {
-      if (dataChanged) await notifyDataSubscribers();
-    };
-    const nextEvents = state.events;
-    const nextBrowser = state.browser;
-    const eventSeq = nextBrowser?.basis?.through_seq;
+    const notifyChangedData = () => (dataChanged ? notifyDataSubscribers() : undefined);
+    const eventSeq = state.browser?.basis?.through_seq;
     if (!Number.isInteger(eventSeq) || eventSeq < 0)
       throw new TypeError("state browser must name its log sequence");
-    // An answer taken before the one the page holds is judged as a stale sequence is
-    // (takenBefore). Before the sequence gate because a stale answer may carry the same
-    // sequence as the newer one and differ in everything the sequence does not order —
-    // status, claims, the reading itself.
-    if (takenBefore(state)) {
-      while (applying) await applying;
-      await notifyChangedData();
-      return;
-    }
-    // A POST's answer and a read can cross. The log is append-only, so a response
-    // behind one already rendered is unambiguously stale; accepting it would move
-    // every event-derived view backwards until the next read. Kept beside the stamp's
-    // gate: that orders the server's answers, and this holds the log's order against
-    // any answer at all, one a test built included.
-    if (eventSeq < runtime.lastEventSeq) {
-      while (applying) await applying;
-      await notifyChangedData();
-      return;
-    }
-    while (applying) await applying;
-    if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
-      await notifyChangedData();
-      return;
-    }
-    const targetRevision = state.active?.revision ?? null;
+    const targetRevision = state.active?.revision;
     if (!Number.isInteger(targetRevision) || targetRevision < 1)
       throw new TypeError("state active must name a positive revision");
     if (LIVE_ROOT && runtime.currentRevision === null)
       throw new TypeError("the live document has no lf-revision marker");
-    if (runtime.active && targetRevision < runtime.active.revision) {
+    if (stale(state)) {
       await notifyChangedData();
       return;
     }
-    // Messages render from Markdown; have the renderer in hand before the panel
-    // builds a body, so msgNode stays synchronous. The next authored document, where
-    // the state names one the live root can follow, is fetched on the same background
-    // stretch rather than making either network trip wait on the other.
+
     const preparations = [
       prepareActivation(state),
-      nextEvents.some((e) => e.kind === "comment" || e.kind === "reply")
+      state.events.some((event) => event.kind === "comment" || event.kind === "reply")
         ? loadMarked()
         : null,
     ];
-    // And the modules for the widgets a message carries, on the same stretch and for the
-    // same reason: a reply's frozen markup may hold a tag this document never had, and
-    // buildMsgBody instantiates it synchronously once the panel builds a body.
-    for (const e of nextEvents) {
-      if (!e.markup || markupRead.has(e.id)) continue;
-      // Parsed the way buildMsgBody parses it, so the tags found here are the tags that
-      // will stand in the body: an inert template, one fragment at a time.
+    for (const event of state.events) {
+      if (!event.markup || markupRead.has(event.id)) continue;
       const frozen = document.createElement("template");
-      frozen.innerHTML = e.markup;
-      // The loader shares in-flight module promises. Only completed preparation is
-      // cached here: a crossed response must join that import before it mounts or
-      // captures the same frozen widget.
-      preparations.push(importWidgets(frozen.content).then(() => markupRead.add(e.id)));
+      frozen.innerHTML = event.markup;
+      preparations.push(
+        importWidgets(frozen.content).then(() => markupRead.add(event.id)),
+      );
     }
     const [activation] = await Promise.all(preparations);
     if (activation?.stale) {
       await notifyChangedData();
       return;
     }
-    // The preparation above yields. A newer response may have completed while this one was
-    // waiting, and two responses may have joined the same version-file promise before
-    // either had an activation to await. Serialize again at the commit boundary, then
-    // judge this candidate against the version and sequence the winner installed.
-    const releaseApplication = await enterApplication();
-    try {
-      if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
+
+    return runSerialized(async () => {
+      if (stale(state)) {
         await notifyChangedData();
         return;
       }
-      if (runtime.active && targetRevision < runtime.active.revision) {
+      // Live activation navigates into a fresh document and never returns to install
+      // this candidate in the old realm. Pending deferral is rechecked by activates.
+      if (activation?.activates()) await activation.install();
+      if (!state.browser.views[String(runtime.currentRevision)]) {
         await notifyChangedData();
         return;
       }
-      const willActivate = activation !== null && activation.activates();
-      // The last coordinate the commit boundary judges, beside sequence and active
-      // revision: the answer holds a view of the revision the page named when it asked and
-      // of the one it may activate into, and of no others. An activation between the decision
-      // and the answer leaves the page on neither — it is showing a revision this answer
-      // says nothing about, so there is no view here to install and no version to move to.
-      // Dropped like the gates above: the page's next read names the revision it holds
-      // now, and that answer projects it.
-      const showing = willActivate ? targetRevision : runtime.currentRevision;
-      if (!nextBrowser.views?.[String(showing)]) {
+      if (!applicationState.adopt(state)) {
         await notifyChangedData();
         return;
       }
-      // Calibrate only an accepted reading. A delayed response carries an old clock
-      // as well as old state; rejecting its state must not rewind timestamp aging.
-      if (state !== runtime.state) observeServerNow(state.now);
-      const prior = {
-        restoreConversationFocus: retainConversationFocus(),
-        runtime: Object.fromEntries(
-          APPLICATION_RUNTIME_FIELDS.map((field) => [field, runtime[field]]),
-        ),
-      };
-      let nextAgentMsgCount = null;
-      let replyNotice = null;
-      let restoreClaimState = () => {};
-      const apply = async () => {
-        // A revision activation is an arrival: its already-standing state must settle into
-        // the replacement markup without being presented as a new gesture.
-        if (willActivate) runtime.restoringState = true;
-        runtime.events = nextEvents;
-        runtime.activity = state.activity;
-        runtime.browser = nextBrowser;
-        let finishActivation = null;
-        runtime.statePhase = "ready";
-        if (willActivate) finishActivation = await activation.install();
-        runtime.view = nextBrowser.views?.[String(runtime.currentRevision)] ?? null;
-        // What is left for this to catch, now that a late answer is dropped above: an
-        // answer that is malformed rather than late, and an activation that left the page
-        // somewhere the gate did not predict. Both are faults, so both are loud.
-        if (
-          !runtime.view ||
-          runtime.view.basis?.through_seq !== eventSeq ||
-          runtime.view.basis?.revision !== runtime.currentRevision
-        )
-          throw new TypeError("state browser has no matching revision view");
+      observeServerNow(state.now);
+      stateApplying = true;
+      // Frozen thread preparation can publish newly captured authored state before
+      // projection runs. Hold chrome presentation now so the adopted epoch cannot
+      // inherit an older commit while that asynchronous boundary is open.
+      const preparedProjection = prepareProjection();
+      try {
         settleAcceptedDrafts();
-        runtime.agent = state.agent || "Claude";
-        restoreClaimState = replaceClaimState({
-          sources: state.claims || [],
-          held: state.activity.held,
-        });
-        renderStateChrome(state);
-        if (eventSeq > runtime.lastEventSeq || finishActivation) {
-          await applyConversation();
-          // Sign-off is a fact in the log, not a click this tab happens to remember, so a
-          // reload (or the other tab) shows it too.
-          const agentReplies = (runtime.browser.conversation?.threads ?? []).flatMap(
-            (thread) =>
-              thread.msgs.filter(
-                (message) => message.author === "claude" && message.kind === "reply",
-              ),
-          );
-          if (
-            agentMsgCount >= 0 &&
-            agentReplies.length > agentMsgCount &&
-            !panelIsOpen()
-          )
-            replyNotice = `${agentReplies.at(-1).agent || "Agent"} replied — open Threads`;
-          nextAgentMsgCount = agentReplies.length;
-        }
-        // Last, because the panel has just rendered the log: a widget carried by a reply is
-        // on the page by now, so an action naming one that isn't names a widget no version
-        // holds, and reconciliation can retire it instead of looking for it forever.
-        presentProjection();
-        // One complete tail after widget rendering: it may change derived content, including
-        // the row and outlet holding a local thread. Re-resolve anchors, reconcile declared
-        // surfaces, then their fallbacks and receipts from that final DOM. This also repaints
-        // time-dependent claim chrome on a state heartbeat with no new event.
+        renderStatus(state);
+        renderVersions(state);
+        stateSignoff(isSignoffDeclared());
+        paintApproval();
+        renderOthers(state);
+        // Frozen thread widgets join the document here. Their authored capture
+        // republishes the same semantic root before widget rendering reads it.
         await applyConversation();
-        if (finishActivation) {
-          await finishActivation();
-          updateFab();
-          notice(`Updated to ${runtime.currentLabel}`, { background: true });
-        }
-        // Only a complete application advances the read boundary. A render fault may
-        // already have changed some local surfaces, but it has not made a state safe to use
-        // for replay or undo; leaving the sequence unresolved retries the whole read.
-        runtime.lastEventSeq = Math.max(runtime.lastEventSeq, eventSeq);
-        // Stamped in the same place, because it answers the same question about a
-        // wider subject: the sequence says how much of the log the page holds, the
-        // reading how much of the page's whole state — status, data, claims, versions
-        // — none of which moves the sequence at all. Not by the same rule: a hash has
-        // no order, so the moment the server took the answer is what keeps a stale one
-        // from writing it, and that answer was turned away at the door above.
-        runtime.reading = state.reading ?? null;
-        // Kept so the heartbeat can re-render time-dependent chrome without asking the
-        // server for a copy of what the page already has, and for `taken`, which the
-        // door above judges the next answer by.
-        runtime.state = state;
+        presentProjection(preparedProjection);
+        await applyConversation();
+        // Frozen thread markup can introduce a new Ask only after conversation
+        // presentation has mounted and captured its widgets. Present that derived
+        // inventory before recording this accepted reading on the document.
+        await renderAsks();
+        await notifyDataSubscribers();
         if (runtime.reading !== null)
           document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
-        // Accounting changes no hold by itself. It first projects this complete log plus
-        // every surviving optimistic action, then releases the entries whose attempts the
-        // read contained. A same-widget event later in this state can therefore never be
-        // skipped under the hold and exposed only after the hold disappears.
-        await notifyDataSubscribers();
-        // Accounting is irreversible: it resolves delivery races and may release pending
-        // messages. It runs only after every awaited application step has succeeded.
-        accountPending(nextBrowser.receipts ?? []);
-        runtime.restoringState = prior.runtime.restoringState;
-      };
-      const restore = async (error) => {
-        // Candidate history is useful only while this one application is
-        // rendering it. If any required surface refuses the state, restore the last whole
-        // reading so focus, panel, and undo cannot consume a log tail the page never
-        // adopted. The next poll retries the candidate from the same complete boundary.
-        // The chooser is painted from the restored state, which leaves it as it stood: an
-        // open menu's rows are never rebuilt under the reader, so a focused row survives
-        // both the candidate and its rollback.
-        Object.assign(runtime, prior.runtime);
-        restoreClaimState();
-        renderStateChrome(runtime.state);
-        if (runtime.reading === null)
-          document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.reading);
-        else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
-        // Reconciliation may already have displayed candidate messages before a later
-        // projection refused the read. Rebuild the derived conversation from the restored
-        // history, retaining its standing nodes and unresolved local messages as usual.
-        // A failed activation replaces the document below instead.
-        if (!willActivate) {
-          await applyConversation();
-          presentProjection();
-          await applyConversation();
-          prior.restoreConversationFocus();
-        }
-        // A version the page could not show, and the reader is left looking at the one it
-        // was leaving. Say what the reload is for before making it: a tab that reloads
-        // itself in silence reads as the page having lost their place for no reason.
-        if (willActivate) {
-          notice("Couldn't show that version — reloading this page.");
-          location.reload();
-        }
+        accountPending(state.browser.receipts ?? []);
+        const replies = runtime.browser.conversation.threads.flatMap((thread) =>
+          thread.msgs.filter(
+            (message) => message.author === "claude" && message.kind === "reply",
+          ),
+        );
+        if (agentMsgCount >= 0 && replies.length > agentMsgCount && !panelIsOpen())
+          notice(`${replies.at(-1).agent || "Agent"} replied — open Threads`, {
+            background: true,
+          });
+        agentMsgCount = replies.length;
+      } catch (error) {
+        reportPageError(`State presentation failed: ${error?.message ?? error}`);
         throw error;
-      };
-      // Recovery owns newly reconciled thread widgets until their preparation finishes,
-      // just as application does. A crossed read must not enter between those phases.
-      stateApplying = true;
-      const running = (async () => {
-        if (willActivate && document.startViewTransition) {
-          document.documentElement.classList.add("lf-versioning");
-          try {
-            const transition = document.startViewTransition(apply);
-            // Skipping the visual transition still runs the application, but rejects
-            // ready. Its finished promise remains the complete application boundary.
-            transition.ready.catch(() => {});
-            await transition.finished;
-          } finally {
-            document.documentElement.classList.remove("lf-versioning");
-            refreshHover();
-            // View-transition chrome covered the page while the application painted.
-            // Re-read viewport-local keyboard maps only after that cover is gone.
-            repaint();
-          }
-        } else await apply();
-      })().catch(restore);
-      applying = running;
-      try {
-        await running;
       } finally {
-        if (applying === running) applying = null;
         stateApplying = false;
         paintKeys();
       }
-      // Semantic subscribers may read undo eligibility as well as widget state. Notify
-      // them only after the candidate/rollback guard is cleared: this is the complete
-      // adopted view, including a deferred widget projection retried on an unchanged log.
-      document.dispatchEvent(new Event("lf-actions"));
-      if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;
-      if (replyNotice) notice(replyNotice, { background: true });
-    } finally {
-      releaseApplication();
-    }
+    });
   }
 
   return { isApplying: () => stateApplying, receiveState, runSerialized };

@@ -5,7 +5,7 @@ import {
   fitRootReadingElement,
   once,
   registerReadingElement,
-  settle,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 const MIN_BODY_HEIGHT = 160;
@@ -157,7 +157,7 @@ customElements.define(
           );
         },
       });
-      settle(this.#fitting.update());
+      widgetController(this).present(this.#fitting.update());
     }
 
     disconnectedCallback() {

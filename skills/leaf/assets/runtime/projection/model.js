@@ -34,6 +34,7 @@ const compareProjected = (a, b) => {
    filtered for rejection and authoritative receipts by their delivery owner. A pending
    undo removes its target from the same coordinate fold, revealing the newest surviving
    local action, durable action, standing report, or authored state in that order. */
+/** @param {{entries?: object[], actionIds?: string[], reportIds?: string[], desiredIds?: string[], coverage?: object[], pendingEntries?: object[]}} input */
 export function foldProjection({
   entries = [],
   actionIds = [],

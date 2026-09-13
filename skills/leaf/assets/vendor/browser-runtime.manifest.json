@@ -1,0 +1,69 @@
+{
+  "format": "leaf-browser-build-v1",
+  "sourceRoots": [
+    "scripts/browser"
+  ],
+  "sourceInputs": [
+    "scripts/browser/application.ts",
+    "scripts/browser/index.ts",
+    "scripts/browser/presentation.ts",
+    "scripts/browser/snapshot.ts",
+    "skills/leaf/assets/runtime/anchor-coordinate.js",
+    "skills/leaf/assets/runtime/conversation/identity.js",
+    "skills/leaf/assets/runtime/conversation/model.js",
+    "skills/leaf/assets/runtime/pending/model.js",
+    "skills/leaf/assets/runtime/projection/model.js"
+  ],
+  "entryPoints": {
+    "skills/leaf/assets/vendor/browser-runtime.js": "scripts/browser/index.ts"
+  },
+  "outputRoot": "skills/leaf/assets/vendor",
+  "lockfile": "package-lock.json",
+  "lockfileSha256": "492aa972ea068b00c4fc52127a74693febf222e18a124ca5f2f966b48278724c",
+  "commands": {
+    "install": "npm ci",
+    "build": "npm run build:browser",
+    "check": "npm run check:browser",
+    "test": "npm run test:browser"
+  },
+  "contributorDependencies": {
+    "@preact/signals-core": "1.14.4",
+    "acorn": "8.18.0",
+    "esbuild": "0.28.2",
+    "lit": "3.3.3",
+    "typescript": "7.0.2"
+  },
+  "bundledDependencies": {
+    "@lit/reactive-element": "2.1.2",
+    "@preact/signals-core": "1.14.4",
+    "lit": "3.3.3",
+    "lit-element": "4.2.2",
+    "lit-html": "3.3.3"
+  },
+  "internalModule": "/vendor/browser-runtime.js",
+  "publicImport": "/runtime/widget-api.js",
+  "exports": [
+    "LitElement",
+    "createApplicationPublisher",
+    "createPresentationCoordinator",
+    "createSemanticApplication",
+    "html",
+    "repeat"
+  ],
+  "externalizedModules": [],
+  "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
+  "outputs": {
+    "skills/leaf/assets/vendor/browser-runtime.js.map": {
+      "bytes": 369800,
+      "sha256": "0df7370e1e3943880697287dbadff0428cf497e06e0838575e011feb58eed97e"
+    },
+    "skills/leaf/assets/vendor/browser-runtime.js": {
+      "bytes": 41589,
+      "sha256": "7a164d24c11a4d2fc7e621a5cd79546220a75267b3b5ade8c4cf3560103af98a"
+    },
+    "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
+      "bytes": 7267,
+      "sha256": "8550b5fa8de1179871f19a472a757d48a75afd1d10e117cc8098cd0611f722aa"
+    }
+  }
+}

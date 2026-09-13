@@ -3,7 +3,6 @@
  * same rendered lines support selection anchors and script-free export. */
 import {
   DISCLOSE,
-  actionAvailable,
   announce,
   beginWalk,
   dataBody,
@@ -21,12 +20,9 @@ import {
   registerThreadSurface,
   relabel,
   scrollBehavior,
-  sendAction,
-  settle,
   shadowStage,
-  standingState,
   notice,
-  watchActions,
+  widgetController,
   watchData,
 } from "/runtime/widget-api.js";
 // Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
@@ -284,7 +280,7 @@ function diffTools(host, reviewing) {
   const next = reviewing
     ? offer("button", "lf-btn lf-diff-next", "Next unreviewed")
     : null;
-  next?.addEventListener("click", () => settle(host.nextUnreviewed()));
+  next?.addEventListener("click", () => host.present(host.nextUnreviewed()));
   const wrap = wrapSwitch();
   tools.append(label, progress, wrap.node);
   if (next) tools.append(next);
@@ -430,8 +426,10 @@ function fragmentError(details, error) {
 customElements.define(
   "lf-diff",
   class extends HTMLElement {
+    controller = widgetController(this);
+
     connectedCallback() {
-      this.stopActions ??= watchActions(this, null, this.paintReviewAvailability);
+      this.stopActions ??= this.controller.subscribe(this.paintReviewAvailability);
       if (!this.threadSurface)
         this.threadSurface = registerThreadSurface(this, {
           begin: () => this.beginThreadSurface(),
@@ -466,7 +464,7 @@ customElements.define(
               does: "Go to the next hunk",
               line: "next hunk",
               when: () => this.hasHunks(),
-              run: () => settle(this.stepHunk(false)),
+              run: () => this.present(this.stepHunk(false)),
             },
             {
               id: "diff.previous-hunk",
@@ -474,7 +472,7 @@ customElements.define(
               does: "Go to the previous hunk",
               line: "previous hunk",
               when: () => this.hasHunks(),
-              run: () => settle(this.stepHunk(true)),
+              run: () => this.present(this.stepHunk(true)),
             },
             {
               id: "diff.next-file",
@@ -546,7 +544,7 @@ customElements.define(
               does: "Open the next unreviewed matching file",
               line: "next unreviewed file",
               when: () => this.nextReviewEntry() !== null,
-              run: () => settle(this.nextUnreviewed()),
+              run: () => this.present(this.nextUnreviewed()),
             },
           ],
           () => Boolean(this.fileEntries?.length),
@@ -557,10 +555,9 @@ customElements.define(
         if (this.classList.contains("lf-rendered")) return;
         if (this.inlineSource === undefined)
           this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-        settle(this.render(this.inlineSource));
+        this.present(this.render(this.inlineSource));
         return;
       }
-      let first = true;
       this.stopWatching = watchData(this, "document", (snapshot) => {
         const source = snapshot?.value ?? null;
         const stamp = snapshot
@@ -573,10 +570,6 @@ customElements.define(
         rendering.finally(() => {
           if (this.boundRendering === rendering) this.boundRendering = null;
         });
-        if (first) {
-          settle(rendering);
-          first = false;
-        }
         return rendering;
       });
     }
@@ -655,28 +648,32 @@ customElements.define(
           filtered: false,
         }));
         if (bound) for (const { node } of entries) node.dataset.lfGen = "1";
-        this.fileEntries = entries;
-        this.diffTools = diffTools(this, this.reviewing());
-        for (const entry of entries)
-          this.attachEntryControls(entry, { commentable: bound });
-        this.refreshReviewedState();
-        this.replaceChildren();
-        shadowStage(this, [
-          ...sharedStyles.values(),
-          this.diffTools.node,
-          ...entries.map(({ node }) => node),
-        ]);
-        if (bound)
-          projectData(
-            this,
-            entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
-            datumKey,
-            ({ node }) => node,
-            { nested: true, labelOf: datumLabel, snapshot },
-          );
-        this.paintHeadRoom();
-        this.watchHeadRoom();
-        this.classList.add("lf-rendered");
+        const resume = this.controller.defer();
+        try {
+          this.fileEntries = entries;
+          this.diffTools = diffTools(this, this.reviewing());
+          for (const entry of entries)
+            this.attachEntryControls(entry, { commentable: bound });
+          this.replaceChildren();
+          shadowStage(this, [
+            ...sharedStyles.values(),
+            this.diffTools.node,
+            ...entries.map(({ node }) => node),
+          ]);
+          if (bound)
+            projectData(
+              this,
+              entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
+              datumKey,
+              ({ node }) => node,
+              { nested: true, labelOf: datumLabel, snapshot },
+            );
+          this.paintHeadRoom();
+          this.watchHeadRoom();
+          this.classList.add("lf-rendered");
+        } finally {
+          resume();
+        }
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
         this.manifestEntries = null;
@@ -752,26 +749,30 @@ customElements.define(
         details.addEventListener("toggle", () => {
           if (!details.open) return;
           entry.failed = false;
-          settle(this.loadManifestEntry(entry));
+          this.present(this.loadManifestEntry(entry));
         });
         entries.push(entry);
       }
       if (rendering !== this.rendering || !this.isConnected) return;
       for (const { node } of entries) node.dataset.lfGen = "1";
-      this.manifestEntries = entries;
-      this.manifestSnapshot = snapshot;
-      this.fileEntries = entries;
-      this.sharedStyles = new Map();
-      this.diffTools = diffTools(this, this.reviewing());
-      for (const entry of entries)
-        this.attachEntryControls(entry, { commentable: true });
-      this.refreshReviewedState();
-      this.replaceChildren();
-      this.stageManifest();
-      this.projectManifest();
-      this.paintHeadRoom();
-      this.watchHeadRoom();
-      this.classList.add("lf-rendered");
+      const resume = this.controller.defer();
+      try {
+        this.manifestEntries = entries;
+        this.manifestSnapshot = snapshot;
+        this.fileEntries = entries;
+        this.sharedStyles = new Map();
+        this.diffTools = diffTools(this, this.reviewing());
+        for (const entry of entries)
+          this.attachEntryControls(entry, { commentable: true });
+        this.replaceChildren();
+        this.stageManifest();
+        this.projectManifest();
+        this.paintHeadRoom();
+        this.watchHeadRoom();
+        this.classList.add("lf-rendered");
+      } finally {
+        resume();
+      }
       if (open)
         await Promise.all(entries.map((entry) => this.loadManifestEntry(entry)));
     }
@@ -1098,17 +1099,17 @@ customElements.define(
       }
       if (!this.reviewing()) return;
       entry.review = reviewButton(entry, (target, reviewed) => {
-        if (!actionAvailable(this, "review")) return;
-        this.setReviewed(target, reviewed);
-        sendAction(this, "review", {
-          file: target.record.path,
-          reviewed,
-        }).then((ok) => {
+        if (!this.controller.read().actions.review.available) return;
+        const sent = this.controller.dispatch({
+          kind: "action",
+          verb: "review",
+          detail: { file: target.record.path, reviewed },
+        });
+        sent?.delivery.then((ok) => {
           if (ok)
             notice(
               `${reviewed ? "Reviewed" : "Reopened"} ${target.record.path} — sent`,
             );
-          else this.refreshReviewedState();
         });
       });
       entry.node.querySelector(":scope > .lf-diff-file-actions").append(entry.review);
@@ -1156,7 +1157,7 @@ customElements.define(
     }
 
     paintReviewAvailability = () => {
-      const available = actionAvailable(this, "review");
+      const available = this.controller.read().actions.review?.available ?? false;
       for (const entry of this.fileEntries ?? [])
         if (
           entry.review instanceof HTMLButtonElement &&
@@ -1181,9 +1182,8 @@ customElements.define(
       if (repaint) this.refreshDiffTools();
     }
 
-    refreshReviewedState() {
-      const current = standingState().find(({ widget }) => widget === this);
-      if (current) this.renderState(current.state);
+    present(promise) {
+      return this.controller.present(promise);
     }
 
     filterFiles(query) {
@@ -1416,12 +1416,11 @@ customElements.define(
     }
 
     renderState(state) {
+      const reviewed = state?.review?.units ?? {};
       for (const entry of this.fileEntries ?? [])
-        this.setReviewed(
-          entry,
-          state.review.units[entry.record.path]?.detail.reviewed ?? false,
-          { repaint: false },
-        );
+        this.setReviewed(entry, reviewed[entry.record.path]?.detail.reviewed ?? false, {
+          repaint: false,
+        });
       this.refreshDiffTools();
     }
   },

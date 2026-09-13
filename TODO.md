@@ -6,20 +6,6 @@ remain in git history.
 
 ## Now
 
-- **Make the page instance complete and its browser state coherent.** Treat the
-  [page-instance boundary](notes/page-instance-boundary.md) and
-  [reactive runtime vision](notes/reactive-browser-runtime.md) as one program: capture a
-  complete revision, prove page-owned declarations through the final public behavior
-  API, cut semantic publication and rendering over, then add interactive export through
-  the shared presentation boundary. Authored pages remain ordinary HTML and
-  installations gain no frontend build.
-
-- **Make Leaf a complete playground builder.** Once the joint page and runtime boundary
-  exists, follow the [playground capability plan](notes/playground-capability-plan.md) to
-  unify custom state with controls and output, restore discovery and task-shaped
-  recipes, improve Targeting, add representative website examples, and preserve
-  interaction in the shared offline mode.
-
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use

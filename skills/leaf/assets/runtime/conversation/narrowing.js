@@ -12,7 +12,6 @@
    read them by id. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsReader } from "./model.js";
-import { el } from "../widget-elements.js";
 import {
   filterControls,
   findInput,
@@ -63,7 +62,7 @@ const matchesScope = (thread, value = scope) =>
     ? !thread.anchor && !thread.detached_from
     : Boolean(thread.anchor) || Boolean(thread.detached_from));
 const matchesSubject = (thread, value = subject) =>
-  !value || (value === "layer") === (thread.root.about === "layer");
+  !value || (value === "design") === (thread.root.about === "design");
 const matchesGone = (_thread, group, value = onlyGone) =>
   !value || group.key === "gone";
 
@@ -74,9 +73,8 @@ export const inFilter = (thread, group) =>
   matchesSubject(thread) &&
   matchesGone(thread, group);
 
-const noMatch = el("div", "lf-empty");
-export function noMatchNote() {
-  const said = finding
+export function noMatchText() {
+  return finding
     ? `No shown thread matches “${finding}”.`
     : scope || subject || onlyGone
       ? "No threads match these filters."
@@ -87,8 +85,6 @@ export function noMatchNote() {
           : state === "resolved"
             ? "No resolved threads."
             : "No open threads.";
-  if (noMatch.textContent !== said) noMatch.textContent = said;
-  return noMatch;
 }
 
 const entries = (threads, groups) =>
@@ -176,8 +172,15 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
 
 function renarrow(refreshNarrowing) {
   if (runtime.statePhase !== "ready") return;
-  refreshNarrowing();
-  threadsBox.scrollTop = 0;
+  const ready = refreshNarrowing();
+  // Reset after the keyed list has committed. The coordinator owns rejection reporting;
+  // observe this continuation on both paths so an event listener that discards the
+  // returned ticket cannot create another page-level rejection.
+  void ready.then(
+    () => (threadsBox.scrollTop = 0),
+    () => {},
+  );
+  return ready;
 }
 
 const choose = (kind, value, refreshNarrowing) => {
@@ -236,12 +239,12 @@ export function retainNarrowing(refreshNarrowing) {
     // Restore only while the direct arrival's view still stands. Typing in the
     // optimistic reply box does not change this reading and must not strand a refused
     // Reopen under the Open filter; changing the search or facets deliberately does.
-    restore: (before = null) => {
+    restore: async (before = null) => {
       if (!same(reading(), replacement)) return false;
-      before?.();
+      await before?.();
       ({ finding, state, scope, subject, onlyGone } = retained);
       findInput.value = retained.words;
-      renarrow(refreshNarrowing);
+      await renarrow(refreshNarrowing);
       return true;
     },
   };
@@ -263,6 +266,5 @@ export function revealThread(id, refreshNarrowing) {
   );
   if (!thread) return false;
   clearNarrowing(thread.resolved ? "resolved" : "open");
-  renarrow(refreshNarrowing);
-  return true;
+  return renarrow(refreshNarrowing);
 }

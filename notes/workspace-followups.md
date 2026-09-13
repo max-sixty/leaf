@@ -4,7 +4,7 @@ Research at merged commit `cb7915bb`, 8 September 2026. Research briefs for the 
 
 I recommend keeping the current primitives and spending the next cycle on reliable shared contracts, convincing examples and a measured authoring advantage. The larger layout vocabulary should follow evidence from those tasks.
 
-Start #2, #3 and #4 as one coordinated contract batch; run the example simplifications #6 and #8 alongside it. Begin the authoring baseline #19 before improving the recipes. Follow with #9 and #17 so the examples complete useful work, then compare Threads placement in #12.
+Start #2, #3 and #4 as one coordinated contract batch; run the review-queue simplification #8 alongside it. Begin the authoring baseline #19 before improving the recipes. Follow with #9 so the review queue completes useful work, then compare Threads placement in #12.
 
 Items are ranked within each group. IDs are stable references, not a global priority score. Agent-owned work is distinguished from the repeated-use pilot, which needs Max’s purpose and participation. Evidence labels separate reproduced defects from code gaps and experiments.
 
@@ -82,34 +82,6 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
 ## Make the examples worth using
 
-<a id="item-6"></a>
-
-- **#6** **Compact the notification example** — Consolidate the title, explanation and question so the actual controls and preview have useful height.
-
-  **Evidence / confidence:** Measured in browser. At 1100×520, the title/lede, Ask heading and frame consume about 190px below the banner before the playground begins. Its controls and preview bodies are only 165px high.
-
-  **Next task:** Simplify the example’s heading and prose hierarchy, retain one clear title and Ask meaning, and remove redundant spacing in the surrounding frame and notification card. Compare a second bounded Ask before changing package-wide styling.
-
-  **Done when:** Recover at least one control row at 1100×520, with no overlap and a coherent authored-order document at 540px wide. The deployment notification itself should look intentional in both viewports.
-
-  **Owner / dependencies:** Sol. Good independent first-wave UI task; #7 touches the package composition separately.
-
-  **Sources:** [notification-playground.html:19](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/examples/notification-playground.html#L19), [notification-playground.html:48](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/examples/notification-playground.html#L48).
-
-<a id="item-7"></a>
-
-- **#7** **Keep playground presets within reach** — Try placing the compact preset controls in the controls pane’s header, outside its scrolling body.
-
-  **Evidence / confidence:** Measured in browser. At 1100×520 the controls body is 165px high for 432px of content. Reaching Tone, Accent and Heading scrolls both presets out of view.
-
-  **Next task:** Move the preset group through the existing pane furniture mechanism, then check the cost of the fixed group at short heights. If that leaves too little controls space, simplify the preset presentation before adding another layout policy.
-
-  **Done when:** Presets remain reachable while controls scroll, without adding a scrollbar or reducing the body below a useful control row. Flow, copy and print preserve the intended reading order.
-
-  **Owner / dependencies:** Sol. Evaluate together with the simpler example #6; use shared arrangement registration.
-
-  **Sources:** [lf-playground.js:1](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/playground/widgets/lf-playground.js#L1), [notification-playground.html:60](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/examples/notification-playground.html#L60).
-
 <a id="item-8"></a>
 
 - **#8** **Give the review queue one navigator** — Remove the repeated worklist and tab-strip selection surfaces while preserving independent queue and detail reading.
@@ -150,7 +122,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Done when:** The cue appears only with remaining overflow, clears at the bottom and in flow/copy/print, and does not cover text or controls. Retain it only if the paired example is easier to read.
 
-  **Owner / dependencies:** Sol prototypes; Astra reviews the shared behavior. After #6–#8 reduce avoidable crowding; this should signal real overflow rather than conceal poor composition.
+  **Owner / dependencies:** Sol prototypes; Astra reviews the shared behavior. After #8 reduces avoidable crowding; this should signal real overflow rather than conceal poor composition.
 
   **Sources:** [reading-regions.js:1](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/reading-regions.js#L1), [theme.css:1](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/default/theme.css#L1).
 
@@ -178,7 +150,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Done when:** Both the conversation and its referenced content stay reachable; subject, draft and reading landmarks survive opening/closing. Decide the default from the complete task, including the cost of content obscured by overlay.
 
-  **Owner / dependencies:** Astra leads; Sol builds comparison. Use #6 and #8 after composition cleanup; coordinate geometry with PR #461. No general docking system is required.
+  **Owner / dependencies:** Astra leads; Sol builds comparison. Use #8 after composition cleanup; coordinate geometry with PR #461. No general docking system is required.
 
   **Sources:** [chrome-layout.js:62](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/chrome-layout.js#L62), [chrome-layout.js:94](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/chrome-layout.js#L94).
 
@@ -226,34 +198,6 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
 ## Prove complete work
 
-<a id="item-16"></a>
-
-- **#16** **Prove a current-versus-proposed comparison** — Show two real alternatives simultaneously and let the reader discuss each before committing one choice.
-
-  **Evidence / confidence:** Missing acceptance example. The notification example contains a single simulated preview. It does not yet prove the original current/alternative comparison case that motivated flexible layouts.
-
-  **Next task:** Build a bounded comparison with truthful baseline and candidate content, one configuration/decision owner, and independently anchored comments. Reuse existing panes and comparison vocabulary where their behavior fits.
-
-  **Done when:** A reader can compare the same state in both alternatives, comment on either, choose once, and inspect the choice after a revision. Flow/export expose both alternatives clearly.
-
-  **Owner / dependencies:** Sol; Astra evaluates the composition. After #6; distinct from PR #464, which handles clicking screenshot captions.
-
-  **Sources:** [notification-playground.html:60](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/examples/notification-playground.html#L60), [registry.json:418](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/default/registry.json#L418).
-
-<a id="item-17"></a>
-
-- **#17** **Complete a real configure-to-agent-to-revision loop** — Make a committed playground configuration produce an inspectable local artifact, then refine it through an anchored comment.
-
-  **Evidence / confidence:** Current example is explicitly simulated. The current example previews a fictional notification and produces a descriptive instruction. It demonstrates interaction and one commit, but not useful work completed by the agent.
-
-  **Next task:** Use a local output file as the real result. Carry the committed configuration through the existing host delivery and receipt loop, revise the page with the result, then apply a reader comment. Preserve uncommitted exploration separately.
-
-  **Done when:** The output matches the submitted configuration/version; the reader sees pickup and completion; a follow-on comment changes the intended result and survives the next revision.
-
-  **Owner / dependencies:** Sol implements; Astra judges the complete task. Reuse existing delivery; do not build another runner. The hosted demonstration can use PR #460 when it lands.
-
-  **Sources:** [notification-playground.html:135](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/examples/notification-playground.html#L135), [README.md:1](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/README.md#L1).
-
 <a id="item-18"></a>
 
 - **#18** **Try an exception-driven monitoring workspace** — Use the existing live-progress example to test a stable overview beside changing evidence and an exception that needs a decision.
@@ -294,7 +238,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Done when:** A fresh agent builds the task using the documented surfaces without copying runtime internals or inventing layout-specific state. Keep only guidance that changes the result.
 
-  **Owner / dependencies:** Sol drafts; Astra reviews the public model. After #8, #17 and #19. This extends packages; it does not create a named-layout registry.
+  **Owner / dependencies:** Sol drafts; Astra reviews the public model. After #8 and #19. This extends packages; it does not create a named-layout registry.
 
   **Sources:** [page-authoring.md:78](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/references/page-authoring.md#L78), [packages.md:202](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/references/packages.md#L202).
 
@@ -336,7 +280,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Done when:** A short record of actual returns, abandoned flows and completed tasks supports a decision about saved layouts, project navigation and the target user. My recommendation is to begin with task-scoped workspaces.
 
-  **Owner / dependencies:** Max chooses real work; Astra studies usage. Max’s participation and choice of real work are required; #17 supplies a useful starting workflow.
+  **Owner / dependencies:** Max chooses real work; Astra studies usage. Max’s participation and choice of real work are required; the notification playground supplies a useful starting workflow.
 
   **Sources:** [README.md:1](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/README.md#L1).
 
@@ -348,9 +292,9 @@ The IDs describe work to retain, not separate agents to launch. Start the contra
 | --- | --- | --- |
 | Arrangement contracts | Sol; Astra reviews ownership | #2 and #4, then the bounded experiment #21 |
 | Passage honesty | One Sol owner; Astra reviews projection | #3, #1 and #5 share the checker; land separate verified fixes |
-| Example composition | Sol | #6 and #7 together; #8 followed by #9 |
+| Example composition | Sol | #8 followed by #9 |
 | Reader continuity | Astra scopes; Sol verifies and implements | #11 and #12 are separate changes; attach #13 and #14 as acceptance journeys. Evaluate #10 and #15 on those same examples |
-| Complete workflows | Sol; Astra evaluates task outcome | #16 and #17, then #18 if the monitoring contrast is useful |
+| Complete workflows | Sol; Astra evaluates task outcome | #18 if the monitoring contrast is useful |
 | Agent authoring | Astra designs; Sol agents execute | #19 baseline before #20 guidance changes |
 | Product boundary | Astra with Max’s real tasks | #23; run #22 when inline hosting is part of a selected task |
 

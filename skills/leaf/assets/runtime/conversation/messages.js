@@ -21,6 +21,7 @@ import { el } from "../widget-elements.js";
 import { isReaction } from "./model.js";
 import { tokenEntry } from "../registry.js";
 import { rememberAuthoredParents } from "../projection/authored.js";
+import { captureWidgetDescriptors } from "../widget-descriptors.js";
 import {
   markDeclared,
   MARKED_ANYWHERE,
@@ -28,7 +29,7 @@ import {
   renderSaid,
 } from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
-import { ago } from "../presence.js";
+import { ago, clocked } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
 import { designName } from "../design-readings.js";
 import {
@@ -61,6 +62,7 @@ export const loadMarked = () =>
 // beside it keeps its nodes: a widget in a reply may already hold reader state, and
 // re-upgrading it over a prose correction would turn the edit into a second transition.
 const msgBodies = new Map();
+const messageClocks = new WeakMap();
 function paintMsgText(text, m) {
   const words = m.text ?? "";
   if (m.suggestion) text.textContent = words;
@@ -112,13 +114,14 @@ function buildMsgBody(m) {
       const authored = document.createElement("template");
       authored.innerHTML = m.markup;
       rememberAuthoredParents(authored.content);
+      captureWidgetDescriptors(authored.content, { kind: "thread" });
       rememberPassageParts(authored.content, ["event", m.id]);
       body.append(authored.content);
     }
     markDeclared(body, MARKED_ANYWHERE);
     renderSaid(body);
     renderQuiet(body);
-    // Not settle()d: that queue holds the page's geometry still for the first anchor
+    // Not registered as widget presentation: that queue holds page geometry for the first anchor
     // pass, and a message colors in the panel, where no anchor is captured and nothing
     // waits. Each block already fails soft to its own plain source.
     highlightBlocks(body);
@@ -176,6 +179,22 @@ export function syncEdited(head, m) {
   edited.title = `Edited ${ago(m.edited.ts)}`;
 }
 
+function syncMessageClock(div, m) {
+  let paint = messageClocks.get(div);
+  if (!paint) {
+    paint = clocked(div, (message) => {
+      const head = div.querySelector(":scope > .lf-msg-head");
+      const when = head.querySelector(":scope > time");
+      when.dateTime = message.ts;
+      const said = ago(message.ts);
+      if (when.textContent !== said) when.textContent = said;
+      syncEdited(head, message);
+    });
+    messageClocks.set(div, paint);
+  }
+  paint(m);
+}
+
 export function syncStreamState(node, head, m) {
   const state = m.stream_state;
   if (state) node.dataset.streamState = state;
@@ -208,10 +227,7 @@ export function syncMsgNode(div, m) {
   if (m.pending) div.setAttribute("aria-busy", "true");
   else div.removeAttribute("aria-busy");
   const head = div.querySelector(":scope > .lf-msg-head");
-  const when = head.querySelector(":scope > time");
-  const said = ago(m.ts);
-  if (when.textContent !== said) when.textContent = said;
-  syncEdited(head, m);
+  syncMessageClock(div, m);
   syncStreamState(div, head, m);
   const body = msgBody(m);
   const standing = div.querySelector(":scope > .lf-msg-body");
@@ -229,13 +245,13 @@ export function msgNode(m) {
   // "3 hours ago" is not a datetime, so the machine-readable one goes in the attribute
   // the element has for it — which is also what `saidAt` reads back when a widget the
   // message carries needs to know when it was said.
-  const when = el("time", "", ago(m.ts));
+  const when = el("time");
   when.dateTime = m.ts;
   head.append(el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"), when);
   if (m.suggestion) head.append(el("span", "lf-suggest-label", "Suggestion"));
   div.append(head);
   div.append(msgBody(m));
-  syncEdited(head, m);
+  syncMessageClock(div, m);
   syncStreamState(div, head, m);
   return div;
 }
@@ -254,7 +270,7 @@ export function msgNode(m) {
 // because the two together are a name, where the words alone read as a quote the thread
 // does not hold.
 //
-// A design comment (`about: "layer"`) reads "layer ·" first, because what follows names
+// A design comment (`about: "design"`) reads "design ·" first, because what follows names
 // the thing whose look or behaviour is in question rather than the words on it: the
 // control the press landed on where it landed on one (`part`), then the element — a
 // widget by its tag and id, a runtime part by its name — since a design comment's
@@ -270,11 +286,11 @@ function datumLabel(anchor) {
 }
 
 export function anchorLabel(anchor, about, omitted = null) {
-  if (about === "layer") {
+  if (about === "design") {
     const addressable = anchor?.section ? elementById(anchor.section) : null;
     const name = addressable ? designName(addressable) : anchor?.section || "the page";
     const on = anchor?.part ? `${anchor.part} · ${name}` : name;
-    return anchor?.quote ? `layer · ${on} · “${anchor.quote}”` : `layer · ${on}`;
+    return anchor?.quote ? `design · ${on} · “${anchor.quote}”` : `design · ${on}`;
   }
   const datum = datumLabel(anchor);
   if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;

@@ -1,28 +1,24 @@
 /* Conversation presentation across panel, page seats, widget outlets, and margin.
 
    This owner receives records and narrow view capabilities. It never reads delivery,
-   assembles protocol events, or imports state application. One synchronous fold updates
-   every textual/geometry view immediately; the returned promise only represents frozen
-   widget preparation in the retained panel list. */
+   assembles protocol events, or imports state application. It reads the published fold
+   for every textual/geometry view. Its presentation ticket commits the conversation
+   surfaces together with preparation for frozen widgets newly joined to the panel. */
 import { clocked } from "../presence.js";
-import { setChildren } from "../dom-children.js";
-import { el } from "../widget-elements.js";
 import { elementById, inChrome } from "../passages.js";
-import {
-  pendingReactions,
-  pendingSettlements,
-  unreadMessages,
-} from "../pending/model.js";
-import { foldThreads } from "./model.js";
-import { allThreads, setThreads, threadList } from "./state.js";
+import { conversationState } from "./state.js";
 import { renderConversations } from "./inline.js";
-import { holdScrollPosition, renderThreads } from "./thread-list.js";
+import {
+  holdScrollPosition,
+  RetainedThreadListError,
+  retainedThreadListProof,
+  renderThreadListUnavailable,
+  renderThreads,
+} from "./thread-list.js";
 import { threadsBox } from "./panel-elements.js";
 import { paintAcknowledgmentsNow } from "./acknowledgments.js";
 import { paintNarrowing, revealThread } from "./narrowing.js";
-import { removeConversationNode } from "./reaction-strips.js";
-
-const waitingNote = el("div", "lf-empty", "Loading current threads…");
+import { attachApplicationPresentation, readApplication } from "../semantic-state.js";
 
 function renderHolds(threads) {
   for (const node of document.querySelectorAll("[data-lf-held]"))
@@ -35,6 +31,7 @@ function renderHolds(threads) {
 }
 
 export function createConversationPresentation({
+  available = true,
   panelIsOpen,
   setThreadCount,
   onConversationChanged,
@@ -50,23 +47,55 @@ export function createConversationPresentation({
   renderMargin,
   renderSurfaces,
 }) {
-  const removeNode = (node) =>
-    removeConversationNode(node, inlineView.reaction.closeReactionMode);
+  let presentationHandle = null;
+  let activePresentation = null;
+  const presentation = () => {
+    presentationHandle ??= attachApplicationPresentation("conversation", document);
+    return presentationHandle;
+  };
 
-  const paintAcknowledgments = clocked(document.body, (...args) =>
-    holdScrollPosition(() => paintAcknowledgmentsNow(...args), panelIsOpen),
-  );
+  function present(value, paint) {
+    let resolve, reject;
+    const completion = new Promise((done, fail) => {
+      resolve = done;
+      reject = fail;
+    });
+    const pending = { resolve };
+    const prior = activePresentation;
+    activePresentation = pending;
+    const ready = presentation().present(value, completion, retainedThreadListProof);
+    prior?.resolve();
+    let painted;
+    try {
+      painted = paint();
+      void Promise.resolve(painted).then(resolve, reject);
+    } catch (error) {
+      reject(error);
+    }
+    const clear = () => {
+      if (activePresentation === pending) activePresentation = null;
+    };
+    void ready.then(clear, clear);
+    return ready;
+  }
 
-  function setUnavailable(phase) {
+  const paintAcknowledgments = (...args) =>
+    holdScrollPosition(() => paintAcknowledgmentsNow(...args), panelIsOpen);
+
+  function finishListRecovery(candidate) {
+    if (candidate?.recovered)
+      throw new RetainedThreadListError(candidate.recovered, candidate.proof);
+  }
+
+  async function setUnavailable(phase) {
     paintCurrent.stop();
-    waitingNote.textContent =
+    const note =
       phase === "offline"
         ? "Current threads are unavailable while the server is offline."
         : "Loading current threads…";
-    setChildren(threadsBox, [waitingNote], removeNode);
+    const prepared = renderThreadListUnavailable(note, listView);
     setThreadCount(null);
     paintNarrowing([], []);
-    setThreads([]);
     const painted = anchorPaint.paint({
       threads: [],
       draft: readDraft(),
@@ -77,14 +106,15 @@ export function createConversationPresentation({
     renderSurfaces([], anchorPaint.placedAt, surfaceView);
     renderConversations([], inlineView);
     renderMargin();
+    const candidate = await prepared;
     paintAcknowledgments();
     onConversationChanged();
     pageGeometry.pageShifted();
+    finishListRecovery(candidate);
   }
 
-  function renderCurrent() {
-    const threads = allThreads();
-    const conversations = threadList();
+  async function renderCurrent() {
+    const { all: threads, listed: conversations } = conversationState();
     renderHolds(threads);
     const painted = anchorPaint.paint({
       threads,
@@ -97,52 +127,53 @@ export function createConversationPresentation({
     const prepared = renderThreads(threads, listView);
     renderConversations(conversations, inlineView);
     renderMargin();
+    const candidate = await prepared;
     paintAcknowledgments();
     pageGeometry.pageShifted();
-    return prepared;
+    finishListRecovery(candidate);
   }
 
-  // The clock replays the canonical installed fold rather than retaining whichever
-  // candidate array first caused a timestamp to paint. A failed state application can
-  // restore that fold after this synchronous pass, and its next tick must age the
-  // restored messages rather than resurrecting the refused candidate.
-  const paintCurrent = clocked(document.body, renderCurrent);
+  // Each clock tick reads the current semantic root, never a retained presentation
+  // input that could omit later local gestures or a newer accepted reading.
+  const paintCurrent = clocked(document.body, () =>
+    activePresentation
+      ? renderCurrent()
+      : present(readApplication().effective.conversation, renderCurrent),
+  );
 
-  function renderKnown(threads) {
-    setThreads(threads);
-    return paintCurrent();
-  }
-
-  function apply({ phase, serverThreads = [], receipts = [], pendingEntries = [] }) {
-    if (phase !== "ready") {
-      setUnavailable(phase);
-      return undefined;
-    }
-    return renderKnown(
-      foldThreads(
-        serverThreads,
-        unreadMessages(pendingEntries, receipts),
-        pendingReactions(pendingEntries, receipts),
-        pendingSettlements(pendingEntries, receipts),
-      ),
-    );
+  function apply(snapshot) {
+    return present(snapshot.effective.conversation, () => {
+      if (!available) return;
+      if (snapshot.phase !== "ready") {
+        return setUnavailable(snapshot.phase);
+      }
+      return paintCurrent();
+    });
   }
 
   function repaintCurrent() {
-    return paintCurrent();
+    return present(readApplication().effective.conversation, () => {
+      if (available) return paintCurrent();
+    });
   }
 
   function refreshNarrowing() {
-    const threads = allThreads();
-    const prepared = renderThreads(threads, listView);
-    paintAcknowledgments();
-    return prepared;
+    return present(readApplication().effective.conversation, () => {
+      if (!available) return;
+      const threads = conversationState().all;
+      const prepared = renderThreads(threads, listView);
+      return Promise.resolve(prepared).then((candidate) => {
+        paintAcknowledgments();
+        finishListRecovery(candidate);
+      });
+    });
   }
 
   function mount() {
     threadsBox.addEventListener("lf-reveal", (event) => {
       const hidden = event.detail?.target?.closest?.(".lf-thread[hidden]");
-      if (hidden) revealThread(hidden.dataset.id, refreshNarrowing);
+      if (hidden)
+        event.detail?.present?.(revealThread(hidden.dataset.id, refreshNarrowing));
     });
   }
 

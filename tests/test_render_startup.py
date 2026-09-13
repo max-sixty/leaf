@@ -129,10 +129,6 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
             '<base href="https://outside.invalid/rebased/">'
             """<script type="module">
 window.authoredModuleRan = true;
-window.dataModuleImport = import("/api/state").then(
-  () => "executed",
-  () => "blocked",
-);
 </script>"""
         ),
     )
@@ -157,7 +153,19 @@ window.dataModuleImport = import("/api/state").then(
     )
     try:
         page.wait_for_function("() => window.authoredModuleRan === true")
-        assert page.evaluate("window.dataModuleImport") == "blocked"
+        assert (
+            page.evaluate(
+                """async () => {
+                  try {
+                    await import('/api/state');
+                    return 'executed';
+                  } catch {
+                    return 'blocked';
+                  }
+                }"""
+            )
+            == "blocked"
+        )
         page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
         served = urlparse(page.url)
         assert (
@@ -519,8 +527,13 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
       }""",
         )
     )
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the projected-link renderer",
+    )
 
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     links = page.locator('#deployments a[href="https://example.com/status"]')
     expect(links).to_have_count(2)
     expect(links.first).to_have_attribute("target", "_blank")
@@ -614,11 +627,11 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
             layer_registry={"lf-settled-link": settled, "lf-shadow-link": shadow},
             layer_widgets={
                 "lf-settled-link.js": """
-import {once, settle} from '/runtime/widget-api.js';
+import {once, widgetController} from '/runtime/widget-api.js';
 customElements.define('lf-settled-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    settle(new Promise(resolve => setTimeout(() => {
+    widgetController(this).present(new Promise(resolve => setTimeout(() => {
       const link = document.createElement('a');
       link.id = 'settled-link';
       link.href = 'https://example.com/settled';
@@ -680,7 +693,7 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     exports = page.evaluate(
         """async () => {
-          const api = await import('/runtime/widget-api.js');
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const entry = await import('/leaf.js');
           const names = [
             'clearDraft',
@@ -724,7 +737,7 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const main = document.querySelector('main');
           const outer = document.createElement('section');
           outer.id = 'outer-reading-arrangement';
@@ -894,7 +907,7 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     result = page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const main = document.querySelector('main');
           const owner = document.createElement('section');
           owner.className = 'authored-owner';
@@ -1002,7 +1015,7 @@ def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serv
             recordedWidgetSelector,
             registry,
             stateSpecs,
-          } = await import('/runtime/registry.js');
+          } = await window.__lfRuntimeImport('/runtime/registry.js');
           const before = stateSpecs();
           const generation = registry.$layer.generation;
           Object.assign(registry, {
@@ -1064,7 +1077,7 @@ def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
     expect(page.locator("main")).to_be_visible()
     tab_store = page.evaluate(
         """async () => {
-          const { tabStore } = await import('/runtime/widget-api.js');
+          const { tabStore } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return {
             read: tabStore.read('refused'),
             wrote: tabStore.set('refused', '1'),
@@ -1165,7 +1178,11 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         assert suggestion_accept.evaluate(
             """button => {
               const glyph = button.firstElementChild;
-              document.dispatchEvent(new Event('lf-actions'));
+              const widget = document.getElementById('sug');
+              const parent = widget.parentNode;
+              const next = widget.nextSibling;
+              widget.remove();
+              parent.insertBefore(widget, next);
               return button.firstElementChild === glyph;
             }"""
         ), "an unchanged availability paint rebuilt the suggestion control"
@@ -1372,15 +1389,28 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     errors = watched(page)
+    page.add_init_script(
+        """
+        document.addEventListener('lf-page-interface', event => {
+          event.detail.present(new Promise(resolve => {
+            window.releaseHeldPageInterface = resolve;
+          }));
+        });
+        """
+    )
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         page.goto(url, wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
+        expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
         assert held, "the positive control did not hold the first state response"
         gallery = page.locator("#bg-interactions")
         expect(gallery).to_have_attribute("data-interaction-installed", "1")
         controls = gallery.locator(".interaction-controls")
         expect(controls).to_have_count(1)
+        expect(controls).to_be_hidden()
+        page.evaluate("releaseHeldPageInterface()")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         expect(controls).to_be_visible()
         expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
 
@@ -1452,7 +1482,7 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     page.add_init_script(
         """
         document.addEventListener('lf-page-interface', event => {
-          event.detail.pending.push(Promise.reject(new Error('optional sibling failed')));
+          event.detail.present(Promise.reject(new Error('optional sibling failed')));
         });
         """
     )
@@ -2143,7 +2173,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
         const path = new URL(url, location.href).pathname;
-        if (path === '/registry.json') {
+        if (path.endsWith('/registry.json')) {
           window.lfRegistryBlocked = true;
           return window.lfRegistryGate.then(() => nativeFetch(...args));
         }
@@ -2189,7 +2219,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     assert (
         page.evaluate(
             """async () => {
-          const { stateSpecs } = await import('/runtime/registry.js');
+          const { stateSpecs } = await window.__lfRuntimeImport('/runtime/registry.js');
           try {
             stateSpecs();
           } catch (error) {
@@ -2238,15 +2268,21 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 
 
 def _asked(context):
-    """Every path this context's pages ever ask for, listening before the first one.
+    """Every logical resource this context asks for, listening before the first one.
 
     The count is what the reading is about, so the listener goes on the context rather
     than on a page: `open_page` makes the page and navigates it in one call, and a
     listener attached to what it hands back has already missed the document, the theme,
-    the registry and every module.
+    the registry and every module. Revision resources are immutable addresses; these
+    tests compare the logical module or asset loaded, so strip only that captured prefix.
     """
     paths = []
-    context.on("request", lambda request: paths.append(urlparse(request.url).path))
+
+    def record(request):
+        path = urlparse(request.url).path
+        paths.append(re.sub(r"^/revisions/r\d+-[0-9a-f]+", "", path))
+
+    context.on("request", record)
     return paths
 
 
@@ -2283,7 +2319,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     # with declares a vocabulary many times the size of what it just loaded.
     declared = page.evaluate(
         """async () => {
-          const { tagsDeclaring } = await import('/runtime/registry.js');
+          const { tagsDeclaring } = await window.__lfRuntimeImport('/runtime/registry.js');
           return tagsDeclaring((entry) => entry['x-upgrade']).length;
         }"""
     )
@@ -2860,7 +2896,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await import('/runtime/presence.js');
+          const {clocked, clockValue} = await window.__lfRuntimeImport('/runtime/presence.js');
           window.probeVersion = 0;
           window.probePaints = 0;
           const paint = clocked(document.body, () => {
@@ -2972,7 +3008,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           commands(document.body, 'On a draft',
                [{ id: 'test.project-widget', keys: ['F2'],
                   does: 'a project widget using the same heading' }]);
@@ -3898,7 +3934,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
     url = data_projection_page(serve)
     page, errors = open_page(browser, url)
 
-    readings = page.evaluate("""() => import('/runtime/widget-api.js').then(leaf => {
+    readings = page.evaluate("""() => window.__lfRuntimeImport('/runtime/widget-api.js').then(leaf => {
       const lede = document.querySelector('#lede');
       const datum = document.querySelector('[data-lf-datum="api"]');
       return {
@@ -4212,7 +4248,7 @@ def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve
     page, errors = open_page(browser, data_projection_page(serve))
     failure = page.evaluate(
         """async () => {
-          const {projectData} = await import('/runtime/widget-api.js');
+          const {projectData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
             projectData(
               document.querySelector('#deployments'), [], row => row.key,
@@ -4318,12 +4354,13 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
         module.read_text()
         .replace(
             "import {offer, projectData, watchData}",
-            "import {offer, projectData, settle, watchData}",
+            "import {offer, projectData, watchData, widgetController}",
         )
         .replace(
             "  connectedCallback() {",
             "  connectedCallback() {\n"
-            "    settle(new Promise(resolve => setTimeout(resolve, 750)));",
+            "    widgetController(this).present("
+            "new Promise(resolve => setTimeout(resolve, 750)));",
         )
     )
     native_page_state = http_model.Handler.page_state
@@ -4575,30 +4612,11 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
 
 def test_conversation_timestamps_age_without_new_state(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
-    d = serve.page_dir
-    comment = next(e for e in events_model.read_events(d) if e["kind"] == "comment")
-    events_model.append_event(
-        d,
-        {
-            "kind": "reply",
-            "author": "claude",
-            "parent": comment["id"],
-            "responds": comment["id"],
-            "text": "settled for this clock-only test",
-        },
-    )
-    session_model.cmd_status(d, "idle", "")
-    files_model.write_json(
-        d / "status.json",
-        {
-            **files_model.read_json(d / "status.json"),
-            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
-        },
-    )
-    told(page)
     page.keyboard.press("c")
     timestamp = page.locator(".lf-msg-head > time").first
     expect(timestamp).to_have_text("just now")
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     ticked(page)
     expect(timestamp).to_have_text("3h ago")
@@ -4646,7 +4664,7 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
     page.evaluate(
         """async () => {
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          const {watchData} = await import('/runtime/widget-api.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           window.idleDeliveries = 0;
           window.stopIdleData = watchData(document.querySelector('lf-feed'), 'rows', () => {
             window.idleDeliveries++;
@@ -4680,7 +4698,9 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await import('/runtime/widget-api.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
           let currentRevision = null;
           const stopCurrent = watchData(widget, 'rows', snapshot => {
@@ -4699,8 +4719,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           const captured = [];
           const stopCaptured = watchData(widget, 'rows', snapshot => { captured.push(snapshot); });
           widget.setAttribute('source', 'deployments');
-          document.dispatchEvent(new Event('lf-data'));
-          stopCaptured();
 
           let failedCalls = 0;
           let message = null;
@@ -4712,7 +4730,11 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           } catch (error) {
             message = error.message;
           }
-          document.dispatchEvent(new Event('lf-data'));
+          const next = structuredClone(runtime.data);
+          next.revision += 1;
+          next.sources.deployments.revision += 1;
+          acceptData(next);
+          stopCaptured();
           return {currentRevision, unbound, absent, captured, failedCalls, message};
         }"""
     )
@@ -4732,8 +4754,9 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
 ):
     """Data acceptance can advance while a mounted source awaits syntax rendering.
 
-    Hold subscriber notification until that first render completes, then compare the
-    old rendering, the replacement, and an immutable capture of the same source.
+    The captured publisher selection registers its replacement synchronously, while
+    subscriber notification begins its paint. Compare the old rendering, replacement,
+    and immutable capture to prove each completed projection retains its own provenance.
     """
     authored = leaf_page(
         "source provenance",
@@ -4755,8 +4778,8 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
     expect(page.locator("#frozen code")).to_have_text('route = "old"')
     result = page.evaluate(
         """async () => {
-          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
-          const {runtime} = await import('/runtime/context.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const source = document.querySelector('#live');
           const mounted = source.cloneNode(false);
           mounted.id = 'mounted-source';
@@ -4780,8 +4803,9 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
           });
           const original = runtime.data;
           try {
-            // Mount starts watchData's delivery before acceptance advances. The real
-            // syntax await keeps projectData behind that acceptance in this turn.
+            // Mount starts watchData's delivery before acceptance advances. The
+            // publisher selection captures the replacement in this turn, but the real
+            // syntax await keeps the old projectData paint behind acceptance.
             source.after(mounted);
             const newer = structuredClone(original);
             newer.revision = 2;
@@ -4826,9 +4850,9 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await import('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
-          const {runtime} = await import('/runtime/context.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
           const releases = new Map();
           const stop = watchData(widget, 'rows', snapshot => {
@@ -4883,7 +4907,7 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await import('/runtime/widget-api.js');
+          const {clocked, clockValue} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           window.clockVersion = 0;
           for (const stage of ['read', 'paint', 'async']) {
             const paint = clocked(document.body, () => {
@@ -4932,9 +4956,9 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await import('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
-          const {runtime} = await import('/runtime/context.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
           const before = document.body.getAttribute('data-lf-data-revision');
           let mountDeliveries = 0;
@@ -4953,16 +4977,25 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
             if (deliveries > 1)
               return Promise.reject(new Error('update projection failed'));
           });
+          let throwingDeliveries = 0;
+          const stopThrowing = watchData(widget, 'rows', () => {
+            throwingDeliveries += 1;
+            if (throwingDeliveries > 1)
+              throw new Error('synchronous update projection failed');
+          });
           const revision = runtime.data.revision + 1;
           const next = structuredClone(runtime.data);
           next.revision = revision;
           next.sources.deployments.revision = revision;
           acceptData(next);
           await notifyDataSubscribers();
+          await notifyDataSubscribers();
           stopUpdate();
+          stopThrowing();
           return {
             before,
             mountDeliveries,
+            throwingDeliveries,
             afterMount,
             afterUpdate: document.body.getAttribute('data-lf-data-revision'),
             revision,
@@ -4970,12 +5003,20 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
         }"""
     )
     assert result["mountDeliveries"] == 1, result
+    assert result["throwingDeliveries"] == 2, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == str(result["revision"]), result
     assert (
         sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
     )
     assert any("data subscriber failed: update projection failed" in e for e in errors)
+    assert (
+        sum(
+            "data subscriber failed: synchronous update projection failed" in e
+            for e in errors
+        )
+        == 1
+    )
 
 
 def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
@@ -4983,9 +5024,11 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await import('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
-          const {runtime} = await import('/runtime/context.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const {readApplicationPresentation} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
           let release;
           let calls = 0;
           const stop = watchData(document.querySelector('lf-feed'), 'rows', () => {
@@ -4995,6 +5038,12 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
           next.revision++;
           next.sources.deployments.revision = next.revision;
           acceptData(next);
+          const selectedBeforeNotify = {
+            calls,
+            pending: readApplicationPresentation().pending.some(region =>
+              region.startsWith('data:deployments:rows:'),
+            ),
+          };
           const first = notifyDataSubscribers();
           while (!release) await new Promise(resolve => setTimeout(resolve, 0));
           let complete = false;
@@ -5004,63 +5053,83 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
           release();
           await Promise.all([first, again]);
           stop();
-          return {before, after: document.body.dataset.lfDataRevision, revision: next.revision};
+          return {
+            selectedBeforeNotify,
+            before,
+            after: document.body.dataset.lfDataRevision,
+            revision: next.revision,
+          };
         }"""
     )
+    assert result["selectedBeforeNotify"] == {"calls": 1, "pending": True}
     assert result["before"] == {"complete": False, "calls": 2, "ready": "1"}
     assert result["after"] == str(result["revision"])
     assert errors == []
 
 
-def test_data_notification_waits_for_a_version_activation(browser, serve):
-    """A crossed data response may advance its revision during activation, but its
-    subscribers cannot paint the old or half-upgraded document.
+def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, serve):
+    """The data stamp waits for data subscribers, not every deferred page paint."""
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {attachApplicationPresentation} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          const unrelated = attachApplicationPresentation(
+            'widget:unrelated:render', document.body,
+          );
+          let release;
+          const held = unrelated.present(
+            'held', new Promise(resolve => { release = resolve; }),
+          );
+          let ready = false;
+          const data = notifyDataSubscribers().then(() => { ready = true; });
+          await Promise.resolve();
+          await new Promise(resolve => setTimeout(resolve, 0));
+          const beforeRelease = ready;
+          release();
+          await Promise.all([held, data]);
+          unrelated.disconnect();
+          return beforeRelease;
+        }"""
+    )
+    assert result is True
+    assert errors == []
+    page.close()
 
-    Hold the view transition after the replacement document has mounted. A newer source
-    response arrives while that activation still owns the page. Its value should render
-    only after the activation releases.
-    """
+
+def test_data_written_during_fresh_revision_startup_waits_for_activation(
+    browser, serve
+):
+    """A source update cannot paint until the new revision document has activated."""
     activation_probe = """
-      window.__lfTransitionHeld = false;
-      window.__lfDataDuringActivation = false;
-      window.__lfSawDataRevisionTwo = false;
+      window.__lfRevisionRegistryBlocked = false;
+      window.__lfDataDuringStartup = false;
       const nativeFetch = window.fetch.bind(window);
       window.fetch = async (...args) => {
-        const response = await nativeFetch(...args);
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
-        if (new URL(url, location.href).pathname === '/api/state') {
-          response.clone().json().then(state => {
-            if (state.data?.revision >= 2) window.__lfSawDataRevisionTwo = true;
+        const path = new URL(url, location.href).pathname;
+        if (path.startsWith('/revisions/r2-') && path.endsWith('/registry.json')) {
+          window.__lfRevisionRegistryBlocked = true;
+          return new Promise(resolve => {
+            window.__lfReleaseRevisionRegistry = () => resolve(nativeFetch(...args));
           });
         }
-        return response;
+        return nativeFetch(...args);
       };
-      document.addEventListener('lf-data', () => {
+      const dataObserver = new MutationObserver(() => {
         const datum = document.querySelector('[data-lf-datum="api"]');
-        if (window.__lfTransitionHeld && datum?.textContent.includes('Running'))
-          window.__lfDataDuringActivation = true;
+        if (window.__lfRevisionRegistryBlocked && datum?.textContent.includes('Running'))
+          window.__lfDataDuringStartup = true;
       });
-      document.startViewTransition = update => {
-        const ready = Promise.resolve();
-        const finished = Promise.resolve()
-          .then(update)
-          .then(() => {
-            window.__lfTransitionHeld = true;
-            return new Promise(resolve => {
-              window.__lfReleaseTransition = () => {
-                window.__lfTransitionHeld = false;
-                resolve();
-              };
-            });
-          });
-        return {ready, finished};
-      };
+      dataObserver.observe(document, {subtree: true, childList: true, characterData: true});
     """
     page, errors = open_page(
         browser, live_url(data_projection_page(serve)), init_script=activation_probe
     )
     d = serve.page_dir
+    original_document = page.evaluate("performance.timeOrigin")
     current = (d / ".fixture-versions" / "v1.html").read_text()
     _publish(
         d,
@@ -5068,7 +5137,8 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
         current.replace("Live status follows.", "Live status follows now."),
         "refreshed the page",
     )
-    page.wait_for_function("() => window.__lfTransitionHeld === true")
+    page.wait_for_function("() => window.__lfRevisionRegistryBlocked === true")
+    assert page.evaluate("performance.timeOrigin") != original_document
 
     data_model.cmd_data_set(
         d,
@@ -5078,13 +5148,13 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
             {"key": "worker", "value": "Ready"},
         ],
     )
-    page.wait_for_function("() => window.__lfSawDataRevisionTwo === true")
     page.wait_for_timeout(100)
-    assert not page.evaluate("() => window.__lfDataDuringActivation"), (
-        "a source subscriber painted while version activation still owned the document"
-    )
+    assert not page.evaluate("() => window.__lfDataDuringStartup")
+    expect(page.locator('[data-lf-datum="api"]')).to_have_count(0)
 
-    page.evaluate("() => window.__lfReleaseTransition()")
+    page.evaluate("() => window.__lfReleaseRevisionRegistry()")
+    page.wait_for_function(BOTH_STAMPS)
+    nudge(d)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
     expect(page.locator("#lede")).to_have_text("Live status follows now.")
     assert errors == []
@@ -5099,9 +5169,9 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
         "**/leaf.js",
         lambda route: route.fulfill(
             content_type="text/javascript",
-            body="await import('/runtime/widget-api.js');\n"
+            body="await window.__lfRuntimeImport('/runtime/widget-api.js');\n"
             "window.apiImportedBeforeBoot = true;\n"
-            "await import('/leaf-boot.js');",
+            "await import('./leaf-boot.js');",
         ),
     )
 

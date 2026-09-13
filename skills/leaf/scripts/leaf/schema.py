@@ -184,6 +184,75 @@ ACTION_CREATES = {
     "additionalProperties": False,
 }
 
+# One package-neutral relation shape for authored attributes and event roles. An empty
+# object accepts any authored element. A typed relation selects a package registry map
+# and an equality predicate within that map; the names and values remain vocabulary.
+REFERENCE_SCHEMA = {
+    "type": "object",
+    "minProperties": 1,
+    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+    "additionalProperties": {
+        "type": "object",
+        "properties": {
+            "via": {
+                "type": "string",
+                "pattern": r"^\$[a-z][a-z0-9-]*(?:\.[a-z][A-Za-z0-9-]*)*$",
+            },
+            "where": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {
+                    "type": ["string", "number", "boolean", "null"]
+                },
+            },
+        },
+        "dependentRequired": {"via": ["where"], "where": ["via"]},
+        "additionalProperties": False,
+    },
+}
+
+TARGET_REFERENCE_SCHEMA = {
+    "oneOf": [
+        {
+            "type": "object",
+            "properties": {
+                "kind": {"const": "id"},
+                "id": {"type": "string", "minLength": 1},
+            },
+            "required": ["kind", "id"],
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {
+                "kind": {"const": "structure"},
+                "anchor": {"type": "string", "minLength": 1},
+                "path": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "tree": {"enum": ["light", "shadow"]},
+                            "tag": {"type": "string", "minLength": 1},
+                        },
+                        "required": ["tree", "tag"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["kind", "path"],
+            "additionalProperties": False,
+        },
+    ]
+}
+
+EVENT_REFERENCES_SCHEMA = {
+    "type": "object",
+    "minProperties": 1,
+    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+    "additionalProperties": TARGET_REFERENCE_SCHEMA,
+}
+
 
 def _verbs_schema(
     records: list,
@@ -202,11 +271,7 @@ def _verbs_schema(
         "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "unit": {"type": "string", "minLength": 1},
         "record": {"oneOf": records},
-        "references": {
-            "type": "array",
-            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "uniqueItems": True,
-        },
+        "references": REFERENCE_SCHEMA,
     }
     if conditional:
         properties["requires"] = ACTION_REQUIREMENT
@@ -375,32 +440,6 @@ _ATTRIBUTE_LIST = {
     "minItems": 1,
 }
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
-REFERENCE_SCHEMA = {
-    "type": "object",
-    "minProperties": 1,
-    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-    "additionalProperties": {
-        "type": "object",
-        "properties": {
-            # A package-owned relation can constrain its target through any shared
-            # registry map. Leaf understands only the path and equality predicate;
-            # `$command.widgets` and its roles remain entirely package vocabulary.
-            "via": {
-                "type": "string",
-                "pattern": r"^\$[a-z][a-z0-9-]*(?:\.[a-z][A-Za-z0-9-]*)*$",
-            },
-            "where": {
-                "type": "object",
-                "minProperties": 1,
-                "additionalProperties": {
-                    "type": ["string", "number", "boolean", "null"]
-                },
-            },
-        },
-        "dependentRequired": {"via": ["where"], "where": ["via"]},
-        "additionalProperties": False,
-    },
-}
 CHILDREN_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -563,7 +602,7 @@ PAGE_STATE_FILES = (
     PREVIEW_FILE,
 )
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR)
+PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, "page")
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side guidance stays vendored but is read
 # only through the CLI.

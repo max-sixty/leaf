@@ -12,6 +12,11 @@
    map of their own.*/
 
 import { runtime } from "./context.js";
+import {
+  applicationState,
+  attachApplicationPresentation,
+  whenApplicationRegionsPresented,
+} from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
@@ -31,33 +36,21 @@ export function acceptData(candidate) {
     throw new TypeError(
       "state data must carry a non-negative integer revision and sources",
     );
-  if (candidate.revision <= runtime.data.revision) return false;
-  runtime.data = structuredClone(candidate);
-  return true;
+  return applicationState.acceptData(candidate);
 }
 
-// A watcher can mount after its source snapshot has already been accepted (most notably
-// while a newer document is activating). Keep that first render in the same readiness
-// boundary as the next data notification instead of letting the notification stamp the
-// revision while the mount is still painting it.
-const initialRenders = [];
-
-async function settleDataRenders(renderings) {
-  const settled = await Promise.allSettled(renderings);
-  for (const result of settled)
-    if (result.status === "rejected")
-      reportPageError(
-        `data subscriber failed: ${result.reason?.message ?? result.reason}`,
-      );
-}
+const subscriptions = new Set();
+let subscriptionSequence = 0;
 
 export async function notifyDataSubscribers() {
   const revision = runtime.data.revision;
-  const mounting = initialRenders.splice(0);
-  await settleDataRenders(mounting);
-  const pending = [];
-  document.dispatchEvent(new CustomEvent("lf-data", { detail: { pending } }));
-  await settleDataRenders(pending);
+  const current = [...subscriptions];
+  for (const subscription of current) subscription.notify();
+  const regions = current.map((subscription) => subscription.region);
+  await whenApplicationRegionsPresented(
+    regions,
+    () => runtime.data.revision === revision,
+  );
   // The revision becomes a readiness fact only after every subscriber has settled. A
   // rejected package render is reported at its own boundary rather than turning every
   // later state read into the same page-wide failure. Render checks and export compare
@@ -98,10 +91,31 @@ export function watchData(element, input, callback) {
     ? element.getAttribute(declaration.snapshot)
     : null;
   const paint = clocked(element, callback);
+  const selectedSource = applicationState.select((root) =>
+    source && Object.hasOwn(root.data.sources, source)
+      ? root.data.sources[source]
+      : null,
+  );
   let delivered = false;
   let deliveredRevision;
-  let rendering;
-  const deliver = (snapshot, event) => {
+  let completion = Promise.resolve();
+  const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
+  const presentation = attachApplicationPresentation(region, element);
+  const subscription = { region, notify: () => notifySelected() };
+  let stopSelection;
+  let pendingDelivery = null;
+  let stopped = false;
+  function stop() {
+    if (stopped) return;
+    stopped = true;
+    subscriptions.delete(subscription);
+    stopSelection?.();
+    pendingDelivery?.settle();
+    pendingDelivery = null;
+    paint.stop();
+    presentation.disconnect();
+  }
+  const deliver = (snapshot, mounting = false) => {
     const revision = snapshot?.revision ?? null;
     if (!delivered || deliveredRevision !== revision) {
       if (snapshot)
@@ -113,28 +127,30 @@ export function watchData(element, input, callback) {
           data_revision: runtime.data.revision,
           ...(selected ? { snapshot: selected } : {}),
         };
-      rendering = paint(structuredClone(snapshot));
+      // Claim this source revision before invoking package code so a synchronous
+      // failure or re-entrant notification cannot redeliver the same failed value.
       delivered = true;
       deliveredRevision = revision;
+      const rendering = paint(structuredClone(snapshot));
+      completion = Promise.resolve(rendering).catch((error) => {
+        reportPageError(`data subscriber failed: ${error?.message ?? error}`);
+        if (mounting) stop();
+      });
     }
-    if (rendering?.then && Array.isArray(event?.detail?.pending))
-      event.detail.pending.push(rendering);
-    return rendering;
+    return completion;
   };
-  const update = (event) => {
+  const update = (sourceStore, mounting = false) => {
     if (!source) {
-      return deliver(null, event);
+      return deliver(null, mounting);
     }
-    const present = Object.hasOwn(runtime.data.sources, source);
-    if (present && runtime.data.sources[source].contract !== declaration.contract)
+    if (sourceStore && sourceStore.contract !== declaration.contract)
       throw new Error(
         `watchData(${element.localName}, ${input}) expected contract ${declaration.contract}, ` +
-          `but source ${source} carries ${runtime.data.sources[source].contract}`,
+          `but source ${source} carries ${sourceStore.contract}`,
       );
-    if (!present) {
-      return deliver(null, event);
+    if (!sourceStore) {
+      return deliver(null, mounting);
     }
-    const sourceStore = runtime.data.sources[source];
     if (selected) {
       const snapshot = sourceStore.snapshots?.[selected];
       if (!snapshot)
@@ -149,11 +165,11 @@ export function watchData(element, input, callback) {
           snapshot: selected,
           ...snapshot,
         },
-        event,
+        mounting,
       );
     }
     if (!Object.hasOwn(sourceStore, "value")) {
-      return deliver(null, event);
+      return deliver(null, mounting);
     }
     const snapshot = {
       source,
@@ -164,24 +180,62 @@ export function watchData(element, input, callback) {
     };
     if (Object.hasOwn(sourceStore, "label")) snapshot.label = sourceStore.label;
     if (Object.hasOwn(sourceStore, "lines")) snapshot.lines = sourceStore.lines;
-    return deliver(snapshot, event);
+    return deliver(snapshot, mounting);
   };
-  // Establish the subscription only after its first delivery succeeds. A package that
-  // throws while mounting must not leave a listener behind to fail every later poll.
-  const initial = update();
-  document.addEventListener("lf-data", update);
-  if (initial?.then)
-    initialRenders.push(
-      Promise.resolve(initial).catch((error) => {
-        document.removeEventListener("lf-data", update);
-        paint.stop();
-        throw error;
+  const updateSafely = (sourceStore) => {
+    try {
+      return update(sourceStore);
+    } catch (error) {
+      reportPageError(`data subscriber failed: ${error?.message ?? error}`);
+    }
+  };
+  const selectedRevision = (sourceStore) =>
+    sourceStore ? (selected ? Number(selected) : sourceStore.revision) : null;
+  const stage = (sourceStore) => {
+    const revision = selectedRevision(sourceStore);
+    if (delivered && deliveredRevision === revision) return;
+    pendingDelivery?.settle();
+    let settle;
+    const pending = {
+      sourceStore,
+      completion: new Promise((resolve) => {
+        settle = resolve;
       }),
-    );
-  return () => {
-    document.removeEventListener("lf-data", update);
-    paint.stop();
+      settle: (rendering) => settle(rendering),
+    };
+    pendingDelivery = pending;
+    void presentation.present(revision, pending.completion);
   };
+  function notifySelected() {
+    const pending = pendingDelivery;
+    if (!pending) return completion;
+    pendingDelivery = null;
+    pending.settle(updateSafely(pending.sourceStore));
+    return pending.completion;
+  }
+  // A publisher selection captures this mount's source. Its initial subscription call
+  // is the mount delivery; later accepted publications stage the selected value and its
+  // presentation ticket synchronously, before that semantic epoch seals. Notification
+  // starts the staged paint only after activation has retained this document. A package
+  // that throws while mounting must not leave a subscription behind to fail every later
+  // publication.
+  try {
+    let mounting = true;
+    stopSelection = selectedSource.subscribe((sourceStore) => {
+      if (mounting) {
+        const rendering = update(sourceStore, true);
+        void presentation.present(deliveredRevision, rendering);
+        return rendering;
+      }
+      stage(sourceStore);
+    });
+    mounting = false;
+  } catch (error) {
+    stop();
+    throw error;
+  }
+  subscriptions.add(subscription);
+  return stop;
 }
 
 // Fragment identity belongs to the delivered manifest. A replacement can be accepted
@@ -215,6 +269,11 @@ export async function loadDataFragment(manifest, key) {
     key,
   });
   if (snapshot) params.set("snapshot", snapshot);
+  const { offlineInteractive } = await import("./context.js");
+  if (offlineInteractive)
+    throw new Error(
+      "data fragments need a Leaf server and are unavailable in this copy",
+    );
   const response = await fetch(`/api/data?${params}`);
   if (response.ok && !sameDelivery(response)) {
     throw new Error("Leaf's data vocabulary changed while loading a fragment");

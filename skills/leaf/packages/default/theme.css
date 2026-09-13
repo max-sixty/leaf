@@ -720,12 +720,13 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge { top: 8px; }
  * to detach it from — the grid had been stretching it to the full column all along — so
  * what it drew was a hairline with dead ground under it, on every thread the agent asked
  * a set question in. */
-lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
+lf-options > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
 /* Its Ask binding badge stands where the rows' do: in the binding column, centred on the
  * press, inside the cell rather than hung off its corner. */
-lf-options > .lf-done { position: relative; }
-lf-options > .lf-done > .lf-key-badge { position: absolute;
+lf-options > lf-options-done { display: grid; padding: 0; }
+lf-options > lf-options-done > .lf-done { position: relative; width: 100%; }
+lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
                      inset-inline-start: var(--lf-key-badge-start);
                      top: 0; bottom: 0; margin: auto 0; }
 /* A group under `choose` is one control, not a set of options standing near each other.

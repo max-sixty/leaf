@@ -4,11 +4,6 @@
    arrived or when it was last reported. They read that through the exported sequence
    helpers, not through raw `events`.
 
-   `actionSequence(widget, action)` returns copies of the widget's matching absolute
-   action events in log order and within its applicable version window. It includes only
-   events for which `projectionCommitted` is true. A module must not narrate an action
-   whose `renderState` is deferred while the body still shows another value.
-
    `updateSequence(target)` is the one reading of news about an item. Its target is
    either a widget element or an explicit `{kind, id}` pair; a bare id is not an identity
    and is rejected because a thread and a widget may spell theirs alike. With no target
@@ -35,27 +30,21 @@
    boundary performs this normalization once, before downstream code sees private status
    storage.
 
-   `actionSequence` traverses the classified events in the installed server view, then
-   returns structured clones so modules cannot mutate the reading. `updateSequence`
-   filters the server-normalized update feed. `watchActions`, `watchUpdates`, and
-   `watchAsks` subscribe their public semantic readings to the runtime's projection
-   invalidation and invoke the callback immediately. The same rendering function
+   `updateSequence` filters the server-normalized update feed. `watchUpdates` and
+   `watchAsks` subscribe their public semantic readings to the application publisher
+   and invoke the callback immediately. The same rendering function
    therefore handles a module connected before the first state and one constructed by a
    later thread reconcile.
 
-   `lf-actions` fires after a complete state has reconciled, including a read whose
-   event list did not grow. The clock dispatches it only after retrying an explicitly
-   deferred projection. Application fires it too after reconciling a delivery
-   answer — a refused action, or a read event — which withdraws or settles
-   a winner without applying a state. Every pass that reconciles is therefore heard
-   through this one event, which is what keeps a surface reading the projection rather
-   than the DOM current with a withdrawal. Time-dependent paints are separate:
+   Accepted and local attempts publish one complete snapshot, including reads whose
+   event list did not grow and definitive refusals that restore authoritative truth.
+   Time-dependent paints are separate:
    `presence.js` records synchronous `ago` and `clockValue` readings inside a `clocked`
    callback. The shared tick reruns only callbacks whose reading changed and drops
    disconnected owners. Subscription callbacks use this same mechanism, so a new widget
    owes no entry in a kernel list of clock consumers. A held state does not reset the
    measured server clock offset. Callbacks must render from the sequence they receive and
-   return their cleanup function from `watchActions` or `watchUpdates` when their element
+   return their cleanup function from `watchUpdates` when their element
    disconnects.
 
    `active.revision` identifies the immutable document currently shown; `active.version`
@@ -65,29 +54,13 @@
    worker update is not timeless; its authored assertion is as old as its revision.
 
    createProjectionUpdates binds semantic subscriptions to one presentation owner's
-   commit proof. Raw update, publication, claim, and history readings do not depend on
-   that proof and remain direct exports. */
+   commit proof. Raw update, claim, and history readings do not depend on that proof and
+   remain direct exports. */
 import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";
 
 import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
-
-let claimState = Object.freeze({
-  sources: Object.freeze([]),
-  held: false,
-});
-export function replaceClaimState(next) {
-  const prior = claimState;
-  claimState = Object.freeze({
-    sources: Object.freeze(structuredClone(next.sources)),
-    held: next.held,
-  });
-  return () => (claimState = prior);
-}
-export const workClaimState = () => ({
-  claimsHeld: claimState.held,
-});
 
 // The canonical receipt supplies one reader-facing workflow stage. Transport evidence
 // remains in `phase`; consumers use this projection instead of independently deciding
@@ -127,7 +100,7 @@ export const updateSequence = (target = null) => {
     .map((update) => structuredClone(update));
 };
 
-export const publishedAt = () => runtime.view?.published_at ?? null;
+const publishedAt = () => runtime.view?.published_at ?? null;
 export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
     ?.dateTime || publishedAt();
@@ -139,24 +112,7 @@ export const watchHistory = (owner, callback) =>
     callback(runtime.events.map((event) => structuredClone(event))),
   );
 
-export function createProjectionUpdates({
-  projectionCommitted,
-  coordinateProjectionCommitted,
-}) {
-  const actionSequence = (widget, action) => {
-    const projection = currentProjection();
-    return [...projection.classified.values()]
-      .filter(
-        (entry) =>
-          !entry.terminal &&
-          entry.e.kind === "action" &&
-          entry.e.widget === widget.id &&
-          (!action || entry.e.action === action) &&
-          projectionCommitted(projection, entry.e),
-      )
-      .sort((left, right) => left.e.seq - right.e.seq)
-      .map((entry) => structuredClone(entry.e));
-  };
+export function createProjectionUpdates({ coordinateProjectionCommitted }) {
   function reportsCommitted(projection, target) {
     const key = targetKey(updateTarget(target));
     const coordinates = new Map();
@@ -169,12 +125,10 @@ export function createProjectionUpdates({
       coordinateProjectionCommitted(projection, entry),
     );
   }
-  const watchActions = (widget, action, callback) =>
-    watchProjection(widget, () => callback(actionSequence(widget, action)));
   const watchUpdates = (target, callback) =>
     watchProjection(target instanceof Element ? target : document.body, () => {
       const projection = currentProjection();
       if (reportsCommitted(projection, target)) callback(updateSequence(target));
     });
-  return { actionSequence, watchActions, watchUpdates };
+  return { watchUpdates };
 }

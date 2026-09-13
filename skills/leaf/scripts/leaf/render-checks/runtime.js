@@ -1,9 +1,12 @@
 import { READER_VIEW_RESTORE_CASES } from "/runtime/widget-api.js";
+import { validationPresentationReady } from "/runtime/validation.js";
 import { openRoots } from "./open-roots.js";
 
 export const runtimeStarted = () => document.querySelector(".lf-banner") !== null;
 export const upgraded = () => document.body.dataset.lfUpgraded === "1";
-export const presented = () => document.body.dataset.lfPresented === "1";
+export const initiallyPresented = () => document.body.dataset.lfPresented === "1";
+export const currentPresented = () =>
+  initiallyPresented() && validationPresentationReady();
 export const dataApplied = (revision) =>
   Number(document.body.dataset.lfDataRevision ?? -1) >= revision;
 export const logApplied = (applied) =>

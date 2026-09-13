@@ -5,7 +5,6 @@
 import "/widgets/lf-shot.js";
 
 import {
-  actionAvailable,
   arrangeReadingElement,
   commands,
   compoundReadingRegionId,
@@ -23,10 +22,7 @@ import {
   registerThreadSurface,
   relabel,
   scopedMediaUrl,
-  sendAction,
-  settle,
-  standingState,
-  watchActions,
+  widgetController,
   watchData,
 } from "/runtime/widget-api.js";
 
@@ -98,6 +94,7 @@ function orderChildren(parent, children) {
 customElements.define(
   "lf-visual-review",
   class extends HTMLElement {
+    #controller = widgetController(this);
     #arrangements = [];
     #caseEntries = new Map();
     #casesBody = null;
@@ -136,13 +133,13 @@ customElements.define(
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onResize);
-      settle(this.#fitting.update());
+      this.#controller.present(this.#fitting.update());
       this.#threadSurface ??= registerThreadSurface(this, {
         begin: () => {},
         outletFor: (entry) => this.#threadOutlet(entry),
         end: () => {},
       });
-      this.stopActions ??= watchActions(this, null, () => this.#paintAvailability());
+      this.stopActions ??= this.#controller.subscribe(() => this.#paintAvailability());
       this.stopWatching ??= watchData(this, "run", (snapshot) => this.#show(snapshot));
     }
 
@@ -610,6 +607,7 @@ customElements.define(
     }
 
     #show(snapshot) {
+      const resume = this.#controller.defer();
       try {
         this.#snapshot = snapshot;
         this.#run = snapshot?.value ?? null;
@@ -632,10 +630,11 @@ customElements.define(
           this.#selected = fallback?.id ?? ids[0];
         this.#select(this.#selected);
         this.#paintInspector();
-        this.#renderStandingState();
-        settle(this.#fitting?.update());
+        this.#controller.present(this.#fitting?.update());
       } catch (error) {
         failSoft(this, error);
+      } finally {
+        resume();
       }
     }
 
@@ -888,6 +887,10 @@ customElements.define(
         current.getAttribute("alt") !== alt
       ) {
         const shot = document.createElement("lf-shot");
+        // This generated presentation region has no authored semantic descriptor.
+        // Its nearest authored owner joins every child's distinct preparation to
+        // Leaf's page barrier; several cases may register during this same paint.
+        shot._lfPresentGenerated = (promise) => this.#controller.present(promise);
         shot.id = `lf-${this.id}-${record.id}-comparison`;
         shot.setAttribute("before", before);
         shot.setAttribute("after", after);
@@ -978,16 +981,13 @@ customElements.define(
     }
 
     async #review(id, disposition) {
-      if (!actionAvailable(this, "review")) return;
-      this.#setDisposition(id, disposition);
-      const accepted = await sendAction(this, "review", { case: id, disposition });
+      if (!this.#controller.read().actions.review.available) return;
+      const accepted = await this.#controller.dispatch({
+        kind: "action",
+        verb: "review",
+        detail: { case: id, disposition },
+      })?.delivery;
       if (accepted) notice(`${DISPOSITION[disposition]} — sent`);
-      else this.#renderStandingState();
-    }
-
-    #renderStandingState() {
-      const current = standingState().find(({ widget }) => widget === this);
-      this.renderState(current?.state);
     }
 
     #setDisposition(id, disposition) {
@@ -1017,7 +1017,7 @@ customElements.define(
     }
 
     #paintAvailability() {
-      const available = actionAvailable(this, "review");
+      const available = this.#controller.read().actions.review?.available ?? false;
       for (const button of this.querySelectorAll(".lf-vr-disposition"))
         button.disabled = !available;
       paintKeys();

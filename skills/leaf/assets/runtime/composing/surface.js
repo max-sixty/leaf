@@ -95,7 +95,7 @@ import {
 } from "../reading-regions.js";
 import { moveScrollerBy } from "../scrolling.js";
 
-export const BANNER_CLEAR = 48;
+const BANNER_CLEAR = 48;
 let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 

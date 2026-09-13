@@ -568,27 +568,6 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
         "raises the button the key then presses"
     )
 
-    # The readout's cached reading is refreshed on `lf-actions`, the runtime's broad
-    # source invalidation. New page text therefore changes its denominator without
-    # another search gesture.
-    page.evaluate(
-        """async () => {
-          const extra = document.createElement('p');
-          extra.id = 'late-search-match';
-          extra.textContent = 'Another button the key occurrence.';
-          document.querySelector('main').append(extra);
-          document.dispatchEvent(new Event('lf-actions'));
-        }"""
-    )
-    expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 2")
-    page.evaluate(
-        """async () => {
-          document.querySelector('#late-search-match').remove();
-          document.dispatchEvent(new Event('lf-actions'));
-        }"""
-    )
-    expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 1")
-
     page.keyboard.press("Enter")
     expect(page.locator(".lf-page-search")).to_be_hidden()
     expect(page.locator(".lf-walk-position")).to_be_hidden()
@@ -688,7 +667,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         """async () => {
           const selected = getSelection().getRangeAt(0);
           selected.startContainer.splitText(selected.startOffset + 1);
-          const {repaint} = await import('/runtime/repaint.js');
+          const {repaint} = await window.__lfRuntimeImport('/runtime/repaint.js');
           repaint();
         }"""
     )
@@ -712,7 +691,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     page.evaluate(
         """async () => {
           getSelection().removeAllRanges();
-          const {repaint} = await import('/runtime/repaint.js');
+          const {repaint} = await window.__lfRuntimeImport('/runtime/repaint.js');
           repaint();
         }"""
     )

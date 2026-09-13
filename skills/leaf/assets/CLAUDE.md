@@ -74,10 +74,16 @@ POSTs, and page-error channel;
 `runtime/traffic.js` owns the delivery ledger — posts and state reads issued and
 ended, and the pending ledger's unresolved attempts — painted on the root element as
 `data-lf-traffic` for whatever waits on the page from outside it;
-`runtime/requests.js` owns typed one-shot request availability, sending, and the
-server-projected request lifecycle watcher;
-`runtime/request-elements.js` owns shared request-control wiring, locking, selection,
-and receipt-state mechanics while each package supplies its words and bound detail;
+`runtime/widget-controller.js` owns the public, publisher-backed action and request
+reading, document-bound target-reference capture, declared-role dispatch validation,
+subscription lifetime, total state rendering before auxiliary subscribers, generic
+settlement paint, and the widget presentation ticket through `updateComplete`;
+`runtime/target-references.js` owns stable id and structural target records, exact
+resolution, immutable page and frozen-fragment boundaries, and the shared pointer and
+keyboard candidate walk;
+`runtime/application.js` owns typed action, undo, and one-shot request transport;
+`runtime/request-elements.js` owns the controller-backed request-control adapter while
+each package supplies its words and bound detail;
 `runtime/asks/model.js` owns request discovery, folding, and the semantic Ask
 subscription;
 `runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and
@@ -101,7 +107,9 @@ full-image viewer;
 and tray panels, landing a new width through `chrome-layout.js`'s `landEdge`;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
-`runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
+`runtime/live-leaves.js` derives the machine's Leaves reading and owns its walk;
+`runtime/live-leaves-list.js` presents that reading through one banner face and keyed
+tray list under one application-presentation ticket;
 `runtime/margin-entries.js` owns the public margin-entry grammar and contribution
 registry; content modules contribute live controls and semantics there but never place
 their own RHS rows;
@@ -144,7 +152,8 @@ and the deadline at which canonical activity asks for another server read;
 `runtime/state-feed.js` owns state reads, offline handling, the shared clock and deferred retries,
 event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, application serialization,
-state commit, projection, notification, pending accounting, and rollback;
+accepted-state publication, projection, notification, presentation-failure reporting,
+and pending accounting after presentation proof;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a
 status kind that has changed;
 `runtime/banner-shelf.js` owns news-control reservation and focus continuity, and
@@ -255,14 +264,15 @@ passive panel elements and geometry readings;
 `runtime/projection/authored.js` owns typed authored initial values and anchor
 parentage; `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
 `runtime/projection/model.js` folds authored, canonical, and pending records without DOM;
-`runtime/projection/state.js` holds the desired semantic reading;
-`runtime/projection/presentation.js` normalizes DOM inputs and owns presentation, deferred
-widget work, and node-specific commit proof within its constructed instance;
+`runtime/projection/state.js` selects the publisher's desired semantic reading and holds
+only deferred projection-chrome state; `runtime/projection/presentation.js` records
+coordinate commit proof, paints provenance and coverage, and defers that global work
+while a drag owns the document;
 `runtime/projection/commands.js` owns action eligibility and undo commands.
 
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
-words, and reconciles recorded state. The comment layer listens on `GET /api/news`
+words, and has each module's controller reconcile recorded state. The comment layer listens on `GET /api/news`
 for the page's reading, reads `GET /api/state` when that reading moves,
 posts to `POST /api/event`, renders the status and conversation chrome, captures
 anchors, and handles keyboard navigation. Both layers share the same registry,
@@ -275,13 +285,13 @@ Each mutable fact has one writer:
 | authored widget state | markup after widget upgrade, before projection | `captureAuthoredFacets` reads typed initial values; `rememberAuthoredParents` preserves pre-upgrade anchor parentage |
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
-| version shown by the live document | the latest mapped revision accepted at the activation boundary | `activateRevision` advances `runtime.currentRevision`; a public version address derives the version number from its URL |
-| accepted history | the server event log | `receiveState` replaces `events` after a complete read |
-| the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
-| unresolved browser work | the application-owned pending ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
-| desired semantic state | authored state, log projection, then pending overlay | projection presentation installs the folded reading, which may precede deferred DOM work |
-| rendered conversation | the server's thread projection, then pending messages | `foldThreads`, installed by conversation presentation |
-| proof of what the DOM currently represents | the projection presentation instance's commit records | `stageOptimistic` and `present`; release requires the same instance's proof |
+| version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
+| accepted history | the server event log | the application publisher adopts one complete server answer |
+| the reading the page has applied | the server's `/api/state` answer | the publisher adopts `reading`; state presentation paints `data-lf-reading` only after every required view succeeds |
+| unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
+| desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
+| rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
+| proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
@@ -316,15 +326,19 @@ Startup order is load-bearing:
 2. Begin the first state read without applying its answer.
 3. Restore the reader's arrangement from storage, and let focus go to the page.
 4. Fetch and validate the registry.
-5. Index passage fences and authored parent identities before upgrade changes the DOM.
+5. Index passage fences, authored parent identities, and each widget's immutable
+   descriptor before upgrade changes the DOM.
 6. Import the modules declared by `x-upgrade` for the tags this document
    contains, and no others.
-7. Wait for module settlement, then run the shared dressing passes.
-8. Capture authored record facets from the upgraded, authored state.
-9. Settle optional runtime-owned page interface that composes those widgets.
+7. Start the shared dressing passes and wait for the current coordinator publication,
+   including controller-registered widget preparation and the dressing region.
+8. Capture authored record facets from the upgraded authored state, then wait for
+   subscribers to present that semantic publication.
+9. Present the optional runtime-owned page-interface region that composes those widgets.
 10. Mark `body` `data-lf-upgraded="1"`.
-11. Start the state feed; its first answer is applied, reconciled, and presents the
-    page. The feed waits a bounded time for that answer and then presents without one,
+11. Start the state feed; its first answer is applied and reconciled, then current
+    coordinator readiness presents the page. The feed waits a bounded time for that
+    answer and then presents without one,
     offline, rather than letting a container that has stopped answering decide whether
     the page arrives at all. The read is not cancelled by that wait: it keeps the page's
     one read slot, and its answer applies when it lands, as any later read's does.
@@ -345,8 +359,8 @@ source-dependent space when that data arrives; stable geometry for that content 
 an authored reserve or a fixed rendering posture. Fixed status and unanchored discussion
 chrome remain usable while a live page waits.
 An optional page-interface failure reports itself without withholding presentation.
-Modules must consult `actionAvailable` or `requestAvailable` before optimistic mutation
-as well as before sending; their common send doors repeat the check. Selecting a passage
+Modules read command availability from `widgetController(owner).read()` before
+optimistic mutation; `dispatch()` re-reads the publisher and repeats the check. Selecting a passage
 does not raise the anchored composer until the passage has survived the first projection.
 
 `presentPage` owns the one transition from arrival to stateful interaction. Motion
@@ -370,12 +384,12 @@ event schema refuses it.
 ## Authoritative projection
 
 `runtime/projection/model.js` owns the record fold; `projection/presentation.js`
-combines it with authored DOM readings and keeps desired state separate from proof of
-what each current widget node has rendered. Python derives the durable side (below). What both must honor: an `x-state` verb may
+combines it with authored DOM readings for coverage and provenance. Each widget controller
+keeps desired state separate from proof that its current owner has rendered it. Python derives the durable side (below). What both must honor: an `x-state` verb may
 declare `requires`, a prerequisite over the standing Ask projection that
 `x-awaits` defines. Its target is the sender or its
 declared parent, and `awaiting` states whether that Ask must be open or closed.
-`actionAvailable` paints and guards the action, `sendAction` checks at the common
+The controller's action entry paints and guards the action, `dispatch()` checks at the common
 browser door, and POST evaluates the same declaration from the authoritative log
 under the append lock. No eligibility cache sits beside the ordinary Ask and state
 projections. `x-awaits.answers` says which actions actually close the Ask;
@@ -730,9 +744,9 @@ and repository lint checks the source.
 | `replayOverrides` | the log, not conflicting authored markup, determines projected state |
 | `relativeReplays` | rendering each complete widget state twice changes nothing |
 
-`standingState` and `shallowSigs` are exported by their projection owner through the
-widget API for these gates. Keep their
-readings aligned with the runtime's projection and authored-state definitions.
+`validationWidgetStates` is an internal publisher-backed validation adapter;
+`shallowSigs` is the DOM signature helper. Keep their readings aligned with the
+runtime's projection and authored-state definitions.
 Do not create a test-only interpretation of a widget's state.
 
 The static check and browser gate cover different boundaries. Static validation
@@ -764,6 +778,18 @@ state read, reload, second tab, storage fault, shadow root, print medium, or
 animation can expose the behavior.
 
 ## Working on the runtime
+
+`scripts/browser/build.mjs` owns the compiled TypeScript foundation in
+`vendor/browser-runtime.js` and its adjacent manifest, licenses, and embedded-source
+map. The manifest names its inputs, exports, and output hashes; `scripts/CLAUDE.md`
+owns the contributor build and check commands. The internal bundle contains Lit and
+Signals once, with no external imports or runtime compiler. Content modules import
+only `runtime/widget-api.js`. The publisher owns Leaf's pure semantic folds and exposes
+read-only selectors; DOM rendering, transport promises, and presentation proof remain
+in runtime adapters. Server projection entries carry the declaration admitted from
+their captured revision, so neither active nor historical views reinterpret an event
+through the current DOM's registry. Regenerate this output through its owning script,
+never by editing it.
 
 Run `node --check` on the module, formatting, and a focused real-browser test while
 iterating. A module that reads another owner as it evaluates parses and lints clean and

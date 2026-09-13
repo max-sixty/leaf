@@ -98,13 +98,13 @@
    ask keeps its centred arrival in the panel's own list. */
 
 import { shownBox, shownParts } from "../geometry.js";
+import { askProgressModel, createAskBannerControls } from "./banner-controls.js";
 import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
   ariaShortcuts,
   bindings,
   contextualRoute,
   decisionControls,
-  PRESS,
   routedCommand,
   spell,
 } from "../keyboard/bindings.js";
@@ -127,21 +127,28 @@ import {
   openAsks as readOpenAsks,
   unansweredAsks as readUnansweredAsks,
 } from "./model.js";
-import { showNews } from "../banner-shelf.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "../walk-position.js";
 import {
   commandScopesWithin,
   commandsWithin,
   documentFocused,
   focused,
-  keys,
   paintKeys,
 } from "../keyboard/scopes.js";
 import { addressableSays, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
+import { ASK_AT } from "./tray-list.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
+import { PRESENTATION } from "../presentation.js";
+import {
+  attachApplicationPresentation,
+  failSoftAfterRetention,
+  PresentationRetentionError,
+  readApplication,
+  watchSemantic,
+} from "../semantic-state.js";
 
 // Contextual actions for the Ask the reader is standing in. These share the binding-badge face
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
@@ -166,6 +173,38 @@ export function createAskView({
   const openAsks = () => readOpenAsks(pendingRequests());
   const unansweredAsks = () => readUnansweredAsks(pendingRequests());
   const presentedActionControl = (control) => presentedControl(control) ?? control;
+  const answeringAll = new Set();
+  const bulkAnswers = new Map();
+  const bannerControls = createAskBannerControls(asksBtn, async (verb) => {
+    if (answeringAll.has(verb)) return;
+    answeringAll.add(verb);
+    void syncAsks();
+    try {
+      // Resolve the current open inventory at activation. A control can survive several
+      // publications and shelf moves; it never captures an earlier Ask or DOM node.
+      for (const ask of openAsks()) {
+        const source = askSource(ask);
+        if (askEntry(source)?.all === verb) await source[verb]?.();
+      }
+    } finally {
+      answeringAll.delete(verb);
+      void syncAsks();
+    }
+  });
+  asksList.configure({
+    activate: (id) => {
+      const route = allAsks();
+      const to = route.find((candidate) => candidate.id === id);
+      if (to) goToAsk(to, route);
+    },
+    fallback: asksBtn,
+  });
+  const asksRenderer = Object.freeze({ banner: bannerControls, list: asksList });
+  let asksPresentation = null;
+  const presentation = () => {
+    asksPresentation ??= attachApplicationPresentation("asks", asksRenderer);
+    return asksPresentation;
+  };
 
   // One blanket answer per verb a widget declares one for (x-awaits.all), each deciding
   // its asks one at a time so the log records what was consented to rather than one
@@ -177,35 +216,13 @@ export function createAskView({
   // than a box of its own: a control with no siblings is a control the press sweep walks
   // past, and one that only ever appears at upgrade spends the spacer's slack, not the
   // room of anything to its right.
-  const bulkButtons = new Map();
   function buildBulkAnswers() {
     for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
       const verb = registry[tag]["x-awaits"].all;
-      if (bulkButtons.has(verb)) continue;
+      if (bulkAnswers.has(verb)) continue;
       const label = verb[0].toUpperCase() + verb.slice(1);
-      const btn = el("button", "lf-btn lf-answer-all", "");
-      btn.title = `${label} every one still waiting on you`;
-      let answering = false;
-      btn.onclick = async () => {
-        if (answering) return;
-        answering = true;
-        // Native disabling immediately drops keyboard focus on body, before the events
-        // this press sends can settle and hide the control. Keep the busy button in the
-        // focus model so showNews can hand its place to the next standing destination;
-        // the guard above still makes a repeated activation inert.
-        btn.setAttribute("aria-disabled", "true");
-        try {
-          for (const ask of openAsks()) {
-            const source = askSource(ask);
-            if (askEntry(source)?.all === verb) await source[verb]?.();
-          }
-        } finally {
-          answering = false;
-          btn.removeAttribute("aria-disabled");
-        }
-      };
-      showNews(btn, false);
-      bulkButtons.set(verb, { btn, label });
+      const btn = bannerControls.registerBulk(verb, label);
+      bulkAnswers.set(verb, label);
       placeBulkAnswer(btn);
       // In the row now, so it holds the widest it reaches below a thousand — the same
       // words syncAsks writes, measured in the face it will render in (see reserve).
@@ -217,106 +234,23 @@ export function createAskView({
   // writes its controls and counts from this one reading, without naming a verb in core;
   // which verbs exist is the registry's answer.
   function blanketAnswers(asks) {
-    return [...bulkButtons].map(([verb, { btn, label }]) => ({
-      btn,
-      label,
-      n: asks.filter((ask) => askEntry(askSource(ask))?.all === verb).length,
-    }));
-  }
-  // What the banner's button says about the page's Ask progress. The numerator is
-  // durable completion rather than the reader's position in the open-Ask walk: moving
-  // around the page changes neither number, while answering and revising do. The total
-  // keeps answered Asks in reach instead of making completion erase its own route back.
-  //
-  // Written only on change: a poll repaints this, and an unchanged write feeds the
-  // mutation stream a screen reader rebuilds its buffer on.
-  function sayAsks(completed, total) {
-    const said = `Asks ${completed}/${total}`;
-    if (asksBtn.textContent !== said) asksBtn.textContent = said;
-    // The fraction alone does not say which way it counts — a blind drive read 1/2 as
-    // "one open" until Done turned it into 2/2 — so the tooltip spells the numerator.
-    const title = total
-      ? `${completed} of ${total} asks answered — show or hide the list`
-      : "Show or hide this page's asks";
-    if (asksBtn.dataset.lfKeyTitle !== title) {
-      asksBtn.dataset.lfKeyTitle = title;
-      asksBtn.title = title;
-    }
+    return [...bulkAnswers].map(([verb, label]) => {
+      const n = asks.filter((ask) => askEntry(askSource(ask))?.all === verb).length;
+      return Object.freeze({
+        busy: answeringAll.has(verb),
+        offered: Boolean(n),
+        text: `${label} all (${n})`,
+        title: `${label} every one still waiting on you`,
+        verb,
+      });
+    });
   }
   // The banner's reading of that one list. Refreshed from every signal that can change
   // it: a widget saying it has just taken an answer (lf-answered, which is also when the
-  // page's own words change), and every poll, which is where the fold moves and where a
-  // send that failed has its optimism taken back.
+  // page's own words change), and every semantic publication, which is where the fold
+  // moves and where a send that failed has its optimism taken back.
   let shortcutsOffered = false;
   let rowWalkOffered = false;
-  function syncAsks() {
-    const asks = openAsks();
-    const all = allAsks();
-    const unanswered = new Set(unansweredAsks());
-    const completed = all.filter((ask) => !unanswered.has(ask)).length;
-    asksBtn.toggleAttribute(
-      "data-lf-complete",
-      all.length > 0 && completed === all.length,
-    );
-    // While the tray stands its button stands too, whatever the count just did — the
-    // press that opened it has to be able to close it.
-    sayAsks(completed, all.length);
-    showNews(asksBtn, asksOffered());
-    // Only while the tray is up: the count above is what a closed tray says, and these
-    // rows are what an open one says. A closed tray reconciling a list on every poll is
-    // work for a reader who cannot see it, and rows in a document nothing can press.
-    if (trayIsOpen("asks")) renderAsks(all, unanswered);
-    for (const { btn, label, n } of blanketAnswers(asks)) {
-      const said = `${label} all (${n})`;
-      if (btn.textContent !== said) btn.textContent = said;
-      showNews(btn, Boolean(n));
-    }
-    // The a/A row stands on this list, so the surfaces reading it are repainted
-    // where it changes — the rule showFab and setOpenTray already keep for the words
-    // they write. A capability change also moves the tray edge's machine-readable keys.
-    const offered = asksOffered();
-    const walkOffered = asks.length > 0;
-    if (offered !== shortcutsOffered || walkOffered !== rowWalkOffered) {
-      shortcutsOffered = offered;
-      rowWalkOffered = walkOffered;
-      paintKeys();
-    } else repaint();
-  }
-  // An answer can also change what text the page has — a retired slot leaves it — so
-  // marks are repainted from the same signal, and a comment on text the user just
-  // removed says so at once rather than at the next poll.
-  // Semantic package watchers consume this broad invalidation synchronously and may
-  // update the package-owned answer read above. Reconcile the shared Ask surfaces after
-  // every listener has seen the complete projection, regardless of registration order.
-  // One row per active ask, reconciled on every signal that moves the list, the way the
-  // leaves tray reconciles its own — rows kept in place rather than rebuilt, so a
-  // repaint doesn't swap a row out from under a pressed pointer or drop focus inside it.
-  //
-  // Keyed by the ask's id and not by the element: a new version replaces every node on the
-  // page, and the row for a question that survived the revision is the same row. That is
-  // also what a press resolves through — the element this row stood for may be gone, and
-  // the ask with that id is the one the reader means.
-  //
-  // A row says what kind of thing is asking and then the ask's own opening words, which is
-  // addressableSays — the same reading the thread panel labels an anchor with, so a row and a
-  // comment on that ask say the same thing. Nothing here asks which widget it is: the kind
-  // is the element's own word and the words are the element's own text, so the twelfth
-  // widget gets a row that reads properly on the day it declares x-awaits.
-  const askRowsById = new Map();
-  // What the tray says when it is holding nothing, in the voice the thread panel's own
-  // empty note uses: what is true, then what would fill it. A reader who opens Asks on a
-  // page that is waiting on nobody was getting a blank panel, which says the same thing
-  // as a tray that has failed to render — and the two are worth telling apart, since one
-  // of them is the page being finished with them.
-  //
-  // The other half of the sentence is not a gesture, as it is next door: a reader makes
-  // their own threads and does not make their own asks, so what it names is the agent.
-  const emptyNote = el(
-    "div",
-    "lf-empty",
-    "Nothing is waiting on you. A question the page needs an answer for appears " +
-      "here when the agent asks one.",
-  );
   const ANSWER_CAP = 120;
   const answerWords = (value) => {
     const whole = String(value ?? "")
@@ -339,82 +273,112 @@ export function createAskView({
       throw new TypeError(`Ask ${ask.id} has more than one answer reader`);
     return answerWords(readers[0]?.());
   }
-  function renderAsks(asks = allAsks(), unanswered = new Set(unansweredAsks())) {
-    let anchor = null;
-    if (!trayIsOpen("asks")) {
-      for (const [, row] of askRowsById) row.remove();
-      askRowsById.clear();
-      emptyNote.remove();
-      return;
-    }
-    // Out of the way before the rows place themselves, so `firstElementChild` below is a
-    // row or nothing and the note cannot become the thing a row is inserted after.
-    emptyNote.remove();
-    for (const ask of asks) {
-      let row = askRowsById.get(ask.id);
-      if (!row) {
-        row = el("button", "lf-asks-row");
-        row.type = "button";
-        // The attribute that already means "this chrome belongs to that ask" (askPlace),
-        // so focus landing on a row is the reader standing in the ask it names, and the
-        // ring, the walk's own measuring point and the mark all follow with nothing added.
-        row.setAttribute(ASK_AT, ask.id);
-        row.append(
-          el("span", "lf-asks-kind"),
-          el("span", "lf-asks-says"),
-          el("span", "lf-asks-answer"),
-        );
-        row.onclick = () => {
-          const route = allAsks();
-          const to = route.find((candidate) => candidate.id === ask.id);
-          if (to) goToAsk(to, route);
-        };
-        keys(row, "In the Asks tray", [
-          {
-            id: "ask.open",
-            keys: PRESS,
-            does: "Go to this ask",
-            line: "go to this ask",
-          },
+  const rowModel = (ask, unanswered) => {
+    const kind = addressableWord(ask);
+    const says = addressableSays(ask) || ask.id;
+    const answered = !unanswered.has(ask);
+    const answer = answered ? currentAskAnswer(ask) : "";
+    return Object.freeze({
+      id: ask.id,
+      kind,
+      says,
+      answer,
+      answerState: answered ? "answered" : "open",
+      title: `${kind} · ${says}${answer ? ` · ${answer}` : ""}`,
+    });
+  };
+
+  let askPaintGeneration = 0;
+  async function paintAsks(generation) {
+    const current = () => generation === askPaintGeneration;
+    const asks = openAsks();
+    const all = allAsks();
+    const unanswered = new Set(unansweredAsks());
+    const completed = all.filter((ask) => !unanswered.has(ask)).length;
+    const offered = asksOffered();
+    // Only while the tray is up: the count above is what a closed tray says, and these
+    // rows are what an open one says. The list owner receives an explicit closed model
+    // so no hidden generated controls remain in the document.
+    const open = trayIsOpen("asks");
+    const listModel = Object.freeze({
+      open,
+      rows: Object.freeze(open ? all.map((ask) => rowModel(ask, unanswered)) : []),
+    });
+    const bannerModel = Object.freeze({
+      progress: askProgressModel(completed, all.length, offered),
+      bulk: Object.freeze(blanketAnswers(asks)),
+    });
+    // The a/A row stands on this list, so the surfaces reading it are repainted
+    // where it changes — the rule showFab and setOpenTray already keep for the words
+    // they write. A capability change also moves the tray edge's machine-readable keys.
+    const walkOffered = asks.length > 0;
+    if (offered !== shortcutsOffered || walkOffered !== rowWalkOffered) {
+      shortcutsOffered = offered;
+      rowWalkOffered = walkOffered;
+      paintKeys();
+    } else repaint();
+    try {
+      // The controls are stable nodes and can be restored without losing identity. Paint
+      // them first, then the keyed list: a failed face never lets a row be removed, and a
+      // failed list can roll the controls back before either owner commits this reading.
+      const bannerPaint = await bannerControls.present(bannerModel);
+      if (!current()) return [];
+      const listPaint = await asksList.present(listModel);
+      if (!current()) return [];
+      asksList.commit();
+      bannerControls.commit();
+      return [listPaint, bannerPaint];
+    } catch (error) {
+      // A current paint owns the same faces now. It will either commit or restore them;
+      // an obsolete attempt must not roll its predecessor over the newer reading.
+      if (!current()) return [];
+      try {
+        await Promise.all([
+          asksList.retainCommitted(),
+          bannerControls.retainCommitted(),
         ]);
-        askRowsById.set(ask.id, row);
+      } catch (retaining) {
+        throw new PresentationRetentionError(
+          [error, retaining],
+          "Ask presentation and retention failed",
+        );
       }
-      const [kind, says, answer] = row.querySelectorAll(
-        ".lf-asks-kind, .lf-asks-says, .lf-asks-answer",
-      );
-      const word = addressableWord(ask);
-      const said = addressableSays(ask) || ask.id;
-      const answered = !unanswered.has(ask);
-      // Written only on change: an unchanged poll must not feed the mutation stream a
-      // screen reader rebuilds its buffer on.
-      if (kind.textContent !== word) kind.textContent = word;
-      if (says.textContent !== said) says.textContent = said;
-      const answerText = answered ? currentAskAnswer(ask) : "";
-      if (answer.textContent !== answerText) answer.textContent = answerText;
-      const answerState = answered ? "answered" : "open";
-      if (row.dataset.lfAnswerState !== answerState)
-        row.dataset.lfAnswerState = answerState;
-      const account = `${word} · ${said}${answerText ? ` · ${answerText}` : ""}`;
-      if (row.title !== account) row.title = account;
-      const place = anchor ? anchor.nextElementSibling : asksList.firstElementChild;
-      if (place !== row) asksList.insertBefore(row, place);
-      anchor = row;
+      throw error;
     }
-    const live = new Set(asks.map((a) => a.id));
-    for (const [id, row] of askRowsById)
-      if (!live.has(id)) {
-        // An Ask that leaves the active inventory takes its row with it, and may take
-        // the focus too — for example, when a revision retires the source while the reader
-        // is standing on its row. Hand focus to whatever now stands in its place rather
-        // than letting it fall to the body, which is nowhere and takes the ring with it.
-        const held = row.contains(document.activeElement);
-        const next = row.nextElementSibling ?? row.previousElementSibling;
-        row.remove();
-        askRowsById.delete(id);
-        if (held) (next ?? asksBtn).focus();
-      }
-    if (!asks.length) asksList.append(emptyNote);
   }
+  // Every semantic notification opens the region's ticket synchronously, before its
+  // deferred read. Package subscribers therefore finish their own synchronous updates
+  // first, while the application barrier already knows this inherited Ask paint is stale.
+  // A newer signal replaces and releases the obsolete completion before either paint.
+  let scheduled = null;
+  function syncAsks() {
+    let resolve;
+    let reject;
+    const completion = new Promise((done, fail) => {
+      resolve = done;
+      reject = fail;
+    });
+    const pending = { generation: ++askPaintGeneration, resolve, reject };
+    const prior = scheduled;
+    scheduled = pending;
+    const ready = presentation().present(
+      readApplication().semanticEpoch,
+      completion,
+      failSoftAfterRetention(asksRenderer),
+    );
+    prior?.resolve();
+    queueMicrotask(() => {
+      if (scheduled !== pending) return;
+      scheduled = null;
+      try {
+        Promise.resolve(paintAsks(pending.generation)).then(resolve, reject);
+      } catch (error) {
+        reject(error);
+      }
+    });
+    return ready;
+  }
+  const renderAsks = syncAsks;
 
   // The walk over what the page is waiting on the reader for. It wraps at both ends,
   // because asks are a worklist rather than a document to read through: answering one takes
@@ -435,7 +399,6 @@ export function createAskView({
   // for the control to put the reader on, and a row that merely points at the ask is not
   // that control. What they share is this: focus on either means the reader is standing at
   // that ask, which is the one question askPlace asks.
-  const ASK_AT = "data-lf-at";
   // Where a stand-in stands: the ask decided by the control it re-presents. Separate from
   // ASK_ROW again, and for a sharper reason than ASK_AT's — ASK_ROW names one element per
   // ask, the row lf-suggestion hangs in the margin, and the runtime, the theme and the
@@ -1078,7 +1041,7 @@ export function createAskView({
   //
   // The list comes with the ask, because the announcement names a place in it and the caller
   // is the one that knows which list it walked: the walk's own or the tray's.
-  function goToAsk(next, asks) {
+  async function goToAskNow(next, asks) {
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.
     if (inChrome(next) && !panelIsOpen()) setPanel(true);
@@ -1087,9 +1050,9 @@ export function createAskView({
     // before the reveal and focus land; otherwise the correct navigation happens
     // invisibly behind the very sheet that offered it.
     if (!inChrome(next) && trayIsOpen("asks") && trayCovers()) setOpenTray(null);
-    reveal(next); // a settled group or an inactive tab has no geometry until it opens
+    await reveal(next); // a settled group or an inactive tab has no geometry until it opens
     const source = askSource(next);
-    if (source !== next) reveal(source); // let the answering widget settle its own chrome
+    if (source !== next) await reveal(source); // let the answering widget settle its own chrome
     landed = next;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the reader is standing, rather than both saying the second.
@@ -1123,6 +1086,12 @@ export function createAskView({
     announce(walkPositionLabel("Ask", asks.indexOf(next) + 1, asks.length, state));
   }
 
+  function goToAsk(next, asks) {
+    const ready = goToAskNow(next, asks);
+    void ready.catch(() => {});
+    return ready;
+  }
+
   function stepAsk(dir) {
     const asks = openAsks();
     if (!asks.length) return;
@@ -1137,18 +1106,20 @@ export function createAskView({
   }
 
   const answered = () => {
-    syncAsks();
+    void syncAsks();
     refreshConversation();
   };
   let mounted = false;
-  const actionsChanged = () => queueMicrotask(() => mounted && syncAsks());
+  let stopActionChanges = null;
+  const actionsChanged = () => mounted && void syncAsks();
   const pageScrolled = () => reachableActionRoutes().length && repaint();
 
   function mount() {
     if (mounted) return;
     mounted = true;
-    document.addEventListener("lf-actions", actionsChanged);
+    stopActionChanges = watchSemantic(actionsChanged);
     document.addEventListener("lf-answered", answered);
+    document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("scroll", pageScrolled, { capture: true, passive: true });
     addEventListener("resize", repaint);
   }
@@ -1156,11 +1127,17 @@ export function createAskView({
   function destroy() {
     if (mounted) {
       mounted = false;
-      document.removeEventListener("lf-actions", actionsChanged);
+      stopActionChanges?.();
+      stopActionChanges = null;
       document.removeEventListener("lf-answered", answered);
+      document.removeEventListener(PRESENTATION, actionsChanged);
       globalThis.removeEventListener("scroll", pageScrolled, { capture: true });
       globalThis.removeEventListener("resize", repaint);
     }
+    scheduled?.resolve();
+    scheduled = null;
+    asksPresentation?.disconnect();
+    asksPresentation = null;
     clearActionProjections();
     askActionLayer.replaceChildren();
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))

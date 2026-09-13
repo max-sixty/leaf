@@ -52,7 +52,7 @@
  *
  * Once an edit exists, a native disclosure compares the authored body with the
  * standing one and lists the widget's absolute edit actions in log order. The runtime
- * owns that sequence and its version boundary (`watchActions`); the module owns only
+ * owns that sequence and version boundary; the module owns only
  * its presentation. Restoring a row sends its text as one more ordinary edit, which
  * keeps one state model and lets another tab converge without knowing that the gesture
  * happened in a history view.
@@ -79,17 +79,13 @@
  */
 import {
   DISCLOSE,
-  actionAvailable,
-  actionSequence,
   dataBody,
   once,
   offer,
   paintKeys,
-  projectionChanged,
   quoted,
   revisionLabel,
   registerMarginContribution,
-  sendAction,
   sendDraft,
   notice,
   keeps,
@@ -103,7 +99,7 @@ import {
   watchDraft,
   alignText,
   alignedNodes,
-  watchActions,
+  widgetController,
   reachedForWords,
 } from "/runtime/widget-api.js";
 
@@ -151,6 +147,7 @@ function capture(el) {
 customElements.define(
   "lf-draft",
   class extends HTMLElement {
+    #controller = widgetController(this);
     #body;
     #pencil;
     #cancel;
@@ -168,12 +165,13 @@ customElements.define(
     #buttonReserve = 0;
     #stopActions = null;
     #stopDraft = null;
+    #resumeProjection = null;
 
     connectedCallback() {
       if (!once(this)) {
         this.#offer();
         this.#paintAvailability();
-        this.#watchActions();
+        this.#watchReading();
         this.#watchDraft();
         return;
       }
@@ -219,7 +217,7 @@ customElements.define(
         "edit",
         "Edit",
         () => {
-          if (actionAvailable(this, "edit")) this.#open();
+          if (this.#available()) this.#open();
         },
         "neutral",
         "disclosure",
@@ -273,7 +271,7 @@ customElements.define(
         this.#margin?.update();
         paintKeys();
       });
-      this.#watchActions();
+      this.#watchReading();
 
       // The box is the door. A draft is the one block on the page whose whole purpose is
       // that the reader rewrites it, so a press anywhere in it opens the editor with the
@@ -295,7 +293,7 @@ customElements.define(
         if (ev.detail === 0 || ev.button !== 0 || ev.target.closest("[data-lf-offer]"))
           return;
         if (reachedForWords(this)) return;
-        if (!actionAvailable(this, "edit")) return;
+        if (!this.#available()) return;
         this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));
       });
 
@@ -322,13 +320,24 @@ customElements.define(
       this.#stopDraft = null;
       this.#margin?.unregister();
       this.#margin = null;
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
     }
 
-    #watchActions() {
+    #watchReading() {
       if (quoted(this) || !this.#row) return;
-      this.#stopActions ??= watchActions(this, "edit", (actions) =>
-        this.#renderHistory(actions),
-      );
+      if (
+        this.#ta &&
+        !this.#resumeProjection &&
+        this.#controller.read().actions.edit.available
+      )
+        this.#resumeProjection = this.#controller.defer();
+      this.#stopActions ??= this.#controller.subscribe((reading) => {
+        this.#renderHistory(reading.actions.edit.history);
+        this.#paintAvailability();
+        if (this.#ta && !this.#resumeProjection && reading.actions.edit.available)
+          this.#resumeProjection = this.#controller.defer();
+      });
     }
 
     #watchDraft() {
@@ -407,7 +416,7 @@ customElements.define(
       keeps(this.#save, "aria-label", this.#failed ? "Retry" : "Save");
       setMarginEntryState(this.#cancel, this.#failed ? "failed" : "engaged");
       setMarginEntryState(this.#pencil, this.#sending ? "busy" : "idle");
-      const available = actionAvailable(this, "edit");
+      const available = this.#available();
       // The action sequence this paint follows arrives on every heartbeat, so each of
       // these states is written on a page nobody has touched. State only what changed.
       const reach = (control, blocked) => {
@@ -438,6 +447,19 @@ customElements.define(
     #paintAvailability = () => {
       if (this.#pencil) this.#paintButtons({ notify: false });
     };
+
+    #available() {
+      return Boolean(this.#controller.read().actions.edit?.available);
+    }
+
+    #dispatch(text, attempt) {
+      return this.#controller.dispatch({
+        kind: "action",
+        verb: "edit",
+        detail: { text },
+        ...(attempt && { attempt }),
+      });
+    }
 
     #delta(before, after, cache = true) {
       const line = document.createElement("div");
@@ -553,7 +575,7 @@ customElements.define(
     }
 
     async #restore(text, label) {
-      if (!actionAvailable(this, "edit")) return;
+      if (!this.#available()) return;
       if (this.#sending) {
         notice("Wait for the current edit to finish sending");
         return;
@@ -567,11 +589,11 @@ customElements.define(
       this.setAttribute("aria-busy", "true");
       this.#paintButtons();
       this.#body.textContent = text;
-      const ok = await sendAction(this, "edit", { text });
+      const ok = await this.#dispatch(text)?.delivery;
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#paintButtons();
-      this.#renderHistory(actionSequence(this, "edit"));
+      this.#renderHistory(this.#controller.read().actions.edit.history);
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
@@ -594,6 +616,7 @@ customElements.define(
         notice("Wait for the current edit to finish sending");
         return;
       }
+      if (this.#available()) this.#resumeProjection ??= this.#controller.defer();
       const ta = offer("textarea", "lf-draft-edit");
       ta.name = "edit";
       // A set-aside edit outranks the authored text here too: reopening resumes it.
@@ -671,12 +694,13 @@ customElements.define(
       if (stood) this.#pencil.focus();
       // Replay may have been held by this editor. Its close is the generic projection
       // invalidation that lets the state feed retry the complete reading now.
-      projectionChanged();
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
     }
 
     async #commit() {
       if (!this.#ta || this.#sending) return;
-      if (!actionAvailable(this, "edit")) return;
+      if (!this.#available()) return;
       const text = this.#ta.value;
       if (text === this.#body.textContent) {
         this.#close(true);
@@ -689,12 +713,12 @@ customElements.define(
       const ok = await sendDraft(
         ctx(this.id),
         () => true,
-        (attempt) => sendAction(this, "edit", { text }, { attempt }),
+        (attempt) => this.#dispatch(text, attempt)?.delivery ?? null,
       );
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#paintButtons();
-      this.#renderHistory(actionSequence(this, "edit"));
+      this.#renderHistory(this.#controller.read().actions.edit.history);
       if (ok) {
         notice(`Edited “${this.id}” — sent`);
       } else {
@@ -715,7 +739,6 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     renderState(state) {
-      if (this.#ta) return false;
       if (this.#body.textContent !== state.body.value)
         this.#body.textContent = state.body.value;
     }

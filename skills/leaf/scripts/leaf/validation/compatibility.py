@@ -1,19 +1,17 @@
-"""Incoming registry and standing-event compatibility validation."""
+"""Registry composition and candidate-revision compatibility validation."""
 
 from pathlib import Path
 
 from leaf import event_contracts
 from leaf.event_meaning import stored_meaning_error
-from leaf.files import read_json
+from leaf.events import taken_back
 from leaf.registry.contract import RegistryError, read_registry_declarations
 from leaf.registry.layer import merge_layer_declarations
 from leaf.registry.validation import validate_registry
 from leaf.requests import (
     declared_request_error,
-    receipt_contract_error,
-    request_document,
-    request_lifecycle_error,
 )
+from leaf.revision_artifact import read_artifact
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_structure
 
@@ -52,61 +50,61 @@ def incoming_registry(packages: list) -> dict:
     return validate_registry_examples(validate_registry(merged, source), source)
 
 
-# ---------- the vocabulary stamp ----------
-# The registry vendored into a page is also that page's statement of what its
-# runtime speaks: $events names the event kinds and the fields each carries,
-# x-state (per widget) each tag's verbs and detail schemas. Nothing else on disk
-# says so. `page init` refuses a re-vendor that would retire or reshape a contract
-# still present in the log.
-#
-# That refusal is the third door a decision can be lost through, after version-scoping
-# and hand-copying: the log is append-only and its verbs are a forever-contract, so
-# fifteen of one page's own `decide` events fell silent when the verb was retired under
-# them. Only the stamp makes that a refusal rather than a quiet no-op.
+def candidate_vocabulary_gaps(
+    page_dir: Path,
+    events: list,
+    document: SourceDocument,
+    incoming: dict,
+    through_revision: int,
+) -> list[str]:
+    """Contracts the candidate would drop from its page or frozen-thread projection.
 
-
-def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
-    """What the page's log says that the *incoming* layer no longer speaks:
-    events its $events record schemas reject; reactions on a token its
-    $reactions drops; comments whose conversation contract changed; or
-    actions and reports whose sending tag, verb, or detail the incoming x-state
-    or x-report contract rejects. Empty for a fresh page.
-    Counted, because the number is the cost — each is a recorded event that
-    would never replay again."""
+    Page events participate only while their sender exists in this candidate. Older
+    documents use their captured registries. Frozen thread markup has no revision
+    boundary, so its markup and commands remain part of every candidate. Every action
+    that can be classified is checked, rather than only the current winner, because
+    undoing a later action exposes its predecessor.
+    """
     if not events:
         return []
-    contracts = incoming["$events"]["kinds"]
     tokens = incoming.get("$reactions", {}).get("tokens", {})
     thread = thread_structure(events)
-    prior_registry = read_json(page_dir / "registry.json") or {}
     revisions = {}
+    registries = {}
 
     def page(revision):
         if revision not in revisions:
             revisions[revision] = parse_revision(page_dir, revision)
         return revisions[revision]
 
+    def registry(revision):
+        if revision not in registries:
+            registries[revision] = read_artifact(page_dir, revision).registry
+        return registries[revision]
+
+    def page_event_participates(event):
+        return (
+            event["revision"] <= through_revision and event["widget"] in document.by_id
+        )
+
+    def anchor_participates(event):
+        target = event.get("holds") or (event.get("anchor") or {}).get("section")
+        return target in document.by_id
+
     missing = {}
-    prior = []
+    withdrawn = taken_back(events)
     for e in events:
         kind = e["kind"]
         key = None
-        if kind not in contracts:
-            key = f"kind `{kind}`"
-        elif error := event_contracts.event_record_error(contracts[kind], e):
-            key = f"kind `{kind}` record: {error}"
-        elif e.get("token") and e["token"] not in tokens:
-            # A token the layer drops has no glyph to paint and no chip to withdraw
-            # it by, so a standing reaction on it would fall silent — the verb rule
-            # (`declared_action_error`) read for the reaction vocabulary.
+        if e.get("token") and e["id"] not in withdrawn and e["token"] not in tokens:
             key = f"reaction token `{e['token']}` no longer declared by $reactions"
-        elif (
+        elif anchor_participates(e) and (
             (
                 kind == "comment"
                 and e.get("holds")
                 and (
                     error := event_contracts.held_comment_error(
-                        e, page(e["revision"]).by_id, incoming
+                        e, document.by_id, incoming
                     )
                 )
             )
@@ -115,14 +113,16 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
                 and e.get("response")
                 and (
                     error := event_contracts.version_response_comment_error(
-                        e, page(e["revision"]).by_id, incoming
+                        e, document.by_id, incoming
                     )
                 )
             )
-            or kind == "comment"
-            and (
-                error := event_contracts.visual_anchor_error(
-                    e, page(e["revision"]).by_id, incoming
+            or (
+                kind == "comment"
+                and (
+                    error := event_contracts.visual_anchor_error(
+                        e, document.by_id, incoming
+                    )
                 )
             )
         ):
@@ -130,53 +130,47 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
         elif (
             kind == "reply"
             and (e.get("anchor") or {}).get("visual")
+            and anchor_participates(e)
             and (
                 error := event_contracts.visual_anchor_error(
-                    e, page(e["revision"]).by_id, incoming
+                    e, document.by_id, incoming
                 )
             )
         ):
             key = f"reply contract: {error}"
-        elif kind == "action" and (
-            error := event_contracts.declared_action_error(
-                e,
-                page(e["revision"]).by_id,
-                thread.by_id,
-                incoming,
-                prior_registry,
-            )
-        ):
-            key = f"action contract: {error}"
-        elif kind == "request" and (
-            error := declared_request_error(e, page(e["revision"]), thread, incoming)
-            or request_lifecycle_error(
-                e,
-                prior,
-                request_document(e, page(e["revision"]), thread)[2],
-            )
-        ):
-            key = f"request contract: {error}"
-        elif kind == "receipt" and (error := receipt_contract_error(e, prior)):
-            key = f"receipt contract: {error}"
-        elif kind == "report" and (
-            error := event_contracts.report_contract_error(
-                e, page(e["revision"]).by_id, incoming
-            )
-        ):
-            key = f"report contract: {error}"
         elif e.get("markup") and (
             errors := thread_markup_contract_errors(thread.fragments[e["id"]], incoming)
         ):
             key = "thread markup contract: " + "; ".join(errors)
-        elif kind in {"action", "report", "request"} and (
-            error := stored_meaning_error(
-                e, page(e["revision"]), thread, incoming, prior_registry
+        elif kind in {"action", "report", "request"}:
+            scope = e["meaning"]["document"]["kind"]
+            participates = scope == "thread" or (
+                kind in {"action", "report"} and page_event_participates(e)
             )
-        ):
-            key = f"admitted meaning: {error}"
-        else:
-            key = None
-        prior.append(e)
+            if participates:
+                original_page = page(e["revision"])
+                candidate_page = document if scope == "page" else SourceDocument("")
+                if kind == "action":
+                    error = event_contracts.declared_action_error(
+                        e, candidate_page.by_id, thread.by_id, incoming
+                    )
+                elif kind == "report":
+                    error = event_contracts.report_contract_error(
+                        e, candidate_page, incoming, resolve_references=False
+                    )
+                else:
+                    error = declared_request_error(e, document, thread, incoming)
+                if error:
+                    key = f"{kind} contract: {error}"
+                elif error := stored_meaning_error(
+                    e,
+                    candidate_page,
+                    thread,
+                    incoming,
+                    registry(e["revision"]),
+                    recorded_page=original_page,
+                ):
+                    key = f"admitted meaning: {error}"
         if key is not None:
             missing[key] = missing.get(key, 0) + 1
     return [

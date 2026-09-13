@@ -1048,6 +1048,292 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     assert errors == []
 
 
+def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve):
+    """A transient Lit fault cannot mix a candidate card with old list readings."""
+    url = serve(LONG_PAGE, comments=2)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": roots[0]},
+    )
+    root = roots[1]
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
+        "Showing 1 of 2"
+    )
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    page.evaluate(
+        """async (id) => {
+          const application = await window.__lfRuntimeImport('/runtime/application.js');
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const list = document.querySelector('leaf-thread-list');
+          const render = list.render.bind(list);
+          let armed = true;
+          list.render = () => {
+            if (armed) {
+              armed = false;
+              window.threadListFailed = true;
+              throw new Error('injected thread-list failure');
+            }
+            return render();
+          };
+          window.threadListApplication = application;
+          window.threadListPresentation = presentation;
+          window.committedThread = document.querySelector(
+            `.lf-thread[data-id="${id}"]`
+          );
+        }""",
+        root,
+    )
+    held_events = []
+    page.route("**/api/event", lambda route: held_events.append(route))
+    page.evaluate(
+        'id => document.querySelector(`.lf-thread[data-id="${id}"] .lf-resolve`)'
+        ".click()",
+        root,
+    )
+    page.wait_for_function(
+        "() => threadListFailed && "
+        "!threadListPresentation.readApplicationPresentation().pending.length",
+        timeout=5000,
+    )
+
+    recovered = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(recovered).to_have_count(1)
+    expect(recovered).to_be_visible()
+    expect(recovered.locator("textarea")).to_have_count(0)
+    assert not page.evaluate(
+        'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
+        "=== committedThread",
+        root,
+    )
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
+        "Showing 2 of 2"
+    )
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    assert errors == ["leaf: Presentation failed: injected thread-list failure"]
+    page.evaluate(
+        "id => { window.recoveredThread = document.querySelector("
+        '`.lf-thread[data-id="${id}"]`); }',
+        root,
+    )
+
+    page.evaluate("threadListApplication.refreshConversation()")
+    expect(recovered).to_be_visible()
+    expect(recovered).to_have_attribute("data-resolved", "true")
+    expect(recovered.locator("textarea")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
+        "Showing 2 of 2"
+    )
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    assert page.evaluate(
+        'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
+        "=== recoveredThread",
+        root,
+    )
+    assert errors == ["leaf: Presentation failed: injected thread-list failure"]
+    held_events[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    assert errors == ["leaf: Presentation failed: injected thread-list failure"]
+    page.close()
+
+
+def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, serve):
+    """A discarded filter repaint cannot turn its owned failure into pageerror."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('leaf-thread-list');
+          const render = list.render.bind(list);
+          let failures = 2;
+          list.render = () => {
+            if (failures-- > 0) throw new Error('deliberate narrowing failure');
+            return render();
+          };
+        }"""
+    )
+
+    page.get_by_role("searchbox", name="Find in threads").fill("comment")
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+    expected = ["leaf: Presentation failed: presentation and fail-soft failed"]
+    assert errors == expected
+
+    page.get_by_role("searchbox", name="Find in threads").fill("")
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return !readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+    assert errors == expected
+
+
+def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, serve):
+    """A follow-up presentation fault cannot reject the discarded click handler."""
+    browser, held = held_events
+    url = serve(LONG_PAGE, comments=1)
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": root},
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator('[data-filter-value="resolved"]').click()
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('leaf-thread-list');
+          const render = list.render.bind(list);
+          let failures = 2;
+          list.render = () => {
+            const row = list.model.rows.find(({kind}) => kind === 'thread');
+            if (row?.visible && failures-- > 0)
+              throw new Error('deliberate reveal failure');
+            return render();
+          };
+        }"""
+    )
+
+    page.get_by_role("button", name="Reopen", exact=True).click()
+    holding(page, held, 2, "the reopen and its presentation report")
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+    expected = ["leaf: Presentation failed: presentation and fail-soft failed"]
+    assert errors == expected
+
+    routes = {route.request.post_data_json["kind"]: route for route in held}
+    held.clear()
+    routes["error"].continue_()
+    route = routes["unresolve"]
+    route.fulfill(
+        json={
+            "ok": False,
+            "final": True,
+            "attempt": route.request.post_data_json["attempt"],
+            "error": "Please retry.",
+        }
+    )
+    round_trip(page)
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return !readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_be_visible()
+    expect(page.get_by_role("button", name="Reopen", exact=True)).to_be_visible()
+    assert errors == expected
+    page.close()
+
+
+def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
+    """A system-row age is presented mechanically without advancing semantic time."""
+    url = serve(LONG_PAGE, comments=1)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "done",
+            "author": "user",
+            "revision": 1,
+            "version": 1,
+            "text": "Looks good",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    system = page.locator(".lf-threads > .lf-system")
+    expect(system).to_have_text("✓ Approved just now")
+    before = page.evaluate(
+        """async () => {
+          const list = document.querySelector('leaf-thread-list');
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          list.scheduleUpdate = () => {
+            if (!armed) return schedule();
+            armed = false;
+            return held.then(schedule);
+          };
+          window.releaseConversationClock = release;
+          window.conversationPresence = await window.__lfRuntimeImport(
+            '/runtime/presence.js'
+          );
+          window.conversationPresentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return conversationPresentation.readApplicationPresentation();
+        }"""
+    )
+    held = page.evaluate(
+        """() => {
+          conversationPresence.observeServerNow(
+            new Date(Date.now() + 60_000).toISOString()
+          );
+          window.conversationClockTick = conversationPresence.tickClock(() => {});
+          window.conversationClockReady = false;
+          conversationPresentation.whenApplicationPresented().then(() => {
+            window.conversationClockReady = true;
+          });
+          const reading = conversationPresentation.readApplicationPresentation();
+          return {
+            pending: reading.pending,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+            ready: conversationClockReady,
+          };
+        }"""
+    )
+    assert "conversation" in held["pending"]
+    assert held["semanticEpoch"] == before["semanticEpoch"]
+    assert held["presentedEpoch"] == before["presentedEpoch"]
+    assert held["ready"] is False
+
+    page.evaluate("releaseConversationClock()")
+    page.wait_for_function("conversationClockReady", timeout=3000)
+    page.evaluate("conversationClockTick")
+    expect(system).to_have_text("✓ Approved 1m ago")
+    after = page.evaluate("conversationPresentation.readApplicationPresentation()")
+    assert after["semanticEpoch"] == before["semanticEpoch"]
+    assert after["presentedEpoch"] == before["presentedEpoch"]
+    assert errors == []
+    page.close()
+
+
 def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve):
     """The list is the page's order, not the log's. A reader walking a long
     conversation walks it the way they walk the prose it is about, and every other
@@ -1066,7 +1352,7 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "about": "layer",
+            "about": "design",
             "text": "The middle third is too long.",
         },
     )["id"]
@@ -1088,10 +1374,10 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
         whole,
     ], "the panel is not reading in the page's order"
 
-    # A layer comment about the page as a whole has an address to show but no passage
+    # A design comment about the page as a whole has an address to show but no passage
     # to return to. It is a static label, not a broken anchored-thread control.
     whole_label = page.locator(f'.lf-thread[data-id="{whole}"] .lf-quote')
-    expect(whole_label).to_have_text("layer · the page")
+    expect(whole_label).to_have_text("design · the page")
     expect(whole_label).not_to_have_class(re.compile(r"\bdetached\b"))
     expect(whole_label).not_to_have_attribute("role", "button")
 
@@ -1487,14 +1773,14 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     waiting = panel_comment(
         d, "Which local wording is right?", {"section": "lede"}, "claude"
     )
-    layer = events_model.append_event(
+    design = events_model.append_event(
         d,
         {
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "about": "layer",
-            "text": "The layer control is crowded.",
+            "about": "design",
+            "text": "The shortcut control is crowded.",
             "anchor": {"section": "lf-shortcut-bar"},
         },
     )["id"]
@@ -1519,7 +1805,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(page.locator('[data-filter-value="page"]')).to_have_text("Page (1)")
     expect(page.locator('[data-filter-value="local"]')).to_have_text("Anchored (3)")
     expect(page.locator('[data-filter-value="content"]')).to_have_text("Content (3)")
-    expect(page.locator('[data-filter-value="layer"]')).to_have_text("Layer (1)")
+    expect(page.locator('[data-filter-value="design"]')).to_have_text("Design (1)")
     expect(page.locator('[data-filter-value="gone"]')).to_have_text(
         "No longer here (1)"
     )
@@ -1555,7 +1841,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     page.locator('[data-filter-value="content"]').click()
     expect(visible).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{gone}"]')).to_be_visible()
-    expect(page.locator(f'.lf-thread[data-id="{layer}"]')).to_be_hidden()
+    expect(page.locator(f'.lf-thread[data-id="{design}"]')).to_be_hidden()
     page.locator('[data-filter-value="gone"]').click()
     expect(visible).to_have_count(1)
 
@@ -1567,7 +1853,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    for value in ("page", "local", "content", "layer", "gone"):
+    for value in ("page", "local", "content", "design", "gone"):
         expect(page.locator(f'[data-filter-value="{value}"]')).to_have_attribute(
             "aria-pressed", "false"
         )
@@ -2931,10 +3217,10 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     assert errors == []
 
 
-def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, serve):
+def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
     """A part that stands over both documents is in neither, and nothing travels to it.
 
-    Design mode lets a reader comment on the layer's own parts, and several of them are
+    Design mode lets a reader comment on fixed runtime parts, and several of them are
     `position: fixed` — the shortcut bar, the banner, the composer. Such a part is on screen
     already, and it is in no scroller's flow, so its rect answers to the viewport rather
     than to either region's scroll. `scrollerFor` says which of the two regions an
@@ -2958,16 +3244,16 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
                 "text": f"Aside {n}. " + "Long enough to wrap in the panel. " * 4,
             },
         )
-    # The shape design mode writes about the layer: `about` says which, and the anchor
+    # The shape design mode writes about design: `about` says which, and the anchor
     # names the part the runtime gave an id.
     events_model.append_event(
         d,
         {
             "kind": "comment",
-            "id": "fx-on-layer",
+            "id": "fx-on-design",
             "author": "user",
             "revision": 1,
-            "about": "layer",
+            "about": "design",
             "text": "The shortcut bar reads dim against the wash.",
             "anchor": {"section": "lf-shortcut-bar"},
         },
@@ -2991,17 +3277,18 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     page, errors = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    expect(page.locator(".lf-group", has_text="Page design")).to_have_count(1)
     expect(page.locator(".lf-shortcut-bar")).to_be_visible()
 
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     # Where the reader is standing when they press: the thread on screen, which is
     # also what the driver's own scroll-into-view would arrange. Read after it, so the
     # baseline is the page as the press finds it rather than as the test left it.
-    thread = page.locator('.lf-thread[data-id="fx-on-layer"] .lf-quote')
+    thread = page.locator('.lf-thread[data-id="fx-on-design"] .lf-quote')
     thread.scroll_into_view_if_needed()
     before = page.evaluate(BOTH_BOXES)
     seen = """() => {
-      const t = document.querySelector('.lf-thread[data-id="fx-on-layer"]');
+      const t = document.querySelector('.lf-thread[data-id="fx-on-design"]');
       const view = document.querySelector('.lf-threads').getBoundingClientRect();
       return t ? t.getBoundingClientRect().top - view.top : null;
     }"""
@@ -3012,7 +3299,7 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     after = page.evaluate(BOTH_BOXES)
 
     assert after == before, (
-        f"a thread about a fixed part of the layer moved something: {before} -> {after}"
+        f"a design thread about fixed chrome moved something: {before} -> {after}"
     )
     assert page.evaluate(seen) == stood, (
         "the press moved the thread the reader pressed, which is the surface they were "
@@ -3266,7 +3553,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
     panel_settled(page)
     parts = page.evaluate(
         """async () => {
-             const { shownParts } = await import('/runtime/widget-api.js');
+             const { shownParts } = await window.__lfRuntimeImport('/runtime/widget-api.js');
              const el = document.getElementById('tv-decision');
              return { boxless: el.getBoundingClientRect().height === 0,
                       display: getComputedStyle(el).display,

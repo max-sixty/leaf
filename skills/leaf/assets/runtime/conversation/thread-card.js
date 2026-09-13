@@ -92,7 +92,7 @@ export function threadNode(t, grow, commands) {
     const quote = el("blockquote", "lf-quote");
     quote.append(el("span", "lf-quote-label", label));
     // An anchored label is words and a press at once: it says which passage the
-    // comment is about, and pressing it travels there. A page-wide layer label has no
+    // comment is about, and pressing it travels there. A page-wide design label has no
     // destination, so paintThreadQuotes leaves it as static words. A drag across an
     // anchored label is the reader taking the words, so the travel stands down — the
     // reading `offer` makes of its own controls, which this is not one of.
@@ -137,11 +137,12 @@ export function threadNode(t, grow, commands) {
         let mayRestore = () => false;
         return {
           optimistic: () => {
-            if (!mayLand()) return;
+            if (!mayLand()) return false;
             const kept = openThreads();
             const destination = kept[at] ?? kept[at - 1] ?? threadsBox;
             destination.focus({ preventScroll: true });
             mayRestore = travel.retainPanelLanding(destination);
+            return true;
           },
           refused: () => {
             if (mayRestore()) shownCard()?.focus({ preventScroll: true });
@@ -187,21 +188,22 @@ export function threadNode(t, grow, commands) {
         const narrowing = travel.retainNarrowing();
         let mayRestore = () => false;
         return {
-          optimistic: () => {
-            if (!mayLand()) return;
-            travel.showThread(liveId());
+          optimistic: async () => {
+            if (!mayLand()) return false;
+            await travel.showThread(liveId());
             narrowing.replaced();
             const destination = shownCard();
             if (destination) mayRestore = travel.retainPanelLanding(destination);
+            return Boolean(destination);
           },
-          refused: () => {
+          refused: async () => {
             const restoreFocus = mayRestore();
-            narrowing.restore(() => {
+            await narrowing.restore(async () => {
               if (!restoreFocus) return;
               // Restoring the resolved state folds the optimistic open card. Finish
               // that transition through the ordinary direct-arrival path before
               // putting back the narrower view it clears.
-              travel.showThread(liveId(), { focus: "thread" });
+              await travel.showThread(liveId(), { focus: "thread" });
             });
           },
         };

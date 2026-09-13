@@ -74,22 +74,20 @@
    that names it. A control that itself stands under a fixed bar is not a finding —
    that is a fact about where it was put — and neither is a box too tall for the region
    it is in. */
-import { el } from "../widget-elements.js";
 import { scrollBehavior } from "../motion.js";
 import { threadsBox } from "./panel-elements.js";
 import { pointerAt } from "../pointer.js";
 import { focused } from "../keyboard/scopes.js";
-import { conversational } from "./model.js";
+import { conversational, threadKey } from "./model.js";
 import { runtime } from "../context.js";
 import { ago } from "../presence.js";
-import { setChildren } from "../dom-children.js";
-import { removeConversationNode } from "./reaction-strips.js";
-import { settling } from "../widget-upgrade.js";
+import { retireConversationNode } from "./reaction-strips.js";
+import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { captureAuthoredFacets } from "../projection/authored.js";
 import { reachScrollers } from "../reach.js";
 import { foldOut, hasFolding, isFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
-import { inFilter, noMatchNote, paintNarrowing } from "./narrowing.js";
+import { inFilter, noMatchText, paintNarrowing } from "./narrowing.js";
 import { paintThreadQuotes, threadNode } from "./thread-card.js";
 
 // The open threads, in the order t/T walk either surface. The panel's children are the
@@ -104,51 +102,8 @@ export const openThreads = ({
       (panelOpen || thread.dataset.resolved !== "true"),
   );
 
-const emptyNote = el(
-  "div",
-  "lf-empty",
-  "No threads yet. Select any text on the page to comment on it, or use the box below.",
-);
-
-// The heading over a run of threads, kept across reconciles so a scroll position, a focus
-// ring and the sticky pin survive a poll. A button where the page still holds the heading
-// it names — pressing it puts that heading at the readable start of the page — and a plain
-// line for the three runs that name no place (groupFor). A key never changes kind, so the
-// node a key holds never has to.
-const groupNodes = new Map();
-function groupNode(key, group, commands) {
-  let node = groupNodes.get(key);
-  if (!node) {
-    node = group.target
-      ? el("button", "lf-group lf-pinned")
-      : el("div", "lf-group lf-pinned");
-    if (group.target) {
-      node.type = "button";
-      node.title = "Jump to this part of the page";
-    }
-    node.dataset.group = key;
-    groupNodes.set(key, node);
-  }
-  if (node.textContent !== group.label) node.textContent = group.label;
-  // The press is rewired on every reconcile and the word is not: a version activation
-  // replaces the heading the group names with a new element, and the same sentence.
-  if (group.target)
-    node.onclick = () =>
-      commands.scrollToElement(group.target, scrollBehavior(), "start");
-  return node;
-}
-
-// A terminal event's row, keyed like everything else in the list so its clock can
-// refresh in place.
-function systemNode(e, text) {
-  let div = threadsBox.querySelector(`:scope > .lf-system[data-id="${e.id}"]`);
-  if (!div) {
-    div = el("div", "lf-system");
-    div.dataset.id = e.id;
-  }
-  if (div.textContent !== text) div.textContent = text;
-  return div;
-}
+const emptyText =
+  "No threads yet. Select any text on the page to comment on it, or use the box below.";
 
 // The one number in the list's scroll-padding that CSS cannot work out: a run heading
 // sticks over the top of this box, and a long one wraps, so how much of the top is
@@ -363,15 +318,25 @@ export function holdScrollPosition(mutate, panelIsOpen) {
 // no restore could give back was identity: nothing could animate, one send route kept
 // focus and the other dropped it, and a user's own comment landed below the fold
 // of a list put back exactly where it was. Nodes surviving is what deleted all of it.
-export function renderThreads(all, commands) {
-  return holdScrollPosition(
-    () => reconcileThreads(all, commands),
-    commands.panelIsOpen,
-  );
+let renderGeneration = 0;
+
+// A failed candidate may still leave one coherent list on screen. The list returns
+// that recovery to the outer conversation paint, which promotes it to this proof only
+// after every sibling surface has finished. Errors elsewhere remain pending.
+export class RetainedThreadListError extends Error {
+  constructor(reason, proof) {
+    super(reason?.message ?? String(reason), { cause: reason });
+    this.name = "RetainedThreadListError";
+    this.proof = proof;
+  }
 }
 
-function reconcileThreads(all, commands) {
-  const removeNode = (node) => removeConversationNode(node, commands.closeReactionMode);
+export function retainedThreadListProof(reason) {
+  if (!(reason instanceof RetainedThreadListError)) throw reason;
+  return reason.proof;
+}
+
+const rowModel = (all, commands) => {
   // The conversations. A bare reaction is paint on the page and a chip on the page
   // row, and counts for nothing here: no card, no destination, no place in the walk.
   const threads = all.filter(conversational);
@@ -393,9 +358,11 @@ function reconcileThreads(all, commands) {
   // and go on saying what the log says. What the panel shows is the panel's business.
   const ordered = inPageOrder(threads, commands.placedAt);
   const shown = ordered.filter((t) => inFilter(t, group.get(t)));
-  const wanted = [];
-  if (!threads.length) wanted.push(emptyNote);
-  else if (!shown.length) wanted.push(noMatchNote());
+  const rows = [];
+  if (!threads.length)
+    rows.push(Object.freeze({ kind: "empty", key: "empty", text: emptyText }));
+  else if (!shown.length)
+    rows.push(Object.freeze({ kind: "empty", key: "no-match", text: noMatchText() }));
   // Walked in the page's order rather than the log's (inPageOrder), because that is the
   // order every other reading of these threads is in: the marks down the page and the walk
   // t/T makes. A thread on its way out still stands between its
@@ -414,87 +381,80 @@ function reconcileThreads(all, commands) {
   // took that thread's node out and, with it, the question from the page's count: 2/2
   // became 1/1 while the log said nothing had changed. Hidden is a fact about this list;
   // gone is a claim about the log. Resolved threads are ordinary filtered cards too.
-  // Where the reader stood as this reconcile began, read before the loop: hiding a
-  // card dispatches lf-thread-hidden, and a listener answering it — a reaction list
-  // disarming — can move the focus out of the list itself. Read after the loop, that
-  // move said the reader had never been here, and the landing below was skipped.
-  const standingIn = threadsBox.contains(focused());
-  let standing = null;
   const visible = new Set(shown);
   for (const t of ordered) {
-    // Under the default Open state, a newly resolved card gives its room back where it
-    // stood before becoming a retained hidden card. Under the Resolved state it is an
-    // ordinary visible result and changes directly to its resolved shape.
-    const prior = t.resolved
-      ? threadsBox.querySelector(
-          `:scope > .lf-thread[data-id="${CSS.escape(t.root.id)}"]`,
-        )
-      : null;
-    const node =
-      t.resolved && isFolding(t.root.id)
-        ? foldOut(t, commands.repaintConversation)
-        : t.resolved &&
-            !visible.has(t) &&
-            prior &&
-            !prior.hidden &&
-            prior.dataset.resolved === "false"
-          ? foldOut(t, commands.repaintConversation)
-          : threadNode(t, grow, {
-              reply: commands.card.reply,
-              settlement: commands.card.settlement,
-              reaction: commands.card.reaction,
-              travel: commands.card.travel,
-              anchors: commands.card.anchors,
-              openThreads,
-            });
-    if (!node) continue;
-    const onItsWayOut = node.matches(".lf-going");
-    const hiding = !visible.has(t) && !onItsWayOut && !node.hidden;
-    node.hidden = !visible.has(t) && !onItsWayOut;
-    if (node.hidden) {
-      // Hidden is removal to everything that was standing in the card — a reaction
-      // list open on one of its messages most of all, since its digits are live keys.
-      if (hiding)
-        document.dispatchEvent(
-          new CustomEvent("lf-thread-hidden", { detail: { node } }),
-        );
-      wanted.push(node);
-      continue;
-    }
-    const here = group.get(t);
-    if (here.key !== standing) {
-      standing = here.key;
-      if (here.label) wanted.push(groupNode(here.key, here, commands));
-    }
-    wanted.push(node);
+    rows.push(
+      Object.freeze({
+        kind: "thread",
+        key: `thread:${threadKey(t)}`,
+        thread: t,
+        group: Object.freeze({ ...group.get(t) }),
+        grow,
+        visible: visible.has(t),
+      }),
+    );
   }
   for (const e of runtime.browser?.conversation?.done ?? [])
-    wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
-  // A narrowing can take the thread the reader is standing in out of the list —
-  // answering the last one waiting on the reader is exactly that — and a removed node drops
-  // focus to body, which hands the next Space to the page behind the panel. Land them on
-  // the list, where Escape lands them and t/T can walk on from.
-  setChildren(threadsBox, wanted, removeNode);
-  // A card kept but hidden still contains the focus for a moment: the browser only
-  // drops it to body at its next rendering step, after this has run. Read the hidden
-  // card as the removal it is for the reader.
-  if (
-    standingIn &&
-    (!threadsBox.contains(focused()) || focused()?.closest?.(".lf-thread[hidden]"))
-  )
-    threadsBox.focus({ preventScroll: true });
-  paintHeadRoom(commands.panelIsOpen);
-  // Frozen markup has the same initial-value boundary as a page: connected and
-  // fully upgraded, before its first projection. Async widgets register their work
-  // on connection, so take the settling queue after setChildren above. Later list
-  // reconciles retain the first capture instead of adopting a reader's live value.
-  const prepared = Promise.allSettled(settling).then(() => {
-    captureAuthoredFacets(threadsBox);
-    reachScrollers(threadsBox);
-  });
+    rows.push(
+      Object.freeze({
+        kind: "system",
+        key: `system:${e.id}`,
+        id: e.id,
+        text: `✓ Approved ${ago(e.ts)}`,
+      }),
+    );
+  return {
+    model: Object.freeze({ rows: Object.freeze(rows) }),
+    groups: group,
+    open,
+    shown,
+    threads,
+  };
+};
 
+function materializeThread(row, commands) {
+  const t = row.thread;
+  // Under the default Open state, a newly resolved card gives its room back where it
+  // stood before becoming a retained hidden card. Under the Resolved state it is an
+  // ordinary visible result and changes directly to its resolved shape.
+  const prior = t.resolved
+    ? threadsBox.querySelector(
+        `:scope > .lf-thread[data-id="${CSS.escape(t.root.id)}"]`,
+      )
+    : null;
+  if (t.resolved && isFolding(t.root.id))
+    return foldOut(t, commands.repaintConversation);
+  if (
+    t.resolved &&
+    !row.visible &&
+    prior &&
+    !prior.hidden &&
+    prior.dataset.resolved === "false"
+  )
+    return foldOut(t, commands.repaintConversation);
+  return threadNode(t, row.grow, {
+    reply: commands.card.reply,
+    settlement: commands.card.settlement,
+    reaction: commands.card.reaction,
+    travel: commands.card.travel,
+    anchors: commands.card.anchors,
+    openThreads,
+  });
+}
+
+function configureList(commands) {
+  threadsBox.configure({
+    activateGroup: (target) =>
+      commands.scrollToElement(target, scrollBehavior(), "start"),
+    materialize: (row) => materializeThread(row, commands),
+    retire: (node) => retireConversationNode(node, commands.closeReactionMode),
+  });
+}
+
+function postPaint({ groups, open, shown, threads }, commands) {
+  paintHeadRoom(commands.panelIsOpen);
   commands.setThreadCount(open.length);
-  paintNarrowing(threads, shown, group);
+  paintNarrowing(threads, shown, groups);
   // The anchor pass wrote its record before this list existed, and this reconcile may have
   // built the nodes that wear it. Both passes therefore repaint it: the one that changes
   // the record, and the one that changes what the record is painted on.
@@ -506,5 +466,118 @@ function reconcileThreads(all, commands) {
   // Narrowing and reconciliation can move another card under a pointer that did not
   // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
   commands.refreshAnchorHover();
-  return prepared;
+}
+
+async function prepareFrozenWidgets(current) {
+  // Frozen markup has the same initial-value boundary as a page: connected and fully
+  // presented, before its first projection. Later list reconciles retain the first
+  // capture instead of adopting a reader's live value.
+  const root = readApplication();
+  const uncaptured = [...root.document.descriptors.values()]
+    .filter(
+      (descriptor) =>
+        descriptor.document.kind === "thread" &&
+        !root.document.authored.has(descriptor.id) &&
+        threadsBox.querySelector(`#${CSS.escape(descriptor.id)}`),
+    )
+    .map((descriptor) => descriptor.id);
+  await whenWidgetsPresented(uncaptured);
+  if (!current()) return;
+  captureAuthoredFacets(threadsBox);
+  reachScrollers(threadsBox);
+}
+
+async function retainCommitted(current, candidate) {
+  if (!current()) return;
+  try {
+    await threadsBox.retainCommitted(candidate);
+  } catch (retaining) {
+    throw new AggregateError(
+      [retaining],
+      "Thread list presentation and retention failed",
+    );
+  }
+}
+
+// A renderer exception can be transient (for example, a custom element upgrading in
+// the same turn). Restore the committed list before one retry so a second render starts
+// from a coherent tree. Only a retry that fully paints the candidate can prove the
+// surrounding conversation reading; a second failure leaves the region pending.
+async function presentList(model, current) {
+  try {
+    if (!(await threadsBox.present(model)) || !current()) return null;
+    return { recovered: null };
+  } catch (error) {
+    if (!current()) return null;
+    await retainCommitted(current, model);
+    if (!current()) return null;
+    try {
+      if (!(await threadsBox.present(model)) || !current()) return null;
+    } catch (retrying) {
+      if (!current()) return null;
+      await retainCommitted(current, model);
+      throw new AggregateError(
+        [error, retrying],
+        "Thread list presentation retry failed",
+      );
+    }
+    return { recovered: error };
+  }
+}
+
+// The Lit update, its geometry-dependent paint, and newly connected frozen widgets are
+// one proof for the existing conversation presentation ticket. Only the newest call can
+// run post-paint work, capture authored values, or commit a fallback.
+export async function renderThreads(all, commands) {
+  const generation = ++renderGeneration;
+  const current = () => generation === renderGeneration;
+  const reading = rowModel(all, commands);
+  configureList(commands);
+  const hold = takeScrollHold(commands.panelIsOpen);
+  let held = true;
+  let recovered = null;
+  try {
+    const candidate = await presentList(reading.model, current);
+    if (!candidate) return;
+    recovered = candidate.recovered;
+    postPaint(reading, commands);
+    // The keyed list and its count/narrowing/quote readings are one committed candidate.
+    // Frozen descendants remain inside the conversation ticket below, but their own
+    // fail-soft settlement cannot roll this coherent parent reading back by itself.
+    threadsBox.commit(reading.model);
+    finishScrollHold(hold, commands.panelIsOpen);
+    held = false;
+    await prepareFrozenWidgets(current);
+  } catch (error) {
+    if (!current()) return;
+    await retainCommitted(current, reading.model);
+    throw error;
+  } finally {
+    if (held) finishScrollHold(hold, commands.panelIsOpen);
+  }
+  return { recovered, proof: threadsBox };
+}
+
+export async function renderThreadListUnavailable(text, commands) {
+  const generation = ++renderGeneration;
+  const current = () => generation === renderGeneration;
+  configureList(commands);
+  const model = Object.freeze({
+    rows: Object.freeze([Object.freeze({ kind: "empty", key: "unavailable", text })]),
+  });
+  const hold = takeScrollHold(commands.panelIsOpen);
+  let recovered = null;
+  try {
+    const candidate = await presentList(model, current);
+    if (!candidate) return;
+    recovered = candidate.recovered;
+    paintHeadRoom(commands.panelIsOpen);
+    threadsBox.commit(model);
+  } catch (error) {
+    await retainCommitted(current, model);
+    throw error;
+  } finally {
+    finishScrollHold(hold, commands.panelIsOpen);
+  }
+  return { recovered, proof: threadsBox };
 }

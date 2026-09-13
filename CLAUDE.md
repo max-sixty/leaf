@@ -137,6 +137,18 @@ does not reconstruct widgets or replay baseline actions into the DOM. Page-widge
 state is bounded by document version; widgets frozen into thread markup use the
 conversation window.
 
+The active document has one immutable application publication. Its publisher alone
+combines authored baselines, the complete admitted server reading, and the ordered
+unresolved ledger into current state; browser components consume read-only selections
+from it. Presentation proof is separate: it records whether required renderers have
+committed the active document's current semantic epoch. Renderer nodes, promises, and
+DOM attributes never enter the semantic snapshot.
+
+Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their
+mechanical browser owners until a gesture becomes a declared application fact. Their
+renderings are not semantic authority, and repainting them does not create a semantic
+epoch.
+
 Python also derives one top-level `activity` reading from the agent's status
 declaration, claim and turn identity, watcher lease, pickup events, and unsettled
 reader moves. The banner, thread receipts, margin receipts, neighboring-page rows,

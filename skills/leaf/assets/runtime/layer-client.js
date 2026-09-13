@@ -9,13 +9,14 @@
    sequence meets the old DOM. Do not let one delivery interpret another's state.
 
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
-   its own element so the rest of the page and Threads remain usable, but it does not
-   convert a partial state read into a committed one. The window error listener, module
-   load failures, and render gate all report through the same page-level evidence. Do not
-   catch an error merely to stamp readiness or continue accounting for pending attempts. */
+   its own element so the rest of the page and Threads remain usable, but a presentation
+   failure neither rolls back accepted semantic state nor proves pending receipts were
+   shown. The window error listener, module load failures, and render gate all report
+   through the same page-level evidence. Do not catch an error merely to stamp readiness
+   or continue accounting for pending attempts. */
 
 import { countTraffic } from "./traffic.js";
-import { runtime } from "./context.js";
+import { offlineInteractive, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 
 const layerGeneration = "__LEAF_LAYER_GENERATION__";
@@ -39,6 +40,9 @@ function reloadDelivery(message) {
 export function layerHeaders(headers = {}) {
   return {
     "Leaf-Layer": layerGeneration,
+    ...(runtime.currentRevision && {
+      "Leaf-View-Revision": String(runtime.currentRevision),
+    }),
     ...(release && { "Leaf-Release": release }),
     ...headers,
   };
@@ -108,6 +112,8 @@ const layerReady = new Promise((resolve) => (revealLayer = resolve));
 // the sending: same path, same method, same encoding, so a door that moved would move
 // for both. Whether a send waits on the one before it belongs to the caller.
 export const postEvent = async (event) => {
+  if (offlineInteractive)
+    throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
   let response;
@@ -116,9 +122,6 @@ export const postEvent = async (event) => {
       method: "POST",
       headers: layerHeaders({
         "Content-Type": "application/json",
-        ...(runtime.currentRevision && {
-          "Leaf-View-Revision": String(runtime.currentRevision),
-        }),
       }),
       body: JSON.stringify(event),
     });
@@ -135,6 +138,8 @@ export const postEvent = async (event) => {
 // derives the served extension and returns the canonical page-relative path. Like an
 // event POST, this request waits for a known layer and accounts for its whole trip.
 export const uploadMedia = async (file) => {
+  if (offlineInteractive)
+    throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
   let response;
@@ -179,6 +184,7 @@ export const uploadMedia = async (file) => {
 const reportedErrors = new Set();
 export function reportPageError(text) {
   console.error(`leaf: ${text}`);
+  if (offlineInteractive) return;
   if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
   reportedErrors.add(text);
   postEvent({

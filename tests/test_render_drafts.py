@@ -168,7 +168,7 @@ def test_page_round_trip(browser, serve):
     final assertion is the event log — the trail Claude reads — down to the
     anchor's quote, the move's placement, and the edit's text."""
     page, errors = open_page(browser, live_url(serve(JOURNEY_V1)))
-    page.evaluate("window.__leafJourneyDocument = 'held'")
+    original_document = page.evaluate("performance.timeOrigin")
 
     # Select the passage from the keyboard's path: a real Range, then the keyup
     # the runtime watches for keyboard selections. Comment explicitly enters its field.
@@ -237,8 +237,8 @@ def test_page_round_trip(browser, serve):
     stamp_version_file(d, 2, "moved")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    assert page.evaluate("window.__leafJourneyDocument") == "held", (
-        "the live journey navigated instead of activating its authored version"
+    assert page.evaluate("performance.timeOrigin") != original_document, (
+        "the live journey kept the previous browser document"
     )
     assert "/versions/" not in page.url
     # The anchor pass runs at render: a mark now means the quote was re-found in
@@ -1285,7 +1285,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     # offer stands unseen until some view of this thread is next built and reads it.
     standing = page.evaluate(
         """async (ctx) => {
-          const api = await import('/runtime/widget-api.js');
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return api.loadDraft(ctx);
         }""",
         f"reply:{root['id']}",
@@ -1556,6 +1556,11 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
 
+    # The untouched reply was disposable UI in the old document. The thread remains
+    # in the log and the reader reopens its inline seat in the new document.
+    page.keyboard.press("t")
+    page.get_by_role("button", name="Reply", exact=True).click()
+    expect(reply).to_be_visible()
     reply.fill("A thought I changed my mind about.")
     reply.fill("")
     # A thread's reply draft is keyed by the name the log's answer does not change —
@@ -2786,7 +2791,7 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
     aligned, by_sentence, inline = page.evaluate(
         """async (pairs) => {
           const {alignInlineText, alignText, sentenceUnits} =
-            await import('/runtime/text-alignment.js');
+            await window.__lfRuntimeImport('/runtime/text-alignment.js');
           return [
             pairs.map(([before, after]) => alignText(before, after)),
             pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),
@@ -2817,7 +2822,7 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
 
     local = page.evaluate(
         """async () => {
-          const {alignInlineText} = await import('/runtime/text-alignment.js');
+          const {alignInlineText} = await window.__lfRuntimeImport('/runtime/text-alignment.js');
           return alignInlineText(
             'Each section names a feature and provides a live example.',
             'Each section names a feature and provides a live example, including focused replays of its motion.'
@@ -2905,11 +2910,12 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     sequence = page.evaluate(
         """async () => {
-          const {actionSequence} = await import('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const widget = document.getElementById('draft-ops');
-          const first = actionSequence(widget, 'edit');
+          const controller = widgetController(widget);
+          const first = controller.read().actions.edit.history;
           first[0].detail.text = 'A widget must not mutate the runtime log.';
-          return actionSequence(widget, 'edit')
+          return controller.read().actions.edit.history
             .map(event => [event.seq, event.detail.text]);
         }"""
     )
@@ -2953,8 +2959,8 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Changes · 1 edit"
     )
     old_sequence = old.evaluate(
-        """async () => (await import('/runtime/widget-api.js'))
-          .actionSequence(document.getElementById('draft-ops'), 'edit')
+        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+          .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
     assert old_sequence == [1]
@@ -2966,8 +2972,8 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Changes · 2 edits"
     )
     latest_sequence = latest.evaluate(
-        """async () => (await import('/runtime/widget-api.js'))
-          .actionSequence(document.getElementById('draft-ops'), 'edit')
+        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+          .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
     assert latest_sequence == [1, 2]

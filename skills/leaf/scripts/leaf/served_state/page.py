@@ -13,6 +13,7 @@ from ..passages import active_enclosing
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, load_registry
+from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
 from .browser import project_browser_state
 
@@ -62,6 +63,7 @@ def full_state(
     active_override: dict | None = None,
     documents_override: dict[int, SourceDocument] | None = None,
     registry_override: dict | None = None,
+    registries_override: dict[int, dict] | None = None,
     data_override: dict | None = None,
     versions_override: list[dict] | tuple[dict, ...] | None = None,
     stored_status: dict | None = None,
@@ -91,6 +93,7 @@ def full_state(
         now,
         documents_override=documents_override,
         registry_override=registry_override,
+        registries_override=registries_override,
         live_stream=live_stream,
     )
     activity = project_activity(
@@ -103,12 +106,27 @@ def full_state(
     )
     if registry_override is not None:
         registry = registry_override
+    elif active is not None:
+        registry = read_artifact(page_dir, active["revision"]).registry
     else:
         try:
             registry = load_registry(page_dir)
         except RegistryError:
             registry = None
-    identity = layer_metadata(page_dir) if layer_identity is None else layer_identity
+    if active is not None:
+        selected_revision = view_revision or active["revision"]
+        selected_registry = (
+            registries_override[selected_revision]
+            if registries_override is not None
+            else registry_override
+            if registry_override is not None
+            else read_artifact(page_dir, selected_revision).registry
+        )
+        identity = selected_registry["$layer"]
+    else:
+        identity = (
+            layer_metadata(page_dir) if layer_identity is None else layer_identity
+        )
     return {
         "layer": identity,
         # The clock every timestamp below was written by. A seat dating one reads

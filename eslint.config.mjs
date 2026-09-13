@@ -277,17 +277,14 @@ function pagePaintAttributesFrom(parser) {
 const exactClosures = new Map(
   Object.entries({
     "projection/model.js": [],
-    "projection/state.js": [],
+    "projection/state.js": ["semantic-state.js"],
     "conversation/model.js": ["anchor-coordinate.js", "conversation/identity.js"],
-    "conversation/state.js": [
-      "anchor-coordinate.js",
-      "conversation/identity.js",
-      "conversation/model.js",
-    ],
+    "conversation/state.js": ["semantic-state.js"],
     "pending/model.js": ["conversation/identity.js"],
-    "pending/state.js": ["conversation/identity.js", "pending/model.js"],
+    "pending/state.js": ["semantic-state.js"],
     "keyboard/dispatch.js": [
       "context.js",
+      "semantic-state.js",
       "focus.js",
       "keyboard/bindings.js",
       "keyboard/register.js",
@@ -311,7 +308,6 @@ const applicationOwners = new Set([
   "thread-panel.js",
   "pending/state.js",
   "projection/commands.js",
-  "requests.js",
   "state-application.js",
   "state-feed.js",
   "auxiliary-chrome.js",
@@ -787,11 +783,14 @@ const architecturePlugin = {
                 node,
                 message: "Private runtime owners never import the boot entry.",
               });
-            if (file !== "widget-api.js" && direct.includes("application.js"))
+            if (
+              !["widget-api.js", "widget-controller.js"].includes(file) &&
+              direct.includes("application.js")
+            )
               context.report({
                 node,
                 message:
-                  "Only widget-api.js may import the runtime application composition root.",
+                  "Only the public widget boundary may import the runtime application composition root.",
               });
             if (file !== "keyboard/page.js" && direct.includes("keyboard/page.js"))
               context.report({
@@ -969,6 +968,42 @@ export default [
     },
   },
   {
+    files: [
+      "skills/leaf/scripts/leaf/render-checks/replay.js",
+      "skills/leaf/scripts/leaf/render-checks/runtime.js",
+    ],
+    rules: {
+      // Render checks compare the publisher's historical selections and current
+      // presentation. Those validation readings are deliberately private rather than
+      // part of the package-facing widget controller.
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "/leaf.js",
+              message: "Import Leaf capabilities from /runtime/widget-api.js.",
+            },
+          ],
+          patterns: [
+            {
+              regex: "^/runtime/(?!widget-api\\.js$|validation\\.js$)",
+              message: "Render checks use the public API or validation adapter.",
+            },
+            {
+              regex: "^\\.{1,2}/(?:.*/)?runtime/",
+              message: "Render checks use absolute runtime boundaries.",
+            },
+            {
+              regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
+              message: "Do not create a relative edge to the entry or public facade.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["skills/leaf/assets/leaf.js"],
     plugins: { architecture: architecturePlugin },
     rules: {
@@ -1059,7 +1094,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./anchor-coordinate\\.js$|(?:\\.\\./conversation/|\\./)identity\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|semantic-state)\\.js$|(?:\\.\\./conversation/|\\./)identity\\.js$|\\./model\\.js$)",
               message: "Conversation readings depend only on pure record operations.",
             },
           ],

@@ -2,7 +2,8 @@
 
 These scripts are developer tooling: the installed plugin is the whole tracked tree,
 so a host copies these along with it, but nothing under `skills/leaf` reads them at
-runtime. They use the environment pinned by the root `pyproject.toml` and `uv.lock`.
+runtime. Python tools use the environment pinned by the root `pyproject.toml` and
+`uv.lock`; the browser contributor build uses `package.json` and `package-lock.json`.
 
 Each script's own docstring and `--help` own its behavior, flags, and lifecycle. This
 file says which script owns what, and the rules that hold across them.
@@ -80,8 +81,19 @@ rules a new or changed example has to meet.
 
 ## Vendored bundles
 
-`vendor.py` rebuilds them — all of them by default, or the ones you name. Every pinned
-version sits in one table there, and each bundle lands in the package whose widget
+`browser/build.mjs` owns the TypeScript sources under `scripts/browser/` and the
+committed `skills/leaf/assets/vendor/browser-runtime.*` outputs: one self-contained
+ES module, its source map with embedded sources, dependency licenses, and a build
+manifest recording inputs, exports, dependencies, and byte hashes. Run `npm ci`,
+then `npm run build:browser` to regenerate them. `npm run check:browser` typechecks
+and rebuilds in memory, failing if committed outputs are missing or differ;
+`npm run test:browser` exercises reproducibility, stale-output refusal, the import
+gate, and immutable snapshot publication. Node runs only for contributors. Plugin
+installation, page initialization, source activation, and export copy or consume
+the committed browser output without invoking a compiler.
+
+`vendor.py` rebuilds the other third-party bundles — all of them by default, or the
+ones you name. Every pinned version sits in one table there, and each bundle lands in the package whose widget
 imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 

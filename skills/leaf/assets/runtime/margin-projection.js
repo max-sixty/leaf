@@ -70,6 +70,7 @@ import {
   watchMarginContributions,
 } from "./margin-entries.js";
 import { mapButton } from "./page-map-dialog.js";
+import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
@@ -95,7 +96,7 @@ import { panel } from "./conversation/panel-elements.js";
 import { blockAt, closestAcross, elementById, inChrome, says } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
-import { agentWorkflowStage, updateSequence, workClaimState } from "./updates.js";
+import { agentWorkflowStage, updateSequence } from "./updates.js";
 import { threadList } from "./conversation/state.js";
 import { threadKey } from "./conversation/model.js";
 
@@ -1123,7 +1124,7 @@ export function createMarginProjection({
     }
 
     const projection = currentProjection();
-    for (const origin of projectionOrigins(authoredStates, projection)) {
+    for (const origin of projectionOrigins(authoredStates(), projection)) {
       const target = elementById(origin.unit);
       if (!target) continue;
       const face = KINDS[origin.origin];
@@ -1213,7 +1214,7 @@ export function createMarginProjection({
       });
     });
 
-    if (workClaimState().claimsHeld)
+    if (runtime.activity?.held)
       for (const update of updateSequence()) {
         if (update.source !== "claim" || update.disposition !== "effective") continue;
         if (update.revision > runtime.currentRevision) continue;
@@ -2824,10 +2825,8 @@ export function createMarginProjection({
     return null;
   }
 
-  // The row's acknowledgment face is read out of the state projection, so it follows the
-  // applied log on `lf-actions` rather than the receipt paint: every path that reconciles
-  // a complete state dispatches that once it has reconciled, and both of the paths that
-  // paint receipts sit inside one. A repaint driven from the paint instead ran inside the
+  // The row's acknowledgment face is read out of the published state projection rather
+  // than the receipt paint. A repaint driven from the paint instead ran inside the
   // panel render the application performs *before* reconciliation, which is early enough
   // to read a candidate the same read is about to reject — and it ran inside a dispatch,
   // where the fault that candidate throws is reported as an uncaught page error rather
@@ -2885,6 +2884,63 @@ export function createMarginProjection({
     return conversations.length === 1 ? conversations[0] : null;
   };
 
+  // A live revision replaces the browser document, so DOM identity cannot carry a
+  // reader standing in retained margin chrome. Carry the target and margin-entry keys
+  // instead; this owner alone can revalidate those keys against the new projection and
+  // reopen the transient preview that supplied the focused control.
+  function captureStanding() {
+    const active = focused();
+    const host = closestAcross(active, "[data-lf-margin-for]");
+    const control = active?.closest?.(".lf-margin-entry");
+    const entry = previewEntry ?? host?.lfEntry;
+    if (!entry) return null;
+    const standing = {
+      entry: entry.key,
+      preview: preview.matches(":popover-open") ? { thread: previewThreadItem } : null,
+      focus:
+        active === previewClose
+          ? { kind: "preview-close" }
+          : control && host?.contains(control)
+            ? {
+                kind: "entry",
+                key: control.dataset.lfMarginEntryKey,
+                owner: control.dataset.lfMarginEntryOwner ?? null,
+              }
+            : null,
+    };
+    return standing.preview || standing.focus ? standing : null;
+  }
+
+  function restoreStanding(standing) {
+    if (!standing || typeof standing.entry !== "string") return false;
+    const entry = pageInventory.find((candidate) => candidate.key === standing.entry);
+    if (!entry) return false;
+    if (standing.preview) {
+      const button = threadMarginEntry(entry);
+      if (!button?.isConnected) return false;
+      pinnedKey = entry.key;
+      const positioned = showPreview(entry, button, true, standing.preview.thread);
+      if (standing.focus?.kind === "preview-close")
+        deferThreadPreviewFocus(positioned, () => {
+          if (previewEntry?.key === entry.key)
+            previewClose.focus({ preventScroll: true });
+        });
+      return true;
+    }
+    if (standing.focus?.kind !== "entry") return false;
+    const host = hosts.get(entry.key);
+    const control = clusterMarginEntries(host).find(
+      (candidate) =>
+        candidate.dataset.lfMarginEntryKey === standing.focus.key &&
+        (candidate.dataset.lfMarginEntryOwner ?? null) === standing.focus.owner,
+    );
+    if (!control) return false;
+    // Roving tabindex is painted in the margin's next layout frame. The semantic
+    // destination is already known here, so lend it a stop if that frame has not run.
+    focusDestination(control);
+    return true;
+  }
+
   // The margin's parts into the chrome, once it is mounted (leaf.js): the map button beside
   // the version chooser, then its own parts in the root.
 
@@ -2920,7 +2976,7 @@ export function createMarginProjection({
         syncReadingRelation(reading, reading.lfChoice);
       paintKeys();
     });
-    document.addEventListener("lf-actions", renderMargin);
+    watchProjection(document.body, renderMargin);
     document.addEventListener("lf-answered", renderMargin);
     document.addEventListener("lf-comparison", renderMargin);
     document.addEventListener("lf-margin-layout", () => {
@@ -2988,6 +3044,8 @@ export function createMarginProjection({
     unfoldedMarginEntries,
     foldMarginEntryOptions,
     activeInlineThread,
+    captureStanding,
+    restoreStanding,
     mount,
   };
 }

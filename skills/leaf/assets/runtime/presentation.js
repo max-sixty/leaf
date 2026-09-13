@@ -16,10 +16,11 @@
      offline authored fallback, has crossed the semantic-interaction boundary.
 
    Do not merge these stamps. A document can finish upgrading while its first state read
-   is pending, or the answer can wait unapplied while upgrades finish. A projection can
-   commit while finite reconciliation animations are still settling. Any consumer that
-   reads final boxes waits for upgraded, applied, presented, and no finite animation
-   reported by `moving`.
+   is pending, or the answer can wait unapplied while upgrades finish. A later semantic
+   publication or same-epoch renderer replacement leaves `data-lf-presented` set while
+   the presentation coordinator reopens. Any consumer that reads current final boxes
+   waits for upgraded, applied, the initial presented milestone, the coordinator's
+   current reading, and no finite animation reported by `moving`.
 
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:
@@ -28,7 +29,7 @@
    - `renderQuiet` gives `x-paints` facts and state provenance a clipped spoken reading.
    - `markDeclared` exposes the declared width model, inline run, and quoting to the
      theme.
-   - `renderSettlement` (projection/presentation.js) paints the holder's authoritative settlement.
+   - `renderSettlement` (widget-controller.js) paints the holder's authoritative settlement.
    - `renderRetired` marks slots retired by the declared holder relation.
    - The Ask model (asks/model.js) reads `x-awaits`, while the Ask tray
      projects a declared `x-ask-surface` region around that source where one exists;
@@ -37,7 +38,7 @@
      while its canonical request lifecycle is `ready`. Pending and completed requests
      are the host's turn; a failed receipt returns the holder to the reader without a
      package-maintained pending flag.
-   - `standingState` exposes replay winners to the render gate without naming a widget,
+   - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
      does and the poll replays it the same way, so the premise that every `renderState`
      is absolute binds it too.
@@ -71,6 +72,10 @@
    node from which a draft editor seeds its text. */
 
 import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
+import {
+  attachApplicationPresentation,
+  whenApplicationPresented,
+} from "./semantic-state.js";
 import { highlightBlocks } from "./syntax.js";
 
 // Attributes the runtime itself may paint onto elements the page owns. This is the
@@ -126,10 +131,22 @@ export const PRESENTATION = "lf-presentation";
 export const PAGE_INTERFACE = "lf-page-interface";
 export async function settlePageInterface() {
   const pending = [];
-  document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { pending } }));
-  // Each optional owner reports its own failure. One rejected surface must not keep
-  // every generated control on the page behind the upgrade boundary.
-  await Promise.allSettled(pending);
+  const presentation = attachApplicationPresentation("page-interface", document);
+  const present = (promise) => {
+    if (!promise?.then)
+      throw new TypeError("Page interface presentation must be a promise");
+    pending.push(promise);
+    return promise;
+  };
+  try {
+    document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { present } }));
+    // Each optional owner reports its own failure. One rejected surface must not keep
+    // every generated control on the page behind the upgrade boundary.
+    await presentation.present(pending, Promise.allSettled(pending));
+    await whenApplicationPresented();
+  } finally {
+    presentation.disconnect();
+  }
 }
 
 // A word for a reader listening, silent on screen: real text — the one thing every

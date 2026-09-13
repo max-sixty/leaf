@@ -17,5 +17,9 @@ customElements.define(
         slot.textContent = `${values[name]}${controls.get(name).getAttribute("unit") ?? ""}`;
       }
     }
+
+    renderInstruction(instruction) {
+      this.textContent = instruction;
+    }
   },
 );

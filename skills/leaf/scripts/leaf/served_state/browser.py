@@ -9,6 +9,7 @@ from ..files import list_revisions, revision_path
 from ..projection import canonical_updates, page_reading
 from ..registry.contract import RegistryError
 from ..registry.storage import load_registry
+from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
 from .conversation import browser_conversation
 from .document import browser_document, browser_undo_candidates
@@ -24,6 +25,7 @@ def browser_state(
     view_revisions: set[int],
     now: str,
     live_stream: dict | None = None,
+    registries: dict[int, dict] | None = None,
 ) -> dict:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
@@ -32,15 +34,22 @@ def browser_state(
     from which it was read.
     """
     through_seq = events[-1]["seq"] if events else 0
+
+    def registry_for(revision):
+        return (registries or {}).get(revision, registry)
+
     active_document = documents[active_revision]
-    active_page = page_reading(active_document, events, registry, active_revision)
+    active_registry = registry_for(active_revision)
+    active_page = page_reading(
+        active_document, events, active_registry, active_revision
+    )
     active_within = active_page.within
     withdrawn = taken_back(events)
     threads = build_threads(events, active_within, withdrawn=withdrawn)
     undo_reading = UndoReading(events, threads=threads, withdrawn=withdrawn)
     live_reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
     conversation, conversation_reading = browser_conversation(
-        events, registry, threads, live_reply
+        events, active_registry, threads, live_reply
     )
     conversation_projection = conversation_reading.projection
 
@@ -50,7 +59,7 @@ def browser_state(
         page = (
             active_page
             if revision == active_revision
-            else page_reading(document, events, registry, revision)
+            else page_reading(document, events, registry_for(revision), revision)
         )
         document, projection = browser_document(page, threads)
         classified = {
@@ -132,6 +141,7 @@ def project_browser_state(
     *,
     documents_override: dict[int, SourceDocument] | None = None,
     registry_override: dict | None = None,
+    registries_override: dict[int, dict] | None = None,
     include_active_view: bool = True,
     live_stream: dict | None = None,
 ) -> dict | None:
@@ -162,8 +172,15 @@ def project_browser_state(
             documents[revision] = SourceDocument(
                 revision_path(page_dir, revision).read_text(encoding="utf-8")
             )
+    registries = registries_override
+    if registries is None and registry_override is None:
+        registries = {
+            revision: read_artifact(page_dir, revision).registry for revision in wanted
+        }
     if registry_override is not None:
         registry = registry_override
+    elif registries is not None:
+        registry = registries[active_revision]
     else:
         try:
             registry = load_registry(page_dir)
@@ -181,4 +198,5 @@ def project_browser_state(
         wanted if include_active_view else {requested_revision},
         now,
         live_stream,
+        registries,
     )

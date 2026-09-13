@@ -53,13 +53,27 @@ import { iconElement } from "./icons.js";
 // target geometry before the scroll. Called before every scroll-to-content.
 export function reveal(el) {
   const chain = [];
+  const pending = [];
   for (let a = el; a; a = a.parentElement ?? a.getRootNode()?.host ?? null)
     chain.push(a);
   // Reveal outside-in so an inner widget has geometry when it handles the signal.
   for (const a of chain.reverse()) {
     if (a.tagName === "DETAILS" && !a.open) a.open = true;
-    a.dispatchEvent(new CustomEvent("lf-reveal", { detail: { target: el } }));
+    a.dispatchEvent(
+      new CustomEvent("lf-reveal", {
+        detail: {
+          target: el,
+          present: (ready) => ready?.then && pending.push(ready),
+        },
+      }),
+    );
   }
+  const ready = Promise.all(pending);
+  // Most reveal callers need only synchronous native/widget disclosure. A surface that
+  // registers asynchronous presentation is already its error owner; observe this joined
+  // promise so callers may ignore it without creating a duplicate page rejection.
+  void ready.catch(() => {});
+  return ready;
 }
 
 // The one way the layer makes an element: a tag, its classes, and the words it starts
@@ -81,7 +95,7 @@ export function el(tag, cls, text) {
 // just can't see in.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 
-// A render bound to the `lf-actions` heartbeat runs every two seconds on a page nobody
+// A render bound to semantic publication can run on a page nobody
 // has touched, so a write that restates what the node already says restates it at that
 // rate: the mutation stream a screen reader rebuilds its buffer from, a fresh dirty box
 // for whatever reads next, and — for the attributes the document's disclosure watch
@@ -109,8 +123,11 @@ export function keepsHidden(node, hidden) {
 // is what lets it stand for everything else the same gesture moved: the widget's own
 // rows where the grab is a press on an already-focused grip and no focus event fires,
 // and a send the drop states after this returns.
+export const DRAGGING_CHANGED = "lf-dragging-changed";
+
 export const dragging = (el, on) => {
   el.classList.toggle("lf-dragging", on);
+  document.dispatchEvent(new Event(DRAGGING_CHANGED));
   paintKeys();
 };
 
@@ -119,11 +136,6 @@ export const dragging = (el, on) => {
 export const LAYOUT = "lf-layout";
 export const layoutChanged = (el) =>
   el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
-
-// A widget may temporarily decline renderState while the reader owns a local edit.
-// When that edit closes, the state feed retries the deferred authoritative projection.
-export const projectionChanged = () =>
-  document.dispatchEvent(new Event("lf-projection"));
 
 // A number a widget can only read off a box the browser has laid out. Three ship: the
 // room a pick mark's word will need, the room a card keeps clear of its grip, the width

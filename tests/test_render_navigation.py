@@ -882,7 +882,7 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, s
 
 
 def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
-    """Sign-off gating, layer comments, and transport refusal are real core journeys."""
+    """Sign-off gating, design comments, and transport refusal are real core journeys."""
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1280, 900)
 
@@ -904,7 +904,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
         option_box["y"] + option_box["height"] / 2,
     )
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        "layer · lf-option · bg-choice-street"
+        "design · lf-option · bg-choice-street"
     )
     expect(option).not_to_have_attribute("chosen", "")
     page.locator(".lf-composer textarea").fill("The sample option needs less padding.")
@@ -913,7 +913,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     design_comment = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment" and event.get("about") == "layer"
+        if event["kind"] == "comment" and event.get("about") == "design"
     ][-1]
     assert design_comment["anchor"] == {"section": "bg-choice-street"}
     page.locator("body").focus()
@@ -1558,8 +1558,8 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.evaluate(
         """async () => {
           const [{notice}, {repaint}] = await Promise.all([
-            import('/runtime/notifications.js'),
-            import('/runtime/repaint.js'),
+            window.__lfRuntimeImport('/runtime/notifications.js'),
+            window.__lfRuntimeImport('/runtime/repaint.js'),
           ]);
           notice('Saved — sent');
           repaint();
@@ -2166,7 +2166,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(position).to_be_hidden()
 
     page.evaluate(
-        "async () => (await import('/runtime/notifications.js'))"
+        "async () => (await window.__lfRuntimeImport('/runtime/notifications.js'))"
         ".notice('Agent replied — open Threads', {background: true})"
     )
     expect(page.locator(".lf-notice")).to_be_visible()
@@ -2272,7 +2272,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     page.locator("body").focus()
     fallback = page.evaluate(
         """async () => {
-          const {beginWalk, walkPositionLabel} = await import('/runtime/walk-position.js');
+          const {beginWalk, walkPositionLabel} = await window.__lfRuntimeImport('/runtime/walk-position.js');
           return beginWalk('thread', 'Thread', () => null) ??
             walkPositionLabel('Thread', 1, 1);
         }"""
@@ -3424,7 +3424,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             childList: true,
             subtree: true,
           });
-          (await import('/runtime/notifications.js'))
+          (await window.__lfRuntimeImport('/runtime/notifications.js'))
             .notice('Agent replied — open Threads', {background: true});
         }"""
     )
@@ -3502,7 +3502,7 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     # The paint that can read a notice is the one taken while it shows, and only a
     # notice wide enough to reach under the hint could move it.
     page.evaluate(
-        "async () => (await import('/runtime/notifications.js'))"
+        "async () => (await window.__lfRuntimeImport('/runtime/notifications.js'))"
         ".notice('Moved to Done — sent.')"
     )
     expect(page.locator(".lf-notice")).to_be_visible()
@@ -5864,7 +5864,7 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     page, errors = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const host = document.createElement('section');
           host.id = 'key-owning-widget';
           const box = document.createElement('textarea');
@@ -5906,8 +5906,8 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     page, errors = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
-          const { shadowStage } = await import('/runtime/shadow-stage.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const { shadowStage } = await window.__lfRuntimeImport('/runtime/shadow-stage.js');
           const host = document.createElement('section');
           host.id = 'around-native-layer';
           const dialog = document.createElement('dialog');
@@ -5955,7 +5955,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     # older dialog does not move it back to the top.
     assert page.evaluate(
         """async () => {
-          const { currentNativeLayer } = await import('/runtime/native-layers.js');
+          const { currentNativeLayer } = await window.__lfRuntimeImport('/runtime/native-layers.js');
           const first = document.createElement('dialog');
           const second = document.createElement('dialog');
           const focus = document.createElement('button');
@@ -5984,7 +5984,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(page.locator(".lf-version-menu")).to_be_visible()
     assert page.evaluate(
         """async () => {
-          const { current } = await import('/runtime/keyboard/return-stack.js');
+          const { current } = await window.__lfRuntimeImport('/runtime/keyboard/return-stack.js');
           return current()?.root === document.querySelector('.lf-version-menu');
         }"""
     )
@@ -5994,7 +5994,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     # older modal now visible beneath it. The outer frame consequently owns Escape.
     current = page.evaluate(
         """async () => {
-          const { invoke, current } = await import('/runtime/keyboard/return-stack.js');
+          const { invoke, current } = await window.__lfRuntimeImport('/runtime/keyboard/return-stack.js');
           const outer = document.createElement('dialog');
           const inner = document.createElement('dialog');
           outer.id = 'return-outer';
@@ -6037,11 +6037,11 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     page, errors = open_page(browser, serve(NOTED_PAGE))
     answers = page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const { activeRows, answers: bindingAnswers, canonicalBinding } =
-            await import('/runtime/keyboard/bindings.js');
-          const { invoke } = await import('/runtime/keyboard/return-stack.js');
-          const { paintKeys } = await import('/runtime/keyboard/scopes.js');
+            await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
+          const { invoke } = await window.__lfRuntimeImport('/runtime/keyboard/return-stack.js');
+          const { paintKeys } = await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
           const declare = (id, rows) => {
             const button = document.createElement('button');
             button.id = id;
@@ -6112,7 +6112,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               requestAnimationFrame(() => requestAnimationFrame(settle)));
             const framed = button.getAttribute('aria-keyshortcuts');
             const standing = Boolean(
-              (await import('/runtime/keyboard/scopes.js')).elementScopes.get(button));
+              (await window.__lfRuntimeImport('/runtime/keyboard/scopes.js')).elementScopes.get(button));
             button.remove();
             return {framed, standing};
           };
@@ -6303,7 +6303,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     # belong to separate focus locations, so they are not a conflict in either scope.
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           let first;
           for (const label of ['First', 'Second']) {
             const button = document.createElement('button');
@@ -6611,7 +6611,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
 
     refused = page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
             commands(document.body, 'A project scope', [
               { id: 'test.no-line', keys: ['F2'],
@@ -6634,7 +6634,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # one thing no surface can project, so it is refused where declarations enter.
     modified = page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
             commands(document.body, 'A project scope', [
               { id: 'test.bad-modifier', keys: ['Ctrl+k'],
@@ -6655,7 +6655,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # both the reference and shortcut bar omit from their shared presentation projection.
     routed = page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const declare = row => {
             try {
               commands(document.body, 'A routed project scope', [row]);
@@ -6699,7 +6699,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # uses this for the Tab that closes it before the browser moves focus past its door.
     native = page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const owner = document.createElement('div');
           owner.tabIndex = -1;
           document.body.append(owner);
@@ -6732,7 +6732,7 @@ def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const target = document.createElement('button');
           target.id = 'local-down';
           target.textContent = 'Local down';
@@ -6771,7 +6771,7 @@ def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const outer = document.createElement('div');
           outer.id = 'outer-scope';
           const inner = document.createElement('button');
@@ -6809,7 +6809,7 @@ def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
     )
     available = page.evaluate(
         """async () => {
-          const { availableCommands } = await import('/runtime/keyboard/dispatch.js');
+          const { availableCommands } = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
           return [...availableCommands()];
         }"""
     )
@@ -6827,7 +6827,7 @@ def test_an_unavailable_inner_escape_keeps_the_next_unwind_reachable(browser, se
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const outer = document.createElement('div');
           outer.id = 'outer-escape-scope';
           const inner = document.createElement('button');
@@ -7239,7 +7239,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 
         page.evaluate(
             """async () => {
-              (await import('/runtime/notifications.js')).notice('Saved — sent');
+              (await window.__lfRuntimeImport('/runtime/notifications.js')).notice('Saved — sent');
               dispatchEvent(new Event('resize'));
             }"""
         )
@@ -7542,17 +7542,14 @@ def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser,
     test on every page paying for it, which is where it showed: the nightly suite ran
     half again as long and the run went over its bound with a fifth of the tests unread.
 
-    Nothing on screen says so, which is why the reading is the page's own frames against
-    its own state applications. Every application repaints the line and says so through
-    `lf-actions`, the heartbeat's re-application of state the page already holds
-    included, so a line that repaints more often than the state moves is repainting for
-    a reason the page has not got."""
+    Nothing on screen says so, which is why the reading is the page's own frames at
+    rest. A line that keeps repainting while neither the reader nor the application
+    moves is repainting for a reason the page has not got."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
     page.evaluate(
         """() => {
-          const probe = { frames: 0, paints: 0, applied: 0 };
+          const probe = { frames: 0, paints: 0 };
           window.__lfProbe = probe;
-          document.addEventListener("lf-actions", () => { probe.applied += 1; });
           new MutationObserver(() => { probe.paints += 1; }).observe(
             document.querySelector(".lf-shortcut-bar"),
             { attributes: true, childList: true, subtree: true },
@@ -7567,7 +7564,7 @@ def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser,
     page.wait_for_function("() => window.__lfProbe.frames >= 90")
     probe = page.evaluate("() => window.__lfProbe")
 
-    assert probe["paints"] <= probe["applied"] + 1, (
+    assert probe["paints"] <= 1, (
         "the shortcut bar repainted without the state moving over "
         f"{probe['frames']} frames: {probe}"
     )

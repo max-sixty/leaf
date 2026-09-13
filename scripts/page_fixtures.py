@@ -15,6 +15,7 @@ DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
 @dataclass(frozen=True, slots=True)
 class PageFixture:
     source: Path
+    page_files: Path | None
     packages: tuple[str, ...]
     media: Path
     data: tuple[dict, ...]
@@ -64,8 +65,10 @@ def media_source(source: Path) -> Path:
 
 def read_fixture(source: Path) -> PageFixture:
     seed = source.with_suffix(".jsonl")
+    page_files = source.with_suffix(".page")
     return PageFixture(
         source=source,
+        page_files=page_files if page_files.is_dir() else None,
         packages=tuple(source_packages(source)),
         media=media_source(source),
         data=tuple(data_operations(source)),
@@ -140,6 +143,8 @@ def prepare_page(
     selection = package_selection_args(fixture.packages)
     if initialize:
         run_leaf("page", "init", *selection, str(page))
+    if fixture.page_files is not None:
+        shutil.copytree(fixture.page_files, page / "page", dirs_exist_ok=True)
     (page / "index.html").write_text(
         fixture.source.read_text(encoding="utf-8"), encoding="utf-8"
     )

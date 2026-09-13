@@ -164,7 +164,7 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     }
     reading = page.evaluate(
         """async () => {
-          const {layoutMarginRows} = await import('/runtime/margin-layout.js');
+          const {layoutMarginRows} = await window.__lfRuntimeImport('/runtime/margin-layout.js');
           const rows = [...document.querySelectorAll('.lf-margin-cluster')];
           const boxes = () => rows.map(row => {
             const {x, y, width, height} = row.getBoundingClientRect();
@@ -293,16 +293,16 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
 
 
 def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serve):
-    """A heartbeat refresh cannot force layout once per Page Map location."""
+    """A viewport refresh cannot force layout once per Page Map location."""
     corpus = next(example for example in EXAMPLES if example.stem == "corpus")
     page, errors = open_page(browser, serve(corpus))
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-cluster").count() >= 15
     # The corpus carries the gallery's contained frames, and a frame still arriving lays
-    # itself out in this page's own process. Counted against five dispatches that touch
-    # nothing, that reads as the heartbeat forcing layout: the measurement is of a
-    # refresh, so what is measured has to have stopped arriving first.
+    # itself out in this page's own process. Counted against five viewport refreshes that
+    # change no dimensions, that reads as the refresh forcing layout: what is measured
+    # has to have stopped arriving first.
     page.wait_for_function(
         """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
              (frame) => frame.hasAttribute('data-interaction-ready'))"""
@@ -315,7 +315,8 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     }
     refreshes = 5
     geometry_reads = page.evaluate(
-        """refreshes => {
+        """async refreshes => {
+          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
           const main = document.querySelector('main');
           const rect = main.getBoundingClientRect.bind(main);
           let reads = 0;
@@ -323,8 +324,10 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
             reads += 1;
             return rect();
           };
-          for (let i = 0; i < refreshes; i++)
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+          for (let i = 0; i < refreshes; i++) {
+            window.dispatchEvent(new Event('resize'));
+            await frame();
+          }
           main.getBoundingClientRect = rect;
           return reads;
         }""",
@@ -342,11 +345,11 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
             "RecalcStyleCount",
         )
     }
-    # These bounds leave room for browser bookkeeping while refusing a widget render
-    # that writes its already-painted state on every heartbeat.
-    assert work["LayoutCount"] <= refreshes * 4, work
-    assert work["RecalcStyleCount"] <= refreshes * 18, work
-    assert geometry_reads == refreshes, geometry_reads
+    # These bounds include the browser's viewport bookkeeping while refusing work that
+    # scales with every Page Map location.
+    assert work["LayoutCount"] <= refreshes * 8, work
+    assert work["RecalcStyleCount"] <= refreshes * 30, work
+    assert refreshes <= geometry_reads <= refreshes * 2, geometry_reads
     assert errors == []
 
 
@@ -387,13 +390,13 @@ HEARTBEAT_PAGES = (
 
 
 @pytest.mark.parametrize("page_source, population, measurements", HEARTBEAT_PAGES)
-def test_an_unchanged_heartbeat_restates_no_margin_name(
+def test_an_unchanged_viewport_refresh_restates_no_margin_name(
     browser, serve, page_source, population, measurements
 ):
-    """The heartbeat must not rewrite a name, state, or word it is not changing.
+    """A viewport refresh must not rewrite a name, state, or word it is not changing.
 
-    `render` is bound to `lf-actions`, so an unconditional write here restates
-    itself every two seconds on a page nobody has touched: the mutation stream a
+    `render` follows semantic and viewport refreshes, so an unconditional write here
+    restates itself on a page nobody has touched: the mutation stream a
     screen reader rebuilds its buffer from, and a dirty box for whatever reads
     next. The corpus used to restate 205 attributes and the margin entry's
     words on every pass.
@@ -423,10 +426,10 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
 
     Half of `render` runs in a frame callback — `scheduleMarginLayout`,
     `scheduleRoving` and `scheduleMarginEntryLabels` are its whole tail — and five
-    dispatches in one synchronous task never reach it. Each beat is therefore read
-    across a settled frame, which both pages now allow. The measurements each page
-    is expected to show are named beside its population and asserted exactly, so a
-    run that stopped letting the frame run could not return `[]` and look clean.
+    refreshes in one synchronous task never reach it. Each refresh is therefore
+    read across a settled frame, which both pages now allow. The measurements each
+    page is expected to show are named beside its population and asserted exactly,
+    so a run that stopped letting the frame run could not return `[]` and look clean.
 
     What remains on that reading is not a name being restated: each entry in the
     probe table is a measurement that modifies the DOM to read it and puts it back.
@@ -439,7 +442,7 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
     margins_laid_out(page)
     for selector, least in population.items():
         assert page.locator(selector).count() >= least, selector
-    heartbeat = page.evaluate(
+    refresh = page.evaluate(
         """async ({refreshes}) => {
           const frame = () => new Promise(
             resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
@@ -499,7 +502,7 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
           const unchanged = [];
           const news = [];
           for (let i = 0; i < refreshes; i++) {
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+            window.dispatchEvent(new Event('resize'));
             await frame();
             await frame();
             seen.push(...observer.takeRecords());
@@ -559,33 +562,33 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
         }""",
         {"refreshes": 5},
     )
-    unnamed = [row for row in heartbeat["unchanged"] if row["probe"] is None]
+    unnamed = [row for row in refresh["unchanged"] if row["probe"] is None]
     assert unnamed == [], unnamed
-    assert heartbeat["news"] == [], heartbeat["news"]
+    assert refresh["news"] == [], refresh["news"]
     # The reach the readings above are worth: the nav alone would leave more than
     # half of either page's hosts, and every writer under them, unwatched, and a
     # reading that stopped settling would see none of the frame's measurements.
-    assert heartbeat["docked"] >= heartbeat["hosts"] / 2, heartbeat
-    assert measurements <= set(heartbeat["probes"]), measurements
-    assert {row["probe"] for row in heartbeat["unchanged"]} == measurements, heartbeat[
+    assert refresh["docked"] >= refresh["hosts"] / 2, refresh
+    assert measurements <= set(refresh["probes"]), measurements
+    assert {row["probe"] for row in refresh["unchanged"]} == measurements, refresh[
         "unchanged"
     ]
     assert errors == []
 
 
-def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
+def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     """A row the pass leaves docked is not marked docked again.
 
     `layoutMarginRows` reads the standing posture before it clears anything and
     leaves a row that still cannot hang where it is, so that row skips the clear
     and reaches the placement loop already carrying `lf-docked`. `add`
     re-serializes `class` whether or not the token is new, and this pass runs on
-    the heartbeat through `render`'s tail, so the unguarded mark was a same-value
-    `class` write per docked row every two seconds: a record a screen reader
+    a refresh through `render`'s tail, so the unguarded mark was a same-value
+    `class` write per docked row on every pass: a record a screen reader
     rebuilds its buffer from, for a row that did not move. Measured on this
     fixture before the guard, five beats wrote `class` five times.
 
-    Neither page the heartbeat reading above is taken on can state it. The corpus
+    Neither page the refresh reading above is taken on can state it. The corpus
     stands still, but every row it draws hangs, and the compact posture that would
     dock them withholds them as `lf-withheld` instead; the gallery stands still too
     now, but it docks no row at that viewport at all — measured, none of the
@@ -605,7 +608,7 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           controls.append(marginEntry(offer('button', ''), {
             key: 'act', icon: 'dot', label: 'Act on the target', rank: 'primary'}));
@@ -634,7 +637,7 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
           observer.observe(document.body, {subtree: true, attributes: true,
             attributeOldValue: true, attributeFilter: ['class']});
           for (let i = 0; i < refreshes; i++) {
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+            window.dispatchEvent(new Event('resize'));
             await frame(); await frame();
           }
           wrote.push(...observer.takeRecords());
@@ -660,7 +663,7 @@ def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
     declaration that stops at the call site is re-inferred there: the proxy takes
     the disclosure default, writes `aria-expanded`, and `syncForwardedMarginEntryState`
     reads `null` off the source and strips it again the same pass. That is an add
-    and a remove every heartbeat, and news to the document's disclosure watch, for
+    and a remove every refresh, and news to the document's disclosure watch, for
     exactly the margin entry the declaration was added for — a module contributing a
     reading whose relation another writer owns. No shipped page draws one, so the
     seam is stated here rather than on the corpus.
@@ -671,7 +674,7 @@ def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           controls.append(
             marginEntry(offer('button', ''), {
@@ -692,14 +695,17 @@ def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
     proxy = page.locator(".lf-margin-option-proxy")
     expect(proxy).to_have_count(1)
     relation = page.evaluate(
-        """refreshes => {
+        """async refreshes => {
+          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
           const group = document.querySelector('.lf-margin-options');
           const records = [];
           const observer = new MutationObserver(list => records.push(...list));
           observer.observe(group, {subtree: true, attributes: true,
             attributeOldValue: true, attributeFilter: ['aria-expanded']});
-          for (let i = 0; i < refreshes; i++)
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+          for (let i = 0; i < refreshes; i++) {
+            window.dispatchEvent(new Event('resize'));
+            await frame();
+          }
           records.push(...observer.takeRecords());
           observer.disconnect();
           return {
@@ -741,7 +747,7 @@ def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
           const laidOut = new Promise(resolve =>
             document.addEventListener('lf-margin-layout', resolve, {once: true})
           );
-          document.dispatchEvent(new CustomEvent('lf-actions'));
+          window.dispatchEvent(new Event('resize'));
           await laidOut;
           await frame();
           return {before, after: reading()};
@@ -767,7 +773,7 @@ def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           for (const [id, count] of [['first', 8], ['second', 1]]) {
             const controls = document.createElement('span');
             for (let i = 0; i < count; i++) controls.append(
@@ -813,7 +819,7 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           for (const id of ['first', 'second']) {
             registerMarginContribution({key: id, target: document.getElementById(id),
               controls: marginEntry(offer('button', ''), {
@@ -925,7 +931,13 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     box = badge.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate(
+        """async () => {
+          window.dispatchEvent(new Event('resize'));
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+        }"""
+    )
     assert icon.evaluate("node => node === window.__heldMarginEntryIcon")
     assert badge.evaluate("node => node === window.__heldMarginEntryBadge")
     page.mouse.up()
@@ -1200,7 +1212,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     )
     grammar = page.evaluate(
         """async () => {
-          const {MARGIN_ENTRY_SCHEMA} = await import('/runtime/widget-api.js');
+          const {MARGIN_ENTRY_SCHEMA} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return MARGIN_ENTRY_SCHEMA;
         }"""
     )
@@ -1455,7 +1467,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
         seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    ).to_have_count(0)
+    ).to_have_count(1)
 
     draft = page.locator('[data-lf-margin-for="bg-draft"]')
     draft.locator(".lf-draft-pencil").click()
@@ -1575,7 +1587,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
         workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    ).to_have_count(0)
+    ).to_have_count(1)
 
     assert errors and all("400" in error for error in errors)
 
@@ -1657,7 +1669,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
         seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    ).to_have_count(0)
+    ).to_have_count(1)
 
     feature_headings = page.locator(
         "main section h2:has(> .bg-feature-detail), "
@@ -1784,7 +1796,7 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
     message = page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (const label of ['First', 'Second'])
             controls.append(marginEntry(offer('button', ''), {
@@ -1816,7 +1828,8 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, setMarginEntryState, syncMarginEntrySelection,
-            registerMarginContribution} = await import('/runtime/widget-api.js');
+            registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const control = marginEntry(offer('button', ''), {
             key: 'inspect', icon: 'question', label: 'Inspect source',
             context: 'Patch ready',
@@ -2229,7 +2242,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
             node => node.nodeType === Node.TEXT_NODE && node.textContent.includes('Pack')
           );
           word.textContent = word.textContent.replace('Pack', 'Carry');
-          document.dispatchEvent(new CustomEvent('lf-actions'));
+          window.dispatchEvent(new Event('resize'));
         }"""
     )
     expect(search).to_be_focused()
@@ -2244,7 +2257,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
             node => node.nodeType === Node.TEXT_NODE && node.textContent.includes('Carry')
           );
           word.textContent = word.textContent.replace('Carry', 'Pack');
-          document.dispatchEvent(new CustomEvent('lf-actions'));
+          window.dispatchEvent(new Event('resize'));
         }"""
     )
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(3)
@@ -2255,7 +2268,13 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
         "button", name="Reject the suggested change: blue", exact=True
     )
     reject.evaluate("button => button.dataset.testIdentity = 'held'")
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate(
+        """async () => {
+          window.dispatchEvent(new Event('resize'));
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+        }"""
+    )
     expect(reject).to_have_attribute("data-test-identity", "held")
     reject.focus()
     with sending(page, "the reject"):
@@ -2278,7 +2297,7 @@ def test_tab_into_a_margin_entry_cluster_replaces_ellipsis_with_all_margin_entri
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           registerMarginContribution({key: 'extra', target: document.querySelector('#sug-refill'),
             controls: marginEntry(offer('button', ''), {
               key: 'details', icon: 'comment', label: 'Details',
@@ -2453,7 +2472,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, setMarginEntryState, syncMarginAgentWorkflow} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('div');
           controls.className = 'lf-ui';
           for (const tone of ['neutral', 'positive', 'negative']) {
@@ -2745,7 +2764,13 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     accept.focus()
     # Reconciliation that does not change the target order leaves the complete item in
     # place, so a focused contribution remains focused.
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate(
+        """async () => {
+          window.dispatchEvent(new Event('resize'));
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+        }"""
+    )
     expect(accept).to_be_focused()
     rail = page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
     column = page.locator("main").evaluate(
@@ -3048,7 +3073,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
           observer.observe(node, {attributes: true, attributeOldValue: true,
             attributeFilter: ['title', 'aria-description']});
           for (let pass = 0; pass < 3; pass++) {
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+            window.dispatchEvent(new Event('resize'));
             await new Promise(requestAnimationFrame);
             await new Promise(requestAnimationFrame);
           }
@@ -3100,7 +3125,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # primary must retain the workflow, and its own accessible description survives it.
     page.evaluate("""async () => {
       const {offer, marginEntry, registerMarginContribution} =
-        await import('/runtime/widget-api.js');
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
       const controls = document.createElement('span');
       const edit = marginEntry(offer('button', ''), {
         key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
@@ -3131,8 +3156,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # A contributor can forward a control whose workflow was already painted.
     # Use the same canonical receipt to exercise its real secondary option proxy.
     page.evaluate("""async () => {
-      const {syncMarginAgentWorkflow} = await import('/runtime/widget-api.js');
-      const {runtime} = await import('/runtime/context.js');
+      const {syncMarginAgentWorkflow} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
       const receipt = runtime.activity.interactions.find(item => item.phase === 'active');
       syncMarginAgentWorkflow(window.agentCancel, receipt);
     }""")
@@ -3144,7 +3169,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(proxy).to_have_attribute("aria-description", f"Working · {detail}")
     assert workflow_text_mutations(proxy) == []
     page.evaluate("""async () => {
-      const {syncMarginAgentWorkflow} = await import('/runtime/widget-api.js');
+      const {syncMarginAgentWorkflow} = await window.__lfRuntimeImport('/runtime/widget-api.js');
       syncMarginAgentWorkflow(window.agentCancel, null);
       window.agentContribution.unregister();
     }""")
@@ -3253,7 +3278,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     # Alternate the two same-target receipt identities through repeated real renders.
     page.evaluate("""async () => {
       for (let pass = 0; pass < 3; pass++) {
-        document.dispatchEvent(new CustomEvent('lf-actions'));
+        window.dispatchEvent(new Event('resize'));
         await new Promise(requestAnimationFrame);
         await new Promise(requestAnimationFrame);
       }
@@ -3479,7 +3504,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     # Standing there is not the same as being the way in. A repaint under the reader
     # leaves the rail's one stop on a margin entry that acts, and the status without one.
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate("() => window.dispatchEvent(new Event('resize'))")
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame("
         "() => requestAnimationFrame(done)))"
@@ -3518,7 +3543,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const control = marginEntry(offer('button', ''), {
             key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
           });
@@ -3597,7 +3622,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           const primary = marginEntry(offer('button', ''), {
             key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
@@ -3699,7 +3724,7 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
     page.evaluate(
         """async () => {
           const {offer, marginEntry, setMarginEntryState, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           window.marginEntryFixtures = [];
           for (const [index, id] of ['first', 'second'].entries()) {
             const target = document.getElementById(id);
@@ -3825,7 +3850,7 @@ def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (let index = 0; index < 6; index += 1)
             controls.append(marginEntry(offer('button', ''), {
@@ -3859,7 +3884,7 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (let i = 0; i < 5; i++) controls.append(marginEntry(offer('button', ''), {
             key: `detail-${i}`, icon: 'dot', label: `Detail ${i}`, rank: 'secondary'
@@ -4046,7 +4071,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const primary = marginEntry(offer('button', ''), {
             key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
           });
@@ -4182,7 +4207,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     readings = page.evaluate(
         """async () => {
               const { marginEntry, registerMarginContribution } =
-                await import('/runtime/widget-api.js');
+                await window.__lfRuntimeImport('/runtime/widget-api.js');
           const makeRecord = label => {
             const shell = document.createElement('div');
             const root = shell.attachShadow({mode: 'open'});
@@ -4318,7 +4343,7 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     page.evaluate(
         """async () => {
               const {marginEntry, registerMarginContribution} =
-                await import('/runtime/widget-api.js');
+                await window.__lfRuntimeImport('/runtime/widget-api.js');
           const status = marginEntry(document.createElement('span'), {
             key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
           });

@@ -554,7 +554,14 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
 
 
 @contract_writer
-def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
+def cmd_report(
+    page_dir: Path,
+    widget: str,
+    verb: str,
+    fields: tuple,
+    *,
+    references: str | None = None,
+) -> None:
     """A worker's provisional news: a declared state change folded onto a page
     widget, validated at this door the way the POST door validates an action,
     stamped with the posting session's voice, and made against the active revision —
@@ -572,6 +579,12 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
         if not eq or not name:
             sys.exit(f"detail fields are name=value, got {field!r}")
         detail[name] = value
+    parsed_references = None
+    if references is not None:
+        try:
+            parsed_references = json.loads(references)
+        except json.JSONDecodeError as error:
+            sys.exit(f"references must be one JSON object: {error.msg}")
     with PageTransaction(page_dir) as page:
         events = page.events
         activate_source(page_dir, events)
@@ -585,9 +598,10 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
             "action": verb,
             "detail": detail,
             "revision": revision,
+            **({"references": parsed_references} if references is not None else {}),
         }
         if error := report_contract_error(
-            event, parse_revision(page_dir, revision).by_id, registry
+            event, parse_revision(page_dir, revision), registry
         ):
             sys.exit(error)
         accepted = page.append_event(event, registry)

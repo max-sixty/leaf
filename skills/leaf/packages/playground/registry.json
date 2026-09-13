@@ -1,6 +1,6 @@
 {
   "lf-playground": {
-    "description": "A reusable interactive playground that turns declarative controls into one local value set, reflects it into one operable preview and authored instruction, and sends the final configuration as one `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. An A/B preview keeps both candidates together so one control edit or preview gesture can drive both from the same input. Control edits, preview gestures, and presets stay in this browser tab; Use these settings records the complete typed value map. CSS previews read `--playground-NAME` and `data-playground-NAME` on this element. Page modules can read the public `values` property and listen for `lf-playground-change` when behavior or computation requires JavaScript.",
+    "description": "A reusable interactive playground that coordinates one JSON-safe working configuration, one operable preview, one displayed instruction, and one final `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. Built-in controls contribute scalar fields; a page module registers structured contributors through `registerContributor(name, defaultSnapshot, {read, apply})` and calls the returned notifier after its gestures. One optional `registerInstructionProvider(values => text)` derives the displayed instruction. Restore, reset, copy, projection, change events, and submission all use the same aggregate values. The page's complete lf-playground declaration gives task-specific values their exact action schema.",
     "type": "object",
     "properties": {
       "id": {
@@ -19,7 +19,7 @@
     "additionalProperties": false,
     "x-content": "members",
     "x-guidance": {
-      "author": "Use controls for candidates and parameters the reader should vary together. Keep A/B candidates in the same preview and apply each control edit or custom gesture to both from one shared state; show live measurements when they affect the choice. Wrap the real artifact and load its vendored or page-media assets from the page's origin. Bind simple changes with `--playground-NAME` or `data-playground-NAME`, and use an inline page module for behavior or computation. Write a self-contained task in `lf-playground-output`; `choose` sends every typed control value whether or not the prose repeats it."
+      "author": "Use controls for scalar parameters and register a named contributor when a page module owns structured state. The module's read and apply operations join that state to the playground's reset, restore, projection, copy, and submit path; call the returned notifier after every custom gesture. Keep A/B candidates in the same preview and apply each control edit or custom gesture to both from one shared state; show live measurements when they affect the choice. Wrap the real artifact and load its captured assets from the page's origin. Use authored value slots for scalar output or one instruction provider for derived prose. The page's complete lf-playground declaration must give the aggregate values an exact task schema."
     },
     "x-upgrade": true,
     "x-awaits": {
@@ -37,9 +37,7 @@
               "propertyNames": {
                 "pattern": "^[a-z][a-z0-9-]*$"
               },
-              "additionalProperties": {
-                "type": ["string", "number", "boolean"]
-              }
+              "additionalProperties": {}
             },
             "instruction": {
               "type": "string",
@@ -180,7 +178,7 @@
     "x-upgrade": false
   },
   "lf-playground-output": {
-    "description": "The natural-language instruction produced by a playground. Write a self-contained task rather than a value dump, and place lf-playground-value elements where selected values make the task more precise. The choose action separately sends the complete typed value map. The package keeps this output live and offers a copy button.",
+    "description": "The natural-language instruction produced by a playground. Write a self-contained task rather than a value dump, and place lf-playground-value elements where selected scalar values make the task more precise. A page module may instead register one instruction provider when structured or conditional values determine the prose. The choose action sends the exact displayed instruction beside the complete typed value map. The package keeps this output live and offers a copy button.",
     "type": "object",
     "properties": {
       "id": {

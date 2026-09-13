@@ -20,6 +20,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
@@ -86,13 +87,10 @@ from render_harness import (
     SPECIMEN_MARKUP,
     SPECIMEN_TEXT,
     TOKEN,
-    _traffic,
-    _until,
     author_test_widget,
     compare_with,
     holding,
     leaf_page,
-    nudge,
     open_page,
     opened_tab,
     page_registry,
@@ -1200,7 +1198,10 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         host = page.locator("#visual-run .lf-vr-shot-host")
         host.evaluate(
             """node => {
+              const current = node.querySelector('lf-shot');
               const replacement = document.createElement('lf-shot');
+              replacement.id = current.id;
+              replacement._lfPresentGenerated = current._lfPresentGenerated;
               replacement.setAttribute('before', '/media/3cf0e3efe80c6b01.png');
               replacement.setAttribute('after', '/media/4f465a0582ab00fe.png');
               replacement.setAttribute('alt', 'Replacement evidence');
@@ -1719,14 +1720,13 @@ diff --git a/tests/second.py b/tests/second.py
     assert errors == []
 
 
-def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
+def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     browser, serve
 ):
     """A valid save advances the live surface; stamping only changes its label.
 
-    The next file is fetched while the reader keeps this document, then its authored
-    main replaces the old one and replay catches it up. The URL, runtime identity, open
-    chrome, and passage's viewport coordinate therefore survive. Five paragraphs arrive
+    A revision opens a fresh document at the same address. The open panel and the
+    passage's viewport coordinate survive through explicit saved state. Five paragraphs arrive
     above that passage so a raw scroll offset cannot satisfy the position assertion.
     """
     # Deliberately collide with a property the runtime owns after startup. Authored
@@ -1744,8 +1744,9 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         """() => { document.scrollingElement.scrollBy({
           top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
           behavior: 'instant'
-        }); window.__leafDocument = 'the same runtime'; }"""
+        }); }"""
     )
+    original_document = page.evaluate("performance.timeOrigin")
     before = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -1765,8 +1766,8 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     told(page)
     expect(page).to_have_title("Live second")
 
-    assert page.evaluate("window.__leafDocument") == "the same runtime", (
-        "the version replaced the browser document rather than its authored page"
+    assert page.evaluate("performance.timeOrigin") != original_document, (
+        "the revision retained the previous browser document"
     )
     assert "/versions/" not in page.url, (
         f"the update changed the live address to {page.url}"
@@ -1821,7 +1822,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     page.evaluate("document.body.focus({preventScroll: true})")
     assert page.evaluate("document.activeElement === document.body")
 
-    page.evaluate("window.__leafMain = document.querySelector('main')")
+    draft_document = page.evaluate("performance.timeOrigin")
     stamped = CliRunner().invoke(
         cli_model.cli,
         ["version", "stamp", str(serve.page_dir), "--text", "new findings"],
@@ -1832,10 +1833,10 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     signoff = page.locator(".lf-signoff")
     expect(signoff).to_be_visible()
     assert signoff.evaluate("el => parseFloat(el.style.minWidth) > 0"), (
-        "soft activation measured approval while its control was detached"
+        "approval was measured while its control was detached"
     )
-    assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
-        "stamping the displayed revision replaced its main"
+    assert page.evaluate("performance.timeOrigin") == draft_document, (
+        "stamping the displayed revision replaced its document"
     )
 
     page.locator(".lf-general textarea").fill("This comment belongs to the live draft.")
@@ -2327,25 +2328,38 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
 
 
 def test_a_live_revision_with_new_authored_code_reloads_the_document(browser, serve):
-    """A module revision gets a fresh realm instead of inheriting old behavior."""
-    first = LIVE_V1.replace(
-        "</head>",
-        '<script type="module">globalThis.__authoredRevision = "one";</script></head>',
+    """A new constructor and its listeners run once, with fresh local state."""
+    module = """<script type="module">
+customElements.define('page-counter', class extends HTMLElement {
+  connectedCallback() {
+    let count = 0;
+    const button = document.createElement('button');
+    const label = () => { button.textContent = `Count ${count}`; };
+    button.addEventListener('click', () => { count += 1; label(); });
+    label();
+    this.append(button);
+  }
+});
+document.querySelector('#counter').append(document.createElement('page-counter'));
+</script>"""
+    first = LIVE_V1.replace("</head>", module + "</head>").replace(
+        "</main>", '<div id="counter"></div></main>'
     )
     second = LIVE_V2.replace(
-        "</head>",
-        '<script type="module">globalThis.__authoredRevision = "two";</script></head>',
-    )
+        "</head>", module.replace("count += 1", "count += 10") + "</head>"
+    ).replace("</main>", '<div id="counter"></div></main>')
     page, errors = open_page(browser, live_url(serve(first)))
-    page.wait_for_function("() => globalThis.__authoredRevision === 'one'")
-    page.evaluate("globalThis.__oldDocument = true")
+    page.get_by_role("button", name="Count 0", exact=True).click()
+    expect(page.get_by_role("button", name="Count 1", exact=True)).to_be_visible()
+    original_document = page.evaluate("performance.timeOrigin")
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
 
     expect(page).to_have_title("Live second")
-    page.wait_for_function("() => globalThis.__authoredRevision === 'two'")
-    assert page.evaluate("globalThis.__oldDocument") is None
+    page.get_by_role("button", name="Count 0", exact=True).click()
+    expect(page.get_by_role("button", name="Count 10", exact=True)).to_be_visible()
+    assert page.evaluate("performance.timeOrigin") != original_document
     assert "/versions/" not in page.url
     assert errors == []
 
@@ -2400,8 +2414,8 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     expect(page).to_have_title("Live first")
     expect(page.locator(".lf-latest-chip")).to_be_visible()
 
-    # An explicit press may override the hold, but it is still an in-place activation:
-    # the live address and the panel draft both survive it.
+    # An explicit press may override the hold: the live address and the durable panel
+    # draft both survive the new document.
     page.locator(".lf-latest-chip").click()
     expect(page).to_have_title("Live second")
     assert "/versions/" not in page.url
@@ -2436,23 +2450,14 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     assert errors == []
 
 
-def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
+def test_live_activation_restores_standing_but_restarts_keyboard_sequences(
     browser, serve
 ):
-    """A revision arriving under a reader mid-press keeps their next press live.
+    """Only explicit, revalidated standing crosses the fresh-document boundary.
 
-    Two kinds of pending input meet an activation. A sequence is the runtime's: bare `g`
-    names the visible targets, and the chips are read off whichever document is standing,
-    so the window holds through the swap and a fresh hint lands in the new page — minus
-    the hint for a link the revision took away, which is the honest reading. The reader's
-    standing is the document's: the Ask's "1–3 One / Two / Another option" actions
-    remain live over a focused pick mark, and the swap that replaced main dropped that
-    focus onto body, taking the offer down with it — the digit then picked nothing,
-    silently. The place is written down by id before the swap and handed back after it,
-    so the fresh mark holds the focus and the digit picks, acknowledged in the bottom
-    status. One revision arrives as a
-    draft and the next as a stamped version, since both replace the page under the
-    reader by the same door."""
+    An armed sequence is local to its document; the reader starts it again against the
+    current target set. A surviving authored control keeps its keyboard meaning.
+    """
     version_url = serve(LIVE_KEYS_V1)
     page, errors = open_page(browser, live_url(version_url))
     chips = page.locator(".lf-go-to-hint")
@@ -2463,9 +2468,11 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_V2)
     told(page)
     expect(page).to_have_title("Live keys second")
+    expect(link_chips).to_have_count(0)
+    page.keyboard.press("g")
     expect(link_chips).to_have_count(2)
     assert "visible target" in shortcut_bar_text(page), (
-        "the sequence did not follow the new document"
+        "the new sequence did not use the current document"
     )
     page.keyboard.type(address_code(page, "Link", "lk-link-three"))
     expect(page.locator("#lk-para")).to_be_focused()
@@ -2496,18 +2503,8 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     assert errors == []
 
 
-def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_broken(
-    browser, serve
-):
-    """A read can outlive the revision it named and come back to a page that has moved.
-
-    An answer carries the view of the revision its request named and of the active one
-    the page may activate into, and of no other. A press that activates while such a read
-    is in the air therefore leaves the page standing on a revision the answer says nothing
-    about, and composition holds it from taking the newer one instead. That is a stale
-    answer rather than a broken page: nothing is applied, nothing is reported, and the
-    next read — asked on the revision the page now stands on — carries it forward.
-    """
+def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
+    """A request started by the old realm cannot apply a later response in the new one."""
     version_url = serve(LIVE_V1)
     page, errors = open_page(browser, live_url(version_url))
     page.locator(".lf-threads-toggle").click()
@@ -2545,7 +2542,9 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
 
     page.route("**/api/state*", hold_the_first_read)
     try:
-        nudge(serve.page_dir)
+        session_model.cmd_status(
+            serve.page_dir, "working", "exercising the held state request"
+        )
         holding(page, held, 1, "the read from revision 1")
 
         # The chip's own read remains independent of the background read held above. It
@@ -2567,15 +2566,7 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
             "$layer"
         ]["generation"]
         assert held[0].request.headers.get("leaf-layer") == generation
-        traffic = _traffic(page).read()
-        assert traffic.asked == traffic.heard + 1, (
-            "the held read ended before the test released it"
-        )
         release_the_held_read()
-        _until(page, lambda t: t.heard > traffic.heard, "a state answer came back")
-        # Not `ticked`: the heartbeat dispatches `lf-actions` on its own cadence, so the
-        # page's next pass can be one this delivery had no part in. Wait instead until
-        # the page holds the reading the server holds.
         told(page)
         expect(page).to_have_title("Live second")
         assert errors == []
@@ -2599,6 +2590,44 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
         release_the_held_read()
         page.unroute("**/api/state*")
         page.close()
+
+
+def test_live_activation_revalidates_control_meaning_and_consumes_the_handoff(
+    browser, serve
+):
+    """A surviving id cannot transfer focus to a changed action, or replay it later."""
+    first = leaf_page(
+        "First action",
+        '<h1>Review</h1><button id="operation" type="button">Inspect</button>',
+    )
+    second = first.replace("First action", "Second action").replace(
+        ">Inspect</button>", ">Publish</button>"
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    operation = page.get_by_role("button", name="Inspect", exact=True)
+    operation.focus()
+    expect(operation).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    wait_for_revision(page, 2)
+    expect(page.get_by_role("button", name="Publish", exact=True)).not_to_be_focused()
+    assert page.evaluate("document.activeElement === document.body")
+
+    # An unchanged action does retain focus across a subsequent live revision.
+    page.get_by_role("button", name="Publish", exact=True).focus()
+    (serve.page_dir / "index.html").write_text(
+        second.replace("Second action", "Third action")
+    )
+    wait_for_revision(page, 3)
+    expect(page.get_by_role("button", name="Publish", exact=True)).to_be_focused()
+
+    # Its one-use handoff must not restore that action on an ordinary reload.
+    page.locator("h1").click()
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    assert page.evaluate("document.activeElement === document.body")
+    assert errors == []
+    page.close()
 
 
 def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
@@ -2632,66 +2661,46 @@ def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
     page.evaluate(
         "() => document.querySelector('#shadow-editor').shadowRoot.activeElement.blur()"
     )
-    ticked(page)
+    wait_for_revision(page, 2)
     expect(page).to_have_title("Live second")
     assert errors == []
 
 
-def test_overlapping_state_answers_share_one_live_version_activation(browser, serve):
-    """Two ordinary polls cannot replace the main twice.
-
-    Hold the shared version-file request past one polling interval, so a second timer
-    response joins the first while both await that document. One transition proves the
-    serialization is at the commit boundary, after asynchronous preparation, rather than
-    only before it.
-    """
+def test_a_pending_navigation_prevents_another_live_activation(browser, serve):
+    """The departing document stops applying state after its navigation starts."""
     page, errors = open_page(browser, live_url(serve(LIVE_V1)))
-    page.evaluate(
-        """() => {
-          const start = document.startViewTransition.bind(document);
-          window.__leafTransitions = 0;
-          document.startViewTransition = update => {
-            window.__leafTransitions += 1;
-            return start(update);
-          };
-        }"""
-    )
+    held = []
 
-    def slow_version(route):
-        time.sleep(3)
-        route.continue_()
+    def hold_navigation(route):
+        if route.request.is_navigation_request():
+            held.append(route)
+        else:
+            route.continue_()
 
-    page.route("**/revisions/r2-*.html", slow_version)
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
-
-    expect(page).to_have_title("Live second", timeout=10_000)
-    assert page.evaluate("window.__leafTransitions") == 1
+    page.route("**/*", hold_navigation)
+    try:
+        (serve.page_dir / "index.html").write_text(LIVE_V2)
+        holding(page, held, 1, "the fresh revision document")
+        # A newer save overtakes this navigation. The same live root response owns
+        # the final revision; the old realm cannot launch another activation.
+        (serve.page_dir / "index.html").write_text(LIVE_V3)
+        held[0].continue_()
+        told(page)
+        expect(page).to_have_title("Live third")
+        assert len(held) == 1
+    finally:
+        page.unroute("**/*", hold_navigation)
     assert errors == []
 
 
-def test_a_skipped_transition_lands_the_version_without_a_fault(browser, serve):
-    """A skipped view transition still runs its update, but it rejects `ready`, which
-    the activation never awaits. Unhandled, that rejection reached the page's error
-    report, and every version landing in a hidden tab wrote an `error` event into
-    the log. The harness cannot hide a document, so the skip is invoked directly; it
-    is the same algorithm a hidden document runs.
-    """
+def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
+    """Fresh-document activation does not depend on same-document animation."""
     page, errors = open_page(browser, live_url(serve(LIVE_V1)))
-    page.evaluate(
-        """() => {
-          const start = document.startViewTransition.bind(document);
-          document.startViewTransition = update => {
-            const transition = start(update);
-            transition.skipTransition();
-            return transition;
-          };
-        }"""
-    )
+    page.evaluate("document.startViewTransition = undefined")
     (serve.page_dir / "index.html").write_text(LIVE_V2)
 
-    # The rejection is dispatched before the skipped update runs as its own task, so
-    # a landed version is the edge after which the report would already be written.
     expect(page).to_have_title("Live second", timeout=10_000)
+    page.wait_for_function(BOTH_STAMPS)
     assert errors == []
 
 
@@ -3093,8 +3102,13 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
         "resolves"
     ]
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the declaration change",
+    )
 
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/4")
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
@@ -3381,7 +3395,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     told(page)
 
     updates = page.evaluate(
-        "async () => (await import('/runtime/widget-api.js')).updateSequence()"
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
     )
     by_source = {update["source"]: update for update in updates}
     assert set(by_source) == {"claim", "report"}
@@ -3418,7 +3432,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     assert by_source["report"]["session"] == by_source["claim"]["session"]
     targeted = page.evaluate(
         """async () => {
-            const feed = await import('/runtime/widget-api.js');
+            const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
             return {
                 widget: feed.updateSequence(document.querySelector('#ag-wren')),
                 thread: feed.updateSequence({kind: 'thread', id: 'ag-wren'}),
@@ -3451,7 +3465,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     wait_for_revision(page, 2)
 
     updates = page.evaluate(
-        "async () => (await import('/runtime/widget-api.js')).updateSequence()"
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
     )
     by_source = {update["source"]: update for update in updates}
     assert by_source["claim"]["disposition"] == "settled"
@@ -3460,8 +3474,8 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     assert errors == []
 
 
-def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serve):
-    """A report's prose and durable fields describe the same committed reading."""
+def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
+    """The page-wide drag gate withholds widget views and projection coverage."""
     page, errors = open_page(browser, serve(ROSTER_PAGE))
     d = serve.page_dir
     row = page.locator("#ag-wren")
@@ -3481,8 +3495,15 @@ def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serv
     told(page)
     expect(row).to_have_attribute("state", "working")
     expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
 
-    page.evaluate("document.body.classList.add('lf-dragging')")
+    page.evaluate(
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, true);
+        }"""
+    )
     second = CliRunner().invoke(
         cli_model.cli,
         [
@@ -3498,10 +3519,18 @@ def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serv
     told(page)
     expect(row).to_have_attribute("state", "working")
     expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
 
-    page.evaluate("document.body.classList.remove('lf-dragging')")
+    page.evaluate(
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, false);
+        }"""
+    )
     expect(row).to_have_attribute("state", "idle")
     expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     assert errors == []
 
 
@@ -3849,9 +3878,12 @@ def test_render_separates_old_and_new_facets_on_one_element(
     }
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-pair.js").write_text(
-        """import { once } from "/runtime/widget-api.js";
+        """import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-pair", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     for (const [facet, reading] of Object.entries(state)) {
       if (reading.value === null) this.removeAttribute(facet);
@@ -3941,10 +3973,24 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         assert sent.exit_code == 0, sent.output
 
     page, errors = open_page(browser, url)
-    standing = page.evaluate("""async () => (await import('/runtime/widget-api.js')).standingState()
-        .flatMap(({widget, state}) => Object.entries(state).flatMap(([facet, value]) =>
-          (value.units ? Object.values(value.units) : [value]).filter(({action}) => action)
-            .map(({action}) => [widget.id, widget.localName, facet, action])))""")
+    standing_ids = sorted(
+        {widget for widget, _action, _detail in STANDING_ACTIONS}
+        | {"ab-baffles", "ab-wren"}
+    )
+    standing = page.evaluate(
+        """async ids => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return ids.flatMap(id => {
+            const widget = document.getElementById(id);
+            const state = widgetController(widget).read().state;
+            return Object.entries(state).flatMap(([facet, value]) =>
+              (value.units ? Object.values(value.units) : [value])
+                .filter(({action}) => action)
+                .map(({action}) => [widget.id, widget.localName, facet, action]));
+          });
+        }""",
+        standing_ids,
+    )
     page.close()
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     declared = {
@@ -4015,9 +4061,12 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-tally", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     if (state.count.value === null) this.removeAttribute("count");
     else this.setAttribute("count", state.count.value);
@@ -4051,11 +4100,11 @@ customElements.define("lf-tally", class extends HTMLElement {
     expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     standing = page.evaluate(
-        """async () => (await import('/runtime/widget-api.js')).standingState()
-          .filter(state => state.widget?.id === 'tally-fitted')
-          .map(({state}) => state.count.value)"""
+        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+          .widgetController(document.getElementById('tally-fitted')).read()
+          .state.count.value"""
     )
-    assert standing == ["7"]
+    assert standing == "7"
 
     original = page.locator("#tally-seen").element_handle()
     page.keyboard.press("z")
@@ -4076,8 +4125,8 @@ def test_state_origin_readings_compose_on_one_target(browser, serve):
     origins = page.evaluate(
         """async () => {
           const [{projectionOrigins}, {authoredStates}] = await Promise.all([
-            import('/runtime/projection/model.js'),
-            import('/runtime/projection/authored.js'),
+            window.__lfRuntimeImport('/runtime/projection/model.js'),
+            window.__lfRuntimeImport('/runtime/projection/authored.js'),
           ]);
           const entry = (id, kind, facet) => ({
             unit: 't-parser',
@@ -4179,9 +4228,12 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
         """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-owner", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     for (const [id, order] of Object.entries(state.placement.value)) {
       const zone = document.getElementById(id);
@@ -4193,9 +4245,12 @@ customElements.define("lf-owner", class extends HTMLElement {
     )
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
         """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { this.setAttribute("pinned", state.placement.value); }
 });
 """
@@ -4231,9 +4286,14 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     standing = page.evaluate(
-        """async () => (await import('/runtime/widget-api.js')).standingState()
-          .filter(({widget}) => ['owner', 'piece'].includes(widget.id))
-          .map(({widget, state}) => [widget.id, (state.placement.units?.piece ?? state.placement).action])"""
+        """async () => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return ['owner', 'piece'].map(id => {
+            const widget = document.getElementById(id);
+            const {state} = widgetController(widget).read();
+            return [id, (state.placement.units?.piece ?? state.placement).action];
+          });
+        }"""
     )
     assert standing == [["owner", "move"], ["piece", "pin"]]
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
@@ -4303,9 +4363,12 @@ def test_complete_positions_compose_across_independent_widget_owners(
     path.write_text(json.dumps(declarations))
     (
         path.parent / "widgets" / "lf-token.js"
-    ).write_text("""import { once } from "/runtime/widget-api.js";
+    ).write_text("""import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-token", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     const {to, index} = state.placement.detail;
     const parent = document.getElementById(to);
@@ -4652,7 +4715,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await import("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
@@ -4669,7 +4732,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         "widget-owned data-lf-state disappeared with the runtime's private attributes"
     )
     positions = page.evaluate("""async () => {
-        const { shallowSigs } = await import("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
         const root = document.createElement("div");
         root.id = "signature-root";
         root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
@@ -5022,9 +5085,12 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
         spec["record"] = record
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { once } from "/runtime/widget-api.js";
+        """import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { this.setAttribute("decision", state.settlement.value); }
 });
 """
@@ -5072,7 +5138,12 @@ def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
     trial_family(tmp_path)
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """\
+import {widgetController} from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState() { throw new Error("trial replay broke"); }
 });
 """
@@ -5109,7 +5180,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     slot (a later layer's rule outranking the default, a module re-showing what it
     folded): the words stay on screen where the reader can select what no comment
     can anchor to, and the gate must say so. Then the theme goes back and the
-    vendored module is rewritten to mark every trial after projection commits: on the undecided
+    vendored module marks every trial after the controller publishes: on the undecided
     spare that is a settlement the log never decided, silencing words the reader can
     still see, and the gate must say that too. Both failures render perfectly, which
     is why each is put back deliberately."""
@@ -5135,7 +5206,12 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     css = vendored.read_text()
     assert css.count(hide) == 1
     vendored.write_text(css.replace(hide, ""))
-    failures = render_gate_model.render_version(browser, url)
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the visible settled slot",
+    )
+    failures = render_gate_model.render_version(browser, live_url(url))
     assert any(
         "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
         in failure
@@ -5144,17 +5220,56 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
 
     vendored.write_text(css)
     module = serve.page_dir / "widgets" / "lf-trial.js"
-    source = module.read_text()
-    upgrade_line = "if (!once(this)) return;"
-    assert source.count(upgrade_line) == 1
     module.write_text(
-        source.replace(
-            upgrade_line,
-            upgrade_line
-            + '\n      document.addEventListener("lf-actions", () => this.setAttribute("data-lf-state", "shelve"));',
-        )
+        """\
+import {once, widgetController} from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends HTMLElement {
+  #controller;
+  #presented;
+  #stop;
+  connectedCallback() {
+    this.#controller ??= widgetController(this);
+    if (!once(this)) {
+      this.#subscribe();
+      return;
+    }
+    this.#subscribe();
+  }
+  disconnectedCallback() {
+    this.#stop?.();
+    this.#stop = undefined;
+    this.#presented?.disconnect();
+    this.#presented = undefined;
+  }
+  #subscribe() {
+    this.#stop ??= this.#controller.subscribe(reading => this.#markAfterPresentation(reading));
+    this.#markAfterPresentation(this.#controller.read());
+  }
+  #markAfterPresentation(reading) {
+    if (!reading.state) return;
+    if (document.body.dataset.lfPresented === "1") {
+      this.setAttribute("data-lf-state", "shelve");
+      return;
+    }
+    this.#presented ??= new MutationObserver(() => {
+      if (document.body.dataset.lfPresented !== "1") return;
+      this.#presented.disconnect();
+      this.#presented = undefined;
+      if (this.isConnected) this.setAttribute("data-lf-state", "shelve");
+    });
+    this.#presented.observe(document.body, {
+      attributes: true, attributeFilter: ["data-lf-presented"],
+    });
+  }
+});
+"""
     )
-    failures = render_gate_model.render_version(browser, url)
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the false settlement mark",
+    )
+    failures = render_gate_model.render_version(browser, live_url(url))
     assert any(
         "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
         "records no decision" in failure
@@ -5508,15 +5623,20 @@ def test_thread_body_initial_state_waits_for_upgrade(browser, serve, asynchronou
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import {once, settle} from '/runtime/widget-api.js';
+import {once, widgetController} from '/runtime/widget-api.js';
 customElements.define('lf-delayed-body', class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
   connectedCallback() {
-    if (!once(this)) return;
-    settle(new Promise(resolve => requestAnimationFrame(() => {
-      this.querySelector('pre').textContent = 'First line.\\nSecond line.';
-      resolve();
-    })));
+    if (once(this)) {
+      this.#controller.present(new Promise(resolve => requestAnimationFrame(() => {
+        this.querySelector('pre').textContent = 'First line.\\nSecond line.';
+        resolve();
+      })));
+    }
+    this.#stop ??= this.#controller.subscribe(() => {});
   }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { this.querySelector('pre').textContent = state.body.value; }
 });
 """
@@ -5755,7 +5875,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # asked a set question in.
     seam = page.locator("#tq-set").evaluate(
         """el => { const done = el.querySelector('.lf-done');
-                   const last = done.previousElementSibling;
+                   const last = done.parentElement.previousElementSibling;
                    const a = last.getBoundingClientRect();
                    const b = done.getBoundingClientRect();
                    return {gap: Math.round((b.top - a.bottom) * 10) / 10,
@@ -6262,10 +6382,11 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
     available = operations.evaluate(
         """async holder => {
-          const leaf = await import('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const reading = widgetController(holder).read();
           return [
-            leaf.requestAvailable(holder, 'restart'),
-            leaf.requestAvailable(holder, 'land')
+            reading.requests.restart.available,
+            reading.requests.land.available,
           ];
         }"""
     )
@@ -6274,26 +6395,15 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     page.locator(".lf-asks").click()
     request_row = page.locator('.lf-asks-row[data-lf-at="dedupe-operations-decision"]')
     expect(request_row).to_have_attribute("data-lf-answer-state", "open")
-    page.evaluate(
-        """() => {
-          window.__lfFirstRequestAnswer = new Promise(resolve => {
-            document.addEventListener('lf-actions', () => queueMicrotask(() => {
-              resolve(document.querySelector(
-                '[data-lf-at="dedupe-operations-decision"] .lf-asks-answer'
-              ).textContent);
-            }), {once: true});
-          });
-        }"""
-    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     operations.get_by_role("button", name="Restart with a fresh worker").click()
     holding(page, held, 1, "the restart request")
     expect(operations).to_contain_text("restart requested · waiting for the host")
     expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
-    assert page.evaluate("() => window.__lfFirstRequestAnswer") == (
+    expect(request_row.locator(".lf-asks-answer")).to_have_text(
         "Restart with a fresh worker"
-    ), "the open Asks tray missed the package's first request projection"
+    )
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -6346,6 +6456,95 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
         "restart succeeded · Deduplicate the corpus snapshot"
     )
     assert errors == []
+
+
+def test_request_controls_join_presentation_without_replacing_authored_items(
+    browser, serve
+):
+    """The holder's render proof includes its Lit controls and retains page nodes."""
+    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    operations = page.locator("#dedupe-operations")
+    restart = operations.locator(':scope > lf-operation[verb="restart"]')
+    button = restart.get_by_role("button", name="Restart with a fresh worker")
+    expect(button).to_be_visible()
+    page.evaluate(
+        """async holder => {
+          const item = holder.querySelector(':scope > lf-operation[verb="restart"]');
+          const control = item.querySelector(':scope > lf-request-control');
+          window.requestItem = item;
+          window.requestControl = control;
+          window.requestAuthoredChildren = [...item.childNodes].filter(
+            child => child !== control
+          );
+          window.requestIdentityHeld = () =>
+            holder.querySelector(':scope > lf-operation[verb="restart"]') === requestItem &&
+            requestItem.querySelector(':scope > lf-request-control') === requestControl &&
+            requestAuthoredChildren.every((child, index) =>
+              requestItem.childNodes[index] === child
+            );
+
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          window.releaseRequestControl = release;
+          const schedule = control.scheduleUpdate.bind(control);
+          control.scheduleUpdate = async () => {
+            control.scheduleUpdate = schedule;
+            await held;
+            return schedule();
+          };
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          window.whenRequestPresented = presentation.whenApplicationPresented;
+          window.readRequestPresentation = presentation.readApplicationPresentation;
+        }""",
+        operations.element_handle(),
+    )
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    try:
+        button.click()
+        holding(page, held, 1, "the request whose generated control update is held")
+        page.evaluate(
+            "() => { requestPresentationReady = false; "
+            "void whenRequestPresented().then(() => { "
+            "requestPresentationReady = true; }); }"
+        )
+        assert page.evaluate("requestPresentationReady") is False
+        assert "widget:dedupe-operations:render" in page.evaluate(
+            "readRequestPresentation().pending"
+        )
+        assert page.evaluate("requestIdentityHeld()") is True
+
+        page.evaluate("releaseRequestControl()")
+        page.wait_for_function("requestPresentationReady")
+        expect(operations).to_contain_text("restart requested · waiting for the host")
+        expect(button).to_have_attribute("aria-disabled", "true")
+
+        operations.evaluate(
+            """holder => {
+              const parent = holder.parentNode;
+              const next = holder.nextSibling;
+              holder.remove();
+              parent.insertBefore(holder, next);
+              window.reconnectedRequestReady = false;
+              whenRequestPresented().then(() => {
+                reconnectedRequestReady = true;
+              });
+            }"""
+        )
+        page.wait_for_function("reconnectedRequestReady")
+        assert page.evaluate("requestIdentityHeld()") is True
+    finally:
+        page.evaluate("releaseRequestControl?.()")
+        if held:
+            held[0].continue_()
+        page.unroute("**/api/event")
+
+    round_trip(page)
+    assert errors == []
+    page.close()
 
 
 def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
@@ -6455,11 +6654,12 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
             "parent": root["id"],
             "text": "Choose the host operation.",
             "markup": (
+                '<lf-ask id="thread-command-decision">'
+                "<h3>What should the host do?</h3>"
                 '<lf-operations id="thread-commands" target="parser-dedupe" '
-                'worker="w-5" worktree="tree-w-5" '
-                'label="What should the host do?">'
+                'worker="w-5" worktree="tree-w-5">'
                 '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations>"
+                "</lf-operations></lf-ask>"
             ),
         },
     )
@@ -7245,34 +7445,15 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
     assert errors == []
 
 
-def test_command_hub_stops_listening_after_live_version_replacement(browser, serve):
-    """A command removed with the old main cannot emit another projection."""
+def test_command_hub_gets_a_new_document_after_live_version_replacement(browser, serve):
+    """Old command owners and their event listeners disappear with the document."""
     url = serve(COMMAND_HUB_EXAMPLE)
     page, errors = open_page(browser, live_url(url))
-    page.evaluate("window.__retiredCommand = document.querySelector('#hub-plan')")
+    original_document = page.evaluate("performance.timeOrigin")
     stamp_page(serve.page_dir, COMMAND_HUB_PAGE, "same plan")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    page.evaluate(
-        """() => {
-          window.__retiredUpdates = 0;
-          document.addEventListener("lf-command-update", event => {
-            if (event.detail.plan === window.__retiredCommand)
-              window.__retiredUpdates += 1;
-          });
-        }"""
-    )
-
-    retired_updates = page.evaluate(
-        f"""async () => {{
-          window.__retiredCommand.querySelector('#api-errors')
-            .setAttribute('status', 'done');
-          await ({ONE_FRAME})();
-          return window.__retiredUpdates;
-        }}"""
-    )
-
-    assert retired_updates == 0
+    assert page.evaluate("performance.timeOrigin") != original_document
     assert errors == []
 
 

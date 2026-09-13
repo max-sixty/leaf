@@ -1139,12 +1139,9 @@ STANDING_ACTIONS = [
                     "name": "Release card",
                     "scope": "element",
                     "className": None,
-                    "selector": {
-                        "authoredId": "ab-release-card",
-                        "path": [{"tag": "section", "index": 0}],
-                        "label": "<section#ab-release-card>",
-                        "text": "Release notes",
-                    },
+                    "reference": {"kind": "id", "id": "ab-release-card"},
+                    "label": "<section#ab-release-card>",
+                    "text": "Release notes",
                 }
             ],
             "changes": [
@@ -1181,14 +1178,18 @@ RELATIVE_WIDGET_PAGE = leaf_page(
 )
 
 RELATIVE_WIDGET_MODULE = """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-tally",
   class extends HTMLElement {
+    #controller = widgetController(this);
+    #stop;
     connectedCallback() {
       once(this);
+      this.#stop ??= this.#controller.subscribe(() => {});
     }
+    disconnectedCallback() { this.#stop?.(); this.#stop = null; }
     renderState(state) {
       this.setAttribute("count", Number(this.getAttribute("count")) + Number(state.count.value));
       this.querySelector("pre").append(state.caption.value);
@@ -1215,13 +1216,18 @@ DRIFT_PAGE = leaf_page(
 )
 
 DRIFT_MODULE = """\
-import { motion, once } from "/runtime/widget-api.js";
+import { motion, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-drift",
   class extends HTMLElement {
+    #controller = widgetController(this);
+    #stop;
     connectedCallback() {
-      if (!once(this)) return;
+      if (!once(this)) {
+        this.#stop ??= this.#controller.subscribe(() => {});
+        return;
+      }
       // `deep` renders the same words from inside the widget's own root, and moves
       // them there: an animation a document-level reading cannot see.
       if (this.hasAttribute("deep")) {
@@ -1230,6 +1236,7 @@ customElements.define(
         // and the refusal is what one of the tests below reads.
         if (this.hasAttribute("bare")) {
           root.append(...this.childNodes);
+          this.#stop ??= this.#controller.subscribe(() => {});
           return;
         }
         const held = document.createElement("div");
@@ -1241,7 +1248,9 @@ customElements.define(
         );
       }
       this.#place();
+      this.#stop ??= this.#controller.subscribe(() => {});
     }
+    disconnectedCallback() { this.#stop?.(); this.#stop = null; }
     // Absolute, as every renderState is: the offset is stated, never stepped.
     renderState(state) {
       const from = this.getAttribute("offset");
@@ -1532,21 +1541,36 @@ SEATED_ASK_ENTRY = {
 # the answer is already on the page, so a refusal is not a refusal the reader can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
 SEATED_ASK_MODULE = """\
-import { conversationBox, offer, once, sendAction } from "/runtime/widget-api.js";
+import { conversationBox, offer, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-verdict",
   class extends HTMLElement {
+    #controller;
+    #stop = null;
+
     connectedCallback() {
-      if (!once(this)) return;
+      this.#controller ??= widgetController(this);
+      if (!once(this)) {
+        this.#stop ??= this.#controller.subscribe(() => {});
+        return;
+      }
       this.press = offer("button", "lf-settle", "Accept");
       this.press.onclick = () => {
         this.settled();
-        sendAction(this, "settle", { answer: "yes" });
+        this.#controller.dispatch({
+          kind: "action", verb: "settle", detail: {answer: "yes"},
+        });
       };
       this.append(this.press);
       const seat = conversationBox(this, "Say something about this");
       if (seat) this.append(seat);
+      this.#stop ??= this.#controller.subscribe(() => {});
+    }
+
+    disconnectedCallback() {
+      this.#stop?.();
+      this.#stop = null;
     }
 
     settled() {

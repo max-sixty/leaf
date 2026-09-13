@@ -56,6 +56,14 @@ class PageStateService:
             active_override=active_override,
             documents_override=snapshot.documents if snapshot is not None else None,
             registry_override=snapshot.registry if snapshot is not None else None,
+            registries_override=(
+                {
+                    revision: artifact.registry
+                    for revision, artifact in snapshot.artifacts.items()
+                }
+                if snapshot is not None
+                else None
+            ),
             data_override=snapshot.browser_data if snapshot is not None else None,
             versions_override=snapshot.versions if snapshot is not None else None,
             presence_override=snapshot.presence if snapshot is not None else None,
@@ -131,6 +139,14 @@ class PageStateService:
             now_iso(),
             documents_override=documents_override,
             registry_override=registry_override,
+            registries_override=(
+                {
+                    revision: artifact.registry
+                    for revision, artifact in self.page_snapshot.artifacts.items()
+                }
+                if self.page_snapshot is not None
+                else None
+            ),
             include_active_view=False,
         )
         if projected is None:

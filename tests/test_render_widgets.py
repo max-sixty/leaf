@@ -450,7 +450,7 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
 
     page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const workspace = document.querySelector('#review-workspace');
           const content = workspace.querySelector(':scope > .lf-workspace-content');
           const split = content.firstElementChild;
@@ -468,7 +468,7 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
 
     page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           await new Promise(resolve => setTimeout(resolve, 30));
           const owner = document.querySelector('#package-surface');
           leaf.arrangeReadingElement({
@@ -530,7 +530,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     )
     assert ask.evaluate(
         """async node => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return leaf.readingPosture(node) === 'flow'
             && leaf.effectiveScroller(node) === document.scrollingElement;
         }"""
@@ -588,7 +588,7 @@ import {
   fitRootReadingElement,
   once,
   registerReadingElement,
-  settle,
+  widgetController,
 } from '/runtime/widget-api.js';
 
 customElements.define('lf-studio', class extends HTMLElement {
@@ -606,7 +606,7 @@ customElements.define('lf-studio', class extends HTMLElement {
       readingArrangement: this.readingArrangement,
       minimumSize: () => ({width: 200, height: 200}),
     });
-    settle(this.fitting.update());
+    widgetController(this).present(this.fitting.update());
   }
 
   disconnectedCallback() {
@@ -660,7 +660,7 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
     expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
     assert studio.evaluate(
         """async owner => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return leaf.readingPosture(owner) === 'bounded';
         }"""
     )
@@ -799,7 +799,7 @@ def test_the_monitoring_root_fits_its_release_regions_and_returns_from_flow(
     expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     assert page.evaluate(
         """async () => {
-          const {readingRegions} = await import('/runtime/widget-api.js');
+          const {readingRegions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const wanted = ['lp-release', 'lp-checks', 'lp-log'];
           const ids = readingRegions().map(region => region.id);
           return wanted.every(id => ids.filter(candidate => candidate === id).length === 1);
@@ -1163,7 +1163,7 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     ) == ["first-change", "second-change", "third-change"]
     page.locator("#first-change").evaluate(
         "el => { const parent = el.parentNode; const next = el.nextSibling;"
-        "        el.remove(); document.dispatchEvent(new Event('lf-actions'));"
+        "        el.remove();"
         "        parent.insertBefore(el, next); }"
     )
     assert page.locator(".lf-sug-actions").evaluate_all(
@@ -1175,8 +1175,14 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     ], "reconnecting the first suggestion moved its controls after later source rows"
     first_accept = page.locator("[data-lf-for='first-change'] .lf-sug-accept")
     first_accept.evaluate(
-        "control => { control.setAttribute('aria-disabled', 'true');"
-        "  document.dispatchEvent(new Event('lf-actions')); }"
+        """control => {
+          control.setAttribute('aria-disabled', 'true');
+          const widget = document.getElementById('first-change');
+          const parent = widget.parentNode;
+          const next = widget.nextSibling;
+          widget.remove();
+          parent.insertBefore(widget, next);
+        }"""
     )
     expect(first_accept).to_have_attribute("aria-disabled", "false")
     page.locator("[data-lf-for='first-change'] .lf-sug-accept").focus()
@@ -1222,8 +1228,13 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
         cdp = context.new_cdp_session(page)
         page.evaluate(
             """async () => {
+              const registry = new URL(
+                document.querySelector('script[data-lf-runtime]').dataset.lfProbe,
+                location.href,
+              );
               window.__lfSortablePrototype =
-                (await import('/vendor/sortable.esm.js')).default.prototype;
+                (await import(new URL('vendor/sortable.esm.js', registry).href))
+                  .default.prototype;
             }"""
         )
 
@@ -1298,135 +1309,44 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
         context.close()
 
 
-def test_live_widget_watchers_release_and_reconnect(browser, serve):
-    """Live widget feeds release detached owners and call them after reconnection."""
+def test_live_widget_subscription_releases_and_reconnects(browser, serve):
+    """A detached widget ignores semantic news and catches up when reconnected."""
     source = leaf_page(
         "widget watcher lifecycle",
         """
 <section id="watched">
-  <p><lf-suggestion id="watched-suggestion"><lf-old>old</lf-old><lf-new>new</lf-new></lf-suggestion></p>
   <lf-draft id="watched-draft"><pre>Draft words.</pre></lf-draft>
-  <lf-roster id="watched-roster">
-    <lf-agent id="watched-agent" state="working"><strong>worker</strong> Working.</lf-agent>
-  </lf-roster>
-  <lf-record id="watched-record"></lf-record>
 </section>
 """,
     )
-    context = browser.new_context(viewport={"width": 1000, "height": 800})
-    context.add_init_script(
-        """(() => {
-          const add = EventTarget.prototype.addEventListener;
-          const remove = EventTarget.prototype.removeEventListener;
-          const watched = new Set(['lf-actions', 'lf-drafts']);
-          const wrappers = new Map();
-          window.__lfWatchers = {
-            added: Object.create(null),
-            removed: Object.create(null),
-            calls: Object.create(null),
-          };
-          for (const type of watched) {
-            window.__lfWatchers.added[type] = 0;
-            window.__lfWatchers.removed[type] = 0;
-            window.__lfWatchers.calls[type] = 0;
-          }
-          EventTarget.prototype.addEventListener = function(type, listener, options) {
-            if (this !== document || !watched.has(type) || typeof listener !== 'function')
-              return add.call(this, type, listener, options);
-            const wrapped = function(...args) {
-              window.__lfWatchers.calls[type]++;
-              return listener.apply(this, args);
-            };
-            let byType = wrappers.get(type);
-            if (!byType) wrappers.set(type, byType = new Map());
-            byType.set(listener, wrapped);
-            window.__lfWatchers.added[type]++;
-            return add.call(this, type, wrapped, options);
-          };
-          EventTarget.prototype.removeEventListener = function(type, listener, options) {
-            if (this !== document || !watched.has(type) || typeof listener !== 'function')
-              return remove.call(this, type, listener, options);
-            const wrapped = wrappers.get(type)?.get(listener) ?? listener;
-            window.__lfWatchers.removed[type]++;
-            return remove.call(this, type, wrapped, options);
-          };
-        })()"""
+    page, errors = open_page(browser, serve(source))
+    before = page.locator("#watched").evaluate("section => section.innerHTML")
+    page.evaluate(
+        """() => {
+          window.__lfWatchedSection = document.querySelector('#watched');
+          window.__lfWatchedSection.remove();
+        }"""
     )
-    try:
-        page, errors = open_page(browser, serve(source), context=context)
-        initial = page.evaluate("() => structuredClone(window.__lfWatchers)")
-        initial_actions = (
-            initial["added"]["lf-actions"] - initial["removed"]["lf-actions"]
-        )
-        initial_drafts = initial["added"]["lf-drafts"] - initial["removed"]["lf-drafts"]
-        assert initial_actions >= 4
-        assert initial_drafts >= 1
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "watched-draft",
+            "action": "edit",
+            "detail": {"text": "Reconnected words."},
+        },
+    )
+    told(page)
+    assert page.evaluate("window.__lfWatchedSection.innerHTML") == before
 
-        page.evaluate(
-            """() => {
-              window.__lfWatchedSection = document.querySelector('#watched');
-              window.__lfWatchedSection.remove();
-            }"""
-        )
-        released = page.evaluate("() => structuredClone(window.__lfWatchers)")
-        released_actions = (
-            released["added"]["lf-actions"] - released["removed"]["lf-actions"]
-        )
-        released_drafts = (
-            released["added"]["lf-drafts"] - released["removed"]["lf-drafts"]
-        )
-        assert released_actions == initial_actions - 4
-        assert released_drafts == initial_drafts - 1
-        released_calls = page.evaluate(
-            """() => {
-              const before = structuredClone(window.__lfWatchers.calls);
-              document.dispatchEvent(new Event('lf-actions'));
-              document.dispatchEvent(new CustomEvent('lf-drafts', {
-                detail: {ctx: 'edit:watched-draft', value: null},
-              }));
-              return {
-                actions: window.__lfWatchers.calls['lf-actions'] - before['lf-actions'],
-                drafts: window.__lfWatchers.calls['lf-drafts'] - before['lf-drafts'],
-              };
-            }"""
-        )
-        assert released_calls == {
-            "actions": released_actions,
-            "drafts": released_drafts,
-        }
-
-        page.evaluate(
-            "() => document.querySelector('main').append(window.__lfWatchedSection)"
-        )
-        restored = page.evaluate("() => structuredClone(window.__lfWatchers)")
-        restored_actions = (
-            restored["added"]["lf-actions"] - restored["removed"]["lf-actions"]
-        )
-        restored_drafts = (
-            restored["added"]["lf-drafts"] - restored["removed"]["lf-drafts"]
-        )
-        assert restored_actions == initial_actions
-        assert restored_drafts == initial_drafts
-        restored_calls = page.evaluate(
-            """() => {
-              const before = structuredClone(window.__lfWatchers.calls);
-              document.dispatchEvent(new Event('lf-actions'));
-              document.dispatchEvent(new CustomEvent('lf-drafts', {
-                detail: {ctx: 'edit:watched-draft', value: null},
-              }));
-              return {
-                actions: window.__lfWatchers.calls['lf-actions'] - before['lf-actions'],
-                drafts: window.__lfWatchers.calls['lf-drafts'] - before['lf-drafts'],
-              };
-            }"""
-        )
-        assert restored_calls == {
-            "actions": restored_actions,
-            "drafts": restored_drafts,
-        }
-        assert errors == []
-    finally:
-        context.close()
+    page.evaluate("document.querySelector('main').append(window.__lfWatchedSection)")
+    expect(page.locator("#watched-draft .lf-draft-history > summary")).to_have_text(
+        "Changes · 1 edit"
+    )
+    assert errors == []
+    page.close()
 
 
 def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
@@ -1508,7 +1428,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # The title is a visible page label, while each repeated heading is the label of a
     # browser-owned link under .lf-ui. The authored heading remains the one passage.
     spoken = page.locator("main").evaluate(
-        "async main => (await import('/runtime/widget-api.js')).says(main)"
+        "async main => (await window.__lfRuntimeImport('/runtime/widget-api.js')).says(main)"
     )
     assert spoken.count("Prepare gradually") == 1
     assert spoken.count("Move the readers") == 1
@@ -3218,7 +3138,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     expect(actions).to_be_visible()
     bounded = page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const playground = document.querySelector('#notification-playground');
           const controls = playground.querySelector(
             '.lf-playground-controls-region > .lf-pane-content > .lf-pane-body');
@@ -3293,7 +3213,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     assert presets.bounding_box()["y"] == pytest.approx(presets_top, abs=1)
     expect(playground.get_by_role("button", name="Routine release")).to_be_visible()
     expect(playground.get_by_role("button", name="Needs attention")).to_be_visible()
-    pressure = page.locator("#notification-simulator-pressure")
+    pressure = playground.locator('lf-playground-control[name="events"] input')
     expect(pressure).to_have_value("2")
     expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
@@ -3310,8 +3230,8 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     expect(page.locator(".notification-demo-candidate").last).to_contain_text(
         "4 rows · compact summary"
     )
-    pressure.fill("2")
     playground.get_by_role("button", name="Needs attention").click()
+    expect(pressure).to_have_value("4")
     expect(page.locator("#notification-simulator")).to_have_attribute(
         "data-compact", "true"
     )
@@ -3322,6 +3242,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         regular_strip_padding.removesuffix("px")
     )
     playground.get_by_role("button", name="Routine release").click()
+    expect(pressure).to_have_value("2")
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
@@ -3370,7 +3291,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     flow = page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const playground = document.querySelector('#notification-playground');
           const controls = playground.querySelector(
             '.lf-playground-controls-region > .lf-pane-content > .lf-pane-body');
@@ -3401,11 +3322,384 @@ def test_composed_corpus_runs_authored_page_modules(browser, serve):
     corpus = Path(__file__).parent.parent / "examples" / "corpus.html"
     page, errors = open_page(browser, serve(corpus))
 
-    expect(page.locator("#notification-simulator-pressure")).to_have_value("2")
+    expect(
+        page.locator(
+            '#notification-playground lf-playground-control[name="events"] input'
+        )
+    ).to_have_value("2")
     expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
 
     assert errors == []
+
+
+def test_notification_playground_admits_only_its_exact_page_configuration(
+    browser, serve
+):
+    source = Path(__file__).parents[1] / "examples" / "notification-playground.html"
+    url = serve(source)
+    page, errors = open_page(browser, url)
+    playground = page.locator("#notification-playground")
+    values = playground.evaluate("root => root.values")
+    assert set(values) == {
+        "accent",
+        "compact",
+        "events",
+        "format",
+        "radius",
+        "show-owner",
+        "title",
+        "tone",
+    }
+
+    refused = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": 1,
+            "widget": "notification-playground",
+            "action": "choose",
+            "detail": {
+                "values": {**values, "unknown": "not part of this page"},
+                "instruction": "Build the notification.",
+            },
+        },
+    )
+    assert refused.status == 400
+    assert "unknown" in refused.json()["error"]
+    off_step = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": 1,
+            "widget": "notification-playground",
+            "action": "choose",
+            "detail": {
+                "values": {**values, "events": 2.5},
+                "instruction": "Build the notification.",
+            },
+        },
+    )
+    assert off_step.status == 400
+    assert "2.5" in off_step.json()["error"]
+    assert actions(serve.page_dir) == []
+    assert errors == []
+    page.close()
+
+
+def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
+    browser, serve
+):
+    source = Path(__file__).parents[1] / "examples" / "data-explorer.html"
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page, errors = open_page(browser, serve(source), context=context)
+    playground = page.locator("#release-query-playground")
+    rows = page.locator(".query-row")
+
+    expect(rows).to_have_count(2)
+    assert playground.evaluate("root => root.values") == {
+        "filters": {
+            "order": ["filter-1", "filter-2"],
+            "rows": [
+                {
+                    "field": "region",
+                    "id": "filter-1",
+                    "operator": "is",
+                    "value": "europe",
+                },
+                {
+                    "field": "risk",
+                    "id": "filter-2",
+                    "operator": "above",
+                    "value": "40",
+                },
+            ],
+        },
+        "limit": 4,
+    }
+    assert (
+        playground.evaluate(
+            """root => {
+          const returned = root.values;
+          returned.filters.rows[0].value = 'tampered';
+          return root.values.filters.rows[0].value;
+        }"""
+        )
+        == "europe"
+    )
+    assert playground.evaluate(
+        """root => {
+          const errors = [];
+          for (const [name, value] of [
+            ['limit', {}],
+            ['filters', {}],
+            ['bad-date', new Date()],
+          ]) {
+            try {
+              root.registerContributor(name, value, {read: () => value, apply: () => {}});
+            } catch (error) {
+              errors.push(error.message);
+            }
+          }
+          try {
+            root.registerInstructionProvider(() => 'A second provider');
+          } catch (error) {
+            errors.push(error.message);
+          }
+          return errors;
+        }"""
+    ) == [
+        "contributor limit collides with a control",
+        "repeats contributor filters",
+        "contributor bad-date must be JSON-safe",
+        "playground already has an instruction provider",
+    ]
+    expect(page.locator(".query-result-count")).to_have_text("2 matching releases")
+
+    rows.nth(1).get_by_label("Value").fill("80")
+    expect(page.locator(".query-result-count")).to_have_text("1 matching release")
+    rows.nth(1).get_by_role("button", name="Move filter 2 up").click()
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-2",
+        "filter-1",
+    ]
+    page.get_by_role("button", name="Add filter").click()
+    expect(rows).to_have_count(3)
+    expect(rows.nth(2).get_by_label("Value")).to_be_focused()
+    rows.nth(2).get_by_label("Value").fill("risk")
+    expect(page.locator(".query-result-count")).to_have_text("1 matching release")
+    rows.nth(2).get_by_role("button", name="Remove filter 3").click()
+    expect(rows).to_have_count(2)
+
+    playground.get_by_role("button", name="Broad query").click()
+    expect(
+        playground.locator('lf-playground-control[name="limit"] input')
+    ).to_have_value("6")
+    playground.get_by_role("button", name="Focused query").click()
+    expect(
+        playground.locator('lf-playground-control[name="limit"] input')
+    ).to_have_value("4")
+    instruction = page.locator("#release-query-instruction")
+    expect(instruction).to_contain_text("risk above 80, then region is europe")
+    playground.get_by_role("button", name="Copy instruction").click()
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert copied == instruction.inner_text()
+
+    page.reload()
+    expect(rows).to_have_count(2)
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-2",
+        "filter-1",
+    ]
+    expect(instruction).to_contain_text("risk above 80, then region is europe")
+    playground.get_by_role("button", name="Reset").click()
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-1",
+        "filter-2",
+    ]
+    expect(instruction).to_contain_text("region is europe, then risk above 40")
+    rows.nth(1).get_by_role("button", name="Remove filter 2").click()
+    rows.first.get_by_role("button", name="Remove filter 1").click()
+    expect(rows).to_have_count(0)
+    expect(instruction).to_contain_text("Apply no filters")
+    playground.get_by_role("button", name="Reset").click()
+    rows.first.get_by_label("Value").fill("asia")
+    expect(instruction).to_contain_text("region is asia, then risk above 40")
+
+    with sending(page, "the release query"):
+        playground.get_by_role("button", name="Build query").click()
+    action = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event.get("widget") == "release-query-playground"
+    )
+    assert action["detail"] == {
+        "instruction": instruction.inner_text(),
+        "values": playground.evaluate("root => root.values"),
+    }
+    page.reload()
+    expect(rows.first.get_by_label("Value")).to_have_value("asia")
+    expect(instruction).to_contain_text("region is asia, then risk above 40")
+    undo(page)
+    expect(rows.first.get_by_label("Value")).to_have_value("europe")
+    expect(instruction).to_contain_text("region is europe, then risk above 40")
+    resized(page, 480, 760)
+    assert page.evaluate("document.documentElement.scrollWidth") == 480
+    resized(page, 1100, 320)
+    expect(page.locator("#release-query-ask")).to_be_visible()
+    assert errors == []
+    page.close()
+    context.close()
+
+
+def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
+    browser, serve
+):
+    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page, errors = open_page(browser, serve(source), context=context)
+    playground = page.locator("#code-comparison-playground")
+    candidate_a = page.locator('[data-candidate="A"]')
+    candidate_b = page.locator('[data-candidate="B"]')
+
+    expect(page.locator("lf-code.lf-rendered")).to_have_count(3)
+    assert playground.evaluate("root => root.values") == {
+        "chosen": "A",
+        "comparison": {
+            "candidateA": {"density": "compact", "wrap": False},
+            "candidateB": {"density": "comfortable", "wrap": True},
+        },
+        "width": 420,
+    }
+    expect(candidate_a).to_have_attribute("style", re.compile(r"width: 420px"))
+    expect(candidate_b).to_have_attribute("style", re.compile(r"width: 420px"))
+    before_a = candidate_a.locator(".code-measurement").inner_text()
+    before_b = candidate_b.locator(".code-measurement").inner_text()
+    assert before_a != before_b
+
+    playground.locator('lf-playground-control[name="width"] input').fill("320")
+    expect(candidate_a).to_have_attribute("style", re.compile(r"width: 320px"))
+    expect(candidate_b).to_have_attribute("style", re.compile(r"width: 320px"))
+    assert playground.evaluate("root => root.values.width") == 320
+
+    page.get_by_role("button", name="Toggle A density").click()
+    assert playground.evaluate("root => root.values.comparison") == {
+        "candidateA": {"density": "comfortable", "wrap": False},
+        "candidateB": {"density": "comfortable", "wrap": True},
+    }
+    page.get_by_role("button", name="Toggle B density").click()
+    assert playground.evaluate("root => root.values.comparison.candidateB.density") == (
+        "compact"
+    )
+    page.get_by_role("button", name="Copy A to B").click()
+    assert playground.evaluate("root => root.values.comparison") == {
+        "candidateA": {"density": "comfortable", "wrap": False},
+        "candidateB": {"density": "comfortable", "wrap": False},
+    }
+    expect(candidate_a.locator(".code-candidate-title")).to_have_text(
+        "A · comfortable · scroll"
+    )
+    expect(candidate_b.locator(".code-candidate-title")).to_have_text(
+        "B · comfortable · scroll"
+    )
+    assert playground.evaluate("root => root.values.comparison.candidateA") == {
+        "density": "comfortable",
+        "wrap": False,
+    }
+    page.get_by_role("button", name="Toggle B density").click()
+    page.get_by_role("button", name="Copy B to A").click()
+    assert playground.evaluate("root => root.values.comparison") == {
+        "candidateA": {"density": "compact", "wrap": False},
+        "candidateB": {"density": "compact", "wrap": False},
+    }
+
+    playground.get_by_role("button", name="Wrapped reader").click()
+    expect(
+        playground.locator('lf-playground-control[name="width"] input')
+    ).to_have_value("320")
+    expect(playground.locator('lf-playground-choice[value="B"] input')).to_be_checked()
+    playground.get_by_role("button", name="Compact reader").click()
+    expect(
+        playground.locator('lf-playground-control[name="width"] input')
+    ).to_have_value("420")
+    playground.get_by_role("button", name="Reset").click()
+    assert playground.evaluate("root => root.values.comparison") == {
+        "candidateA": {"density": "compact", "wrap": False},
+        "candidateB": {"density": "comfortable", "wrap": True},
+    }
+
+    page.locator('lf-playground-choice[value="B"]').click()
+    instruction = page.locator("#code-comparison-instruction")
+    expect(instruction).to_contain_text("comfortable reading density")
+    expect(instruction).to_contain_text("wrap long lines")
+    playground.get_by_role("button", name="Copy instruction").click()
+    assert page.evaluate("navigator.clipboard.readText()") == instruction.inner_text()
+    with sending(page, "the code reader treatment"):
+        playground.get_by_role("button", name="Apply treatment").click()
+    action = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event.get("widget") == "code-comparison-playground"
+    )
+    assert action["detail"] == {
+        "instruction": instruction.inner_text(),
+        "values": playground.evaluate("root => root.values"),
+    }
+
+    targeting = page.locator("#code-comparison-targeting")
+    targeting.get_by_role("button", name="Select element").click()
+    page.locator(".reader-treatment-title").focus()
+    page.keyboard.press("Enter")
+    targeting.locator(".lf-targeting-candidate-choice").first.click()
+    target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
+    target.locator(".lf-targeting-name").fill("Reader treatment heading")
+    target.locator(".lf-targeting-name").press("Tab")
+    assert targeting.evaluate("root => root.currentDraft().resolutions") == {
+        "target-1": "resolved"
+    }
+
+    resized(page, 480, 760)
+    assert page.evaluate("document.documentElement.scrollWidth") == 480
+    expect(page.locator(".code-comparison-grid")).to_have_css(
+        "grid-template-columns", re.compile(r"\d+(?:\.\d+)?px")
+    )
+    resized(page, 1100, 320)
+    expect(page.locator("#code-comparison-ask")).to_be_visible()
+    assert errors == []
+    page.close()
+    context.close()
+
+
+def test_playground_composed_structural_target_resolves_in_the_next_revision(
+    browser, serve
+):
+    source_path = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    source = source_path.read_text(encoding="utf-8")
+    page, errors = open_page(browser, live_url(serve(source_path)))
+    targeting = page.locator("#code-comparison-targeting")
+
+    targeting.get_by_role("button", name="Select element").click()
+    page.locator(".reader-treatment-title").focus()
+    page.keyboard.press("Enter")
+    targeting.locator(".lf-targeting-candidate-choice").first.click()
+    target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
+    target.locator(".lf-targeting-name").fill("Reader treatment heading")
+    target.locator(".lf-targeting-name").press("Tab")
+    targeting.locator('[name="code-comparison-targeting-instruction"]').fill(
+        "Keep this heading aligned with the selected reader treatment."
+    )
+    targeting.get_by_role("button", name="Add instruction").click()
+    with sending(page, "the structural reader target"):
+        targeting.get_by_role("button", name="Propose exact edit").click()
+
+    action = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event.get("widget") == "code-comparison-targeting"
+    )
+    assert action["detail"]["targets"][0]["reference"] == {
+        "anchor": "target-reader-artifact",
+        "kind": "structure",
+        "path": [{"tag": "h3", "tree": "light"}],
+    }
+
+    revised = source.replace(
+        "One width gesture\n          reaches both",
+        "One shared width gesture\n          reaches both",
+    )
+    stamp = stamp_page(serve.page_dir, revised, "Clarify the comparison gesture")
+    wait_for_revision(page, stamp["revision"])
+    target = page.locator(
+        '#code-comparison-targeting .lf-targeting-target[data-target-key="target-1"]'
+    )
+    expect(target).to_have_attribute("data-lf-target-status", "resolved")
+    expect(page.locator(".reader-treatment-title")).to_have_text(
+        "Built reader treatment"
+    )
+    assert errors == []
+    page.close()
 
 
 def test_notification_configuration_becomes_a_commentable_local_artifact(
@@ -3450,6 +3744,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     assert action["detail"]["values"] == {
         "accent": "#b6533c",
         "compact": True,
+        "events": 4,
         "format": "status strip",
         "radius": 10,
         "show-owner": True,
@@ -3459,9 +3754,9 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     assert action["detail"]["instruction"] == (
         "Build the status strip deployment notification as deployment-notification.html. "
         "Use urgent styling, 10px corners, #b6533c accents, compact spacing set to true, "
-        "owner visibility set to true, and title it Checkout needs attention. Preserve the "
-        "shared event-pressure scenario in its browser test, then show me the generated "
-        "source here for review."
+        "owner visibility set to true, and title it Checkout needs attention. Exercise 4 "
+        "concurrent release events in its browser test, then show me the generated source "
+        "here for review."
     )
 
     logged_action = next(
@@ -3753,10 +4048,10 @@ def test_a_playground_rejects_restored_values_that_do_not_match_its_controls(
 
     page, errors = open_page(browser, url)
     expect(page.locator("#card-playground .lf-error")).to_contain_text(
-        "configuration needs exactly these controls"
+        "configuration needs exactly these fields"
     )
     assert any(
-        "configuration needs exactly these controls" in error for error in errors
+        "configuration needs exactly these fields" in error for error in errors
     ), errors
 
 
@@ -3825,6 +4120,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
                 "values": {
                     "accent": "#b6533c",
                     "compact": True,
+                    "events": 4,
                     "format": "status strip",
                     "radius": 10,
                     "show-owner": True,
@@ -3845,7 +4141,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     copy.goto(out.as_uri(), wait_until="load")
     playground = copy.locator("#notification-playground")
     expect(playground.locator(".lf-playground-actions")).to_be_hidden()
-    expect(playground.locator(".notification-demo-pressure")).to_be_hidden()
+    expect(playground.locator("lf-playground-control:visible")).to_have_count(0)
     expect(playground.locator("#notification-instruction")).to_contain_text(
         "deployment-notification.html"
     )
@@ -3886,7 +4182,7 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     assert playground.evaluate("root => root.values")["compact"] is False
     assert playground.evaluate(
         """async root => {
-          const {readingRegionFor} = await import('/runtime/widget-api.js');
+          const {readingRegionFor} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return readingRegionFor(root.querySelector('lf-playground-preview')) === undefined
             && getComputedStyle(root).display === 'block';
         }"""
@@ -3993,26 +4289,22 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
                 "name": "Hero cards",
                 "scope": "class",
                 "className": "landing-card",
-                "selector": {
-                    "authoredId": "hero",
-                    "path": [{"tag": "section", "index": 0}],
-                    "label": "<section#hero>",
-                    "text": "Build the next release Keep the request path visible.",
-                },
+                "reference": {"kind": "id", "id": "hero"},
+                "label": "<section#hero>",
+                "text": "Build the next release Keep the request path visible.",
             },
             {
                 "key": "target-2",
                 "name": "Evidence heading",
                 "scope": "element",
                 "className": None,
-                "selector": {
-                    "path": [
-                        {"tag": "section", "index": 1},
-                        {"tag": "h3", "index": 0},
-                    ],
-                    "label": "<h3.section-title>",
-                    "text": "Inspect the evidence",
+                "reference": {
+                    "kind": "structure",
+                    "anchor": "evidence",
+                    "path": [{"tree": "light", "tag": "h3"}],
                 },
+                "label": "<h3.section-title>",
+                "text": "Inspect the evidence",
             },
         ],
         "changes": [
@@ -4046,9 +4338,116 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     workbench.locator('[name="landing-targeting-style-value"]').fill("40")
     workbench.get_by_role("button", name="Add style").click()
     assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": actions[0]["id"]},
+    )
+    told(page)
+    assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
+    assert workbench.evaluate("element => element.currentDraft().dirty") is True
     workbench.get_by_role("button", name="Revert draft").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
-    expect(workbench.locator(".lf-targeting-change")).to_have_count(2)
+    assert page.locator("#hero").evaluate("element => element.style.padding") == ""
+    expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_targeting_controller_keeps_unresolved_targets_visible_and_blocks_submit(
+    browser, serve
+):
+    authored = leaf_page(
+        "target lifecycle",
+        """
+<lf-ask id="target-lifecycle-ask">
+  <h2>What should change?</h2>
+  <lf-targeting id="target-lifecycle">
+    <lf-target-preview id="target-lifecycle-preview">
+      <article><div><span><button type="button">Keep this card identifiable</button></span></div></article>
+    </lf-target-preview>
+  </lf-targeting>
+</lf-ask>
+""",
+    )
+    page, errors = open_page(browser, serve(authored, packages=("targeting",)))
+    workbench = page.locator("#target-lifecycle")
+    target = workbench.locator("article")
+    focused = target.get_by_role("button", name="Keep this card identifiable")
+
+    armed = workbench.evaluate(
+        """element => {
+          element.arm();
+          const armed = element.currentDraft().armed;
+          element.disarm();
+          const disarmed = element.currentDraft().armed;
+          element.arm();
+          return {armed, disarmed, rearmed: element.currentDraft().armed};
+        }"""
+    )
+    assert armed == {"armed": True, "disarmed": False, "rearmed": True}
+
+    focused.focus()
+    page.keyboard.press("Enter")
+    candidates = workbench.locator(".lf-targeting-candidate-choice")
+    expect(candidates).to_have_count(5)
+    candidates.filter(has_text="<article>").click()
+    workbench.get_by_role("button", name="Add style").click()
+    submit = workbench.get_by_role("button", name="Submit changes")
+    card = workbench.locator('[data-target-key="target-1"]')
+    expect(card).to_have_attribute("data-lf-target-status", "resolved")
+    expect(submit).to_be_enabled()
+
+    draft = workbench.evaluate("element => element.currentDraft()")
+    assert draft["armed"] is False
+    assert draft["dirty"] is True
+    assert draft["resolutions"] == {"target-1": "resolved"}
+    assert draft["configuration"]["targets"][0]["reference"] == {
+        "kind": "structure",
+        "path": [{"tree": "light", "tag": "article"}],
+    }
+
+    workbench.locator("lf-target-preview").evaluate(
+        """preview => {
+          const inserted = document.createElement('article');
+          inserted.dataset.insertedTarget = '';
+          preview.prepend(inserted);
+        }"""
+    )
+    expect(card).to_have_attribute("data-lf-target-status", "ambiguous")
+    expect(card).to_contain_text("Ambiguous target")
+    expect(card).to_be_visible()
+    expect(submit).to_be_disabled()
+    assert workbench.evaluate("element => element.currentDraft().resolutions") == {
+        "target-1": "ambiguous"
+    }
+
+    workbench.locator("[data-inserted-target]").evaluate("element => element.remove()")
+    expect(card).to_have_attribute("data-lf-target-status", "resolved")
+    expect(submit).to_be_enabled()
+
+    target.evaluate("element => element.remove()")
+    expect(card).to_have_attribute("data-lf-target-status", "detached")
+    expect(card).to_contain_text("Detached target")
+    expect(card).to_be_visible()
+    expect(submit).to_be_disabled()
+    assert workbench.evaluate("element => element.currentDraft().resolutions") == {
+        "target-1": "detached"
+    }
+
+    reset = workbench.evaluate(
+        """element => {
+          element.arm();
+          element.reset();
+          return element.currentDraft();
+        }"""
+    )
+    assert reset == {
+        "armed": False,
+        "dirty": False,
+        "configuration": {"targets": [], "changes": []},
+        "resolutions": {},
+    }
+    expect(workbench.locator(".lf-targeting-target")).to_have_count(0)
+    expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
     assert errors == []
 
 
@@ -4322,10 +4721,11 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
 
 
 def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
-    """The broad action heartbeat is not a reason to restate a settled deck."""
+    """Reapplying the controller's standing state does not restate a settled deck."""
     page, errors = open_page(browser, serve(SWIPE_PAGE))
     mutations = page.locator("#session-triage").evaluate(
-        """deck => {
+        """async deck => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const observer = new MutationObserver(() => {});
           observer.observe(deck, {
             subtree: true,
@@ -4333,7 +4733,7 @@ def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
             characterData: true,
             attributes: true,
           });
-          document.dispatchEvent(new Event('lf-actions'));
+          deck.renderState(widgetController(deck).read().state);
           const records = observer.takeRecords().map(record => ({
             kind: record.type,
             attribute: record.attributeName,
@@ -4959,9 +5359,9 @@ def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
     assert page.evaluate(
         """async () => {
-          const {standingState} = await import('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const deck = document.getElementById('session-triage');
-          const {state} = standingState().find(({widget}) => widget === deck);
+          const {state} = widgetController(deck).read();
           window.swipeCards = [...deck.querySelectorAll('lf-swipe-card')];
           deck.renderState(state);
           deck.renderState(state);
@@ -5441,10 +5841,16 @@ def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
     whose positioned ancestor is exactly what a placement done in script would have
     had to correct for — and could not, with no script left to run."""
     page, _ = open_page(browser, serve(SUGGESTION_PAGE))
-    page.evaluate("() => document.querySelectorAll('script').forEach(s => s.remove())")
-    baked = page.evaluate("() => document.documentElement.outerHTML").replace(
-        '<link rel="stylesheet" href="/theme.css" data-lf-runtime="">',
-        "<style>" + (serve.page_dir / "theme.css").read_text() + "</style>",
+    baked = page.evaluate(
+        """theme => {
+          const style = document.createElement('style');
+          style.textContent = theme;
+          document.querySelector('link[data-lf-runtime][rel="stylesheet"]')
+            .replaceWith(style);
+          document.querySelectorAll('script').forEach(script => script.remove());
+          return document.documentElement.outerHTML;
+        }""",
+        (serve.page_dir / "theme.css").read_text(),
     )
     page.close()
 
@@ -5813,7 +6219,23 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     the margin. Each is decided individually, so the log records what was
     consented to one change at a time rather than one blanket yes."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    page.get_by_role("button", name="Accept all (3)").click()
+    answer_all = page.locator(".lf-answer-all")
+    expect(answer_all).to_have_text("Accept all (3)")
+    page.evaluate(
+        "button => { window.__lfAnswerAll = button; }", answer_all.element_handle()
+    )
+
+    # The same public control survives a semantic change, and its later press resolves
+    # the current open inventory rather than replaying the list from its earlier face.
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    expect(
+        page.locator("[data-lf-for='sug-refill']").get_by_role(
+            "button", name=re.compile(r"^Undo accepting")
+        )
+    ).to_be_enabled()
+    expect(answer_all).to_have_text("Accept all (2)")
+    assert answer_all.evaluate("button => button === window.__lfAnswerAll")
+    answer_all.click()
 
     for widget in ("sug-refill", "sug-thistle", "sug-in-card"):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()
@@ -6158,16 +6580,19 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         expect(decisions).to_have_text("Asks 1/5")
 
-    # Every request has an answering control, so the walk never has to lend a tab stop
-    # to authored content.
+    # Every request has an answering control, so the walk never has to leave a borrowed
+    # tab stop on an Ask it has left. A generated custom element may now be the public
+    # role-bearing control itself, so a dash in its tag no longer means authored widget
+    # paint. Ask ids are the exact ownership boundary this assertion is about; the
+    # currently standing Ask alone may retain the stop that focus is using.
     expect(page.locator(STANDING_ASK)).to_have_count(1)
-    # Asked of the tag's dash, the platform's own mark of a widget element, which is what
-    # the export's own sweep for stray stops asks (BAKE).
     assert (
         page.evaluate(
-            "() => [...document.querySelectorAll('main [tabindex]')]"
-            "  .filter(el => el.tagName.includes('-') && !el.hasAttribute('data-lf-ask'))"
-            "  .map(el => el.tagName.toLowerCase() + '#' + el.id)"
+            "ids => ids.filter(id => {"
+            "  const ask = document.getElementById(id);"
+            "  return ask.hasAttribute('tabindex') && !ask.hasAttribute('data-lf-ask');"
+            "})",
+            ASKS_IN_ORDER,
         )
         == []
     ), "a lent tab stop was left on a decision the reader has walked off"
@@ -6352,7 +6777,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
 
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -6417,7 +6842,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const inspect = document.getElementById('inspect-action');
           commands(inspect, 'Inspect control', [{
             id: 'test.dead-local-x', keys: ['x'],
@@ -6455,7 +6880,7 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
@@ -6500,7 +6925,7 @@ def test_an_ask_alias_preserves_the_original_commands_return_frame(browser, serv
 
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -6542,7 +6967,7 @@ def test_ask_action_name_functions_must_return_text(browser, serve):
 
     messages = page.evaluate(
         """async () => {
-          const {decisionControls} = await import('/runtime/keyboard/bindings.js');
+          const {decisionControls} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
           const source = document.getElementById('sug');
           const control = document.createElement('button');
           source.append(control);
@@ -6590,7 +7015,7 @@ def test_every_ask_decision_consumes_one_contextual_binding_slot(browser, serve)
 
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
           for (const [index, key] of [...'bcdef'].entries()) {
             const binding = `Alt+${key}`;
@@ -6722,7 +7147,7 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
 
     page.evaluate(
         """async () => {
-           const {commands} = await import('/runtime/widget-api.js');
+           const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -7681,6 +8106,288 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     assert errors == []
 
 
+def test_ask_rows_keep_identity_and_activate_the_current_document_order(browser, serve):
+    """A keyed row survives reorder, hands off focus, and resolves its id at press time."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page.locator(".lf-asks").click()
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+
+    page.evaluate(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          const rows = [...document.querySelectorAll('button.lf-asks-row')];
+          window.__lfAskRows = new Map(rows.map(row => [row.dataset.lfAt, row]));
+          const honored = document.querySelector('#honored-decision');
+          document.querySelector('#live-question-decision').before(honored);
+          window.__lfAskRows.get('sug-refill').focus();
+          document.dispatchEvent(new Event('lf-presentation'));
+        }"""
+    )
+    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    assert rows.evaluate_all("items => items.map(item => item.dataset.lfAt)") == [
+        "honored-decision",
+        "live-question-decision",
+        "sug-refill",
+        "t-baffles-decision",
+        "t-bath-decision",
+    ]
+    assert rows.evaluate_all(
+        "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
+    )
+    expect(page.locator('.lf-asks-row[data-lf-at="sug-refill"]')).to_be_focused()
+
+    # Removing the focused Ask hands its place to the next surviving keyed row.
+    page.evaluate(
+        """() => {
+          document.querySelector('#sug-refill').remove();
+          document.dispatchEvent(new Event('lf-presentation'));
+        }"""
+    )
+    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    expect(
+        page.locator('.lf-asks-row[data-lf-at="t-baffles-decision"]')
+    ).to_be_focused()
+    assert rows.evaluate_all(
+        "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
+    )
+
+    # Reorder the page again without repainting the list. The existing row resolves its
+    # id through current allAsks(), so its arrival reports its new ordinal rather than
+    # the order or element from the prior row model.
+    page.evaluate(
+        """() => {
+          document.querySelector('main').append(document.querySelector('#honored-decision'));
+          document.querySelector('.lf-live').textContent = '';
+        }"""
+    )
+    page.locator('.lf-asks-row[data-lf-at="honored-decision"]').click()
+    expect(page.locator("#honored-decision")).to_be_focused()
+    expect(page.locator(".lf-live")).to_have_text("Ask 4 of 4 answered")
+    assert errors == []
+    page.close()
+
+
+def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
+    held_events, serve
+):
+    """Receipt settlement cannot retire optimism before the Ask row has painted it."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page.locator(".lf-asks").click()
+    row = page.locator("button.lf-asks-row")
+    expect(row).to_have_count(1)
+    expect(row.locator(".lf-asks-answer")).to_have_text("")
+    page.evaluate(
+        """async () => {
+          const {readApplication, readApplicationPresentation} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          window.__lfReadAskApplication = readApplication;
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          const list = document.querySelector('lf-asks-tray-list');
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          window.__lfReleaseAskPaint = release;
+          let next = true;
+          list.scheduleUpdate = async () => {
+            if (next) {
+              next = false;
+              await held;
+            }
+            return schedule();
+          };
+        }"""
+    )
+
+    page.locator("#storage-stop").click()
+    holding(page, held, 1, "the held answer")
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    page.wait_for_function(
+        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+    )
+    assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
+    assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
+    expect(row.locator(".lf-asks-answer")).to_have_text("")
+
+    page.evaluate("__lfReleaseAskPaint()")
+    round_trip(page)
+    page.wait_for_function("() => __lfReadAskApplication().unresolved.length === 0")
+    expect(row.locator(".lf-asks-answer")).to_have_text("Pause offline editing")
+    assert errors == []
+    page.close()
+
+
+def test_pending_action_waits_for_the_ask_banner_paint_before_retiring(
+    held_events, serve
+):
+    """Receipt settlement waits for the Lit progress face as well as the Ask list."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    progress = page.locator(".lf-asks")
+    expect(progress).to_have_text("Asks 0/1")
+    page.evaluate(
+        """async () => {
+          const {readApplication, readApplicationPresentation} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          window.__lfReadAskApplication = readApplication;
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          const face = document.querySelector('.lf-asks > lf-ask-banner-face');
+          const schedule = face.scheduleUpdate.bind(face);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          window.__lfReleaseAskBannerPaint = release;
+          let next = true;
+          face.scheduleUpdate = async () => {
+            if (next) {
+              next = false;
+              await held;
+            }
+            return schedule();
+          };
+        }"""
+    )
+
+    page.locator("#storage-stop").click()
+    holding(page, held, 1, "the held answer")
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    page.wait_for_function(
+        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+    )
+    assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
+    assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
+    expect(progress).to_have_text("Asks 0/1")
+
+    page.evaluate("__lfReleaseAskBannerPaint()")
+    round_trip(page)
+    page.wait_for_function("() => __lfReadAskApplication().unresolved.length === 0")
+    expect(progress).to_have_text("Asks 1/1")
+    assert errors == []
+    page.close()
+
+
+def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
+    browser, serve
+):
+    """A list failure restores its earlier rows and the prepared banner controls."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    progress = page.locator(".lf-asks")
+    answer_all = page.locator(".lf-answer-all")
+    expect(progress).to_have_text("Asks 1/5")
+    expect(answer_all).to_have_text("Accept all (1)")
+    page.locator(".lf-asks").click()
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    page.evaluate(
+        """async () => {
+          const {readApplicationPresentation, whenApplicationPresented} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          const list = document.querySelector('lf-asks-tray-list');
+          window.__lfAskRows = [...list.querySelectorAll('button.lf-asks-row')];
+          const progress = document.querySelector('.lf-asks');
+          const progressFace = progress.querySelector('lf-ask-banner-face');
+          const progressUpdated = progressFace.updated.bind(progressFace);
+          window.__lfSawPreparedAskBanner = false;
+          progressFace.updated = (...args) => {
+            progressUpdated(...args);
+            if (progress.textContent.trim() === 'Asks 0/4')
+              window.__lfSawPreparedAskBanner = true;
+          };
+          const render = list.render.bind(list);
+          list.render = () => {
+            list.render = render;
+            throw new Error('deliberate Ask list failure');
+          };
+          document.querySelector('#honored-decision').remove();
+          document.dispatchEvent(new Event('lf-presentation'));
+          window.__lfAskListCurrentReady = false;
+          void whenApplicationPresented().then(() => {
+            window.__lfAskListCurrentReady = true;
+          });
+        }"""
+    )
+    page.wait_for_function("__lfAskListCurrentReady")
+    assert page.evaluate("__lfSawPreparedAskBanner") is True
+    assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
+    expect(progress).to_have_text("Asks 1/5")
+    expect(answer_all).to_have_text("Accept all (1)")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    assert rows.evaluate_all(
+        "items => items.every((item, at) => item === window.__lfAskRows[at])"
+    )
+    rows.first.click()
+    expect(page.locator("#live-question-decision")).to_be_focused()
+    assert errors == ["leaf: Presentation failed: deliberate Ask list failure"]
+    page.close()
+
+
+def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
+    browser, serve
+):
+    """One failed Lit face leaves the prior stable progress and bulk controls usable."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    progress = page.locator(".lf-asks")
+    answer_all = page.locator(".lf-answer-all")
+    expect(progress).to_have_text("Asks 1/5")
+    expect(answer_all).to_have_text("Accept all (1)")
+    progress.click()
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    page.evaluate(
+        """async () => {
+          const {readApplicationPresentation, whenApplicationPresented} =
+            await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          window.__lfAskProgress = document.querySelector('.lf-asks');
+          window.__lfAskBulk = document.querySelector('.lf-answer-all');
+          window.__lfAskRows = [
+            ...document.querySelectorAll('button.lf-asks-row')];
+          const progressFace = window.__lfAskProgress.querySelector(
+            'lf-ask-banner-face');
+          const progressUpdated = progressFace.updated.bind(progressFace);
+          window.__lfSawPartialAskBanner = false;
+          progressFace.updated = (...args) => {
+            progressUpdated(...args);
+            if (window.__lfAskProgress.textContent.trim() === 'Asks 0/4')
+              window.__lfSawPartialAskBanner = true;
+          };
+          const bulkFace = window.__lfAskBulk.querySelector('lf-ask-banner-face');
+          const render = bulkFace.render.bind(bulkFace);
+          bulkFace.render = () => {
+            bulkFace.render = render;
+            throw new Error('deliberate Ask banner failure');
+          };
+          document.querySelector('#honored-decision').remove();
+          document.dispatchEvent(new Event('lf-presentation'));
+          window.__lfAskCurrentReady = false;
+          void whenApplicationPresented().then(() => {
+            window.__lfAskCurrentReady = true;
+          });
+        }"""
+    )
+    page.wait_for_function("__lfAskCurrentReady")
+    assert page.evaluate("__lfSawPartialAskBanner") is True
+    assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
+    expect(progress).to_have_text("Asks 1/5")
+    expect(answer_all).to_have_text("Accept all (1)")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    assert rows.evaluate_all(
+        "items => items.every((item, at) => item === window.__lfAskRows[at])"
+    )
+    assert progress.evaluate("control => control === window.__lfAskProgress")
+    assert answer_all.evaluate("control => control === window.__lfAskBulk")
+    rows.first.click()
+    expect(page.locator("#live-question-decision")).to_be_focused()
+    assert errors == ["leaf: Presentation failed: deliberate Ask banner failure"]
+    page.close()
+
+
 def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
     browser, serve
 ):
@@ -7759,20 +8466,26 @@ def test_an_empty_option_uses_its_id_as_the_answer(browser, serve):
 
 def test_an_ask_rejects_two_answer_readers_even_when_their_words_match(browser, serve):
     page, errors = open_page(browser, serve(ASKS_PAGE))
+    page.locator(".lf-asks").click()
+    expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const options = document.getElementById('honored');
           const extra = document.createElement('span');
           options.append(extra);
           commands(extra, 'Duplicate answer', [], {answer: () => 'Two-tier gates'});
+          document.dispatchEvent(new Event('lf-presentation'));
         }"""
     )
-
-    with page.expect_event("pageerror") as raised:
-        page.locator(".lf-asks").click()
-    assert "honored-decision has more than one answer reader" in str(raised.value)
-    assert any("more than one answer reader" in error for error in errors)
+    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
+    assert errors == [
+        "leaf: Presentation failed: Ask honored-decision has more than one answer reader"
+    ]
 
 
 def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(

@@ -21,6 +21,7 @@ from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -49,6 +50,7 @@ from render_harness import (
     refuse,
     resized,
     restarting,
+    round_trip,
     sending,
     watched,
 )
@@ -1078,6 +1080,366 @@ def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spaw
 
 # ---------- export: the page as one file ----------
 
+OFFLINE_WIDGET = """\
+import { LitElement, html, widgetController } from "/runtime/widget-api.js";
+
+customElements.define("lf-offline-test", class extends LitElement {
+  controller = widgetController(this);
+  reading = this.controller.read();
+  local = 0;
+  stop = null;
+
+  createRenderRoot() {
+    return this.shadowRoot ?? this.attachShadow({mode: "open", serializable: true});
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.stop ??= this.controller.subscribe(reading => {
+      this.reading = reading;
+      this.requestUpdate();
+    });
+  }
+
+  disconnectedCallback() {
+    this.stop?.();
+    this.stop = null;
+    super.disconnectedCallback();
+  }
+
+  choose() {
+    return this.controller.dispatch({
+      kind: "action", verb: "choose", detail: {choice: "chosen"},
+    });
+  }
+
+  requestRun() {
+    return this.controller.dispatch({kind: "request", verb: "run", detail: {}});
+  }
+
+  render() {
+    const choice = this.reading.state.choice?.value ?? this.getAttribute("choice");
+    const action = this.reading.actions.choose;
+    const request = this.reading.requests.run;
+    const unavailable = action.unavailable ?? request.unavailable;
+    return html`
+      <style>#local { color: rgb(12, 34, 56); }</style>
+      <button id="local" @click=${() => { this.local += 1; this.requestUpdate(); }}>
+        Increment locally
+      </button>
+      <output id="local-value">${this.local}</output>
+      <button id="choose" ?disabled=${!action.available} @click=${this.choose}>
+        Choose on host
+      </button>
+      <button id="request" ?disabled=${!request.available} @click=${this.requestRun}>
+        Request host work
+      </button>
+      <output id="choice">${choice}</output>
+      ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
+    `;
+  }
+});
+"""
+
+OFFLINE_REGISTRY = {
+    "lf-offline-test": {
+        "description": "A page-owned offline export test widget.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "choice": {"type": "string"},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "members",
+        "x-upgrade": True,
+        "x-state": {
+            "choose": {
+                "detail": {
+                    "type": "object",
+                    "properties": {"choice": {"type": "string"}},
+                    "required": ["choice"],
+                    "additionalProperties": False,
+                },
+                "facet": "choice",
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "choice", "value": "choice"},
+            }
+        },
+        "x-request": {
+            "offers": {"lf-offline-command": "verb"},
+            "verbs": {
+                "run": {
+                    "detail": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    }
+                }
+            },
+        },
+        "x-example": (
+            '<lf-offline-test id="offline-example" choice="idle">'
+            '<lf-offline-command verb="run">Run</lf-offline-command>'
+            "</lf-offline-test>"
+        ),
+    },
+    "lf-offline-command": {
+        "description": "One host request offered by the test widget.",
+        "type": "object",
+        "properties": {"verb": {"enum": ["run"]}},
+        "required": ["verb"],
+        "additionalProperties": False,
+        "x-owners": ["lf-offline-test"],
+        "x-content": "markup",
+        "x-upgrade": False,
+    },
+}
+
+
+def test_interactive_export_with_an_ask_reaches_application_presentation(
+    browser, serve, tmp_path
+):
+    """Offline mode omits conversation chrome without leaving its ticket pending."""
+    serve(ROOT / "examples" / "notification-playground.html")
+    interactive = tmp_path / "interactive-with-ask.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    page = browser.new_page()
+    page.goto(interactive.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=10000
+    )
+    expect(page.locator(".lf-chrome")).to_have_count(0)
+    page.close()
+
+
+def test_interactive_export_runs_captured_local_behavior_without_a_host(
+    browser, serve, tmp_path
+):
+    """One file boots the captured runtime, but never resurrects its host boundary."""
+    source = leaf_page(
+        "offline interactive",
+        """
+<h1>Offline interactive</h1>
+<lf-offline-test id="offline-widget" choice="idle">
+  <lf-offline-command verb="run">Run</lf-offline-command>
+</lf-offline-test>
+<a id="jump" href="#destination">Jump locally</a>
+<h2 id="destination">Destination</h2>
+""",
+    )
+    url = serve(
+        source,
+        page_files={
+            "registry.json": json.dumps(OFFLINE_REGISTRY),
+            "widgets/lf-offline-test.js": OFFLINE_WIDGET,
+        },
+    )
+    live, live_errors = open_page(browser, url)
+    with sending(live, "the accepted page-owned choice"):
+        live.locator("#offline-widget").get_by_role(
+            "button", name="Choose on host"
+        ).click()
+    round_trip(live)
+    expect(live.locator("#offline-widget #choice")).to_have_text("chosen")
+    assert live_errors == []
+    live.close()
+
+    # Export resolves the stamped artifact, never the mutable aliases left in the page
+    # directory after activation.
+    (serve.page_dir / "widgets" / "lf-offline-test.js").write_text(
+        'throw new Error("mutable widget source escaped its revision");',
+        encoding="utf-8",
+    )
+
+    interactive = tmp_path / "interactive.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+    assert "offline interactive" in result.output
+
+    static = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+    assert "<script" not in static.lower()
+
+    page = browser.new_page(viewport={"width": 1000, "height": 800})
+    errors = watched(page)
+    external = []
+    document_url = interactive.as_uri()
+    page.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if request.url != document_url and not request.url.startswith("data:")
+            else None
+        ),
+    )
+    page.goto(document_url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
+    expect(page.locator(".lf-chrome")).to_have_count(0)
+    assert page.locator("#offline-widget").evaluate(
+        "owner => owner.shadowRoot.serializable"
+    )
+    assert (
+        page.locator("#offline-widget #local").evaluate(
+            "control => getComputedStyle(control).color"
+        )
+        == "rgb(12, 34, 56)"
+    )
+
+    page.locator("#offline-widget").get_by_role(
+        "button", name="Increment locally"
+    ).click()
+    expect(page.locator("#offline-widget #local-value")).to_have_text("1")
+    page.locator("#jump").click()
+    assert page.url.endswith("#destination")
+
+    expect(page.locator("#offline-widget #choose")).to_be_disabled()
+    expect(page.locator("#offline-widget #request")).to_be_disabled()
+    expect(page.locator("#offline-widget #unavailable")).to_have_text(
+        "no agent or server is available"
+    )
+    refused = page.locator("#offline-widget").evaluate(
+        """owner => [
+          owner.choose(),
+          owner.requestRun(),
+          owner.controller.dispatch({kind: 'undo', target: 'missing'}),
+        ]"""
+    )
+    assert refused == [None, None, None]
+    expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
+    assert external == []
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize(
+    "stem",
+    ["notification-playground", "data-explorer", "code-comparison"],
+)
+def test_playground_examples_keep_their_record_and_offline_interaction_modes(
+    browser, serve, tmp_path, stem
+):
+    source = ROOT / "examples" / f"{stem}.html"
+    url = serve(source)
+    live, live_errors = open_page(browser, url)
+    playground = live.locator("lf-playground")
+
+    if stem == "notification-playground":
+        playground.get_by_role("button", name="Needs attention").click()
+        submit = playground.get_by_role("button", name="Create notification")
+    elif stem == "data-explorer":
+        live.locator('.query-row[data-filter-id="filter-2"] input').fill("80")
+        submit = playground.get_by_role("button", name="Build query")
+    else:
+        playground.get_by_role("button", name="Wrapped reader").click()
+        submit = playground.get_by_role("button", name="Apply treatment")
+    with sending(live, f"the {stem} configuration"):
+        submit.click()
+
+    static_path = tmp_path / f"{stem}-record.html"
+    static_path.write_text(
+        exporting_model.export_page(browser, url, serve.page_dir, "v1.html"),
+        encoding="utf-8",
+    )
+    assert live_errors == []
+    live.close()
+
+    record = browser.new_page(viewport={"width": 480, "height": 700})
+    record.goto(static_path.as_uri(), wait_until="load")
+    expect(record.locator("script")).to_have_count(0)
+    expect(record.locator("lf-playground").get_by_role("button")).to_have_count(0)
+    expect(record.locator("lf-playground-output")).not_to_be_empty()
+    if stem == "notification-playground":
+        expect(record.locator(".notification-demo-card-banner")).to_have_count(4)
+    elif stem == "data-explorer":
+        expect(record.locator(".query-result-count")).to_have_text("1 matching release")
+    else:
+        expect(record.locator("lf-code.lf-rendered")).to_have_count(3)
+        expect(record.locator("#code-comparison-instruction")).to_contain_text(
+            "comfortable reading density"
+        )
+    assert record.evaluate("document.documentElement.scrollWidth") == 480
+    record.emulate_media(media="print")
+    expect(record.locator("lf-playground-output")).to_be_visible()
+    record.close()
+
+    interactive_path = tmp_path / f"{stem}-interactive.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive_path),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    offline = browser.new_page(viewport={"width": 900, "height": 700})
+    errors = watched(offline)
+    external = []
+    document_url = interactive_path.as_uri()
+    offline.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if request.url != document_url and not request.url.startswith("data:")
+            else None
+        ),
+    )
+    offline.goto(document_url, wait_until="load")
+    expect(offline.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(offline.locator(".lf-chrome")).to_have_count(0)
+    expect(offline.locator(".lf-playground-submit")).to_be_disabled()
+    expect(offline.locator(".lf-playground-unavailable")).to_have_text(
+        "Submission unavailable: no agent or server is available."
+    )
+    if stem == "notification-playground":
+        offline.locator('lf-playground-control[name="events"] input').fill("2")
+        expect(offline.locator(".notification-demo-card-banner")).to_have_count(2)
+    elif stem == "data-explorer":
+        offline.get_by_role("button", name="Add filter").click()
+        expect(offline.locator(".query-row")).to_have_count(3)
+    else:
+        offline.locator('lf-playground-control[name="width"] input').fill("420")
+        expect(offline.locator('[data-candidate="A"]')).to_have_attribute(
+            "style", re.compile(r"width: 420px")
+        )
+        expect(offline.locator('[data-candidate="B"]')).to_have_attribute(
+            "style", re.compile(r"width: 420px")
+        )
+    assert external == []
+    assert errors == []
+    offline.close()
+
 
 def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     browser,
@@ -1157,6 +1519,77 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
         exporting_model.export_page(
             primed(browser, break_probe), root_url, serve.page_dir, "v1.html"
         )
+
+
+def test_export_waits_for_a_current_presentation_opened_after_arrival(
+    browser, serve, monkeypatch
+):
+    """The monotonic arrival latch cannot authorize a later half-drawn copy."""
+    source = leaf_page(
+        "current export readiness",
+        '<h1>Current export readiness</h1><p id="export-reading">initial</p>',
+    )
+
+    def hold_later_presentation(page):
+        page.add_init_script(
+            """addEventListener('DOMContentLoaded', () => {
+              const arm = async () => {
+                if (
+                  window.__lfExportPresentation ||
+                  document.body.dataset.lfPresented !== '1'
+                ) return;
+                const entry = document.querySelector(
+                  'script[data-lf-entry]'
+                ).dataset.lfEntry;
+                const {attachApplicationPresentation} = await import(
+                  new URL(
+                    'runtime/semantic-state.js',
+                    new URL(entry, location.href),
+                  ).href
+                );
+                const target = document.querySelector('#export-reading');
+                const presentation = attachApplicationPresentation(
+                  'test:export-current-readiness', target,
+                );
+                let settle;
+                const completion = new Promise(resolve => { settle = resolve; });
+                window.__lfExportPresentation = presentation;
+                window.__lfReleaseExportPresentation = () => {
+                  target.textContent = 'current';
+                  settle();
+                };
+                void presentation.present('current', completion);
+              };
+              new MutationObserver(arm).observe(document.body, {
+                attributes: true,
+                attributeFilter: ['data-lf-presented'],
+              });
+              void arm();
+            }, {once: true});"""
+        )
+
+    original_wait = render_checks_model.wait_for_probe
+    probed = []
+
+    def release_at_current_probe(page, name, *args):
+        if name == "currentPresented":
+            probed.append(name)
+            page.wait_for_function(
+                "() => Boolean(window.__lfReleaseExportPresentation)"
+            )
+            page.evaluate("() => window.__lfReleaseExportPresentation()")
+        return original_wait(page, name, *args)
+
+    monkeypatch.setattr(render_checks_model, "wait_for_probe", release_at_current_probe)
+    exported = exporting_model.export_page(
+        primed(browser, hold_later_presentation),
+        serve(source),
+        serve.page_dir,
+        "v1.html",
+    )
+
+    assert probed == ["currentPresented"]
+    assert '<p id="export-reading">current</p>' in exported
 
 
 def test_export_waits_for_the_snapshot_the_browser_can_receive(
@@ -1247,6 +1680,117 @@ def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tm
     page.goto(out.as_uri(), wait_until="load")
     assert page.evaluate("document.characterSet") == "UTF-8"
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
+
+
+def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_path):
+    """Nested imports and images come from the drawn revision, not mutable files."""
+    icon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="navy"/></svg>'
+    source = leaf_page(
+        "Captured appearance",
+        """
+<h1 id="title">Captured appearance</h1>
+<figure id="badge"><img src="/page/icon.svg" alt="Captured badge" width="24" height="24"></figure>
+<svg id="vector" width="24" height="24"><image href="/page/icon.svg" width="24" height="24"></image></svg>
+<img id="responsive" srcset="/page/icon.svg 1x, /page/icon-2.svg 2x" alt="Responsive badge">
+<p id="inline" style="background-image: url('/page/icon.svg')">Inline asset</p>
+<pre id="quoted"><code>url('/page/icon.svg')</code></pre>
+""",
+        head='<link rel="stylesheet" href="/page/styles/main.css">',
+    )
+    url = serve(
+        source,
+        page_files={
+            "icon.svg": icon,
+            "icon-2.svg": icon.replace("navy", "green"),
+            "styles/main.css": """
+@import "./nested/palette.css" layer(captured) supports(display: grid) screen;
+#title { color: var(--export-tone) !important; }
+""",
+            "styles/nested/palette.css": """
+@import "../main.css";
+body { --export-tone: rgb(12, 34, 56); }
+#badge { background-image: url('../../icon.svg'); }
+""",
+        },
+    )
+    # Replacing, not writing through the initialized fixture's immutable hardlinks.
+    files_model.replace_files(
+        [
+            (
+                serve.page_dir / "theme.css",
+                b":root { --mutable-theme-only: 1; }",
+                False,
+            ),
+            (
+                serve.page_dir / "runtime/chrome.css",
+                b":root { --mutable-chrome-only: 1; }",
+                False,
+            ),
+            (
+                serve.page_dir / "page/styles/nested/palette.css",
+                b"body { --export-tone: red; }",
+                False,
+            ),
+            (
+                serve.page_dir / "page/icon.svg",
+                icon.replace('"24"', '"48"').encode(),
+                False,
+            ),
+        ]
+    )
+    exported = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+    assert "--mutable-theme-only" not in exported
+    assert "--mutable-chrome-only" not in exported
+    out = tmp_path / "captured.html"
+    out.write_text(exported, encoding="utf-8")
+    page = browser.new_page()
+    errors = watched(page)
+    requests = []
+    page.on("request", lambda request: requests.append(request.url))
+    try:
+        page.goto(out.as_uri(), wait_until="load")
+        expect(page.locator("#title")).to_have_css("color", "rgb(12, 34, 56)")
+        expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
+            "naturalWidth", 24
+        )
+        assert (
+            page.locator("#vector image")
+            .get_attribute("href")
+            .startswith("data:image/svg+xml;base64,")
+        )
+        assert (
+            page.locator("#responsive")
+            .get_attribute("srcset")
+            .count("data:image/svg+xml;base64,")
+            == 2
+        )
+        expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
+        for selector in ("#badge", "#inline"):
+            assert (
+                page.locator(selector)
+                .evaluate("el => getComputedStyle(el).backgroundImage")
+                .startswith('url("data:image/svg+xml;base64,')
+            )
+        assert requests == [out.as_uri()]
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_export_refuses_a_rendered_asset_outside_the_page(browser, serve):
+    source = leaf_page(
+        "External rendered image",
+        '<h1>External rendered image</h1><img id="external" alt="External evidence">',
+        head="""<script type="module">
+document.querySelector('#external').src = 'https://outside.invalid/evidence.svg';
+</script>""",
+    )
+    url = serve(source)
+    with pytest.raises(
+        SystemExit,
+        match="could not embed its captured assets: export resource is outside the page",
+    ):
+        exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -1477,13 +2021,20 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n',
     )
+    image = tmp_path / "evidence.svg"
+    image.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">'
+        '<rect width="24" height="24" fill="navy"/></svg>'
+    )
+    _, image_url = media_model.cmd_media(serve.page_dir, [image])[0]
     root = events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "Keep this check beside the changed line.",
+            "text": "Keep this check beside the changed line.\n\n"
+            f"![Review evidence]({image_url})",
             "anchor": {
                 "section": "patch",
                 "datum": '["app.py","new",1]',
@@ -1525,6 +2076,9 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         thread.locator("summary").click()
     expect(thread.locator(".lf-conversation-body")).to_be_visible()
     expect(thread).to_contain_text("Keep this check beside the changed line.")
+    expect(thread.get_by_role("img", name="Review evidence")).to_have_js_property(
+        "naturalWidth", 24
+    )
     if resolved:
         thread.locator("summary").click()
         expect(thread.locator(".lf-conversation-body")).to_be_hidden()

@@ -15,7 +15,8 @@
 
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
-import { containedPage, runtime } from "./context.js";
+import { containedPage, offlineInteractive, offlineState, runtime } from "./context.js";
+import { applicationState } from "./semantic-state.js";
 import {
   layerHeaders,
   observeSession,
@@ -36,6 +37,7 @@ import { paintKeys } from "./keyboard/scopes.js";
 async function readState(bound) {
   countTraffic("asked");
   try {
+    if (offlineInteractive) return offlineState();
     const signal = globalThis.AbortSignal.timeout(bound);
     let res;
     try {
@@ -101,7 +103,7 @@ export function createStateFeed({
   stateApplying,
   releasePending,
   renderConversation,
-  panelIsOpen,
+  presentProjection,
   receiveState,
   prepareActivation,
   notifyDataSubscribers,
@@ -115,8 +117,7 @@ export function createStateFeed({
     const retried = projectionDeferred() && retryProjection();
     if (stateApplying()) return;
     if (retried) {
-      if (releasePending()) paintKeys();
-      document.dispatchEvent(new Event("lf-actions"));
+      await releasePending();
       await notifyDataSubscribers();
     }
     if (stateApplying()) return;
@@ -128,9 +129,10 @@ export function createStateFeed({
   // What the page does with an answer that brought no state.
   async function readNothing() {
     readAnswered = false;
-    if (runtime.statePhase === "waiting") runtime.statePhase = "offline";
+    if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
     renderStatus(null);
-    if (panelIsOpen()) renderConversation();
+    presentProjection();
+    await renderConversation();
     await tick();
   }
 
@@ -170,25 +172,6 @@ export function createStateFeed({
   }
 
   function startFeed(present, initialRead = beginRead()) {
-    // A package-owned surface may hold replay while it is open. Its completion is a
-    // projection invalidation, so retry the already applied reading immediately instead
-    // of waiting for the clock's deferred-work heartbeat. The event is intentionally
-    // generic: the state feed does not know which widget held the projection.
-    let projectionQueued = false;
-    const retryProjection = () => {
-      if (projectionQueued) return;
-      projectionQueued = true;
-      // A close can precede the gesture's pending ledger entry in the same call stack.
-      // Let that producer finish before replaying the resulting composition.
-      queueMicrotask(() => {
-        projectionQueued = false;
-        if (!projectionDeferred()) return;
-        void tick().catch((error) =>
-          reportPageError(`tick failed: ${error?.message ?? error}`),
-        );
-      });
-    };
-    document.addEventListener("lf-projection", retryProjection);
     // Presentation waits on the first read, but not on the container: the wait ends at
     // `PRESENTATION_WAIT_MS` whether or not an answer has come, and nothing is aborted
     // when it does. The request keeps its own, far longer bound and stays in flight, so a
@@ -393,7 +376,9 @@ export function createStateFeed({
     // compared with, so that word asks — which is what the slot the read still holds is
     // for. A page that did get its answer holds a reading, and an unchanged page is not
     // asked for twice.
-    readAndPresent().finally(() => {
+    const initialPresentation = readAndPresent();
+    if (offlineInteractive) return;
+    initialPresentation.finally(() => {
       // A contained page is a fixed specimen controlled by its parent gallery. It needs
       // the first reading to render production chrome, but another news stream and
       // heartbeat would duplicate the outer page's connection for a picture that cannot

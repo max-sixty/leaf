@@ -1,33 +1,84 @@
-/* The mutable facts shared across the public runtime's internal domains.
+/* Shared mechanical runtime context and read-only views of the semantic root.
+   Accepted facts are never installed here independently of application publication. */
+import { readApplication } from "./semantic-state.js";
 
-   Collections keep stable identities so a projection can hold them while a state
-   application replaces their contents. Scalar transitions go through this record
-   directly. */
+const offlineMarker = document.querySelector(
+  'script[type="application/json"][data-lf-runtime][data-lf-offline]',
+);
+const offlinePayload = offlineMarker
+  ? JSON.parse(offlineMarker.textContent || "null")
+  : null;
+if (
+  offlineMarker &&
+  (!offlinePayload ||
+    typeof offlinePayload !== "object" ||
+    !offlinePayload.state ||
+    !offlinePayload.resources)
+)
+  throw new TypeError("Leaf's interactive export payload is incomplete");
+
+export const offlineInteractive = offlinePayload !== null;
+export const offlineState = () =>
+  offlineInteractive ? structuredClone(offlinePayload.state) : null;
+export const runtimeModule = (path) =>
+  offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
+export const runtimeResource = (path) => {
+  if (!offlineInteractive) return path;
+  const resource = offlinePayload.resources[path];
+  if (typeof resource !== "string")
+    throw new Error(`Leaf's interactive export is missing ${path}`);
+  return resource;
+};
+
 export const runtime = {
-  active: null,
-  activity: null,
-  agent: "Claude",
-  browser: null,
+  get active() {
+    return readApplication().authoritative?.active ?? null;
+  },
+  get activity() {
+    return readApplication().effective.activity;
+  },
+  get agent() {
+    return readApplication().authoritative?.agent || "Claude";
+  },
+  get browser() {
+    return readApplication().authoritative?.browser ?? null;
+  },
   currentLabel: null,
-  currentRevision: null,
+  get currentRevision() {
+    return readApplication().document.revision;
+  },
   currentStamp: null,
-  data: { revision: -1, sources: {} },
-  events: [],
-  lastEventSeq: -1,
+  get data() {
+    return readApplication().data;
+  },
+  get events() {
+    return readApplication().authoritative?.events ?? [];
+  },
+  get lastEventSeq() {
+    return readApplication().authoritative?.browser.basis.through_seq ?? -1;
+  },
   // A chrome placement is moving a box the reader may be standing in, so the focus it
   // takes off and hands straight back is the layer's own, not the reader going
   // anywhere. Standing here rather than beside the one placer, because what has to know
   // is every reader of where the reader stands.
   placingChrome: false,
-  reading: null,
+  get reading() {
+    return readApplication().authoritative?.reading ?? null;
+  },
   sessionReference: null,
-  state: null,
+  get state() {
+    return readApplication().authoritative;
+  },
   restoringState: false,
   registry: {},
-  statePhase: "waiting",
+  get statePhase() {
+    return readApplication().phase;
+  },
   undoing: false,
   versions: [],
-  view: null,
+  get view() {
+    return runtime.browser?.views[String(runtime.currentRevision)] ?? null;
+  },
 };
 
 // A contained page is a Leaf document rendered as a picture inside another one. The

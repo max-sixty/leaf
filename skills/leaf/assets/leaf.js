@@ -1,6 +1,7 @@
 /* Leaf runtime boot and application composition root. */
+import "./vendor/browser-runtime.js";
 import chromeSheet from "./runtime/chrome.css" with { type: "css" };
-import { containedPage, runtime } from "./runtime/context.js";
+import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { marksSheet } from "./runtime/shadow.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -13,6 +14,11 @@ import {
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { mountApplication } from "./runtime/application.js";
+import {
+  applicationState,
+  applicationPresented,
+  whenApplicationPresented,
+} from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
 import { createCompositionInputs } from "./runtime/composing/input.js";
 import {
@@ -96,7 +102,6 @@ import {
   createTrays,
   asksPanel,
   currentTray,
-  othersBtn,
   othersPanel,
   reserveListClearance,
 } from "./runtime/trays.js";
@@ -104,6 +109,7 @@ import { createAuxiliaryChromeNavigation } from "./runtime/auxiliary-chrome.js";
 import { createAuxiliaryModality } from "./runtime/auxiliary-modality.js";
 import { restoreReaderView } from "./runtime/restore-state.js";
 import { readerStore } from "./runtime/storage.js";
+import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController, versionBtn, versionMenu } from "./runtime/version.js";
 import {
   banner,
@@ -117,16 +123,21 @@ import {
   stateSignoff,
   toggleBtn,
 } from "./runtime/banner.js";
-import { overflowMenu, showNews } from "./runtime/banner-shelf.js";
+
+// A published shell may bundle the entry without publishing its source modules beside
+// it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
+// checks can inspect either distribution without turning it into a package API.
+const validationEntry = document.querySelector("script[data-lf-entry]");
+if (validationEntry) validationEntry.lfCurrentPresentationReady = applicationPresented;
+import { overflowMenu } from "./runtime/banner-shelf.js";
 import {
   leavesOffered,
   othersLinks,
-  paintLeavesOffer,
+  presentLeaves,
   renderOthers,
   declareLeavesKeys,
 } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
-import { replaceClaimState } from "./runtime/updates.js";
 import {
   createGoToSequence,
   goToHintLayer,
@@ -294,17 +305,16 @@ const anchorControls = createAnchorControls({
 });
 
 const version = createVersionController({
-  designModeActive: designMode.active,
-  paintLegend: designMode.paintLegend,
   midComposition: () => app.midComposition(),
+  hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
   banner,
-  stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
   landedAt: (...args) => asks.landedAt(...args),
   setLanded: (...args) => asks.setLanded(...args),
-  resetAuthoredPage: (...args) => app.resetAuthoredPage(...args),
   readableDestination: anchorTravel.readableDestination,
   scrollToElement: anchorTravel.scrollToElement,
+  captureRetainedStanding: () => app?.margin.captureStanding() ?? null,
+  restoreRetainedStanding: (standing) => app?.margin.restoreStanding(standing) ?? false,
 });
 // Body is the stable programmatic destination when the reader lets go of a control.
 // Register the stop after version.js snapshots source attributes, so later authored
@@ -320,6 +330,11 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
+  conversationAvailable: !offlineInteractive,
+  // An offline copy has no Ask chrome to present. Keep its semantic application
+  // complete without opening a presentation ticket for disconnected generated faces.
+  renderAsks: offlineInteractive ? () => undefined : () => asks.syncAsks(),
+  reportPageError,
   createEngagement,
   targetChooserOpen: () => targets.targetChooserOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
@@ -386,23 +401,23 @@ app = mountApplication({
     goToAsk: (...args) => asks.goToAsk(...args),
   },
   state: {
-    prepareActivation: (state) => version.prepareActivation(state, layout.syncLayout),
+    prepareActivation: (state) => version.prepareActivation(state),
     acceptData,
     notifyDataSubscribers,
-    replaceClaimState,
     isSignoffDeclared,
     paintApproval: paintVersionApproval,
     renderStatus,
     renderVersions: version.renderVersions,
     stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
-    renderOthers,
+    renderOthers: offlineInteractive ? () => undefined : renderOthers,
   },
   feed: {
-    prepareActivation: (state) => version.prepareActivation(state, layout.syncLayout),
+    prepareActivation: (state) => version.prepareActivation(state),
     notifyDataSubscribers,
     renderStatus,
   },
 });
+if (offlineInteractive) applicationState.setHostAvailable(false);
 
 pageMapDialog = createPageMapDialog({
   activeInMargin: app.margin.pageMapActive,
@@ -597,7 +612,7 @@ trays = createTrays({
   syncLayout: layout.syncLayout,
   closePreview: app.margin.closePreview,
   leavesOffered,
-  paintLeavesOffer,
+  presentLeaves,
   renderAsks: asks.renderAsks,
   renderMargin: app.margin.renderMargin,
   registerAuxiliarySurface: auxiliaryModality.registerAuxiliarySurface,
@@ -722,110 +737,117 @@ skipToChrome.onclick = () => {
   focusDestination(banner);
 };
 
-document.adoptedStyleSheets = [chromeSheet, marksSheet];
-chromeRoot.append(
-  banner,
-  overflowMenu,
-  versionMenu,
-  othersPanel,
-  asksPanel,
-  panel,
-  legendRoot,
-  goToHintLayer,
-  askActionLayer,
-  targetChooserHintLayer,
-  pageSearchSurface,
-  targetPaint.visualMarkLayer,
-  drawingPaint.layer,
-  targetPaint.targetTraceBox,
-  targetPaint.aimBox,
-  fabBar,
-  liveEl,
-  mediaViewer,
-  commandReferenceDialog,
-  auxiliaryModality.scrim,
-  bottomStatusEl,
-  shortcutBarEl,
-  inspectEl,
-);
-document.body.prepend(skipToChrome);
-document.body.append(chromeRoot);
-mountPanelReadingRegion();
-version.mount();
-mountBanner({
-  approveVersion: () =>
-    app.post({
-      kind: "done",
-      revision: runtime.currentRevision,
-      version: runtime.currentStamp,
-      text: "Looks good",
-    }),
-  paintApproval: paintVersionApproval,
-});
-reserveBannerControls();
-registerPageScopes(pageKeys.scopes, SHORTCUT_HELP, pageKeys.typing, auxiliaryModality);
-auxiliaryModality.mount();
-panelComposer.mount();
-selectionComposer.mount();
-responseSurface.mount();
-reactions.mount();
-targets.mount();
-drawing.mount();
-aim.mount();
-targetPaint.mountTargetPaint();
-anchorPaint.mount();
-anchorControls.mount();
-anchorTravel.mount();
-pageGeometry.mount();
-pageMapDialog.mount(chromeRoot);
-asks.mount();
-app.margin.mount();
-app.mountConversation();
-mountThreadList(panelIsOpen);
-wireThreadLanding();
-wireThreadCards();
-wireNarrowing(app.refreshNarrowing);
-trays.mountTrays();
-threadPanelController.mountThreadPanel();
-layout.mountLayoutObservers();
-goToSequence.mountGoToSequence();
-mountShortcutBar({
-  setGoToSequence: goToSequence.setGoToSequence,
-  setReact: reactions.setReact,
-  captureReturnPlace: version.captureReturnPlace,
-});
-mountKeyboard({
-  goToSequenceActive: goToSequence.goToSequenceActive,
-  setGoToSequence: goToSequence.setGoToSequence,
-  REACT: reactions.REACT,
-  setReact: reactions.setReact,
-  captureReturnPlace: version.captureReturnPlace,
-});
-declareLeavesKeys();
-pageKeys.declareFindBoxKeys();
-pageKeys.declareResponseOptionKeys();
-watchDisclosures(document);
-mountRepaint({
-  reflectFirstScopes,
-  paintStandingContent: standing.paintStandingContent,
-  syncLayout: layout.syncLayout,
-  pageShifted: pageGeometry.pageShifted,
-  paintStandingGeometry: standing.paintStandingGeometry,
-});
+if (!offlineInteractive) {
+  document.adoptedStyleSheets = [chromeSheet, marksSheet];
+  chromeRoot.append(
+    banner,
+    overflowMenu,
+    versionMenu,
+    othersPanel,
+    asksPanel,
+    panel,
+    legendRoot,
+    goToHintLayer,
+    askActionLayer,
+    targetChooserHintLayer,
+    pageSearchSurface,
+    targetPaint.visualMarkLayer,
+    drawingPaint.layer,
+    targetPaint.targetTraceBox,
+    targetPaint.aimBox,
+    fabBar,
+    liveEl,
+    mediaViewer,
+    commandReferenceDialog,
+    auxiliaryModality.scrim,
+    bottomStatusEl,
+    shortcutBarEl,
+    inspectEl,
+  );
+  document.body.prepend(skipToChrome);
+  document.body.append(chromeRoot);
+  mountPanelReadingRegion();
+  version.mount();
+  mountBanner({
+    approveVersion: () =>
+      app.post({
+        kind: "done",
+        revision: runtime.currentRevision,
+        version: runtime.currentStamp,
+        text: "Looks good",
+      }),
+    paintApproval: paintVersionApproval,
+  });
+  reserveBannerControls();
+  registerPageScopes(
+    pageKeys.scopes,
+    SHORTCUT_HELP,
+    pageKeys.typing,
+    auxiliaryModality,
+  );
+  auxiliaryModality.mount();
+  panelComposer.mount();
+  selectionComposer.mount();
+  responseSurface.mount();
+  reactions.mount();
+  targets.mount();
+  drawing.mount();
+  aim.mount();
+  targetPaint.mountTargetPaint();
+  anchorPaint.mount();
+  anchorControls.mount();
+  anchorTravel.mount();
+  pageGeometry.mount();
+  pageMapDialog.mount(chromeRoot);
+  asks.mount();
+  app.margin.mount();
+  app.mountConversation();
+  mountThreadList(panelIsOpen);
+  wireThreadLanding();
+  wireThreadCards();
+  wireNarrowing(app.refreshNarrowing);
+  trays.mountTrays();
+  threadPanelController.mountThreadPanel();
+  layout.mountLayoutObservers();
+  goToSequence.mountGoToSequence();
+  mountShortcutBar({
+    setGoToSequence: goToSequence.setGoToSequence,
+    setReact: reactions.setReact,
+    captureReturnPlace: version.captureReturnPlace,
+  });
+  mountKeyboard({
+    goToSequenceActive: goToSequence.goToSequenceActive,
+    setGoToSequence: goToSequence.setGoToSequence,
+    REACT: reactions.REACT,
+    setReact: reactions.setReact,
+    captureReturnPlace: version.captureReturnPlace,
+  });
+  declareLeavesKeys();
+  pageKeys.declareFindBoxKeys();
+  pageKeys.declareResponseOptionKeys();
+  watchDisclosures(document);
+  mountRepaint({
+    reflectFirstScopes,
+    paintStandingContent: standing.paintStandingContent,
+    syncLayout: layout.syncLayout,
+    pageShifted: pageGeometry.pageShifted,
+    paintStandingGeometry: standing.paintStandingGeometry,
+  });
 
-window.leafInteractionGalleryFrame?.mount({
-  toggleBtn,
-  panelIsOpen,
-  setPanel: threadPanelController.setPanel,
-  detachComposer: selectionComposer.detachComposer,
-  fabInput,
-  openComposer: selectionComposer.openComposer,
-  closePreview: app.margin.closePreview,
-  openInlineThread: app.margin.openInlineThread,
-  threadTransitionOrigin: app.margin.threadTransitionOrigin,
-  currentTray,
-  setOpenTray: trays.setOpenTray,
-});
+  window.leafInteractionGalleryFrame?.mount({
+    toggleBtn,
+    panelIsOpen,
+    setPanel: threadPanelController.setPanel,
+    detachComposer: selectionComposer.detachComposer,
+    fabInput,
+    openComposer: selectionComposer.openComposer,
+    closePreview: app.margin.closePreview,
+    openInlineThread: app.margin.openInlineThread,
+    threadTransitionOrigin: app.margin.threadTransitionOrigin,
+    currentTray,
+    setOpenTray: trays.setOpenTray,
+  });
+}
 
 const initialStateRead = app.beginRead();
 let interactionGalleryModule;
@@ -847,12 +869,14 @@ async function syncInteractionGallery() {
     reportPageError(`interaction gallery failed to start: ${error?.message ?? error}`);
   }
 }
-document.addEventListener("lf-actions", () => void syncInteractionGallery());
-document.addEventListener(PAGE_INTERFACE, (event) =>
-  event.detail.pending.push(syncInteractionGallery()),
-);
+if (!offlineInteractive) {
+  watchProjection(document.body, () => void syncInteractionGallery());
+  document.addEventListener(PAGE_INTERFACE, (event) =>
+    event.detail.present(syncInteractionGallery()),
+  );
+}
 
-if (!containedPage) {
+if (!containedPage && !offlineInteractive) {
   restoreReaderView({
     commentsEdge: layout.commentsEdge,
     traysEdge: trays.traysEdge,
@@ -862,24 +886,37 @@ if (!containedPage) {
   });
   letGo();
 }
-const { landArrival, savedView } = version.installArrival();
-const savedComposer = selectionComposer.pendingComposer();
+const { landArrival, savedView } = offlineInteractive
+  ? { landArrival: () => {}, savedView: null }
+  : version.installArrival();
+const savedComposer = offlineInteractive ? null : selectionComposer.pendingComposer();
 
-function presentPage() {
+async function presentPage() {
+  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  await whenApplicationPresented();
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   setAnchoringReady(true);
   try {
-    app.refreshConversation();
+    await app.presentConversation();
+    // Anchoring changes where conversation chrome is painted. That final paint is part
+    // of initial presentation too: opening interaction before it commits can expose a
+    // malformed page that the unanchored provisional pass could not yet inspect.
+    await whenApplicationPresented();
   } catch (error) {
     setAnchoringReady(false);
     throw error;
   }
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
+  anchorControls.publishVisualActions();
+  if (offlineInteractive) {
+    document.dispatchEvent(new Event(PRESENTATION));
+    return;
+  }
   responseSurface.updateFab();
   trays.restoreTray();
-  showNews(othersBtn, leavesOffered());
+  presentLeaves();
   paintKeys();
-  document.dispatchEvent(new Event("lf-actions"));
+  void syncInteractionGallery();
   paintVersionApproval();
   repaint();
   layoutMarginRows();
@@ -895,17 +932,23 @@ async function startPage() {
   const [upgraded] = await Promise.all([
     upgradeWidgets({
       buildReactionBar: () =>
-        reactions.buildReactBar({
-          withdrawReaction: app.withdraw,
-          postReaction: app.post,
-        }),
+        offlineInteractive
+          ? undefined
+          : reactions.buildReactBar({
+              withdrawReaction: app.withdraw,
+              postReaction: app.post,
+            }),
     }),
-    loadIcon().catch((error) => console.error(error)),
+    offlineInteractive
+      ? Promise.resolve()
+      : loadIcon().catch((error) => console.error(error)),
   ]);
   if (!upgraded) return;
-  layout.syncLayout();
-  asks.buildBulkAnswers();
-  asks.syncAsks();
+  if (!offlineInteractive) {
+    layout.syncLayout();
+    asks.buildBulkAnswers();
+    asks.syncAsks();
+  }
   await settlePageInterface();
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
   app.startFeed(presentPage, initialStateRead);

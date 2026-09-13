@@ -1,6 +1,6 @@
 /* Generic task rows retain their compact chip projection. A command surface owns its
  * richer row projection at the root, so ordinary task trees never inherit fleet UI. */
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 import { closestCommandRole } from "/widgets/command-model.js";
 
 function renderChips(task) {
@@ -31,9 +31,18 @@ function renderChips(task) {
 customElements.define(
   "lf-task",
   class extends HTMLElement {
+    #controller = widgetController(this);
+    #stop = null;
+
     connectedCallback() {
-      if (!once(this)) return;
-      if (!closestCommandRole(this.parentElement, "command")) renderChips(this);
+      if (once(this) && !closestCommandRole(this.parentElement, "command"))
+        renderChips(this);
+      this.#stop ??= this.#controller.subscribe(() => {});
+    }
+
+    disconnectedCallback() {
+      this.#stop?.();
+      this.#stop = null;
     }
 
     renderState(state) {

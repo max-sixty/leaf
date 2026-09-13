@@ -463,9 +463,10 @@ def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, se
         "title", "Approve this work; the page stays open for follow-up"
     )
     kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
-    assert kinds[-2:] == ["done", "undo"], (
-        f"the withdrawal is not in the log as its own event: {kinds}"
-    )
+    assert kinds[-2:] == [
+        "done",
+        "undo",
+    ], f"the withdrawal is not in the log as its own event: {kinds}"
 
     # And the press is available again, which is what makes this a correction rather than
     # a page the reader has spent.
@@ -1353,6 +1354,34 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
     assert errors == []
 
 
+def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
+    browser, serve, other_leaf
+):
+    """The shelf moves each Lit-faced native control and hands folded focus to its door."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    page, errors = open_page(browser, url)
+    resized(page, 1440, 900)
+    answer_all = page.locator(".lf-answer-all")
+    expect(answer_all).to_be_visible()
+    page.evaluate(
+        "button => { window.__lfBulkControl = button; }", answer_all.element_handle()
+    )
+    answer_all.focus()
+
+    resized(page, 390, 900)
+    expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
+    expect(page.locator(".lf-banner-more")).to_be_focused()
+    assert answer_all.evaluate("button => button === window.__lfBulkControl")
+    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
+    assert errors == []
+    page.close()
+
+
 def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, serve):
     """The dot going red is not an announcement.
 
@@ -1426,7 +1455,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     """The JS motion contract follows a live media preference, like the CSS does."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    reading = """() => import('/runtime/motion.js').then(
+    reading = """() => window.__lfRuntimeImport('/runtime/motion.js').then(
       motion => ({reduced: motion.reducedMotion(), scroll: motion.scrollBehavior()}))"""
     assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
@@ -2073,11 +2102,11 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     list — the banner stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
     reader meets first: the POST door only sees a hand-posted event, while here
-    `actionAvailable` paints the control and `sendAction` guards the press, and the
-    module has already painted the answer by the time either runs. Reading the reader's
-    list at this door therefore does not refuse the press so much as swallow it — the
-    widget flips, nothing is logged, no notice fires, and the next poll puts it back with
-    nothing anywhere saying why.
+    the controller reading paints the control and its dispatcher guards the press, and
+    the module has already painted the answer by the time either runs. Reading the
+    reader's list at this door therefore does not refuse the press so much as swallow
+    it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
+    back with nothing anywhere saying why.
 
     The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
     of the default package, because the pair the split needs — a visible ask and a seat
@@ -2473,13 +2502,17 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     before, widest = page.evaluate(
         """() => { const b = document.querySelector('.lf-others');
                    const before = b.offsetWidth;
+                   const face = [...b.childNodes];
                    b.textContent = 'All leaves (999)';
-                   return [before, b.offsetWidth]; }"""
+                   const widest = b.offsetWidth;
+                   b.replaceChildren(...face);
+                   return [before, widest]; }"""
     )
     assert widest == before, (
         f"'All leaves (999)' grew the button {before}px -> {widest}px: its "
-        "reserve list no longer names the widest label renderOthers writes"
+        "reserve list no longer names the widest Leaves presentation label"
     )
+    expect(btn).to_have_text("All leaves (2)")
     assert errors == []
 
 
@@ -2732,6 +2765,112 @@ def test_a_panel_row_follows_its_pages_status_live(
     assert errors == []
 
 
+def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
+    browser, serve, other_leaf, live_leaf
+):
+    """One held Leaves face keeps its complete prior view behind current readiness."""
+    _, other_dir = other_leaf
+    _, closing_dir = live_leaf("closing", "The closing leaf")
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    btn = page.locator(".lf-others")
+    rows = page.locator("a.lf-others-row")
+    row = rows.filter(has_text="The other leaf")
+    expect(btn).to_have_text("All leaves (3)")
+    expect(rows).to_have_count(2)
+    row.focus()
+    before = page.evaluate(
+        """async () => {
+          const face = document.querySelector('lf-leaves-banner-face');
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const schedule = face.scheduleUpdate.bind(face);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          face.scheduleUpdate = () => {
+            if (!armed) return schedule();
+            armed = false;
+            return held.then(schedule);
+          };
+          window.releaseLeavesPaint = release;
+          window.leavesRowBefore = document.activeElement;
+          window.leavesButtonBefore = document.querySelector('.lf-others');
+          window.leavesPresentation = presentation;
+          const reading = presentation.readApplicationPresentation();
+          return {
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+          };
+        }"""
+    )
+    files_model.write_json(
+        other_dir / "status.json",
+        {
+            "state": "working",
+            "detail": "recording the demo",
+            "ts": events_model.now_iso(),
+        },
+    )
+    files_model.write_json(
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    held = page.evaluate(
+        """() => {
+          window.leavesReady = false;
+          leavesPresentation.whenApplicationPresented().then(() => {
+            window.leavesReady = true;
+          });
+          const reading = leavesPresentation.readApplicationPresentation();
+          return {
+            pending: reading.pending,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+            ready: leavesReady,
+            label: leavesButtonBefore.textContent,
+            rows: document.querySelectorAll('a.lf-others-row').length,
+          };
+        }"""
+    )
+    assert held == {
+        "pending": ["leaves"],
+        "semanticEpoch": before["semanticEpoch"],
+        "presentedEpoch": before["presentedEpoch"],
+        "ready": False,
+        "label": "All leaves (3)",
+        "rows": 2,
+    }
+    page.evaluate("releaseLeavesPaint()")
+    page.wait_for_function("window.leavesReady")
+    expect(btn).to_have_text("All leaves (2)")
+    expect(rows).to_have_count(1)
+    expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
+    assert page.evaluate(
+        """() => {
+          const reading = leavesPresentation.readApplicationPresentation();
+          return {
+            sameButton: leavesButtonBefore === document.querySelector('.lf-others'),
+            sameRow: leavesRowBefore === document.querySelector('a.lf-others-row'),
+            focused: document.activeElement === leavesRowBefore,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+          };
+        }"""
+    ) == {
+        "sameButton": True,
+        "sameRow": True,
+        "focused": True,
+        "semanticEpoch": before["semanticEpoch"],
+        "presentedEpoch": before["presentedEpoch"],
+    }
+    assert errors == []
+    page.close()
+
+
 def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     """A closed leaf leaves the tray on the poll that says so. Its server stays
     up — a standing one for good — so the row would otherwise stand forever and the
@@ -2747,6 +2886,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
+    rows.first.focus()
     files_model.write_json(
         other_dir / "status.json",
         {"state": "idle", "detail": "", "ts": events_model.now_iso()},
@@ -2755,6 +2895,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     expect(rows).to_have_count(0)
     expect(btn).to_have_text("All leaves (1)")
     expect(page.locator(".lf-others-self .lf-others-title")).to_have_text("long")
+    expect(page.locator(".lf-others-panel")).to_be_focused()
     # The open panel remains the modal destination after its last link leaves. Its own
     # nav is the fallback landing, and its global destination remains the same toggle as the
     # banner door even though that inert door is unavailable to a pointer.
@@ -2767,6 +2908,256 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     told(page)
     expect(btn).not_to_be_visible()
     assert errors == []
+
+
+def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
+    browser, serve, live_leaf, one_reader
+):
+    """Keyed rows preserve a surviving link and hand a removed link to its neighbour."""
+    second_url, _ = live_leaf("second", "Middle leaf")
+    _, other_dir = live_leaf("other", "The other leaf")
+    page, errors = open_page(browser, serve(LONG_PAGE), context=one_reader)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    rows = page.locator("a.lf-others-row")
+    expect(rows).to_have_count(2)
+    rows.nth(1).focus()
+    page.evaluate("window.focusedLeaf = document.activeElement")
+
+    live_leaf("first", "A first leaf")
+    told(page)
+    expect(rows).to_have_count(3)
+    expect(rows.nth(2).locator(".lf-others-title")).to_have_text("The other leaf")
+    assert page.evaluate(
+        "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
+    )
+
+    files_model.write_json(
+        other_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    expect(rows).to_have_count(2)
+    expect(rows.nth(1).locator(".lf-others-title")).to_have_text("Middle leaf")
+    expect(rows.nth(1)).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(1)).to_be_focused()
+    destination = rows.nth(1).get_attribute("href")
+    assert destination is not None and destination.startswith(f"{second_url}/?t=")
+    tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
+    tab.close()
+    assert errors == []
+    page.close()
+
+
+def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
+    browser, serve, other_leaf
+):
+    """A time-only Leaves repaint repairs presentation at the current epoch."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    before = page.evaluate(
+        """async () => {
+          const context = await window.__lfRuntimeImport('/runtime/context.js');
+          const leaves = await window.__lfRuntimeImport('/runtime/live-leaves.js');
+          const presence = await window.__lfRuntimeImport('/runtime/presence.js');
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const state = structuredClone(context.runtime.state);
+          state.others[0].activity.kind = 'away';
+          state.others[0].activity.quiet = true;
+          state.others[0].activity.dropped = false;
+          state.others[0].activity.ts = new Date().toISOString();
+          presence.observeServerNow(new Date().toISOString());
+          await leaves.renderOthers(state);
+          const list = document.querySelector('lf-leaves-list');
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          list.scheduleUpdate = () => {
+            if (!armed) return schedule();
+            armed = false;
+            return held.then(schedule);
+          };
+          window.releaseLeavesClock = release;
+          window.leavesPresentation = presentation;
+          window.leavesPresence = presence;
+          const reading = presentation.readApplicationPresentation();
+          return {
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+          };
+        }"""
+    )
+    expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
+        "Quiet (just now)"
+    )
+    held = page.evaluate(
+        """() => {
+          leavesPresence.observeServerNow(
+            new Date(Date.now() + 60_000).toISOString()
+          );
+          window.leavesClockTick = leavesPresence.tickClock(() => {});
+          window.leavesReady = false;
+          leavesPresentation.whenApplicationPresented().then(() => {
+            window.leavesReady = true;
+          });
+          const reading = leavesPresentation.readApplicationPresentation();
+          return {
+            pending: reading.pending,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+            ready: leavesReady,
+          };
+        }"""
+    )
+    assert held == {
+        "pending": ["leaves"],
+        "semanticEpoch": before["semanticEpoch"],
+        "presentedEpoch": before["presentedEpoch"],
+        "ready": False,
+    }
+    page.evaluate("releaseLeavesClock()")
+    page.wait_for_function("window.leavesReady")
+    page.evaluate("leavesClockTick")
+    expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
+        "Quiet (1m ago)"
+    )
+    assert page.evaluate(
+        """() => {
+          const reading = leavesPresentation.readApplicationPresentation();
+          return [reading.semanticEpoch, reading.presentedEpoch];
+        }"""
+    ) == [before["semanticEpoch"], before["presentedEpoch"]]
+    assert errors == []
+    page.close()
+
+
+def test_a_failed_leaves_update_keeps_the_committed_list_and_settles(
+    browser, serve, other_leaf, live_leaf
+):
+    """A failed Leaves paint reports once, restores its whole prior view, and recovers."""
+    _, other_dir = other_leaf
+    _, closing_dir = live_leaf("closing", "The closing leaf")
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    btn = page.locator(".lf-others")
+    rows = page.locator("a.lf-others-row")
+    line = rows.filter(has_text="The other leaf").locator(".lf-others-line")
+    expect(btn).to_have_text("All leaves (3)")
+    expect(rows).to_have_count(2)
+    expect(line).to_have_text("Working — running the suite")
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('lf-leaves-list');
+          const render = list.render.bind(list);
+          window.leavesButtonBefore = document.querySelector('.lf-others');
+          window.leavesRowsBefore = [...document.querySelectorAll('a.lf-others-row')];
+          list.render = () => {
+            list.render = render;
+            window.leavesLabelAtFailure = leavesButtonBefore.textContent;
+            window.leavesPaintFailed = true;
+            throw new Error('deliberate leaves failure');
+          };
+        }"""
+    )
+    files_model.write_json(
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    page.wait_for_function("window.leavesPaintFailed")
+    page.wait_for_function(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return presentation.readApplicationPresentation().pending.length === 0;
+        }"""
+    )
+    expect(btn).to_have_text("All leaves (3)")
+    expect(rows).to_have_count(2)
+    expect(line).to_have_text("Working — running the suite")
+    assert page.evaluate(
+        """() => ({
+          changedBeforeFailure: leavesLabelAtFailure,
+          sameButton: leavesButtonBefore === document.querySelector('.lf-others'),
+          sameRows: leavesRowsBefore.every(
+            (row, index) => row === document.querySelectorAll('a.lf-others-row')[index]
+          ),
+        })"""
+    ) == {
+        "changedBeforeFailure": "All leaves (2)",
+        "sameButton": True,
+        "sameRows": True,
+    }
+    assert errors == ["leaf: Presentation failed: deliberate leaves failure"]
+
+    files_model.write_json(
+        other_dir / "status.json",
+        {
+            "state": "working",
+            "detail": "the next paint lands",
+            "ts": events_model.now_iso(),
+        },
+    )
+    told(page)
+    expect(btn).to_have_text("All leaves (2)")
+    expect(rows).to_have_count(1)
+    expect(line).to_have_text("Working — the next paint lands")
+    assert errors == ["leaf: Presentation failed: deliberate leaves failure"]
+    page.close()
+
+
+def test_a_failed_leaves_restore_keeps_application_presentation_pending(
+    browser, serve, other_leaf, live_leaf
+):
+    """A list that cannot paint either a candidate or its fallback is not presented."""
+    _, closing_dir = live_leaf("closing", "The closing leaf")
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('lf-leaves-list');
+          const render = list.render.bind(list);
+          let failures = 2;
+          list.render = () => {
+            if (failures-- > 0) throw new Error('deliberate leaves failure');
+            return render();
+          };
+        }"""
+    )
+    files_model.write_json(
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    page.wait_for_function(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return presentation.readApplicationPresentation().pending.includes('leaves');
+        }"""
+    )
+    assert errors == ["leaf: Presentation failed: presentation and fail-soft failed"]
+
+    # A later complete reading replaces the failed ticket and opens readiness again.
+    told(page)
+    page.wait_for_function(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return !presentation.readApplicationPresentation().pending.includes('leaves');
+        }"""
+    )
+    page.close()
 
 
 def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reader):
@@ -4154,34 +4545,42 @@ def test_a_stale_package_widget_uses_recursive_parent_eligibility(
     )
     (overlay / "widgets" / "lf-quota.js").write_text(
         """\
-import { actionAvailable, offer, once, sendAction } from "/runtime/widget-api.js";
+import { offer, once, widgetController } from "/runtime/widget-api.js";
 
 const detail = (quota, delta) => ({
   slots: String(Number(quota.getAttribute("slots")) + delta),
 });
 
 const paint = quota => {
+  const reading = quota.controller.read();
   for (const [name, delta] of [["decrease", -1], ["increase", 1]])
     quota.querySelector(`[data-lf-quota="${name}"]`)?.setAttribute(
       "aria-disabled",
-      String(!actionAvailable(quota, name)),
+      String(!reading.actions[name].available),
     );
 };
 
 async function change(quota, delta) {
   const action = delta > 0 ? "increase" : "decrease";
   const next = detail(quota, delta);
-  if (!actionAvailable(quota, action)) return;
+  if (!quota.controller.read().actions[action].available) return;
   const previous = quota.getAttribute("slots");
   quota.setAttribute("slots", next.slots);
   paint(quota);
-  if (!await sendAction(quota, action, next)) quota.setAttribute("slots", previous);
+  const sent = quota.controller.dispatch({
+    kind: "action", verb: action, detail: next,
+  });
+  if (!sent || !await sent.delivery) quota.setAttribute("slots", previous);
   paint(quota);
 }
 
 customElements.define("lf-quota", class extends HTMLElement {
   connectedCallback() {
-    if (!once(this)) return;
+    this.controller ??= widgetController(this);
+    if (!once(this)) {
+      this.stopReading ??= this.controller.subscribe(() => paint(this));
+      return;
+    }
     const decrease = offer("button", "lf-btn", "Decrease");
     decrease.dataset.lfQuota = "decrease";
     decrease.addEventListener("click", () => void change(this, -1));
@@ -4189,9 +4588,12 @@ customElements.define("lf-quota", class extends HTMLElement {
     increase.dataset.lfQuota = "increase";
     increase.addEventListener("click", () => void change(this, 1));
     this.append(decrease, increase);
-    document.addEventListener("lf-actions", () => paint(this));
-    paint(this);
+    this.stopReading ??= this.controller.subscribe(() => paint(this));
     document.getElementById("destination")?.append(this);
+  }
+  disconnectedCallback() {
+    this.stopReading?.();
+    this.stopReading = null;
   }
   renderState(state) {
     const { to, index } = state.placement.detail;

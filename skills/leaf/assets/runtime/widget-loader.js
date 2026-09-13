@@ -1,5 +1,5 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
- * imports, and initial settlement. */
+ * imports, and initial presentation. */
 import {
   MARKED_IN_PAGE,
   dress,
@@ -9,18 +9,23 @@ import {
 import { reachScrollers } from "./reach.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
-import { settle, settling } from "./widget-upgrade.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
+import {
+  attachApplicationPresentation,
+  whenApplicationPresented,
+} from "./semantic-state.js";
 import {
   captureAuthoredFacets,
   rememberAuthoredParents,
 } from "./projection/authored.js";
+import { captureWidgetDescriptors } from "./widget-descriptors.js";
 import {
   opaquePassageParts,
   opaquePassageRoots,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "./passages.js";
+import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
 
@@ -93,6 +98,18 @@ export function rememberPassageParts(scope = document, source = ["page", null]) 
 // the same conversation again all cost nothing. A failed import stays rejected:
 // startup and activation must not present markup whose required module is absent.
 const modules = new Map();
+const registryUrl = () =>
+  offlineInteractive
+    ? runtimeResource("/registry.json")
+    : (document.querySelector("script[data-lf-runtime][data-lf-probe]")?.dataset
+        .lfProbe ?? "/registry.json");
+const widgetUrl = (tag) =>
+  offlineInteractive
+    ? runtimeModule(`/widgets/${tag}.js`)
+    : new URL(
+        `widgets/${tag}.js`,
+        new URL("./", new URL(registryUrl(), document.baseURI)),
+      ).href;
 const presentTags = (scope, holds) =>
   tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
 
@@ -106,31 +123,39 @@ export async function importWidgets(scope) {
   if (presentTags(scope, (entry) => entry["x-shadow"]).length) await loadShadowRules();
   await Promise.all(
     presentTags(scope, (entry) => entry["x-upgrade"]).map((tag) => {
-      if (!modules.has(tag)) modules.set(tag, import(`/widgets/${tag}.js`));
+      if (!modules.has(tag)) modules.set(tag, import(widgetUrl(tag)));
       return modules.get(tag);
     }),
   );
 }
 
-export async function installDocument(
+async function installDocument(
   scope,
   { source = ["page", null], mount = () => {}, watchLinks = false } = {},
 ) {
-  rememberPassageParts(scope, source);
-  rememberAuthoredParents(scope);
-  markDeclared(scope, MARKED_IN_PAGE);
-  if (watchLinks) watchExternalLinks(scope);
-  const settlingFrom = settling.length;
-  await importWidgets(scope);
-  mount();
-  settle(dress(scope));
-  await Promise.allSettled(settling.slice(settlingFrom));
-  reachScrollers(scope);
-  captureAuthoredFacets(scope);
+  const presentation = attachApplicationPresentation("document:installation", scope);
+  try {
+    rememberPassageParts(scope, source);
+    rememberAuthoredParents(scope);
+    captureWidgetDescriptors(scope);
+    markDeclared(scope, MARKED_IN_PAGE);
+    if (watchLinks) watchExternalLinks(scope);
+    await importWidgets(scope);
+    mount();
+    await presentation.present(scope, dress(scope));
+    await whenApplicationPresented();
+    reachScrollers(scope);
+    captureAuthoredFacets(scope);
+    // Capturing the authored initial condition is a semantic publication. Wait for
+    // subscribers to paint that newest reading before declaring upgrade complete.
+    await whenApplicationPresented();
+  } finally {
+    presentation.disconnect();
+  }
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {
-  const response = await fetch("/registry.json");
+  const response = await fetch(registryUrl());
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
   if (!sameDelivery(response)) return false;

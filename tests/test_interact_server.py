@@ -50,6 +50,7 @@ from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
+from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
@@ -657,13 +658,13 @@ def test_server_round_trip(server, page_dir):
         b'<meta name="lf-revision" data-lf-runtime content="2">'
         b'<meta name="lf-version" data-lf-runtime content="1">'
     )
+    artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+    entry = (
+        f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
+    ).encode()
     assert marker in body
     assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in body
-    assert (
-        body.index(marker)
-        < body.index(b'<script type="module" src="/leaf.js" data-lf-runtime></script>')
-        < body.index(b"</style>")
-    )
+    assert body.index(marker) < body.index(entry) < body.index(b"</style>")
     # Historical source remains delivery-free; today's boundary is applied when read.
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
         pinned = response.read()
@@ -749,8 +750,8 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     moved = event_model.read_events(page_dir)[-1]
     assert moved["author"] == "user" and moved["detail"]["to"] == "col-doing"
-    # A design comment: about the layer, anchored on a runtime part the version never
-    # holds, naming the control the press landed on. The door takes it as posted, and
+    # A design comment is anchored on a runtime part the version never holds, naming
+    # the control the press landed on. The door takes its design intent as posted, and
     # the transcript says which kind of comment it was.
     status, _ = fetch(
         f"{server}/api/event",
@@ -759,16 +760,16 @@ def test_server_round_trip(server, page_dir):
                 "kind": "comment",
                 "revision": 2,
                 "text": "the button reads dim",
-                "about": "layer",
+                "about": "design",
                 "anchor": {"section": "lf-banner", "part": "Threads"},
             }
         ).encode(),
     )
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
-    assert design["about"] == "layer" and design["anchor"]["part"] == "Threads"
+    assert design["about"] == "design" and design["anchor"]["part"] == "Threads"
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
-    assert "> § lf-banner · Threads  — about the layer" in transcript.output
+    assert "> § lf-banner · Threads  — about the design" in transcript.output
     drawing = {
         "format": "leaf-drawing/1",
         "points": [[-20, 74], [50, 10], [120, 74]],
@@ -922,8 +923,9 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"section": "feeder-board"},
             "drawing": {**drawing, "points": [[float("nan"), 0.2], [0.5, 0.2]]},
         },
-        # A design comment is about the layer, and that is the one word the field
-        # takes: a browser inventing a second subject is refused at the door.
+        # Design is the field's only subject: the retired ownership alias and a browser
+        # inventing a second subject are both refused at the door.
+        {"kind": "comment", "revision": 2, "text": "x", "about": "layer"},
         {"kind": "comment", "revision": 2, "text": "x", "about": "page"},
         {"kind": "comment", "revision": 2, "text": "x", "about": True},
         {
@@ -991,6 +993,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
     assert stamped.exit_code == 0, stamped.output
     revision = files_model.latest_revision(page_dir)
     marker = f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+    artifact_root = f"/revisions/{files_model.revision_path(page_dir, revision).stem}"
     for address in (
         "/",
         "/versions/v1.html",
@@ -1000,7 +1003,37 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
         assert status == 200, address
         assert b'<link rel="canonical" href="/" data-lf-runtime>' in body, address
         assert marker.encode() in body, address
-        assert b'data-lf-entry="/leaf.js"' in body, address
+        assert f'data-lf-entry="{artifact_root}/leaf.js"'.encode() in body, address
+        assert fetch(server + artifact_root + "/leaf.js")[0] == 200, address
+
+
+def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    tokens = registry["$reactions"]["tokens"]
+    expected_tokens = list(reversed(tokens))
+    registry["$reactions"]["tokens"] = {
+        token: tokens[token] for token in expected_tokens
+    }
+    registry_path.write_text(json.dumps(registry))
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
+    )
+
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None, activated.error
+    assert activated.created
+    artifact = artifact_model.read_artifact(page_dir, activated.revision)
+    captured = json.dumps(registry, separators=(",", ":")).encode()
+    assert artifact.resources["/registry.json"].data == captured
+    assert list(artifact.registry["$reactions"]["tokens"]) == expected_tokens
+
+    artifact_root = (
+        f"/revisions/{files_model.revision_path(page_dir, activated.revision).stem}"
+    )
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as temporary:
+        status, served = fetch(temporary.origin + artifact_root + "/registry.json")
+    assert (status, served) == (200, captured)
 
 
 def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
@@ -1026,7 +1059,11 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
-    assert '<link rel="stylesheet" href="/theme.css" data-lf-runtime>' in body
+    artifact_root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    assert (
+        f'<link rel="stylesheet" href="{artifact_root}/theme.css" data-lf-runtime>'
+        in body
+    )
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -1396,6 +1433,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     assert browser["receipts"][-1]["id"] == accepted["id"]
     assert entry["event"]["id"] == accepted["id"]
     assert entry["coordinate"] == ["delivery", "delivery", "selection"]
+    assert entry["spec"]["facet"] == "selection"
     assert entry["value"] == ["delivery-now"]
     assert view["document"]["projection"]["actions"] == [accepted["id"]]
     assert view["undo"][0]["event"]["id"] == accepted["id"]
@@ -1466,6 +1504,11 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         1: structure_model.SourceDocument(old_page),
         2: structure_model.SourceDocument(new_page),
     }
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["resolves"] = {
+        "type": "string"
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
     versions = page_dir / ".fixture-versions"
     versions.joinpath("v1.html").write_text(old_page)
     publish(page_dir, 1)
@@ -2193,10 +2236,11 @@ def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
             "parent": root["id"],
             "text": "Choose the host operation.",
             "markup": (
+                '<lf-ask id="thread-command-decision"><h3>What next?</h3>'
                 '<lf-operations id="thread-commands" target="goal" worker="worker" '
-                'worktree="tree" label="Next">'
+                'worktree="tree">'
                 '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations>"
+                "</lf-operations></lf-ask>"
             ),
         },
     )
@@ -2301,13 +2345,10 @@ def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
         ),
     ],
 )
-def test_server_answers_a_broken_registry_instead_of_dropping_the_request(
+def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broken(
     server, page_dir, corrupt, message
 ):
-    """A registry that stopped being a vocabulary refuses like everything else on this
-    path. It exited the process instead, which is the one refusal a reader cannot read:
-    the handler died mid-request and the click came back a dead socket, saying nothing
-    about the page, the action, or what to do next."""
+    """A corrupt candidate cannot take away the active revision's event vocabulary."""
     publish(page_dir)
     registry = json.loads((page_dir / "registry.json").read_text())
     (page_dir / "registry.json").write_text(corrupt(registry))
@@ -2325,11 +2366,11 @@ def test_server_answers_a_broken_registry_instead_of_dropping_the_request(
         ).encode(),
     )
     assert status == 400, body
-    assert message in json.loads(body)["error"]
+    assert "unknown action widget" in json.loads(body)["error"]
     assert not [e for e in event_model.read_events(page_dir) if e["kind"] == "action"]
-    # The refusal cost the request and nothing else: the server is still serving, so a
-    # page whose stamp fell behind still reads even where it can no longer be acted on.
-    assert fetch(f"{server}/api/state")[0] == 200
+    status, state = fetch(f"{server}/api/state")
+    assert status == 200
+    assert message in json.loads(state)["source_error"]
 
 
 def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
@@ -2765,7 +2806,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     ] == ["choose", "increase", "choose", "decrease", "move", "increase"]
 
 
-def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
+def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring(
     server, page_dir
 ):
     """An open old tab may outlive the custom layer that upgraded its widget."""
@@ -2844,8 +2885,10 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
         ).encode(),
     )
 
-    assert status == 400
-    assert "no longer declares" in json.loads(body)["error"]
+    assert status == 200, body
+    event = json.loads(body)["state"]["events"][-1]
+    assert event["widget"] == "local-draft"
+    assert event["detail"] == {"text": "New words."}
 
 
 def test_concurrent_posts_never_tear_the_log(server, page_dir):
@@ -3750,6 +3793,44 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         response = stream.getresponse()
         assert response.readline().decode().strip() == f"data: {snapshot.reading}"
         stream.close()
+
+
+def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
+    from leaf.validation.source import check_source
+
+    source = PAGE.replace(
+        "</head>", '<script type="module" src="./page/app.js"></script></head>'
+    )
+    (page_dir / "index.html").write_text(source)
+    module = page_dir / "page" / "app.js"
+    module.write_text('document.title = "Checked";')
+    checked = check_source(page_dir, event_model.read_events(page_dir))
+    assert checked.errors == []
+    module.write_text('document.title = "Changed after checking";')
+    revision = (files_model.latest_revision(page_dir) or 0) + 1
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        checked.document,
+        {"revision": revision, "version": None, "url": "/"},
+        artifact=checked.artifact,
+    )
+    with hosting_model.TemporaryPageServer(
+        page_dir, token=TOKEN, handler_options={"page_snapshot": snapshot}
+    ) as preview:
+        root = "/revisions/" + snapshot.revision_names[revision].removesuffix(".html")
+        status, document = fetch(preview.origin + "/")
+        assert status == 200
+        assert f'src="{root}/page/app.js"'.encode() in document
+        assert (
+            fetch(preview.origin + root + "/page/app.js")[1]
+            == b'document.title = "Checked";'
+        )
+        for path in (
+            "/revisions/no-such-resource",
+            root + "/missing.js",
+            "/revisions/r999-deadbeefdeadbeef.html",
+        ):
+            assert fetch(preview.origin + path)[0] == 404
 
 
 def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):

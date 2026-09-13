@@ -370,6 +370,103 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     assert errors == []
 
 
+def test_option_controls_hold_presentation_without_replacing_authored_nodes(
+    browser, serve
+):
+    """A choice presents through its child Lit control and retains authored nodes."""
+    page, errors = open_page(browser, live_url(serve(SETTLED_PAGE)))
+    page.locator("#transport .lf-settled").click()
+    group = page.locator("#transport")
+    strict = page.locator("#opt-strict")
+    mark = strict.locator(":scope > .lf-pick")
+    expect(mark).to_be_visible()
+    page.evaluate(
+        """async holder => {
+          const option = holder.querySelector('#opt-strict');
+          const control = option.querySelector(':scope > lf-option-control');
+          window.optionGroup = holder;
+          window.authoredOption = option;
+          window.authoredTitle = option.querySelector(':scope > strong');
+          window.authoredWords = [...option.childNodes].find(
+            node => node.nodeType === Node.TEXT_NODE && node.data.trim()
+          );
+          window.optionControl = control;
+          window.optionIdentityHeld = () =>
+            document.querySelector('#transport') === optionGroup &&
+            optionGroup.querySelector('#opt-strict') === authoredOption &&
+            authoredOption.querySelector(':scope > strong') === authoredTitle &&
+            [...authoredOption.childNodes].includes(authoredWords) &&
+            authoredOption.querySelector(':scope > lf-option-control') === optionControl;
+
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          window.releaseOptionControl = release;
+          const schedule = control.scheduleUpdate.bind(control);
+          control.scheduleUpdate = async () => {
+            control.scheduleUpdate = schedule;
+            await held;
+            return schedule();
+          };
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          window.whenOptionsPresented = presentation.whenApplicationPresented;
+          window.readOptionsPresentation = presentation.readApplicationPresentation;
+        }""",
+        group.element_handle(),
+    )
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    strict.click()
+    holding(page, held, 1, "the choice whose generated control update is held")
+    page.evaluate(
+        "() => { optionsPresentationReady = false; "
+        "void whenOptionsPresented().then(() => { "
+        "optionsPresentationReady = true; }); }"
+    )
+    assert page.evaluate("optionsPresentationReady") is False
+    assert "widget:transport:render" in page.evaluate(
+        "readOptionsPresentation().pending"
+    )
+    assert page.evaluate("optionIdentityHeld()") is True
+
+    page.evaluate("releaseOptionControl()")
+    page.wait_for_function("optionsPresentationReady")
+    expect(strict).to_have_attribute("chosen", "")
+
+    attempt = held[0].request.post_data_json["attempt"]
+    held[0].fulfill(
+        status=200,
+        json={
+            "ok": False,
+            "attempt": attempt,
+            "error": "refused before append",
+            "final": True,
+        },
+    )
+    page.unroute("**/api/event")
+    expect(page.locator("#opt-lax")).to_have_attribute("chosen", "")
+    assert page.evaluate("optionIdentityHeld()") is True
+
+    group.evaluate(
+        """holder => {
+          const parent = holder.parentNode;
+          const next = holder.nextSibling;
+          holder.remove();
+          parent.insertBefore(holder, next);
+          window.reconnectedOptionsReady = false;
+          void whenOptionsPresented().then(() => {
+            reconnectedOptionsReady = true;
+          });
+        }"""
+    )
+    page.wait_for_function("reconnectedOptionsReady")
+    assert page.evaluate("optionIdentityHeld()") is True
+    assert errors == []
+    page.close()
+
+
 def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(
     browser, serve
 ):
@@ -834,7 +931,19 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 
     Presentation and view state are not input, so they still run: a quoted
     settled group collapses like any other."""
-    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    url = serve(SPECIMEN_PAGE)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "quoted-suggestion",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    page, errors = open_page(browser, url)
     assert errors == []
     assert page.locator(".lf-error").count() == 0
 
@@ -871,10 +980,14 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # wears its mark, with nothing to press.
     assert page.locator('#quoted-settled .lf-pick[role="img"]').count() == 1
 
-    # A quoted suggestion shows what a pending change looks like — both slots
-    # marked — and grows nothing to settle it with, so it is also not the
-    # banner's to count or Accept all's to decide.
-    assert page.locator("#quoted-suggestion lf-old").is_visible()
+    # A quoted suggestion reconciles its semantic state while growing nothing to
+    # settle it with, so it is also not the banner's to count or Accept all's to
+    # decide.
+    expect(page.locator("#quoted-suggestion")).to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator("#quoted-suggestion lf-old")).to_be_hidden()
+    expect(page.locator("#quoted-suggestion lf-new")).to_be_visible()
     assert page.locator("[data-lf-for='quoted-suggestion']").count() == 0
     expect(page.get_by_role("button", name="Accept all (1)")).to_be_visible()
 

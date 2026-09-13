@@ -14,43 +14,6 @@
         container-type: inline-size;
       }
 
-      notification-simulator .notification-demo-pressure {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: var(--sp-1) var(--sp-3);
-        align-items: center;
-        margin: var(--sp-3) 0;
-        padding: var(--sp-3);
-        border-block: 1px solid var(--border-2);
-      }
-
-      notification-simulator .notification-demo-pressure-label {
-        color: var(--ink-2);
-        font: 600 var(--t-5) / 1.3 var(--sans);
-      }
-
-      notification-simulator .notification-demo-pressure-reading {
-        min-width: 4.5rem;
-        color: var(--ink);
-        font: 650 var(--t-5) / 1.3 var(--sans);
-        text-align: end;
-      }
-
-      notification-simulator .notification-demo-pressure-input {
-        grid-column: 1 / -1;
-        width: 100%;
-        margin: 0;
-        accent-color: var(--notification-accent);
-      }
-
-      notification-simulator .notification-demo-pressure-scale {
-        display: flex;
-        grid-column: 1 / -1;
-        justify-content: space-between;
-        color: var(--ink-3);
-        font: var(--t-6) / 1.2 var(--sans);
-      }
-
       notification-simulator .notification-demo-candidates {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -194,26 +157,10 @@
           grid-template-columns: minmax(0, 1fr);
         }
       }
-
-      .lf-copy notification-simulator .notification-demo-pressure {
-        display: none;
-      }
-
-      @media print {
-        notification-simulator .notification-demo-pressure {
-          display: none;
-        }
-      }
     </style>
 <!-- notification-playground.html authored module -->
 <script type="module">
-      import {
-        keeps,
-        layoutChanged,
-        once,
-        offer,
-        quoted,
-      } from "/runtime/widget-api.js";
+      import { keeps, layoutChanged, once } from "/runtime/widget-api.js";
 
       const EVENTS = [
         {
@@ -322,9 +269,6 @@
       customElements.define(
         "notification-simulator",
         class extends HTMLElement {
-          #count = 2;
-          #slider = null;
-          #reading = null;
           #banner = null;
           #strip = null;
           #playground = null;
@@ -342,41 +286,11 @@
           }
 
           #build() {
-            const pressure = offer("section", "notification-demo-pressure");
-            const label = offer(
-              "label",
-              "notification-demo-pressure-label",
-              "Concurrent release events",
-            );
-            label.htmlFor = `${this.id}-pressure`;
-            this.#slider = offer(
-              "input",
-              "notification-demo-pressure-input",
-              undefined,
-              "range",
-            );
-            this.#slider.id = label.htmlFor;
-            this.#slider.min = "1";
-            this.#slider.max = String(EVENTS.length);
-            this.#slider.step = "1";
-            this.#slider.value = String(this.#count);
-            this.#slider.disabled = quoted(this);
-            this.#reading = offer("output", "notification-demo-pressure-reading");
-            this.#reading.htmlFor = this.#slider.id;
-            const scale = offer("div", "notification-demo-pressure-scale");
-            scale.append(offer("span", "", "Routine"), offer("span", "", "Burst"));
-            pressure.append(label, this.#slider, this.#reading, scale);
-
             this.#banner = candidate("A · Banner stack", "banner");
             this.#strip = candidate("B · Status stream", "status strip");
             const candidates = element("div", "notification-demo-candidates");
             candidates.append(this.#banner.figure, this.#strip.figure);
-            this.append(pressure, candidates);
-
-            this.#slider.addEventListener("input", () => {
-              this.#count = Number(this.#slider.value);
-              this.#render();
-            });
+            this.append(candidates);
           }
 
           async #connect() {
@@ -397,14 +311,11 @@
 
           #render() {
             if (!this.#values) return;
-            const events = EVENTS.slice(0, this.#count);
+            const events = EVENTS.slice(0, this.#values.events);
             keeps(this, "data-tone", this.#values.tone);
             keeps(this, "data-compact", this.#values.compact);
             this.style.setProperty("--notification-accent", this.#values.accent);
             this.style.setProperty("--notification-radius", `${this.#values.radius}px`);
-            this.#reading.value = `${this.#count} ${
-              this.#count === 1 ? "event" : "events"
-            }`;
             this.#banner.figure.toggleAttribute(
               "data-selected",
               this.#values.format === "banner",
@@ -423,9 +334,525 @@
                 notification(event, "status strip", index, this.#values),
               ),
             );
-            this.#banner.metric.textContent = `${this.#count} cards · full detail`;
-            this.#strip.metric.textContent = `${this.#count} rows · compact summary`;
+            this.#banner.metric.textContent = `${this.#values.events} cards · full detail`;
+            this.#strip.metric.textContent = `${this.#values.events} rows · compact summary`;
             layoutChanged(this);
+          }
+        },
+      );
+    </script>
+<!-- data-explorer.html authored styles -->
+<style>
+      release-query-explorer {
+        display: grid;
+        gap: var(--sp-3);
+        min-width: 0;
+      }
+
+      .query-toolbar,
+      .query-row,
+      .query-row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        align-items: center;
+      }
+
+      .query-toolbar {
+        justify-content: space-between;
+      }
+
+      .query-row {
+        --lf-block-frame: 1;
+        padding: var(--sp-2);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r-sm);
+        background: var(--card);
+      }
+
+      .query-row > label {
+        display: grid;
+        gap: var(--sp-1);
+        min-width: 8rem;
+        color: var(--ink-2);
+        font: 600 var(--t-6) / 1.2 var(--sans);
+      }
+
+      .query-row input,
+      .query-row select {
+        min-height: var(--control-h);
+        color: var(--ink);
+        font: var(--t-5) / 1.25 var(--sans);
+      }
+
+      .query-row-actions {
+        margin-inline-start: auto;
+      }
+
+      .query-result-count {
+        margin: 0;
+        color: var(--ink-2);
+        font: 650 var(--t-5) / 1.3 var(--sans);
+      }
+
+      .query-results {
+        min-width: 34rem;
+      }
+
+      .query-table-frame {
+        min-width: 0;
+        overflow-x: auto;
+      }
+
+      @media (max-width: 42rem) {
+        .query-row > label,
+        .query-row-actions {
+          flex: 1 1 100%;
+          margin-inline-start: 0;
+        }
+      }
+    </style>
+<!-- data-explorer.html authored module -->
+<script type="module">
+      import { layoutChanged, offer, once } from "/runtime/widget-api.js";
+
+      const RELEASES = [
+        { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
+        { service: "Catalog", region: "europe", risk: 31, owner: "discovery" },
+        { service: "Ledger", region: "americas", risk: 84, owner: "payments" },
+        { service: "Search", region: "asia", risk: 46, owner: "discovery" },
+        { service: "Fraud", region: "europe", risk: 91, owner: "risk" },
+        { service: "Identity", region: "americas", risk: 38, owner: "platform" },
+      ];
+      const DEFAULT_FILTERS = {
+        rows: [
+          { id: "filter-1", field: "region", operator: "is", value: "europe" },
+          { id: "filter-2", field: "risk", operator: "above", value: "40" },
+        ],
+        order: ["filter-1", "filter-2"],
+      };
+
+      const clone = (value) => structuredClone(value);
+
+      function matches(release, row) {
+        const actual = release[row.field];
+        if (row.operator === "above") return Number(actual) > Number(row.value);
+        if (row.operator === "contains")
+          return String(actual).toLowerCase().includes(row.value.toLowerCase());
+        return String(actual).toLowerCase() === row.value.toLowerCase();
+      }
+
+      function labelledSelect(label, values, selected, changed) {
+        const wrapper = document.createElement("label");
+        wrapper.append(document.createTextNode(label));
+        const select = offer("select", "");
+        for (const [value, words] of values) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = words;
+          option.selected = value === selected;
+          select.append(option);
+        }
+        select.addEventListener("change", () => changed(select.value));
+        wrapper.append(select);
+        return wrapper;
+      }
+
+      customElements.define(
+        "release-query-explorer",
+        class extends HTMLElement {
+          #playground = null;
+          #state = clone(DEFAULT_FILTERS);
+          #notify = null;
+          #rows = null;
+          #results = null;
+          #count = null;
+          #next = 3;
+
+          connectedCallback() {
+            if (once(this)) this.#build();
+            this.#connect();
+          }
+
+          #build() {
+            const toolbar = offer("div", "query-toolbar");
+            toolbar.append(document.createTextNode("Filters run from top to bottom."));
+            const add = offer("button", "lf-btn", "Add filter");
+            add.addEventListener("click", () => {
+              const id = `filter-${this.#next++}`;
+              this.#state.rows.push({
+                id,
+                field: "owner",
+                operator: "is",
+                value: "platform",
+              });
+              this.#state.order.push(id);
+              this.#changed();
+              queueMicrotask(() =>
+                this.querySelector(`[data-filter-id="${id}"] input`)?.focus(),
+              );
+            });
+            toolbar.append(add);
+            this.#rows = document.createElement("div");
+            this.#rows.className = "query-rows";
+            this.#count = document.createElement("p");
+            this.#count.className = "query-result-count";
+            this.#count.setAttribute("aria-live", "polite");
+            this.#results = document.createElement("tbody");
+            const table = document.createElement("table");
+            table.className = "query-results";
+            table.innerHTML =
+              "<thead><tr><th>Service</th><th>Region</th><th>Risk</th><th>Owner</th></tr></thead>";
+            table.append(this.#results);
+            const tableFrame = document.createElement("div");
+            tableFrame.className = "query-table-frame";
+            tableFrame.append(table);
+            this.append(toolbar, this.#rows, this.#count, tableFrame);
+          }
+
+          async #connect() {
+            await customElements.whenDefined("lf-playground");
+            if (!this.isConnected || this.#notify) return;
+            this.#playground = this.closest("lf-playground");
+            this.#notify = this.#playground.registerContributor(
+              "filters",
+              DEFAULT_FILTERS,
+              {
+                read: () => clone(this.#state),
+                apply: (state) => {
+                  this.#state = clone(state);
+                  this.#next =
+                    Math.max(
+                      0,
+                      ...this.#state.rows.map((row) =>
+                        Number(row.id.split("-").at(-1)),
+                      ),
+                    ) + 1;
+                  this.#render();
+                },
+              },
+            );
+            this.#playground.registerInstructionProvider((values) => {
+              const rows = values.filters.order.map((id) =>
+                values.filters.rows.find((row) => row.id === id),
+              );
+              const conditions = rows
+                .map((row) => `${row.field} ${row.operator} ${row.value}`)
+                .join(", then ");
+              const filterTask = conditions
+                ? `Apply ${conditions}`
+                : "Apply no filters";
+              return `Implement the release query in release-report.sql. ${filterTask}, return at most ${values.limit} releases in that order, and show the query plus its result-table test.`;
+            });
+          }
+
+          #changed() {
+            this.#notify();
+          }
+
+          #update(id, field, value) {
+            this.#state.rows.find((row) => row.id === id)[field] = value;
+            this.#changed();
+          }
+
+          #move(id, offset) {
+            const from = this.#state.order.indexOf(id);
+            const to = from + offset;
+            if (to < 0 || to >= this.#state.order.length) return;
+            [this.#state.order[from], this.#state.order[to]] = [
+              this.#state.order[to],
+              this.#state.order[from],
+            ];
+            this.#changed();
+          }
+
+          #remove(id) {
+            const index = this.#state.order.indexOf(id);
+            this.#state.rows = this.#state.rows.filter((row) => row.id !== id);
+            this.#state.order = this.#state.order.filter((rowId) => rowId !== id);
+            this.#changed();
+            queueMicrotask(() => {
+              const rows = this.querySelectorAll(".query-row");
+              rows[Math.min(index, rows.length - 1)]?.querySelector("input")?.focus();
+            });
+          }
+
+          #render() {
+            if (!this.#rows) return;
+            const byId = new Map(this.#state.rows.map((row) => [row.id, row]));
+            this.#rows.replaceChildren(
+              ...this.#state.order.map((id, index) => {
+                const row = byId.get(id);
+                const element = document.createElement("div");
+                element.className = "query-row";
+                element.dataset.filterId = id;
+                element.append(
+                  labelledSelect(
+                    "Field",
+                    [
+                      ["region", "Region"],
+                      ["risk", "Risk"],
+                      ["owner", "Owner"],
+                    ],
+                    row.field,
+                    (value) => this.#update(id, "field", value),
+                  ),
+                  labelledSelect(
+                    "Operator",
+                    [
+                      ["is", "is"],
+                      ["above", "is above"],
+                      ["contains", "contains"],
+                    ],
+                    row.operator,
+                    (value) => this.#update(id, "operator", value),
+                  ),
+                );
+                const valueLabel = document.createElement("label");
+                valueLabel.append(document.createTextNode("Value"));
+                const input = offer("input", "", undefined, "text");
+                input.value = row.value;
+                input.addEventListener("input", () =>
+                  this.#update(id, "value", input.value),
+                );
+                valueLabel.append(input);
+                const actions = document.createElement("div");
+                actions.className = "query-row-actions";
+                const up = offer(
+                  "button",
+                  "lf-btn small",
+                  `Move filter ${index + 1} up`,
+                );
+                const down = offer(
+                  "button",
+                  "lf-btn small",
+                  `Move filter ${index + 1} down`,
+                );
+                const remove = offer(
+                  "button",
+                  "lf-btn small",
+                  `Remove filter ${index + 1}`,
+                );
+                up.disabled = index === 0;
+                down.disabled = index === this.#state.order.length - 1;
+                up.addEventListener("click", () => this.#move(id, -1));
+                down.addEventListener("click", () => this.#move(id, 1));
+                remove.addEventListener("click", () => this.#remove(id));
+                actions.append(up, down, remove);
+                element.append(valueLabel, actions);
+                return element;
+              }),
+            );
+            const values = this.#playground?.values;
+            const filtered = RELEASES.filter((release) =>
+              this.#state.order.every((id) => matches(release, byId.get(id))),
+            ).slice(0, values?.limit ?? 4);
+            this.#results.replaceChildren(
+              ...filtered.map((release) => {
+                const row = document.createElement("tr");
+                for (const value of Object.values(release)) {
+                  const cell = document.createElement("td");
+                  cell.textContent = value;
+                  row.append(cell);
+                }
+                return row;
+              }),
+            );
+            this.#count.textContent = `${filtered.length} matching ${filtered.length === 1 ? "release" : "releases"}`;
+            layoutChanged(this);
+          }
+        },
+      );
+    </script>
+<!-- code-comparison.html authored styles -->
+<style>
+      code-reader-comparison {
+        display: grid;
+        gap: var(--sp-3);
+        min-width: 0;
+      }
+
+      .code-comparison-toolbar,
+      .code-candidate-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        align-items: center;
+      }
+
+      .code-comparison-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+        min-width: 0;
+      }
+
+      .code-candidate {
+        --lf-block-frame: 1;
+        box-sizing: border-box;
+        min-width: 0;
+        max-width: 100%;
+        padding: var(--sp-3);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+
+      #code-comparison-playground[data-playground-chosen="A"]
+        .code-candidate[data-candidate="A"],
+      #code-comparison-playground[data-playground-chosen="B"]
+        .code-candidate[data-candidate="B"] {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+
+      .code-candidate lf-code {
+        --lf-block-frame: 1;
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+      }
+
+      .code-candidate[data-density="compact"] lf-code pre {
+        line-height: 1.25;
+      }
+
+      .code-candidate[data-density="comfortable"] lf-code pre {
+        line-height: 1.65;
+      }
+
+      .code-candidate[data-wrap="true"] lf-code pre,
+      .code-candidate[data-wrap="true"] .lf-code-line {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .code-measurement {
+        color: var(--ink-2);
+        font: 650 var(--t-6) / 1.3 var(--sans);
+      }
+
+      @media (max-width: 46rem) {
+        .code-comparison-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+<!-- code-comparison.html authored module -->
+<script type="module">
+      import { keeps, layoutChanged, offer, once } from "/runtime/widget-api.js";
+
+      const DEFAULT_COMPARISON = {
+        candidateA: { density: "compact", wrap: false },
+        candidateB: { density: "comfortable", wrap: true },
+      };
+      const clone = (value) => structuredClone(value);
+
+      customElements.define(
+        "code-reader-comparison",
+        class extends HTMLElement {
+          #playground = null;
+          #state = clone(DEFAULT_COMPARISON);
+          #notify = null;
+          #change = null;
+
+          connectedCallback() {
+            if (once(this)) this.#build();
+            this.#connect();
+          }
+
+          disconnectedCallback() {
+            this.#playground?.removeEventListener("lf-playground-change", this.#change);
+          }
+
+          #button(label, run) {
+            const button = offer("button", "lf-btn small", label);
+            button.addEventListener("click", run);
+            return button;
+          }
+
+          #build() {
+            const toolbar = offer("div", "code-comparison-toolbar");
+            toolbar.setAttribute("aria-label", "Candidate-specific controls");
+            toolbar.append(
+              this.#button("Toggle A density", () => this.#toggleDensity("candidateA")),
+              this.#button("Toggle B density", () => this.#toggleDensity("candidateB")),
+              this.#button("Copy A to B", () => this.#copy("candidateA", "candidateB")),
+              this.#button("Copy B to A", () => this.#copy("candidateB", "candidateA")),
+            );
+            this.prepend(toolbar);
+          }
+
+          async #connect() {
+            await Promise.all([
+              customElements.whenDefined("lf-playground"),
+              customElements.whenDefined("lf-code"),
+            ]);
+            if (!this.isConnected || this.#notify) return;
+            this.#playground = this.closest("lf-playground");
+            this.#notify = this.#playground.registerContributor(
+              "comparison",
+              DEFAULT_COMPARISON,
+              {
+                read: () => clone(this.#state),
+                apply: (state) => {
+                  this.#state = clone(state);
+                  this.#render();
+                },
+              },
+            );
+            this.#playground.registerInstructionProvider((values) => {
+              const chosen =
+                values.comparison[values.chosen === "A" ? "candidateA" : "candidateB"];
+              const wrapping = chosen.wrap
+                ? "wrap long lines"
+                : "keep horizontal scrolling";
+              return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
+            });
+            this.#change = (event) => {
+              if (event.target === this.#playground) this.#render();
+            };
+            this.#playground.addEventListener("lf-playground-change", this.#change);
+            this.#render();
+          }
+
+          #toggleDensity(candidate) {
+            this.#state[candidate].density =
+              this.#state[candidate].density === "compact" ? "comfortable" : "compact";
+            this.#notify();
+          }
+
+          #copy(from, to) {
+            this.#state[to] = clone(this.#state[from]);
+            this.#notify();
+          }
+
+          #render() {
+            if (!this.#playground) return;
+            const values = this.#playground.values;
+            for (const [name, key] of [
+              ["A", "candidateA"],
+              ["B", "candidateB"],
+            ]) {
+              const candidate = this.querySelector(`[data-candidate="${name}"]`);
+              const setting = this.#state[key];
+              keeps(candidate, "data-density", setting.density);
+              keeps(candidate, "data-wrap", setting.wrap);
+              candidate.style.width = `${values.width}px`;
+              candidate.querySelector(".code-candidate-title").textContent =
+                `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`;
+            }
+            requestAnimationFrame(() => {
+              for (const name of ["A", "B"]) {
+                const candidate = this.querySelector(`[data-candidate="${name}"]`);
+                const pre = candidate.querySelector("lf-code pre");
+                const measurement = candidate.querySelector(".code-measurement");
+                if (!pre || !measurement) continue;
+                measurement.textContent = `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`;
+              }
+              layoutChanged(this);
+            });
           }
         },
       );
@@ -1191,6 +1618,15 @@ outside average, before, after
             submit-label="Create notification"
           >
             <lf-playground-control
+              name="events"
+              label="Concurrent release events"
+              kind="range"
+              value="2"
+              min="1"
+              max="4"
+              step="1"
+            ></lf-playground-control>
+            <lf-playground-control
               name="radius"
               label="Corner radius"
               kind="range"
@@ -1249,6 +1685,7 @@ outside average, before, after
             ></lf-playground-control>
 
             <lf-playground-preset label="Routine release">
+              <lf-playground-setting for="events" value="2"></lf-playground-setting>
               <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
               <lf-playground-setting
                 for="compact"
@@ -1264,6 +1701,7 @@ outside average, before, after
               ></lf-playground-setting>
             </lf-playground-preset>
             <lf-playground-preset label="Needs attention">
+              <lf-playground-setting for="events" value="4"></lf-playground-setting>
               <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
               <lf-playground-setting for="compact" value="true"></lf-playground-setting>
               <lf-playground-setting
@@ -1305,13 +1743,148 @@ outside average, before, after
               spacing set to <lf-playground-value for="compact"></lf-playground-value>,
               owner visibility set to
               <lf-playground-value for="show-owner"></lf-playground-value>, and title it
-              <lf-playground-value for="title"></lf-playground-value>. Preserve the
-              shared event-pressure scenario in its browser test, then show me the
-              generated source here for review.
+              <lf-playground-value for="title"></lf-playground-value>. Exercise
+              <lf-playground-value for="events"></lf-playground-value> concurrent
+              release events in its browser test, then show me the generated source here
+              for review.
             </lf-playground-output>
           </lf-playground>
         </lf-ask>
       </lf-workspace>
+</lf-tab>
+
+<lf-tab id="corpus-data-explorer" label="Data explorer">
+<lf-ask id="release-query-ask">
+        <h1>Which release query should the agent build?</h1>
+        <p class="lede">
+          Compose ordered filters against a captured release set. The table and final
+          instruction derive from the same structured configuration.
+        </p>
+        <lf-playground id="release-query-playground" submit-label="Build query">
+          <lf-playground-control
+            name="limit"
+            label="Maximum results"
+            kind="range"
+            value="4"
+            min="1"
+            max="6"
+            step="1"
+          ></lf-playground-control>
+          <lf-playground-preset label="Focused query">
+            <lf-playground-setting for="limit" value="4"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Broad query">
+            <lf-playground-setting for="limit" value="6"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preview id="release-query-preview">
+            <release-query-explorer
+              id="release-query-explorer"
+            ></release-query-explorer>
+          </lf-playground-preview>
+          <lf-playground-output id="release-query-instruction">
+            Implement the default release query in <code>release-report.sql</code> and
+            show the query plus its result-table test.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
+</lf-tab>
+
+<lf-tab id="corpus-code-comparison" label="Code comparison">
+<lf-ask id="code-comparison-ask">
+        <h1>Which built code-reader treatment should the agent keep?</h1>
+        <p class="lede">
+          Both candidates are the shipped <code>lf-code</code> widget. One width gesture
+          reaches both; candidate settings stay explicit and copyable.
+        </p>
+        <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
+          <lf-playground-control
+            name="width"
+            label="Comparison viewport"
+            kind="range"
+            value="420"
+            min="280"
+            max="520"
+            step="20"
+            unit="px"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="chosen"
+            label="Treatment"
+            kind="choice"
+            value="A"
+          >
+            <lf-playground-choice value="A" label="A"></lf-playground-choice>
+            <lf-playground-choice value="B" label="B"></lf-playground-choice>
+          </lf-playground-control>
+          <lf-playground-preset label="Compact reader">
+            <lf-playground-setting for="width" value="420"></lf-playground-setting>
+            <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Wrapped reader">
+            <lf-playground-setting for="width" value="320"></lf-playground-setting>
+            <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preview id="code-comparison-preview">
+            <code-reader-comparison id="code-reader-comparison">
+              <div class="code-comparison-grid">
+                <section
+                  class="code-candidate"
+                  data-candidate="A"
+                  id="compact-code-candidate"
+                >
+                  <h2 class="code-candidate-title">A · compact · scroll</h2>
+                  <p class="code-measurement" aria-live="polite">Measuring…</p>
+                  <lf-code id="compact-built-code" language="javascript" hi="2-3">
+                    <pre>
+export function releaseLabel(service, checks) {
+  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
+  return `${service}: ${detail}`;
+}</pre>
+                  </lf-code>
+                </section>
+                <section
+                  class="code-candidate"
+                  data-candidate="B"
+                  id="wrapped-code-candidate"
+                >
+                  <h2 class="code-candidate-title">B · comfortable · wrap</h2>
+                  <p class="code-measurement" aria-live="polite">Measuring…</p>
+                  <lf-code id="wrapped-built-code" language="javascript" hi="2-3">
+                    <pre>
+export function releaseLabel(service, checks) {
+  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
+  return `${service}: ${detail}`;
+}</pre>
+                  </lf-code>
+                </section>
+              </div>
+            </code-reader-comparison>
+          </lf-playground-preview>
+          <lf-playground-output id="code-comparison-instruction">
+            Update the built Leaf code reader and show the focused browser measurement
+            test.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
+      <lf-ask id="code-targeting-ask">
+        <h2>Which exact reader element should change?</h2>
+        <p>
+          Targeting keeps element identity separate from the comparison's visual labels
+          and settings.
+        </p>
+        <lf-targeting id="code-comparison-targeting" submit-label="Propose exact edit">
+          <lf-target-preview id="code-target-preview">
+            <section id="target-reader-artifact" class="code-candidate">
+              <h3 class="reader-treatment-title">Built reader treatment</h3>
+              <lf-code id="target-built-code" language="javascript" hi="2">
+                <pre>
+export const summarize = checks =>
+  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
+              </lf-code>
+            </section>
+          </lf-target-preview>
+        </lf-targeting>
+      </lf-ask>
 </lf-tab>
 
 <lf-tab id="corpus-live-progress" label="Live">

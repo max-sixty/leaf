@@ -1,101 +1,22 @@
-/* DOM adaptation and commit for the semantic action/report projection.
+/* Coordinate, provenance, and chrome commit for the semantic projection.
 
-   The desired record fold and the DOM commit checkpoint are separate readings. The
-   former changes as soon as a local action is staged or an authoritative view arrives;
-   the latter changes only after the current widget nodes accepted a complete render.
-   One presentation instance owns the commit maps, optimistic staging, coordinate
-   proof, release decisions, authored-page reset, and drag deferral observer. Stateless
-   view normalization and DOM signature/read adapters remain direct exports. */
-import { authoredStates, domFacet, stateCoordinate, unitOf } from "./authored.js";
-import {
-  foldProjection,
-  foldedFacet,
-  foldWidgetStates,
-  projectionOrigins,
-} from "./model.js";
-import { currentProjection, installProjection } from "./state.js";
-import { pendingProjectionEntries } from "../pending/model.js";
+   Widget controllers render total state and own their presentation proof. This adapter
+   retains the coordinate commits needed by coverage, provenance, chrome, and pending
+   release. Its one document-wide drag gate withholds that global projection work while
+   the gesture's own controller holds its local reading. */
+import { authoredStates } from "./authored.js";
+import { projectionOrigins } from "./model.js";
+import { projectionDeferred, setProjectionDeferred } from "./state.js";
+import { applicationState, attachApplicationPresentation } from "../semantic-state.js";
 import { stateSpecs } from "../registry.js";
 import { runtime } from "../context.js";
-import {
-  authored,
-  elementById,
-  inChrome,
-  pageQueryAll,
-  renderRetired,
-  settlementSlots,
-} from "../passages.js";
+import { authored, elementById, inChrome, pageQueryAll } from "../passages.js";
 import {
   PAGE_PAINT_ATTRIBUTE,
   PAGE_PAINT_ATTRIBUTES,
   renderQuiet,
 } from "../presentation.js";
-import { reportPageError } from "../layer-client.js";
-import { failSoft } from "../widget-upgrade.js";
-
-const { registry } = runtime;
-
-const coordinateKey = (coordinate) => JSON.stringify(coordinate);
-const domValue = (value, record) =>
-  record?.kind === "attribute" ? value.join(" ") : value;
-
-function normalize({ view, conversation, pendingEntries, receipts }) {
-  const entries = [];
-  const actionIds = [];
-  const reportIds = [];
-  const desiredIds = [];
-  const projections = [view?.document?.projection, conversation?.projection].filter(
-    Boolean,
-  );
-  for (const projection of projections) {
-    for (const wire of projection.entries ?? []) {
-      const e = wire.event;
-      const coordinate = coordinateKey(wire.coordinate);
-      const widget = elementById(e.widget);
-      const channel = e.kind === "action" ? "x-state" : "x-report";
-      const spec = widget && registry[widget.localName]?.[channel]?.[e.action];
-      entries.push(
-        spec
-          ? {
-              coordinate,
-              e,
-              restated: wire.restated ?? [],
-              scope: wire.scope,
-              spec,
-              unit: wire.coordinate[1],
-              value: domValue(wire.value, spec.record),
-            }
-          : { coordinate, e, scope: wire.scope, terminal: true },
-      );
-    }
-    actionIds.push(...(projection.actions ?? []));
-    reportIds.push(...(projection.reports ?? []));
-    desiredIds.push(...(projection.desired ?? []));
-  }
-  return foldProjection({
-    entries,
-    actionIds,
-    reportIds,
-    desiredIds,
-    coverage: view?.coverage ?? [],
-    pendingEntries: pendingProjectionEntries(pendingEntries, receipts),
-  });
-}
-
-export const projectionFromView = (view, conversation) =>
-  normalize({ view, conversation, pendingEntries: [], receipts: [] });
-
 const committedEvent = (commit) => commit?.entry?.e.id ?? null;
-
-function renderSettlement(widget, state) {
-  const outcomes = settlementSlots()[widget.localName];
-  if (!outcomes) return;
-  const spec = registry[widget.localName]["x-state"][Object.keys(outcomes)[0]];
-  const outcome = state[spec.facet].action;
-  if (outcomes[outcome]) widget.setAttribute("data-lf-state", outcome);
-  else widget.removeAttribute("data-lf-state");
-  renderRetired(widget);
-}
 
 function paintStateOrigins(projection) {
   const marks = new Map(
@@ -104,7 +25,7 @@ function paintStateOrigins(projection) {
       new Set(),
     ]),
   );
-  for (const { origin, unit } of projectionOrigins(authoredStates, projection)) {
+  for (const { origin, unit } of projectionOrigins(authoredStates(), projection)) {
     if (origin === "restated") continue;
     const target = elementById(unit);
     if (!target || inChrome(target)) continue;
@@ -128,12 +49,40 @@ function paintStateOrigins(projection) {
   return touched;
 }
 
-export function createProjectionPresentation({ onDeferredReady, onDomIntroduced }) {
+export function createProjectionPresentation({ onDeferredReady }) {
   const committedProjection = new Map();
 
-  const committedWidgets = new Map();
-
   let projectionDragObserver = null;
+  let presentationHandle = null;
+  let activePresentation = null;
+
+  const presentation = () => {
+    presentationHandle ??= attachApplicationPresentation("projection:chrome", document);
+    return presentationHandle;
+  };
+
+  // State application sometimes has to prepare frozen widget markup before it can
+  // project it. Claim this epoch synchronously after semantic adoption so an inherited
+  // chrome commit cannot acknowledge the new reading during that preparation.
+  function prepare(snapshot) {
+    let resolve;
+    const completion = new Promise((done) => {
+      resolve = done;
+    });
+    const pending = {
+      epoch: snapshot.semanticEpoch,
+      value: snapshot.effective.projection,
+      resolve,
+      claimed: false,
+    };
+    const prior = activePresentation;
+    activePresentation = pending;
+    void presentation().present(pending.value, completion);
+    // Install the newer ticket before completing obsolete work. Its late completion
+    // can no longer satisfy the active region.
+    prior?.resolve();
+    return pending;
+  }
 
   function coordinateProjectionCommitted(projection, entry) {
     const desired = projection.desired.get(entry.coordinate);
@@ -152,29 +101,6 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     );
   }
 
-  function localCoordinateCommitted(projection, entry) {
-    const local = entry.projection;
-    if (!local) return true;
-    const widget = elementById(local.e.widget);
-    if (!widget) return true;
-    const desired = projection.desired.get(local.coordinate) ?? null;
-    const commit = committedProjection.get(local.coordinate);
-    return (
-      commit?.widget === widget &&
-      commit.unit === elementById(local.unit) &&
-      committedEvent(commit) === (desired?.e.id ?? null)
-    );
-  }
-
-  function releasableEntries(entries, projection = currentProjection()) {
-    return entries.filter((entry) => {
-      if (!entry.answered || entry.event.kind !== "action") return false;
-      return entry.rejected
-        ? localCoordinateCommitted(projection, entry)
-        : Boolean(entry.readEvent && projectionCommitted(projection, entry.readEvent));
-    });
-  }
-
   // Every action reaches the send door after its widget has painted the semantic
   // outcome. Give recorded and recordless actions the same local coordinate so later
   // gestures and all projection consumers read that outcome before delivery settles.
@@ -182,41 +108,15 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
   // snapshot; the pure fold derives whichever prior value still stands.
   function stageOptimistic(entry) {
     const e = entry.event;
-    if (e.kind === "undo") {
-      const target =
-        entry.undoTarget?.projection ?? currentProjection().classified.get(e.undoes);
-      if (!target || target.e.kind !== "action") return false;
-      entry.projection = {
-        kind: "undo",
-        target,
-        targetEntry: entry.undoTarget,
-        coordinate: target.coordinate,
-        localOrder: entry.order,
-      };
-      committedWidgets.delete(target.e.widget);
-      return true;
-    }
-    if (e.kind !== "action") return false;
+    const local = entry.projection;
+    if (!local) return false;
+    if (e.kind === "undo") return true;
     const widget = elementById(e.widget);
-    const spec = widget && registry[widget.localName]?.["x-state"]?.[e.action];
-    if (!spec) return false;
-    const unit = unitOf(e, spec);
-    if (typeof unit !== "string") return false;
-    const coordinate = stateCoordinate(e.widget, unit, spec);
-    entry.projection = {
-      unit,
-      spec,
-      coordinate,
-      localOrder: entry.order,
-      e: { ...e, id: entry.localId },
-      value: spec.record ? foldedFacet(e, spec.record) : e.action,
-    };
-    committedWidgets.delete(e.widget);
-    committedProjection.set(coordinate, {
+    committedProjection.set(local.coordinate, {
       widgetId: e.widget,
       widget,
-      unit: elementById(unit),
-      entry: entry.projection,
+      unit: elementById(local.unit),
+      entry: local,
     });
     return true;
   }
@@ -248,10 +148,7 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
       }
     };
     dropCoordinates(committedProjection);
-    for (const owner of pageOwners) {
-      authoredStates.delete(owner);
-      committedWidgets.delete(owner);
-    }
+    applicationState.forgetAuthored(pageOwners);
     document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
   }
 
@@ -270,59 +167,34 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     });
   }
 
-  function presentCurrent(input) {
-    const projection = normalize(input);
+  function presentCurrent(snapshot) {
+    const projection = snapshot.effective.projection;
     // Before the first state or the offline fallback, authored capture has completed
-    // but the application still cannot know whether an action is available. Surface
-    // registration may invalidate the DOM in that interval. Publish the desired record
-    // for readers, but leave the widget uncommitted so ready/offline presentation must
-    // render it instead of treating this provisional authored state as current.
-    if (input.phase === "waiting") {
-      installProjection(projection, { deferred: true });
+    // but the application still cannot know whether an action is available. Controllers
+    // independently present any complete authored widget state; this adapter has no
+    // authoritative projection coordinates or chrome to commit yet.
+    if (snapshot.phase === "waiting" || snapshot.authoritative === null) {
+      // This provisional epoch has no authoritative projection to withhold. Settling
+      // its chrome ticket lets document installation finish and start the state feed;
+      // adoption publishes a ready/offline epoch and claims a fresh ticket before any
+      // semantic or widget commit can become current.
+      setProjectionDeferred(false);
       return projection;
     }
     if (document.querySelector(".lf-dragging")) {
-      installProjection(projection, { deferred: true });
+      setProjectionDeferred(true);
       watchProjectionDrag();
       return projection;
     }
     projectionDragObserver?.disconnect();
     projectionDragObserver = null;
-    installProjection(projection);
-    let painted = false;
-    const started = new Set(document.getAnimations());
+    setProjectionDeferred(false);
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
         elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
-    for (const [widgetId, { state, entries }] of foldWidgetStates(
-      authoredStates,
-      projection,
-    )) {
+    for (const [widgetId, { entries }] of snapshot.effective.widgets) {
       const widget = elementById(widgetId);
       if (!widget) continue;
-      const key = JSON.stringify(state);
-      const commit = committedWidgets.get(widgetId);
-      const unitsChanged = entries.some(
-        ({ coordinate, unit }) =>
-          committedProjection.get(coordinate)?.unit !== elementById(unit),
-      );
-      if (commit?.widget !== widget || commit.key !== key || unitsChanged) {
-        try {
-          if (widget.renderState?.(state) === false) {
-            installProjection(projection, { deferred: true });
-            continue;
-          }
-          renderSettlement(widget, state);
-        } catch (error) {
-          reportPageError(
-            `<${widget.localName}> renderState threw: ${error?.message ?? error}`,
-          );
-          failSoft(widget, error);
-          renderSettlement(widget, state);
-        }
-        committedWidgets.set(widgetId, { widget, key });
-        painted = true;
-      }
       const coordinates = new Map();
       for (const entry of projection.classified.values())
         if (!entry.terminal && entry.e.widget === widgetId)
@@ -345,35 +217,51 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     renderQuiet(document.body, originTargets);
     document.body.setAttribute(
       PAGE_PAINT_ATTRIBUTE.applied,
-      String(projectionCoverage(projection, input.view?.coverage)),
+      String(
+        projectionCoverage(
+          projection,
+          snapshot.authoritative?.browser.views[String(snapshot.document.revision)]
+            ?.coverage,
+        ),
+      ),
     );
-    if (painted)
-      Promise.allSettled(
-        document
-          .getAnimations()
-          .filter((animation) => !started.has(animation))
-          .map((animation) => animation.finished),
-      ).then(onDomIntroduced);
     return projection;
   }
 
-  function present(input) {
+  function present(snapshot, prepared = null) {
+    const pending =
+      prepared !== null &&
+      prepared === activePresentation &&
+      !prepared.claimed &&
+      prepared.epoch === snapshot.semanticEpoch
+        ? prepared
+        : prepare(snapshot);
+    pending.claimed = true;
     const prior = runtime.restoringState;
-    if (input.pendingEntries.some((entry) => entry.rejected && entry.projection))
+    if (snapshot.unresolved.some((entry) => entry.rejected && entry.projection))
       runtime.restoringState = true;
     try {
-      return presentCurrent(input);
+      const projection = presentCurrent(snapshot);
+      if (!projectionDeferred()) {
+        if (activePresentation === pending) activePresentation = null;
+        pending.resolve(projection);
+      }
+      return projection;
+    } catch (error) {
+      // There is no complete chrome result to commit. Keep this ticket pending and
+      // preserve the existing application error boundary; a later presentation first
+      // supersedes this hold, then tries the current semantic root again.
+      throw error;
     } finally {
       runtime.restoringState = prior;
     }
   }
 
   return {
+    prepare,
     present,
     stageOptimistic,
-    releasableEntries,
     resetAuthoredPage,
-    projectionCommitted,
     coordinateProjectionCommitted,
   };
 }
@@ -409,31 +297,4 @@ export function shallowSigs(root) {
     );
   }
   return sigs;
-}
-
-export function standingState(eventIds = null) {
-  const projection = currentProjection();
-  const desired =
-    eventIds === null
-      ? projection
-      : {
-          ...projection,
-          desired: new Map(
-            [...projection.desired].filter(([, entry]) =>
-              new Set(eventIds).has(entry.e.id),
-            ),
-          ),
-        };
-  return [...foldWidgetStates(authoredStates, desired)].map(
-    ([id, { state, specs }]) => ({
-      get widget() {
-        return elementById(id);
-      },
-      state,
-      read: () =>
-        [...specs]
-          .filter(([, spec]) => spec.record?.kind === "body")
-          .map(([facet, spec]) => [facet, domFacet(elementById(id), spec.record)]),
-    }),
-  );
 }

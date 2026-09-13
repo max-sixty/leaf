@@ -1,17 +1,23 @@
 # Page storage
 
 A page directory holds:
-    index.html            mutable author source. The agent writes only this file.
+    index.html            mutable author document. The agent writes this and page/
+                         candidate inputs; Leaf owns the rest of the directory.
                          The server validates it before activation and never serves
                          it directly. An invalid save creates no revision, leaves the
                          previous valid revision live, and exposes the diagnostic in
                          page state and browser chrome.
-    revisions/rN-H.html… immutable valid saves, where N is activation order and H is
-                         the first 16 hexadecimal characters of the source digest.
-                         A changed valid source becomes the next revision; identical
-                         bytes reuse the existing one. The live root follows the
-                         active revision, and each revision is also served at its
-                         own address under the same delivery boundary as the root.
+    revisions/rN-H.html  immutable valid-save marker, where N is activation order and
+                         H is the first 16 hexadecimal characters of the complete
+                         artifact-manifest digest. The sibling revisions/rN-H/
+                         directory captures index.html, manifest.json, the effective
+                         registry, page/ dependencies, media dependencies, and the
+                         selected runtime, theme, widgets, and vendor bytes. The bundle
+                         is durable before its marker appears. A change to any captured
+                         input becomes the next revision; an identical artifact reuses
+                         the existing one. The live root follows the active revision,
+                         and each revision is also served at its own address under the
+                         same delivery boundary as the root.
                          All three addresses a page answers name the page root as
                          their canonical, so a reader sent to any of them, and a
                          crawler that finds all of them, are looking at one page.
@@ -42,6 +48,10 @@ A page directory holds:
     widgets/             one ES module per upgraded widget (lf-tabs.js, lf-board.js)
     vendor/              vendored third-party assets (sortable.esm.js, plot.esm.js),
                          and whatever a selected package brings (beautiful-mermaid.esm.js)
+    page/                mutable page-specific browser-ready modules, styles, assets,
+                         page/registry.json declarations, and page/widgets/ modules.
+                         These are candidate inputs only; delivery reads their captured
+                         revision copies, never these mutable files directly.
     media/               images the page shows, each named by the hash of its bytes
                          (`page media`). Not vendored — this is the page's content,
                          not the layer's — but served the same way.

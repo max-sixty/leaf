@@ -102,6 +102,64 @@ HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
 SCRIPT_URL_ATTRIBUTES = {"action", "formaction", "href", "src", "xlink:href"}
 
 
+def _srcset_urls(value: str):
+    """Yield URL spans from the browser's comma-and-descriptor image candidate form."""
+    cursor = 0
+    while cursor < len(value):
+        while cursor < len(value) and (value[cursor].isspace() or value[cursor] == ","):
+            cursor += 1
+        start = cursor
+        while cursor < len(value) and not value[cursor].isspace():
+            cursor += 1
+        end = cursor
+        while end > start and value[end - 1] == ",":
+            end -= 1
+        if end > start:
+            yield start, end, value[start:end]
+        if end != cursor:
+            continue
+        depth = 0
+        while cursor < len(value):
+            char = value[cursor]
+            if char == "(":
+                depth += 1
+            elif char == ")" and depth:
+                depth -= 1
+            elif char == "," and not depth:
+                cursor += 1
+                break
+            cursor += 1
+
+
+def resource_attribute_urls(tag: str, attrs: dict, name: str, value: str):
+    """Return the resource URLs carried by one admitted HTML attribute."""
+    normalized_tag = tag.lower()
+    if name == "srcset" and normalized_tag in {"img", "source"}:
+        return tuple(url for _, _, url in _srcset_urls(value))
+    if name in {"src", "poster"} and normalized_tag not in {"script", "iframe"}:
+        return (value,)
+    if name in {"href", "xlink:href"} and (
+        normalized_tag in {"feimage", "image", "use"}
+        or normalized_tag == "link"
+        and "icon" in attrs.get("rel", [])
+    ):
+        return (value,)
+    return ()
+
+
+def rewrite_resource_attribute(tag: str, attrs: dict, name: str, value: str, rewrite):
+    """Rewrite just the URL tokens in one resource-valued HTML attribute."""
+    urls = resource_attribute_urls(tag, attrs, name, value)
+    if not urls:
+        return value
+    if name != "srcset":
+        return rewrite(value)
+    rewritten = value
+    for start, end, url in reversed(tuple(_srcset_urls(value))):
+        rewritten = rewritten[:start] + rewrite(url) + rewritten[end:]
+    return rewritten
+
+
 class SourceDocument:
     """One browser-compatible structural reading of authored HTML.
 
@@ -157,6 +215,7 @@ class SourceDocument:
         # mentions: a page documenting Leaf can write one in prose without demanding a
         # screenshot that nothing displays.
         self.media_refs = set()
+        self.page_resource_refs = set()
         # What the version says about width, each where a document says it: CSS is what
         # a <style> block holds, and a fixed width is what a rule, style="", or width=""
         # states. The column check reads these three and nothing else.
@@ -412,9 +471,21 @@ class SourceDocument:
         if markers:
             self.reserved_markers.append((tag, line, markers))
         self.media_refs.update(
-            value
-            for value in attrs.values()
-            if isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
+            reference
+            for name, value in attrs.items()
+            if isinstance(value, str)
+            for reference in (
+                resource_attribute_urls(tag, attrs, name, value)
+                or (() if name == "srcset" else (value,))
+            )
+            if reference.startswith(f"/{MEDIA_DIR}/")
+        )
+        self.page_resource_refs.update(
+            reference
+            for name, value in attrs.items()
+            if isinstance(value, str)
+            for reference in resource_attribute_urls(tag, attrs, name, value)
+            if reference.startswith(("/page/", "page/", "./page/"))
         )
 
         if tag == "noscript" or (
@@ -714,6 +785,72 @@ class SourceDocument:
     def reserved_ids(self) -> list:
         """Ids that trespass on the runtime's own namespace (see reserved_ids_error)."""
         return sorted({i for i in self.all_ids if i.startswith("lf-")})
+
+
+def resolve_source_target_reference(
+    document: SourceDocument, reference: dict, *, fragment: bool = False
+) -> dict:
+    """Resolve one browser target record against its immutable authored boundary.
+
+    A page record starts at its one authored ``main``. Frozen message markup is a
+    fragment, so its top-level authored nodes form a virtual root. Only light-DOM
+    steps exist in source; a shadow step therefore resolves to no authored target
+    rather than being guessed from upgraded output.
+    """
+
+    virtual = {"content": document.content}
+    if fragment:
+        root = virtual
+    else:
+        mains = [node for node in document.nodes if node["tag"] == "main"]
+        if len(mains) != 1:
+            return {"status": "ambiguous" if mains else "detached"}
+        root = mains[0]
+
+    def children(node: dict) -> list[dict]:
+        return [child for child in node.get("content", []) if isinstance(child, dict)]
+
+    def descendants(node: dict, *, include: bool = True):
+        if include:
+            yield node
+        for child in children(node):
+            yield from descendants(child)
+
+    def matching_id(identity: str) -> list[dict]:
+        return [
+            node
+            for node in descendants(root, include=not fragment)
+            if node.get("attrs", {}).get("id") == identity
+        ]
+
+    if reference["kind"] == "id":
+        candidates = matching_id(reference["id"])
+    else:
+        candidates = [root]
+        if anchor := reference.get("anchor"):
+            candidates = matching_id(anchor)
+            if len(candidates) > 1:
+                return {"status": "ambiguous"}
+        for step in reference["path"]:
+            if step["tree"] != "light":
+                candidates = []
+                break
+            candidates = [
+                child
+                for parent in candidates
+                for child in children(parent)
+                if child["tag"] == step["tag"] and not child.get("attrs", {}).get("id")
+            ]
+            if not candidates:
+                break
+        if fragment and not reference.get("anchor") and not reference["path"]:
+            candidates = []
+
+    if not candidates:
+        return {"status": "detached"}
+    if len(candidates) != 1:
+        return {"status": "ambiguous"}
+    return {"status": "resolved", "target": candidates[0]}
 
 
 def links_with_rel(links: list[dict], rel: str) -> list[dict]:

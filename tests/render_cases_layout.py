@@ -167,7 +167,7 @@ def arrival_findings(browser, url):
             # the former design-decision example, and buys this nothing.
             page.goto(url, wait_until="load")
             render_checks_model.wait_for_probe(page, "upgraded")
-            render_checks_model.wait_for_probe(page, "presented")
+            render_checks_model.wait_for_probe(page, "currentPresented")
         except PlaywrightTimeout:
             return [
                 "[arrivals] the page never came up unarranged, so nothing could be "
@@ -183,7 +183,7 @@ def arrival_findings(browser, url):
             try:
                 page.reload(wait_until="load")
                 render_checks_model.wait_for_probe(page, "upgraded")
-                render_checks_model.wait_for_probe(page, "presented")
+                render_checks_model.wait_for_probe(page, "currentPresented")
             except PlaywrightTimeout:
                 found.append(
                     f"[{restore_case['name']}] the page never finished coming up — "
@@ -1671,7 +1671,7 @@ RINGS_DRAWN = f"""async () => {{
   // comment names — it asked only about overflow, so paint containment and
   // content-visibility clipped a ring away with nothing said, and it measured the
   // padding box with the scrollbar's gutter still in it.
-  const {{ shownBand }} = await import('/runtime/widget-api.js');
+  const {{ shownBand }} = await window.__lfRuntimeImport('/runtime/widget-api.js');
   const named = {NAMED};
   const holds = (a, b) => {{
     for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;

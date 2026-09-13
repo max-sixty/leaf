@@ -11,11 +11,11 @@ from urllib.parse import urlsplit
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 
-from .files import revision_path
+from .files import latest_revision, revision_path
 from .hosting import server_at
 from .http import Handler
 from .registry.contract import RegistryError
-from .registry.storage import layer_metadata
+from .revision_artifact import read_artifact
 from .schema import EVENTS_FILE, MCP_APP
 from .served_state.service import PageStateService
 from .server import preview_metadata, running_server
@@ -42,8 +42,6 @@ def _with_ready_signal(body: bytes, page_root: str) -> bytes:
 class _PageSession:
     page_dir: Path
     capability: str
-    layer_identity: dict
-    bootstrap: str
     preview: dict | None
 
 
@@ -72,9 +70,11 @@ class _RoutedPageHandler(Handler):
             return False
         inside = f"/{parts[3]}" if len(parts) == 4 and parts[3] else "/"
         self.page_dir = session.page_dir
-        self.layer = session.layer_identity["generation"]
-        self.layer_identity = session.layer_identity
-        self.bootstrap = session.bootstrap
+        revision = latest_revision(self.page_dir)
+        if revision is None:
+            return False
+        self.layer_identity = read_artifact(self.page_dir, revision).registry["$layer"]
+        self.layer = self.layer_identity["generation"]
         self.preview = session.preview
         self.page_root = f"/p/{session.capability}"
         self.path = inside + (f"?{external.query}" if external.query else "")
@@ -125,14 +125,9 @@ class ProcessPageServer:
             session = self._by_page.get(page_dir)
             if session is None:
                 capability = secrets.token_urlsafe(24)
-                identity = layer_metadata(page_dir)
                 session = _PageSession(
                     page_dir=page_dir,
                     capability=capability,
-                    layer_identity=identity,
-                    bootstrap=(page_dir / "runtime" / "bootstrap.js").read_text(
-                        encoding="utf-8"
-                    ),
                     preview=preview_metadata(page_dir),
                 )
                 self._by_page[page_dir] = session
@@ -141,16 +136,7 @@ class ProcessPageServer:
 
     def session(self, capability: str) -> _PageSession | None:
         with self._lock:
-            session = self._by_capability.get(capability)
-            if session is None:
-                return None
-            current_identity = layer_metadata(session.page_dir)
-            if current_identity != session.layer_identity:
-                session.layer_identity = current_identity
-                session.bootstrap = (
-                    session.page_dir / "runtime" / "bootstrap.js"
-                ).read_text(encoding="utf-8")
-            return session
+            return self._by_capability.get(capability)
 
     def close(self) -> None:
         with self._lock:
@@ -200,7 +186,6 @@ def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
     try:
         state = PageStateService(
             page_dir,
-            layer_identity=layer_metadata(page_dir),
             preview=preview_metadata(page_dir),
         ).page_state()
     except RegistryError as error:

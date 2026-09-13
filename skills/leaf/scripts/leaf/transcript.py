@@ -8,7 +8,7 @@ from leaf.events import build_threads, is_reaction, taken_back
 from leaf.files import latest_revision, revision_label
 from leaf.passages import active_enclosing, enclosing_of, spoken
 from leaf.registry.reactions import reaction_tokens
-from leaf.registry.storage import load_registry
+from leaf.registry.storage import active_registry
 from leaf.structure import parse_revision
 from leaf.thread_context import (
     thread_memberships,
@@ -139,8 +139,8 @@ def _thread_heading(thread: dict) -> str:
         head = "> (page-level)"
     if thread["detached_from"]:
         head += "  — no longer in this version"
-    if thread["root"].get("about") == "layer":
-        head += "  — about the layer"
+    if thread["root"].get("about") == "design":
+        head += "  — about the design"
     closed = thread["resolved"]
     if closed and closed["author"] == "claude":
         # Named where the reader was not the one who closed it. A transcript is
@@ -192,7 +192,7 @@ def _print_approval(events: list) -> None:
 def cmd_transcript(page_dir: Path) -> None:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
-    registry = load_registry(page_dir) or {}
+    registry = active_registry(page_dir) or {}
     revision, title = _revision_title(page_dir)
     print(f"## Leaf: {title or page_dir.name}")
     _print_versions(events)

@@ -2,7 +2,7 @@
  * that has changed. */
 import { ago, clocked } from "./presence.js";
 import { el, reserve } from "./widget-elements.js";
-import { agentName, runtime } from "./context.js";
+import { agentName, runtime, runtimeResource } from "./context.js";
 import {
   bannerActions,
   foldShelf,
@@ -17,6 +17,7 @@ import { COVERING } from "./chrome-layout.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
+import { watchProjection } from "./projection-watch.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -71,7 +72,7 @@ export const toneFor = (kind) => TONE[kind];
 const tabLink = Object.assign(document.createElement("link"), {
   rel: "icon",
   type: "image/svg+xml",
-  href: "/icon.svg",
+  href: runtimeResource("/icon.svg"),
 });
 document.head.append(tabLink);
 let iconMark = null;
@@ -101,7 +102,7 @@ function iconUrl(color) {
   return url;
 }
 export async function loadIcon() {
-  const response = await fetch("/icon.svg");
+  const response = await fetch(runtimeResource("/icon.svg"));
   if (!response.ok)
     throw new Error(`leaf: the tab icon failed to load (${response.status})`);
   const doc = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
@@ -467,7 +468,7 @@ function arrangeBannerControls() {
 // The banner's row, mounted once the version chooser and the trays exist: the invariant
 // middle first, then the edge families around it (arrangeBannerControls).
 export function mountBanner({ approveVersion, paintApproval }) {
-  document.addEventListener("lf-actions", paintApproval);
+  watchProjection(document.body, paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   // Seed the invariant middle once; arrangeBannerControls puts the two edge families
   // around it and later preserves any registry-declared controls added among these three.
@@ -490,9 +491,8 @@ export function mountBanner({ approveVersion, paintApproval }) {
   };
 }
 
-// Sign-off belongs to the authored version, while the control belongs to the live
-// chrome that survives one. A soft activation can therefore add or remove the same
-// control; rebuilding the banner would throw away focus and every reserved neighbour.
+// Sign-off belongs to the authored revision. A revision navigation rebuilds the chrome;
+// stamping the document already open can still add or remove this control in place.
 export function stateSignoff(next, syncLayout, paintApproval) {
   signoffDeclared = next;
   const shown = signoffDeclared && runtime.currentStamp !== null;

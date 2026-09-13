@@ -191,6 +191,12 @@ def product_url(hosted, name):
 media_url = site_build.media_url
 
 
+def active_revision_directory(page_dir):
+    revision = files_model.latest_revision(page_dir)
+    assert revision is not None, f"{page_dir} has no published revision"
+    return Path("revisions") / files_model.revision_path(page_dir, revision).stem
+
+
 def opened(page, errors, url):
     """A navigation this module makes for itself, waiting on what `open_page` waits
     on — the document's stamp and the log's — since a page at the first alone has a
@@ -296,12 +302,14 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
     release = manifest["release"]
     asset_root = manifest["pages"]["/examples/triage-board"]["assets"]
+    revision = active_revision_directory(site / "examples" / "triage-board")
+    example_layer = example_root / revision
     assert 'data-lf-server="published"' in document
     assert f'data-lf-release="{release}"' in document
-    assert f'src="{asset_root}/leaf.js"' in document
+    assert f'src="{asset_root}/{revision}/leaf.js"' in document
     assert f'src="{asset_root}/sitenote.js"' in document
-    assert (example_root / "runtime" / "state-feed.js").is_file()
-    assert (example_root / "registry.json").is_file()
+    assert (example_layer / "runtime" / "state-feed.js").is_file()
+    assert (example_layer / "registry.json").is_file()
     assert list((example_root / "versions").glob("v*.html"))
     assert list((example_root / "revisions").glob("r*.html"))
     for private in ("data.json", "events.jsonl", "status.json", "cursor.json"):
@@ -310,16 +318,22 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     notification_root = assets / "examples" / "notification-playground"
     notification = manifest["pages"]["/examples/notification-playground"]
     notification_document = (notification_root / "index.html").read_text()
+    notification_revision = active_revision_directory(
+        site / "examples" / "notification-playground"
+    )
     assert (
-        f'from "{notification["assets"]}/runtime/widget-api.js"'
+        f'from "{notification["assets"]}/{notification_revision}/runtime/widget-api.js"'
         in notification_document
     )
 
     # Public paths remain page-scoped, but repeated immutable payload bytes occupy one
     # inode in the build and container image rather than one complete copy per page.
     repeated = [
-        site_build.asset_site(site) / "runtime" / "margin-layout.js",
-        example_root / "runtime" / "margin-layout.js",
+        assets
+        / active_revision_directory(site_build.product_page(site, "index.html"))
+        / "runtime"
+        / "margin-layout.js",
+        example_layer / "runtime" / "margin-layout.js",
     ]
     assert repeated[0].read_bytes() == repeated[1].read_bytes()
     assert repeated[0].stat().st_ino == repeated[1].stat().st_ino
@@ -413,12 +427,13 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
         for document in sorted((board / directory).glob("*.html"))
     ]
     assert historical, "the example publishes no version or revision documents"
+    revision = active_revision_directory(site / "examples" / "triage-board")
     for route, relative in (
         ("/", "index.html"),
         ("/examples/triage-board/", "examples/triage-board/index.html"),
         (
-            "/examples/triage-board/runtime/state-feed.js",
-            "examples/triage-board/runtime/state-feed.js",
+            f"/examples/triage-board/{revision}/runtime/state-feed.js",
+            f"examples/triage-board/{revision}/runtime/state-feed.js",
         ),
         *((f"/{relative}", relative) for relative in historical),
     ):
@@ -835,9 +850,9 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     boot = []
     page = browser.new_page(viewport={"width": 1724, "height": 1036})
     errors = watched(page)
-    page.route("**/examples/leaf.js", lambda route: boot.append(route))
+    page.route("**/examples/revisions/*/leaf.js", lambda route: boot.append(route))
     try:
-        with page.expect_request("**/examples/leaf.js"):
+        with page.expect_request("**/examples/revisions/*/leaf.js"):
             page.goto(f"{hosted}/examples/", wait_until="commit")
         expect(page.locator("h1")).to_be_visible()
         assert boot, "the positive control did not hold the catalog boot module"
@@ -1072,7 +1087,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(viewport.locator("option")).to_have_text(["1×", "2×", "4×"])
         assert gallery.evaluate(
             """async gallery => {
-                const { pageWords, says } = await import('/runtime/passages.js');
+                const { pageWords, says } = await window.__lfRuntimeImport('/runtime/passages.js');
                 const toggle = gallery.querySelector('[data-interaction-toggle]');
                 const status = gallery.querySelector('[data-interaction-status]');
                 return !pageWords(toggle.firstChild)
@@ -1179,19 +1194,6 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(threads_frame.locator(".lf-thread-panel")).to_be_hidden()
         assert read_events(page_dir) == before
 
-        replacement_installed = gallery.evaluate(
-            """gallery => {
-                const replacement = gallery.cloneNode(true);
-                replacement.removeAttribute('data-interaction-installed');
-                replacement.querySelector('.interaction-controls')?.remove();
-                gallery.replaceWith(replacement);
-                document.dispatchEvent(new Event('lf-actions'));
-                return new Promise(resolve => requestAnimationFrame(() =>
-                    resolve(replacement.dataset.interactionInstalled === '1')
-                ));
-            }"""
-        )
-        assert replacement_installed
         page.emulate_media(media="print")
         expect(toggle).to_be_hidden()
         assert not errors, errors[:3]
@@ -1283,7 +1285,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         assert (
             page.evaluate(
                 """async () => {
-                const {focusDestination} = await import('/runtime/focus.js');
+                const {focusDestination} = await window.__lfRuntimeImport('/runtime/focus.js');
                 document.querySelector('[data-interaction-toggle]').click();
                 focusDestination(document.querySelector('#bg-interactions-title'));
                 return document.activeElement?.id;
@@ -1504,7 +1506,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         contained = next(frame for frame in page.frames if frame.parent_frame)
         assert contained.evaluate(
             """async () => {
-                const {LIVE_ROOT, PAGE_SCOPE} = await import('/runtime/storage.js');
+                const {LIVE_ROOT, PAGE_SCOPE} = await window.__lfRuntimeImport('/runtime/storage.js');
                 return {liveRoot: LIVE_ROOT, pageScope: PAGE_SCOPE};
             }"""
         ) == {"liveRoot": False, "pageScope": "srcdoc"}

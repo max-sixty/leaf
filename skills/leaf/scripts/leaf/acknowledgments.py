@@ -45,7 +45,7 @@ def canonical_acknowledgments(
     Acknowledgment is one interaction-scoped projection over the document and
     log: append means Sent, queue acceptance means Queued, entry into an exact
     agent turn means Picked up, and a matching effective work claim means
-    Active. Replies and authored state
+    Working. Replies and authored state
     settle the source move, so the row disappears instead of becoming a second
     outcome surface.
     """
@@ -183,7 +183,7 @@ def canonical_acknowledgments(
                     coordinate,
                     requires_response=False,
                 )
-                # The anchor holds Active beside the message that started the work.
+                # The anchor holds Working beside the message that started the work.
                 # Any weaker phase is a second delivery receipt on a subject whose
                 # newest move already carries one.
                 if anchor["phase"] == "active":

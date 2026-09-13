@@ -23,13 +23,15 @@ and requests another reading at its next deadline; it does not run a second fold
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | never; every transport resolves the same immutable id |
 
 Delivery acceptance is a different fact from authored work, but it is exact agent
-activity. Pickup never rewrites `status.json`. Page activity counts one interaction
+activity. These facts project into one reader-facing **Agent workflow**; the browser
+does not present delivery status and work ownership as separate categories. Pickup
+never rewrites `status.json`. Page activity counts one interaction
 per subject and unit, for the newest unsettled reader move on it (a tick and the Done
-press that followed are one). A thread's local views may also retain **Active** beside
+press that followed are one). A thread's local views may also retain **Working** beside
 the earlier message that prompted its standing claim. On the subject's existing target
 margin entry or a compact local row, append is **Sent**, then **Waiting for pickup** after the short grace;
 Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
-later `status … --on` claim on the same reader move is **Active**. That same evidence
+later `status … --on` claim on the same reader move is **Working**. That same evidence
 makes page activity **queued**, **handling**, or **picked up; turn ended**. A reply,
 resolution, or authored state that honors the move settles the interaction; a later
 version note settles a page action whose verb has no authored record form, and a note
@@ -53,7 +55,7 @@ or widget the work is about. `leaf delivery claim` instead records one event fro
 immutable delivery after checking under the page lock that the exact move remains
 outstanding; it never transfers a claim to newer input on the same subject. A thread
 claim also records the current unanswered message,
-so one check-in keeps **Active** beside the words that prompted the work even when the
+so one check-in keeps **Working** beside the words that prompted the work even when the
 reader adds another comment. Widget work appears on the Target margin entry. These
 readings stand until the agent's next word in that thread. Nothing in a session touches `status.json`
 while its turn is over, so work handed to a delegate is renewed from the

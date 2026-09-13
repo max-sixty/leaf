@@ -1198,7 +1198,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-entry")
-    expect(buttons).to_have_count(18)
+    expect(buttons).to_have_count(21)
     records = buttons.evaluate_all(
         """buttons => buttons.map(button => ({
           behavior: button.dataset.lfBehavior,
@@ -1234,12 +1234,15 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
         "thread",
         "more",
         "sent",
+        "waiting for pickup",
+        "queued",
+        "was working",
+        "picked up · turn ended",
         "glyph face",
         "count badge",
-        "not held",
         "picked up",
         "working",
-        "activity fallback",
+        "working · fallback",
         "resting",
         "selected",
     ):
@@ -1248,8 +1251,8 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
         [
             "Rank and behavior",
+            "Agent workflow",
             "Face anatomy",
-            "Agent ownership",
             "Reader interaction",
             "Projection",
         ]
@@ -1268,29 +1271,30 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(label.locator(".lf-margin-entry-label")).to_have_css("visibility", "visible")
     page.mouse.move(0, 0)
 
-    not_held = specimen("not held")
+    resting = specimen("resting")
     picked_up = specimen("picked up")
     working = specimen("working")
-    fallback = specimen("activity fallback")
-    expect(not_held).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
-    expect(picked_up).to_have_attribute("data-lf-agent-phase", "picked_up")
+    was_working = specimen("was working")
+    fallback = specimen("working · fallback")
+    expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(picked_up).to_have_css(
         "border-top-color",
-        not_held.evaluate("node => getComputedStyle(node).borderTopColor"),
+        resting.evaluate("node => getComputedStyle(node).borderTopColor"),
     )
     expect(picked_up).to_have_css(
         "background-color",
-        not_held.evaluate("node => getComputedStyle(node).backgroundColor"),
+        resting.evaluate("node => getComputedStyle(node).backgroundColor"),
     )
     expect(picked_up).to_have_css("box-shadow", "none")
     picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
     expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
     expect(picked_up_icon).to_have_css("color", token_colour(page, "--ok-ink"))
     for control in (working, fallback):
-        expect(control).to_have_attribute("data-lf-agent-phase", "active")
+        expect(control).to_have_attribute("data-lf-agent-workflow", "working")
         expect(control).to_have_css(
             "border-top-color",
-            not_held.evaluate("node => getComputedStyle(node).borderTopColor"),
+            resting.evaluate("node => getComputedStyle(node).borderTopColor"),
         )
         expect(control).to_have_css("background-color", token_colour(page, "--ok-wash"))
         expect(control).to_have_css("box-shadow", "none")
@@ -1300,9 +1304,23 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(fallback.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
-    expect(
-        atlas.locator('[data-margin-entry-specimen="sent"] > .lf-margin-entry')
-    ).to_have_attribute("role", "status")
+    expect(was_working).not_to_have_attribute(
+        "data-lf-agent-workflow", re.compile(".+")
+    )
+    expect(was_working.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "activity"
+    )
+    for name, icon in (
+        ("sent", "sent"),
+        ("waiting for pickup", "waiting"),
+        ("queued", "pickup"),
+        ("picked up · turn ended", "waiting"),
+    ):
+        status = specimen(name)
+        expect(status).to_have_attribute("role", "status")
+        expect(status.locator(".lf-margin-entry-icon")).to_have_attribute(
+            "data-lf-icon", icon
+        )
     not_selected = specimen("resting")
     selected = specimen("selected")
     expect(not_selected).not_to_have_attribute(
@@ -1324,13 +1342,16 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
             "Thread",
             "More",
             "Sent",
+            "Waiting for pickup",
+            "Queued",
+            "Picked up",
+            "Working",
+            "Was working",
+            "Picked up · turn ended",
+            "Working · fallback",
             "Glyph face",
             "Count badge",
             "Label + context",
-            "Not held",
-            "Picked up",
-            "Working",
-            "Activity fallback",
             "Resting",
             "Hover or focus",
             "Open",
@@ -1431,7 +1452,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
 
     A pending reader action and an external work claim are different facts, so the
     journey holds each one long enough to prove that the former only dims until
-    confirmation while the latter keeps its ownership treatment.
+    confirmation while the latter keeps its workflow treatment.
     """
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
@@ -1540,14 +1561,14 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    expect(undo_button).to_have_attribute("data-lf-agent-phase", "active")
+    expect(undo_button).to_have_attribute("data-lf-agent-workflow", "working")
     expect(undo_button).to_have_attribute(
         "aria-description", re.compile("applying the selected route")
     )
     expect(undo_button).not_to_have_attribute("data-lf-agent-arrival", re.compile(".*"))
     working_shadow = undo_button.evaluate("node => getComputedStyle(node).boxShadow")
     assert working_shadow == action_shadow, (
-        "agent ownership erased the action's raised shadow",
+        "agent workflow erased the action's raised shadow",
         action_shadow,
         working_shadow,
     )
@@ -1560,7 +1581,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
         completes=("bg-margin-control-workflow",),
     )
     wait_for_revision(page, 3)
-    expect(workflow.locator("[data-lf-agent-phase]")).to_have_count(0)
+    expect(workflow.locator("[data-lf-agent-workflow]")).to_have_count(0)
     expect(page.locator("#bg-margin-control-workflow lf-new")).to_be_visible()
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
@@ -2449,7 +2470,7 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
 def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     browser, serve, scheme
 ):
-    """Tone keeps its meaning through interaction and agent-ownership states."""
+    """Tone keeps its meaning through interaction and agent-workflow states."""
     page, errors = open_page(
         browser,
         serve(leaf_page("margin entry tones", '<p id="target">A shared target</p>')),
@@ -2458,7 +2479,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, setMarginEntryState, syncMarginAgentPhase} =
+          const {offer, marginEntry, setMarginEntryState, syncMarginAgentWorkflow} =
             await import('/runtime/widget-api.js');
           const controls = document.createElement('div');
           controls.className = 'lf-ui';
@@ -2475,8 +2496,8 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
               button.setAttribute('aria-disabled', String(state === 'busy'));
             }
           };
-          window.setToneAgentPhase = phase => {
-            buttons.forEach((button, index) => syncMarginAgentPhase(
+          window.setToneReceiptPhase = phase => {
+            buttons.forEach((button, index) => syncMarginAgentWorkflow(
               button,
               phase ? {id: `tone-${index}`, target: {kind: 'widget', id: 'target'}, phase} : null
             ));
@@ -2523,13 +2544,13 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
         assert_icon_only(readings)
 
     page.evaluate("() => window.setToneState('busy')")
-    buttons[0].evaluate("button => { button.dataset.lfAgentPhase = 'active'; }")
+    buttons[0].evaluate("button => { button.dataset.lfAgentWorkflow = 'working'; }")
     expect(buttons[0]).to_have_css("opacity", "0.5")
-    buttons[0].evaluate("button => { delete button.dataset.lfAgentPhase; }")
+    buttons[0].evaluate("button => { delete button.dataset.lfAgentWorkflow; }")
 
     page.evaluate("() => window.setToneState('idle')")
     ordinary = [button.evaluate(read) for button in buttons]
-    page.evaluate("() => window.setToneAgentPhase('picked_up')")
+    page.evaluate("() => window.setToneReceiptPhase('picked_up')")
     picked_up = [button.evaluate(read) for button in buttons]
     assert [reading["shell"][1] for reading in picked_up] == [
         ordinary[0]["shell"][1],
@@ -2539,18 +2560,18 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     assert {reading["icon"] for reading in picked_up} == {
         token_colour(page, "--ok-ink")
     }
-    page.evaluate("() => window.setToneAgentPhase('active')")
-    active = [button.evaluate(read) for button in buttons]
-    assert [reading["shell"][1] for reading in active] == [
+    page.evaluate("() => window.setToneReceiptPhase('active')")
+    working = [button.evaluate(read) for button in buttons]
+    assert [reading["shell"][1] for reading in working] == [
         ordinary[0]["shell"][1],
         token_colour(page, "--ok-ink"),
         token_colour(page, "--danger-ink"),
     ]
-    assert {reading["icon"] for reading in active} == {token_colour(page, "--ok-ink")}
-    assert {reading["shell"][2] for reading in active} == {
+    assert {reading["icon"] for reading in working} == {token_colour(page, "--ok-ink")}
+    assert {reading["shell"][2] for reading in working} == {
         token_colour(page, "--ok-wash")
     }
-    page.evaluate("() => window.setToneAgentPhase(null)")
+    page.evaluate("() => window.setToneReceiptPhase(null)")
 
     hovered = []
     focused = []
@@ -2980,7 +3001,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     with service_model.PageTransaction(serve.page_dir) as transaction:
         session_model.record_pickup(transaction, roots)
     told(page)
-    expect(marker).to_have_attribute("data-lf-agent-phase", "picked_up")
+    expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
     picked_up = marker.evaluate("""node => {
       const style = getComputedStyle(node);
       return {border: style.borderTopColor, background: style.backgroundColor,
@@ -3018,7 +3039,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    expect(marker).to_have_attribute("data-lf-agent-phase", "active")
+    expect(marker).to_have_attribute("data-lf-agent-workflow", "working")
     working = marker.evaluate("""node => {
       const style = getComputedStyle(node);
       return {border: style.borderTopColor, background: style.backgroundColor,
@@ -3046,8 +3067,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(marker).to_have_attribute("title", f"Threads · Working · {detail}")
 
     # An unchanged claim neither replays its arrival nor restates its accessible
-    # ownership text. Observe every write, including a remove followed by a restore.
-    def ownership_text_mutations(control):
+    # workflow text. Observe every write, including a remove followed by a restore.
+    def workflow_text_mutations(control):
         return control.evaluate("""async node => {
           const writes = [];
           const record = mutations => writes.push(...mutations.map(mutation => ({
@@ -3067,8 +3088,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
           return writes;
         }""")
 
-    assert ownership_text_mutations(marker) == []
-    expect(marker).to_have_attribute("data-lf-agent-phase", "active")
+    assert workflow_text_mutations(marker) == []
+    expect(marker).to_have_attribute("data-lf-agent-workflow", "working")
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals
     marker.focus()
     page.keyboard.press("Enter")
@@ -3091,21 +3112,23 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     )
     expect(rows).to_have_count(2)
     expect(dialog.locator('[data-lf-map-item^="activity:"]')).to_have_count(0)
-    active = dialog.locator('[data-lf-agent-phase="active"]')
-    expect(active).to_have_count(1)
-    expect(active.locator(".lf-margin-kind")).to_have_attribute(
+    working_row = dialog.locator('[data-lf-agent-workflow="working"]')
+    expect(working_row).to_have_count(1)
+    expect(working_row.locator(".lf-margin-kind")).to_have_attribute(
         "data-lf-icon", "comment"
     )
-    expect(active.locator(".lf-margin-kind")).to_have_css("color", colors["--ok-ink"])
-    expect(active).to_have_css("background-color", colors["--ok-wash"])
-    picked_up_row = dialog.locator('[data-lf-agent-phase="picked_up"]')
+    expect(working_row.locator(".lf-margin-kind")).to_have_css(
+        "color", colors["--ok-ink"]
+    )
+    expect(working_row).to_have_css("background-color", colors["--ok-wash"])
+    picked_up_row = dialog.locator('[data-lf-agent-workflow="picked_up"]')
     expect(picked_up_row).to_have_count(1)
     expect(picked_up_row.locator(".lf-margin-kind")).to_have_css(
         "color", colors["--ok-ink"]
     )
     page.keyboard.press("Escape")
     # Two contributed actions fold the Thread control behind More. The visible
-    # primary must retain ownership, and its own accessible description survives it.
+    # primary must retain the workflow, and its own accessible description survives it.
     page.evaluate("""async () => {
       const {offer, marginEntry, registerMarginContribution} =
         await import('/runtime/widget-api.js');
@@ -3126,7 +3149,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
     carrier = cluster.get_by_role("button", name="Edit", exact=True)
     expect(carrier).to_be_visible()
-    expect(carrier).to_have_attribute("data-lf-agent-phase", "active")
+    expect(carrier).to_have_attribute("data-lf-agent-workflow", "working")
     expect(carrier).to_have_attribute(
         "aria-description", f"Edit the proposed bracket · Working · {detail}"
     )
@@ -3136,13 +3159,13 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals, (
         "moving the same work claim to another semantic carrier replayed its arrival"
     )
-    # A contributor can forward a control whose ownership was already painted.
+    # A contributor can forward a control whose workflow was already painted.
     # Use the same canonical receipt to exercise its real secondary option proxy.
     page.evaluate("""async () => {
-      const {syncMarginAgentPhase} = await import('/runtime/widget-api.js');
+      const {syncMarginAgentWorkflow} = await import('/runtime/widget-api.js');
       const {runtime} = await import('/runtime/context.js');
       const receipt = runtime.activity.interactions.find(item => item.phase === 'active');
-      syncMarginAgentPhase(window.agentCancel, receipt);
+      syncMarginAgentWorkflow(window.agentCancel, receipt);
     }""")
     cluster.locator(":scope > .lf-margin-more").click()
     proxy = cluster.locator(".lf-margin-option-proxy").filter(has_text="Cancel")
@@ -3150,10 +3173,10 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     assert proxy.evaluate("node => node.lfForwardedControl === window.agentCancel")
     expect(proxy).to_have_attribute("title", f"Cancel · Working · {detail}")
     expect(proxy).to_have_attribute("aria-description", f"Working · {detail}")
-    assert ownership_text_mutations(proxy) == []
+    assert workflow_text_mutations(proxy) == []
     page.evaluate("""async () => {
-      const {syncMarginAgentPhase} = await import('/runtime/widget-api.js');
-      syncMarginAgentPhase(window.agentCancel, null);
+      const {syncMarginAgentWorkflow} = await import('/runtime/widget-api.js');
+      syncMarginAgentWorkflow(window.agentCancel, null);
       window.agentContribution.unregister();
     }""")
     expect(marker).to_be_visible()
@@ -3164,9 +3187,9 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     resized(page, 390, 760)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    receipt = page.locator(".lf-thread-panel .lf-receipt.is-active .lf-receipt-state")
-    expect(receipt).to_have_text(f"● Active — {detail}")
-    expect(receipt).to_have_attribute("title", f"● Active — {detail}")
+    receipt = page.locator(".lf-thread-panel .lf-receipt.is-working .lf-receipt-state")
+    expect(receipt).to_have_text(f"● Working — {detail}")
+    expect(receipt).to_have_attribute("title", f"● Working — {detail}")
     expect(receipt).to_have_css("color", colors["--ok-ink"])
     geometry = receipt.evaluate("""node => {
       const style = getComputedStyle(node);
@@ -3215,7 +3238,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     page.keyboard.press("Shift+m")
     dialog = page.locator(".lf-page-map-dialog")
     expect(dialog).to_be_visible()
-    expect(dialog.locator('[data-lf-agent-phase="picked_up"]')).to_have_count(2)
+    expect(dialog.locator('[data-lf-agent-workflow="picked_up"]')).to_have_count(2)
     page.evaluate("""() => {
       window.unitArrivals = [];
       window.unitArrivalEnds = 0;
@@ -3244,7 +3267,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     )
     assert claim.exit_code == 0, claim.output
     told(page)
-    expect(dialog.locator('[data-lf-agent-phase="active"]')).to_have_count(2)
+    expect(dialog.locator('[data-lf-agent-workflow="working"]')).to_have_count(2)
     page.wait_for_function("() => window.unitArrivalEnds === 4")
     arrivals = page.evaluate("window.unitArrivals")
     assert sorted(arrival["mapped"] for arrival in arrivals) == [
@@ -3272,7 +3295,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    expect(dialog.locator('[data-lf-agent-phase="active"]')).to_have_count(2)
+    expect(dialog.locator('[data-lf-agent-workflow="working"]')).to_have_count(2)
     expect(dialog.locator("[data-lf-agent-arrival]")).to_have_count(0)
     assert page.evaluate("window.unitArrivals.length") == 4
     assert errors == []
@@ -3541,7 +3564,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     )
     carrier = page.locator(".lf-receipt-primary-probe")
     expect(marker).to_be_hidden()
-    expect(carrier).to_have_attribute("data-lf-agent-phase", "picked_up")
+    expect(carrier).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(carrier).to_have_attribute("aria-description", "Picked up")
     expect(carrier.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "edit"
@@ -3552,7 +3575,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     carrier.focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    mapped = page.locator('.lf-page-map-action[data-lf-agent-phase="picked_up"]')
+    mapped = page.locator('.lf-page-map-action[data-lf-agent-workflow="picked_up"]')
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
     page.keyboard.press("Escape")
@@ -3574,19 +3597,19 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     told(page)
 
     expect(marker).to_have_attribute("data-identity-probe", "kept")
-    active = face()
-    assert active["tag"] == "SPAN"
-    assert active["offer"] == "button"
-    assert active["behavior"] == "disclosure"
-    assert active["role"] == "button"
-    assert active["icon"] == "activity"
-    assert active["word"] == "Active…"
-    assert active["context"] == "Checked in just now · checking the mounts"
-    assert active["cursor"] == "pointer"
-    assert active["opacity"] == "1"
-    assert active["background"] != "rgba(0, 0, 0, 0)"
-    assert active["border"] != "rgba(0, 0, 0, 0)"
-    expect(page.get_by_role("button", name=re.compile(r"^Active,"))).to_have_count(1)
+    working = face()
+    assert working["tag"] == "SPAN"
+    assert working["offer"] == "button"
+    assert working["behavior"] == "disclosure"
+    assert working["role"] == "button"
+    assert working["icon"] == "activity"
+    assert working["word"] == "Working…"
+    assert working["context"] == "Checked in just now · checking the mounts"
+    assert working["cursor"] == "pointer"
+    assert working["opacity"] == "1"
+    assert working["background"] != "rgba(0, 0, 0, 0)"
+    assert working["border"] != "rgba(0, 0, 0, 0)"
+    expect(page.get_by_role("button", name=re.compile(r"^Working,"))).to_have_count(1)
 
     honored = ASK_PAGE.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'

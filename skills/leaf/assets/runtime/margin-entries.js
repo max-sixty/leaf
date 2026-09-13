@@ -6,7 +6,7 @@
    consumes that registry to choose and place controls; contributors never place RHS rows.
 
    Behavior, tone, rank, and interaction state are independent contributor axes. Reader
-   selection and agent ownership are independent projection-owned axes. An action performs
+   selection and agent workflow are independent projection-owned axes. An action performs
    an immediate effect, a disclosure reveals context, and a status reports a move already
    made without offering a press. Tone changes the icon color without changing the ring or
    surface. Busy dims an in-flight press after the shared delay; engaged and failed controls
@@ -39,7 +39,7 @@
 import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
 import { keeps } from "./widget-elements.js";
-import { agentWorkPhase } from "./updates.js";
+import { agentWorkflowStage } from "./updates.js";
 
 const contributions = new Set();
 const listeners = new Set();
@@ -85,7 +85,7 @@ const FORWARDED_ATTRIBUTES = [
   "aria-expanded",
   "aria-haspopup",
   "aria-pressed",
-  "data-lf-agent-phase",
+  "data-lf-agent-workflow",
   "data-lf-target-selected",
 ];
 
@@ -167,16 +167,16 @@ function validateMarginEntries(offered) {
   }
 }
 
-// Ownership is independent of a control's action and delivery state. A semantic
-// carrier keeps its glyph and press while the canonical receipt supplies its color.
-const agentDescriptions = new WeakMap();
+// Agent workflow is independent of a control's action and delivery state. A semantic
+// carrier keeps its glyph and press while the canonical receipt supplies its stage.
+const agentWorkflowDescriptions = new WeakMap();
 const forwardedSources = new WeakMap();
 // Every claim gets one arrival window shared by its margin and Page Map carriers.
 // A new carrier can join the remaining pulse, but repainting cannot begin it again.
 const claimArrivals = new Map();
 const controlArrivals = new WeakMap();
-function syncAgentArrival(control, claim, phase) {
-  if (phase !== "active") {
+function syncAgentArrival(control, claim, stage) {
+  if (stage !== "working") {
     control.removeAttribute("data-lf-agent-arrival");
     return;
   }
@@ -197,7 +197,7 @@ function syncAgentArrival(control, claim, phase) {
 }
 
 // Both entry reconciliation and activity updates ask this one writer to compose
-// text. Rebuilding a control must not clear a tooltip whose ownership is unchanged.
+// text. Rebuilding a control must not clear a tooltip whose workflow is unchanged.
 function paintAgentDescription(control) {
   const source = forwardedSources.get(control);
   if (source) {
@@ -208,12 +208,12 @@ function paintAgentDescription(control) {
     }
     return;
   }
-  const reading = agentDescriptions.get(control);
+  const reading = agentWorkflowDescriptions.get(control);
   if (!reading) {
     control.removeAttribute("title");
     return;
   }
-  if (!reading.phase) {
+  if (!reading.stage) {
     for (const [attribute, value] of [
       ["aria-description", reading.description],
       ["title", reading.title],
@@ -223,7 +223,7 @@ function paintAgentDescription(control) {
     }
     return;
   }
-  const work = [reading.phase === "active" ? "Working" : "Picked up", reading.detail]
+  const work = [reading.stage === "working" ? "Working" : "Picked up", reading.detail]
     .filter(Boolean)
     .join(" · ");
   const action = control[RECORD]?.label || control.getAttribute("aria-label");
@@ -241,28 +241,32 @@ function paintAgentDescription(control) {
   );
 }
 
-export function syncMarginAgentPhase(control, receipt) {
-  const phase = agentWorkPhase(receipt);
+export function syncMarginAgentWorkflow(control, receipt) {
+  const workflowStage = agentWorkflowStage(receipt);
+  const stage = ["picked_up", "working"].includes(workflowStage) ? workflowStage : null;
   syncAgentArrival(
     control,
     receipt && JSON.stringify([receipt.target.kind, receipt.target.id, receipt.id]),
-    phase,
+    stage,
   );
-  if (phase) {
-    if (!agentDescriptions.has(control))
-      agentDescriptions.set(control, {
+  if (stage) {
+    if (!agentWorkflowDescriptions.has(control))
+      agentWorkflowDescriptions.set(control, {
         description: control.getAttribute("aria-description"),
         title: control.getAttribute("title"),
       });
-    Object.assign(agentDescriptions.get(control), { phase, detail: receipt.detail });
-    keeps(control, "data-lf-agent-phase", phase);
+    Object.assign(agentWorkflowDescriptions.get(control), {
+      stage,
+      detail: receipt.detail,
+    });
+    keeps(control, "data-lf-agent-workflow", stage);
     paintAgentDescription(control);
   } else {
-    control.removeAttribute("data-lf-agent-phase");
-    if (agentDescriptions.has(control)) {
-      agentDescriptions.get(control).phase = null;
+    control.removeAttribute("data-lf-agent-workflow");
+    if (agentWorkflowDescriptions.has(control)) {
+      agentWorkflowDescriptions.get(control).stage = null;
       paintAgentDescription(control);
-      agentDescriptions.delete(control);
+      agentWorkflowDescriptions.delete(control);
     }
   }
 }
@@ -278,7 +282,7 @@ export function syncForwardedMarginEntryState(projection, source) {
   syncAgentArrival(
     projection,
     controlArrivals.get(source),
-    source.dataset.lfAgentPhase,
+    source.dataset.lfAgentWorkflow,
   );
   const label = source.getAttribute("aria-label");
   if (label == null) projection.removeAttribute("aria-label");

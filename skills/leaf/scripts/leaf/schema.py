@@ -60,7 +60,7 @@ WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "A wait result prints one immutable Leaf delivery envelope containing one page's "
     "complete ordered batch, conversation context, and capture-time response "
     "requirements. First run `leaf delivery claim <id>` so the page shows the exact "
-    "outstanding move as Active; the same envelope remains available with `leaf "
+    "outstanding move as Working; the same envelope remains available with `leaf "
     "delivery read <id>`."
 )
 ACK_BATCH_INSTRUCTION = (

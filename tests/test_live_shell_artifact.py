@@ -17,7 +17,7 @@ from leaf.revision_artifact import RESOURCE_TYPES, read_artifact
 from leaf.revisioning import activate_source
 from leaf.structure import SourceDocument
 from playwright.sync_api import expect
-from render_support import leaf_page, open_page
+from render_harness import leaf_page, open_page
 
 
 @pytest.mark.parametrize(

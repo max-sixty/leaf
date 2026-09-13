@@ -4,13 +4,10 @@ import json
 
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import LIVE_READING, LIVE_V1, LIVE_V2, live_url
+from render_harness import (
     BOTH_STAMPS,
-    LIVE_READING,
-    LIVE_V1,
-    LIVE_V2,
     holding,
-    live_url,
     open_page,
     panel_settled,
     round_trip,

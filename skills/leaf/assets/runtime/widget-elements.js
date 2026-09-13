@@ -109,8 +109,11 @@ export function keepsHidden(node, hidden) {
 // is what lets it stand for everything else the same gesture moved: the widget's own
 // rows where the grab is a press on an already-focused grip and no focus event fires,
 // and a send the drop states after this returns.
+export const DRAGGING_CHANGED = "lf-dragging-changed";
+
 export const dragging = (el, on) => {
   el.classList.toggle("lf-dragging", on);
+  document.dispatchEvent(new Event(DRAGGING_CHANGED));
   paintKeys();
 };
 

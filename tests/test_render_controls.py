@@ -5,7 +5,11 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import (
+    COMMAND_HUB_PACKAGE,
+    append_command,
+    record_claim,
+)
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -17,76 +21,82 @@ from leaf.registry import storage as registry_storage
 from page_fixtures import package_selection_args
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
+    HOLD_MOTION,
+    PANEL_PAGE,
+    SEATED_ASK_LAYER,
+    SEATED_ASK_WIDGETS,
+    SUGGESTION_PAGE,
+    live_url,
+    panel_comment,
+)
+from render_cases_layout import (
     ACCENT_SWATCH,
-    ADDRESSED_PAGE,
     BANNER_ORDER,
     BANNER_WATCH,
-    BOARD_PAGE,
-    BOTH_STAMPS,
-    COMMAND_HUB_PACKAGE,
     DEEP_FOCUS,
     DEFINE_BOXES,
-    DIFF_PAGE,
-    EXAMPLE_PACKAGES,
-    EXAMPLES,
-    FEATURE_GALLERY,
     HERE_SHADOW,
-    HOLD_MOTION,
-    LONG_PAGE,
     MANY_ASKS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
-    PAGE_FIXTURES,
     PANEL_DIFF_MARKUP,
-    PANEL_PAGE,
-    RENDERED,
-    REPLAYED_PAGE,
-    REPLY_HOST_PAGE,
     RING_NAMES,
     SCROLL_SETTLE_MS,
     SCROLL_STILL,
-    SCROLLED,
-    SEATED_ASK_LAYER,
-    SEATED_ASK_WIDGETS,
     SHOT_SRC,
     SHOTS,
-    SUGGESTION_PAGE,
-    TOKEN,
     UNBREAKABLE_PAGE,
     WIDE_DIFF_PAGE,
-    CutOff,
-    _publish,
-    _traffic,
-    _until,
-    actions,
     banner_control,
     displaced,
+    mark_edges,
+    page_at_rest,
+    ring_faults,
+    rings_drawn,
+    serious_axe_violations,
+    standing_ring,
+    token_colour,
+)
+from render_cases_navigation import (
+    ADDRESSED_PAGE,
+    DIFF_PAGE,
+    _publish,
+    actions,
+    live_watcher,
+)
+from render_cases_widgets import (
+    SCROLLED,
+)
+from render_harness import (
+    BOARD_PAGE,
+    BOTH_STAMPS,
+    EXAMPLE_PACKAGES,
+    EXAMPLES,
+    FEATURE_GALLERY,
+    LONG_PAGE,
+    PAGE_FIXTURES,
+    RENDERED,
+    REPLAYED_PAGE,
+    REPLY_HOST_PAGE,
+    TOKEN,
+    CutOff,
+    _traffic,
+    _until,
     held_stale,
     holding,
     leaf_page,
-    live_url,
-    live_watcher,
-    mark_edges,
     nudge,
     open_page,
     open_versions,
     opened_tab,
-    page_at_rest,
     page_registry,
-    panel_comment,
     panel_settled,
-    record_claim,
     resized,
-    ring_faults,
-    rings_drawn,
     round_trip,
     select,
     sending,
-    serious_axe_violations,
     stamp_version_file,
-    standing_ring,
-    token_colour,
     told,
     undo,
     watched,
@@ -316,6 +326,31 @@ CONTROL_ROW_PRESS = (
     "[role=spinbutton], [role=switch], [role=tab], [role=treeitem])"
 )
 CONTROL_ROW_NEIGHBOUR = CONTROL_ROW_PRESS + ", a[href]"
+CONTROL_ROW_CLASSIFICATIONS = f"""(controls, {{ neighbours, archetypes }}) => {{
+  const neighbourhood = {NEIGHBOURHOOD};
+  const ariaDisabled = (control) => {{
+    for (let node = control; node;
+         node = node.parentElement || node.getRootNode().host) {{
+      const value = (node.getAttribute('aria-disabled') || '').toLowerCase();
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+    }}
+    return false;
+  }};
+  return controls.flatMap((control) => {{
+    if (control.matches(':disabled') || ariaDisabled(control)) {{
+      return [];
+    }}
+    if (!neighbourhood(control, neighbours).names.length) return [];
+    return [{{
+      label: control.tagName.toLowerCase() + ' '
+          + JSON.stringify((control.textContent || '').trim().slice(0, 24)),
+      matches: archetypes
+          .filter((archetype) => control.matches(archetype.coverage))
+          .map((archetype) => archetype.name),
+    }}];
+  }});
+}}"""
 
 
 def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
@@ -376,7 +411,6 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     assert event["text"]
     expect(button).to_be_disabled()
     assert errors == []
-    page.close()
 
 
 def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, serve):
@@ -441,7 +475,6 @@ def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, se
     expect(button).to_have_text("✓ Version approved")
     assert [e["kind"] for e in events_model.read_events(serve.page_dir)][-1] == "done"
     assert errors == []
-    page.close()
 
 
 def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
@@ -495,7 +528,6 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     # Approval takes the slot beside Threads where a page asks for one, so the absence
     # above is the whole fact: the row is a control short rather than a control longer.
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("resident", ["sidebar", "sidenote"])
@@ -574,7 +606,6 @@ def test_an_auxiliary_surface_lands_one_responsive_layout_and_carries_the_column
         "() => document.querySelector('body > main').getAnimations().length === 0"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve):
@@ -965,7 +996,6 @@ def test_banner_status_is_one_line_with_full_hover_text(browser, serve, other_le
         f"the focus transfer left the reader on {landed!r} rather than on a control"
     )
     assert errors == []
-    page.close()
 
 
 WEBSITE_LINE = (
@@ -1169,7 +1199,6 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
         f"the panel stopped a reader copying the words somebody said: {copyable}"
     )
     assert errors == []
-    page.close()
 
 
 def test_one_version_opens_a_menu_with_its_version(browser, serve):
@@ -1189,7 +1218,6 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
     expect(menu.locator(".lf-version-num")).to_have_text("v1 (latest version)")
     expect(menu.locator(".lf-version-note")).to_have_text("t")
     assert errors == []
-    page.close()
 
 
 def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
@@ -1248,7 +1276,6 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
         f"the phone menu left the viewport: {phone}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_leaf):
@@ -1325,7 +1352,6 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(more).to_have_attribute("aria-expanded", "false")
     assert errors == []
-    page.close()
 
 
 def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
@@ -1396,7 +1422,6 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
         expect(live).to_have_text(offline)
     finally:
         page.unroute("**/api/**")
-    page.close()
 
 
 def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
@@ -1425,7 +1450,6 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     expect(reference).to_be_hidden()
     expect(door).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
@@ -1474,7 +1498,6 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
         step, abs=1
     ), "an active glide kept moving after the reader asked for reduced motion"
     assert errors == []
-    page.close()
 
 
 def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, serve):
@@ -1916,7 +1939,6 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
         + "\n  ".join(moved)
     )
     assert errors == []
-    page.close()
 
 
 def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve):
@@ -1933,29 +1955,26 @@ def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve
     undeclared = []
 
     def collect_controls(state):
-        controls = page.locator(CONTROL_ROW_PRESS)
-        for index in range(controls.count()):
-            control = controls.nth(index)
-            if not control.is_visible() or not control.is_enabled():
-                continue
-            if control.get_attribute("aria-disabled") == "true":
-                continue
-            neighbours = control.evaluate(NEIGHBOURHOOD, CONTROL_ROW_NEIGHBOUR)["names"]
-            if not neighbours:
-                continue
-            matches = [
-                archetype["name"]
-                for archetype in CONTROL_ARCHETYPES
-                if control.evaluate(
-                    "(el, selector) => el.matches(selector)", archetype["coverage"]
-                )
-            ]
-            label = control.evaluate(
-                "(el) => el.tagName.toLowerCase() + ' '"
-                "        + JSON.stringify((el.textContent || '').trim().slice(0, 24))"
+        classifications = (
+            page.locator(CONTROL_ROW_PRESS)
+            .filter(visible=True)
+            .evaluate_all(
+                CONTROL_ROW_CLASSIFICATIONS,
+                {
+                    "neighbours": CONTROL_ROW_NEIGHBOUR,
+                    "archetypes": [
+                        {"name": archetype["name"], "coverage": archetype["coverage"]}
+                        for archetype in CONTROL_ARCHETYPES
+                    ],
+                },
             )
+        )
+        for classification in classifications:
+            matches = classification["matches"]
             if len(matches) != 1:
-                undeclared.append(f"{state}: {label}: {matches or 'no archetype'}")
+                undeclared.append(
+                    f"{state}: {classification['label']}: {matches or 'no archetype'}"
+                )
             observed.update(matches)
 
     labels = page.locator("#corpus > lf-tab").evaluate_all(
@@ -1974,7 +1993,6 @@ def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve
         f"corpus reached {sorted(observed)}, expected {sorted(expected)}"
     )
     assert errors == []
-    page.close()
 
 
 def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, serve):
@@ -2041,7 +2059,6 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
         ("approach", "choose")
     ]
     assert errors == []
-    page.close()
 
 
 def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
@@ -2076,7 +2093,6 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     expect(page.locator("#pick-a")).to_have_attribute("chosen", "")
     assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
     assert errors == []
-    page.close()
 
 
 def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
@@ -2131,7 +2147,6 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     # reads exactly as it does here and the log stays empty.
     assert [event["action"] for event in actions(serve.page_dir)] == ["settle"]
     assert errors == []
-    page.close()
 
 
 def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serve):
@@ -2185,7 +2200,6 @@ def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serv
     page.wait_for_function(BOTH_STAMPS)
     assert page.evaluate("() => sessionStorage.getItem('lf-gated-registry')") == "1"
     assert errors == []
-    page.close()
 
 
 def test_a_marked_element_uses_a_complete_contour(browser, serve):
@@ -2232,8 +2246,6 @@ def test_a_marked_element_uses_a_complete_contour(browser, serve):
         f"keyboard focus did not restore a complete ring: {focused}"
     )
     assert errors == []
-    page.close()
-    context.close()
 
 
 def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
@@ -2389,7 +2401,6 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         f"a control to its menu: {stayed} against {wide}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser, serve):
@@ -2419,7 +2430,6 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
     expect(status).to_be_visible(timeout=6_000)
     expect(notice).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_the_banner_opens_a_panel_of_the_machines_leaves(
@@ -2504,7 +2514,6 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     )
     expect(btn).to_have_text("All leaves (2)")
     assert errors == []
-    page.close()
 
 
 def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
@@ -2637,7 +2646,6 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         f"the two edge controls left their edges: {actions()}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_panel_row_follows_its_pages_status_live(
@@ -2755,7 +2763,6 @@ def test_a_panel_row_follows_its_pages_status_live(
     expect(row.locator(".lf-others-line")).to_have_text("Unheld")
     expect(row.locator(".lf-dot")).not_to_have_class(re.compile(r"\bworking\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
@@ -2901,7 +2908,6 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     told(page)
     expect(btn).not_to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
@@ -3213,7 +3219,6 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reade
     expect(help_el).to_contain_text("Previous leaf")
     expect(help_el).to_contain_text("Next leaf")
     assert errors == []
-    page.close()
 
 
 def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
@@ -3252,7 +3257,6 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
         # that is over rather than on one still on its way somewhere.
         page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
     assert errors == []
-    page.close()
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
@@ -3319,7 +3323,6 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
         "(was) => document.scrollingElement.scrollTop > was", arg=was
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [500, 1200])
@@ -3400,7 +3403,6 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     expect(comments).not_to_have_class(re.compile(r"\bopen\b"))
     expect_open("asks")
     assert errors == []
-    page.close()
 
 
 def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve):
@@ -3523,7 +3525,6 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     assert not page.locator("main").evaluate("el => el.inert")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
     assert errors == []
-    page.close()
 
 
 def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
@@ -3573,7 +3574,6 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     assert not page.locator("main").evaluate("el => el.inert")
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serve):
@@ -3648,7 +3648,6 @@ def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serv
     assert not page.locator("main").evaluate("el => el.inert")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
     assert errors == []
-    page.close()
 
 
 def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
@@ -3686,7 +3685,6 @@ def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
         assert not page.locator("main").evaluate("el => el.inert")
 
     assert errors == []
-    page.close()
 
 
 def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
@@ -3764,7 +3762,6 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
     expect(threads_door).to_be_focused()
     expect(scrim).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -3818,7 +3815,6 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(
         "closing the auxiliary surface left its keyboard return frame live"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_walk_down_the_tray_stops_clear_of_the_shortcut_bar_text(
@@ -3863,7 +3859,6 @@ def test_a_walk_down_the_tray_stops_clear_of_the_shortcut_bar_text(
         f"line at {line}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_walk_down_the_asks_tray_stops_clear_of_the_shortcut_bar_text(browser, serve):
@@ -3906,7 +3901,6 @@ def test_a_walk_down_the_asks_tray_stops_clear_of_the_shortcut_bar_text(browser,
         f"line at {line}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser, serve):
@@ -3942,7 +3936,6 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
                       .map((b) => b.getClientRects().length)"""
     assert page.evaluate(torn) == [1, 1], "a badge is one chip, and it was drawn as two"
     assert errors == []
-    page.close()
 
 
 def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, serve):
@@ -3983,7 +3976,6 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
         "a diff that fits added a keyboard stop with nowhere to scroll"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
@@ -4045,7 +4037,6 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     )
     assert scrolls > 0, "this diff fits the panel, so it proves nothing"
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
@@ -4159,7 +4150,6 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     sweep("with the visible-target sequence armed")
     page.keyboard.press("Escape")
     assert errors == []
-    page.close()
 
 
 def test_page_and_panel_scroll_in_separate_regions(browser, serve):
@@ -4189,7 +4179,6 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
         f"scroll regions overlap: the page ends at {geom['bodyRight']}px, "
         f"the thread list starts at {geom['threadsLeft']}px"
     )
-    page.close()
 
 
 def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
@@ -4276,7 +4265,6 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.wait_for_function(
         "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden' && getComputedStyle(document.body).marginRight === '0px'"
     )
-    page.close()
 
 
 def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve):
@@ -4369,7 +4357,6 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
         f"the line crossed into the panel it stands beside: {beside}"
     )
     assert errors == []
-    context.close()
 
 
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
@@ -4411,7 +4398,6 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
     assert abs(boxes["shortcut_bar"]["left"] - (18 + insets["left"])) < 1
     assert boxes["shortcut_bar"]["right"] <= boxes["width"] - insets["right"] + 1
     assert errors == []
-    page.close()
 
 
 def test_a_covering_composer_keeps_its_controls_inside_the_safe_area(browser, serve):
@@ -4445,7 +4431,6 @@ def test_a_covering_composer_keeps_its_controls_inside_the_safe_area(browser, se
         f"the covering composer's primary action sat under the side safe area: {boxes}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_stale_package_widget_uses_recursive_parent_eligibility(
@@ -4813,7 +4798,6 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
         )
 
     assert errors == []
-    page.close()
 
 
 def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve):
@@ -4905,7 +4889,6 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
     )
 
     assert errors == []
-    page.close()
 
 
 def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, serve):
@@ -5003,7 +4986,6 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
     )
 
     assert errors == []
-    page.close()
 
 
 def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve):
@@ -5056,7 +5038,6 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     )
 
     assert errors == []
-    page.close()
 
 
 def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
@@ -5155,7 +5136,6 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
 
     page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
     assert errors == []
-    page.close()
 
 
 def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_in(
@@ -5224,7 +5204,6 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
 
     page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
     assert errors == []
-    page.close()
 
 
 def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
@@ -5364,7 +5343,6 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     )
 
     assert errors == []
-    page.close()
 
 
 # Where a here ring can be drawn, and the keys the register already declares for

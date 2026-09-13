@@ -8,7 +8,11 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import (
+    COMMAND_HUB_PACKAGE,
+    SHIPPED_PACKAGES,
+    append_command,
+)
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -22,17 +26,12 @@ from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASKS_IN_ORDER,
     ASKS_PAGE,
-    BOTH_STAMPS,
     BOXLESS_SECTION_PAGE,
     COMMAND_HUB_EXAMPLE,
-    COMMAND_HUB_PACKAGE,
     COMMAND_HUB_PAGE,
-    EXAMPLE_MEDIA,
-    EXAMPLE_PACKAGES,
-    IMPORTER_CARD,
     KEPT_SECTION_PAGE,
     LIVE_KEYS_V1,
     LIVE_KEYS_V2,
@@ -41,47 +40,63 @@ from render_support import (
     LIVE_V2,
     LIVE_V3,
     MARKDOWN_REPLY,
-    ONE_FRAME,
-    PAGE_FIXTURES,
     REF_PAGE,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
-    RENDERED,
-    REPLAYED_PAGE,
-    REPLY_HOST_PAGE,
     REPORT_PAGE,
     RETIRED_WIDGET_PAGE,
     RING,
     ROSTER_PAGE,
-    SCROLL_SETTLE_MS,
     SCROLL_SETTLED,
-    SHIPPED_PACKAGES,
-    SPECIMEN_MARKUP,
-    SPECIMEN_TEXT,
     STANDING_ACTIONS,
     STANDING_PAGE,
     SUGGESTION_PAGE,
     THREAD_ASKS,
-    TOKEN,
     TRAVEL_PAGE,
     TWO_HOLDER_PAGE,
     TWO_HOLDER_SPARE_PAGE,
     WRAP_TOP,
+    backdate_note,
+    drifting_widget,
+    live_url,
+    stale_report,
+    trial_family,
+)
+from render_cases_layout import (
+    SCROLL_SETTLE_MS,
+    token_colour,
+    unfolded_button,
+)
+from render_cases_navigation import (
     actions,
     address_code,
-    author_test_widget,
-    backdate_note,
-    compare_with,
     composer_quote,
-    drifting_widget,
     go_to_address,
+    painted,
+)
+from render_harness import (
+    BOTH_STAMPS,
+    EXAMPLE_MEDIA,
+    EXAMPLE_PACKAGES,
+    IMPORTER_CARD,
+    ONE_FRAME,
+    PAGE_FIXTURES,
+    RENDERED,
+    REPLAYED_PAGE,
+    REPLY_HOST_PAGE,
+    SPECIMEN_MARKUP,
+    SPECIMEN_TEXT,
+    TOKEN,
+    _traffic,
+    _until,
+    author_test_widget,
+    compare_with,
     holding,
     leaf_page,
-    live_url,
+    nudge,
     open_page,
     opened_tab,
     page_registry,
-    painted,
     panel_settled,
     post_event,
     refuse,
@@ -89,15 +104,11 @@ from render_support import (
     round_trip,
     sending,
     shortcut_bar_text,
-    stale_report,
     stamp_page,
     stamp_version_file,
     ticked,
-    token_colour,
     told,
-    trial_family,
     undo,
-    unfolded_button,
     wait_for_revision,
     watched,
 )
@@ -168,7 +179,6 @@ def test_inspection_and_browser_share_retirement_and_bound_input_origins(
         assert rendered["data_revision"] == 2
         assert binding["edit"]["operation"] == operation
     assert errors == []
-    page.close()
 
 
 def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, serve):
@@ -306,7 +316,6 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     expect(card.locator(".lf-pr-description-body")).to_be_visible()
     page.emulate_media(media="screen")
     assert errors == []
-    page.close()
 
 
 def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
@@ -351,7 +360,6 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     ticked(page)
     expect(observed).to_have_text(re.compile(r"^Observed 3h ago$"))
     assert errors == []
-    page.close()
 
 
 def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
@@ -659,7 +667,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     assert errors == []
-    page.close()
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -1086,7 +1093,6 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     with sending(page, "a corrected visual disposition"):
         first.get_by_role("button", name="Needs work").click()
     expect(first).to_have_attribute("data-disposition", "needs-work")
-    page.close()
 
 
 def test_visual_review_empty_navigation_is_unavailable(browser, serve):
@@ -1106,7 +1112,6 @@ def test_visual_review_empty_navigation_is_unavailable(browser, serve):
     expect(widget.get_by_role("button", name="Next")).to_be_disabled()
     expect(widget.get_by_text("Waiting for visual-run data.")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve):
@@ -1412,7 +1417,6 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "node => node.scrollHeight > node.clientHeight"
     )
     assert errors == []
-    page.close()
 
 
 def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
@@ -1449,7 +1453,6 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     assert marker == '""'
     expect(case.locator(".lf-vr-focus")).to_have_text("20, 100 · 350 × 640 CSS px")
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("quote_anchor", [True, False], ids=["passage", "whole-datum"])
@@ -1520,7 +1523,6 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     assert comment["anchor"] == expected_anchor
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Outdated")
     assert errors == []
-    page.close()
 
 
 def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
@@ -1674,7 +1676,6 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     page.emulate_media(media="screen")
 
     assert errors == []
-    page.close()
 
 
 def test_a_diff_without_review_tracking_keeps_the_browsing_tools(browser, serve):
@@ -1720,7 +1721,6 @@ diff --git a/tests/second.py b/tests/second.py
     expect(diff.locator("summary").nth(1)).to_be_visible()
 
     assert errors == []
-    page.close()
 
 
 def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
@@ -1847,7 +1847,6 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
     assert errors == []
-    page.close()
 
 
 def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser, serve):
@@ -1955,7 +1954,6 @@ def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser,
     )
     assert landed["title"]["top"] > landed["chrome"]["bottom"], landed
     assert errors == []
-    page.close()
 
 
 def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
@@ -2031,7 +2029,6 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
     after = paragraph.evaluate("el => el.getBoundingClientRect().top")
     assert abs(after - before) <= 4, (before, after)
     assert errors == []
-    page.close()
 
 
 def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, serve):
@@ -2100,7 +2097,6 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     )
     assert abs(after - before) <= 4, (before, after)
     assert errors == []
-    page.close()
 
 
 def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser, serve):
@@ -2139,7 +2135,6 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
     )
     assert abs(after - before) <= 4, (before, after)
     assert errors == []
-    page.close()
 
 
 def test_revision_reveals_an_active_region_without_any_reading_landmark(browser, serve):
@@ -2169,7 +2164,6 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     expect(page.locator("#prior-controls")).to_have_attribute("open", "")
     expect(page.locator("#standing-control")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):
@@ -2233,7 +2227,6 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
         == 0
     )
     assert errors == []
-    page.close()
 
 
 def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser, serve):
@@ -2335,7 +2328,6 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
     assert right.evaluate("scroller => scroller.scrollTop") == 0
     expect(page.locator("#standing-control")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_live_revision_with_new_authored_code_reloads_the_document(browser, serve):
@@ -2373,7 +2365,6 @@ document.querySelector('#counter').append(document.createElement('page-counter')
     assert page.evaluate("performance.timeOrigin") != original_document
     assert "/versions/" not in page.url
     assert errors == []
-    page.close()
 
 
 def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser, serve):
@@ -2460,7 +2451,6 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     ), "activation erased a runtime-owned root property"
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
     assert errors == []
-    page.close()
 
 
 def test_live_activation_restores_standing_but_restarts_keyboard_sequences(
@@ -2514,7 +2504,6 @@ def test_live_activation_restores_standing_but_restarts_keyboard_sequences(
     )
     round_trip(page)
     assert errors == []
-    page.close()
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
@@ -2678,7 +2667,6 @@ def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
     wait_for_revision(page, 2)
     expect(page).to_have_title("Live second")
     assert errors == []
-    page.close()
 
 
 def test_a_pending_navigation_prevents_another_live_activation(browser, serve):
@@ -2706,7 +2694,6 @@ def test_a_pending_navigation_prevents_another_live_activation(browser, serve):
     finally:
         page.unroute("**/*", hold_navigation)
     assert errors == []
-    page.close()
 
 
 def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
@@ -2718,7 +2705,6 @@ def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
     expect(page).to_have_title("Live second", timeout=10_000)
     page.wait_for_function(BOTH_STAMPS)
     assert errors == []
-    page.close()
 
 
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
@@ -2771,7 +2757,6 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
-    page.close()
 
 
 def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser, serve):
@@ -2820,7 +2805,6 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
         f"was put back at {after}px"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_ring_says_where_the_reader_is_standing(browser, serve):
@@ -2948,7 +2932,6 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
         f"one a decision uses: {toggle.evaluate(RING)} against {decision_ring}"
     )
     assert errors == []
-    page.close()
 
 
 def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
@@ -3045,7 +3028,6 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
-    page.close()
 
 
 def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
@@ -3110,7 +3092,6 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
                    return r.height > innerHeight && Math.abs(r.top - clear) < 2; }"""
     )
     assert errors == []
-    page.close()
 
 
 def test_the_ask_walk_follows_registry_declarations(browser, serve):
@@ -3142,7 +3123,6 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
         page.keyboard.press("a")
         expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
-    page.close()
 
 
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
@@ -3226,7 +3206,6 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["t-parser"]
     assert errors == []
-    page.close()
 
 
 def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
@@ -3260,7 +3239,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         page.locator(".lf-version").click()
         with page.expect_request("**/api/view*"):
             page.locator('.lf-version-diff[data-lf-version="1"]').click()
-        page.wait_for_timeout(0)  # let the request event enter its route callback
+        holding(page, held, 1, "the first comparison view")
         assert held, "the first comparison view was not held"
         held[0][1] = held[0][0].fetch()
 
@@ -3281,7 +3260,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         with page.expect_request("**/api/view*"):
             held[0][0].fulfill(response=held[0][1])
             held[0][2] = True
-        page.wait_for_timeout(0)
+        holding(page, requests, 2, "the retried comparison view")
         assert len(requests) >= 2, "the stale comparison view was not retried"
         expect(page.locator(".lf-version")).to_have_text("v2")
         expect(page.locator(".lf-version")).to_have_class(re.compile(r"\bon\b"))
@@ -3292,7 +3271,6 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             held[0][0].fulfill(response=held[0][1])
         page.unroute("**/api/view*")
     assert errors == []
-    page.close()
 
 
 def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
@@ -3366,7 +3344,6 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     expect(wren.locator(".lf-heard")).to_have_text("last heard 3h ago")
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
     assert errors == []
-    page.close()
 
 
 def test_claims_and_reports_share_one_canonical_update_feed(
@@ -3498,7 +3475,6 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     assert by_source["report"]["disposition"] == "settled"
     expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_report_words_follow_widget_state_while_projection_waits_for_a_drag(
@@ -3550,7 +3526,6 @@ def test_report_words_follow_widget_state_while_projection_waits_for_a_drag(
     expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     assert errors == []
-    page.close()
 
 
 def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve):
@@ -3577,7 +3552,6 @@ def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve)
     expect(page.locator("#ag-finch .lf-heard")).to_have_text("last heard 3h ago")
     expect(page.locator("#ag-finch .lf-cold")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_a_rosters_clock_keeps_moving_when_the_server_stops_answering(browser, serve):
@@ -3588,7 +3562,6 @@ def test_a_rosters_clock_keeps_moving_when_the_server_stops_answering(browser, s
     expect(page.locator("#ag-wren .lf-heard")).to_have_text("last heard 3h ago")
     expect(page.locator("#ag-wren .lf-cold")).to_have_text("quiet")
     assert errors == []
-    page.close()
 
 
 def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
@@ -3641,7 +3614,6 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     told(page)
     expect(page.locator("#ag-wren .lf-doing")).to_have_text("on to the baffles")
     assert errors == []
-    page.close()
 
 
 def test_a_rosters_state_column_is_measured_from_the_words_it_holds(browser, serve):
@@ -3674,7 +3646,6 @@ def test_a_rosters_state_column_is_measured_from_the_words_it_holds(browser, ser
         "      >= p.getBoundingClientRect().right; }"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
@@ -3718,7 +3689,6 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
         "the reader was given no gesture to explain"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_render_gate_reports_a_server_that_stops_answering(
@@ -4136,7 +4106,6 @@ customElements.define("lf-tally", class extends HTMLElement {
     assert page.locator("#tally-seen").get_attribute("count") == authored
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
     assert errors == []
-    page.close()
 
 
 def test_state_origin_readings_compose_on_one_target(browser, serve):
@@ -4178,7 +4147,6 @@ def test_state_origin_readings_compose_on_one_target(browser, serve):
         {"origin": "reported", "unit": "t-parser"},
     ]
     assert errors == []
-    page.close()
 
 
 def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
@@ -4346,7 +4314,6 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     assert errors == []
-    page.close()
 
 
 def test_complete_positions_compose_across_independent_widget_owners(
@@ -4592,7 +4559,6 @@ def test_a_page_at_rest_is_read_across_a_widgets_own_root(
         "<lf-drift id=drift-note>"
     ]
     assert errors == []
-    page.close()
 
 
 def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
@@ -4631,7 +4597,6 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     assert page.evaluate("() => document.body.dataset.lfPresented") is None, (
         "the page presented anyway, so the words with nothing over them are in it"
     )
-    page.close()
 
 
 def test_the_render_gate_reads_a_page_that_has_finished_arriving(
@@ -4799,7 +4764,6 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     assert json.loads(positions["before"]["nested"])["parent"] == "first"
     assert json.loads(positions["before"]["thread-widget"])["parent"] == ""
     assert errors == []
-    page.close()
 
 
 def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
@@ -4943,7 +4907,6 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
         "a mark stayed painted on text the user's own decision removed"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
@@ -4978,7 +4941,6 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
         "the first pass anchored inside a slot the user's decision had retired"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
@@ -5012,7 +4974,6 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
         "so the anchor pass skipped every word inside it"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_settled_third_party_holder_wears_the_layers_mark(
@@ -5088,7 +5049,6 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
         "anchor again"
     )
     assert errors == []
-    page.close()
 
 
 def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
@@ -5160,7 +5120,6 @@ customElements.define("lf-trial", class extends HTMLElement {
     )
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
@@ -5203,7 +5162,6 @@ customElements.define("lf-trial", class extends HTMLElement {
     assert any(
         "<lf-trial> renderState threw: trial replay broke" in error for error in errors
     ), errors
-    page.close()
 
 
 def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
@@ -5348,7 +5306,6 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
         "label there declared itself the page speaking"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser, serve):
@@ -5387,7 +5344,6 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
@@ -5447,7 +5403,6 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     text = body.inner_text()
     assert "**" not in text and "Vec<T>" in text
     assert errors == []
-    page.close()
 
 
 def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader):
@@ -5524,7 +5479,6 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader)
     assert page.url == was, page.url
     assert page.evaluate("() => document.scrollingElement.scrollTop") == at
     assert errors == []
-    page.close()
 
 
 def test_an_arrival_lands_where_the_url_aimed(browser, serve):
@@ -5572,7 +5526,6 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.wait_for_function(BOTH_STAMPS)
     page.wait_for_function(onscreen, arg="tail-end")
     assert errors == []
-    page.close()
 
 
 def test_an_arrival_keeps_a_readable_native_fragment_where_the_browser_landed_it(
@@ -5600,7 +5553,6 @@ def test_an_arrival_keeps_a_readable_native_fragment_where_the_browser_landed_it
     )
     assert abs(position["top"] - position["clear"]) < 2, position
     assert errors == []
-    page.close()
 
 
 def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
@@ -5625,7 +5577,6 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
     expect(body).to_have_text("Retry up to *five* times.")
     expect(body.locator("em")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("asynchronous", [False, True], ids=["draft", "async-body"])
@@ -5731,7 +5682,6 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     assert body.text_content() == "First line.\nSecond line."
     assert original.evaluate("node => node === document.getElementById('reply-body')")
     assert errors == []
-    page.close()
 
 
 def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve):
@@ -5772,7 +5722,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
                 "markup": '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n</pre></lf-draft>',
             },
         )
-    page.wait_for_timeout(0)  # dispatch the held request's route callback
+    holding(page, held, 1, "the frozen draft module")
     assert len(held) == 1
     with page.expect_response("**/api/event") as newer:
         page.locator("#delivery-now").click()
@@ -5802,7 +5752,6 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     )
     expect(page.locator("#delivery-now")).to_have_attribute("chosen", "")
     assert errors == []
-    page.close()
 
 
 def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
@@ -5865,7 +5814,6 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     assert events_model.read_events(d)[-1]["kind"] == "undo"
     expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_a_thread_question_asks_until_answered(browser, serve):
@@ -6019,7 +5967,6 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     ]
     assert sent[-1]["action"] == "answer", "the sequence's digit must not pick"
     assert errors == []
-    page.close()
 
 
 def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
@@ -6037,7 +5984,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     done = page.locator("#tq-set .lf-done")
     with page.expect_request("**/api/event"):
         done.click()
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the thread answer")
     accepted_answer = held[0].fetch()
     attempt = held[0].request.post_data_json["attempt"]
     accepted = next(
@@ -6060,7 +6007,6 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.unroute("**/api/event")
-    page.close()
 
 
 def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
@@ -6093,7 +6039,6 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
     assert actions(serve.page_dir) == []
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
@@ -6140,7 +6085,6 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         ("answer", {}),
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, serve):
@@ -6194,7 +6138,6 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     expect(done).to_have_attribute("aria-pressed", "false")
     assert actions(serve.page_dir) == []
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
@@ -6228,7 +6171,6 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
         if e["kind"] == "action"
     ] == [("tq-set", "answer")]
     assert errors == []
-    page.close()
 
 
 def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
@@ -6253,7 +6195,6 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     expect(page.locator(".lf-thread:not([hidden]) #tq-one")).to_have_count(1)
     expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")
     assert errors == []
-    page.close()
 
 
 def test_agent_places_its_live_line_before_command_evidence(browser, serve):
@@ -6274,7 +6215,6 @@ def test_agent_places_its_live_line_before_command_evidence(browser, serve):
           ? 'line' : child.id).filter(Boolean)"""
     ) == ["line", "proof"]
     assert errors == []
-    page.close()
 
 
 def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
@@ -6369,7 +6309,6 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     page.keyboard.press(" ")
     expect(frozen).to_have_attribute("aria-expanded", "false")
     assert errors == []
-    page.close()
 
 
 def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, serve):
@@ -6398,7 +6337,6 @@ def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, 
         ("Finish the hunk, then park.", "goal-parser"),
     ]
     assert errors == []
-    page.close()
 
 
 def test_command_goal_conversation_follows_its_declaration_not_talk(
@@ -6426,7 +6364,6 @@ def test_command_goal_conversation_follows_its_declaration_not_talk(
     ).to_be_visible()
     expect(conversation.get_by_role("button", name="pause", exact=True)).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt(
@@ -6513,7 +6450,6 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
         "restart succeeded · Deduplicate the corpus snapshot"
     )
     assert errors == []
-    page.close()
 
 
 def test_request_controls_join_presentation_without_replacing_authored_items(
@@ -6660,7 +6596,6 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
         "aria-disabled", "false"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, serve):
@@ -6687,7 +6622,6 @@ def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, ser
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
 
     assert errors == []
-    page.close()
 
 
 def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serve):
@@ -6797,7 +6731,6 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     expect(operations).to_contain_text("restart succeeded")
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/6")
     assert errors == []
-    page.close()
 
 
 def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, serve):
@@ -6851,7 +6784,6 @@ def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, s
     expect(page.locator("#dedupe-operations")).to_have_count(0)
     expect(page.locator("#parser-dedupe")).to_have_attribute("status", "planned")
     assert errors == []
-    page.close()
 
 
 def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
@@ -6900,7 +6832,6 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
         "Deduplicate the corpus snapshot"
     )
     assert errors == []
-    page.close()
 
 
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
@@ -6936,7 +6867,6 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
         "privileged input"
     )
     assert errors == []
-    page.close()
 
 
 def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, serve):
@@ -7054,7 +6984,6 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
@@ -7103,7 +7032,6 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     ), "a roster name declares itself an echo of the words its target says"
 
     assert errors == []
-    page.close()
 
 
 def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
@@ -7117,7 +7045,6 @@ def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     assert errors == []
-    page.close()
 
 
 def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve):
@@ -7157,7 +7084,6 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
     expect(page.locator("#ledger-variance")).to_have_attribute("status", "planned")
     assert errors == []
-    page.close()
 
 
 def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, serve):
@@ -7189,7 +7115,6 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("1 stopped")
     expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text("Blocked goal")
     assert errors == []
-    page.close()
 
 
 def test_command_hub_quotes_host_operations_without_offering_a_request(browser, serve):
@@ -7221,7 +7146,6 @@ def test_command_hub_quotes_host_operations_without_offering_a_request(browser, 
         if event["kind"] == "request"
     ]
     assert errors == []
-    page.close()
 
 
 def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser, serve):
@@ -7263,7 +7187,6 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     told(page)
     expect(summary).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_command_hub_repaints_anchors_after_generated_projections_change(
@@ -7304,7 +7227,6 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     )
     assert "atlas/xml-declarations" in painted(page, "lf-mark")
     assert errors == []
-    page.close()
 
 
 def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, serve):
@@ -7384,7 +7306,6 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
         page.locator("#tree-w-1 > .lf-worktree-snapshot > .lf-worktree-head")
     ).to_have_attribute("aria-expanded", "true")
     assert errors == []
-    page.close()
 
 
 def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
@@ -7442,7 +7363,6 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         if event["kind"] in {"comment", "resolve", "undo"}
     ] == ["comment", "resolve", "undo"]
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -7517,7 +7437,6 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
     expect(row).to_contain_text("0m")
     expect(row).not_to_contain_text("3h")
     assert errors == []
-    page.close()
 
 
 def test_command_hub_gets_a_new_document_after_live_version_replacement(browser, serve):
@@ -7530,7 +7449,6 @@ def test_command_hub_gets_a_new_document_after_live_version_replacement(browser,
     expect(page.locator(".lf-version")).to_contain_text("v2")
     assert page.evaluate("performance.timeOrigin") != original_document
     assert errors == []
-    page.close()
 
 
 def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, serve):
@@ -7573,7 +7491,6 @@ def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, s
         "Released · Replace the XML parser (goal-parser)"
     )
     assert errors == []
-    page.close()
 
 
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
@@ -7604,7 +7521,6 @@ def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     page.get_by_role("link", name="§ inner-worker", exact=True).click()
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
     assert errors == []
-    page.close()
 
 
 def test_project_widget_can_join_the_orchestration_projection(
@@ -7666,7 +7582,6 @@ def test_project_widget_can_join_the_orchestration_projection(
     )
     expect(page.get_by_role("button", name="Asks 0/1")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, serve):
@@ -7760,7 +7675,6 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
         "a spent request still takes the hand, so the page invites a press it will refuse"
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("replacement", ["rebuilt", "removed"])
@@ -7823,4 +7737,3 @@ def test_datum_travel_resolves_the_destination_after_reveal(
             "app.py:2 is not present in the exact patch"
         )
     assert errors == []
-    page.close()

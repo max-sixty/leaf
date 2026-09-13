@@ -12,30 +12,39 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.served_state import page as served_page
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASK_PAGE,
-    BOARD_PAGE,
-    CHIPS,
-    EXAMPLES,
-    FEATURE_GALLERY,
-    GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
     PANEL_PAGE,
     REPORT_PAGE,
     SUGGESTION_PAGE,
+    live_url,
+    panel_comment,
+)
+from render_cases_layout import (
+    token_colour,
+)
+from render_cases_navigation import (
+    CHIPS,
     _publish,
+    address_code,
+    go_to_address,
+)
+from render_cases_widgets import (
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
+)
+from render_harness import (
+    BOARD_PAGE,
+    EXAMPLES,
+    FEATURE_GALLERY,
     _traffic,
     _until,
-    address_code,
     compare_with,
-    go_to_address,
     leaf_page,
-    live_url,
     margins_laid_out,
     navigate,
     open_page,
-    panel_comment,
     panel_settled,
     resized,
     round_trip,
@@ -43,7 +52,6 @@ from render_support import (
     sending,
     stamp_page,
     ticked,
-    token_colour,
     told,
     undo,
     wait_for_revision,
@@ -188,7 +196,6 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     }
     assert all(count <= 30 for count in work.values()), work
     assert errors == []
-    page.close()
 
 
 def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
@@ -241,7 +248,6 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
         )
     ).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
@@ -284,7 +290,6 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
 
     assert layouts <= 1, layouts
     assert errors == []
-    page.close()
 
 
 def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serve):
@@ -346,7 +351,6 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     assert work["RecalcStyleCount"] <= refreshes * 30, work
     assert refreshes <= geometry_reads <= refreshes * 2, geometry_reads
     assert errors == []
-    page.close()
 
 
 # Both pages stand still with nothing dispatched, so both give the settled reading:
@@ -570,7 +574,6 @@ def test_an_unchanged_viewport_refresh_restates_no_margin_name(
         "unchanged"
     ]
     assert errors == []
-    page.close()
 
 
 def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
@@ -649,7 +652,6 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     assert marks == {"passes": 5, "marks": []}, marks
     expect(row).to_have_class(re.compile(r"lf-docked"))
     assert errors == []
-    page.close()
 
 
 def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
@@ -721,7 +723,6 @@ def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
     assert relation["wrote"] == [], relation["wrote"]
     assert relation["standing"] is None, relation
     assert errors == []
-    page.close()
 
 
 def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
@@ -756,7 +757,6 @@ def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
     assert position["before"]["y"] == position["before"]["end"]
     assert position["after"] == position["before"]
     assert errors == []
-    page.close()
 
 
 def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
@@ -806,7 +806,6 @@ def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
                 "item => item.parentElement === document.querySelector('main')"
             )
     assert errors == []
-    page.close()
 
 
 def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, serve):
@@ -867,7 +866,6 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
         "a keyboard destination delayed its label behind paint-only motion"
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -903,7 +901,6 @@ def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
             )
             assert reading == {"inside": True, "overlaps": 0}
     assert errors == []
-    page.close()
 
 
 def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve):
@@ -946,7 +943,6 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     page.mouse.up()
     expect(marker).to_have_attribute("data-test-clicks", "1")
     assert errors == []
-    page.close()
 
 
 def resized_shell(page, inline_size, height):
@@ -1082,8 +1078,6 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
         assert abs(control["y"] - chip["y"]) <= 2, geometry
 
     assert errors == []
-    page.close()
-    context.close()
 
 
 def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
@@ -1112,7 +1106,6 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     ).to_have_attribute("data-lf-target-selected", "")
 
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
@@ -1197,7 +1190,6 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     last = events_model.read_events(serve.page_dir)[-1]
     assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])
     assert errors == []
-    page.close()
 
 
 def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
@@ -1432,7 +1424,6 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
 
     assert errors == []
-    page.close()
 
 
 def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
@@ -1453,8 +1444,6 @@ def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
     )
     assert abs(position["top"] - position["clear"]) < 2, position
     assert errors == []
-    page.close()
-    context.close()
 
 
 def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
@@ -1601,7 +1590,6 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     ).to_have_count(1)
 
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_sections(
@@ -1775,7 +1763,6 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         "6 · 🎯 · prioritize.",
     ]
     assert errors == []
-    page.close()
 
 
 def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
@@ -1801,7 +1788,6 @@ def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
     )
     assert refusal == "Unknown margin entry option: role"
     assert errors == []
-    page.close()
 
 
 def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, serve):
@@ -1832,7 +1818,6 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
     )
     expect(page.locator('[data-lf-margin-for="how-cap"]')).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
@@ -1939,7 +1924,6 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => window.lfCanonicalPresses") == 1
     assert errors == []
-    page.close()
 
 
 def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
@@ -1995,7 +1979,6 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(12)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_sheet
     assert errors == []
-    page.close()
 
 
 def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
@@ -2028,7 +2011,6 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
         )
     ).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_margin_target_hover_requires_pointer_movement(browser, serve):
@@ -2076,7 +2058,6 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     page.mouse.move(pointer["x"] + 1, pointer["y"])
     expect(trace).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
@@ -2132,7 +2113,6 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     )
     expect(trace).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
@@ -2213,7 +2193,6 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     expect(disclosure).to_be_hidden()
 
     assert errors == []
-    page.close()
 
 
 def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, serve):
@@ -2307,7 +2286,6 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
         "reject",
     )
     assert errors == []
-    page.close()
 
 
 def test_tab_into_a_margin_entry_cluster_replaces_ellipsis_with_all_margin_entries(
@@ -2364,7 +2342,6 @@ def test_tab_into_a_margin_entry_cluster_replaces_ellipsis_with_all_margin_entri
     expect(more).to_be_visible()
     expect(options).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_left_and_right_walk_the_revealed_margin_entry_cluster(browser, serve):
@@ -2386,7 +2363,6 @@ def test_left_and_right_walk_the_revealed_margin_entry_cluster(browser, serve):
     expect(page.locator(".lf-walk-position")).to_have_text("Action 1 of 2")
 
     assert errors == []
-    page.close()
 
 
 def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serve):
@@ -2410,7 +2386,6 @@ def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serv
         item.get_by_role("button", name=re.compile(r"^Undo rejecting"))
     ).to_be_focused()
     assert errors == []
-    page.close()
 
 
 CLUSTER_SHAPE = """() => [...document.querySelectorAll('.lf-margin-cluster')].map(
@@ -2452,7 +2427,6 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
         "aria-label", re.compile(r"^Thread, ")
     )
     assert errors == []
-    page.close()
 
 
 def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
@@ -2482,7 +2456,6 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
     page.keyboard.press("Home")
     assert page.locator(":focus").get_attribute("aria-label") == first
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
@@ -2607,7 +2580,6 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     assert_icon_only(hovered)
     assert_icon_only(focused)
     assert errors == []
-    page.close()
 
 
 def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_entries(
@@ -2903,7 +2875,6 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     assert sent["token"] == "keep" and sent["anchor"] == {"section": "sug-refill"}
 
     assert errors == []
-    page.close()
 
 
 def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, serve):
@@ -2928,7 +2899,6 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
         assert not re.search(r"\d+ of \d+|percent down", button["word"]), button
 
     assert errors == []
-    page.close()
 
 
 def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
@@ -2969,7 +2939,6 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     expect(marker).not_to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
@@ -3231,7 +3200,6 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
         and geometry["textOverflow"] == "ellipsis"
     ), geometry
     assert errors == []
-    page.close()
 
 
 def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):
@@ -3324,7 +3292,6 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     expect(dialog.locator("[data-lf-agent-arrival]")).to_have_count(0)
     assert page.evaluate("window.unitArrivals.length") == 4
     assert errors == []
-    page.close()
 
 
 def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
@@ -3645,7 +3612,6 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
 
     assert errors == []
-    page.close()
 
 
 def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
@@ -3742,7 +3708,6 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     expect(primary).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -3873,7 +3838,6 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
             item.get_by_role("button", name=f"Detail 1 {target}", exact=True)
         ).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
@@ -3907,7 +3871,6 @@ def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
         "data-lf-spill-count", "2"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
@@ -3941,7 +3904,6 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
         COMMENT_ON_SUGGESTION["text"]
     )
     assert errors == []
-    page.close()
 
 
 def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
@@ -4014,7 +3976,6 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     expect(reply).to_have_value("The covered terrace is easier to find.")
 
     assert errors == []
-    page.close()
 
 
 def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
@@ -4092,7 +4053,6 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     assert errors == []
-    page.close()
 
 
 def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
@@ -4199,7 +4159,6 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
@@ -4240,7 +4199,6 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     expect(reaction).to_have_attribute("aria-expanded", "true")
     expect(reaction).to_have_css("border-top-color", token_colour(page, "--accent"))
     assert errors == []
-    page.close()
 
 
 def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, serve):
@@ -4371,7 +4329,6 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
         ],
     }
     assert errors == []
-    page.close()
 
 
 def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
@@ -4439,7 +4396,6 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     page.mouse.move(0, 0)
     expect(trace).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
@@ -4458,7 +4414,6 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     expect(preview).to_be_hidden()
 
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
@@ -4502,7 +4457,6 @@ def test_the_margin_reply_keeps_its_shape_when_the_reader_enters_it(
     )
 
     assert errors == []
-    page.close()
 
 
 def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
@@ -4667,7 +4621,6 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(preview).to_be_hidden()
 
     assert errors == []
-    page.close()
 
 
 def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
@@ -4699,7 +4652,6 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [1440, 1920])
@@ -4825,7 +4777,6 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     assert page.evaluate("() => window.__openedMarginModes") == []
 
     assert errors == []
-    page.close()
 
 
 def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):
@@ -4851,7 +4802,6 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -4912,7 +4862,6 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(page.locator(".lf-page-map-toggle")).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 # Read the card with the selected target's whole control cluster. The overlay may cover
@@ -4982,7 +4931,6 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     assert wide["cardLeft"] >= wide["controlsRight"] + 7, wide
 
     assert errors == []
-    page.close()
 
 
 def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve):
@@ -5061,7 +5009,6 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     expect(page.locator(".lf-thread.flash")).to_have_count(0)
 
     assert errors == []
-    page.close()
 
 
 def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, serve):
@@ -5215,7 +5162,6 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
     assert errors == []
-    page.close()
 
 
 def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighted(
@@ -5236,7 +5182,6 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
     ticked(page)
     expect(trace).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
@@ -5257,7 +5202,6 @@ def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
     expect(preview).to_be_hidden()
     expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [1000, 1207, 1208, 1440, 1720])
@@ -5322,7 +5266,6 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
     assert position() == initial
 
     assert errors == []
-    page.close()
 
 
 def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_gesture(
@@ -5374,7 +5317,6 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     ), "withdrawing the move handed the strip back and moved the column with it"
 
     assert errors == []
-    page.close()
 
 
 def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
@@ -5457,7 +5399,6 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     ), composition
 
     assert errors == []
-    page.close()
 
 
 def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, serve):
@@ -5480,7 +5421,6 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
     assert offset() == pytest.approx(before, abs=1)
 
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("opener", ["keyboard", "pointer"])
@@ -5553,7 +5493,6 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     expect(return_focus).to_be_focused()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     assert errors == []
-    page.close()
 
 
 def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
@@ -5572,7 +5511,6 @@ def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
     expect(more).to_be_focused()
     expect(more).to_have_attribute("aria-expanded", "false")
     assert errors == []
-    page.close()
 
 
 def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve):
@@ -5591,7 +5529,6 @@ def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     assert errors == []
-    page.close()
 
 
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
@@ -5614,7 +5551,6 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     ).to_be_visible()
 
     assert errors == []
-    page.close()
 
 
 def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
@@ -5651,7 +5587,6 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     expect(actions.first).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
@@ -5697,7 +5632,6 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     )
 
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [1440, 1920])
@@ -5748,7 +5682,6 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, widt
     ), (before, after)
 
     assert errors == []
-    page.close()
 
 
 def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, serve):
@@ -5768,7 +5701,6 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
     expect(marker).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
@@ -5794,7 +5726,6 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(trace).to_be_visible()
 
     assert errors == []
-    page.close()
 
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):
@@ -5817,7 +5748,6 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="change"]')).to_have_count(0)
 
     assert errors == []
-    page.close()
 
 
 def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serve):
@@ -5887,4 +5817,3 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
             f"after {close}: the thread margin entry stands at {landed}, the column's rest is {rest}"
         )
     assert errors == []
-    page.close()

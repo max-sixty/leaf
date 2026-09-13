@@ -16,6 +16,7 @@ import {
   widgetDescriptor,
 } from "./widget-descriptors.js";
 import { failSoft } from "./widget-upgrade.js";
+import { DRAGGING_CHANGED } from "./widget-elements.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
@@ -24,6 +25,14 @@ const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
 let orderedRenders = new Map();
 let orderedRenderQueued = false;
+const gestureDeferred = new Set();
+
+document.addEventListener(DRAGGING_CHANGED, () => {
+  if (document.querySelector(".lf-dragging")) return;
+  const pending = [...gestureDeferred];
+  gestureDeferred.clear();
+  for (const resume of pending) resume();
+});
 
 const { registry } = runtime;
 
@@ -350,10 +359,23 @@ function createWidgetController(owner) {
     prior?.release();
   };
 
+  const resumeGestureRender = () => {
+    gestureDeferred.delete(resumeGestureRender);
+    if (deferred || !deferredReading || !subscriptions.size) return;
+    const latest = deferredReading;
+    const hold = deferredHold;
+    deferredReading = null;
+    deferredHold = null;
+    scheduleRender(latest, [...subscriptions]);
+    hold?.release();
+  };
+
   const publish = () => {
     const reading = read();
-    if (deferred) {
+    if (deferred || document.querySelector(".lf-dragging")) {
       holdRender(reading);
+      if (document.querySelector(".lf-dragging"))
+        gestureDeferred.add(resumeGestureRender);
       return;
     }
     scheduleRender(reading, [...subscriptions]);
@@ -385,6 +407,7 @@ function createWidgetController(owner) {
   };
 
   const disconnect = () => {
+    gestureDeferred.delete(resumeGestureRender);
     stopSelection?.();
     stopSelection = null;
     renderHandle?.disconnect();
@@ -418,6 +441,7 @@ function createWidgetController(owner) {
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {
+          gestureDeferred.delete(resumeGestureRender);
           stopSelection?.();
           stopSelection = null;
           renderHandle?.disconnect();

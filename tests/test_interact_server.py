@@ -50,6 +50,7 @@ from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
+from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
@@ -1004,6 +1005,35 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
         assert marker.encode() in body, address
         assert f'data-lf-entry="{artifact_root}/leaf.js"'.encode() in body, address
         assert fetch(server + artifact_root + "/leaf.js")[0] == 200, address
+
+
+def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    tokens = registry["$reactions"]["tokens"]
+    expected_tokens = list(reversed(tokens))
+    registry["$reactions"]["tokens"] = {
+        token: tokens[token] for token in expected_tokens
+    }
+    registry_path.write_text(json.dumps(registry))
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
+    )
+
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None, activated.error
+    assert activated.created
+    artifact = artifact_model.read_artifact(page_dir, activated.revision)
+    captured = json.dumps(registry, separators=(",", ":")).encode()
+    assert artifact.resources["/registry.json"].data == captured
+    assert list(artifact.registry["$reactions"]["tokens"]) == expected_tokens
+
+    artifact_root = (
+        f"/revisions/{files_model.revision_path(page_dir, activated.revision).stem}"
+    )
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as temporary:
+        status, served = fetch(temporary.origin + artifact_root + "/registry.json")
+    assert (status, served) == (200, captured)
 
 
 def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(

@@ -366,6 +366,7 @@ export function createPresentationCoordinator<
         // state. Without that proof the region remains pending: declaring the page
         // presented would expose the partial rendering that just failed.
         if (recovered) finish(ticket, "failed", proof);
+        else throw reported;
       }
     };
 

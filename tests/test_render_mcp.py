@@ -17,7 +17,13 @@ from leaf.revisioning import activate_source
 from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
 from playwright.sync_api import expect
-from render_support import leaf_page, live_url, open_page
+from render_cases_interaction import (
+    live_url,
+)
+from render_harness import (
+    leaf_page,
+    open_page,
+)
 
 HOST = """<!doctype html>
 <iframe id="app" style="width:100%;height:760px;border:0"></iframe>

@@ -1,7 +1,7 @@
 """Stable target identity and hit-testing contracts."""
 
 import pytest
-from render_support import leaf_page, open_page
+from render_harness import leaf_page, open_page
 
 pytestmark = pytest.mark.nightly
 

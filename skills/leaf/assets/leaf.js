@@ -897,7 +897,7 @@ async function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   setAnchoringReady(true);
   try {
-    await app.refreshConversation();
+    await app.presentConversation();
     // Anchoring changes where conversation chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a
     // malformed page that the unanchored provisional pass could not yet inspect.
@@ -907,6 +907,7 @@ async function presentPage() {
     throw error;
   }
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
+  anchorControls.publishVisualActions();
   if (offlineInteractive) {
     document.dispatchEvent(new Event(PRESENTATION));
     return;

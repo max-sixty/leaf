@@ -29,7 +29,7 @@ import {
   renderSaid,
 } from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
-import { ago } from "../presence.js";
+import { ago, clocked } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
 import { designName } from "../design-readings.js";
 import {
@@ -62,6 +62,7 @@ export const loadMarked = () =>
 // beside it keeps its nodes: a widget in a reply may already hold reader state, and
 // re-upgrading it over a prose correction would turn the edit into a second transition.
 const msgBodies = new Map();
+const messageClocks = new WeakMap();
 function paintMsgText(text, m) {
   const words = m.text ?? "";
   if (m.suggestion) text.textContent = words;
@@ -178,6 +179,22 @@ export function syncEdited(head, m) {
   edited.title = `Edited ${ago(m.edited.ts)}`;
 }
 
+function syncMessageClock(div, m) {
+  let paint = messageClocks.get(div);
+  if (!paint) {
+    paint = clocked(div, (message) => {
+      const head = div.querySelector(":scope > .lf-msg-head");
+      const when = head.querySelector(":scope > time");
+      when.dateTime = message.ts;
+      const said = ago(message.ts);
+      if (when.textContent !== said) when.textContent = said;
+      syncEdited(head, message);
+    });
+    messageClocks.set(div, paint);
+  }
+  paint(m);
+}
+
 export function syncStreamState(node, head, m) {
   const state = m.stream_state;
   if (state) node.dataset.streamState = state;
@@ -210,10 +227,7 @@ export function syncMsgNode(div, m) {
   if (m.pending) div.setAttribute("aria-busy", "true");
   else div.removeAttribute("aria-busy");
   const head = div.querySelector(":scope > .lf-msg-head");
-  const when = head.querySelector(":scope > time");
-  const said = ago(m.ts);
-  if (when.textContent !== said) when.textContent = said;
-  syncEdited(head, m);
+  syncMessageClock(div, m);
   syncStreamState(div, head, m);
   const body = msgBody(m);
   const standing = div.querySelector(":scope > .lf-msg-body");
@@ -231,13 +245,13 @@ export function msgNode(m) {
   // "3 hours ago" is not a datetime, so the machine-readable one goes in the attribute
   // the element has for it — which is also what `saidAt` reads back when a widget the
   // message carries needs to know when it was said.
-  const when = el("time", "", ago(m.ts));
+  const when = el("time");
   when.dateTime = m.ts;
   head.append(el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"), when);
   if (m.suggestion) head.append(el("span", "lf-suggest-label", "Suggestion"));
   div.append(head);
   div.append(msgBody(m));
-  syncEdited(head, m);
+  syncMessageClock(div, m);
   syncStreamState(div, head, m);
   return div;
 }

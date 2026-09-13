@@ -173,7 +173,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
     // but the application still cannot know whether an action is available. Controllers
     // independently present any complete authored widget state; this adapter has no
     // authoritative projection coordinates or chrome to commit yet.
-    if (snapshot.phase === "waiting") {
+    if (snapshot.phase === "waiting" || snapshot.authoritative === null) {
       // This provisional epoch has no authoritative projection to withhold. Settling
       // its chrome ticket lets document installation finish and start the state feed;
       // adoption publishes a ready/offline epoch and claims a fresh ticket before any

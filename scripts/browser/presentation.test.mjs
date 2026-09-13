@@ -338,7 +338,7 @@ test("an unhandled presentation failure keeps its region pending", async () => {
   const error = new Error("document rendering failed");
   const presentation = handle.present("value", Promise.reject(error));
   coordinator.seal(publication);
-  await presentation;
+  await assert.rejects(presentation, error);
 
   assert.deepEqual(failures, [error]);
   assert.equal(coordinator.read().presentedEpoch, -1);

@@ -6,12 +6,16 @@ import pytest
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASK_SHAPES_PAGE,
     SETTLED_ASK_PAGE,
-    SETTLED_PAGE,
-    composer_quote,
     live_url,
+)
+from render_cases_navigation import (
+    composer_quote,
+)
+from render_harness import (
+    SETTLED_PAGE,
     open_page,
     page_registry,
     panel_settled,
@@ -39,7 +43,6 @@ def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):
     expect(page.locator("#transport > .lf-settled")).to_have_count(1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
     assert errors == []
-    page.close()
 
 
 def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
@@ -159,7 +162,6 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     assert page.locator("#opt-strict").is_visible(), (
         "clicking a thread's quote must open the group holding it"
     )
-    page.close()
 
 
 def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, serve):
@@ -206,7 +208,6 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
         "job-camera",
     ]
     assert errors == []
-    page.close()
 
 
 def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
@@ -226,7 +227,6 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
     assert page.locator("#opt-lax").evaluate(after) == '"✓"'
     assert page.locator("#opt-strict").evaluate(after) == "none"
     assert errors == []
-    page.close()
 
 
 def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
@@ -260,4 +260,3 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
             f"{summary:.0f}, so the group states what it settled before what it asked"
         )
     assert errors == []
-    page.close()

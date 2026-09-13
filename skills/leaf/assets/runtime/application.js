@@ -159,9 +159,10 @@ export function mountApplication(dependencies) {
       console.error(`leaf: ${context}`, error);
     });
   };
+  const presentConversation = () => conversation.apply(readApplication());
   const refreshConversation = () =>
     backgroundConversation(
-      conversation.apply(readApplication()),
+      presentConversation(),
       "conversation preparation",
     );
 
@@ -514,6 +515,7 @@ export function mountApplication(dependencies) {
     readAndApply: feed.readAndApply,
     receiveState,
     refreshConversation,
+    presentConversation,
     refreshNarrowing: conversation.refreshNarrowing,
     registerThreadSurface,
     resetAuthoredPage: projection.resetAuthoredPage,

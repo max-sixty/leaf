@@ -13,44 +13,50 @@ from leaf import event_log as events_model
 from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASK_PAGE,
-    BOTH_STAMPS,
+    SCROLL_SETTLED,
+    SEATED_QUESTION_PAGE,
+    live_url,
+    sent_events,
+)
+from render_cases_layout import (
+    in_threads_scrollport,
+)
+from render_cases_navigation import (
     DRAFT_EDITED,
     DRAFT_TEXT,
-    EXAMPLE_MEDIA,
     JOURNEY_V1,
     JOURNEY_V2,
     KEYS_PAGE,
-    LONG_PAGE,
     NOTED_PAGE,
-    SCROLL_SETTLED,
-    SEATED_QUESTION_PAGE,
     SENTENCE,
     SMOOTH_LONG_PAGE,
+    _publish,
+    compose,
+    composer_quote,
+    painted,
+    pending_text,
+)
+from render_harness import (
+    BOTH_STAMPS,
+    EXAMPLE_MEDIA,
+    LONG_PAGE,
     STORED_DRAFT_SETTLED,
     STORED_DRAFT_TEXT,
     CutOff,
-    _publish,
     _traffic,
     _until,
     compare_with,
-    compose,
-    composer_quote,
     held_stale,
     hold_selection,
     holding,
-    in_threads_scrollport,
-    live_url,
     open_page,
-    painted,
     panel_settled,
-    pending_text,
     refuse,
     resized,
     round_trip,
     sending,
-    sent_events,
     shortcut_bar_text,
     stamp_version_file,
     ticked,
@@ -139,7 +145,6 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
     ][-1]
     assert message["text"] == " "
     assert errors == []
-    page.close()
 
 
 def draft_controls(page, draft_id="draft-ops"):
@@ -280,7 +285,6 @@ def test_page_round_trip(browser, serve):
         "action": "edit",
         "detail": {"text": DRAFT_EDITED},
     }
-    page.close()
 
 
 @pytest.mark.parametrize("section", ["draft-ops", None])
@@ -303,7 +307,6 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
         "the user's editor opened on text the runtime had written into"
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("section", ["draft-ops", None])
@@ -329,7 +332,6 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, sect
     page.locator("#draft-ops .lf-draft-body").dblclick()
     assert page.locator("#draft-ops textarea").input_value() == DRAFT_TEXT
     assert errors == []
-    page.close()
 
 
 def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
@@ -455,7 +457,6 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     )
     page.emulate_media(media="screen")
     assert errors == []
-    page.close()
 
 
 def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, serve):
@@ -511,7 +512,6 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     )
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     assert errors == []
-    page.close()
 
 
 def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, serve):
@@ -572,7 +572,6 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     assert events[-1]["action"] == "edit"
     assert events[-1]["detail"] == {"text": ""}
     assert errors == []
-    page.close()
 
 
 def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
@@ -631,7 +630,6 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(draft.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
     assert errors == []
-    page.close()
 
 
 def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
@@ -688,7 +686,6 @@ def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
     round_trip(page)
     expect(draft).not_to_have_attribute("aria-busy", "true")
     assert errors == []
-    page.close()
 
 
 def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
@@ -736,7 +733,6 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
         {"text": "Keep the revised unsent words."}
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_reader):
@@ -999,7 +995,6 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     ]
     assert [event["text"] for event in roots] == [old]
     assert errors == []
-    page.close()
 
 
 def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serve):
@@ -1052,7 +1047,6 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     ]
     assert [event["text"] for event in roots] == [words]
     assert errors == []
-    page.close()
 
 
 def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
@@ -1088,7 +1082,6 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
         event for event in sent_events(serve.page_dir) if event.get("text") == words
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
@@ -1130,7 +1123,6 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     # The reply's draft keys by its thread's stable name, which is the parent's attempt.
     assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{attempt}") == words
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, serve):
@@ -1163,7 +1155,6 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, s
     ]
     assert [event["text"] for event in replies] == [words]
     assert errors == []
-    page.close()
 
 
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
@@ -1202,7 +1193,6 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         event for event in sent_events(serve.page_dir) if event.get("text") == words
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 @pytest.mark.parametrize("box", ["seat", "general"])
@@ -1240,7 +1230,6 @@ def test_every_message_send_says_so_to_a_reader_listening(held_events, serve, bo
     page.unroute("**/api/event")
     round_trip(page)
     assert errors == []
-    page.close()
 
 
 def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
@@ -1313,7 +1302,6 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
         words for words in (first, second) if not any(words in s for s in spoken)
     ] == []
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("same_thread", [False, True])
@@ -1358,7 +1346,6 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     expect(later).to_have_value(newer)
     in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] textarea')
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("continue_inline", [False, True])
@@ -1413,7 +1400,6 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
     else:
         expect(toggle).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
@@ -1453,7 +1439,6 @@ def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     )
     expect(reply).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
@@ -1490,7 +1475,6 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     expect(later).to_have_value("The later reply keeps the reader here.")
     assert later.evaluate("ta => ta.selectionStart") == 9
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("later_selection", [False, True])
@@ -1541,7 +1525,6 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     else:
         expect(thread.locator("textarea")).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
@@ -1594,7 +1577,6 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     expect(reply).to_have_value("")
     expect(reply).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
@@ -1641,7 +1623,6 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "A short second passage."
     assert errors == []
-    page.close()
 
 
 def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, serve):
@@ -1690,7 +1671,6 @@ def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, s
     )
     assert composer_quote(page)["text"].endswith("A short second passage.")
     assert errors == []
-    page.close()
 
 
 def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
@@ -1724,7 +1704,6 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     expect(field).to_have_value(original)
     expect(field).not_to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
@@ -2084,7 +2063,6 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
     ]
     assert [event["text"] for event in roots] == [raw]
     assert errors == []
-    page.close()
 
 
 def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
@@ -2432,7 +2410,6 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
     ]
     assert [event["text"] for event in roots] == [raw]
     assert errors == []
-    page.close()
 
 
 def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
@@ -2497,7 +2474,6 @@ def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serv
     assert [event["text"] for event in replies] == [text, text]
     assert len({event["attempt"] for event in replies}) == 2
     assert errors == []
-    page.close()
 
 
 def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_reader):
@@ -2556,7 +2532,6 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     expect(page.locator(".lf-fab-input")).to_have_value(kept)
     assert pending_text(page), "the box came back on nothing"
     assert errors == []
-    page.close()
 
 
 def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
@@ -2631,7 +2606,6 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
         page.keyboard.press("ControlOrMeta+Enter")
     assert events_model.read_events(serve.page_dir)[-1]["text"] == typed
     assert errors == []
-    page.close()
 
 
 def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, serve):
@@ -2662,7 +2636,6 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, ser
     assert [event["text"] for event in comments] == [old]
     assert comments[0]["attempt"]
     assert errors == []
-    page.close()
 
 
 def test_two_passages_hold_two_composer_drafts(browser, serve, one_reader):
@@ -2739,7 +2712,6 @@ def test_an_explicit_target_carries_into_an_emptied_draft(browser, serve):
     choose_comment_target(page, "#p9")
     expect(field).to_have_value(source)
     assert errors == []
-    page.close()
 
 
 def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_reader):
@@ -2862,7 +2834,6 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
         ", including focused replays of its motion"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, serve):
@@ -2959,7 +2930,6 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     assert errors == []
     assert other_errors == []
     other.close()
-    page.close()
 
 
 def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
@@ -3064,7 +3034,6 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
     )
     expect(page.locator("#col-done #card-x")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serve):
@@ -3112,7 +3081,6 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
     assert painted(page, "lf-mark") == "It takes about a minute."
     assert errors == []
-    page.close()
 
 
 def test_registered_control_keys_activate_once(browser, serve):
@@ -3192,7 +3160,6 @@ def test_registered_control_keys_activate_once(browser, serve):
         "a held key sent one decision per repeat"
     )
     assert errors == []
-    page.close()
 
 
 def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, serve):
@@ -3241,7 +3208,6 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
     )
     assert observed == dict.fromkeys(keys[:-1], False)
     assert errors == []
-    page.close()
 
 
 def test_the_browser_pages_the_document_with_space(browser, serve):
@@ -3268,7 +3234,6 @@ def test_the_browser_pages_the_document_with_space(browser, serve):
     up = press_and_settle("Shift+Space")
     assert up < down, "the browser did not page the document back up"
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
@@ -3389,7 +3354,6 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
         "itself paying that back"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_reading_page_step_never_paints_behind_where_it_started(browser, serve):
@@ -3444,7 +3408,6 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
             "the step painted the page above where the press found it"
         )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
@@ -3473,8 +3436,6 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve, down, up):
         0, abs=1
     )
     assert errors == []
-    page.close()
-    context.close()
 
 
 def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, serve):
@@ -3536,7 +3497,6 @@ def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, 
     )
     assert threads_now > threads_was, "the sheet did not move for the key it now owns"
     assert errors == []
-    page.close()
 
 
 def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
@@ -3645,7 +3605,6 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
         f"g g moved the panel from {threads_now} to {edge_threads}"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_page_has_one_door_to_a_comparison(browser, serve):
@@ -3688,7 +3647,6 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     compare_with(page)
     expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))
     assert errors == []
-    page.close()
 
 
 def test_the_draft_box_is_its_own_door(browser, serve):
@@ -3777,4 +3735,3 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     pencil.click()
     expect(draft.locator("textarea")).to_be_visible()
     assert errors == []
-    page.close()

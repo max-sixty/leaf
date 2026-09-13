@@ -8,7 +8,10 @@ import time
 from urllib.parse import urlsplit
 
 import pytest
-from interact_support import append_command
+from interact_support import (
+    COMMAND_HUB_PACKAGE,
+    append_command,
+)
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -19,37 +22,26 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASKS_PAGE,
+    CHANGE_SHAPES_PAGE,
+    PANEL_PAGE,
+)
+from render_cases_layout import (
     AUTHORED_LINES_PAGE,
     BARE_IDENTIFIERS_PAGE,
-    BOTH_STAMPS,
-    CHANGE_SHAPES_PAGE,
-    CODE_PAGE,
     COLORED_CODE_PAGE,
-    COMMAND_HUB_PACKAGE,
-    CORPUS_SOURCES,
     CUSTOM_WIDGET_PAGE,
     EDGE_IDS,
     EDGES,
-    EXAMPLE_PACKAGES,
-    EXAMPLES,
     FAINT_CODE_PAGE,
-    FEATURE_GALLERY,
     FLAT_SHADOW_PAGE,
     FLOATING_PAGE,
-    GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
     IDENTIFIERS_IN_CODE_PAGE,
     LINKED_CELLS_PAGE,
-    LONG_PAGE,
     LOOSE_SCROLLER_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
-    PAGE_FIXTURES,
-    PANEL_PAGE,
-    REPLY_HOST_PAGE,
     RESIZE_LOOP_EVENT,
     ROOM_EVERY_FRAME,
     SCROLLED_CONTAINER,
@@ -58,29 +50,47 @@ from render_support import (
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     TINTED_LINE_PAGE,
-    TOKEN,
-    TYPED_PARTS_PAGE,
     UNANSWERED_CODE_PAGE,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
-    Traffic,
-    _traffic,
-    _until,
     apply_restore_case,
     arrival_findings,
-    author_test_widget,
     draw_edge,
     edge_settled,
     geometry,
-    leaf_page,
     motions,
     moved_at,
-    open_page,
     page_at_rest,
-    panel_settled,
-    primed,
     reader_view_restore_cases,
     resize_notice_after_last_probe,
+)
+from render_cases_navigation import (
+    CODE_PAGE,
+)
+from render_cases_widgets import (
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
+    TYPED_PARTS_PAGE,
+)
+from render_harness import (
+    BOTH_STAMPS,
+    CORPUS_SOURCES,
+    EXAMPLE_PACKAGES,
+    EXAMPLES,
+    FEATURE_GALLERY,
+    LONG_PAGE,
+    PAGE_FIXTURES,
+    REPLY_HOST_PAGE,
+    TOKEN,
+    Traffic,
+    _traffic,
+    _until,
+    author_test_widget,
+    leaf_page,
+    open_page,
+    panel_settled,
+    primed,
     resized,
 )
 
@@ -451,7 +461,6 @@ def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, s
     assert rows["lower"]["top"] >= rows["upper"]["bottom"] - 1, rows
     assert rows["footer"]["bottom"] <= 700, rows
     assert errors == []
-    page.close()
 
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
@@ -982,7 +991,6 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
     # one document; one seen here is the platform under load and says nothing.
     assert [e for e in errors if not render_gate_scheme.resize_observer_error(e)] == []
-    page.close()
 
 
 def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
@@ -1112,17 +1120,15 @@ def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
     assert errors == [
         "window error: ResizeObserver loop completed with undelivered notifications."
     ], "a notice after the classified navigation was hidden too"
-    page.close()
 
 
 def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     every_load = (
         "addEventListener('DOMContentLoaded', () => {" + RESIZE_LOOP_EVENT + "});"
     )
-    page, errors = open_page(browser, serve(LONG_PAGE), init_script=every_load)
+    _page, errors = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
     assert errors == [render_gate_scheme.recurring_resize_observer_error("navigation")]
-    page.close()
 
 
 def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
@@ -2488,7 +2494,6 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
         d == {"scrolls": "auto", "marked": True, "position": "relative"} for d in diffed
     ), f"the mark did not reach the diff's lines: {diffed}"
     assert errors == []
-    page.close()
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
@@ -3303,7 +3308,6 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
         "border: getComputedStyle(el).borderTopWidth})"
     ) == {"display": "block", "border": "1px"}
     assert errors == []
-    page.close()
 
 
 def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
@@ -3386,7 +3390,6 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         for t in trapped
     )
     assert errors == []
-    page.close()
 
 
 def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):
@@ -3401,7 +3404,6 @@ def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):
         if finding["tag"] == "pre" and not finding["chrome"]
     ], trapped
     assert errors == []
-    page.close()
 
 
 def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, serve):

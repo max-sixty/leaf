@@ -23,9 +23,14 @@ from playwright.sync_api import sync_playwright
 # agent started — a test runs `PLUGIN_ROOT / "bin" / "leaf"` instead, and gets
 # uv, the payload project and the environment uv syncs for it along with it.
 LEAF_COMMAND = [sys.executable, "-m", "leaf"]
-# Domain test modules import their assertions explicitly; these two support modules
-# own the shared fixtures and register them once for the complete suite.
-pytest_plugins = ("interact_support", "render_support")
+# Domain test modules import their assertions explicitly. Register only the modules
+# that own fixtures once for the complete suite.
+pytest_plugins = (
+    "interact_support",
+    "render_harness",
+    "render_cases_layout",
+    "render_cases_navigation",
+)
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it
@@ -315,7 +320,7 @@ def dead_pid(spawn):
 
 
 @pytest.fixture(scope="session")
-def browser():
+def _browser():
     """Playwright's pinned Chromium headless shell, driven for the tests a static
     read can't answer: what a widget upgrades into, and what the site fits on.
 
@@ -324,14 +329,25 @@ def browser():
     per worker that requests it; the everyday smoke requests one, and the complete
     run can occupy all eight.
 
-    The scope does not reach isolation, which is per context: `new_page` opens a
-    fresh context per call, and a fresh context has empty `localStorage` and
-    `sessionStorage` — the state a `goto` inside one would carry over
-    (tests/CLAUDE.md, "Reloading is not resetting")."""
+    Each test receives this process through the function-scoped `browser` fixture,
+    which closes any contexts the test leaves open."""
     with sync_playwright() as p:
         b = p.chromium.launch()
         yield b
         b.close()
+
+
+@pytest.fixture
+def browser(_browser):
+    """The shared browser process, with context ownership scoped to one test.
+
+    `Browser.new_page` opens a fresh context, so local and session storage remain
+    isolated. Closing every remaining context at teardown makes that lifetime a
+    fixture guarantee instead of a convention repeated at the end of each journey.
+    """
+    yield _browser
+    for context in reversed(_browser.contexts):
+        context.close()
 
 
 @pytest.fixture(scope="session")

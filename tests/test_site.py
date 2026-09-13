@@ -37,7 +37,14 @@ from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/CLAUDE.md, "A wait consumes a fact the system states".
-from render_support import BOTH_STAMPS, navigate, open_page, select, sending, watched
+from render_harness import (
+    BOTH_STAMPS,
+    navigate,
+    open_page,
+    select,
+    sending,
+    watched,
+)
 
 ROOT = Path(__file__).parent.parent
 DOCS = ROOT / "docs"

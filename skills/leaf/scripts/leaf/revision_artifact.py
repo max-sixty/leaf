@@ -54,6 +54,10 @@ def _digest(data: bytes) -> str:
 
 
 def _json(value) -> bytes:
+    return json.dumps(value, separators=(",", ":")).encode("utf-8")
+
+
+def _canonical_json(value) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
@@ -374,7 +378,7 @@ def capture_artifact(
         }
         for tag, source in widget_sources.items()
     }
-    manifest = _json(
+    manifest = _canonical_json(
         {
             "html": _digest(document.data),
             "entries": sorted(set(entries)),

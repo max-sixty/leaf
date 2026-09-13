@@ -5087,6 +5087,7 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
             && send.top >= list.top && send.bottom <= list.bottom + 1;
         }""")
 
+
 def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighted(
     browser, serve
 ):

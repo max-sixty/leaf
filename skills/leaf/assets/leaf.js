@@ -330,7 +330,9 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   conversationAvailable: !offlineInteractive,
-  renderAsks: () => asks.syncAsks(),
+  // An offline copy has no Ask chrome to present. Keep its semantic application
+  // complete without opening a presentation ticket for disconnected generated faces.
+  renderAsks: offlineInteractive ? () => undefined : () => asks.syncAsks(),
   reportPageError,
   createEngagement,
   targetChooserOpen: () => targets.targetChooserOpen(),

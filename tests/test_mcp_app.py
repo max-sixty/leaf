@@ -12,6 +12,7 @@ from leaf.files import revision_path
 from leaf.mcp_page import (
     PAGE_APP_RESOURCE,
     PAGE_FORMAT,
+    PAGE_READY_SOURCE,
     PAGE_RESOURCE_URI,
     ProcessPageServer,
     page_state,
@@ -68,11 +69,18 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
         assets = f"{root}/revisions/{revision_path(page_dir, 1).stem}"
         assert f'src="{assets}/leaf.js"' in html
         assert f'href="{assets}/theme.css"' in html
-        assert f'src="{root}/mcp-ready.js"' in html
+        assert (
+            f'<script type="module" src="{root}/mcp-ready.js" '
+            "data-lf-runtime></script>" in html
+        )
 
         with urllib.request.urlopen(f"{pages.origin}{root}/mcp-ready.js") as response:
-            ready = response.read().decode()
-        assert 'type:"leaf:mcp-page-ready"' in ready
+            assert response.headers.get_content_type() == "text/javascript"
+            ready = response.read()
+        assert ready == PAGE_READY_SOURCE.read_bytes()
+        assert (
+            b'window.parent.postMessage({ type: "leaf:mcp-page-ready" }, "*")' in ready
+        )
 
         with urllib.request.urlopen(
             f"{pages.origin}{assets}/runtime/layer-client.js"

@@ -714,6 +714,9 @@ module loader validate its syntax, dependencies, and named exports.
 `coveredWords` is reexported from the import-free `render-checks/standalone.js`, which
 lets the same implementation inspect an exported `file://` copy after its runtime has
 been removed. `render-checks/init.js` installs the pre-navigation window-error channel.
+`render-checks/driver.js` stays outside `PROBE_SOURCES` and the served probe module graph;
+Playwright installs it as an init script or reads it directly on an already-open page,
+and repository lint checks the source.
 
 | Reading | Contract |
 | --- | --- |

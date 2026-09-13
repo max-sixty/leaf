@@ -12,56 +12,21 @@ PROBE_ROOT = Path(__file__).with_name("render-checks")
 PROBE_ROUTE = "/_leaf/render-checks/index.js"
 STANDALONE_ROUTE = "/_leaf/render-checks/standalone.js"
 STANDALONE_SOURCE = PROBE_ROOT / "standalone.js"
+DRIVER_SOURCE = PROBE_ROOT / "driver.js"
 WINDOW_ERRORS_SOURCE = PROBE_ROOT / "init.js"
 STANDALONE_FILE_ROUTE = "file:///_leaf/render-checks/standalone.js"
 PROBE_SOURCES = {
     f"/_leaf/render-checks/{source.name}": source
     for source in sorted(PROBE_ROOT.glob("*.js"))
+    if source != DRIVER_SOURCE
 }
 
-_PROBE_CACHE = "__leafRenderChecks"
-_START_PROBES = f"""(call) => {{
-  if (globalThis.{_PROBE_CACHE}?.route === call.route) return;
-  const loading = {{route: call.route, probes: null, error: null}};
-  globalThis.{_PROBE_CACHE} = loading;
-  import(call.route).then(
-    (probes) => {{
-      if (globalThis.{_PROBE_CACHE} === loading) loading.probes = probes;
-    }},
-    (error) => {{
-      if (globalThis.{_PROBE_CACHE} === loading)
-        loading.error = {{
-          name: error?.name ?? "Error",
-          message: error?.message ?? String(error),
-        }};
-    }},
-  );
-}}"""
-_PROBES_LOADED = f"""(call) => {{
-  const loading = globalThis.{_PROBE_CACHE};
-  if (loading?.route !== call.route) return false;
-  if (loading.error) {{
-    const error = new Error(
-      `Leaf browser probes failed to load from ${{call.route}}: ` +
-      loading.error.message
-    );
-    error.name = loading.error.name;
-    throw error;
-  }}
-  return loading.probes !== null;
-}}"""
-_PROBE = f"""(call) => {{
-  const probe = globalThis.{_PROBE_CACHE}?.probes?.[call.name];
-  if (typeof probe !== "function")
-    throw new TypeError(`unknown Leaf browser probe ${{call.name}}`);
-  const result = probe(...call.args);
-  if (result && typeof result.then === "function")
-    throw new TypeError(
-      `Leaf browser probe ${{call.name}} must be synchronous; ` +
-      `publish a synchronous reading or readiness fact instead`
-    );
-  return result;
-}}"""
+_DRIVER_PRESENT = "() => Boolean(globalThis.__leafRenderDriver)"
+_START_PROBES = "call => globalThis.__leafRenderDriver.start(call)"
+_PROBES_LOADED = "call => globalThis.__leafRenderDriver.loaded(call)"
+_PROBE = "call => globalThis.__leafRenderDriver.call(call)"
+_THEME_READY = "() => globalThis.__leafRenderDriver.themeReady()"
+_PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings()"
 
 
 def _call(page, name: str, args: tuple) -> dict:
@@ -97,6 +62,7 @@ def prepare_standalone_probes(page) -> None:
     """
     if getattr(page, "_leaf_standalone_probes_prepared", False):
         return
+    install_driver(page)
     page.route(
         STANDALONE_FILE_ROUTE,
         lambda route: route.fulfill(
@@ -108,11 +74,27 @@ def prepare_standalone_probes(page) -> None:
     page._leaf_standalone_probes_prepared = True
 
 
+def install_driver(page) -> None:
+    """Install the guarded document-side probe driver before navigation."""
+    if getattr(page, "_leaf_render_driver_installed", False):
+        return
+    page.add_init_script(path=DRIVER_SOURCE)
+    page._leaf_render_driver_installed = True
+
+
+def _ensure_driver(page) -> None:
+    """Make the driver available to callers that received an open page."""
+    install_driver(page)
+    if not page.evaluate(_DRIVER_PRESENT):
+        page.evaluate(DRIVER_SOURCE.read_text(encoding="utf-8"))
+
+
 def _load_probes(page, call: dict) -> None:
     """Start the module load and observe its result from a bounded driver wait."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+    _ensure_driver(page)
     page.evaluate(_START_PROBES, call)
     try:
         page.wait_for_function(_PROBES_LOADED, arg=call, timeout=call["timeoutMs"])
@@ -169,6 +151,19 @@ def wait_for_presentation(
     return None
 
 
+def wait_for_theme(page) -> None:
+    """Wait until the authored document's theme stylesheet is readable."""
+    _ensure_driver(page)
+    page.wait_for_function(_THEME_READY)
+
+
+def pre_upgrade_findings(page) -> list[str]:
+    """Read authored structure before the held Leaf entry is released."""
+    _ensure_driver(page)
+    return page.evaluate(_PRE_UPGRADE_FINDINGS)
+
+
 def install_window_errors(page) -> None:
     """Install the pre-navigation error channel shared by the gate and suite."""
+    install_driver(page)
     page.add_init_script(path=WINDOW_ERRORS_SOURCE)

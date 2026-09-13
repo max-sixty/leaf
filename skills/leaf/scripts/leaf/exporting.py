@@ -12,6 +12,7 @@ from urllib.parse import urldefrag, urljoin, urlsplit
 import tinycss2
 import turbohtml
 
+from leaf import render_checks as render_checks_model
 from leaf.event_log import read_events
 from leaf.files import (
     published_versions,
@@ -24,6 +25,7 @@ from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     evaluate_probe,
+    install_driver,
     wait_for_presentation,
     wait_for_probe,
 )
@@ -390,6 +392,28 @@ def interactive_export_page(
     return UTF8_BOM + html[:offset] + runtime_head + html[offset:]
 
 
+def _document_url(page, url: str, selector: str, missing: str) -> str:
+    """Resolve one runtime-owned document URL without waiting on an absent node."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    link = page.locator(selector)
+    href = link.get_attribute("href") if link.count() else None
+    if href is None:
+        raise PlaywrightError(missing)
+    return urljoin(url, href)
+
+
+def _state_url(page, url: str) -> str:
+    """Resolve the state endpoint from the document's canonical page root."""
+    root = _document_url(
+        page,
+        url,
+        'link[rel="canonical"][data-lf-runtime]',
+        "document has no canonical page root",
+    )
+    return urljoin(root, "api/state")
+
+
 def export_page(browser, url: str, page_dir: Path, name: str) -> str:
     """The served document named by `name`, copied as one self-contained file.
 
@@ -417,6 +441,7 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
         )
 
     page = browser.new_page(viewport=RENDER_VIEWPORT)
+    install_driver(page)
     try:
         # See the gate: a page listening for news is never network-idle. The
         # stamps below are the arrival signal, and they are the precise one.
@@ -426,28 +451,40 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
             # Read expectations through the same server the browser is applying. A
             # preview freezes that server at one PageSnapshot; rereading page files
             # here could otherwise wait for state the browser cannot receive.
-            readiness = page.evaluate(
-                """async () => {
-                  const root = document.querySelector(
-                    'link[rel="canonical"][data-lf-runtime]'
-                  );
-                  if (!root) throw new Error('document has no canonical page root');
-                  const response = await fetch(new URL('api/state', root.href));
-                  if (!response.ok)
-                    throw new Error(`state returned ${response.status}`);
-                  const state = await response.json();
-                  return {
-                    pageRoot: root.href,
-                    theme: document.querySelector(
-                      'link[rel="stylesheet"][data-lf-runtime]'
-                    ).href,
-                    dataRevision: state.data.revision,
-                    replayedEvents: state.events.filter(
-                      event => event.kind === 'action' || event.kind === 'report'
-                    ).length,
-                  };
-                }"""
+            response = page.request.get(
+                _state_url(page, url),
+                timeout=render_checks_model.SERVED_TIMEOUT_MS,
             )
+            try:
+                if not response.ok:
+                    raise PlaywrightError(f"state returned {response.status}")
+                try:
+                    state = response.json()
+                except ValueError as error:
+                    raise PlaywrightError("state returned invalid JSON") from error
+                readiness = {
+                    "pageRoot": _document_url(
+                        page,
+                        url,
+                        'link[rel="canonical"][data-lf-runtime]',
+                        "document has no canonical page root",
+                    ),
+                    "theme": _document_url(
+                        page,
+                        url,
+                        'link[rel="stylesheet"][data-lf-runtime]',
+                        "document has no runtime theme",
+                    ),
+                    "dataRevision": state["data"]["revision"],
+                    "replayedEvents": sum(
+                        event["kind"] in ("action", "report")
+                        for event in state["events"]
+                    ),
+                }
+            except (KeyError, TypeError) as error:
+                raise PlaywrightError("state returned an invalid reading") from error
+            finally:
+                response.dispose()
             failed_stage = wait_for_presentation(
                 page, readiness["dataRevision"], readiness["replayedEvents"]
             )
@@ -456,14 +493,8 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
             # A live fragmented widget deliberately keeps unopened payloads out of the
             # DOM. A standalone copy has no fragment door after scripts are removed, so
             # let any renderer that owns such payloads materialize them before baking.
-            page.evaluate(
-                """async () => {
-                  const pending = [...document.querySelectorAll('*')]
-                    .map((element) => element.lfPrepareExport?.())
-                    .filter((result) => result?.then);
-                  await Promise.all(pending);
-                }"""
-            )
+            evaluate_probe(page, "prepareExport")
+            wait_for_probe(page, "exportPrepared")
             # Materializing a live fragment can mount required descendants or overlap a
             # newer semantic publication. Re-read the coordinator immediately before
             # baking rather than treating the initial arrival latch as permanent.
@@ -500,12 +531,15 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                         f"export resource escapes its revision: {resource_url}"
                     )
                 response = page.request.get(resource_url, max_redirects=0)
-                if not response.ok:
-                    raise ValueError(
-                        f"export resource returned {response.status}: {resource_url}"
-                    )
-                mime = response.headers["content-type"].split(";", 1)[0].strip()
-                return Resource(response.body(), mime)
+                try:
+                    if not response.ok:
+                        raise ValueError(
+                            f"export resource returned {response.status}: {resource_url}"
+                        )
+                    mime = response.headers["content-type"].split(";", 1)[0].strip()
+                    return Resource(response.body(), mime)
+                finally:
+                    response.dispose()
 
             return UTF8_BOM + inline_assets(
                 evaluate_probe(page, "bake"),

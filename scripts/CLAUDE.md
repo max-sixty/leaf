@@ -97,6 +97,11 @@ ones you name. Every pinned version sits in one table there, and each bundle lan
 imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 
+`scripts/vendor-src/pierre/` is Pierre's native generator source. Its `shiki-leaf.mjs`
+contains exactly one `/* LEAF_PIERRE_LANGUAGES */` sentinel; `vendor.py` replaces it
+with one `"<name>": () => import("@shikijs/langs/<name>"),` entry for every registry
+language before bundling.
+
 A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
 which holds for `marked`, `sortable`, `beautiful-mermaid`, `floating-ui`, `highlight`,
 and `jsdiff`, so a clean `git status` after a run is the check that the bundle still

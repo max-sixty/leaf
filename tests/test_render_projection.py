@@ -1360,11 +1360,20 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     shot_host.evaluate("node => node.style.removeProperty('height')")
     expect(widget).to_have_attribute("data-compare-layout", "side")
     page.locator("html").evaluate("node => node.classList.add('lf-copy')")
-    copy_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
-        "images => images.map(image => image.getBoundingClientRect().width)"
-    )
+
+    def read_copy_widths():
+        return widget.locator(".lf-vr-case lf-shot img").evaluate_all(
+            "images => images.map(image => image.getBoundingClientRect().width)"
+        )
+
+    copy_widths = read_copy_widths()
     assert len(copy_widths) == 6
     assert copy_widths == pytest.approx([388, 388, 388, 388, 1278, 1278], abs=1)
+    # Entering copy mode resizes the body, so the root fit answers on a later frame and
+    # leaves the unbounded copy in flow posture. The copy is the whole workspace at the
+    # page's width either way: a reader who copies a slower page gets the same evidence.
+    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
+    assert read_copy_widths() == pytest.approx(copy_widths, abs=1)
     assert widget.locator(".lf-vr-case lf-shot img").evaluate_all(
         "images => images.every(image => getComputedStyle(image).transform === 'none')"
     )

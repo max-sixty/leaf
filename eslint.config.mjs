@@ -29,6 +29,7 @@ const browserGlobals = Object.fromEntries(
     "IntersectionObserver",
     "MutationObserver",
     "Node",
+    "NodeFilter",
     "Range",
     "Response",
     "ResizeObserver",
@@ -854,6 +855,14 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
+    files: ["scripts/vendor-src/pierre/*.mjs"],
+    rules: { "no-undef": "error" },
+  },
+  {
+    files: ["scripts/vendor-src/pierre/build.mjs"],
+    languageOptions: { globals: { process: "readonly" } },
+  },
+  {
     // This transport boot entry loads Leaf after installing the MCP fetch bridge.
     // It may boot /leaf.js, but must not reach private runtime owners.
     files: ["scripts/mcp-app/direct-entry.js"],
@@ -886,15 +895,43 @@ export default [
     },
   },
   {
+    files: ["scripts/record-demo-browser.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
+    rules: { "no-undef": "error" },
+  },
+  {
+    files: ["skills/leaf/scripts/leaf/mcp-page-ready.js"],
+    languageOptions: { globals: browserGlobals },
+    rules: { "no-undef": "error" },
+  },
+  {
     files: ["skills/leaf/scripts/leaf/render-checks/*.js"],
+    languageOptions: { globals: browserGlobals },
     rules: {
       ...publicRuntimeBoundary,
+      "no-undef": "error",
       "no-restricted-syntax": [
         "error",
         {
           selector: "ImportExpression",
           message: "Render probes declare every dependency with a static import.",
         },
+      ],
+    },
+  },
+  {
+    // The Playwright driver imports the probe route Python selects at runtime. It is
+    // the loader being tested; every probe behind that route keeps static imports.
+    files: ["skills/leaf/scripts/leaf/render-checks/driver.js"],
+    languageOptions: { sourceType: "script" },
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...publicRuntimeBoundary["no-restricted-syntax"]
+          .slice(1)
+          .filter(
+            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+          ),
       ],
     },
   },

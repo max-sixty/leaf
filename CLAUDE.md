@@ -216,7 +216,7 @@ uv run pytest tests
 ```
 
 `tests/CLAUDE.md` owns environment setup, focused runs, nightly selection, and
-the Linux suite. `wt merge` runs pre-commit and the everyday suite on the rebased
+the Linux authority. `wt merge` runs pre-commit and the everyday suite on the rebased
 tree. Pull requests and main run that gate plus the website-worker checks. Tend
 adds focused tests during review. A daily CI run exercises the complete suite in
 one job.
@@ -252,20 +252,19 @@ Land through a pull request or with `wt merge`, which squash-merges directly to
 `✗ Can't push to local main branch` is a fast-forward failure instead.
 
 A branch lands with a red gate when every failure in it is one the branch did
-not cause. Establish that by running the failing node ids in a worktree at the
-merge base, under the conditions that produced them. That means the same
-platform, and the same selection and parallelism: a case can fail on CI's Linux
-fonts and pass on a Mac, or fail inside the whole suite under the default `-n 2`
-and pass alone under `-n0`. `scripts/linux-suite.sh` supplies that platform in
-its default, emulated mode; its `LEAF_SUITE_NATIVE` build gives up Google Chrome
-for a browser that starts on Apple silicon, so it carries CI's fonts but is not
-the control for a case that drives the installed launcher. A green CI run is not
-that control either, because the queue leaves main's newest completed run
-several commits behind the base. Until the failure reproduces
-there, it is this branch's. Once it does, the branch lands the ordinary way, and
-a red hook takes the `--no-hooks` route above. `lint` is the only required
-check, so a red `test` does not block a merge and this rule is all that gates
-one.
+not cause. Establish that from the failing node ids on the exact merge-base SHA,
+under the same CI job and selection: a case can fail on CI's Linux fonts and pass
+on a Mac, or fail inside the whole suite under the default `-n 2` and pass alone
+under `-n0`. Use the base SHA's GitHub Actions run as the control; a local Docker
+image is not the hosted runner, and an Apple-silicon image must either emulate the
+CPU or give up installed Chrome. A green run several commits behind the base is
+not that control. Main's own push run may be cancelled when the next merge lands,
+and `nightly` does not run on a push. Rerun a cancelled base-SHA run, or push that
+SHA as a branch and dispatch `ci` on it for the nightly selection. Until the
+failure reproduces on the base SHA, treat it as this branch's. Once it does, the
+branch lands the ordinary way, and a red hook takes
+the `--no-hooks` route above. `lint` is the only required check, so a red `test`
+does not block a merge and this rule is all that gates one.
 
 Installed sessions load host caches, not the checkout. After pushing, Claude
 Code updates on its marketplace sweep. The post-merge hook refreshes an installed

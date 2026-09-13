@@ -165,7 +165,11 @@ function conversationThreadNode(
       settlementControl(t, { liveId, ...commands.settlement });
     actions = thread.querySelector(":scope > .lf-thread-head");
     if (!actions) actions = offer("header", "lf-thread-head");
-    actions.append(resolve);
+    // Reconcile rather than append: appending the retained control to the parent it
+    // already sits in still detaches and reinserts it, which drops the reader's focus
+    // to the body. Every repaint of an open card runs this line — a clock tick alone
+    // is enough — so an appended control could not be held long enough to press.
+    setChildren(actions, [resolve]);
     if (t.root.response?.kind !== "version") {
       tail = thread.querySelector(":scope > .lf-say");
       if (!tail) {

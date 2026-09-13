@@ -29,6 +29,7 @@ from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
+RECORD_DEMO_BROWSER = Path(__file__).with_name("record-demo-browser.js")
 DEFAULT_OUTPUT = ROOT / "docs" / "demo.gif"
 GIF_SIZE = (1120, 700)
 # The viewport used for the README's representative stills.
@@ -234,24 +235,7 @@ def wait_for_comment(page_dir: Path) -> str:
 
 def select_text(page: Page, selector: str, text: str) -> None:
     selected = page.evaluate(
-        """([selector, text]) => {
-            const walker = document.createTreeWalker(
-                document.querySelector(selector), NodeFilter.SHOW_TEXT
-            );
-            let node;
-            while ((node = walker.nextNode())) {
-                const at = node.data.indexOf(text);
-                if (at < 0) continue;
-                const range = document.createRange();
-                range.setStart(node, at);
-                range.setEnd(node, at + text.length);
-                const selection = getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-                return selection.toString();
-            }
-            return null;
-        }""",
+        "([selector, text]) => globalThis.__leafRecordDemo.selectText(selector, text)",
         [selector, text],
     )
     if selected != text:
@@ -625,6 +609,7 @@ def main() -> None:
                     reduced_motion="reduce",
                 )
                 page = context.new_page()
+                page.add_init_script(path=RECORD_DEMO_BROWSER)
                 page.goto(url)
                 frames, durations = record(page, waiter, page_dir)
                 # The GIF is written before the stills are shot, so a still that

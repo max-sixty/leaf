@@ -37,6 +37,10 @@ export function setChildren(parent, nodes, remove = detach) {
      documents, which is the only place either element's authored markup still exists.
    - `share(element)`: the attributes of this element that belong to the page. What the
      runtime writes onto an authored element is not the revision's to retire.
+   - `adopt(element)`: read this source element before it joins the live tree. Joining is
+     what hands a widget's children to a controller, so whatever has to be read off the
+     markup a widget was written as has to be read here. It is called for the nodes that
+     arrive and for nothing else, because a node that stays has already been read.
 
    Matching is by id first and by position second, and a positional match needs the same
    node type, the same tag, and no id on either side: an element the source names is that
@@ -76,6 +80,7 @@ function patchChildren(live, source, rules) {
   for (const node of wanted) {
     const match = matches.get(node);
     if (!match) {
+      if (node.nodeType === Node.ELEMENT_NODE) rules.adopt(node);
       placed.push(node);
       continue;
     }
@@ -92,6 +97,7 @@ function patchChildren(live, source, rules) {
       // A widget renders from its own authored markup, so a changed one cannot be
       // corrected from outside. It leaves, and its replacement arrives as a new element.
       match.remove();
+      rules.adopt(node);
       placed.push(node);
     }
   }

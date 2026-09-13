@@ -651,7 +651,13 @@ export function createSemanticApplication({
       publish({ data: structuredClone(data) });
       return true;
     },
-    adopt(state: AuthoritativeState) {
+    // `revision` is the revision a live activation has just installed into this
+    // document, and adopting the answer that named it is where it becomes current.
+    // The two are one reading: published apart, every widget renders once against a
+    // state holding no view of the revision the document now shows — an empty
+    // projection, indistinguishable for many widgets from their authored condition,
+    // so the second publication changes nothing and never reaches them.
+    adopt(state: AuthoritativeState, revision: number | null = null) {
       const prior = publisher.read();
       if (
         prior.authoritative &&
@@ -661,12 +667,10 @@ export function createSemanticApplication({
           state.active.revision < prior.authoritative.active.revision)
       )
         return false;
-      if (!state.browser.views[String(prior.document.revision)]) return false;
-      const basis = state.browser.views[String(prior.document.revision)]!.basis;
-      if (
-        basis.revision !== prior.document.revision ||
-        basis.through_seq !== state.browser.basis.through_seq
-      )
+      const shown = revision ?? prior.document.revision;
+      if (!state.browser.views[String(shown)]) return false;
+      const basis = state.browser.views[String(shown)]!.basis;
+      if (basis.revision !== shown || basis.through_seq !== state.browser.basis.through_seq)
         throw new TypeError("state browser has no matching revision view");
       const authoritative = structuredClone(state);
       const unresolved = prior.unresolved.map((item) => {
@@ -675,7 +679,15 @@ export function createSemanticApplication({
         );
         return receipt ? { ...item, readEvent: receipt } : item;
       });
-      publish({ authoritative, unresolved, phase: "ready" });
+      publish({
+        document:
+          shown === prior.document.revision
+            ? prior.document
+            : { ...prior.document, revision: shown },
+        authoritative,
+        unresolved,
+        phase: "ready",
+      });
       return true;
     },
     enqueue(event: Event, timestamp: string) {

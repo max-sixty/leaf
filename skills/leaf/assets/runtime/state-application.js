@@ -104,14 +104,14 @@ export function createStateApplication({
         await notifyChangedData();
         return;
       }
-      // Live activation navigates into a fresh document and never returns to install
-      // this candidate in the old realm. Pending deferral is rechecked by activates.
-      if (activation?.activates()) await activation.install();
-      if (!state.browser.views[String(runtime.currentRevision)]) {
-        await notifyChangedData();
-        return;
-      }
-      if (!applicationState.adopt(state)) {
+      // Pending deferral is rechecked by activates. A reload never returns to install
+      // this candidate in the old realm; a patch returns the revision it installed, and
+      // adoption is where that revision becomes current, so the document and the state
+      // that speaks for it reach the page in one reading. Adoption also answers for the
+      // view: a state holding none for the revision shown is one this document cannot
+      // apply, whichever revision that is.
+      const installed = activation?.activates() ? await activation.install() : null;
+      if (!applicationState.adopt(state, installed)) {
         await notifyChangedData();
         return;
       }

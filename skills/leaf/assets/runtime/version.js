@@ -1407,15 +1407,15 @@ export function createVersionController({
     const rewritten = rewrittenWidgets(authoredSource, source);
     forgetAuthoredOwners(rewritten);
     forgetWidgetDescriptors(rewritten);
-    // Steps 5 and 6 of the startup order, taken on an inert copy: a widget's declaration
-    // is read from its authored markup, and connecting it is what hands those children
-    // to a controller. The patch below moves these very nodes into the page, so what is
-    // read here is read about the nodes that end up in it — but the references they
-    // capture are resolved inside the `main` they are joining, not inside this copy.
+    // Step 5 of the startup order, on an inert copy of the whole arriving revision. The
+    // patch below moves these very nodes into the page, so what is read here is read
+    // about the nodes that end up in it, and read while they are still the markup their
+    // author wrote — connecting a widget is what hands its children to a controller.
+    // Whole, because a preserving owner's identity is its place in the document's order
+    // of them, which only the whole document states.
     const arriving = document.importNode(source, true);
     rememberPassageParts(arriving);
     rememberAuthoredParents(arriving);
-    captureWidgetDescriptors(arriving, undefined, live);
     markDeclared(arriving, MARKED_IN_PAGE);
     revisionDocuments.delete(target.revision);
 
@@ -1438,6 +1438,11 @@ export function createVersionController({
           declared: upgraded,
           unchanged: (element) => Boolean(element.id) && !rewritten.has(element.id),
           share: authoredAttributes,
+          // Only what arrives. A widget the reader keeps keeps the descriptor taken
+          // from the markup it was written as, and a second reading of the same id
+          // would publish one this revision's number the controller's copy does not
+          // carry — which is the widget's own actions going unavailable under it.
+          adopt: (element) => captureWidgetDescriptors(element, undefined, live),
         });
         pruneScopedElements();
       },
@@ -1452,11 +1457,17 @@ export function createVersionController({
     // is the case this answers.
     restoreStanding(standing);
     if (comparedFrom !== null) showComparison(comparedFrom);
-    // Last, and with nothing awaited after it: naming the revision publishes a reading
-    // whose server view this document has not adopted yet. State application adopts the
-    // answer that brought the revision on its next statement, before the browser can
-    // paint anything from the pair standing apart.
-    applicationState.identify(target.revision, null, LIVE_ROOT);
+    // The same words the fresh document says on arrival. The page changing under a
+    // reader is the thing announced, and which install carried it is not their business.
+    // Named from the descriptor rather than the current label, which still reads the
+    // revision this document is a statement away from leaving.
+    notice(`Updated to ${target.label}`, { background: true });
+    // The revision this document now shows, for state application to adopt with the
+    // answer that named it. The two are one reading: the document's revision published
+    // ahead of a state holding a view of it renders every widget once against no
+    // projection at all, which for many is their authored condition, so the adoption
+    // behind it changes nothing and never reaches them.
+    return target.revision;
   }
 
   // The move a state asks of the live root, prepared ahead of the commit that makes it.

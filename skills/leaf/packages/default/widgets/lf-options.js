@@ -666,16 +666,8 @@ customElements.define(
 
     #present = (reading) => {
       this.reading = reading;
-      const state = reading.state;
-      // Authored facets are captured after upgrade because widgets may arrange their
-      // source nodes while connecting. Until that typed facet publishes, state has no
-      // selection at all; preserve the authored initial condition. A reading that does
-      // carry a selection is always authoritative, including accepted replay.
-      const detail = state.selection?.detail ?? this.#authoredChoice();
-      for (const option of this.#addition.reconcile(detail.additions ?? {}, this.#done))
-        this.#control(option, this.#choosable);
-      this.#syncChoice(detail);
       this.#refreshAvailability();
+      const state = reading.state;
       const stateKey = JSON.stringify([
         state.selection?.detail ?? null,
         state.completion?.value ?? null,
@@ -685,6 +677,17 @@ customElements.define(
         document.dispatchEvent(new CustomEvent("lf-answered"));
       }
     };
+
+    renderState(state) {
+      // Authored facets are captured after upgrade because widgets may arrange their
+      // source nodes while connecting. Until that typed facet publishes, state has no
+      // selection at all; preserve the authored initial condition. A reading that does
+      // carry a selection is always authoritative, including accepted replay.
+      const detail = state.selection?.detail ?? this.#authoredChoice();
+      for (const option of this.#addition.reconcile(detail.additions ?? {}, this.#done))
+        this.#control(option, this.#choosable);
+      this.#syncChoice(detail);
+    }
 
     async getUpdateComplete() {
       const complete = await super.getUpdateComplete();

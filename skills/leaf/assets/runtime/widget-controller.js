@@ -20,6 +20,10 @@ import { failSoft } from "./widget-upgrade.js";
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
 let lifecycleObserver = null;
+const ancestorRefreshes = new Set();
+let ancestorRefreshQueued = false;
+let orderedRenders = new Map();
+let orderedRenderQueued = false;
 
 const { registry } = runtime;
 
@@ -38,6 +42,59 @@ const visitElements = (node, visit) => {
   visit(node);
   for (const child of node.querySelectorAll("*")) visit(child);
 };
+
+function refreshAncestorControllers(owner) {
+  for (
+    let ancestor = owner.parentElement;
+    ancestor;
+    ancestor = ancestor.parentElement
+  ) {
+    const lifecycle = lifecycles.get(ancestor);
+    if (lifecycle) {
+      ancestorRefreshes.add(lifecycle);
+    }
+  }
+  if (!ancestorRefreshes.size || ancestorRefreshQueued) return;
+  ancestorRefreshQueued = true;
+  queueMicrotask(() => {
+    ancestorRefreshQueued = false;
+    const pending = [...ancestorRefreshes];
+    ancestorRefreshes.clear();
+    for (const lifecycle of pending) lifecycle.refresh();
+  });
+}
+
+function queueOrderedRender(id, reading, handle, render) {
+  let release;
+  const completion = new Promise((resolve) => {
+    release = resolve;
+  });
+  void handle.present(reading, completion);
+  const previous = orderedRenders.get(id);
+  orderedRenders.set(id, { render, release });
+  // The replacement hold is already installed, so the superseded publication cannot
+  // briefly look presented between two semantic readings in this rendering turn.
+  previous?.release();
+  if (orderedRenderQueued) return;
+  orderedRenderQueued = true;
+  queueMicrotask(() => {
+    orderedRenderQueued = false;
+    const pending = orderedRenders;
+    orderedRenders = new Map();
+    const order = applicationState.read().effective.widgets.keys();
+    for (const id of order) {
+      const queued = pending.get(id);
+      if (!queued) continue;
+      pending.delete(id);
+      queued.render();
+      queued.release();
+    }
+    for (const queued of pending.values()) {
+      queued.render();
+      queued.release();
+    }
+  });
+}
 
 function watchLifetime(owner, lifecycle) {
   lifecycles.set(owner, lifecycle);
@@ -162,6 +219,11 @@ function createWidgetController(owner) {
       Object.values(descriptor.declaration[channel] ?? {}).map(({ facet }) => facet),
     ),
   );
+  const orderedPosition = ["x-state", "x-report"].some((channel) =>
+    Object.values(descriptor.declaration[channel] ?? {}).some(
+      (spec) => spec.unit === "widget" && spec.record?.kind === "position",
+    ),
+  );
   const subscriptions = new Set();
   let deferred = false;
   let deferredReading = null;
@@ -173,6 +235,7 @@ function createWidgetController(owner) {
   let preparationHandle = null;
   let preparation = null;
   let preparationBatch = null;
+  let connectedParent = null;
 
   const read = () =>
     descriptorStillMatches(owner, descriptor)
@@ -249,6 +312,25 @@ function createWidgetController(owner) {
     }
   };
 
+  const scheduleRender = (reading, callbacks) => {
+    if (!orderedPosition) {
+      presentRender(reading, callbacks);
+      return;
+    }
+    const handle = render();
+    if (!handle) {
+      presentRender(reading, callbacks);
+      return;
+    }
+    queueOrderedRender(descriptor.id, reading, handle, () => {
+      if (owner.isConnected && stopSelection)
+        presentRender(
+          reading,
+          callbacks.filter((callback) => subscriptions.has(callback)),
+        );
+    });
+  };
+
   const holdRender = (reading) => {
     deferredReading = reading;
     const handle = render();
@@ -271,14 +353,22 @@ function createWidgetController(owner) {
       holdRender(reading);
       return;
     }
-    presentRender(reading, [...subscriptions]);
+    scheduleRender(reading, [...subscriptions]);
   };
 
   const connect = () => {
     if (!owner.isConnected) return;
     if (subscriptions.size && !stopSelection) {
+      const parentChanged = connectedParent !== owner.parentElement;
+      connectedParent = owner.parentElement;
       render();
       stopSelection = selected.subscribe(publish);
+      // A data renderer may remount a nested widget without changing its semantic
+      // reading. Its own controller restores its facets; a parent controller may own
+      // its placement, so refresh each mounted ancestor once for the new parent. The
+      // remembered parent prevents the parent's corrective reparenting from looping.
+      if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
+        refreshAncestorControllers(owner);
       // A controller can first appear when conversation presentation mounts frozen
       // markup after the global projection pass. Re-run coordinate/provenance work now
       // that this owner and its units exist; state application coalesces the request.
@@ -304,7 +394,14 @@ function createWidgetController(owner) {
     renderedStatus = null;
   };
 
-  watchLifetime(owner, { connect, disconnect });
+  const refresh = () => {
+    if (!owner.isConnected || !stopSelection) return;
+    renderedReading = null;
+    renderedStatus = null;
+    publish();
+  };
+
+  watchLifetime(owner, { connect, disconnect, refresh });
 
   return Object.freeze({
     read,
@@ -313,7 +410,7 @@ function createWidgetController(owner) {
         throw new TypeError("A widget subscription needs a callback");
       subscriptions.add(callback);
       if (!stopSelection) connect();
-      else presentRender(read(), [callback]);
+      else scheduleRender(read(), [callback]);
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {
@@ -391,7 +488,7 @@ function createWidgetController(owner) {
         const hold = deferredHold;
         deferredReading = null;
         deferredHold = null;
-        if (subscriptions.size) presentRender(latest, [...subscriptions]);
+        if (subscriptions.size) scheduleRender(latest, [...subscriptions]);
         hold?.release();
         invalidateDom();
         return latest;
@@ -424,7 +521,19 @@ function createWidgetController(owner) {
 export function widgetController(owner) {
   let controller = controllers.get(owner);
   if (!controller) {
-    controller = createWidgetController(owner);
+    // A custom element constructed with document.createElement receives its authored
+    // id only after its constructor and field initializers run. Resolve the descriptor
+    // on first use, which is normally connectedCallback, so a data renderer can build
+    // a replacement with the same revision-bound identity as the authored node.
+    let implementation = null;
+    const resolve = () => (implementation ??= createWidgetController(owner));
+    controller = Object.freeze(
+      Object.fromEntries(
+        ["read", "subscribe", "dispatch", "reference", "defer", "present"].map(
+          (method) => [method, (...args) => resolve()[method](...args)],
+        ),
+      ),
+    );
     controllers.set(owner, controller);
   }
   return controller;

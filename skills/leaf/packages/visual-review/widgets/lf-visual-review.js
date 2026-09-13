@@ -601,6 +601,7 @@ customElements.define(
     }
 
     #show(snapshot) {
+      const resume = this.#controller.defer();
       try {
         this.#snapshot = snapshot;
         this.#run = snapshot?.value ?? null;
@@ -623,10 +624,11 @@ customElements.define(
           this.#selected = fallback?.id ?? ids[0];
         this.#select(this.#selected);
         this.#paintInspector();
-        this.#renderStandingState();
         this.#controller.present(this.#fitting?.update());
       } catch (error) {
         failSoft(this, error);
+      } finally {
+        resume();
       }
     }
 
@@ -920,18 +922,12 @@ customElements.define(
 
     async #review(id, disposition) {
       if (!this.#controller.read().actions.review.available) return;
-      this.#setDisposition(id, disposition);
       const accepted = await this.#controller.dispatch({
         kind: "action",
         verb: "review",
         detail: { case: id, disposition },
       })?.delivery;
       if (accepted) notice(`${DISPOSITION[disposition]} — sent`);
-      else this.#renderStandingState();
-    }
-
-    #renderStandingState() {
-      this.renderState(this.#controller.read().state);
     }
 
     #setDisposition(id, disposition) {

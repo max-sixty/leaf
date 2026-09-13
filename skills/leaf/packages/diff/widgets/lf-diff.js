@@ -648,28 +648,32 @@ customElements.define(
           filtered: false,
         }));
         if (bound) for (const { node } of entries) node.dataset.lfGen = "1";
-        this.fileEntries = entries;
-        this.diffTools = diffTools(this, this.reviewing());
-        for (const entry of entries)
-          this.attachEntryControls(entry, { commentable: bound });
-        this.refreshReviewedState();
-        this.replaceChildren();
-        shadowStage(this, [
-          ...sharedStyles.values(),
-          this.diffTools.node,
-          ...entries.map(({ node }) => node),
-        ]);
-        if (bound)
-          projectData(
-            this,
-            entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
-            datumKey,
-            ({ node }) => node,
-            { nested: true, labelOf: datumLabel, snapshot },
-          );
-        this.paintHeadRoom();
-        this.watchHeadRoom();
-        this.classList.add("lf-rendered");
+        const resume = this.controller.defer();
+        try {
+          this.fileEntries = entries;
+          this.diffTools = diffTools(this, this.reviewing());
+          for (const entry of entries)
+            this.attachEntryControls(entry, { commentable: bound });
+          this.replaceChildren();
+          shadowStage(this, [
+            ...sharedStyles.values(),
+            this.diffTools.node,
+            ...entries.map(({ node }) => node),
+          ]);
+          if (bound)
+            projectData(
+              this,
+              entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
+              datumKey,
+              ({ node }) => node,
+              { nested: true, labelOf: datumLabel, snapshot },
+            );
+          this.paintHeadRoom();
+          this.watchHeadRoom();
+          this.classList.add("lf-rendered");
+        } finally {
+          resume();
+        }
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
         this.manifestEntries = null;
@@ -751,20 +755,24 @@ customElements.define(
       }
       if (rendering !== this.rendering || !this.isConnected) return;
       for (const { node } of entries) node.dataset.lfGen = "1";
-      this.manifestEntries = entries;
-      this.manifestSnapshot = snapshot;
-      this.fileEntries = entries;
-      this.sharedStyles = new Map();
-      this.diffTools = diffTools(this, this.reviewing());
-      for (const entry of entries)
-        this.attachEntryControls(entry, { commentable: true });
-      this.refreshReviewedState();
-      this.replaceChildren();
-      this.stageManifest();
-      this.projectManifest();
-      this.paintHeadRoom();
-      this.watchHeadRoom();
-      this.classList.add("lf-rendered");
+      const resume = this.controller.defer();
+      try {
+        this.manifestEntries = entries;
+        this.manifestSnapshot = snapshot;
+        this.fileEntries = entries;
+        this.sharedStyles = new Map();
+        this.diffTools = diffTools(this, this.reviewing());
+        for (const entry of entries)
+          this.attachEntryControls(entry, { commentable: true });
+        this.replaceChildren();
+        this.stageManifest();
+        this.projectManifest();
+        this.paintHeadRoom();
+        this.watchHeadRoom();
+        this.classList.add("lf-rendered");
+      } finally {
+        resume();
+      }
       if (open)
         await Promise.all(entries.map((entry) => this.loadManifestEntry(entry)));
     }
@@ -1092,7 +1100,6 @@ customElements.define(
       if (!this.reviewing()) return;
       entry.review = reviewButton(entry, (target, reviewed) => {
         if (!this.controller.read().actions.review.available) return;
-        this.setReviewed(target, reviewed);
         const sent = this.controller.dispatch({
           kind: "action",
           verb: "review",
@@ -1103,7 +1110,6 @@ customElements.define(
             notice(
               `${reviewed ? "Reviewed" : "Reopened"} ${target.record.path} — sent`,
             );
-          else this.refreshReviewedState();
         });
       });
       entry.node.querySelector(":scope > .lf-diff-file-actions").append(entry.review);
@@ -1174,10 +1180,6 @@ customElements.define(
         says: reviewed,
       });
       if (repaint) this.refreshDiffTools();
-    }
-
-    refreshReviewedState() {
-      this.renderState(this.controller.read().state);
     }
 
     present(promise) {

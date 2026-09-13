@@ -3,7 +3,9 @@
    A controller receives no caller-supplied declaration or scope. Leaf records the
    authored owner, its declared ancestors, exhibit fence, and direct request offers
    while the revision's markup is still intact. Later physical reparenting is layout;
-   semantic commands keep using this captured document coordinate. */
+   semantic commands keep using this captured document coordinate. A data renderer may
+   replace a widget node while preserving its authored id; that replacement reuses the
+   same revision-bound descriptor and target boundary. */
 import { runtime } from "./context.js";
 import { applicationState } from "./semantic-state.js";
 import { authoredParents } from "./projection/authored.js";
@@ -15,6 +17,8 @@ import {
 
 const byElement = new WeakMap();
 const referenceBoundaryByElement = new WeakMap();
+const byId = new Map();
+const referenceBoundaryById = new Map();
 
 const declaredTags = () =>
   Object.keys(runtime.registry).filter((tag) => !tag.startsWith("$"));
@@ -95,12 +99,22 @@ export function captureWidgetDescriptors(
     };
     byElement.set(element, descriptor);
     referenceBoundaryByElement.set(element, referenceBoundary);
+    byId.set(element.id, descriptor);
+    referenceBoundaryById.set(element.id, referenceBoundary);
     captured.set(element.id, descriptor);
   }
   if (captured.size) applicationState.captureDescriptors(captured);
 }
 
-export const widgetDescriptor = (owner) => byElement.get(owner) ?? null;
+export function widgetDescriptor(owner) {
+  const captured = byElement.get(owner);
+  if (captured) return captured;
+  const replacement = byId.get(owner.id);
+  if (!replacement || !descriptorStillMatches(owner, replacement)) return null;
+  byElement.set(owner, replacement);
+  referenceBoundaryByElement.set(owner, referenceBoundaryById.get(owner.id));
+  return replacement;
+}
 
 export function captureWidgetReference(owner, target) {
   const boundary = referenceBoundaryByElement.get(owner);

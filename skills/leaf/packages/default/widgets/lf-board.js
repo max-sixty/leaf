@@ -335,6 +335,7 @@ customElements.define(
           if (!this.#available()) return;
           const from = card.parentElement;
           if (from === column) return;
+          this.#beginGesture();
           this.#place(
             card,
             column,
@@ -482,13 +483,11 @@ customElements.define(
           index: this.#cards(to).indexOf(card),
         },
       });
-      // A pointer drag can outlive the reading that enabled it. If admission has
-      // already closed by drop time, there is no optimistic publication to repaint
-      // the board, so put the moved native node back from the controller's current
-      // semantic state immediately.
+      // A gesture can outlive the reading that enabled it. If admission has already
+      // closed by commit time, resuming the deferred controller repaints the moved
+      // native node from current semantic state immediately.
       if (!sent) {
-        if (this.#resumeProjection) this.#finishGesture();
-        else this.renderState(this.#controller.read().state);
+        this.#finishGesture();
         return;
       }
       this.#finishGesture();

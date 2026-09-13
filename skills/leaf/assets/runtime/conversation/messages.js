@@ -132,13 +132,13 @@ function buildMsgBody(m) {
 // other message keys by its server-minted id.
 const bodyKey = (m) => m.attempt ?? m.id;
 
-// What a cached body was painted from: the prose revision, and whether the renderer had
-// arrived. A message the reader sends paints in their gesture, and the lazy Markdown
-// import it needs may still be in the wire — so the first painting can be escaped
+// What a cached body was painted from: the event and prose revisions, and whether the
+// renderer had arrived. A message the reader sends paints in their gesture, and the
+// lazy Markdown import it needs may still be in the wire — so the first painting can be escaped
 // source, which is the right thing to show and the wrong thing to keep. Reading the
 // renderer's state into the key gives those words their Markdown on the next render.
 const bodyRevision = (m) =>
-  `${m.edited?.id ?? ""}:${m.stream_state ? m.text : ""}:${markdownReady() ? "md" : "raw"}`;
+  `${m.id}:${m.edited?.id ?? ""}:${m.stream_state ? m.text : ""}:${markdownReady() ? "md" : "raw"}`;
 
 // The node already standing for this message, found by its id or, while the log is still
 // answering, by that same attempt.
@@ -232,8 +232,8 @@ export function msgNode(m) {
   const when = el("time", "", ago(m.ts));
   when.dateTime = m.ts;
   head.append(el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"), when);
+  if (m.suggestion) head.append(el("span", "lf-suggest-label", "Suggestion"));
   div.append(head);
-  if (m.suggestion) div.append(el("div", "lf-suggest-label", "suggested replacement"));
   div.append(msgBody(m));
   syncEdited(head, m);
   syncStreamState(div, head, m);

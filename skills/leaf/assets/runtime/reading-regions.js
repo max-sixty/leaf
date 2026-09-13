@@ -124,6 +124,20 @@ export const readingRegionFor = (node) => {
   return region && regionRecord(region);
 };
 
+// The deepest region whose body actually contains this node. A region's host includes
+// its frame furniture so focus there can still select the region for reading commands;
+// geometry that must contain the node itself instead walks outward to the body it lives
+// in. Keep that containment walk shared with scrollerFor so placement and travel cannot
+// disagree about which reading box holds a control.
+export const containingReadingRegionFor = (node) => {
+  let region = readingRegionFor(node);
+  while (region) {
+    if (containsAcross(region.body, node)) return region;
+    region = readingRegionFor(region.host.parentElement);
+  }
+  return undefined;
+};
+
 const asRegion = (regionOrNode) =>
   typeof regionOrNode === "string"
     ? regions.get(regionOrNode)
@@ -154,12 +168,8 @@ export function effectiveScroller(regionOrNode) {
 // by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
 // that never comes.
 export const scrollerFor = (el) => {
-  let region = readingRegionFor(el);
-  while (region) {
-    if (containsAcross(region.body, el)) return effectiveScroller(region);
-    region = readingRegionFor(region.host.parentElement);
-  }
-  return pageScroller;
+  const region = containingReadingRegionFor(el);
+  return region ? effectiveScroller(region) : pageScroller;
 };
 
 export function shownRegionBounds(regionOrNode) {
@@ -183,6 +193,39 @@ export function watchReadingRegionTransitions(listener) {
 const notify = (detail) => {
   for (const listener of transitionWatchers) listener(detail);
 };
+
+const arrangementHandles = new WeakMap();
+
+export function readReadingArrangementAt(handle, posture, reader) {
+  const readingArrangement = arrangementHandles.get(handle);
+  if (!readingArrangement)
+    throw new Error("leaf: a posture reading needs a live reading arrangement");
+  if (!["bounded", "flow"].includes(posture))
+    throw new Error(`leaf: unknown reading posture ${String(posture)}`);
+  if (typeof reader !== "function")
+    throw new Error("leaf: a posture reading needs a reader");
+  const { owner, content } = readingArrangement;
+  const previous = {
+    posture: readingArrangement.posture,
+    owner: owner.getAttribute("data-lf-reading-posture"),
+    content: content.getAttribute("data-lf-reading-posture"),
+  };
+  readingArrangement.posture = posture;
+  owner.dataset.lfReadingPosture = posture;
+  content.dataset.lfReadingPosture = posture;
+  try {
+    return reader();
+  } finally {
+    readingArrangement.posture = previous.posture;
+    for (const [element, value] of [
+      [owner, previous.owner],
+      [content, previous.content],
+    ]) {
+      if (value === null) element.removeAttribute("data-lf-reading-posture");
+      else element.setAttribute("data-lf-reading-posture", value);
+    }
+  }
+}
 
 export function registerReadingArrangement({ owner, content, regions: declared = [] }) {
   if (!owner || !content)
@@ -208,7 +251,7 @@ export function registerReadingArrangement({ owner, content, regions: declared =
       .filter((region) => live(region) && containsAcross(owner, region.host))
       .map(regionRecord);
 
-  return {
+  const handle = {
     async setReadingPosture(posture) {
       if (!["bounded", "flow"].includes(posture))
         throw new Error(`leaf: unknown reading posture ${String(posture)}`);
@@ -227,10 +270,13 @@ export function registerReadingArrangement({ owner, content, regions: declared =
     },
     cleanup() {
       readingArrangement.generation += 1;
+      arrangementHandles.delete(handle);
       readingArrangements.delete(readingArrangement);
       for (const cleanup of cleanups) cleanup();
       owner.removeAttribute("data-lf-reading-posture");
       content.removeAttribute("data-lf-reading-posture");
     },
   };
+  arrangementHandles.set(handle, readingArrangement);
+  return handle;
 }

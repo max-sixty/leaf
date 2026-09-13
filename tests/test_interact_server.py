@@ -23,6 +23,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
+    PAGE_PACKAGES,
     ROOT,
     TOKEN,
     append_command,
@@ -60,6 +61,7 @@ from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import service as served_service
+from page_fixtures import package_selection_args
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
@@ -2777,7 +2779,17 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
         "customElements.define('lf-local-draft', class extends HTMLElement {});"
     )
     assert (
-        CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
+        CliRunner()
+        .invoke(
+            cli_model.cli,
+            [
+                "page",
+                "init",
+                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                str(page_dir),
+            ],
+        )
+        .exit_code
         == 0
     )
     source = page_dir / "index.html"
@@ -2805,7 +2817,17 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
     (overlay / "registry.json").unlink()
     (overlay / "widgets" / "lf-local-draft.js").unlink()
     assert (
-        CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
+        CliRunner()
+        .invoke(
+            cli_model.cli,
+            [
+                "page",
+                "init",
+                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                str(page_dir),
+            ],
+        )
+        .exit_code
         == 0
     )
 
@@ -3284,6 +3306,32 @@ def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir, monke
         else:
             server.close()
     assert not closer.is_alive()
+
+
+def test_temporary_server_answers_a_connection_opened_before_its_request(page_dir):
+    """A connection that waits before speaking is a browser preconnecting, not a
+    socket that will never speak.
+
+    The close above used to be bounded by a one-second read deadline every connection
+    carried, which cannot tell those two apart. Chromium opens sockets ahead of need
+    and writes real requests onto them later, and a request written onto a connection
+    the server had already closed is dropped with no response, no console entry and no
+    error: in a page that reads as a subresource which never arrives and a load event
+    which never fires.
+    """
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    client = socket.create_connection(("127.0.0.1", server.port))
+    try:
+        # Longer than any per-connection read deadline of the order the close was
+        # once bounded by, so a server still carrying one has closed this already.
+        time.sleep(2)
+        client.sendall(f"GET /?t={TOKEN} HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n".encode())
+        client.settimeout(5)
+        answer = client.recv(15)
+    finally:
+        client.close()
+        server.close()
+    assert answer.startswith(b"HTTP/1.0 200"), answer
 
 
 def test_server_can_restart_after_prompt_shutdown(page_dir):
@@ -4671,7 +4719,12 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert state.exit_code == 0, state.output
     closed_reading = json.loads(state.output)
     [thread] = closed_reading["conversations"]
-    assert thread == {"id": "c-lost", "anchor": None, "resolved": "user"}
+    assert thread == {
+        "id": "c-lost",
+        "anchor": None,
+        "detached_from": None,
+        "resolved": "user",
+    }
     assert closed_reading["asks"] == []
     assert [
         element["id"]

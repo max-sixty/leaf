@@ -57,13 +57,17 @@ one.
 
 ## Delivery and acknowledgement
 
+Run `leaf delivery claim <delivery-id>` before processing the envelope. It marks the
+first exact delivered move that remains outstanding as Active and changes nothing for
+a settled retry.
+
 Printing is not receipt. The wait owner acknowledges only after the complete
 batch reaches its next durable consumer. In the direct loop that consumer is
 model context: direct delivery records the included events as opened in this turn.
 Start `leaf ack <page> <through_seq>` as the next background task for the page the
-batch names, and address every event while ack waits for the next batch. Set
-the page `working` when a useful detail describes continuing work; use `--on` when
-that detail belongs to one conversation or widget. If wait output is truncated or lost,
+batch names, and address every event while ack waits for the next batch. Use
+`delivery claim --event ... --detail ...` to move the Active receipt to another
+delivered event or make its detail more specific. If wait output is truncated or lost,
 acknowledge nothing and rerun with enough output capacity for the whole batch;
 a scalar cursor cannot represent a missing event in the middle. Acknowledgement
 is monotonic and idempotent; an event posted between wait and ack has a higher
@@ -71,9 +75,8 @@ sequence and stays pending. Until ack, wait repeats the batch. `leaf events`
 reads the full log without acking it.
 
 In Codex the detached adapter owns wait and acknowledgement; `host-codex.md`
-owns that route. Whatever the host, treat a page-and-sequence pair already
-handled in this task as a retry, even if a later delivery also includes newer
-events.
+owns that route. Whatever the host, treat a page-and-sequence pair already handled in
+this task as a retry, even if a later delivery also includes newer events.
 
 An embedded MCP App changes where the page is drawn, not this carrier. Its
 events enter the same log, and a successful `ui/message` response is not a
@@ -81,12 +84,15 @@ delivery receipt.
 
 ## After the batch
 
-Acknowledgement is transport receipt, not semantic settlement. A native assistant
-final message is neither. Record every still-current obligation with the explicit
-Leaf operation its `response` names, then re-enter the host's wait loop: `waiting`
-after every obligation has been answered and the reader owns the next move,
-`working` while you continue. A premature `waiting` declaration cannot override
-an opened, unsettled interaction in canonical activity.
+Acknowledgement is transport receipt, not semantic settlement. Record every
+still-current obligation with the Leaf operation its `response` names, then
+re-enter the host's wait loop: `waiting` after every obligation has been answered
+and the reader owns the next move, `working` while you continue. For a directly
+started App Server turn with exactly one plain reply, `host-codex.md` makes the normal
+assistant final message that operation. A queued Codex pointer uses the explicit
+operation because its durable local delivery may have no App Server binding. A
+premature `waiting` declaration cannot override an opened, unsettled interaction in
+canonical activity.
 `page state` lists every standing reaction under `reactions`; a package-supplied
 `means` appears when present. Resolve a page reaction once the live revision has
 acted on it.

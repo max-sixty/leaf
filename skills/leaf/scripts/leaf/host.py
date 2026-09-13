@@ -138,11 +138,6 @@ def process_argv(pid: int) -> list[str] | None:
     return [word.decode("utf-8", "replace") for word in raw.split(b"\0") if word]
 
 
-def config_home() -> Path:
-    """$XDG_CONFIG_HOME/leaf (~/.config/leaf/) — the user's implicit package."""
-    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "leaf"
-
-
 def state_home() -> Path:
     """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
     directories by convention, claims/ the last claimant of every known page,
@@ -169,8 +164,7 @@ def package_store() -> Path:
     """~/.local/state/leaf/packages/ — where `package install` puts a package so
     that `--package NAME` reaches it.
 
-    Not the install tree, which a plugin update replaces wholesale, and not
-    ~/.config/leaf, which is one package rather than a directory of them."""
+    This store survives plugin updates that replace the install tree."""
     return state_home() / "packages"
 
 

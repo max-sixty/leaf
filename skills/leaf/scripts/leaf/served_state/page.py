@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from ..acknowledgments import canonical_acknowledgments
-from ..activity import canonical_activity
+from ..activity import canonical_activity, canonical_stream_reply
 from ..data import browser_data
 from ..event_log import now_iso
 from ..events import build_threads
@@ -43,7 +43,11 @@ def project_activity(
         events=events,
     )
     return canonical_activity(
-        present, evidence, now, (live_stream or {}).get("activity")
+        present,
+        evidence,
+        now,
+        (live_stream or {}).get("activity"),
+        canonical_stream_reply(present, now, (live_stream or {}).get("reply")),
     )
 
 

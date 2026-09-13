@@ -11,6 +11,7 @@ from leaf import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (
     BOARD_PAGE,
+    EXAMPLE_PACKAGES,
     HOLD_MOTION,
     INLINE_PAGE,
     LONG_PAGE,
@@ -103,7 +104,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    threads = page.locator(".lf-threads > .lf-thread")
+    threads = page.locator(".lf-threads > .lf-thread:not([hidden])")
     threads.nth(0).locator(".lf-resolve").click()
     round_trip(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
@@ -944,7 +945,9 @@ customElements.define("lf-outer-board", class extends HTMLElement {
   </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
 </lf-outer-board>""",
     )
-    page, errors = open_page(browser, serve(nested))
+    page, errors = open_page(
+        browser, serve(nested, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     page.route("**/api/state*", refuse)
     held = []
     page.route("**/api/event", lambda route: held.append(route))

@@ -21,6 +21,7 @@ from render_support import (
     ASK_WITH_CONTEXT_PAGE,
     CARRIED_PAGE,
     CHIP_PAGE,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     EXHIBIT_EXTENT,
     INLINE_CASE_PAGE,
@@ -1998,7 +1999,9 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-option": option}))
 
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page, errors = open_page(
+        browser, serve(ASK_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -2456,9 +2459,11 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     assert [(e["widget"], e["detail"]) for e in actions] == [
         ("rp-live", {"options": ["rp-stage"]})
     ]
-    receipt = page.locator(
-        f'#rp-live > .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
+    message = page.locator(".lf-msg:has(#rp-live)")
+    receipt = message.locator(
+        f':scope > .lf-msg-head > .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
     )
+    expect(page.locator("#rp-live > .lf-receipt")).to_have_count(0)
     expect(receipt).to_contain_text("✓ Sent")
     with service_model.PageTransaction(d) as transaction:
         session_model.record_pickup(transaction, actions)
@@ -2560,7 +2565,10 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     )
     done.click()
     round_trip(page)
-    receipts = question.locator(".lf-receipt")
+    message = question.locator(
+        "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' lf-msg ')][1]"
+    )
+    receipts = message.locator(":scope > .lf-msg-head > .lf-receipt")
     expect(receipts).to_have_count(1)
     expect(receipts).to_contain_text("Sent")
     assert errors == []

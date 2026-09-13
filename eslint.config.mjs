@@ -26,9 +26,11 @@ const browserGlobals = Object.fromEntries(
     "HTMLScriptElement",
     "HTMLSpanElement",
     "Highlight",
+    "IntersectionObserver",
     "MutationObserver",
     "Node",
     "Range",
+    "Response",
     "ResizeObserver",
     "SVGAnimatedLength",
     "SVGElement",
@@ -214,6 +216,62 @@ const runtimeDependency = (file, source) => {
   const name = runtimeName(target);
   return !name.startsWith("../") || name === "../leaf.js" ? name : null;
 };
+
+let pagePaintAttributeValues;
+function pagePaintAttributesFrom(parser) {
+  if (pagePaintAttributeValues) return pagePaintAttributeValues;
+  const file = path.join(runtimeRoot, "presentation.js");
+  const ast = parser.parse(fs.readFileSync(file, "utf8"), {
+    ecmaVersion: "latest",
+    sourceType: "module",
+  });
+  const declarations = ast.body.flatMap((statement) => {
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+    return declaration?.type === "VariableDeclaration" ? declaration.declarations : [];
+  });
+  const record = declarations.find(
+    (declaration) =>
+      declaration.id.type === "Identifier" &&
+      declaration.id.name === "PAGE_PAINT_ATTRIBUTE",
+  );
+  const attributes =
+    record?.init?.type === "CallExpression" &&
+    record.init.callee.type === "MemberExpression" &&
+    !record.init.callee.computed &&
+    record.init.callee.object.type === "Identifier" &&
+    record.init.callee.object.name === "Object" &&
+    record.init.callee.property.type === "Identifier" &&
+    record.init.callee.property.name === "freeze" &&
+    record.init.arguments[0]?.type === "ObjectExpression"
+      ? record.init.arguments[0]
+      : null;
+  if (!attributes)
+    throw new Error(
+      "PAGE_PAINT_ATTRIBUTE must remain a frozen object literal for root-state linting",
+    );
+  pagePaintAttributeValues = new Map();
+  for (const property of attributes.properties) {
+    const name =
+      property.type === "Property" && !property.computed
+        ? property.key.type === "Identifier"
+          ? property.key.name
+          : property.key.value
+        : null;
+    const value =
+      property.type === "Property" &&
+      property.value.type === "Literal" &&
+      typeof property.value.value === "string"
+        ? property.value.value
+        : null;
+    if (typeof name !== "string" || value === null)
+      throw new Error(
+        "PAGE_PAINT_ATTRIBUTE keys and values must remain static strings for root-state linting",
+      );
+    pagePaintAttributeValues.set(name, value);
+  }
+  return pagePaintAttributeValues;
+}
 
 const exactClosures = new Map(
   Object.entries({
@@ -421,6 +479,300 @@ function cyclicComponents(graph) {
 
 const architecturePlugin = {
   rules: {
+    "root-state-ownership": {
+      meta: { type: "problem", schema: [] },
+      create(context) {
+        const file = runtimeName(context.filename ?? context.getFilename());
+        // The prepaint bootstrap runs before the module graph and writes only
+        // provisional choices. root-state.js is the sole standing mutation boundary.
+        if (file === "bootstrap.js" || file === "root-state.js") return {};
+        const source = context.sourceCode ?? context.getSourceCode();
+        const pagePaintAttributes = pagePaintAttributesFrom(
+          context.languageOptions.parser,
+        );
+        const propertyName = (node) =>
+          node?.type === "MemberExpression"
+            ? node.computed
+              ? node.property.type === "Literal"
+                ? node.property.value
+                : null
+              : node.property.name
+            : null;
+        const variable = (node) => {
+          if (node?.type !== "Identifier") return null;
+          for (let scope = source.getScope(node); scope; scope = scope.upper) {
+            const found = scope.set.get(node.name);
+            if (found) return found;
+          }
+          return null;
+        };
+        const initialValue = (node, seen) => {
+          const found = variable(node);
+          if (!found || seen.has(found)) return null;
+          seen.add(found);
+          const definition = found.defs.find(({ type }) => type === "Variable");
+          if (!definition?.node.init) return null;
+          if (
+            found.references.some((reference) => reference.isWrite() && !reference.init)
+          )
+            return null;
+          if (definition.node.id.type === "Identifier") return definition.node.init;
+          if (definition.node.id.type !== "ObjectPattern") return null;
+          const property = definition.node.id.properties.find(
+            (candidate) =>
+              candidate.type === "Property" &&
+              candidate.value.type === "Identifier" &&
+              candidate.value.name === node.name,
+          );
+          if (!property) return null;
+          const literalKey =
+            property.key.type === "Literal" && typeof property.key.value === "string";
+          if (property.computed && !literalKey) return null;
+          return {
+            type: "MemberExpression",
+            object: definition.node.init,
+            property: property.key,
+            computed: property.computed || literalKey,
+          };
+        };
+        const staticString = (node, seen = new Set()) => {
+          if (node?.type === "Literal" && typeof node.value === "string")
+            return node.value;
+          if (node?.type === "TemplateLiteral" && node.expressions.length === 0)
+            return node.quasis[0].value.cooked;
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? staticString(initial, seen) : null;
+          }
+          return null;
+        };
+        const memberName = (node) =>
+          node?.type === "MemberExpression"
+            ? node.computed
+              ? staticString(node.property)
+              : node.property.name
+            : null;
+        const importsPagePaintAttributes = (node) => {
+          const found = variable(node);
+          return Boolean(
+            found?.defs.some(
+              (definition) =>
+                definition.type === "ImportBinding" &&
+                definition.node.type === "ImportSpecifier" &&
+                definition.node.imported.name === "PAGE_PAINT_ATTRIBUTE" &&
+                /(?:^|\/)presentation\.js$/u.test(definition.parent.source.value),
+            ),
+          );
+        };
+        const isPagePaintAttributeRegistry = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isPagePaintAttributeRegistry(node.expression, seen);
+          if (node?.type !== "Identifier") return false;
+          if (importsPagePaintAttributes(node)) return true;
+          const initial = initialValue(node, seen);
+          return initial ? isPagePaintAttributeRegistry(initial, seen) : false;
+        };
+        const pagePaintAttributeValue = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return pagePaintAttributeValue(node.expression, seen);
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? pagePaintAttributeValue(initial, seen) : null;
+          }
+          const name = memberName(node);
+          return name !== null && isPagePaintAttributeRegistry(node.object, seen)
+            ? (pagePaintAttributes.get(name) ?? null)
+            : null;
+        };
+        const isDocument = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isDocument(node.expression, seen);
+          if (node?.type === "Identifier") {
+            if (node.name === "document" && !variable(node)?.defs.length) return true;
+            const initial = initialValue(node, seen);
+            return initial ? isDocument(initial, seen) : false;
+          }
+          return (
+            node?.type === "MemberExpression" &&
+            propertyName(node) === "document" &&
+            node.object.type === "Identifier" &&
+            node.object.name === "window"
+          );
+        };
+        const isDocumentRoot = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isDocumentRoot(node.expression, seen);
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? isDocumentRoot(initial, seen) : false;
+          }
+          return (
+            node?.type === "MemberExpression" &&
+            ["documentElement", "body"].includes(propertyName(node)) &&
+            isDocument(node.object, seen)
+          );
+        };
+        const isRootStyle = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isRootStyle(node.expression, seen);
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? isRootStyle(initial, seen) : false;
+          }
+          return (
+            node?.type === "MemberExpression" &&
+            propertyName(node) === "style" &&
+            isDocumentRoot(node.object, seen)
+          );
+        };
+        const isRootFacade = (node, name, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isRootFacade(node.expression, name, seen);
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? isRootFacade(initial, name, seen) : false;
+          }
+          return (
+            node?.type === "MemberExpression" &&
+            memberName(node) === name &&
+            isDocumentRoot(node.object, seen)
+          );
+        };
+        const isRootDataset = (node) => isRootFacade(node, "dataset");
+        const isRootClassList = (node) => isRootFacade(node, "classList");
+        const ownsDatasetKey = (key) =>
+          typeof key === "string" && /^lf[A-Z]/u.test(key);
+        const ownsDatasetMember = (node) => ownsDatasetKey(memberName(node));
+        const ownsDatasetObject = (node) =>
+          node?.type === "ObjectExpression" &&
+          node.properties.every(
+            (property) =>
+              property.type === "Property" &&
+              property.kind === "init" &&
+              ownsDatasetKey(
+                !property.computed && property.key.type === "Identifier"
+                  ? property.key.name
+                  : staticString(property.key),
+              ),
+          );
+        const ownsClassTokens = (operation, nodes) => {
+          const tokens =
+            operation === "toggle"
+              ? nodes.slice(0, 1)
+              : operation === "replace"
+                ? nodes.slice(0, 2)
+                : nodes;
+          return tokens.every((argument) => staticString(argument)?.startsWith("lf-"));
+        };
+        const reportsRootStyleTarget = (node) =>
+          isRootStyle(node) ||
+          (node?.type === "MemberExpression" && isRootStyle(node.object));
+        const report = (node, kind) =>
+          context.report({
+            node,
+            message: `Mutate document-root ${kind} through root-state.js so authored revision replacement preserves ownership.`,
+          });
+        return {
+          AssignmentExpression(node) {
+            if (reportsRootStyleTarget(node.left)) report(node, "inline styles");
+            else if (
+              node.left.type === "MemberExpression" &&
+              isRootDataset(node.left.object) &&
+              !ownsDatasetMember(node.left)
+            )
+              report(node, "attributes");
+            else if (
+              node.left.type === "MemberExpression" &&
+              isRootClassList(node.left.object)
+            )
+              report(node, "attributes");
+            else if (
+              node.left.type === "MemberExpression" &&
+              isDocumentRoot(node.left.object)
+            )
+              report(node, "attributes");
+          },
+          UpdateExpression(node) {
+            if (reportsRootStyleTarget(node.argument)) report(node, "inline styles");
+            else if (
+              node.argument.type === "MemberExpression" &&
+              isRootDataset(node.argument.object) &&
+              !ownsDatasetMember(node.argument)
+            )
+              report(node, "attributes");
+            else if (
+              node.argument.type === "MemberExpression" &&
+              isRootClassList(node.argument.object)
+            )
+              report(node, "attributes");
+            else if (
+              node.argument.type === "MemberExpression" &&
+              isDocumentRoot(node.argument.object)
+            )
+              report(node, "attributes");
+          },
+          UnaryExpression(node) {
+            if (
+              node.operator === "delete" &&
+              node.argument.type === "MemberExpression" &&
+              ((isRootDataset(node.argument.object) &&
+                !ownsDatasetMember(node.argument)) ||
+                isRootClassList(node.argument.object) ||
+                isDocumentRoot(node.argument.object))
+            )
+              report(node, "attributes");
+          },
+          CallExpression(node) {
+            if (
+              node.callee.type === "MemberExpression" &&
+              ["setProperty", "removeProperty"].includes(propertyName(node.callee)) &&
+              isRootStyle(node.callee.object)
+            )
+              report(node, "inline styles");
+            if (
+              node.callee.type === "MemberExpression" &&
+              ["setAttribute", "removeAttribute", "toggleAttribute"].includes(
+                propertyName(node.callee),
+              ) &&
+              isDocumentRoot(node.callee.object)
+            ) {
+              const attribute =
+                staticString(node.arguments[0]) ??
+                pagePaintAttributeValue(node.arguments[0]);
+              if (!attribute?.startsWith("data-lf-"))
+                report(node, attribute === "style" ? "inline styles" : "attributes");
+            }
+            if (
+              node.callee.type === "MemberExpression" &&
+              ["add", "remove", "toggle", "replace"].includes(
+                propertyName(node.callee),
+              ) &&
+              isRootClassList(node.callee.object) &&
+              !ownsClassTokens(propertyName(node.callee), node.arguments)
+            )
+              report(node, "attributes");
+            if (
+              node.callee.type === "MemberExpression" &&
+              node.callee.object.type === "Identifier" &&
+              ["Object", "Reflect"].includes(node.callee.object.name) &&
+              ["assign", "set"].includes(propertyName(node.callee))
+            ) {
+              if (isRootStyle(node.arguments[0])) report(node, "inline styles");
+              else if (isDocumentRoot(node.arguments[0])) report(node, "attributes");
+              else if (isRootClassList(node.arguments[0])) report(node, "attributes");
+              else if (isRootDataset(node.arguments[0])) {
+                const operation = propertyName(node.callee);
+                const owned =
+                  operation === "assign"
+                    ? node.arguments.slice(1).every(ownsDatasetObject)
+                    : ownsDatasetKey(staticString(node.arguments[1]));
+                if (!owned) report(node, "attributes");
+              }
+            }
+          },
+        };
+      },
+    },
     "runtime-graph": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -518,6 +870,23 @@ export default [
     },
   },
   {
+    // The site verifier resolves the release-scoped runtime URL from the page under
+    // test. That URL is data, so its two imports cannot be static dependency edges.
+    files: ["scripts/verify-site-browser.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
+    rules: {
+      "no-undef": "error",
+      "no-restricted-syntax": [
+        "error",
+        ...publicRuntimeBoundary["no-restricted-syntax"]
+          .slice(1)
+          .filter(
+            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+          ),
+      ],
+    },
+  },
+  {
     files: ["skills/leaf/scripts/leaf/render-checks/*.js"],
     rules: {
       ...publicRuntimeBoundary,
@@ -564,8 +933,10 @@ export default [
   },
   {
     files: ["skills/leaf/assets/leaf.js"],
+    plugins: { architecture: architecturePlugin },
     rules: {
       ...entryBoundary,
+      "architecture/root-state-ownership": "error",
       "no-restricted-syntax": [
         "error",
         ...entryBoundary["no-restricted-syntax"].slice(1),
@@ -588,6 +959,7 @@ export default [
     plugins: { architecture: architecturePlugin },
     rules: {
       ...ownerBoundary,
+      "architecture/root-state-ownership": "error",
       "architecture/runtime-graph": "error",
     },
   },
@@ -618,6 +990,7 @@ export default [
       "skills/leaf/assets/runtime/dom-children.js",
       "skills/leaf/assets/runtime/focus.js",
       "skills/leaf/assets/runtime/repaint.js",
+      "skills/leaf/assets/runtime/root-state.js",
       "skills/leaf/assets/runtime/conversation/identity.js",
     ],
     rules: {

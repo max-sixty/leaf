@@ -6,7 +6,7 @@ lf-visual-review {
   display: block;
   box-sizing: border-box;
   margin-block: var(--sp-4);
-  overflow: hidden;
+  overflow: clip;
   border: 1px solid var(--border-2);
   border-radius: calc(var(--r) * 1.25);
   background: var(--paper);
@@ -87,6 +87,10 @@ lf-visual-review > .lf-reading-after {
   padding: 0;
 }
 
+.lf-vr-evidence-region > .lf-pane-content > .lf-pane-body {
+  overscroll-behavior: auto;
+}
+
 .lf-vr-queue-region > .lf-pane-content > .lf-pane-body {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -114,6 +118,10 @@ lf-visual-review > .lf-reading-after {
   flex-wrap: wrap;
   gap: var(--sp-2);
   min-width: 0;
+}
+
+.lf-vr-toolbar-slot {
+  padding-block: var(--here-ring-w);
 }
 
 .lf-vr-inspector[hidden] {
@@ -311,7 +319,9 @@ lf-visual-review > .lf-reading-after {
 }
 
 .lf-vr-details[open] {
+  display: grid;
   grid-column: 1 / -1;
+  gap: var(--sp-2);
   width: auto;
 }
 
@@ -327,7 +337,7 @@ lf-visual-review > .lf-reading-after {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: var(--sp-2) var(--sp-4);
-  margin: var(--sp-2) 0 0;
+  margin: 0;
   padding: var(--sp-2);
   border: 1px solid var(--rule);
   border-radius: var(--r);
@@ -368,14 +378,17 @@ lf-visual-review > .lf-reading-after {
 }
 
 .lf-vr-shot-host {
+  box-sizing: border-box;
   display: grid;
   align-items: start;
   justify-items: center;
   min-width: 0;
+  width: 100%;
   height: var(--lf-vr-stage-height, auto);
   min-height: 14rem;
+  max-height: 35rem;
+  aspect-ratio: 2;
   overflow: auto;
-  overscroll-behavior: contain;
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: color-mix(in srgb, var(--field) 42%, var(--paper));
@@ -579,6 +592,8 @@ lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-case {
 
 lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-shot-host {
   min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
 }
 
 @container (max-width: 28rem) {
@@ -661,6 +676,8 @@ html.lf-copy .lf-vr-case + .lf-vr-case {
 html.lf-copy .lf-vr-shot-host {
   height: auto;
   min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
   overflow: visible;
 }
 
@@ -701,6 +718,8 @@ html.lf-copy .lf-vr-details > .lf-vr-provenance {
   .lf-vr-shot-host {
     height: auto;
     min-height: 0;
+    max-height: none;
+    aspect-ratio: auto;
     overflow: visible;
   }
 

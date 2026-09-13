@@ -163,6 +163,7 @@ import {
   stopGlide,
 } from "./runtime/navigation.js";
 import { focusDestination, letGo } from "./runtime/focus.js";
+import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
@@ -211,12 +212,13 @@ const targetPaintCaps = {
   shifted: targetPaint.shifted,
   geometryChanged: targetPaint.geometryChanged,
 };
+const focusedAnchorThreadId = () =>
+  focused()?.closest?.(".lf-conversation-thread")?.dataset.thread ??
+  focusedThreadOf()?.dataset.id;
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
   pointer: pointerAt,
-  focusedAnchorThreadId: () =>
-    focused()?.closest?.(".lf-conversation-thread")?.dataset.thread ??
-    focusedThreadOf()?.dataset.id,
+  focusedAnchorThreadId,
   hoveredPanelThreadId: () =>
     threadsBox.querySelector(":scope > .lf-thread:hover")?.dataset.id ?? null,
   panelThreadForId: (id) =>
@@ -304,6 +306,10 @@ const version = createVersionController({
   readableDestination: anchorTravel.readableDestination,
   scrollToElement: anchorTravel.scrollToElement,
 });
+// Body is the stable programmatic destination when the reader lets go of a control.
+// Register the stop after version.js snapshots source attributes, so later authored
+// revisions do not mistake it for source state and remove it.
+setRuntimeRootAttribute(document.body, "tabindex", "-1");
 
 const inputs = createCompositionInputs({
   uploadMedia,
@@ -463,6 +469,7 @@ responseSurface = createResponseSurface({
   panelCovers: navigation.panelCovers,
   markAt: anchorPaint.markAt,
   scrollToElement: anchorTravel.scrollToElement,
+  scrollRevealedElement: anchorTravel.scrollRevealedElement,
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,
@@ -691,6 +698,14 @@ pageKeys = createPageKeys({
 const standing = createStanding({
   markHere: asks.markHere,
   paintStanding: anchorPaint.paintStanding,
+  paintSelectedMarginEntries: () =>
+    app.margin.paintSelectedMarginEntries([
+      { kind: "ask", target: asks.standingIn() },
+      {
+        kind: "comment",
+        target: anchorPaint.placedAt(focusedAnchorThreadId())?.element,
+      },
+    ]),
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetChooserHints: targets.paintTargetChooserHints,

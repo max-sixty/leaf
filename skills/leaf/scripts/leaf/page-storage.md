@@ -82,14 +82,21 @@ A page directory holds:
                          needs from the reader while waiting;
                          "work" holds typed, sequence-bounded claims on comment
                          threads or page widgets; a thread claim records the
-                         unanswered source event when there is one. At the state
-                         boundary these private records become canonical claim updates, which
-                         their local receipts show beside the page-wide banner
-                         (`leaf status … --on`). An optional `stream` record holds
-                         the latest session-, turn-, and event-floor-bound activity
-                         observed from a live Codex App Server. It overlays the
-                         declaration in canonical activity without replacing it and
-                         is cleared when the turn or observer ends. Delivery pickup
+                         unanswered source event when there is one. "handling"
+                         holds one exact event selected from an immutable delivery
+                         and admitted only while that reader move remains outstanding.
+                         At the state boundary, work records become canonical claim
+                         updates, while the interaction fold applies handling only to
+                         its exact receipt. Both appear beside the page-wide banner.
+                         An optional `stream` record holds two
+                         live Codex App Server readings. `activity` is session-, turn-,
+                         and event-floor-bound; it overlays the declaration in canonical
+                         activity without replacing it and is cleared when the turn or
+                         observer ends. `reply` is the delivery-bound final-answer draft
+                         rendered in its conversation while text arrives. A failed or
+                         disconnected draft remains visible in that state; a successful
+                         commit clears it after the canonical reply event is appended.
+                         Delivery pickup
                          never writes this file; its queued/opened phase, session,
                          and turn are page-owned evidence in events.jsonl
     waiter.lock          bare-shell `leaf wait` lease, held open and locked for

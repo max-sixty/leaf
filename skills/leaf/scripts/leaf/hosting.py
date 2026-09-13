@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import zlib
+from contextlib import suppress
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -36,7 +37,6 @@ except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
-TEMPORARY_SOCKET_TIMEOUT_S = 1
 
 
 class LeafHTTPServer(ThreadingHTTPServer):
@@ -47,6 +47,15 @@ class LeafHTTPServer(ThreadingHTTPServer):
     interval below sets how long a stop waits for the serving loop to notice it;
     it is short enough that stopping a page reads as immediate, and an idle
     selector timeout costs nothing worth measuring.
+
+    Closing the server closes the connections it is still holding. That is what
+    lets a connection wait as long as the peer wants without a deadline of its
+    own: the alternative, a read timeout every connection carries, cannot tell a
+    socket that will never speak from one a browser opened ahead of need and is
+    about to write a real request onto. Chromium preconnects, so both exist here,
+    and a request written onto a connection this server had already closed is
+    dropped with no response, no console entry, and no error — the document stops
+    at `interactive` and its load event never fires.
     """
 
     request_queue_size = socket.SOMAXCONN
@@ -55,6 +64,10 @@ class LeafHTTPServer(ThreadingHTTPServer):
     # needs to see it; otherwise the stream outlives the server stop.
     stopping = False
 
+    def __init__(self, *args, **kwargs):
+        self.open_connections = set()
+        super().__init__(*args, **kwargs)
+
     def shutdown(self):
         self.stopping = True
         super().shutdown()
@@ -62,6 +75,25 @@ class LeafHTTPServer(ThreadingHTTPServer):
     def serve_forever(self, poll_interval=0.02):
         self.stopping = False
         super().serve_forever(poll_interval)
+
+    def process_request(self, request, client_address):
+        self.open_connections.add(request)
+        super().process_request(request, client_address)
+
+    def shutdown_request(self, request):
+        self.open_connections.discard(request)
+        super().shutdown_request(request)
+
+    def server_close(self):
+        # Before the join ThreadingHTTPServer does for non-daemon request threads: a
+        # thread reading a connection that has said nothing has nothing else to wake
+        # it. Only the reading half is closed, so this ends a wait for words that are
+        # not coming without taking the answer away from a request already being
+        # served — the close still owns those, and waits for them below.
+        for connection in list(self.open_connections):
+            with suppress(OSError):
+                connection.shutdown(socket.SHUT_RD)
+        super().server_close()
 
 
 class TemporaryPageServer:
@@ -114,9 +146,6 @@ class TemporaryPageServer:
         # requests too. The foreground run() keeps the default: its process owns the
         # page, and must be able to exit when that process is interrupted.
         self.httpd.daemon_threads = False
-        # Bound the join above when Chrome opens a speculative socket but never sends
-        # a request line, or an authenticated peer leaves a request body incomplete.
-        self.httpd.RequestHandlerClass.timeout = TEMPORARY_SOCKET_TIMEOUT_S
         self._thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self._thread.start()
         return self

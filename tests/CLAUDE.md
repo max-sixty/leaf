@@ -46,6 +46,13 @@ uv run pytest tests/test_render_widgets.py -q -n0 -k board
 uv run pytest --lf --lfnf=none -x -n0
 ```
 
+Formatted CLI output lives in `tests/_regtest_outputs/`. After an intentional
+change, reset only the affected test, then inspect the recorded diff before committing:
+
+```sh
+uv run pytest --regtest-reset -n0 <node-id>
+```
+
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
 rebasing. Pull requests and main run pre-commit, the everyday suite, and the
@@ -229,8 +236,8 @@ a green render against a stale page is a statement about that stale copy.
 
 ## Fixtures own the world they create
 
-Every test runs under `isolated_session`. It moves only the XDG config and state
-directories leaf reads, supplies a synthetic Claude Code session id, and claims
+Every test runs under `isolated_session`. It moves only the XDG state
+directory Leaf reads, supplies a synthetic Claude Code session id, and claims
 pages under the current pytest worker's pid. Do not replace it by moving `HOME`;
 uv's cache and unrelated developer state are not part of leaf's isolation
 boundary.

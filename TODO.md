@@ -77,6 +77,28 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Find a specific first task for the public home page.** The current page starts
+  with the comment-and-revise loop: a visitor asks Leaf guide to edit their private copy.
+  Replace that interim prompt only after testing a task a new visitor would actually
+  bring; avoid canned choices that manufacture work for the guide.
+
+- **Decide whether suggested replacements need a proper diff.** Compare the current
+  plain replacement with a before-and-after view in Threads and inline conversations.
+  Add the diff only if it makes nontrivial edits easier to review without duplicating
+  the quoted passage.
+
+- **Decide whether visual review needs expanded inspection.** Compare an embedded review
+  with the same run as a bounded root review. Add expansion only if focused workspaces do
+  not cover the real tasks, and keep it package-owned until a second interactive object
+  proves the same entry, state-preservation, return, narrow-screen, copy, and print
+  lifecycle.
+
+- **Test whether one Leaf artifact needs several page-level views.** Start from a real
+  task that cannot remain coherent as one document or one queue/detail workspace. Compare
+  stable page-level tabs with separate linked Leaf pages, including URLs, revisions,
+  conversations, keyboard navigation, narrow screens, and export. Do not add a router or
+  another persisted selection model before that case exists.
+
 - **Let readers disable character bindings.** Define one route filter with a complete
   persistence and accessibility contract. Commands, non-character routes, and visible
   controls remain available.

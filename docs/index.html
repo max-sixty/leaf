@@ -5,13 +5,72 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>leaf · generative UI for your agent</title>
+    <title>leaf · generative UI for agents</title>
     <meta
       name="description"
-      content="Your agent builds the page your task needs, writes the widgets it lacks, and answers your comments and edits. A plugin for Claude Code and Codex."
+      content="Generative UI for Claude Code and Codex. Review plans, make decisions, and follow live work in a page your agent can revise."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
+      body.site-page nav.sitenav {
+        margin-bottom: 24px;
+      }
+      body.site-page header.hero {
+        margin-bottom: 24px;
+      }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 24px;
+        margin-top: 18px;
+      }
+      .hero-actions a {
+        font-weight: 600;
+      }
+      #try {
+        margin-top: 0;
+      }
+      #try h2 {
+        margin-top: 0;
+      }
+      #try-intro {
+        margin-bottom: 12px;
+      }
+      .home-examples {
+        list-style: none;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .home-examples li {
+        margin: 0;
+      }
+      .home-examples a {
+        display: block;
+        text-decoration: none;
+      }
+      .home-examples img {
+        box-sizing: border-box;
+        display: block;
+        width: 100%;
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        margin-bottom: 12px;
+      }
+      .home-examples strong {
+        display: block;
+        color: var(--ink);
+      }
+      .home-examples span {
+        display: block;
+        color: var(--muted);
+        font-size: var(--t-5);
+        margin-top: 4px;
+      }
+      .home-examples a:hover strong {
+        text-decoration: underline;
+      }
       .hosts {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
@@ -20,16 +79,26 @@
       }
       .hosts h3 {
         margin: 0 0 6px;
-        color: var(--muted);
         font-size: var(--t-5);
       }
       .hosts pre {
         margin: 0;
       }
-      figure.shot img {
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        box-shadow: 0 12px 32px rgb(0 0 0 / 8%);
+      @media (max-width: 540px) {
+        body.site-page nav.sitenav {
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+        body.site-page header.hero h1 {
+          font-size: 32px;
+        }
+        .hero .lede {
+          font-size: 18px;
+        }
+        .home-examples {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 24px;
+        }
       }
     </style>
   </head>
@@ -39,240 +108,78 @@
         <span class="brand">leaf</span>
         <a href="/examples/">Examples</a>
         <a href="/how-it-works/">How it works</a>
-        <a href="/packages/">Packages</a>
-        <a href="/registry/">Registry</a>
         <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
       <header class="hero" id="top">
-        <h1>Generative UI for your agent.</h1>
+        <h1>Generative UI for Agents</h1>
         <p class="lede" id="lede">
-          Your agent builds you the page rather than a scroll of terminal text: options
-          you press to decide, a board you drag, a dashboard that keeps up while the
-          agent works. And when a page needs a widget that doesn't exist, it writes that
-          too.
+          Get an interface shaped around what you’re trying to do. Review a plan with
+          the details at hand, or make a decision with the tradeoffs in view.
         </p>
-        <p id="scope">
-          The pages are built from a vocabulary of widgets, with a messaging and
-          collaboration bus underneath: comments, drags, picks, and edits reach the
-          session as structured events, and revised versions come back with changelogs.
-          <a href="#install">Two commands install it</a>. No accounts, no daemon, no
-          config; you need <a href="https://docs.astral.sh/uv/"><code>uv</code></a> and
-          <a href="https://jqlang.github.io/jq/download/"><code>jq</code></a> 1.6 or
-          newer on your PATH, plus a browser on the same machine.
+        <p class="hero-actions">
+          <a href="#install">Install Leaf</a>
         </p>
       </header>
 
-      <aside class="sidebar" id="tour-route">
-        <lf-toc id="tour-contents"></lf-toc>
-      </aside>
-
-      <figure class="shot" id="session-shot">
-        <picture>
-          <source
-            media="(prefers-color-scheme: dark)"
-            srcset="/media/e52f0072f87eb069.png"
-          />
-          <img
-            src="/media/e5d9c6d6ea8f360b.png"
-            alt="A live leaf in the browser: a migration plan with a comment anchored
-to a highlighted passage, Claude's reply in the thread, a Versions menu control reading
-v3 (latest), and a banner reading 'Claude awaits'."
-          />
-        </picture>
-        <figcaption>
-          A leaf in flight. The user asked about a rollback edge case; Claude replied in
-          the thread and shipped v3 covering it. The menu holds each immutable version
-          with its changelog and a Compare action that marks what changed since it, and
-          the banner tracks whether Claude is working or waiting on you.
-        </figcaption>
-      </figure>
+      <section id="try">
+        <!-- Page task for Leaf guide: Respond to comments by editing this private
+             copy. Keep the hero, invitation, gallery, and installation. -->
+        <div id="first-task">
+          <h2>Ask Leaf guide to edit this page.</h2>
+          <p id="try-intro">
+            Select any sentence, describe the change you want, and send the comment.
+            Leaf guide will revise your private copy here.
+          </p>
+        </div>
+      </section>
 
       <section id="range">
-        <h2>What a page can do</h2>
-        <ul>
-          <li id="range-explain">
-            <strong>Explain.</strong> Everything HTML has to offer, in place of
-            everything a terminal doesn't: mermaid diagrams, a code walkthrough with
-            remarks anchored at the line each is about, a unified diff, a file tree, two
-            screenshots that flip between before and after, a row of measurements,
-            evidence collapsed under the claim it backs, and real links out to the
-            source line or the ticket. It prints, too.
+        <h2>Pages for real work.</h2>
+        <ul class="home-examples" id="example-pages">
+          <li>
+            <a href="/examples/log-retention/">
+              <img
+                src="/media/c75d67893b258447.jpg"
+                alt="Retention policy proposal with a comment anchored to the decision."
+                loading="lazy"
+              />
+              <strong>Review a proposal</strong>
+              <span>Compare approaches and discuss the tradeoffs in place.</span>
+            </a>
           </li>
-          <li id="range-collaborate">
-            <strong>Collaborate.</strong> Ask about one part of the page rather than the
-            whole of it. Every passage carries its own thread, so several conversations
-            run at once and each stays anchored to the words it is about: yours and the
-            agent's alike, since it opens threads on the page the same way you do.
+          <li>
+            <a href="/examples/live-progress/">
+              <img
+                src="/media/b6d16c2ef9033ac3.jpg"
+                alt="Release workspace with rollout state, checks, and supporting logs."
+                loading="lazy"
+              />
+              <strong>Follow a release</strong>
+              <span>Keep the current state beside the evidence and next action.</span>
+            </a>
           </li>
-          <li id="range-interact">
-            <strong>Interact.</strong> The page takes input back. Drag cards to
-            re-prioritize a board, click an option to decide it, accept or reject a
-            proposed edit, or rewrite a draft (an email, a release note) in your own
-            words. Each edit reaches the agent as a structured action and holds its
-            place on every later revision. A question can be answered off its own menu
-            too: a group that takes a pick ends with one more option, an empty one you
-            write yourself, so "none of these — do X instead" goes where the question
-            was asked.
-          </li>
-          <li id="range-track">
-            <strong>Track.</strong> A page can be a working dashboard rather than a
-            document: the state of the resources you asked about, a queue draining, a
-            checklist ticking over. The agent saves updates as the work moves and your
-            browser follows each valid revision on its own, so you watch it happen
-            rather than reading a summary afterwards.
-          </li>
-          <li id="range-grow">
-            <strong>Grow.</strong> When a task calls for a widget that doesn't exist —
-            say a call graph — the agent writes one: a schema, CSS, and a module if it
-            needs behavior. It passes the same checks as the shipped widgets, and later
-            pages in the project can use it.
+          <li>
+            <a href="/examples/pr-walkthrough/">
+              <img
+                src="/media/2ffc0690b3130db9.jpg"
+                alt="Code review with a file tree and commentable diff."
+                loading="lazy"
+              />
+              <strong>Review code</strong>
+              <span>Move from the explanation into the exact change.</span>
+            </a>
           </li>
         </ul>
-        <p id="more">
-          The <a href="/examples/">examples</a> are complete pages, one per kind of
-          work, published here as the browser draws them.
-          <a href="/how-it-works/">How it works</a> shows the widget system's rendered
-          forms, and <a href="/packages/">Packages</a> covers how new widgets and themes
-          are delivered, whether the agent wrote them or you did.
-        </p>
-      </section>
-
-      <section id="loop">
-        <h2>Example: Review a plan</h2>
-        <ol class="steps">
-          <li id="loop-decision">
-            <strong>Ask.</strong> "Write up the migration options as a page" triggers
-            it, as does <code>/leaf</code> in Claude Code or <code>$leaf</code> in
-            Codex. The agent writes the page, serves it on a loopback port, and prints
-            the URL.
-          </li>
-          <li id="loop-comment">
-            <strong>Mark it up.</strong> Select any passage and comment; the passage
-            stays lit while you write, and the comment anchors to it and stays anchored
-            as versions change — to the passage you picked, even where the page says the
-            same thing twice. Press <code>s</code> and its target hint, or Alt-click the
-            item, to open and focus the same compact Comment field beside it. The field
-            grows in place, Enter adds a line, Command/Ctrl-Enter sends, and Tab reveals
-            the other response options. Plain clicks on unadorned diagrams and images
-            keep their browser meaning; Alt-click or <code>s</code> opens the same field
-            on them. A suggestion mode in that response row proposes replacement text
-            that the agent takes verbatim or answers with why not. The agent opens
-            threads the same way — a question about one sentence arrives in the margin
-            beside it, not in the terminal.
-          </li>
-          <li id="loop-wake">
-            <strong>Your comment reaches the session.</strong> On Claude Code, a
-            background <code>leaf wait</code> wakes or joins the agent. On Codex, a
-            detached adapter holds that wait and queues the complete batch into a later
-            turn of the same task, without a separate watcher task or a handover turn
-            kept active. Either loop acknowledges only after a complete, untruncated
-            batch has reached its next durable step, so "printed" cannot masquerade as
-            "seen".
-          </li>
-          <li id="loop-revise">
-            <strong>A revision ships.</strong> Versions are immutable, each with a
-            one-line changelog. The page follows the newest while keeping your place on
-            it, and any older version's Compare action marks every passage that has
-            changed since it — as far back as you were away.
-          </li>
-          <li id="loop-signoff">
-            <strong>Conclude deliberately.</strong> Pages seeking approval offer "✓
-            Looks good"; a page that only informs asks nothing and carries no such
-            control. Approval records assent and leaves the page live for follow-up, so
-            the work it unblocks goes on in front of you. After a complete batch is
-            received, an explicit idle state closes the agent loop when its work there
-            is finished. <code>leaf transcript</code> prints the whole thread as
-            Markdown for a PR description.
-          </li>
-        </ol>
-      </section>
-
-      <figure class="shot" id="loop-demo">
-        <img
-          src="/media/85dbb14d235ee3e1.gif"
-          alt="A live leaf page. The user selects Backfill history and writes a
-comment while the passage stays highlighted. The agent replies, saves a new revision
-whose rehearsal count advances, and the user drags an on-call task to During."
-        />
-        <figcaption>
-          The real loop, recorded by <code>scripts/record-demo.sh</code>: comment on a
-          passage, watch a new revision advance the work, then move a card.
-        </figcaption>
-      </figure>
-
-      <section id="interact-example">
-        <h2>Example: Re-prioritize a queue</h2>
-        <p id="interact-setup">
-          The <a href="/examples/triage-board/">release-triage example</a> hands the
-          ordering to the user: drag “CSV export quotes numerics” from “Fix in 2.4.1” to
-          “Blocking release”, and the page keeps it there. Nothing reads the move on
-          that page. Run it from a checkout and an agent does:
-        </p>
-        <pre id="triage-command"><code>scripts/preview.py triage-board</code></pre>
-        <figure id="triage-specimen">
-          <lf-specimen id="tour-board-specimen" label="release triage">
-            <lf-board id="tour-board">
-              <lf-column id="tour-col-blocking" label="Blocking release">
-                <lf-card id="tour-card-migration"
-                  ><strong>Migration reruns on every deploy</strong> The version stamp
-                  never lands.</lf-card
-                >
-                <lf-card id="tour-card-logout"
-                  ><strong>Logout fails with an expired session</strong> The session key
-                  is deleted twice.</lf-card
-                >
-              </lf-column>
-              <lf-column id="tour-col-next" label="Fix in 2.4.1">
-                <lf-card id="tour-card-export"
-                  ><strong>CSV export quotes numerics</strong> Breaks one downstream
-                  import.</lf-card
-                >
-              </lf-column>
-            </lf-board>
-          </lf-specimen>
-          <figcaption>
-            The browser sends the placement as structured detail:
-            <code
-              >{"widget":"release-board","action":"move","detail":{"card":"card-export",
-              "to":"col-blocking","index":2}}</code
-            >. The move appears immediately, reaches the agent as an action, and remains
-            on later versions.
-          </figcaption>
-        </figure>
-      </section>
-
-      <section id="track-example">
-        <h2>Example: Track a release</h2>
-        <p id="track-setup">
-          The <a href="/examples/live-progress/">checkout release example</a> keeps the
-          current rollout state and next stage beside the checks and log that support
-          it. Release notes, code changes, and the rollback procedure stay available
-          without competing with the live work. Run it like any other example:
-        </p>
-        <pre id="progress-command"><code>scripts/preview.py live-progress</code></pre>
-        <lf-chronology id="track-versions">
-          <lf-chronology-entry id="track-v4" at="v4" kind="observation">
-            <strong>The candidate is built and signed.</strong> The release page records
-            its immutable identity and stable rollback target.
-          </lf-chronology-entry>
-          <lf-chronology-entry id="track-v5" at="v5" kind="intervention">
-            <strong>The canary pauses at 25%.</strong> Four checks pass; finance export
-            parity blocks automatic promotion.
-          </lf-chronology-entry>
-          <lf-chronology-entry id="track-v6" at="v6" kind="observation">
-            <strong>All five checks pass.</strong> The summary and release plan advance
-            to 100% while the browser keeps the reader's place in the log.
-          </lf-chronology-entry>
-        </lf-chronology>
-        <p id="track-source">
-          The published example is the paused canary: one screen for deciding whether
-          the evidence supports continuing or sending a bound rollback request.
+        <p id="range-grow">
+          When a task needs a new widget, your agent can build it and reuse it in later
+          pages. Explore the <a href="/examples/">full gallery</a> or see how
+          <a href="/packages/">packages</a> extend Leaf.
         </p>
       </section>
 
       <section id="install">
-        <h2>Install</h2>
+        <h2>Bring Leaf to your agent.</h2>
         <div class="hosts">
           <div>
             <h3>Claude Code</h3>
@@ -289,26 +196,19 @@ whose rehearsal count advances, and the user drags an on-call task to During."
 codex plugin add leaf@leaf</code></pre>
           </div>
         </div>
-        <p>
-          Then ask the agent to "write it up as a page", run <code>/leaf</code> in
-          Claude Code, or run <code>$leaf</code> in Codex. The agent also reaches for it
-          on its own when a plan or write-up would be easier to review as a page than as
-          terminal text.
+        <p id="first-invocation">
+          Then ask your agent: “Use Leaf to write a plan for these changes” or “Use Leaf
+          to make a dashboard showing the release steps.”
         </p>
       </section>
 
       <footer class="site-footer" id="colophon">
         <p id="links">
-          <a href="/">Tour</a> · <a href="/examples/">Examples</a> ·
+          <a href="/examples/">Examples</a> ·
           <a href="/how-it-works/">How it works</a> ·
-          <a href="/packages/">Packages</a> ·
+          <a href="/packages/">Packages</a> · <a href="/registry/">Registry</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
-        </p>
-        <p>
-          This website is running as a Leaf page in a private session. Choose an
-          <a href="/examples/">example from the gallery</a>, or use the controls on this
-          page.
         </p>
       </footer>
     </main>

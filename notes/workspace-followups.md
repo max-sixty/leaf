@@ -200,9 +200,9 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
 - **#14** **Verify the complete keyboard and accessibility route** — Exercise the workspace as one keyboard task, including reading, pane furniture, local comments and Threads.
 
-  **Evidence / confidence:** Composition verification task. The suite has reading-region keyboard tests and menu/accessibility coverage. Those components do not by themselves prove the composed split-plus-Threads journey, especially when content is covered.
+  **Evidence / confidence:** Composition verification task. The visual-review journey now covers real Go-to controls and pane furniture, case-local comments, covering and nonmodal Threads, draft restoration, bounded/flow transitions, and shared reading keys. A general named two-pane journey still needs to walk authored landmarks plus header and footer controls together and verify every painted focus mark remains unobscured.
 
-  **Next task:** Use a named two-pane example with header/footer controls; walk landmarks and controls, use reading keys, open Threads, return through Escape, then change posture. Check focus against actual modal/nonmodal behavior.
+  **Next task:** Use a named two-pane example with header/footer controls; walk authored landmarks and controls, use reading keys, open Threads, return through Escape, then change posture. Check focus against actual modal/nonmodal behavior.
 
   **Done when:** Every action is reachable with a comprehensible accessible name and visible focus. Covered content does not leave the reader lost. Avoid imposing a modal focus trap on a nonmodal panel.
 

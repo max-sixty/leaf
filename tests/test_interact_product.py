@@ -500,18 +500,40 @@ def test_every_default_widget_stands_in_the_feature_gallery():
     )
 
 
-def test_the_feature_gallery_indexes_its_authored_elements():
-    """A developer can find a specimen by its literal custom-element name."""
+def test_the_feature_gallery_eyebrows_index_literal_code_names():
+    """Every showcased element is indexed by a code name, never descriptive prose."""
     authored = FEATURE_GALLERY.read_text(encoding="utf-8")
-    tags = set(re.findall(r"<(lf-[a-z-]+)[\s>]", authored))
-    eyebrows = " ".join(
-        re.findall(
-            r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
-            authored,
-            flags=re.DOTALL,
+    gallery_registry = json.loads(
+        (schema_model.BUNDLED_PACKAGES / "gallery" / "registry.json").read_text(
+            encoding="utf-8"
         )
     )
-    indexed = set(re.findall(r"lf-[a-z-]+", eyebrows))
+    apparatus = {tag for tag in gallery_registry if tag.startswith("lf-")}
+    assert apparatus
+    eyebrows = re.findall(
+        r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
+        authored,
+        flags=re.DOTALL,
+    )
+    eyebrow_entries = [
+        [entry.strip() for entry in eyebrow.split("·")] for eyebrow in eyebrows
+    ]
+    entries = [entry for eyebrow in eyebrow_entries for entry in eyebrow]
+    assert entries
+    assert all(re.fullmatch(r"lf-[a-z0-9-]+", entry) for entry in entries), entries
+    assert all(len(eyebrow) == len(set(eyebrow)) for eyebrow in eyebrow_entries), (
+        "a feature eyebrow repeats a code name"
+    )
+    indexed = set(entries)
+    assert apparatus.isdisjoint(indexed), (
+        f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
+    )
+    # scripts/corpus.py strips the contents sidebar when it composes the tab, so
+    # lf-toc is page chrome rather than a specimen a section demonstrates.
+    sections = re.sub(
+        r'<aside class="sidebar".*?</aside>', "", authored, flags=re.DOTALL
+    )
+    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", sections)) - apparatus
     assert tags
     assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
 
@@ -1481,7 +1503,8 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert state_result.exit_code == 0, state_result.output
     state = json.loads(state_result.output)
     assert all(
-        set(thread) == {"id", "anchor", "resolved"} for thread in state["conversations"]
+        set(thread) == {"id", "anchor", "detached_from", "resolved"}
+        for thread in state["conversations"]
     )
     expected = {
         root["id"]: [root["id"], revisions[0]["id"], revisions[1]["id"]],

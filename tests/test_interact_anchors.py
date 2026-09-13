@@ -23,8 +23,11 @@ from interact_support import (
     suggested,
 )
 from leaf import cli as cli_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import files as files_model
 from leaf import hooks as hooks_model
+from leaf.registry import storage as registry_storage
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_claude(page_dir, sessionless):
@@ -263,10 +266,27 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "Should this move onto the diagram?",
         ).output
     )
-    v2 = v1.replace("The retry starts here.", "The prose no longer names the retry.")
-    (page_dir / ".fixture-versions" / "v2.html").write_text(v2)
-    revised = stamp(page_dir, 2, "moved the retry into the diagram")
-    assert revised.exit_code == 0, revised.output
+    v2 = v1.replace('<p id="old-wording">The retry starts here.</p>', "")
+    (page_dir / "index.html").write_text(v2)
+
+    mistyped = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--section",
+            "flowe",
+            "--text",
+            "This target must not partly land.",
+        ],
+    )
+    assert mistyped.exit_code != 0
+    assert "no element id 'flowe'" in mistyped.output
+    assert files_model.latest_revision(page_dir) == 1
+    assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
 
     moved = CliRunner().invoke(
         cli_model.cli,
@@ -296,19 +316,199 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     assert original["anchor"]["quote"] == "The retry starts here."
     assert original["anchor"] != current
     assert state_json(page_dir)["conversations"] == [
-        {"id": root["id"], "anchor": current, "resolved": None}
+        {
+            "id": root["id"],
+            "anchor": current,
+            "detached_from": None,
+            "resolved": None,
+        }
     ]
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert transcript.exit_code == 0, transcript.output
     assert "> § flow · node:A" in transcript.output
 
-    v3 = v2.replace('<p id="old-wording">The prose no longer names the retry.</p>', "")
-    (page_dir / ".fixture-versions" / "v3.html").write_text(v3)
-    checked = check(page_dir, 3)
+    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
 
 
-def test_a_reply_refuses_to_move_a_held_command_goal(page_dir):
+def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir):
+    """Removing the thing a conversation concerns is a current-state transition,
+    not permission to attach that conversation to some surviving neighbour. The reply
+    and revision land together, while the opening anchor remains immutable history."""
+    v1 = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<p id="old-wording">The retry starts here.</p><lf-diagram id="flow">',
+    )
+    (page_dir / ".fixture-versions" / "v1.html").write_text(v1)
+    published(page_dir)
+    root = json.loads(
+        comment(
+            page_dir,
+            "--quote",
+            "The retry starts here.",
+            "--text",
+            "Why is this section here?",
+        ).output
+    )
+    (page_dir / "index.html").write_text(
+        v1.replace('<p id="old-wording">The retry starts here.</p>', "")
+    )
+
+    refused = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--detach",
+            "--text",
+            "This must not partly land.",
+            "--markup",
+            '<lf-diagram id="flow"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+        ],
+    )
+    assert refused.exit_code != 0
+    assert (
+        "reply widget ids already taken" in refused.output and "flow" in refused.output
+    )
+    assert files_model.latest_revision(page_dir) == 1
+    assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
+
+    detached = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            "--json",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--detach",
+            "--text",
+            "I removed the section; this conversation no longer has a page target.",
+        ],
+    )
+
+    assert detached.exit_code == 0, detached.output
+    reply = json.loads(detached.output)
+    assert (reply["revision"], reply["anchor"]) == (2, None)
+    events = events_model.read_events(page_dir)
+    stored_reply = next(event for event in events if event["id"] == reply["id"])
+    contract = registry_storage.require_registry(page_dir)["$events"]["kinds"]["reply"]
+    assert event_contracts_model.event_record_error(contract, stored_reply) is None
+    assert state_json(page_dir)["conversations"] == [
+        {
+            "id": root["id"],
+            "anchor": None,
+            "detached_from": root["anchor"],
+            "resolved": None,
+        }
+    ]
+    stored_root = next(event for event in events if event["id"] == root["id"])
+    assert stored_root["anchor"] == root["anchor"]
+    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    assert checked.exit_code == 0, checked.output
+
+    reattached = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--section",
+            "flow",
+            "--text",
+            "The remaining diagram is now the subject.",
+        ],
+    )
+    assert reattached.exit_code == 0, reattached.output
+    [conversation] = state_json(page_dir)["conversations"]
+    assert conversation["anchor"] == {"section": "flow"}
+    assert conversation["detached_from"] is None
+
+
+def test_detach_is_a_distinct_reply_target_transition(page_dir):
+    root = json.loads(
+        comment(published(page_dir), "--quote", "Ship dark", "--text", "Why?").output
+    )
+
+    mixed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--detach",
+            "--section",
+            "plan",
+            "--text",
+            "Ambiguous.",
+        ],
+    )
+
+    assert mixed.exit_code != 0
+    assert "--detach cannot be combined" in mixed.output
+
+
+def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir):
+    published(page_dir)
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "shorten",
+            "anchor": {"section": "flow"},
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": root["id"]},
+    )
+
+    detached = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--detach",
+            "--text",
+            "There is no current subject to detach.",
+        ],
+    )
+    assert detached.exit_code != 0
+    assert "has no current anchor to detach" in detached.output
+
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            "--json",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--section",
+            "plan",
+            "--text",
+            "Move the withdrawn mark's conversation here.",
+        ],
+    )
+    assert moved.exit_code == 0, moved.output
+    assert json.loads(moved.output)["anchor"] == {"section": "plan"}
+
+
+def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     """A hold's exact-section anchor is part of the command request's meaning, not
     merely the thread's placement, so a later reply cannot silently retarget it."""
     v1 = PAGE.replace(
@@ -349,11 +549,28 @@ def test_a_reply_refuses_to_move_a_held_command_goal(page_dir):
     assert moved.exit_code != 0
     assert "holds the command goal" in moved.output
 
+    detached = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--for",
+            root["id"],
+            "--detach",
+            "--text",
+            "Detach this hold.",
+        ],
+    )
+    assert detached.exit_code != 0
+    assert "holds the command goal" in detached.output
 
-def test_a_moving_reply_activates_the_revision_before_validating_markup(page_dir):
-    """Anchor capture activates the edited source. Reply markup must then validate
-    against that same revision, or it can take an id the newly live page already owns
-    and leave the append-only log incompatible with every later version check."""
+
+def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_dir):
+    """Reply markup validates against the edited source before either lands. It cannot
+    take an id the prospective page already owns, and a failed reply leaves the prior
+    revision active."""
     published(page_dir)
     root = json.loads(
         comment(page_dir, "--section", "flow", "--text", "Move this when fixed.").output
@@ -385,6 +602,7 @@ def test_a_moving_reply_activates_the_revision_before_validating_markup(page_dir
     assert moved.exit_code != 0
     assert "reply widget ids already taken" in moved.output and "answer" in moved.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
+    assert files_model.latest_revision(page_dir) == 1
     checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
 

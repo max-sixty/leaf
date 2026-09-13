@@ -31,6 +31,7 @@ import itertools
 import json
 import math
 import os
+import re
 import shutil
 import time
 from contextlib import contextmanager
@@ -44,7 +45,6 @@ from example_data import regression_sources
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
@@ -428,7 +428,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
         seed_log=True,
         page_files=None,
     ):
-        monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+        monkeypatch.chdir(tmp_path)  # resolve explicitly selected fixture packages
         project = tmp_path / ".leaf"
         if layer_registry is not None or layer_widgets:
             project.mkdir(exist_ok=True)
@@ -447,6 +447,8 @@ def serve(tmp_path, monkeypatch, initialized_page):
             if packages is None
             else packages
         )
+        if layer_registry is not None or layer_widgets:
+            selected_packages = (*selected_packages, "./.leaf")
         selection_args = package_selection_args(selected_packages)
         d = tmp_path / f"page{len(servers)}"
 
@@ -457,7 +459,16 @@ def serve(tmp_path, monkeypatch, initialized_page):
             )
             assert initialized.exit_code == 0, initialized.output
 
-        if project.exists() or host_model.config_home().exists():
+        # Local package contents vary between tests even when their selected path
+        # is the same, so only immutable bundled selections share a template.
+        if (
+            layer_registry is not None
+            or layer_widgets
+            or any(
+                not re.fullmatch(schema_model.HTML_NAME, selected)
+                for selected in selected_packages
+            )
+        ):
             initialize(d)
         else:
             template_name = (
@@ -1345,11 +1356,12 @@ def opened_tab(page, destination, press, timeout=10_000):
 # Nothing is intercepted by it and no request's behavior changes; what changes is
 # that a route registered later — a keystroke before the gesture it holds — only
 # adds a pattern to a list the browser is already consulting.
-NEVER_ASKED_FOR = "**/__leaf_arms_interception__"
-
-
-def arm_interception(page):
-    page.route(NEVER_ASKED_FOR, lambda route: route.abort())
+#
+# The arm is the render gate's own, which needs it for the other end of the same
+# fact: interception comes back down when a route list empties, and requests
+# crossing that transition are lost just as silently.
+NEVER_ASKED_FOR = render_gate_model.INTERCEPTION_ARM
+arm_interception = render_gate_model.arm_interception
 
 
 def primed(browser, prepare):

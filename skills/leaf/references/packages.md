@@ -13,8 +13,6 @@ when `/leaf` is invoked on a widget to build or a look to change.
 | Package                             | Included in                        |
 | ----------------------------------- | ---------------------------------- |
 | a package selected with `--package` | pages that select its name or path |
-| the project's `.leaf/`              | pages initialized from the project |
-| the user's `~/.config/leaf/`        | pages initialized for that user    |
 | Leaf's bundled default package      | every page                         |
 
 Presentation used by only one page stays in that version's `<style>`. Everything
@@ -43,9 +41,10 @@ leaf package check packages/callout
 leaf page init --package packages/callout PAGE
 ```
 
-An explicit directory keeps a contribution separately owned and selectable. `.leaf`
-is the project package and `~/.config/leaf` is the user package. Inside a repository
-dedicated to one package, use `.` as the package path.
+Every package beyond the bundled default is selected explicitly. A directory such
+as `.leaf/` or `~/.config/leaf/` is an ordinary package path; select it with
+`--package ./.leaf` or `--package '~/.config/leaf'`. Inside a repository dedicated
+to one package, use `.` as the package path.
 
 `leaf package install SOURCE` checks that directory and copies it into
 `~/.local/state/leaf/packages/`, where `--package NAME` reaches it by its directory
@@ -137,7 +136,7 @@ the audiences in the vendored page, and `leaf page guidance PAGE AUDIENCE` compo
 three sources. The page author reads the `author` audience when the list includes it.
 
 Composition order is kernel, bundled default package, selected packages in command
-order, user package, then project package. Later packages win collisions. `page init`
+order. Later packages win collisions. `page init`
 records package selections under `$layer.packages`; a plain re-init resolves them again
 in the same order. `page init --no-packages PAGE` clears the explicit list.
 
@@ -171,9 +170,16 @@ Presentation unique to one page stays in that version's `<style>`.
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
 margins and bound wide content, and the render gate reports a frame that omits it. The
-runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-wide]`, and
+runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`, and
 `[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
-tags. A box a package scrolls sideways needs no declaration of its own: the runtime
+tags. `x-space: wide` requests the shared capped evidence width; `x-space: available`
+requests all room left after enclosing frames, chrome, and actual margin residents.
+Neither value chooses the widget's internal layout; the package arranges its own content
+inside the allocation. A package whose available surface preserves a drawing's natural
+inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can
+distinguish honest source overflow from room withheld by the page; Leaf resets the fact
+on every declared surface, so it applies only to the element that states it. A box a
+package scrolls sideways needs no declaration of its own: the runtime
 measures every scroller on each layout and marks each edge with content beyond it.
 Leaf fades the content at those edges, so a widget that has to scroll says so without
 the package writing anything. In particular, an interactive
@@ -244,7 +250,11 @@ of available page width and height, window resize, and descendant layout changes
 caller supplies the complete minimum as `{width, height}` and keeps the composition's
 policy: the default workspace derives one recursively from equal partitions, while an
 asymmetric package root may read its own grid tracks. The returned `update()` promise
-joins initial settlement; `cleanup()` retires its observers and listeners.
+joins initial settlement; `cleanup()` retires its observers and listeners. Leaf reads
+the available room and minimum synchronously inside the bounded posture under decision,
+while its current document height remains fixed. Live boxes therefore describe the
+candidate arrangement rather than whichever posture is currently drawn, and taking the
+reading neither paints an intermediate layout nor moves a reader in document flow.
 
 `registerReadingRegion({id, host, body})` binds identity separately from the current
 scroller, while `registerReadingArrangement({owner, content, regions})` returns

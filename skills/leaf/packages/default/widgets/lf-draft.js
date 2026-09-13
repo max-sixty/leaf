@@ -388,7 +388,7 @@ customElements.define(
       onClick,
       tone = "neutral",
       behavior = "action",
-      role = "primary",
+      rank = "primary",
       state = "idle",
     ) {
       const button = marginEntry(offer("button", ""), {
@@ -397,7 +397,7 @@ customElements.define(
         label,
         tone,
         behavior,
-        role,
+        rank,
         state,
       });
       button.addEventListener("click", onClick);

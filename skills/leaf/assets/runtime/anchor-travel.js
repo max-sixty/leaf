@@ -285,6 +285,7 @@ export function createAnchorTravel({
     destroy,
     navigateToDatum,
     scrollToElement,
+    scrollRevealedElement,
     readableDestination,
     scrollToRange,
     scrollToThread,

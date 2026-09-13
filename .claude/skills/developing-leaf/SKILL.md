@@ -55,6 +55,13 @@ recreation is a sketch.
 
 ## Prove and hand off a visible change
 
+Leaf's current product focus is desktop. Use a representative desktop viewport for
+the primary screenshots, preview inspection, and visual review. Capture the viewport
+when fixed chrome should appear in the result. A Playwright screenshot of an element
+taller than the viewport composites fixed overlays into the element's page-space bounds
+and misrepresents their position; crop the viewport image afterward when a smaller region
+is needed.
+
 Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. An `/ui-sweep` and a look at a composed page are worth the time;
 a green suite does not judge visual quality.
@@ -71,8 +78,8 @@ show the behavior.
 Before presenting a served page or visible runtime change as finished, inspect
 the exact candidate URL. Exercise the same journey in the baseline and candidate,
 matching the URL fragment, viewport, theme, and interaction state, and check both
-browser consoles. Confirm the expected content and review the changed surface at a
-representative viewport. When handing off a live preview, use the exact URL including
+browser consoles. Confirm the expected content and review the changed surface at the
+primary viewport. When handing off a live preview, use the exact URL including
 the semantic block's fragment and keep the process alive. A titled section uses the
 section's stable id, so its eyebrow and heading arrive together. Add an id to the
 tight semantic container when it has none.
@@ -114,7 +121,7 @@ selected slot and rebuild it from the current fixture.
 
 ## Test the hosted website agent
 
-Run `<root>/scripts/verify-site-agent-local.sh` for the development loop. It builds
+Run `uv run <root>/scripts/verify_site.py local` for the development loop. It builds
 the current site, starts the canonical website adapter, uses the host's logged-in Codex
 App Server, asks for one heading edit, and verifies the publication, reply, and changed
 page in Chrome. Its profile reports request acknowledgement, agent activity,
@@ -130,11 +137,11 @@ through Wrangler's local Docker container:
 ```bash
 npm ci --prefix <root>/worker
 npm run build --prefix <root>/worker
-LEAF_VERIFY_AGENT=1 <root>/scripts/verify-site-local.sh
+<root>/scripts/verify-site-local.sh --agent
 ```
 
 Local infrastructure is emulated, so neither loop proves edge rollout or production
-latency. The `publish-site` workflow runs `scripts/verify-site.py` against the exact
+latency. The `publish-site` workflow runs `scripts/verify_site.py` against the exact
 deployed release and is the authoritative production reading.
 
 ## Compare checkout versions

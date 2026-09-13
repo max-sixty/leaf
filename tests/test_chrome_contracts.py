@@ -22,6 +22,47 @@ from render_support import (
 )
 
 
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, scheme):
+    """The reply surround stays continuous as focus enters and leaves the conversation.
+
+    An opaque shared surface also lets a pinned reply cover scrolled messages without
+    introducing a differently colored band above its input.
+    """
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+    page, errors = open_page(browser, url, color_scheme=scheme)
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    preview = page.locator(".lf-margin-preview")
+    thread = preview.locator(".lf-conversation-thread")
+    surround = thread.locator(".lf-say")
+    reply = preview.get_by_role("button", name="Reply", exact=True)
+    editor = preview.locator("textarea")
+    expect(reply).to_be_visible()
+
+    for state in ("collapsed", "editing", "outside"):
+        if state == "editing":
+            reply.click()
+            expect(editor).to_be_focused()
+        elif state == "outside":
+            preview.get_by_role("button", name="Dismiss conversation").focus()
+        surface = thread.evaluate("""node => {
+          const color = getComputedStyle(node).backgroundColor;
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const paint = canvas.getContext('2d');
+          paint.fillStyle = color;
+          paint.fillRect(0, 0, 1, 1);
+          return {color, alpha: paint.getImageData(0, 0, 1, 1).data[3]};
+        }""")
+        assert surface["alpha"] == 255, (scheme, state, surface)
+        expect(surround).to_have_css("background-color", surface["color"])
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(

@@ -35,6 +35,8 @@
    a script-free copy cannot rerun the packing pass, so its serialized `lf-withheld`
    reading remains withheld. Changing that behavior belongs to the live and copied layouts
    together, not to this export override. */
+import { setRuntimeRootStyle } from "./root-state.js";
+
 const rows = new Map();
 // The horizontal space a row was last docked against. A dock holds while that space and
 // the row itself do. The shell's presentation carry is the exception: its moving column
@@ -186,7 +188,7 @@ export function unregisterMarginRow(row) {
     observer?.disconnect();
     observer = null;
     observedColumn = null;
-    for (const el of document.querySelectorAll("[data-lf-wide][data-lf-yield]"))
+    for (const el of document.querySelectorAll("[data-lf-space][data-lf-yield]"))
       el.removeAttribute("data-lf-yield");
   }
   scheduleMarginLayout();
@@ -314,7 +316,7 @@ export function layoutMarginRows() {
     reserveRail();
     if (claim > claimedRail) {
       claimedRail = claim;
-      document.documentElement.style.setProperty("--rail", `${claimedRail}px`);
+      setRuntimeRootStyle(document.documentElement, "--rail", `${claimedRail}px`);
     }
   }
   const inMargin = [];
@@ -361,7 +363,7 @@ export function layoutMarginRows() {
     bands.push({ top, bottom: top + rect.height });
   }
 
-  const wide = [...document.querySelectorAll("[data-lf-wide]")].map((el) => {
+  const wide = [...document.querySelectorAll("[data-lf-space]")].map((el) => {
     const box = el.getBoundingClientRect();
     return {
       el,

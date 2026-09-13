@@ -409,21 +409,6 @@ def _validate_widget_structure(
                 f"{path}: <{tag}> declares addressable visual parts but has no "
                 "upgraded handler to resolve them"
             )
-    # A drawing's box is the clip around something drawn at a size of its own, and
-    # the theme lays it out as a row so the drawing keeps the column's axis and
-    # scrolls only past the room. Every child of that element is an item in the row,
-    # so a word the layer writes into it stands beside the drawing rather than over
-    # it and takes it off the axis by half the word's width — a picture placed
-    # slightly wrong, which nothing else on the page has any way to notice. The
-    # widget that has words as well as a drawing is a box, which lays out both.
-    # (x-paints is the other kind of word and is not this: it renders into the
-    # shared clip, which is positioned out of the flow.)
-    if entry.get("x-wide") == "drawing" and said:
-        raise RegistryError(
-            f"{path}: <{tag}> is x-wide: drawing and says {sorted(said)} — a "
-            "drawing's box holds what was drawn and lays out nothing beside it, "
-            "so a widget that says an attribute as well declares x-wide: box"
-        )
     return properties, said
 
 

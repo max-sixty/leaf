@@ -126,7 +126,7 @@ def _published_reading(
 
 
 def _thread_heading(thread: dict) -> str:
-    anchor = thread["anchor"] or {}
+    anchor = thread["detached_from"] or thread["anchor"] or {}
     if anchor.get("quote"):
         head = f"> “{shown(anchor['quote'])}”"
     elif anchor.get("section"):
@@ -137,6 +137,8 @@ def _thread_heading(thread: dict) -> str:
             head += f" · {anchor['part']}"
     else:
         head = "> (page-level)"
+    if thread["detached_from"]:
+        head += "  — no longer in this version"
     if thread["root"].get("about") == "design":
         head += "  — about the design"
     closed = thread["resolved"]

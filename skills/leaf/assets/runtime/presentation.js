@@ -101,7 +101,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
   inline: "data-lf-inline",
-  wide: "data-lf-wide",
+  space: "data-lf-space",
   exhibit: "data-lf-exhibit",
   yield: "data-lf-yield",
   holds: "data-lf-holds",
@@ -383,17 +383,17 @@ export function dress(root) {
   return highlightBlocks(root);
 }
 
-// The declarations a stylesheet has to read and cannot. Three of them today: two about
-// the box a widget is given and one about what may be offered inside it, and none of the
+// The declarations a stylesheet has to read and cannot. Three of them today: one about
+// the space a widget is given and two about how it participates in content, and none of the
 // three is something a selector can derive from the element in hand or look up.
 //
 // Which widgets may stand wider than the column is the first. Prose is set to a measure
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
-// the widget kind says which it is (x-wide) and the theme spends the room the layout
-// resolved by the CSS shell (--lf-room). The value is the kind the declaration names, and the
-// theme's `[data-lf-wide="box"]` and `[data-lf-wide="drawing"]` rules read it.
+// the widget declares its capacity (x-space) and the theme spends the room the layout
+// resolved by the CSS shell (--lf-room). `wide` uses the shared evidence cap;
+// `available` uses all remaining room. Internal arrangement remains package-owned.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What
 // reads it is the pair of selectors asking whether a suggestion slot or a variant holds
@@ -438,7 +438,7 @@ export function dress(root) {
 // a reply would stack there and nowhere else. So is x-exhibit: quoting is the element's
 // own fact, and a specimen carried into a reply is quoted there too. A page's widget
 // renders in both places, and only one of the three changes meaning when it moves. The
-// room x-wide hands out is the document's, and a message is the one place a
+// room x-space hands out is the document's, and a message is the one place a
 // widget of the page's vocabulary renders outside the document, where the room is the
 // panel's (see msgNode).
 export const MARKED_ANYWHERE = Object.freeze({
@@ -447,7 +447,7 @@ export const MARKED_ANYWHERE = Object.freeze({
 });
 export const MARKED_IN_PAGE = Object.freeze({
   ...MARKED_ANYWHERE,
-  "x-wide": PAGE_PAINT_ATTRIBUTE.wide,
+  "x-space": PAGE_PAINT_ATTRIBUTE.space,
 });
 
 function* elementsIn(root, selector) {
@@ -455,7 +455,7 @@ function* elementsIn(root, selector) {
   yield* root.querySelectorAll(selector);
 }
 
-// `markDeclared` exposes a declaration such as x-wide as paint, and CSS computes the
+// `markDeclared` exposes a declaration such as x-space as paint, and CSS computes the
 // room after chrome strips and claimed margins.
 export function markDeclared(root, painted) {
   for (const [key, attr] of Object.entries(painted))

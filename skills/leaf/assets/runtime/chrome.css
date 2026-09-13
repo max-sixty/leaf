@@ -6,8 +6,7 @@
 
    Two numbers here are spelled again in the runtime, and a layer test holds each pair
    equal: the covering queries `(width <= 840px)` and `(width > 840px)` are twice
-   THREAD_PANEL_W (chrome-layout.js), `(width <= 600px)` is twice TRAY_SLOT_W (trays.js), and the
-   tray that takes a strip, `[data-lf-auxiliary-surface="asks"]`, is trays.js's BESIDE_TRAYS. A
+   THREAD_PANEL_W (chrome-layout.js), and `(width <= 600px)` is twice TRAY_SLOT_W (trays.js). A
    container or media query cannot read a custom property, which is why each query is a
    literal rather than the --lf-thread-panel-width the runtime writes. */
 /* `.lf-chrome` is one fixed runtime root containing the banner, tray panel, thread panel,
@@ -226,9 +225,13 @@
 .lf-margin-entry:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {
   background: var(--lf-agent-tint, var(--chip));
 }
-.lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+.lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(:hover, [aria-expanded="true"]):not([aria-disabled="true"]) {
   border-color: var(--accent);
 }
+/* A selected page reading and its compact Page Map projection share one accent. Reuse
+   the entry's existing contour: category still owns its weight, and keyboard focus can
+   add the one outer ring that says where input will land. */
+.lf-margin-entry[data-lf-target-selected] { border-color: var(--accent); }
 .lf-margin-entry:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: margin-entry; outline-offset: 1px;
 }
@@ -236,16 +239,25 @@
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Pickup colors the carrier's glyph; active work colors its interior. The ordinary
-   contour continues to communicate the entry's behavior. */
-.lf-margin-entry[data-lf-agent-phase="picked_up"]
+/* Ownership colors the carrier's glyph; active work also colors its interior. The
+   ordinary contour continues to communicate the entry's behavior. */
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
-.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="positive"] {
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)[data-lf-tone="positive"] {
   border-color: var(--ok-ink);
 }
-.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="negative"] {
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)[data-lf-tone="negative"] {
   border-color: var(--danger-ink);
 }
 .lf-margin-entry[data-lf-agent-phase="active"] {
@@ -488,14 +500,12 @@ html.lf-copy mark.lf-react { background: var(--react); color: inherit;
 .lf-reacts { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .lf-react-mark { text-align: center; }
 /* Opening a standing reaction leaves its familiar face in place and reveals the
-   separately named removal action beside it. The relation changes; the mark does not
-   acquire a selected ring or pretend the reaction itself changed. */
+   separately named removal action beside it. Its existing contour takes the shared
+   disclosure accent; the mark does not gain a second ring or pretend the reaction
+   itself changed. */
 .lf-react-mark[data-lf-behavior="disclosure"] {
   border-width: 2px; border-color: var(--border-2); color: var(--ink);
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
-}
-.lf-margin-entry.lf-react-mark[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
-  border-color: var(--border-2);
 }
 /* The draft's own passage uses the accent contour. An open composer is on screen
    whenever this is, and an already-posted element keeps the posted colour instead, so
@@ -1588,11 +1598,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar .lf-composer-media { display: flex; gap: 6px; flex: none;
     max-width: 148px; padding: 0; overflow-x: auto; }
   .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
-  .lf-suggest-label { font-size: var(--t-6); letter-spacing: .05em; text-transform: uppercase; color: var(--ok-ink); margin: 4px 0 2px; }
+  .lf-suggest-label { color: var(--muted-2); }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
-  .lf-msg-body.lf-suggest-body { background: var(--add-tint); padding: 4px 8px;
-    border-radius: 6px; white-space: pre-wrap; }
+  .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
   .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .lf-command-reference { position: fixed; z-index: 9300; top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: min(520px, calc(100vw - 32px - var(--lf-safe-left) - var(--lf-safe-right)));
@@ -1688,10 +1697,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
     line-height: 1.35; }
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-title {
+    padding-inline-end: 0; }
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(.lf-margin-preview-nav[hidden])
+      .lf-margin-preview-title {
     padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px); }
   .lf-margin-preview-close { flex: none; }
-  .lf-margin-preview-nav { display: flex; align-items: center; justify-content: flex-end;
-    gap: 4px; margin-top: 5px; color: var(--muted-2); font-size: var(--t-6); }
+  .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
+    gap: 4px; margin-inline-end: calc(max(28px, var(--aim-floor)) + 4px);
+    color: var(--muted-2); font-size: var(--t-6); }
   .lf-margin-preview-nav[hidden] { display: none; }
   .lf-margin-preview-position { margin-inline-end: 2px; }
   .lf-margin-preview-step { --lf-icon-action-hit: 28px; border: 0;
@@ -1702,7 +1715,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
-  .lf-margin-thread .lf-say { align-items: stretch; }
+  /* The reply surround shares the conversation's opaque surface, including its focus
+     tint, so pinning the reply cannot introduce a separate background band. */
+  :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }
+  .lf-margin-thread .lf-say { align-items: stretch; background: inherit; }
   .lf-margin-thread .lf-say textarea { min-width: 0; }
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
     position: static; }
@@ -1716,7 +1732,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
     color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
-  .lf-page-map-action[data-lf-agent-phase="picked_up"] > .lf-margin-kind {
+  .lf-page-map-action:is(
+    [data-lf-agent-phase="picked_up"],
+    [data-lf-agent-phase="active"]
+  ) > .lf-margin-kind {
     color: var(--ok-ink);
   }
   .lf-page-map-action[data-lf-agent-phase="active"] {
@@ -1786,11 +1805,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
      real control. Useful transient state balances the line at the opposite edge: a
      semantic walk's live ordinal, or a brief command or arrival notice in its place.
-     syncLayout keeps the line out of a side-by-side thread panel and, over a covering
-     panel, lifts it only when its rendered box actually meets the panel foot. The chrome
-     root reserves that fixed bottom surface for each scroll region it crosses, so its
-     last lines never end underneath it. Overflow remains a backstop for a window too
-     narrow to hold even the short line. */
+     syncLayout keeps the line out of a side-by-side thread panel. A covering thread
+     panel makes it inert background, so that foreground does not move it or reserve its
+     own list around it. The chrome root reserves the fixed bottom surface for scroll
+     regions it crosses, so their last lines never end underneath it. Overflow remains a
+     backstop for a window too narrow to hold even the short line. */
   :is(.lf-shortcut-bar, .lf-bottom-status) {
     color: var(--muted); font-size: var(--t-6); padding: 5px 10px;
     border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }

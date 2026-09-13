@@ -9,7 +9,7 @@
  * being compared, so the eye has to cross one to make each comparison. Hairlines
  * between rows and one shape per row is what a set read across wants, which is the
  * same argument the row form of a choose group makes and the reason a roster stands
- * wide (x-wide): the live line's parts land in the same order at the same place on
+ * wide (x-space): the live line's parts land in the same order at the same place on
  * every row, and an eye runs down any one of them. */
 lf-roster { display: block; margin: 14px 0; border-top: 1px solid var(--rule); }
 /* The state's column, and then the row's own text beside it. The width is the module's

@@ -7,11 +7,13 @@ from copy import deepcopy
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import append_command, record_claim
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import event_log as events_model
+from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
+from leaf import service as service_model
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -21,6 +23,7 @@ from render_support import (
     COVERED_TOP,
     EDGES,
     EXAMPLE_MEDIA,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     FRAME_BY_FRAME,
@@ -55,6 +58,56 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, request):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
+    claim = record_claim(
+        serve.page_dir,
+        id="codex-thread",
+        host="codex",
+        agent="Codex",
+    )
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim)
+    )
+    assert lease
+    request.addfinalizer(lease.close)
+    attempt = service_model.stream_reply_attempt("leaf-turn")
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status("waiting", "Reader feedback")
+        transaction.set_stream_reply(
+            "codex-thread",
+            "leaf-turn",
+            root,
+            root,
+            None,
+            "",
+            "active",
+        )
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    message = page.locator(f'.lf-msg[data-attempt="{attempt}"]')
+    expect(message.locator(".lf-msg-text")).to_be_empty()
+
+    reply = conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "The complete answer.",
+        "",
+        for_event=root,
+        attempt=attempt,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
+
+    expect(message).to_have_attribute("data-mid", reply["id"])
+    expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
+    assert errors == []
 
 
 @pytest.mark.parametrize("resolved", [False, True])
@@ -259,6 +312,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         expect(thread.get_by_role("button", name="Resolve thread")).to_have_count(0)
     else:
         expect(page.locator(".lf-threads")).to_contain_text("No open threads.")
+        expect(page.locator(".lf-threads")).to_be_focused()
     assert not any(
         event["kind"] == "resolve" for event in events_model.read_events(serve.page_dir)
     )
@@ -273,6 +327,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     else:
         thread = page.locator(f'.lf-thread[data-id="{root}"]')
         resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+        expect(thread).to_be_focused()
     expect(resolve).to_be_enabled()
     expect(resolve).not_to_have_attribute("aria-busy", "true")
     expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
@@ -297,6 +352,81 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         )
     else:
         expect(page.locator(".lf-general textarea")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refusal(
+    held_events, serve
+):
+    """Panel focus follows the same optimistic Resolve/Reopen state as its cards.
+
+    A refusal restores both the prior lifecycle view and the thread the reader was
+    operating. A later accepted attempt keeps the optimistic destination rather than
+    moving focus again when the server answers.
+    """
+    browser, held = held_events
+    url = serve(LONG_PAGE)
+    first = panel_comment(serve.page_dir, "Keep this first thread in view.")
+    second = panel_comment(serve.page_dir, "The next thread receives focus.")
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    first_card = page.locator(f'.lf-thread[data-id="{first}"]')
+    second_card = page.locator(f'.lf-thread[data-id="{second}"]')
+
+    first_card.focus()
+    page.keyboard.press("r")
+    holding(page, held, 1, "the refused resolve")
+    expect(second_card).to_be_focused()
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    round_trip(page)
+    expect(first_card).to_be_focused()
+    page.keyboard.press("c")
+    expect(first_card.locator(":scope > .lf-compose textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("r")
+    holding(page, held, 1, "the accepted resolve")
+    expect(second_card).to_be_focused()
+    page.keyboard.press("c")
+    second_reply = second_card.locator(":scope > .lf-compose textarea")
+    expect(second_reply).to_be_focused()
+    held.pop().continue_()
+    round_trip(page)
+    expect(second_reply).to_be_focused()
+
+    page.locator('[data-filter-value="resolved"]').click()
+    page.locator(".lf-find-box").fill("first thread")
+    first_card.focus()
+    expect(first_card).to_be_focused()
+    page.keyboard.press("r")
+    holding(page, held, 1, "the refused reopen")
+    pending_reply = first_card.locator(":scope > .lf-compose textarea")
+    expect(pending_reply).to_be_focused()
+    pending_reply.fill("Keep this draft through the refusal.")
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator(".lf-find-box")).to_have_value("")
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    round_trip(page)
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator(".lf-find-box")).to_have_value("first thread")
+    expect(page.locator(".lf-threads")).to_be_focused()
+
+    expect(first_card).to_be_visible()
+    first_card.focus()
+    page.keyboard.press("r")
+    holding(page, held, 1, "the accepted reopen")
+    reply = first_card.locator(":scope > .lf-compose textarea")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_value("Keep this draft through the refusal.")
+    held.pop().continue_()
+    round_trip(page)
+    expect(reply).to_be_focused()
     assert errors == []
     page.close()
 
@@ -3276,7 +3406,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
         "/* a project styling a wrapper away, which is any layer's to do */\n"
         "lf-options { display: contents }\n"
     )
-    url = serve(REPLY_TRAVEL_PAGE)
+    url = serve(REPLY_TRAVEL_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     # A group reporting rather than asking: the joined control the layer draws for
     # `choose` states its own display at a weight a project's bare tag rule does not
     # reach, and the subject here is a boxless wrapper rather than a cascade fight.

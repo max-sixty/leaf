@@ -414,21 +414,24 @@ export function createSelectionComposer({
       const previousDrawing = pendingDrawing;
       syncComposer.load("");
       // Automatic selection merely opens another passage's view. An explicit Comment
-      // gesture may instead carry unsent words there, which preserves the old Alt-click
-      // promise without making a reader's next selection silently re-anchor their draft.
-      if (carry && (previousText || previousDrawing)) {
+      // gesture may instead carry unsent words into an empty passage, which preserves
+      // the old Alt-click promise without replacing independent work already held at
+      // the destination or making a reader's next selection silently re-anchor a draft.
+      const held = text ? null : loadDraft(ctx);
+      const record = held ? JSON.parse(held) : null;
+      const carrying =
+        carry &&
+        (previousText || previousDrawing) &&
+        !(record?.text || validDrawing(record?.drawing));
+      if (carrying) {
         clearDraft(previousCtx);
         text ||= previousText;
         if (!drawingSupplied) drawing = previousDrawing;
         carriedDraft = true;
-      } else {
-        const held = text ? null : loadDraft(ctx);
-        if (held) {
-          const record = JSON.parse(held);
-          ({ text, suggest, about } = record);
-          if (!drawingSupplied) drawing = record.drawing ?? null;
-        } else if (!drawingSupplied) drawing = null;
-      }
+      } else if (record) {
+        ({ text, suggest, about } = record);
+        if (!drawingSupplied) drawing = record.drawing ?? null;
+      } else if (!drawingSupplied) drawing = null;
     }
     pendingAnchor = anchor || null;
     pendingAbout = about;
@@ -621,6 +624,11 @@ export function createSelectionComposer({
           },
         );
         if (!sent) return;
+        // The semantic publication is synchronous, while the retained thread list
+        // commits its keyed DOM asynchronously. Wait for that presentation before
+        // choosing the destination: otherwise an already-open panel can be asked to
+        // focus a pending thread before the thread exists.
+        await refreshConversation();
         let reply = threadsBox.querySelector(
           `.lf-thread[data-id="${sent.id}"] textarea`,
         );
@@ -651,9 +659,7 @@ export function createSelectionComposer({
         }
         // The composer this was sent from is gone with the send; the thread it became
         // carries the same conversation, so its reply box is where typing continues.
-        if (shouldLand && !inlineReply) {
-          landTyping(reply, composerInput);
-        }
+        if (shouldLand && !inlineReply) landTyping(reply, composerInput);
       },
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);

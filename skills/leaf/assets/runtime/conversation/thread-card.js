@@ -23,7 +23,7 @@ const threadAnchorLabel = (t, placedAt, outline = pageOutline()) => {
     segments.every(({ node }) => group.target.contains(node))
   )
     return "";
-  return anchorLabel(t.anchor, t.root.about, group.target);
+  return anchorLabel(t.detached_from ?? t.anchor, t.root.about, group.target);
 };
 
 // The adopted log is append-only, but a refused state application can withdraw a
@@ -53,13 +53,10 @@ export function threadNode(t, grow, commands) {
       existing.dataset.id = t.root.id;
     }
     const compose = existing.querySelector(":scope > .lf-compose");
-    const tail =
-      existing.querySelector(":scope > .lf-receipt") ??
-      compose ??
-      existing.querySelector(":scope > .lf-thread-actions");
+    const tail = compose ?? existing.querySelector(":scope > .lf-thread-actions");
     const messages = turns(t);
     const current = new Set(messages.map((message) => message.id));
-    // New messages append before the source-less fallback or thread controls.
+    // New messages append before the thread controls.
     for (const m of messages) {
       let msg = msgNodeIn(existing, m);
       if (!msg) {
@@ -80,6 +77,10 @@ export function threadNode(t, grow, commands) {
   // answering for a comment the reader just sent renames this node in place, and a
   // handler holding the earlier name would go on addressing a thread nothing wears.
   const liveId = () => div.dataset.id;
+  const shownCard = () =>
+    threadsBox.querySelector(
+      `:scope > .lf-thread[data-id="${CSS.escape(liveId())}"]:not([hidden])`,
+    );
   div.tabIndex = -1; // t/T focus target; the thread scope's Enter drops into its reply box
   div.dataset.id = t.root.id;
   div.dataset.resolved = String(Boolean(t.resolved));
@@ -127,14 +128,24 @@ export function threadNode(t, grow, commands) {
       ...settlement,
       liveId,
       prepareLanding: () => {
-        // Resolving removes this card and its focus. Land on the thread that takes its
-        // place, or the previous thread when this one was last in the list.
+        // Resolving removes this card and its focus in the optimistic presentation.
+        // Land in that same turn on the thread that takes its place, or the previous
+        // thread when this one was last in the list. A refusal restores the original
+        // thread only while no later reader gesture has claimed the landing.
         const mayLand = travel.retainPanelLanding(div);
         const at = openThreads().indexOf(div);
-        return () => {
-          if (!mayLand()) return;
-          const kept = openThreads();
-          (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
+        let mayRestore = () => false;
+        return {
+          optimistic: () => {
+            if (!mayLand()) return;
+            const kept = openThreads();
+            const destination = kept[at] ?? kept[at - 1] ?? threadsBox;
+            destination.focus({ preventScroll: true });
+            mayRestore = travel.retainPanelLanding(destination);
+          },
+          refused: () => {
+            if (mayRestore()) shownCard()?.focus({ preventScroll: true });
+          },
         };
       },
     });
@@ -173,8 +184,26 @@ export function threadNode(t, grow, commands) {
       liveId,
       prepareLanding: () => {
         const mayLand = travel.retainPanelLanding(div);
-        return () => {
-          if (mayLand()) travel.showThread(liveId());
+        const narrowing = travel.retainNarrowing();
+        let mayRestore = () => false;
+        return {
+          optimistic: () => {
+            if (!mayLand()) return;
+            travel.showThread(liveId());
+            narrowing.replaced();
+            const destination = shownCard();
+            if (destination) mayRestore = travel.retainPanelLanding(destination);
+          },
+          refused: () => {
+            const restoreFocus = mayRestore();
+            narrowing.restore(() => {
+              if (!restoreFocus) return;
+              // Restoring the resolved state folds the optimistic open card. Finish
+              // that transition through the ordinary direct-arrival path before
+              // putting back the narrower view it clears.
+              travel.showThread(liveId(), { focus: "thread" });
+            });
+          },
         };
       },
     });
@@ -219,7 +248,7 @@ export function paintThreadQuotes({ placedAt, isMarked }) {
     // adopts the server's event. Its already-painted quote remains valid until that
     // pass renames or removes the card; there is no current thread to repaint it from.
     if (!thread) continue;
-    const anchored = Boolean(thread.anchor);
+    const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
     const outdated = anchored && placedAt(div.dataset.id)?.status === "outdated";
     let status = quote.querySelector(":scope > .lf-anchor-status");
     if (outdated && !status) {
@@ -239,14 +268,18 @@ export function paintThreadQuotes({ placedAt, isMarked }) {
     // Resolved threads deliberately carry no mark, but retain the placement their
     // folded quote can return to. One reading owns visual, assistive, keyboard, and
     // pointer availability so the same quote never becomes a pointer-only action.
-    const found = isMarked(div.dataset.id) || Boolean(placedAt(div.dataset.id));
+    const found =
+      !thread.detached_from &&
+      (isMarked(div.dataset.id) || Boolean(placedAt(div.dataset.id)));
     quote.classList.toggle("detached", !found);
     quote.setAttribute("aria-disabled", String(!found));
     quote.title = found
       ? outdated
         ? "This comment refers to an earlier data revision"
         : "Jump to this passage"
-      : "This passage can't be identified in the version you're viewing";
+      : thread.detached_from
+        ? "This passage is no longer in the version you're viewing"
+        : "This passage can't be identified in the version you're viewing";
   }
   paintKeys();
 }

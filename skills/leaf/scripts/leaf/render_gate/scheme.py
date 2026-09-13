@@ -73,23 +73,105 @@ def console_problem(message) -> str | None:
     return None
 
 
+INTERCEPTION_ARM = "**/__leaf_arms_interception__"
+
+
+def arm_interception(page):
+    """Keep this page's request interception on for the whole of its life.
+
+    Playwright turns interception off the moment a page's route list empties, and
+    requests crossing that transition are lost with nothing said about it: the
+    document stops at `interactive` with no load event, or a read the runtime is
+    waiting on never lands, and neither ending writes a console entry. The gate
+    holds the Leaf entry through a route and takes that route away again, so a page
+    it opens would otherwise see the list empty at the `unroute` — measured on the
+    corpus page, with `/api/state`, `/registry.json` and `/icon.svg` still in
+    flight. A route on a pattern nothing ever asks for keeps the list non-empty, so
+    no such transition is ever sent. `arm_interception` in the suite's own harness
+    arms the pages a test opens for the same reason.
+    """
+    page.route(INTERCEPTION_ARM, lambda route: route.abort())
+
+
 def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
-    """Inspect the authored document while its first Leaf entry request is held."""
+    """Inspect the authored document while its first Leaf entry request is held.
+
+    The hold outlives the entry it holds. Playwright turns a page's request
+    interception off as soon as its last route handler is spent, and a `times=1`
+    handler is spent at the moment the entry is released — which is the moment the
+    module layer starts asking for a hundred-odd files. Turning interception off
+    under that burst loses requests: the document stops at `interactive` with a
+    module still in flight, or with nothing in flight and no load event, and neither
+    ending writes a console entry. So this handler stays registered until after the
+    load event and lets a later entry request through. The `unroute` in the `finally`
+    below is not the safe point either — a loaded document is not an idle one, and the
+    runtime's own `/api/state` read is still open there — so the page carries
+    `arm_interception` and its route list never empties at all.
+
+    Each wait here says which arrival it gave up on, and what the page was still
+    asking for. The caller reads a timeout raised out of this function as one it
+    cannot attribute, and the reading it would otherwise fall back on — that the
+    runtime never injected its banner — is wrong for the case that actually
+    happens: a subresource the page never receives leaves the document at
+    `interactive` with the runtime already running, no console entry, and no
+    error. The request still open is the only thing that names the file.
+    """
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
     held = []
     released = False
+    open_requests = set()
 
     def hold_entry(route):
+        # Only the first is held. A later one is passed through rather than left
+        # standing, because this handler has to outlive the entry it holds and a
+        # second hold nothing releases would be a wait with no end.
+        if held:
+            route.continue_()
+            return
         held.append(route)
 
-    page.route("**/leaf.js", hold_entry, times=1)
+    def opened(request):
+        open_requests.add(request)
+
+    def settled(request):
+        open_requests.discard(request)
+
+    def reaching(arrival, wait):
+        try:
+            return wait()
+        except PlaywrightTimeout:
+            # Minus the entry this function is holding itself, while it is still
+            # holding it: it is open because the gate chose to hold it, and naming it
+            # as something the page is still asking for points a reader at the hold
+            # rather than at the page. Past the release it is the page's own request
+            # like any other, and the load wait below is where it would stall.
+            mine = set() if released else {route.request for route in held}
+            waiting = open_requests - mine
+            asking = sorted({urlsplit(request.url).path for request in waiting})
+            raise RuntimeError(
+                f"the document never reached {arrival}"
+                + (f"; still requesting {', '.join(asking)}" if asking else "")
+            ) from None
+
+    page.on("request", opened)
+    page.on("requestfinished", settled)
+    page.on("requestfailed", settled)
+    page.route("**/leaf.js", hold_entry)
     try:
-        page.goto(url, wait_until="commit")
-        page.wait_for_selector("body > main", state="attached")
+        reaching("its first byte", lambda: page.goto(url, wait_until="commit"))
+        reaching(
+            "an authored main",
+            lambda: page.wait_for_selector("body > main", state="attached"),
+        )
         if page.locator('script[src$="/leaf.js"]').count() != 1:
             raise RuntimeError("the document has no single canonical Leaf entry")
-        page.wait_for_function(
-            "() => [...document.styleSheets].some((sheet) => "
-            "sheet.href?.endsWith('/theme.css'))"
+        reaching(
+            "its theme stylesheet",
+            lambda: page.wait_for_function(
+                "() => [...document.styleSheets].some((sheet) => "
+                "sheet.href?.endsWith('/theme.css'))"
+            ),
         )
         findings = page.evaluate(
             """() => {
@@ -116,12 +198,15 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
             raise RuntimeError("the browser did not request one canonical Leaf entry")
         held[0].continue_()
         released = True
-        page.wait_for_load_state("load")
+        reaching("load", lambda: page.wait_for_load_state("load"))
         return findings
     finally:
         if held and not released:
             held[0].continue_()
         page.unroute("**/leaf.js", hold_entry)
+        page.remove_listener("request", opened)
+        page.remove_listener("requestfinished", settled)
+        page.remove_listener("requestfailed", settled)
 
 
 def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pages):
@@ -131,6 +216,7 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
 
     page = browser.new_page(viewport=viewport, color_scheme=scheme)
     opened_pages.append(page)
+    arm_interception(page)
     page._leaf_probe_timeout_ms = served_timeout_ms
     errors = []
     resize_notices = []
@@ -187,7 +273,18 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
         return probe_failure(error)
     except RuntimeError as error:
         page.close()
-        return ([f"[{scheme}] pre-upgrade proof failed: {error}"], [], False)
+        # The named wait says what never arrived; the console and the response
+        # statuses collected above are what says why, and a refused document has
+        # nothing else to offer a reader.
+        explanations = [*errors, *resize_notices]
+        return (
+            [
+                f"[{scheme}] pre-upgrade proof failed: {error}"
+                + (" — " + "; ".join(explanations) if explanations else "")
+            ],
+            [],
+            False,
+        )
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
     # the page — which is the stamp `version export` waits on for the same reason.

@@ -5,15 +5,18 @@
    retains registrations while live documents and widgets reconnect. The margin projection
    consumes that registry to choose and place controls; contributors never place RHS rows.
 
-   Behavior, tone, rank, and interaction state are independent axes. An action performs an
-   immediate effect, a disclosure reveals context, and a status reports a move already
-   made without offering a press. Tone changes the icon color without changing the ring
-   or surface. Busy dims an in-flight press after the shared delay; engaged and failed
-   controls stand beside words that already state their condition. Interaction state
-   otherwise orders controls and keeps an active contribution open rather than becoming a
+   Behavior, tone, rank, and interaction state are independent contributor axes. Reader
+   selection and agent ownership are independent projection-owned axes. An action performs
+   an immediate effect, a disclosure reveals context, and a status reports a move already
+   made without offering a press. Tone changes the icon color without changing the ring or
+   surface. Busy dims an in-flight press after the shared delay; engaged and failed controls
+   stand beside words that already state their condition. Interaction state otherwise
+   orders controls and keeps an active contribution open rather than becoming a
    product-facing visual taxonomy.
    A disclosure's visible label ends in an ellipsis because it opens context; action and
-   status labels do not.
+   status labels do not. Every axis has a default, so an option outside this grammar is
+   refused rather than ignored: a caller stating a rank under a name this module does not
+   know would otherwise get the default and no word about it.
 
    Ordering follows interaction state, then rank, contribution key, and control key. Failed,
    busy, and engaged contributions precede idle ones; completion and escape controls
@@ -83,6 +86,7 @@ const FORWARDED_ATTRIBUTES = [
   "aria-haspopup",
   "aria-pressed",
   "data-lf-agent-phase",
+  "data-lf-target-selected",
 ];
 
 const changed = () => {
@@ -263,6 +267,11 @@ export function syncMarginAgentPhase(control, receipt) {
   }
 }
 
+export function syncMarginEntrySelection(control, selected) {
+  if (selected) keeps(control, "data-lf-target-selected", "");
+  else control.removeAttribute("data-lf-target-selected");
+}
+
 export function syncForwardedMarginEntryState(projection, source) {
   forwardedSources.set(projection, source);
   paintAgentDescription(projection);
@@ -297,8 +306,17 @@ export function marginEntry(
     state = "idle",
     writesRelation = true,
     writesSeat = true,
+    // Every axis has a default, so an option this grammar does not know is silently
+    // nothing: the control keeps the default for the axis the caller meant to state.
+    // That is how a rename of this vocabulary reaches a call site — the old name goes
+    // on being accepted and the stated rank stops arriving. What this destructuring
+    // does not name is what the refusal below reports, so the two cannot disagree.
+    ...unknown
   },
 ) {
+  const unnamed = Object.keys(unknown);
+  if (unnamed.length)
+    throw new TypeError(`Unknown margin entry option: ${unnamed.sort().join(", ")}`);
   if (!(control instanceof Element))
     throw new TypeError("A margin entry needs an Element control");
   if (!String(key ?? "").trim()) throw new TypeError("A margin entry needs a key");

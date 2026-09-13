@@ -88,6 +88,25 @@ def select_words(page, passage):
     locator.click(click_count=3, position={"x": x, "y": y})
 
 
+def choose_comment_target(page, selector):
+    """Choose one visible element through the reader's target-hint route."""
+    page.locator(selector).scroll_into_view_if_needed()
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    code = page.evaluate(
+        """selector => {
+          const top = document.querySelector(selector).getBoundingClientRect().top;
+          return [...document.querySelectorAll('.lf-target-chooser-hint')]
+            .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
+                          - Math.abs(b.getBoundingClientRect().top - top))[0]
+            .dataset.lfHintCode;
+        }""",
+        selector,
+    )
+    page.keyboard.type(code)
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+
+
 @pytest.mark.parametrize("box", ["general", "reply", "composer"])
 def test_a_single_space_is_message_content_in_every_composer(browser, serve, box):
     """The shared field and both drawing-aware variants admit the smallest message."""
@@ -2668,6 +2687,59 @@ def test_two_passages_hold_two_composer_drafts(browser, serve, one_reader):
     assert first_errors == []
     assert second_errors == []
     assert third_errors == []
+
+
+def test_an_explicit_target_does_not_overwrite_its_existing_draft(
+    browser, serve, one_reader
+):
+    """A deliberate retarget carries words only into an empty passage.
+
+    Two passages may already hold independent work. Choosing the second from the first
+    tab should therefore reopen the draft at the chosen destination and leave the source
+    draft where it was, rather than tombstoning the source and replacing the destination.
+    The target chooser is the real explicit gesture whose carry path owns that choice.
+    """
+    url = serve(LONG_PAGE)
+    first, first_errors = open_page(browser, url, context=one_reader)
+    second, second_errors = open_page(browser, url, context=one_reader)
+
+    source = "This paragraph buries the point."
+    destination = "This later paragraph already has its own note."
+    choose_comment_target(first, "#p3")
+    first.locator(".lf-fab-input").fill(source)
+    choose_comment_target(second, "#p9")
+    second.locator(".lf-fab-input").fill(destination)
+
+    first.keyboard.press("Escape")
+    expect(first.locator(".lf-composer")).to_be_hidden()
+    choose_comment_target(first, "#p9")
+    expect(first.locator(".lf-fab-input")).to_have_value(destination)
+
+    first.keyboard.press("Escape")
+    choose_comment_target(first, "#p3")
+    expect(first.locator(".lf-fab-input")).to_have_value(source)
+    assert first_errors == []
+    assert second_errors == []
+
+
+def test_an_explicit_target_carries_into_an_emptied_draft(browser, serve):
+    """A cleared destination record holds no work that should outrank a carried draft."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    field = page.locator(".lf-fab-input")
+
+    choose_comment_target(page, "#p9")
+    field.fill("Words the reader removes.")
+    field.fill("")
+    page.keyboard.press("Escape")
+
+    source = "Words to carry to the later paragraph."
+    choose_comment_target(page, "#p3")
+    field.fill(source)
+    page.keyboard.press("Escape")
+    choose_comment_target(page, "#p9")
+    expect(field).to_have_value(source)
+    assert errors == []
+    page.close()
 
 
 def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_reader):

@@ -22,6 +22,11 @@ def activate_source(
 ) -> Activation:
     """Activate complete valid source inputs, or keep the last good revision."""
     checked = check_source(page_dir, events, allow_transition=allow_transition)
+    return activate_checked_source(page_dir, checked)
+
+
+def activate_checked_source(page_dir: Path, checked: SourceCheck) -> Activation:
+    """Activate a validation reading a caller has already inspected."""
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else None
     if checked.errors:

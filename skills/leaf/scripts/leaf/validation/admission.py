@@ -48,7 +48,12 @@ def version_ids(page_dir: Path) -> set:
 
 
 def check_markup(
-    page_dir: Path, kind: str, markup: str, events: list
+    page_dir: Path,
+    kind: str,
+    markup: str,
+    events: list,
+    *,
+    page: SourceDocument | None = None,
 ) -> SourceDocument:
     """A message's widget markup, validated against the vendored registry at post
     time — the discussion-side `version check`, and the field's one gate: the browser
@@ -94,13 +99,16 @@ def check_markup(
     if marker_errors := reserved_marker_errors(frag):
         sys.exit(f"{kind} widget markup: " + "; ".join(marker_errors))
     thread = thread_structure(events)
-    clash = sorted(frag.ids & (version_ids(page_dir) | thread.ids))
+    revisions = list_revisions(page_dir)
+    if page is None:
+        page = (
+            parse_revision(page_dir, revisions[-1]) if revisions else SourceDocument("")
+        )
+    clash = sorted(frag.ids & (version_ids(page_dir) | page.ids | thread.ids))
     if clash:
         sys.exit(
             f"{kind} widget ids already taken by the page or an earlier message: {clash}"
         )
-    revisions = list_revisions(page_dir)
-    page = parse_revision(page_dir, revisions[-1]) if revisions else SourceDocument("")
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,

@@ -18,6 +18,7 @@ import {
   PRESS,
   projectData,
   registerReadingElement,
+  registerReadingRegion,
   registerThreadSurface,
   relabel,
   scopedMediaUrl,
@@ -126,6 +127,7 @@ customElements.define(
         readingArrangement: this.#arrangements.at(-1),
         minimumSize: () => ({ width: 720, height: 600 }),
       });
+      for (const [id, entry] of this.#caseEntries) this.#registerCaseRegion(id, entry);
       this.#sizes = new ResizeObserver(() => this.#scheduleEvidenceLayout());
       this.#sizes.observe(this);
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
@@ -148,6 +150,10 @@ customElements.define(
       this.stopWatching = null;
       this.#threadSurface?.unregister();
       this.#threadSurface = null;
+      for (const entry of this.#caseEntries.values()) {
+        entry.stopReading?.();
+        entry.stopReading = null;
+      }
       this.#fitting?.cleanup();
       this.#fitting = null;
       this.#sizes?.disconnect();
@@ -637,8 +643,10 @@ customElements.define(
       this.#inspector.hidden = true;
       this.#evidenceHost.append(this.#inspector);
       this.#queue.replaceChildren();
-      for (const { shotHost } of this.#caseEntries.values())
+      for (const { shotHost, stopReading } of this.#caseEntries.values()) {
         this.#sizes?.unobserve(shotHost);
+        stopReading?.();
+      }
       this.#caseEntries.clear();
       this.#selected = null;
       this.#paintNavigation();
@@ -665,6 +673,7 @@ customElements.define(
       for (const [id, entry] of this.#caseEntries) {
         if (wanted.has(id)) continue;
         this.#sizes?.unobserve(entry.shotHost);
+        entry.stopReading?.();
         entry.option.remove();
         entry.article.remove();
         this.#caseEntries.delete(id);
@@ -786,11 +795,37 @@ customElements.define(
       threadOutlet.dataset.lfGen = "1";
       threadOutlet.setAttribute("aria-label", "Threads on this visual case");
       article.append(heading, claim, toolbar, shotHost, support, threadOutlet);
-      return { article, option, shotHost, record: null, index: 0, total: 0 };
+      const entry = {
+        article,
+        option,
+        shotHost,
+        stopReading: null,
+        record: null,
+        index: 0,
+        total: 0,
+      };
+      this.#registerCaseRegion(id, entry);
+      return entry;
+    }
+
+    #registerCaseRegion(id, entry) {
+      if (entry.stopReading) return;
+      // The case's prose and controls are its furniture; the aligned captures are what
+      // the reader pages through. Making that relationship a nested reading region lets
+      // the shared d/u and j/k routes follow the selected case without a package key.
+      entry.stopReading = registerReadingRegion({
+        id: compoundReadingRegionId(this, `case-${id}`),
+        host: entry.article,
+        body: entry.shotHost,
+      });
     }
 
     #updateCase(entry, record, index, total) {
       entry.article.dataset.classification = record.classification;
+      entry.article.setAttribute(
+        "aria-label",
+        `Visual review case ${index + 1} of ${total}`,
+      );
       entry.record = record;
       entry.index = index;
       entry.total = total;
@@ -889,6 +924,12 @@ customElements.define(
 
     #select(id) {
       if (!this.#caseEntries.has(id)) return;
+      const currentEntry = this.#caseEntries.get(this.#selected);
+      const active = document.activeElement;
+      const leavingCase = Boolean(active && currentEntry?.article.contains(active));
+      const disposition = leavingCase
+        ? active.closest(".lf-vr-disposition")?.dataset.disposition
+        : null;
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
       for (const [caseId, entry] of this.#caseEntries) {
@@ -897,12 +938,31 @@ customElements.define(
         entry.option.selected = selected;
       }
       const selected = this.#caseEntries.get(id);
-      selected.article.querySelector(".lf-vr-toolbar-slot").append(this.#inspector);
+      const toolbar = selected.article.querySelector(".lf-vr-toolbar-slot");
+      if (this.#inspector.parentElement !== toolbar) toolbar.append(this.#inspector);
       this.#paintInspector();
       this.#threadSurface?.update();
       layoutChanged(this);
       this.#scheduleEvidenceLayout();
       paintKeys();
+      // Moving the shared inspector between articles makes the browser drop its focus.
+      // Restore that exact destination; a hidden case-local control instead lands on
+      // the corresponding disposition — or the primary disposition when it has no
+      // counterpart — rather than leaving a keyboard reader on the document body.
+      if (
+        leavingCase &&
+        (document.activeElement !== active ||
+          !active.isConnected ||
+          !active.checkVisibility())
+      ) {
+        const counterpart =
+          active.isConnected && active.checkVisibility()
+            ? active
+            : disposition
+              ? selected.article.querySelector(`[data-disposition="${disposition}"]`)
+              : selected.article.querySelector(".lf-vr-disposition");
+        counterpart?.focus({ preventScroll: true });
+      }
     }
 
     #step(delta) {

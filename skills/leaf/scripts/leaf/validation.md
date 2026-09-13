@@ -15,8 +15,9 @@ authored inline module into the served policy. Every lf-* element validates agai
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
-comment); ids are unique, and ids needed by unresolved threads, standing reader
-actions, or effective standing reports survive from the previous revision. A
+comment); ids are unique, and ids needed by anchored unresolved threads, standing
+reader actions, or effective standing reports survive from the previous revision. An
+agent reply may detach a thread in the same transition that removes its subject. A
 declared retirement protects its holder and slots until its outcome licenses
 their removal. Other dropped ids are reported as advice. No fixed-pixel-width
 element is wider than the readable column (the rule that draws that column claims

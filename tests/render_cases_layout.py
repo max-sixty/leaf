@@ -71,11 +71,15 @@ def resize_notice_after_last_probe(page):
     evaluate = page.evaluate
 
     def with_notice(expression, *args, **kwargs):
-        result = evaluate(expression, *args, **kwargs)
         call = args[0] if args else kwargs.get("arg")
-        if isinstance(call, dict) and call.get("name") == "relativeReplays":
-            evaluate("() => requestAnimationFrame(() => {" + RESIZE_LOOP_EVENT + "})")
-        return result
+        if isinstance(call, dict) and call.get("name") == "requestFrame":
+            evaluate(
+                "() => requestAnimationFrame(() => {"
+                "if (matchMedia('(prefers-color-scheme: light)').matches) {"
+                + RESIZE_LOOP_EVENT
+                + "}})"
+            )
+        return evaluate(expression, *args, **kwargs)
 
     page.evaluate = with_notice
 

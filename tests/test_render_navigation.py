@@ -1187,6 +1187,39 @@ def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, se
     page.close()
 
 
+def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):
+    """A region's frame names it for reading keys but does not live in its body."""
+    page, errors = open_page(
+        browser,
+        serve(READING_REGIONS_PAGE, anchored=[("left-head", "Left header")]),
+    )
+    resized(page, 1200, 900)
+    page.locator('[data-lf-margin-for="left-head"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    geometry = preview.evaluate(
+        """card => {
+          const box = card.getBoundingClientRect();
+          const pane = document.querySelector('#left-reading .lf-pane-body')
+            .getBoundingClientRect();
+          return {
+            box: box.toJSON(),
+            pane: pane.toJSON(),
+            viewport: {width: innerWidth, height: innerHeight},
+          };
+        }"""
+    )
+    assert geometry["box"]["left"] >= 0, geometry
+    assert geometry["box"]["right"] <= geometry["viewport"]["width"], geometry
+    assert (
+        geometry["box"]["left"] < geometry["pane"]["left"]
+        or geometry["box"]["right"] > geometry["pane"]["right"]
+    ), geometry
+    assert errors == []
+    page.close()
+
+
 def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
     browser, one_reader
 ):
@@ -7405,9 +7438,10 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
 
     The room was measured as the line's height alone. Its own 14px inset came out of the
     20px of air that was supposed to be left over, so the document's last line cleared the
-    line by five pixels rather than twenty; over a covering sheet, which lifts the line by
-    the whole height of the panel's foot, the reservation was short by that lift. The band
-    from the line's top to a region's own foot is one measurement and covers every inset.
+    line by five pixels rather than twenty. The band from the line's top to a region's own
+    foot is one measurement and covers every inset. A covering sheet leaves that viewport
+    band unchanged: its growing foreground footer is not geometry owned by the background
+    line.
 
     The press is the other half. The line and its chips take no pointer events, so a
     control the line stands over on some scroll position is still a control. Its More
@@ -7431,20 +7465,18 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
         f"the document's last control ends in the shortcut bar's band: {ended}"
     )
 
-    # A covering sheet lifts the line over the whole of its own foot, and the band grows
-    # by that lift. This is where a reservation counting only the line's height parts
-    # company with the line: 148px of footprint standing on 51px of reserved room.
+    # A covering sheet makes the line inert background. Neither the sheet nor its footer
+    # can move the line; the document's existing band remains a reading reservation for
+    # the viewport-fixed line when the sheet closes again.
     resized(page, 420, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     page.evaluate(RENDERED)
     covered = page.evaluate(FOOT_ROOM)
-    # The lift is what this phase is about, so it has to have happened: without it the
-    # footprint is the resting one and the reservation below is the resting question again.
-    assert covered["footprint"] > ended["footprint"] + 20, (
-        f"the sheet never lifted the line, so the reservation is untested here: {covered}"
+    assert covered["footprint"] == pytest.approx(ended["footprint"], abs=1), (
+        f"the covering sheet moved the viewport-fixed line: {ended}, {covered}"
     )
     assert covered["reserved"] >= covered["footprint"] + 20, (
-        f"the sheet lifted the line off a reservation that never heard about it: {covered}"
+        f"the document lost the line's standing reservation: {covered}"
     )
     page.keyboard.press("Escape")
 
@@ -8911,6 +8943,104 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     page.close()
 
 
+@pytest.mark.parametrize("gesture", ["keyboard", "pointer"])
+def test_commenting_on_a_closed_disclosure_leaves_it_closed(browser, serve, gesture):
+    """Reaching Comment may scroll a visible summary without revealing its contents."""
+    page, errors = open_page(browser, serve(DISCLOSED_PAGE))
+    disclosure = page.locator("#dsc")
+    summary = page.locator("#dsc-head")
+    expect(disclosure).not_to_have_attribute("open", "")
+
+    if gesture == "keyboard":
+        summary.focus()
+        page.keyboard.press("c")
+    else:
+        summary.click(modifiers=["Alt"])
+
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(disclosure).not_to_have_attribute("open", "")
+    assert errors == []
+    page.close()
+
+
+def test_target_chooser_reveals_a_clipped_board_card_before_commenting(browser, serve):
+    """A visible sliver is enough to offer a hint, but not to place a response box.
+
+    On a phone the next board column peeks into view as the cue that the board scrolls.
+    Choosing its card must reveal the whole card before Comment is measured, while a
+    card already in view must not move the board underneath the reader.
+    """
+    source = next(example for example in EXAMPLES if example.stem == "triage-board")
+    url = serve(source)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+
+    def choose(page, selector):
+        page.keyboard.press("s")
+        expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+        code = page.evaluate(
+            """selector => {
+              const target = document.querySelector(selector).getBoundingClientRect();
+              return [...document.querySelectorAll('.lf-target-chooser-hint')]
+                .sort((a, b) => {
+                  const ar = a.getBoundingClientRect();
+                  const br = b.getBoundingClientRect();
+                  return Math.hypot(ar.left - target.left, ar.top - target.top)
+                    - Math.hypot(br.left - target.left, br.top - target.top);
+                })[0].dataset.lfHintCode;
+            }""",
+            selector,
+        )
+        page.keyboard.type(code)
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+
+    def board_reading(page, selector):
+        return page.evaluate(
+            """selector => {
+              const board = document.querySelector('#release-board');
+              const view = board.getBoundingClientRect();
+              const card = document.querySelector(selector).getBoundingClientRect();
+              return {
+                scrollLeft: board.scrollLeft,
+                visible: Math.max(
+                  0,
+                  Math.min(card.right, view.right, innerWidth)
+                    - Math.max(card.left, view.left, 0),
+                ),
+                width: card.width,
+              };
+            }""",
+            selector,
+        )
+
+    try:
+        page, errors = open_page(browser, url, context=context)
+        before = board_reading(page, "#card-migration")
+        assert before["visible"] == pytest.approx(before["width"], abs=1), before
+        choose(page, "#card-migration")
+        assert (
+            board_reading(page, "#card-migration")["scrollLeft"] == before["scrollLeft"]
+        )
+        assert errors == []
+        page.close()
+
+        page, errors = open_page(browser, url, context=context)
+        before = board_reading(page, "#card-tz")
+        assert 0 < before["visible"] < before["width"] / 4, before
+        choose(page, "#card-tz")
+        after = board_reading(page, "#card-tz")
+        assert after["visible"] == pytest.approx(after["width"], abs=1), after
+        assert after["scrollLeft"] > before["scrollLeft"], (before, after)
+        expect(page.locator(".lf-fab-input")).to_have_attribute(
+            "aria-label", re.compile("Digest email uses server timezone")
+        )
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
 def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     """What the press asks is whether the item is in front of the reader, and only the
     page shows that. An item's own box is the box it would have — unclipped — so a card
@@ -8944,7 +9074,14 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     )
     seen = """() => {
       const r = document.querySelector('#card0').getBoundingClientRect();
-      return {left: Math.round(r.left), onScreen: r.right > 0 && r.left < innerWidth};
+      const b = document.querySelector('#b').getBoundingClientRect();
+      return {
+        left: Math.round(r.left),
+        onScreen: r.right > 0 && r.left < innerWidth,
+        visible: Math.max(0, Math.min(r.right, b.right, innerWidth)
+          - Math.max(r.left, b.left, 0)),
+        width: r.width,
+      };
     }"""
 
     # The control: nothing scrolled, so the card is in front of the reader and stays put.
@@ -8957,6 +9094,26 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     assert page.evaluate(seen)["left"] == was["left"], (
         "the page moved under a reader who could already see the card"
     )
+    assert errors == []
+    page.close()
+
+    # The same stale standing with only the board's next-item cue left in view. The
+    # sliver is enough for the target to exist, but not enough to place its box against.
+    page, errors = open_page(browser, url)
+    page.locator("#card0 a").focus()
+    page.evaluate(
+        """() => {
+          const card = document.querySelector('#card0');
+          document.querySelector('#b').scrollLeft = card.getBoundingClientRect().width - 7;
+        }"""
+    )
+    was = page.evaluate(seen)
+    assert 0 < was["visible"] < was["width"] / 4, was
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    now = page.evaluate(seen)
+    assert now["visible"] == pytest.approx(now["width"], abs=1), now
+    assert errors == []
     page.close()
 
     # Carried out of its own scroller after the reader stood on it — focus first, because

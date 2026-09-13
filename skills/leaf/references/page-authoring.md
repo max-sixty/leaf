@@ -102,6 +102,17 @@ Constrained windows and standalone copies expose regions in authored order, so
 choose an order that remains useful when stacked. Let Leaf allocate the space;
 page-specific positioning should not be needed to keep a pane or footer reachable.
 
+Choose width separately from document or workspace form. Keep prose at a readable
+measure and let declared visual surfaces use the room their task needs. A wide comparison
+can remain part of a scrolling document. Use a workspace when the reader benefits from
+keeping task regions together, rather than merely to obtain more width.
+
+Show evidence at the scale needed to judge it. For a local change, supply an aligned
+detail view with the complete object available for context; use whole frames when their
+composition is the subject. A fitted thumbnail is an overview, not a substitute for
+readable detail. Let the package provide inspection controls and Leaf allocate space and
+scrolling; page-local width overrides and wheel handlers should not be needed.
+
 ## Theme and vocabulary
 
 Write semantic HTML and use the class idioms the registry lists under `$idioms`,
@@ -120,15 +131,15 @@ shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
 through the registry's Ask sources and surfaces, but do not duplicate that
 chrome or maintain a second list of it in the page.
 
-Keep content inside its document column or pane. The theme scrolls a `<pre>` or a table
+Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
 that runs wider than its container and fits an image or SVG to it, so none of them needs a
 width. A table that scrolls has every column at its longest unbreakable run, and
 the browser gate refuses one that scrolls with a cell in it wrapped: put an
 identifier in `<code>`, where it breaks inside its cell, rather than bare, where
 it holds its column and squeezes the prose beside it, and keep the columns to
-what the measure holds. Widgets whose element declaration names a wide shape size
-themselves; fix a diagram that is too wide in its source rather than pinning a
-page width.
+what the measure holds. Widgets whose element declaration requests wider space size
+themselves within the page's available room. Preserve the meaningful detail in a diagram
+or comparison rather than shrinking its source solely to fit the prose column.
 
 ## Page behavior
 

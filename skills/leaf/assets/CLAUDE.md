@@ -55,6 +55,8 @@ animation frames retain their own timing contracts;
 `runtime/dom-children.js` reconciles retained children without moving nodes already in
 place; conversation owners supply reaction teardown when removing their surfaces;
 `runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
+`runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
+document roots so authored revision replacement can leave that live state in place;
 `runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
 `runtime/walk-position.js` owns the transient ordinal for semantic Leaf keyboard walks,
 shown in the useful status at the page foot, and the brief boundary state when another
@@ -135,7 +137,9 @@ element the bottom status seats;
 allocation and bounded/flow posture transitions;
 `runtime/reading-layout.js` owns shared arrangement construction and furniture slots
 used by structural and compound widgets, plus the page-room observation lifecycle that
-root workspaces apply to their own minimum-size policy;
+root workspaces apply to their own minimum-size policy; it reads the available room and
+minimum inside the bounded candidate while holding current document geometry, so the
+same window cannot settle differently based on the posture it arrived from;
 `runtime/pending/model.js` owns pending-record readings; `pending/state.js` owns the
 ordered gesture ledger, with no network or rendering dependencies;
 `runtime/delivery.js` owns serialized event delivery and retry, independently of whether
@@ -503,14 +507,14 @@ The extension keys describe general behavior:
 | `x-thread-surface` | the upgraded widget may provide local outlets for the canonical response composer and complete Threads anchored to its exact projected data |
 | `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its target margin entry |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
-| `x-wide` | whether width follows a box or a drawing |
+| `x-space` | the width allocation a surface requests, independently of its internal layout |
 
 Use the exact current `$keys` descriptions and schema when editing an entry.
 This table states ownership, not a replacement schema.
 
 Booleans are appropriate only when the false case has one clear meaning.
-`x-wide` uses values because a box and a source-sized drawing answer different
-width questions. A fact that needs distinct behavior should carry those named
+`x-space` distinguishes the shared wide measure from all available room. A fact
+that needs distinct behavior should carry those named
 values instead of hiding one widget's policy in `true`.
 
 ### Data projections
@@ -564,11 +568,50 @@ in agreement.
 
 ## Layout and motion
 
+### Space and scrolling
+
+Allocate width independently of scrolling posture. Prose keeps its reading measure;
+visual evidence may use a wider area, and an inspection surface may use the available
+task area. Core owns that allocation after chrome, enclosing frames, and actual margin
+occupancy. Packages declare their space needs and arrange content within the allocation;
+authors choose the reading sequence and evidence. Width demand is independent of a
+widget's internal drawing layout. Compact navigation must not reserve a full sidebar
+when its presentation no longer needs one, and a free side may use room the other side
+cannot take. Keep annotation access and visible residents clear of expanding content.
+
+Ordinary document content grows in flow. A bounded inspection object may scroll inside
+that document, with native scroll chaining into the document at its boundary, including
+when the object has no overflow. Use the effective reading posture, not a widget's tag,
+to choose scroll ownership: a bounded task region owns its scrolling, while an embedded
+or responsive flow arrangement cooperates with its containing document. A nested
+inspection object chains into its containing reading region; isolation belongs at the
+bounded task or modal boundary, not every descendant that overflows. Avoid adding another
+vertical scroller inside a region without an inspection need. Modal surfaces isolate
+background scrolling. Wheel and ordinary touch gestures retain their navigation
+meaning; deliberate controls or gestures enter pan and zoom. Every necessary scroller
+has a keyboard route, discernible bounds, and visible focus.
+
+Inspection preserves useful detail. Allocate room before shrinking evidence; support
+aligned detail and whole-object context rather than treating a fitted overview as proof
+of legibility. If an object temporarily leaves document flow for inspection, keep the
+controls needed to complete the task available and preserve the selected object,
+inspection state, and surrounding document position on return. A root workspace does
+not duplicate itself in another inspection layer. Narrow screens reflow surrounding
+prose and controls while retaining deliberate access to two-dimensional evidence.
+
+### Stability
+
 The page must hold still under the reader's aim. A state change may repaint any
 box, but it must not move controls adjacent to the gesture that caused it. News
 arriving without a gesture must not move any chrome control. A content change
 the reader requested may reflow the content it replaces, provided the change is
 shown as trackable motion rather than an unexplained jump.
+
+A transient hover, focus, or keyboard reveal never changes the space allocated to its
+ancestors or siblings. Reveal supporting navigation over the settled page, with enough
+background to keep its labels legible, or let an explicit persistent control reconfigure
+the page. The same rule applies whether the revealed surface is generated by core, a
+package, or authored markup.
 
 Leaf's chrome and widgets use solid contours by default. A dotted or dashed line is
 appropriate when its style is the non-color cue that separates a state or affordance
@@ -605,12 +648,12 @@ In a segmented group, keep one-pixel shared seams and let fill, ink, or one outl
 the selection distinct without adding another line inside it.
 
 Agent ownership decorates the existing semantic margin control: pickup uses a green icon,
-moving any positive or negative tone to the existing contour; working colors its
-interior green and pulses once on arrival. A separate Activity control appears only when
-no semantic carrier exists. Conversation receipts carry the local claim beside its
-triggering message; thread cards do not repeat that ownership as a colored edge. Quiet
-or ended claims release ownership. Reduced motion suppresses arrival, and repainting or
-replacing a carrier cannot replay it.
+moving any positive or negative tone to the existing contour; working keeps the green
+icon, colors the interior green, and pulses once on arrival. A separate Activity control
+appears only when no semantic carrier exists. Conversation receipts carry the local claim
+beside its triggering message; thread cards do not repeat that ownership as a colored
+edge. Quiet or ended claims release ownership. Reduced motion suppresses arrival, and
+repainting or replacing a carrier cannot replay it.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for

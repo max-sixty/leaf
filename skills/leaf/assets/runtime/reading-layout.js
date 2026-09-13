@@ -4,7 +4,10 @@
    remaining content is a reading region. This helper owns the common DOM and
    registration lifecycle, plus the page-room observation a root fits against; CSS owns
    division and scrolling, while each root supplies its own minimum-size policy. */
-import { registerReadingArrangement } from "./reading-regions.js";
+import {
+  readReadingArrangementAt,
+  registerReadingArrangement,
+} from "./reading-regions.js";
 import { LAYOUT, layoutChanged } from "./widget-elements.js";
 import { once } from "./widget-upgrade.js";
 
@@ -139,6 +142,51 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
   let scheduled = null;
   let resize = null;
 
+  /* A root's fit is a reading of its live layout. Read both the room and the minimum
+     inside the bounded candidate so scrollbar allocation, wrapping furniture, nested
+     partitions, and package posture rules cannot make the same window answer
+     differently based on the posture currently drawn. The temporary style and posture
+     writes are restored in the same task, before anything can paint. Height stays
+     pinned because temporarily shortening a flow document would otherwise clamp a
+     reader's scroll position. */
+  const readBoundedFit = () => {
+    const main = owner.parentElement;
+    const root = document.documentElement;
+    const styles = new Map(
+      [main, owner].map((element) => [element, element.getAttribute("style")]),
+    );
+    main.style.height = `${main.getBoundingClientRect().height}px`;
+    owner.style.height = `${owner.getBoundingClientRect().height}px`;
+    try {
+      return readReadingArrangementAt(readingArrangement, "bounded", () => {
+        const rootStyle = getComputedStyle(root);
+        const mainStyle = getComputedStyle(main);
+        const availableHeight =
+          innerHeight -
+          (Number.parseFloat(getComputedStyle(document.body, "::before").height) || 0) -
+          (Number.parseFloat(rootStyle.getPropertyValue("--lf-bottom-chrome-clear")) ||
+            0) -
+          (Number.parseFloat(mainStyle.paddingTop) || 0) -
+          (Number.parseFloat(mainStyle.paddingBottom) || 0) -
+          (Number.parseFloat(mainStyle.borderTopWidth) || 0) -
+          (Number.parseFloat(mainStyle.borderBottomWidth) || 0);
+        const availableWidth =
+          main.getBoundingClientRect().width -
+          (Number.parseFloat(mainStyle.paddingLeft) || 0) -
+          (Number.parseFloat(mainStyle.paddingRight) || 0) -
+          (Number.parseFloat(mainStyle.borderLeftWidth) || 0) -
+          (Number.parseFloat(mainStyle.borderRightWidth) || 0);
+        owner.style.width = `${availableWidth}px`;
+        return { availableHeight, availableWidth, minimum: minimumSize() };
+      });
+    } finally {
+      for (const [element, style] of styles) {
+        if (style === null) element.removeAttribute("style");
+        else element.setAttribute("style", style);
+      }
+    }
+  };
+
   const choosePosture = async () => {
     if (!active || !owner.isConnected) return;
     if (owner.dataset.lfWorkspaceContext !== "root") {
@@ -146,7 +194,7 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
       return;
     }
 
-    const minimum = minimumSize();
+    const { availableHeight, availableWidth, minimum } = readBoundedFit();
     if (
       minimum !== null &&
       (!Number.isFinite(minimum?.width) ||
@@ -156,16 +204,6 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
     )
       throw new Error("leaf: a root minimum must be null or a finite width and height");
 
-    const rootStyle = getComputedStyle(document.documentElement);
-    const availableHeight =
-      innerHeight -
-      (Number.parseFloat(getComputedStyle(document.body, "::before").height) || 0) -
-      (Number.parseFloat(rootStyle.getPropertyValue("--lf-bottom-chrome-clear")) || 0);
-    const mainStyle = getComputedStyle(owner.parentElement);
-    const availableWidth =
-      document.body.getBoundingClientRect().width -
-      (Number.parseFloat(mainStyle.paddingLeft) || 0) -
-      (Number.parseFloat(mainStyle.paddingRight) || 0);
     const bounded =
       minimum !== null &&
       availableWidth >= minimum.width &&

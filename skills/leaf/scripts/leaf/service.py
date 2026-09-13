@@ -1,5 +1,6 @@
 """Page claims, serialized transactions, status, and event admission."""
 
+import hashlib
 import os
 import secrets
 import time
@@ -34,6 +35,12 @@ from leaf.schema import (
 # A repeated live detail carries only liveness. Renew it comfortably before the
 # fifteen-minute activity boundary without turning tool output into file churn.
 STREAM_ACTIVITY_RENEWAL = timedelta(minutes=5)
+
+
+def stream_reply_attempt(turn_id: str) -> str:
+    """Return the stable idempotency key for one App Server reply."""
+    digest = hashlib.sha256(turn_id.encode()).hexdigest()[:32]
+    return f"codex-{digest}"
 
 
 def claim_path(page_dir: Path) -> Path:
@@ -263,8 +270,9 @@ class PageTransaction:
         detail: str,
         *,
         work: dict | None = None,
+        handling: dict | None = None,
     ) -> None:
-        """Write the page claim and any typed local claim it renews.
+        """Write the page declaration and any typed local evidence it renews.
 
         A local line is the same sentence read at a second seat: the page's one
         line says what the agent is doing, and a typed subject says so where the
@@ -274,7 +282,9 @@ class PageTransaction:
         cannot write across.
 
         Standing work carries across every other status write, so a page-wide
-        status update does not silently drop what a helper is holding.
+        status update does not silently drop what a helper is holding. Exact
+        delivery handling carries until another delivered move replaces it; the
+        interaction fold stops using it as soon as that move is settled.
         A new claim replaces the old claim on its semantic subject; `idle`
         clears them all with the leaf.
         """
@@ -288,6 +298,8 @@ class PageTransaction:
         }
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream
+        if state != "idle" and (current_handling := self.status.get("handling")):
+            status["handling"] = current_handling
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
             identity = message_identity()
@@ -305,6 +317,17 @@ class PageTransaction:
             )
         if claims:
             status["work"] = claims
+        if handling:
+            identity = message_identity()
+            status["handling"] = {
+                "id": secrets.token_hex(4),
+                **handling,
+                "detail": detail,
+                "ts": status["ts"],
+                "agent": identity.get("agent")
+                or (self.claim or {}).get("agent", "Claude"),
+                "session": identity.get("session") or (self.claim or {}).get("id"),
+            }
         write_json(self.page_dir / STATUS_FILE, status)
 
     def set_stream_activity(self, session_id: str, turn_id: str, detail: str) -> None:
@@ -351,6 +374,64 @@ class PageTransaction:
         if turn_id is not None and activity.get("turn") != turn_id:
             return
         stream.pop("activity")
+        if stream:
+            status["stream"] = stream
+        else:
+            status.pop("stream", None)
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def set_stream_reply(
+        self,
+        session_id: str,
+        turn_id: str,
+        reply_to: str,
+        responds: str,
+        item_id: str | None,
+        text: str,
+        state: str,
+        *,
+        settles: bool = False,
+    ) -> None:
+        """Replace the provisional reply owned by one App Server turn."""
+        status = dict(self.status)
+        stream = dict(status.get("stream") or {})
+        standing = stream.get("reply") or {}
+        timestamp = (
+            standing.get("ts")
+            if standing.get("session") == session_id and standing.get("turn") == turn_id
+            else None
+        )
+        updated_at = now_iso()
+        reply = {
+            "session": session_id,
+            "turn": turn_id,
+            "attempt": stream_reply_attempt(turn_id),
+            "reply_to": reply_to,
+            "responds": responds,
+            "item": item_id,
+            "text": text,
+            "state": state,
+            "settles": settles,
+            "agent": (self.claim or {}).get("agent", "Codex"),
+            "ts": timestamp or updated_at,
+            "updated_at": updated_at,
+        }
+        if standing == reply:
+            return
+        stream["reply"] = reply
+        status["stream"] = stream
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def clear_stream_reply(self, session_id: str, turn_id: str | None = None) -> None:
+        """Remove this task's provisional reply without changing conversation history."""
+        status = dict(self.status)
+        stream = dict(status.get("stream") or {})
+        reply = stream.get("reply")
+        if not reply or reply.get("session") != session_id:
+            return
+        if turn_id is not None and reply.get("turn") != turn_id:
+            return
+        stream.pop("reply")
         if stream:
             status["stream"] = stream
         else:
@@ -534,5 +615,24 @@ def claim_update_sources(status: dict) -> list[dict]:
             source["event"] = event
         if target["kind"] == "widget":
             source["revision"] = claim["revision"]
+        sources.append(source)
+    if handling := status.get("handling"):
+        target = handling["target"]
+        source = {
+            "id": handling["id"],
+            "target": target,
+            "source": "claim",
+            "scope": "interaction",
+            "action": "working",
+            "detail": {"text": handling["detail"]},
+            "text": handling["detail"],
+            "ts": handling["ts"],
+            "log_floor": handling["after"],
+            "event": handling["event"],
+            "agent": handling.get("agent"),
+            "session": handling.get("session"),
+        }
+        if target["kind"] == "widget":
+            source["revision"] = handling["revision"]
         sources.append(source)
     return sources

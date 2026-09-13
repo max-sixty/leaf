@@ -6,18 +6,21 @@ allowed-tools:
   - Bash(jq:*)
 ---
 
-If the input is a named `leaf_delivery` tool output, continue the existing page
-from its delivery envelope. If it is a `leaf-delivery` element, run `leaf delivery
-read <id>` to read that same envelope. Then read
+If the input is a named `leaf_delivery` tool output or a `leaf-delivery` element,
+first run `leaf delivery claim <id>`. A pointer then needs `leaf delivery read <id>`;
+the named tool output already carries the same envelope. The claim immediately marks
+the first delivered reader move that still needs work as Active; a stale delivery
+changes nothing. Then read
 `references/event-batches.md`, the current host contract, and, for reader
 messages, `references/conversation-threads.md`. Process every batch and every
-event. Each event's `obligation.response`, when present, names the explicit Leaf
-operation it required when captured: `leaf reply`, a page revision closed with
-`leaf resolve`, or `leaf receipt`. Recheck current page or conversation state
-before writing because a
-later event may already have settled it. A normal assistant final message never
-settles a Leaf obligation. Do not initialize or hand the page over again in
-response to an existing delivery.
+event. Each event's `obligation.response`, when present, names the Leaf operation
+it required when captured: a reply, a page revision closed with `leaf resolve`,
+or `leaf receipt`. Recheck current page or conversation state before writing
+because a later event may already have settled it. The Codex host contract uses a
+direct App Server turn's final message when its `leaf_delivery` has exactly one plain
+reply. A queued `leaf-delivery` pointer and every other response shape use the explicit
+Leaf command. Do not initialize or hand the page over again in response to an existing
+delivery.
 
 Otherwise, present the session's subject as a live HTML page. The user comments
 on exact passages, acts through the page's widgets, and follows revisions in

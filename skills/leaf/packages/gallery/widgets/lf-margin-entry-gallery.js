@@ -1,12 +1,17 @@
-/* A fixed developer exhibit of margin entry controls and agent ownership. It uses
- * the public marginEntry and ownership helpers rather than reproducing anatomy or
- * paint; the package owns only the comparison grid and the words naming each cell. */
+/* A developer exhibit of the complete margin-entry face and its projection.
+ * It uses the public marginEntry, count, selection, ownership, and contribution helpers
+ * rather than reproducing anatomy or paint. The package owns only the comparison grid,
+ * the words naming each cell, and one local disclosure that makes the compact margin
+ * control and its full Page Map row directly exercisable. */
 import {
   marginEntry,
   once,
   offer,
+  registerMarginContribution,
   relabel,
   syncMarginAgentPhase,
+  syncMarginEntryCount,
+  syncMarginEntrySelection,
 } from "/runtime/widget-api.js";
 
 const GROUPS = [
@@ -73,6 +78,38 @@ const GROUPS = [
     ],
   },
   {
+    heading: "Face anatomy",
+    summary: "Icon or glyph · count badge · transient label and context",
+    specimens: [
+      {
+        name: "Glyph face",
+        detail: "author-supplied glyph",
+        glyph: "🤔",
+        behavior: "disclosure",
+        rank: "reading",
+      },
+      {
+        name: "Count badge",
+        detail: "3 related readings",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        count: 3,
+      },
+      {
+        name: "Label + context",
+        detail: "hover or focus reveals both lines",
+        icon: "question",
+        behavior: "disclosure",
+        rank: "reading",
+        context: "Patch ready",
+        interactive: true,
+        reveals: "Patch context revealed.",
+        showLabel: true,
+      },
+    ],
+  },
+  {
     heading: "Agent ownership",
     summary: "Not held, picked up, working · whether the agent has the item",
     specimens: [
@@ -93,7 +130,7 @@ const GROUPS = [
       },
       {
         name: "Working",
-        detail: "Thread · green interior",
+        detail: "Thread · green icon and interior",
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
@@ -106,6 +143,48 @@ const GROUPS = [
         behavior: "disclosure",
         rank: "reading",
         agentPhase: "active",
+      },
+    ],
+  },
+  {
+    heading: "Reader interaction",
+    summary: "Resting · hover or focus · open · selected",
+    specimens: [
+      {
+        name: "Resting",
+        detail: "neutral disclosure",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+      },
+      {
+        name: "Hover or focus",
+        detail: "direct pointer and keyboard feedback",
+        icon: "question",
+        behavior: "disclosure",
+        rank: "reading",
+        context: "Inspect the source",
+        interactive: true,
+        reveals: "Source context revealed.",
+        showLabel: true,
+      },
+      {
+        name: "Open",
+        detail: "expanded disclosure",
+        icon: "question",
+        behavior: "disclosure",
+        rank: "reading",
+        expanded: true,
+        interactive: true,
+        reveals: "Source context revealed.",
+      },
+      {
+        name: "Selected",
+        detail: "Thread · accent border",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        selected: true,
       },
     ],
   },
@@ -128,7 +207,8 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
     {
       key,
       label: specimen.name,
-      icon: specimen.icon,
+      ...(specimen.icon ? { icon: specimen.icon } : { glyph: specimen.glyph }),
+      context: specimen.context,
       behavior,
       tone: specimen.tone ?? "neutral",
       rank: specimen.rank ?? "primary",
@@ -141,15 +221,32 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
       target: { kind: "widget", id: key },
       phase: specimen.agentPhase,
     });
-  if (control instanceof HTMLButtonElement) control.disabled = true;
-  if (behavior !== "status") control.setAttribute("aria-disabled", "true");
+  syncMarginEntrySelection(control, specimen.selected ?? false);
+  syncMarginEntryCount(control, specimen.count ?? 1);
+  if (specimen.showLabel) control.dataset.marginEntryLabelLive = "";
+  if (specimen.expanded) control.setAttribute("aria-expanded", "true");
+  let disclosure = null;
+  if (specimen.interactive) {
+    disclosure = generated("span", "margin-entry-gallery-disclosure", specimen.reveals);
+    disclosure.id = `${key}-disclosure`;
+    disclosure.hidden = !specimen.expanded;
+    control.setAttribute("aria-controls", disclosure.id);
+    control.addEventListener("click", () => {
+      const open = disclosure.hidden;
+      disclosure.hidden = !open;
+      control.setAttribute("aria-expanded", String(open));
+    });
+  } else {
+    if (control instanceof HTMLButtonElement) control.disabled = true;
+    if (behavior !== "status") control.setAttribute("aria-disabled", "true");
+  }
 
   const copy = generated("span", "margin-entry-gallery-copy");
   copy.append(
     generated("span", "margin-entry-gallery-name", specimen.name),
     generated("span", "margin-entry-gallery-detail", specimen.detail),
   );
-  item.append(control, copy);
+  item.append(control, copy, ...(disclosure ? [disclosure] : []));
   return item;
 }
 
@@ -173,9 +270,67 @@ function groupNode(group, groupIndex) {
 customElements.define(
   "lf-margin-entry-gallery",
   class extends HTMLElement {
+    #projection = null;
+
     connectedCallback() {
-      if (!once(this)) return;
-      this.append(...GROUPS.map(groupNode));
+      if (once(this)) {
+        const projection = generated("div", "margin-entry-gallery-projection");
+        projection.append(
+          generated("strong", "margin-entry-gallery-heading", "Projection"),
+          generated(
+            "span",
+            "margin-entry-gallery-summary",
+            "Compact margin face · full Page Map row",
+          ),
+          generated(
+            "p",
+            "margin-entry-gallery-projection-guide",
+            "Use the live Inspect projection control at this exhibit's margin. Press g then Shift+M to find the same disclosure as a labeled Page Map row.",
+          ),
+        );
+        const result = generated(
+          "p",
+          "margin-entry-gallery-projection-result",
+          "The same contributed control owns both projections.",
+        );
+        result.id = `${this.id}-projection-result`;
+        result.hidden = true;
+        projection.append(result);
+        this.append(...GROUPS.map(groupNode), projection);
+      }
+      this.#registerProjection();
+    }
+
+    disconnectedCallback() {
+      this.#projection?.unregister();
+      this.#projection = null;
+    }
+
+    #registerProjection() {
+      if (this.#projection) return;
+      const result = this.querySelector(".margin-entry-gallery-projection-result");
+      const control = marginEntry(offer("button", ""), {
+        key: "inspect-projection",
+        icon: "question",
+        label: "Inspect projection",
+        context: "Compact face · full row",
+        behavior: "disclosure",
+        rank: "reading",
+      });
+      control.setAttribute("aria-controls", result.id);
+      control.setAttribute("aria-expanded", String(!result.hidden));
+      control.addEventListener("click", () => {
+        const open = result.hidden;
+        result.hidden = !open;
+        control.setAttribute("aria-expanded", String(open));
+        this.#projection.update({ immediate: true });
+      });
+      this.#projection = registerMarginContribution({
+        key: `gallery-projection:${this.id}`,
+        target: () => this,
+        subject: "Margin entry projection",
+        controls: control,
+      });
     }
   },
 );

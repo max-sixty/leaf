@@ -323,6 +323,7 @@ export function mountApplication(dependencies) {
       setPanel: dependencies.setPanel,
       scrollToThread: dependencies.anchorTravel.scrollToThread,
       retainPanelLanding: dependencies.retainPanelLanding,
+      retainNarrowing: dependencies.retainThreadNarrowing,
       showThread: dependencies.showThread,
     },
   };

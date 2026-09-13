@@ -14,6 +14,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.registry import storage as registry_storage
+from page_fixtures import package_selection_args
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -27,6 +28,7 @@ from render_support import (
     DEEP_FOCUS,
     DEFINE_BOXES,
     DIFF_PAGE,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     HERE_SHADOW,
@@ -275,6 +277,18 @@ CONTROL_ARCHETYPES = (
         "coverage": ".lf-targeting-change-fields > :is(select, button)",
         "target": ".lf-targeting-property",
         "select": "min-height",
+    },
+    {
+        # The case queue's Previous, case selector, and Next controls share the
+        # row above the evidence. Selecting another title changes the native select's
+        # contents without moving the buttons around it.
+        "name": "visual-review-navigation",
+        "source": VISUAL_REVIEW_GALLERY,
+        "coverage": (
+            ".lf-vr-queue-region :is(.lf-vr-previous, .lf-vr-case-select, .lf-vr-next)"
+        ),
+        "target": ".lf-vr-case-select",
+        "select": "keep-mobile-destinations",
     },
     {
         # The visual inspector's view and size presses are joined groups whose selected
@@ -1986,7 +2000,13 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     project.mkdir()
     (project / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
     initialized = CliRunner().invoke(
-        cli_model.cli, ["page", "init", str(serve.page_dir)]
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*EXAMPLE_PACKAGES, "./.leaf")),
+            str(serve.page_dir),
+        ],
     )
     assert initialized.exit_code == 0, initialized.output
     new_layer = registry_storage.layer_generation(serve.page_dir)
@@ -2044,7 +2064,8 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
             '<lf-options id="pick" choose>'
             '<lf-option id="pick-a">A</lf-option>'
             '<lf-option id="pick-b">B</lf-option></lf-options></lf-ask>',
-        )
+        ),
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
     page, errors = open_page(browser, url)
 
@@ -4212,98 +4233,97 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.close()
 
 
-def test_a_sheet_lifts_the_shortcut_bar_text_only_when_its_foot_reaches_the_same_lane(
-    browser, serve
-):
-    """The shortcut bar clears the panel foot when their rendered rectangles meet.
+def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve):
+    """Composer growth leaves inert chrome fixed while live status keeps its room.
 
-    A covering panel is not itself a collision: at the screenshot's 783px width its
-    footer occupies the right lane while a focused composer's shorter shortcut bar fits in
-    the left. The old breakpoint proxy still lifted the line by the footer's full height,
-    marooning it over unrelated page content. The list reserves room on the same actual
-    overlap reading, and a wider sequence proves that the decision follows changing content
-    rather than one hand-picked width."""
-    page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
-    resized(page, 420, 900)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    The covering panel and shortcut bar can occupy the same viewport pixels, but they are
+    not peers: modality puts the panel above the scrim and makes the bar inert background.
+    Treating their rectangles as a collision made every newline in the panel's composer
+    lift the unrelated bar by one line. The live walk status stays above that panel and
+    still reserves the list it can cover. Beside the page, the live bar yields the
+    panel's actual strip."""
+    context = browser.new_context(
+        viewport={"width": 600, "height": 900}, reduced_motion="reduce"
+    )
+    page, errors = open_page(
+        browser, serve(ADDRESSED_PAGE, comments=6), context=context
+    )
+    page.locator(".lf-threads-toggle").click()
+    field = page.locator(".lf-general textarea")
+    field.click()
+    field.fill("One line")
+    page.evaluate(RENDERED)
 
     def boxes():
         return page.evaluate("""() => {
-            const rect = selector => {
-                const r = document.querySelector(selector).getBoundingClientRect();
+            const rect = node => {
+                const r = node.getBoundingClientRect();
                 return {left: r.left, right: r.right, top: r.top, bottom: r.bottom,
                         height: r.height};
             };
             const list = document.querySelector(".lf-threads");
             const style = getComputedStyle(list);
-            return {shortcut_bar: rect(".lf-shortcut-bar"), foot: rect(".lf-thread-panel-foot"),
-                    list: rect(".lf-threads"),
+            const standing = document.activeElement?.closest(".lf-thread");
+            return {shortcut_bar: rect(document.querySelector(".lf-shortcut-bar")),
+                    foot: rect(document.querySelector(".lf-thread-panel-foot")),
+                    status: rect(document.querySelector(".lf-bottom-status")),
+                    standingThread: standing ? rect(standing) : null,
+                    lineInert: document.querySelector(".lf-shortcut-bar").inert,
                     viewportHeight: innerHeight,
                     listInlinePad: list.style.paddingBottom,
                     listPad: parseFloat(style.paddingBottom),
                     listScrollPad: parseFloat(style.scrollPaddingBottom)};
         }""")
 
-    covering = boxes()
-    assert covering["shortcut_bar"]["bottom"] <= covering["foot"]["top"], (
-        f"the shortcut bar stood on the sheet's foot: {covering}"
+    one_line = boxes()
+    assert one_line["lineInert"], one_line
+    assert one_line["shortcut_bar"]["right"] > one_line["foot"]["left"], (
+        f"the fixture no longer exercises the overlapping lanes: {one_line}"
     )
-    # The line reaches back over the list, so the list reserves at least as much of its
-    # own end as the line stands on — spent the wheel's way and the walk's way both.
-    covered = covering["list"]["bottom"] - covering["shortcut_bar"]["top"]
-    assert covered > 0, f"the line no longer reaches the list at all: {covering}"
-    assert covering["listPad"] >= covered, (
-        f"the sheet's list left its last thread under the shortcut bar: {covering}"
+    assert one_line["shortcut_bar"]["bottom"] > one_line["foot"]["top"], (
+        f"the fixture no longer exercises the old vertical collision: {one_line}"
     )
-    assert covering["listScrollPad"] >= covered, (
-        f"a walk to the last thread would stop under the shortcut bar: {covering}"
-    )
-
-    # At the reported width the panel still has covering posture, but its footer and the
-    # focused composer's shortcut bar occupy separate horizontal lanes. Posture alone used to
-    # leave the line floating a whole footer-height above its ordinary position.
-    resized(page, 783, 1004)
-    page.locator(".lf-general textarea").focus()
-    page.evaluate(RENDERED)
-    assert page.evaluate(
-        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden'"
-    ), "the screenshot-width panel no longer has covering posture"
-    separate = boxes()
-    assert separate["shortcut_bar"]["right"] < separate["foot"]["left"], separate
     assert (
-        abs(separate["shortcut_bar"]["bottom"] - (separate["viewportHeight"] - 14)) < 1
-    ), f"a disjoint footer still lifted the shortcut bar: {separate}"
-    assert separate["listPad"] < 20 and separate["listScrollPad"] < 20, (
-        f"the panel list reserved room for a line in another lane: {separate}"
-    )
-    assert separate["listInlinePad"] == "", (
-        f"the disjoint line overrode the panel list's own inset: {separate}"
-    )
+        abs(one_line["shortcut_bar"]["bottom"] - (one_line["viewportHeight"] - 14)) < 1
+    ), one_line
 
-    # The global Go-to sequence belongs to the covering auxiliary surface here. It must not restore
-    # the inert page's wider line, so the line and list remain in the same disjoint posture.
-    page.keyboard.press("g")
+    field.fill("One line\nSecond line\nThird line")
     page.evaluate(RENDERED)
-    sequence = boxes()
-    assert sequence["shortcut_bar"]["right"] < sequence["foot"]["left"], sequence
-    assert sequence["listPad"] < 20 and sequence["listScrollPad"] < 20, sequence
-
-    # Beside the page the line is capped left of the panel, so the list keeps the inset
-    # the stylesheet gives it rather than room for a line that never reaches it.
-    resized(page, 1200, 900)
-    page.wait_for_function(
-        """() => parseFloat(
-            getComputedStyle(document.querySelector('.lf-threads')).paddingBottom
-        ) < 20"""
+    multiline = boxes()
+    assert multiline["foot"]["height"] > one_line["foot"]["height"], (
+        f"the composer did not grow: {one_line}, {multiline}"
     )
+    assert multiline["shortcut_bar"] == one_line["shortcut_bar"], (
+        f"growing the foreground composer moved the background shortcut bar: "
+        f"{one_line}, {multiline}"
+    )
+    assert multiline["listPad"] < 20 and multiline["listScrollPad"] < 20, multiline
+
+    # A thread walk introduces foreground status above the panel. Reach the last thread
+    # through the real keyboard route and prove its card lands clear of that status band.
+    field.evaluate("field => field.blur()")
+    page.locator(".lf-threads").focus()
+    for _ in range(6):
+        page.keyboard.press("t")
+        page.evaluate(RENDERED)
+    expect(page.locator(".lf-bottom-status")).to_contain_text("Thread 6 of 6")
+    walked = boxes()
+    assert walked["listPad"] >= 20 and walked["listScrollPad"] >= 20, walked
+    assert walked["listInlinePad"], walked
+    assert walked["standingThread"], walked
+    assert walked["standingThread"]["bottom"] <= walked["status"]["top"], (
+        f"the last walked thread landed under its live status: {walked}"
+    )
+
+    # Beside the page, the bar is live page chrome and yields the panel's whole strip.
+    resized(page, 1200, 900)
     beside = boxes()
+    assert not beside["lineInert"], beside
     assert beside["shortcut_bar"]["right"] <= beside["foot"]["left"] + 1, (
         f"the line crossed into the panel it stands beside: {beside}"
     )
     assert errors == []
-    page.close()
+    context.close()
 
 
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
@@ -4334,16 +4354,12 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             const r = document.querySelector(selector).getBoundingClientRect();
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
-              return {shortcut_bar: rect('.lf-shortcut-bar'), footer: rect('.lf-thread-panel-foot'),
+              return {shortcut_bar: rect('.lf-shortcut-bar'),
                       width: innerWidth, height: innerHeight};
         }"""
     )
-    footer_height = boxes["footer"]["bottom"] - boxes["footer"]["top"]
     assert (
-        abs(
-            boxes["shortcut_bar"]["bottom"]
-            - (boxes["height"] - footer_height - 14 - insets["bottom"])
-        )
+        abs(boxes["shortcut_bar"]["bottom"] - (boxes["height"] - 14 - insets["bottom"]))
         < 1
     )
     assert abs(boxes["shortcut_bar"]["left"] - (18 + insets["left"])) < 1
@@ -4577,7 +4593,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         "<strong>Destination</strong></lf-task>"
         "</lf-tasks>",
     )
-    url = serve(quota_v1)
+    url = serve(quota_v1, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     stale_held = held_stale(one_reader)
     stale, stale_errors = open_page(browser, url, context=stale_held)
     current, current_errors = open_page(browser, live_url(url), context=one_reader)

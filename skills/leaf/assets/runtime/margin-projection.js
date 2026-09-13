@@ -65,6 +65,7 @@ import {
   syncForwardedMarginEntryState,
   syncMarginEntryCount,
   syncMarginAgentPhase,
+  syncMarginEntrySelection,
   watchMarginContributions,
 } from "./margin-entries.js";
 import { mapButton } from "./page-map-dialog.js";
@@ -76,7 +77,11 @@ import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
-import { readingRegionFor, shownRegionBounds } from "./reading-regions.js";
+import {
+  containingReadingRegionFor,
+  readingRegionFor,
+  shownRegionBounds,
+} from "./reading-regions.js";
 import { panelWouldCover } from "./conversation/panel-elements.js";
 import { COVERING } from "./chrome-layout.js";
 
@@ -313,7 +318,6 @@ export function createMarginProjection({
   previewClose.type = "button";
   previewClose.setAttribute("aria-label", "Dismiss conversation view");
   previewClose.title = "Dismiss conversation view (Esc)";
-  previewHead.append(previewTitle, previewClose);
   const previewNav = el("div", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(
@@ -328,8 +332,9 @@ export function createMarginProjection({
   previewNext.setAttribute("aria-label", "Next conversation");
   previewNext.title = "Next conversation";
   previewNav.append(previewPosition, previewPrevious, previewNext);
+  previewHead.append(previewTitle, previewNav, previewClose);
   const previewList = el("div", "lf-margin-preview-list");
-  preview.append(previewHead, previewNav, previewList);
+  preview.append(previewHead, previewList);
   let threadTransitionEpoch = 0;
   let threadTransitionMotions = [];
 
@@ -466,6 +471,7 @@ export function createMarginProjection({
   }
 
   let agentCarriers = new Set();
+  let selectedReadingCarriers = new Set();
   const agentReceipt = (items) =>
     items
       .map((item) => item.agentReceipt)
@@ -639,15 +645,15 @@ export function createMarginProjection({
   const secondaryReadings = (entry, primaryControl) =>
     readingChoices(entry).slice(primaryControl ? 0 : 1);
 
-  function threadMarginEntry(entry) {
+  function readingMarginEntry(entry, kind) {
     const marker = rows.get(entry.key);
-    if (marker && !marker.hidden && primaryReading(entry)?.kind === "comment")
-      return marker;
-    const choice = threadReading(entry);
+    if (marker && !marker.hidden && primaryReading(entry)?.kind === kind) return marker;
+    const choice = readingChoices(entry).find((candidate) => candidate.kind === kind);
     return choice
       ? (readingMarginEntries.get(readingKey(entry, choice)) ?? null)
       : null;
   }
+  const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
   const secondaryControls = (entry, primary) =>
     directControls(entry).filter(
       (control) => control !== primary && entry.shownControls.has(control),
@@ -822,7 +828,7 @@ export function createMarginProjection({
     const controls =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     const target = controls.getBoundingClientRect();
-    const readingRegion = readingRegionFor(previewEntry?.target);
+    const readingRegion = containingReadingRegionFor(previewEntry?.target);
     const regionBounds = readingRegion && shownRegionBounds(readingRegion);
     const main = readingRegion
       ? null
@@ -1034,11 +1040,10 @@ export function createMarginProjection({
   function acknowledgmentFace(receipt) {
     const age = ago(receipt.ts);
     if (receipt.phase === "active") {
+      const state = receipt.quiet ? `Was active ${age}` : "Active";
       return {
         kind: "activity",
-        text: ["Active", receipt.detail, receipt.quiet ? "quiet" : null]
-          .filter(Boolean)
-          .join(" · "),
+        text: [state, receipt.detail].filter(Boolean).join(" · "),
         context: [age && `Checked in ${age}`, receipt.detail]
           .filter(Boolean)
           .join(" · "),
@@ -1221,14 +1226,14 @@ export function createMarginProjection({
         const quiet =
           claimActivity.get(`${update.target.kind}:${update.target.id}`)?.quiet ??
           false;
+        const age = ago(update.ts);
         const account = [
           update.agent || "Agent",
           update.text || humanized(update.action),
-          quiet ? "quiet" : null,
+          quiet ? `Was active ${age}` : null,
         ]
           .filter(Boolean)
           .join(" · ");
-        const age = ago(update.ts);
         add(groups, target, {
           kind: "activity",
           id: `activity:${update.id}`,
@@ -2828,6 +2833,25 @@ export function createMarginProjection({
   // moved the rows, and the card follows in that same frame, so a reader never sees it
   // standing above or below where its controls used to be.
 
+  // Standing selection belongs to the reading, not to focus or a particular feature's
+  // control. Resolve it through the same inventory that decides which reading is the
+  // visible marker and which is an unfolded option, then paint one shared state on the
+  // compact projection. An open disclosure continues to use aria-expanded instead.
+  function paintSelectedMarginEntries(selections) {
+    const selected = new Set();
+    for (const selection of selections) {
+      const entry = pageInventory.find(
+        (candidate) => candidate.target === selection.target,
+      );
+      const control = entry && readingMarginEntry(entry, selection.kind);
+      if (control?.isConnected) selected.add(control);
+    }
+    for (const control of selectedReadingCarriers)
+      if (!selected.has(control)) syncMarginEntrySelection(control, false);
+    for (const control of selected) syncMarginEntrySelection(control, true);
+    selectedReadingCarriers = selected;
+  }
+
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
   const unfoldedMarginEntries = () =>
     expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
@@ -2854,6 +2878,63 @@ export function createMarginProjection({
     if (!pending && active !== previewMarginEntry) return null;
     return conversations.length === 1 ? conversations[0] : null;
   };
+
+  // A live revision replaces the browser document, so DOM identity cannot carry a
+  // reader standing in retained margin chrome. Carry the target and margin-entry keys
+  // instead; this owner alone can revalidate those keys against the new projection and
+  // reopen the transient preview that supplied the focused control.
+  function captureStanding() {
+    const active = focused();
+    const host = closestAcross(active, "[data-lf-margin-for]");
+    const control = active?.closest?.(".lf-margin-entry");
+    const entry = previewEntry ?? host?.lfEntry;
+    if (!entry) return null;
+    const standing = {
+      entry: entry.key,
+      preview: preview.matches(":popover-open") ? { thread: previewThreadItem } : null,
+      focus:
+        active === previewClose
+          ? { kind: "preview-close" }
+          : control && host?.contains(control)
+            ? {
+                kind: "entry",
+                key: control.dataset.lfMarginEntryKey,
+                owner: control.dataset.lfMarginEntryOwner ?? null,
+              }
+            : null,
+    };
+    return standing.preview || standing.focus ? standing : null;
+  }
+
+  function restoreStanding(standing) {
+    if (!standing || typeof standing.entry !== "string") return false;
+    const entry = pageInventory.find((candidate) => candidate.key === standing.entry);
+    if (!entry) return false;
+    if (standing.preview) {
+      const button = threadMarginEntry(entry);
+      if (!button?.isConnected) return false;
+      pinnedKey = entry.key;
+      const positioned = showPreview(entry, button, true, standing.preview.thread);
+      if (standing.focus?.kind === "preview-close")
+        deferThreadPreviewFocus(positioned, () => {
+          if (previewEntry?.key === entry.key)
+            previewClose.focus({ preventScroll: true });
+        });
+      return true;
+    }
+    if (standing.focus?.kind !== "entry") return false;
+    const host = hosts.get(entry.key);
+    const control = clusterMarginEntries(host).find(
+      (candidate) =>
+        candidate.dataset.lfMarginEntryKey === standing.focus.key &&
+        (candidate.dataset.lfMarginEntryOwner ?? null) === standing.focus.owner,
+    );
+    if (!control) return false;
+    // Roving tabindex is painted in the margin's next layout frame. The semantic
+    // destination is already known here, so lend it a stop if that frame has not run.
+    focusDestination(control);
+    return true;
+  }
 
   // The margin's parts into the chrome, once it is mounted (leaf.js): the map button beside
   // the version chooser, then its own parts in the root.
@@ -2953,10 +3034,13 @@ export function createMarginProjection({
     keyboardRung,
     openInlineThread,
     openPageThread,
+    paintSelectedMarginEntries,
     marginEntryChoices,
     unfoldedMarginEntries,
     foldMarginEntryOptions,
     activeInlineThread,
+    captureStanding,
+    restoreStanding,
     mount,
   };
 }

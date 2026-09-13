@@ -8,7 +8,7 @@ When a small change is hard to find in a large capture, give the case one option
 
 Base and candidate links, plus an optional trace link, stay below the evidence. `Capture details` discloses the path, browser, viewport, appearance, observation time, and revisions when the reader needs to audit the capture.
 
-For a focused review page, make `lf-visual-review` the only child of `main`; it then uses Leaf's bounded root workspace and gives the laptop viewport to the evidence. When prose around the review is part of the document, the same compact layout remains in ordinary flow.
+For a focused review page, make `lf-visual-review` the only child of `main`; it then uses Leaf's bounded root workspace and gives the laptop viewport to the evidence. When prose around the review is part of the document, the same compact layout remains in ordinary flow and its evidence stage chains scrolling into the document at either end. Do not cap every visual object in another page-local scroller.
 
 Capture the same action at the same viewport against base and candidate. Wait on a product readiness fact, disable animation, freeze seeded data and time, and inspect the images for credentials or personal data before importing them with `leaf page media`. Authenticate the capture browser, not the visual run: store clean target URLs, and never put query keys, cookies, or headers into page data or media. Keep each case id stable across source refreshes. Keep every focus rectangle inside both decoded images and include enough surrounding context to show displacement. Pin the source revision when the review is a durable record.
 

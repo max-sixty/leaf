@@ -262,7 +262,7 @@ def list_fixture_versions(page_dir):
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch, initialized_page):
     """A page with the default, Command Hub, diagram and diff vocabularies and a v1."""
-    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+    monkeypatch.chdir(tmp_path)  # resolve fixture package paths
     d = tmp_path / "page"
 
     def initialize(template):
@@ -778,7 +778,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
     def init_result():
         try:
-            vendoring_model.cmd_init(page_dir)
+            vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
         except SystemExit as error:
             return str(error)
         return None
@@ -941,9 +941,10 @@ def trial_page(tmp_path, monkeypatch):
 
     page = tmp_path / "page"
     # The version is built out of PAGE, which holds an lf-diagram; the project package
-    # under test is the `.leaf` overlay beside it.
+    # under test is explicitly selected beside it.
     initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "diagram", str(page)]
+        cli_model.cli,
+        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
     )
     assert initialized.exit_code == 0, initialized.output
     fixture_version_path(page, 1).write_text(

@@ -8,6 +8,7 @@ from leaf.asks import local_ask_entry, page_awaiting_values
 from leaf.delivery import current_responses
 from leaf.event_contracts import report_contract_error
 from leaf.event_log import read_events
+from leaf.events import build_threads
 from leaf.files import (
     latest_published,
     latest_revision,
@@ -17,6 +18,7 @@ from leaf.files import (
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
+from leaf.passages import active_enclosing
 from leaf.projection import (
     generated_children,
     markup_facet,
@@ -26,7 +28,7 @@ from leaf.projection import (
 )
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction
-from leaf.structure import parse_revision
+from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
 from leaf.validation.admission import check_markup, read_text_arg
 
@@ -126,10 +128,25 @@ def _current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
+    document = parse_revision(page_dir, revision)
+    return revision, _capture_anchor(
+        page_dir, events, document, quote, section, part, revision
+    )
+
+
+def _capture_anchor(
+    page_dir: Path,
+    events: list,
+    document: SourceDocument,
+    quote: str,
+    section: str,
+    part: str,
+    revision: int,
+) -> dict:
+    """Capture a target against one exact document reading."""
     from leaf.anchor_capture import capture_anchor
     from leaf.registry.storage import require_registry
 
-    document = parse_revision(page_dir, revision)
     registry = require_registry(page_dir)
     page = page_reading(document, events, registry, revision)
     decided = retirement_outcomes(page.projection.actions, registry)
@@ -147,7 +164,7 @@ def _current_anchor(
         )
     except ValueError as err:
         sys.exit(f"can't anchor in revision r{revision}: {err}")
-    return revision, anchor
+    return anchor
 
 
 @contract_writer
@@ -195,20 +212,23 @@ def cmd_reply(
     quote: str = "",
     section: str = "",
     part: str = "",
+    detach: bool = False,
     attempt: str | None = None,
     initiates: bool = False,
     skip_if_settled: bool = False,
     only_if_unclaimed: bool = False,
+    failure: str | None = None,
     identity: dict | None = None,
     validate_source: bool = False,
 ) -> dict | None:
-    """Post one complete threaded reply, optionally moving its anchor.
+    """Post one complete threaded reply, optionally moving or detaching its anchor.
 
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
     conversation. One unambiguous delivered reply supplies both values. ``initiates``
     explicitly posts when the conversation currently owes no reply. Durable hosts may
-    make an already-settled retry a no-op.
+    make an already-settled retry a no-op. ``failure`` records a host-owned failure
+    code alongside its presentation text; ordinary agent answers omit it.
     """
     body = read_text_arg(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
@@ -330,18 +350,32 @@ def cmd_reply(
         ):
             return None
         moving = bool(quote or section or part)
-        if moving and root is None:
+        if detach and moving:
+            sys.exit("--detach cannot be combined with --quote, --section, or --part")
+        relocating = moving or detach
+        if relocating and root is None:
             sys.exit(
                 f"thread {root_id!r} has no surviving opening comment, so its "
-                "anchor cannot be moved"
+                "anchor cannot be changed"
             )
-        if moving and root.get("holds"):
+        if relocating and root.get("holds"):
             sys.exit(
                 f"thread {root_id!r} holds the command goal named by its opening "
-                "comment, so its anchor cannot be moved"
+                "comment, so its anchor cannot be changed"
             )
+        current_thread = (
+            build_threads(events, active_enclosing(page_dir)).get(root_id)
+            if detach
+            else None
+        )
+        if detach and (current_thread is None or current_thread["anchor"] is None):
+            sys.exit(f"conversation {root_id!r} has no current anchor to detach")
         reply_revision = None
-        if validate_source:
+        prospective_page = None
+        prospective_anchor = None
+        source_events = events
+        source_matches_active = True
+        if validate_source or detach:
             active = latest_revision(page_dir)
             source_matches_active = bool(
                 active is not None
@@ -349,30 +383,51 @@ def cmd_reply(
                 and (page_dir / "index.html").read_bytes()
                 == revision_path(page_dir, active).read_bytes()
             )
+            if detach or section:
+                source_events = [
+                    *events,
+                    {
+                        "kind": "reply",
+                        "id": "prospective-anchor-transition",
+                        "parent": to,
+                        "anchor": (
+                            None
+                            if detach
+                            else {
+                                "section": section,
+                                **({"visual": part} if part else {}),
+                            }
+                        ),
+                    },
+                ]
             if source_matches_active:
                 reply_revision = active
             else:
-                from leaf.revisioning import activate_source
+                from leaf.validation.source import check_source
 
-                activation = activate_source(page_dir, events)
-                if activation.error:
+                checked = check_source(page_dir, source_events, allow_transition=False)
+                if checked.errors:
+                    operation = "reply" if validate_source else "detach"
                     sys.exit(
-                        f"cannot reply while index.html is invalid: {activation.error}"
+                        f"cannot {operation} while index.html is invalid: "
+                        f"{'; '.join(checked.errors)}"
                     )
-                reply_revision = activation.revision
-        revision, anchor = (
-            _current_anchor(
-                page_dir,
-                events,
-                quote,
-                section,
-                part,
-                revision=reply_revision,
-            )
-            if moving
-            else (None, None)
+                prospective_page = checked.document
+                if moving:
+                    prospective_anchor = _capture_anchor(
+                        page_dir,
+                        events,
+                        checked.document,
+                        quote,
+                        section,
+                        part,
+                        (active or 0) + 1,
+                    )
+        fragment = (
+            check_markup(page_dir, "reply", markup, events, page=prospective_page)
+            if markup
+            else None
         )
-        fragment = check_markup(page_dir, "reply", markup, events) if markup else None
         if awaits and fragment:
             from leaf.registry.storage import require_registry
 
@@ -390,6 +445,26 @@ def cmd_reply(
                     "a local Ask "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
+        if not source_matches_active:
+            from leaf.revisioning import activate_checked_source
+
+            activation = activate_checked_source(page_dir, checked)
+            if activation.error:
+                operation = "reply" if validate_source else "detach"
+                sys.exit(
+                    f"cannot {operation} while index.html is invalid: {activation.error}"
+                )
+            reply_revision = activation.revision
+        if prospective_anchor is not None:
+            revision, anchor = reply_revision, prospective_anchor
+        elif moving:
+            revision, anchor = _current_anchor(
+                page_dir, events, quote, section, part, revision=reply_revision
+            )
+        elif detach:
+            revision, anchor = reply_revision, None
+        else:
+            revision, anchor = None, None
         event = {
             "kind": "reply",
             "author": "claude",
@@ -408,7 +483,9 @@ def cmd_reply(
             event["markup"] = markup
         if attempt is not None:
             event["attempt"] = attempt
-        if moving:
+        if failure is not None:
+            event["failure"] = failure
+        if relocating:
             event["revision"] = revision
             event["anchor"] = anchor
         return page.append_event(event)

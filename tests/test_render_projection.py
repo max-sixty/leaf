@@ -31,6 +31,7 @@ from render_support import (
     COMMAND_HUB_PACKAGE,
     COMMAND_HUB_PAGE,
     EXAMPLE_MEDIA,
+    EXAMPLE_PACKAGES,
     IMPORTER_CARD,
     KEPT_SECTION_PAGE,
     LIVE_KEYS_V1,
@@ -1339,6 +1340,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "node => node.scrollWidth <= node.clientWidth"
     )
     resized(page, 560, 720)
+    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
@@ -1347,6 +1349,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     resized(page, 1366, 768)
+    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     shot_host.evaluate("node => node.style.height = '120px'")
@@ -1720,7 +1723,13 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     passage's viewport coordinate survive through explicit saved state. Five paragraphs arrive
     above that passage so a raw scroll offset cannot satisfy the position assertion.
     """
-    version_url = serve(LIVE_V1)
+    # Deliberately collide with a property the runtime owns after startup. Authored
+    # replacement must remove source properties without erasing a live runtime override.
+    first = LIVE_V1.replace(
+        '<html lang="en">',
+        '<html lang="en" style="--lf-thread-panel-width: 420px">',
+    ).replace("<body>", '<body tabindex="0">')
+    version_url = serve(first)
     page, errors = open_page(browser, live_url(version_url))
     assert "/versions/" not in page.url, f"the live address redirected to {page.url}"
 
@@ -1737,8 +1746,17 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    runtime_panel_width = page.locator("html").evaluate(
+        "el => el.style.getPropertyValue('--lf-thread-panel-width')"
+    )
+    assert runtime_panel_width == "420px"
 
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    second = LIVE_V2.replace(
+        '<html lang="fr" data-live-root="second">',
+        '<html lang="fr" data-live-root="second" '
+        'style="--lf-thread-panel-width: 1000px">',
+    )
+    (serve.page_dir / "index.html").write_text(second)
     told(page)
     expect(page).to_have_title("Live second")
 
@@ -1749,6 +1767,12 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
         f"the update changed the live address to {page.url}"
     )
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
+    assert (
+        page.locator("html").evaluate(
+            "el => el.style.getPropertyValue('--lf-thread-panel-width')"
+        )
+        == runtime_panel_width
+    ), "authored style replacement erased a runtime-owned property"
     after = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -1766,6 +1790,7 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     assert page.locator('meta[name="description"]').get_attribute("content") == "second"
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
+    expect(page.locator("html")).to_have_attribute("data-lf-live", "")
     expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
     assert page.locator("body").get_attribute("data-live-body") == "second"
     assert (
@@ -1780,6 +1805,16 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
         )
         == "2"
     ), "the new version's page-local style did not activate"
+
+    # The revision owns authored body attributes, but body remains the runtime's stable
+    # programmatic focus destination after the replacement, including for callers that
+    # use the platform operation directly rather than the Escape helper.
+    expect(page.locator("body")).to_have_attribute("tabindex", "-1")
+    page.locator("#live-reading").evaluate(
+        "el => { el.tabIndex = -1; el.focus({preventScroll: true}); }"
+    )
+    page.evaluate("document.body.focus({preventScroll: true})")
+    assert page.evaluate("document.activeElement === document.body")
 
     draft_document = page.evaluate("performance.timeOrigin")
     stamped = CliRunner().invoke(
@@ -1802,6 +1837,494 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
+    assert errors == []
+    page.close()
+
+
+def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser, serve):
+    """A partly covered title is the page opening, not a reading place to preserve.
+
+    A revision change used the heading as its semantic landmark and restored its exact
+    viewport coordinate. When the reader had moved just far enough for the first title
+    line to sit behind the fixed banner, both an arriving current revision and a chosen
+    historical version faithfully restored that broken view: the later line looked like
+    the whole heading. The scroller already declares its landable top through
+    scroll-padding, so a heading landmark must honor that edge while ordinary passage
+    landmarks retain their exact coordinate.
+    """
+    title = "The page instance should own the complete one-off playground"
+    revised_title = "The complete one-off playground belongs to the page instance"
+    first = leaf_page(
+        "Heading continuity",
+        f"""
+<header id="summary">
+  <p class="eyebrow">Playground replacement audit</p>
+  <h1>{title}</h1>
+  <p>The opening account is long enough to become the next reading landmark.</p>
+</header>
+<div style="height: 1200px"></div>
+""",
+    )
+    version_url = serve(first)
+    page, errors = open_page(browser, live_url(version_url))
+    resized(page, 668, 704)
+
+    clip_heading = """() => {
+          const heading = document.querySelector('#summary h1');
+          const banner = document.querySelector('.lf-banner');
+          const inset = parseFloat(
+            getComputedStyle(document.scrollingElement).scrollPaddingTop
+          );
+          document.scrollingElement.scrollBy({
+            top: heading.getBoundingClientRect().top - banner.getBoundingClientRect().bottom + 12,
+            behavior: 'instant',
+          });
+          const title = heading.getBoundingClientRect();
+          const chrome = banner.getBoundingClientRect();
+          const summary = document.getElementById('summary').getBoundingClientRect();
+          return {title: title.toJSON(), summary: summary.toJSON(),
+                  chrome: chrome.toJSON(), inset};
+        }"""
+    heading_position = """() => {
+          const title = document.querySelector('#summary h1').getBoundingClientRect();
+          const chrome = document.querySelector('.lf-banner').getBoundingClientRect();
+          const inset = parseFloat(
+            getComputedStyle(document.scrollingElement).scrollPaddingTop
+          );
+          return {
+            title: title.toJSON(),
+            chrome: chrome.toJSON(),
+            inset,
+            live: document.documentElement.hasAttribute('data-lf-live'),
+          };
+        }"""
+
+    clipped = page.evaluate(clip_heading)
+    assert clipped["title"]["top"] < clipped["chrome"]["bottom"]
+    assert clipped["title"]["bottom"] > clipped["chrome"]["bottom"]
+
+    # The producer owns the invariant: a saved semantic heading coordinate is never
+    # inside the chrome, so in-place activation and document travel consume the same
+    # valid view rather than each repairing it independently.
+    page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+    view = page.evaluate(
+        """() => {
+          for (const key of Object.keys(sessionStorage))
+            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]);
+          return null;
+        }"""
+    )
+    assert view["quote"].startswith(title), view
+    assert view["quoteTop"] >= clipped["inset"], view
+    assert view["section"] == "summary", view
+    assert view["sectionTop"] > clipped["summary"]["top"], view
+
+    stamp_page(
+        serve.page_dir,
+        first.replace(title, revised_title).replace("1200px", "1201px"),
+        "Changed evidence below the page heading",
+    )
+    wait_for_revision(page, 2)
+    live_landed = page.evaluate(heading_position)
+    assert live_landed["live"], "revision activation removed the live shell"
+    assert live_landed["inset"] == clipped["inset"], live_landed
+    assert live_landed["title"]["top"] >= live_landed["inset"], (
+        f"the arriving revision left the heading under reader chrome: {live_landed}"
+    )
+    assert live_landed["title"]["top"] > live_landed["chrome"]["bottom"], live_landed
+
+    clipped = page.evaluate(clip_heading)
+    assert clipped["title"]["top"] < clipped["chrome"]["bottom"]
+    page.locator(".lf-version").click()
+    page.locator('.lf-version-row[data-lf-version="1"]').click()
+    page.wait_for_url(re.compile(r"/versions/v1\.html"))
+    page.wait_for_function(BOTH_STAMPS)
+
+    landed = page.evaluate(heading_position)
+    assert landed["title"]["top"] >= landed["inset"], (
+        f"version travel left the heading under reader chrome: {landed}"
+    )
+    assert landed["title"]["top"] > landed["chrome"]["bottom"], landed
+    assert errors == []
+    page.close()
+
+
+def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The semantic reading walk and resolver share the composed page reading.
+
+    A declared shadow root is allowed to render the page's authored words. If continuity
+    searches only light-DOM blocks, it records a raw page offset even though the passage
+    resolver can find the rendered words, so material inserted above the widget displaces
+    the reader on the next revision.
+    """
+    monkeypatch.chdir(tmp_path)
+    package = author_test_widget(tmp_path, "lf-shadow-reading", upgrade=True)
+    registry_path = package / "registry.json"
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shadow-reading"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(declarations))
+    (package / "widgets" / "lf-shadow-reading.js").write_text(
+        """import { once } from "/runtime/widget-api.js";
+customElements.define("lf-shadow-reading", class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const paragraph = document.createElement("p");
+    paragraph.textContent = this.textContent.trim();
+    this.attachShadow({mode: "open"}).append(paragraph);
+  }
+});
+"""
+    )
+    reading = "The shadow-rendered passage is the reader's stable semantic landmark."
+    first = leaf_page(
+        "Shadow reading continuity",
+        f"""
+<h1 id="title">Shadow reading continuity</h1>
+<div style="height: 700px"></div>
+<lf-shadow-reading id="shadow-reading">{reading}</lf-shadow-reading>
+<div style="height: 1000px"></div>
+""",
+    )
+    page, errors = open_page(
+        browser,
+        live_url(serve(first, packages=(*EXAMPLE_PACKAGES, "./.leaf"))),
+    )
+    paragraph = page.locator("lf-shadow-reading").locator("p")
+    paragraph.scroll_into_view_if_needed()
+    page.evaluate(
+        """() => document.scrollingElement.scrollBy({
+          top: document.querySelector('lf-shadow-reading').shadowRoot
+            .querySelector('p').getBoundingClientRect().top - 150,
+          behavior: 'instant',
+        })"""
+    )
+    before = paragraph.evaluate("el => el.getBoundingClientRect().top")
+
+    page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+    view = page.evaluate(
+        """() => {
+          for (const key of Object.keys(sessionStorage))
+            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]);
+          return null;
+        }"""
+    )
+    assert view["quote"].startswith(reading), view
+    assert view["section"] == "shadow-reading", view
+
+    revised = first.replace(
+        '<lf-shadow-reading id="shadow-reading">',
+        '<div style="height: 320px"></div><lf-shadow-reading id="shadow-reading">',
+    )
+    stamp_page(serve.page_dir, revised, "add context above the shadow reading")
+    wait_for_revision(page, 2)
+    after = paragraph.evaluate("el => el.getBoundingClientRect().top")
+    assert abs(after - before) <= 4, (before, after)
+    assert errors == []
+    page.close()
+
+
+def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, serve):
+    """One active semantic reading wins when several regions begin sharing the page."""
+    pane = lambda side: (
+        f"""
+    <lf-pane id="{side}-reading" label="{side.title()} reading">
+      <p id="{side}-start">{side.title()} start with enough words for a landmark.</p>
+      <div style="height: 320px"></div>
+      <p id="{side}-landmark">The current {side} reading has a stable semantic landmark.
+        {'<button id="right-subject">Right subject</button>' if side == "right" else ""}
+      </p>
+      <div style="height: 700px"></div>
+      <p>{side.title()} end.</p>
+    </lf-pane>"""
+    )
+    first = leaf_page(
+        "Active region continuity",
+        f"""
+<lf-workspace id="reading-workspace">
+  <header><h1>Reading workspace</h1></header>
+  <lf-partition id="reading-split" direction="columns">
+    {pane("left")}
+    {pane("right")}
+  </lf-partition>
+</lf-workspace>
+""",
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    resized(page, 900, 760)
+    workspace = page.locator("#reading-workspace")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    left = page.locator("#left-reading .lf-pane-body")
+    right = page.locator("#right-reading .lf-pane-body")
+    left.evaluate("el => el.scrollTop = 180")
+    right.evaluate("el => el.scrollTop = 360")
+    page.locator("#right-subject").focus()
+    before = page.locator("#right-landmark").evaluate(
+        """el => el.getBoundingClientRect().top -
+          el.closest('.lf-pane-body').getBoundingClientRect().top"""
+    )
+
+    revised = leaf_page(
+        "Active region continuity",
+        f"""
+<lf-workspace id="reading-workspace">
+  <header><h1>Reading workspace</h1></header>
+  <lf-partition id="reading-split" direction="columns">
+    <lf-partition id="first-pair" direction="columns">
+      {pane("left")}
+      {pane("right")}
+    </lf-partition>
+    <lf-partition id="second-pair" direction="columns">
+      {pane("third")}
+      {pane("fourth")}
+    </lf-partition>
+  </lf-partition>
+</lf-workspace>
+""",
+    )
+    stamp_page(serve.page_dir, revised, "add two reading regions")
+    wait_for_revision(page, 2)
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    after = page.locator("#right-landmark").evaluate(
+        "el => el.getBoundingClientRect().top"
+    )
+    assert abs(after - before) <= 4, (before, after)
+    assert errors == []
+    page.close()
+
+
+def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser, serve):
+    """An empty flow region does not displace the page reading that contains it."""
+    content = """
+<h1 id="reading-title">The page landmark surrounding these controls remains stable.</h1>
+<lf-pane id="controls-pane" label="Controls">
+  <button id="standing-control">Change setting</button>
+</lf-pane>
+<div style="height: 1000px"></div>
+    """
+    first = leaf_page("Empty active region continuity", content)
+    page, errors = open_page(browser, live_url(serve(first)))
+    page.locator("#standing-control").focus()
+    before = page.locator("#reading-title").evaluate(
+        "heading => heading.getBoundingClientRect().top"
+    )
+
+    revised = leaf_page(
+        "Empty active region continuity",
+        f"""
+<p>The arriving revision adds a result above the prior content.</p>
+<details id="prior-controls">
+  <summary>Prior controls</summary>
+  {content}
+</details>
+""",
+    )
+    stamp_page(serve.page_dir, revised, "wrap the prior controls")
+    wait_for_revision(page, 2)
+
+    expect(page.locator("#prior-controls")).to_have_attribute("open", "")
+    expect(page.locator("#standing-control")).to_be_focused()
+    after = page.locator("#reading-title").evaluate(
+        "heading => heading.getBoundingClientRect().top"
+    )
+    assert abs(after - before) <= 4, (before, after)
+    assert errors == []
+    page.close()
+
+
+def test_revision_reveals_an_active_region_without_any_reading_landmark(browser, serve):
+    """A surviving active region remains reachable even when no passage names it."""
+    content = """
+<lf-pane id="controls-pane" label="Controls">
+  <button id="standing-control">Change setting</button>
+</lf-pane>
+<div style="height: 1000px"></div>
+    """
+    first = leaf_page("Textless active region continuity", content)
+    page, errors = open_page(browser, live_url(serve(first)))
+    page.locator("#standing-control").focus()
+
+    revised = leaf_page(
+        "Textless active region continuity",
+        f"""
+<details id="prior-controls">
+  <summary>Prior controls</summary>
+  {content}
+</details>
+""",
+    )
+    stamp_page(serve.page_dir, revised, "wrap the textless active region")
+    wait_for_revision(page, 2)
+
+    expect(page.locator("#prior-controls")).to_have_attribute("open", "")
+    expect(page.locator("#standing-control")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):
+    """A raw offset belongs to the scrollport that supplied it."""
+
+    def pane(name, *, standing=False):
+        control = (
+            '<button id="standing-control">Change setting</button>' if standing else ""
+        )
+        return f"""
+<lf-pane id="{name}-pane" label="{name.title()}">
+  {control}<div style="height: 700px"></div>
+</lf-pane>
+"""
+
+    first = leaf_page(
+        "Changing offset ownership",
+        f"""
+<lf-workspace id="reading-workspace">
+  <lf-partition id="all-panes" direction="columns">
+    <lf-partition id="first-pair" direction="columns">
+      {pane("active", standing=True)}
+      {pane("second")}
+    </lf-partition>
+    <lf-partition id="second-pair" direction="columns">
+      {pane("third")}
+      {pane("fourth")}
+    </lf-partition>
+  </lf-partition>
+</lf-workspace>
+""",
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    resized(page, 900, 760)
+    workspace = page.locator("#reading-workspace")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    page.locator("#standing-control").evaluate(
+        "control => control.focus({preventScroll: true})"
+    )
+    page.evaluate("document.scrollingElement.scrollTop = 300")
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    assert before == 300
+
+    revised = leaf_page(
+        "Changing offset ownership",
+        f"""
+<lf-workspace id="reading-workspace">
+  <lf-partition id="remaining-panes" direction="columns">
+    {pane("active", standing=True)}
+    {pane("second")}
+  </lf-partition>
+</lf-workspace>
+""",
+    )
+    stamp_page(serve.page_dir, revised, "remove two reading regions")
+    wait_for_revision(page, 2)
+
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    assert (
+        page.locator("#active-pane .lf-pane-body").evaluate("pane => pane.scrollTop")
+        == 0
+    )
+    assert errors == []
+    page.close()
+
+
+def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser, serve):
+    """A nested flow region cannot carry one parent's offset into another parent."""
+    entry = {
+        "description": "A test-owned reading scroller.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "posture": {"enum": ["flow", "bounded"]},
+        },
+        "required": ["id", "posture"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-upgrade": True,
+        "x-example": (
+            '<lf-owned-scroll id="example" posture="flow">'
+            "<div data-scroll-body><button>Control</button></div>"
+            "</lf-owned-scroll>"
+        ),
+    }
+    module = """
+import {registerReadingArrangement} from '/runtime/widget-api.js';
+customElements.define('lf-owned-scroll', class extends HTMLElement {
+  #reading = null;
+  connectedCallback() {
+    const body = this.querySelector(':scope > [data-scroll-body]');
+    this.#reading = registerReadingArrangement({
+      owner: this,
+      content: body,
+      regions: [{id: this.id, host: this, body}],
+    });
+    void this.#reading.setReadingPosture(this.getAttribute('posture'));
+  }
+  disconnectedCallback() {
+    this.#reading?.cleanup();
+    this.#reading = null;
+  }
+});
+"""
+    active = """
+<div style="height: 250px"></div>
+<lf-owned-scroll id="active-region" posture="flow">
+  <div data-scroll-body>
+    <section id="removed-landmark">
+      <p>The nested region landmark disappears in the arriving revision.</p>
+    </section>
+    <button id="standing-control">Change setting</button>
+  </div>
+</lf-owned-scroll>
+"""
+    active_without_landmark = active.replace(
+        """    <section id="removed-landmark">
+      <p>The nested region landmark disappears in the arriving revision.</p>
+    </section>
+""",
+        "",
+    )
+
+    def parent(name, content=""):
+        return f"""
+<lf-owned-scroll id="{name}-region" posture="bounded">
+  <div data-scroll-body style="height: 240px; overflow: auto">
+    {content}<div style="height: 700px"></div>
+  </div>
+</lf-owned-scroll>
+"""
+
+    first = leaf_page(
+        "Nested offset ownership",
+        parent("left", active) + parent("right"),
+    )
+    page, errors = open_page(
+        browser,
+        live_url(
+            serve(
+                first,
+                layer_registry={"lf-owned-scroll": entry},
+                layer_widgets={"lf-owned-scroll.js": module},
+            )
+        ),
+    )
+    left = page.locator("#left-region > [data-scroll-body]")
+    right = page.locator("#right-region > [data-scroll-body]")
+    left.evaluate("scroller => scroller.scrollTop = 150")
+    page.locator("#standing-control").evaluate(
+        "control => control.focus({preventScroll: true})"
+    )
+    assert left.evaluate("scroller => scroller.scrollTop") == 150
+    assert right.evaluate("scroller => scroller.scrollTop") == 0
+
+    revised = leaf_page(
+        "Nested offset ownership",
+        parent("left") + parent("right", active_without_landmark),
+    )
+    stamp_page(serve.page_dir, revised, "move the active region")
+    wait_for_revision(page, 2)
+
+    assert right.evaluate("scroller => scroller.scrollTop") == 0
+    expect(page.locator("#standing-control")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -3388,7 +3911,7 @@ customElements.define("lf-pair", class extends HTMLElement {
     previous = leaf_page(
         "Two facets", '<lf-pair id="pair" first="a" second="a">Two facts.</lf-pair>'
     )
-    url = serve(previous)
+    url = serve(previous, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     d = serve.page_dir
 
     def act(revision, facet):
@@ -3569,7 +4092,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     html = RELATIVE_WIDGET_PAGE
     if authored is None:
         html = html.replace('id="tally-seen" count="0"', 'id="tally-seen"')
-    url = serve(html)
+    url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
         ("report", "claude", "tally-fitted", "measure", "9"),
@@ -3755,7 +4278,7 @@ customElements.define("lf-piece", class extends HTMLElement {
 <lf-zone id="zone-a"><lf-piece id="piece" pinned="no">Piece</lf-piece></lf-zone>
 <lf-zone id="zone-b"></lf-zone></lf-owner>""",
     )
-    url = serve(html)
+    url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for event in (
         {
             "kind": "action",
@@ -3878,7 +4401,7 @@ customElements.define("lf-token", class extends HTMLElement {
         + "".join(f'<lf-token id="token-{name}">{name}</lf-token>' for name in "abcd")
         + "</lf-lane>",
     )
-    url = serve(html)
+    url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     sender, sender_errors = open_page(browser, url)
     for name, index in [("d", 0), ("c", 1)]:
         response = post_event(
@@ -3974,7 +4497,7 @@ def test_the_render_gate_catches_a_relative_state_renderer(
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
-    url = serve(RELATIVE_WIDGET_PAGE)
+    url = serve(RELATIVE_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for widget, action, detail in [
         ("tally-fitted", "step", {"count": "3"}),
         ("tally-fitted", "caption", {"text": "Two greys at the north feeder."}),
@@ -4017,7 +4540,9 @@ def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
     under it. That is a page the covered-words reading reports — so the test below,
     which serves this same markup and expects nothing, is measuring the gate's
     patience rather than a page that was never broken."""
-    url = serve(drifting_widget(tmp_path, monkeypatch))
+    url = serve(
+        drifting_widget(tmp_path, monkeypatch), packages=(*EXAMPLE_PACKAGES, "./.leaf")
+    )
 
     covered = [
         f for f in render_gate_model.render_version(browser, url) if "same place" in f
@@ -4038,7 +4563,10 @@ def test_a_page_at_rest_is_read_across_a_widgets_own_root(
     asked the document would call that page still and read it mid-move — the fault
     the wait exists to prevent, surviving inside the one place a widget is most
     likely to draw."""
-    url = serve(drifting_widget(tmp_path, monkeypatch, deep=True))
+    url = serve(
+        drifting_widget(tmp_path, monkeypatch, deep=True),
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
+    )
     page, errors = open_page(browser, url)
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
@@ -4071,7 +4599,10 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     loud direction — but the refusal used to arrive as `Cannot read properties of null
     (reading 'closest')` over a blank page, naming neither the widget nor the mistake,
     which is a bug report against leaf rather than against the module that caused it."""
-    url = serve(drifting_widget(tmp_path, monkeypatch, bare=True))
+    url = serve(
+        drifting_widget(tmp_path, monkeypatch, bare=True),
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
+    )
     page = browser.new_page(
         viewport=render_checks_model.RENDER_VIEWPORT, color_scheme="light"
     )
@@ -4115,7 +4646,9 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     the page reads as broken for about three seconds, and the gate must have nothing
     to say about it. Either wait on its own leaves this failing."""
     # For the page directory and its vendored layer; this test serves it itself.
-    serve(drifting_widget(tmp_path, monkeypatch))
+    serve(
+        drifting_widget(tmp_path, monkeypatch), packages=(*EXAMPLE_PACKAGES, "./.leaf")
+    )
     landed = []
     # The action is in the log and the gate may read it. Both halves of the window are
     # this one fact, so the hold below and the append are the same statement made twice.
@@ -4455,7 +4988,11 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
 
-    url = serve(TWO_HOLDER_PAGE, anchored=[("th-now", "warmed on every deploy")])
+    url = serve(
+        TWO_HOLDER_PAGE,
+        anchored=[("th-now", "warmed on every deploy")],
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
+    )
     page, errors = open_page(browser, url)
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
     expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
@@ -4487,7 +5024,11 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
 
-    url = serve(TWO_HOLDER_PAGE, anchored=[("th-next", "warmed on the first request")])
+    url = serve(
+        TWO_HOLDER_PAGE,
+        anchored=[("th-next", "warmed on the first request")],
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
+    )
     append_command(
         serve.page_dir,
         {
@@ -4582,7 +5123,7 @@ customElements.define("lf-trial", class extends HTMLElement {
     page_html = TWO_HOLDER_PAGE.replace(
         '<lf-trial id="th-cache">', '<lf-trial id="th-cache" decision="open">'
     )
-    url = serve(page_html)
+    url = serve(page_html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     decision = append_command(
         serve.page_dir,
         {
@@ -4633,7 +5174,7 @@ customElements.define("lf-trial", class extends HTMLElement {
 });
 """
     )
-    url = serve(TWO_HOLDER_PAGE)
+    url = serve(TWO_HOLDER_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     append_command(
         serve.page_dir,
         {
@@ -4673,7 +5214,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
 
-    url = serve(TWO_HOLDER_SPARE_PAGE)
+    url = serve(TWO_HOLDER_SPARE_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     append_command(
         serve.page_dir,
         {
@@ -5862,16 +6403,13 @@ def test_command_goal_conversation_follows_its_declaration_not_talk(
         "when": {"consult": [True]},
         "hold": "pause",
     }
-    project = tmp_path / ".leaf"
-    project.mkdir()
-    (project / "registry.json").write_text(json.dumps({"lf-task": task}))
     command = leaf_page(
         "custom goal",
         """<lf-command id="hub">
   <lf-task id="goal" status="active" consult><strong>Custom goal</strong></lf-task>
 </lf-command>""",
     )
-    url = serve(command)
+    url = serve(command, layer_registry={"lf-task": task})
     page, errors = open_page(browser, url)
     conversation = page.locator("#goal > .lf-conversation")
     expect(
@@ -7092,9 +7630,6 @@ def test_project_widget_can_join_the_orchestration_projection(
             }
         },
     }
-    project = tmp_path / ".leaf"
-    project.mkdir()
-    (project / "registry.json").write_text(json.dumps(registry))
     command = leaf_page(
         "project command goal",
         """
@@ -7111,7 +7646,7 @@ def test_project_widget_can_join_the_orchestration_projection(
 </lf-command>
 """,
     )
-    url = serve(command)
+    url = serve(command, layer_registry=registry)
 
     page, errors = open_page(browser, url)
 

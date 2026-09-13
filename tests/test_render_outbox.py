@@ -11,6 +11,7 @@ from leaf import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (
     BOARD_PAGE,
+    EXAMPLE_PACKAGES,
     HOLD_MOTION,
     INLINE_PAGE,
     LONG_PAGE,
@@ -956,7 +957,9 @@ customElements.define("lf-outer-board", class extends HTMLElement {
   </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
 </lf-outer-board>""",
     )
-    page, errors = open_page(browser, serve(nested))
+    page, errors = open_page(
+        browser, serve(nested, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     page.route("**/api/state*", refuse)
     held = []
     page.route("**/api/event", lambda route: held.append(route))

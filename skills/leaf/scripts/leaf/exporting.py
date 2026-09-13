@@ -94,9 +94,8 @@ def _state_url(page, url: str) -> str:
     """Resolve the state endpoint from the document's canonical page root."""
     from playwright.sync_api import Error as PlaywrightError
 
-    canonical = page.locator('link[rel="canonical"][data-lf-runtime]').get_attribute(
-        "href"
-    )
+    link = page.locator('link[rel="canonical"][data-lf-runtime]')
+    canonical = link.get_attribute("href") if link.count() else None
     if canonical is None:
         raise PlaywrightError("document has no canonical page root")
     return urljoin(urljoin(url, canonical), "api/state")

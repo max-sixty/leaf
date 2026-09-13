@@ -27,6 +27,7 @@ from leaf import service as service_model
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.structure import UTF8_BOM, SourceDocument
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 from render_support import (
     CUT_BOXES_PAGE,
@@ -1206,6 +1207,25 @@ def test_export_state_route_follows_the_canonical_page_root(browser):
         )
     finally:
         page.close()
+
+
+def test_export_state_route_refuses_a_missing_canonical_without_waiting():
+    """An absent root is known from the locator count, without an attribute wait."""
+
+    class MissingCanonical:
+        def count(self):
+            return 0
+
+        def get_attribute(self, _name):
+            pytest.fail("the absent canonical must not start an attribute wait")
+
+    class Page:
+        def locator(self, selector):
+            assert selector == 'link[rel="canonical"][data-lf-runtime]'
+            return MissingCanonical()
+
+    with pytest.raises(PlaywrightError, match="document has no canonical page root"):
+        exporting_model._state_url(Page(), "https://leaf.invalid/versions/v1.html")
 
 
 def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tmp_path):

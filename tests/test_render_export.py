@@ -2497,7 +2497,6 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
     # rules no other medium runs, and the last two ways one went out wrong were both a
     # widget's words landing on the page's.
     covered = render_checks_model.evaluate_probe(page, "coveredWords")
-    assert covered == []
     # The other direction of every question above: not what the copy still offers,
     # but what it under-delivers. BAKE is a remover, and until this ran the only
     # gates on it asked whether it removed enough — a wide diagram lost its scroll

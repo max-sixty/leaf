@@ -458,17 +458,14 @@ def _capture_artifact(
     # prose, and markup are absent because an open document can be given all of
     # them, and a revision that only edits those should keep the reader's document.
     #
-    # The vocabulary is digested without `$layer`, whose other fields describe the
-    # vendoring run rather than the code it installed: the content fingerprint and
-    # the producer's commit say where a layer came from, and neither changes what
-    # the browser evaluates. `generation` is the reload-safety epoch `sameLayer`
-    # refuses a write across, so it stands on its own here. A capture takes the
-    # registry it is handed, and one composed without a vendored layer has no
-    # epoch to name.
+    # The vocabulary is digested without `$layer`, which describes the vendoring
+    # run rather than the code it installed. Its fingerprint and producer commit
+    # say where a layer was built, and its generation reaches a document through
+    # `runtime/layer-client.js`, where vendoring writes the epoch: a re-vendor
+    # moves that module, so the modules below already carry it.
     executable = _digest(
         _canonical_json(
             {
-                "generation": layer.get("generation"),
                 "vocabulary": _digest(
                     _canonical_json(
                         {

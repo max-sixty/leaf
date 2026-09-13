@@ -17,14 +17,15 @@ A page directory holds:
                          input becomes the next revision; an identical artifact reuses
                          the existing one. The manifest also records an `executable`
                          digest over the captured inputs an already-open document
-                         cannot re-evaluate: the layer generation, the widget
-                         vocabulary without its `$layer` stamp, every captured
-                         JavaScript module, and the authored inline module bodies.
-                         The fingerprint and producer in that stamp say where a
-                         layer was built rather than what it runs, so they stay
-                         out. Two revisions sharing the digest differ only in what
-                         a live document can be given, so a reader keeps their open
-                         document across the change.
+                         cannot re-evaluate: the widget vocabulary without its
+                         `$layer` stamp, every captured JavaScript module, and the
+                         authored inline module bodies. That stamp says where a
+                         layer was built rather than what it runs, and vendoring
+                         writes its generation into a captured module, so a
+                         re-vendor reaches the digest through the modules it
+                         replaced. Two revisions sharing the digest differ only in
+                         what a live document can be given, so a reader keeps their
+                         open document across the change.
                          The live root follows the active revision, and each
                          revision is also served at its own address under the same
                          delivery boundary as the root.

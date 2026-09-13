@@ -71,9 +71,9 @@ export function setChildren(parent, nodes, remove = detach) {
 export function patchTree(live, source, rules) {
   patchAttributes(live, source, rules.share);
   // A template's tree is its content fragment, not its children; `childNodes` is empty
-  // however much markup it holds. Authored pages are allowed one and the feature
-  // gallery ships one, so a patch that read the element alone would leave every
-  // template on a page frozen at the revision it arrived in.
+  // however much markup it holds. The one template an authored page may hold is the
+  // gallery's interaction page, and reading the element alone would leave the markup
+  // every replay instantiates frozen at the revision it arrived in.
   const [liveTree, sourceTree] =
     live.localName === "template" && source.localName === "template"
       ? [live.content, source.content]

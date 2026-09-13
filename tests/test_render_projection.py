@@ -1921,6 +1921,36 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
 
 
+def test_a_revision_reaches_the_markup_held_inside_a_template(browser, serve):
+    """A template's tree is its content fragment, not its children.
+
+    `childNodes` is empty on a template however much markup it holds, so a patch that
+    read the element alone left every template on a page frozen at the revision it
+    arrived in — silently, because the element is there and its attributes even keep
+    up. The one template an authored page may hold is the gallery's interaction page,
+    which is the markup every replay in the feature gallery instantiates.
+    """
+    first = leaf_page(
+        "Template first",
+        '<h1 id="tm-title">Template</h1>\n'
+        '<template id="tm-held" data-interaction-page>'
+        '<p class="tm-line">The first account.</p></template>',
+    )
+    second = first.replace("Template first", "Template second").replace(
+        "The first account.", "The second account, rewritten."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    held = "() => document.getElementById('tm-held').content.textContent"
+    assert page.evaluate(held) == "The first account."
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Template second")
+    assert page.evaluate(held) == "The second account, rewritten.", (
+        "the revision did not reach the markup inside the template"
+    )
+
+
 def test_a_paragraph_inserted_above_the_reader_does_not_shift_the_ones_below(
     browser, serve
 ):

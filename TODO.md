@@ -75,6 +75,25 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Finish the Lit rendering cutover for Leaf-owned generated UI.** Move the remaining
+  imperative chrome, inline-conversation, margin, and retained suggestion-control paint
+  onto Lit elements or templates fed by read-only application projections. Preserve
+  authored child nodes and local focus, selection, disclosure, drag, and animation state;
+  delete each reconciliation adapter when its last caller moves. Plain-JavaScript
+  package modules remain supported through the same public widget API.
+
+- **Remove the remaining semantic compatibility readings.** Derive the Ask inventory
+  and suggestion settlement entirely from the immutable application snapshot, then
+  remove DOM and `data-lf-state` as input stores. Keep DOM attributes only as rendered
+  output and extend the import/ownership gate so a new semantic store outside the
+  publisher fails before it lands.
+
+- **Decide whether a fresh revision carries an armed keyboard route.** Test activation
+  while a Go-to chord, filter, or partial hint is open. If continuing the route is less
+  surprising than the current fresh-document reset, capture its declared identity in
+  the revision handoff, revalidate it against the new keyboard map, and restore only a
+  route that still means the same thing.
+
 - **Share immutable revision resources by digest.** Two minimal default-layer
   revisions currently store 3,200,741 and 3,200,749 bytes, with 179 identical
   resource digests copied into both bundles. Put captured bytes in a page-local

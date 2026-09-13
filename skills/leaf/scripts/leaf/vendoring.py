@@ -178,6 +178,7 @@ def _refuse_vocabulary_drift(
         document,
         incoming,
         revision,
+        validate_event_records=True,
     )
     if gaps:
         sys.exit(

@@ -656,8 +656,9 @@ def cmd_reply(
             event["attempt"] = attempt
         if failure is not None:
             event["failure"] = failure
+        if relocating or markup:
+            event["revision"] = revision or latest_revision(page_dir)
         if relocating:
-            event["revision"] = revision
             event["anchor"] = anchor
         return page.append_event(event)
 

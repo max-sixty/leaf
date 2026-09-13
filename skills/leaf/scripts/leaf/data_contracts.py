@@ -219,11 +219,12 @@ def page_data_document_readings(
     ]
     for event in events:
         if markup := event.get("markup"):
+            revision = event.get("revision") or max(artifacts)
             documents.append(
                 (
                     SourceDocument(markup).lf_elements,
                     f"event {event['id']!r} markup",
-                    artifacts[event["revision"]].registry,
+                    artifacts[revision].registry,
                 )
             )
     return documents

@@ -4053,6 +4053,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
         for_event="data-question",
     )
+    assert reply["revision"] == 1
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
     standing = state_json(page_dir)

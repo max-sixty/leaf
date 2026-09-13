@@ -15,9 +15,16 @@ A page directory holds:
                          selected runtime, theme, widgets, and vendor bytes. The bundle
                          is durable before its marker appears. A change to any captured
                          input becomes the next revision; an identical artifact reuses
-                         the existing one. The live root follows the active revision,
-                         and each revision is also served at its own address under the
-                         same delivery boundary as the root.
+                         the existing one. The manifest also records an `executable`
+                         digest over the captured inputs an already-open document
+                         cannot re-evaluate: the layer, the effective registry, the
+                         widget implementations, every captured JavaScript module,
+                         and the authored inline module bodies. Two revisions that
+                         share it differ only in what a live document can be given,
+                         so a reader keeps their open document across the change.
+                         The live root follows the active revision, and each
+                         revision is also served at its own address under the same
+                         delivery boundary as the root.
                          All three addresses a page answers name the page root as
                          their canonical, so a reader sent to any of them, and a
                          crawler that finds all of them, are looking at one page.
@@ -161,7 +168,11 @@ A page directory holds:
 fingerprint, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error. `active.file` names the immutable revision the live root actually
-shows when one exists; `data.file` always names a readable JSON store. `event_seq`
+shows when one exists; `data.file` always names a readable JSON store.
+`active.executable`, shared with `/api/state`, gives the active revision's
+executable digest, and every delivered document repeats it as
+`<meta name="lf-executable">`, so a reader's own document can tell whether a
+later revision needs a fresh one. `event_seq`
 is the last event folded into the snapshot and can be passed to `leaf events
 --after`; it is distinct from the acknowledgement cursor.
 

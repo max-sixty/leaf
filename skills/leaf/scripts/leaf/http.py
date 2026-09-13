@@ -257,9 +257,18 @@ def head_open_end_offset(document: SourceDocument) -> int:
     return document.head_open_end
 
 
-def _delivery_prelude(revision: int, version: int | None) -> str:
-    """Declare the delivery's encoding and immutable Leaf identity first."""
-    identity = f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+def _delivery_prelude(revision: int, version: int | None, executable: str) -> str:
+    """Declare the delivery's encoding and immutable Leaf identity first.
+
+    A later revision reaches an open document as a state reading. That document
+    compares the new revision's executable digest with the one stamped here to
+    decide whether it can take the revision on or needs a fresh document, so the
+    digest travels in the head where the answer costs no request.
+    """
+    identity = (
+        f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
+    )
     return (
         DELIVERY_ENCODING_META
         + identity
@@ -285,12 +294,14 @@ def script_hash(body: str) -> str:
     return f"'sha256-{digest}'"
 
 
-def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+def runtime_document(
+    source: str, revision: int, executable: str, version: int | None = None
+) -> bytes:
     """Give a clean authored document its runtime head and immutable identity."""
     document = SourceDocument(source)
     offset = head_open_end_offset(document)
     theme_head, entry_head = _runtime_assets()
-    runtime = _delivery_prelude(revision, version) + theme_head + entry_head
+    runtime = _delivery_prelude(revision, version, executable) + theme_head + entry_head
     return (UTF8_BOM + source[:offset] + runtime + source[offset:]).encode()
 
 
@@ -299,6 +310,7 @@ def supervised_document(
     revision: int,
     version: int | None,
     *,
+    executable: str,
     server_id: str,
     layer_id: str,
     bootstrap: str,
@@ -349,7 +361,7 @@ def supervised_document(
         f'data-lf-probe="{asset_path}/registry.json">{bootstrap}</script>'
     )
     supervised = (
-        _delivery_prelude(revision, version)
+        _delivery_prelude(revision, version, executable)
         + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
         + bootstrap_head
         + theme_head
@@ -801,6 +813,7 @@ class Handler(BaseHTTPRequestHandler):
                 ),
                 revision,
                 version,
+                executable=artifact.executable,
                 server_id=self.server_id,
                 layer_id=artifact.registry["$layer"]["generation"],
                 bootstrap=artifact.resources["/runtime/bootstrap.js"].data.decode(

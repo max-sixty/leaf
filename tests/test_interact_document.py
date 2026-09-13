@@ -148,6 +148,77 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
 
 
+def test_the_captured_executable_digest_separates_code_from_content(page_dir):
+    """What a standing document cannot take on in place, and nothing else.
+
+    A reader's open document keeps its module graph and its defined elements for as
+    long as it lives, so the capture states which revisions can be given to that
+    document and which need a new one. Words and styling are given to it; modules,
+    widget implementations, the registry that binds them, and inline module bodies
+    are not.
+    """
+    authored = page_dir / "page"
+    (authored / "widgets").mkdir(parents=True)
+    (authored / "app.js").write_text("window.result = 1;")
+    (authored / "style.css").write_text("main { color: rebeccapurple; }")
+    (authored / "widgets" / "lf-options.js").write_text("export function upgrade() {}")
+    source = PAGE.replace(
+        "</head>",
+        '<script type="module" src="/page/app.js"></script>'
+        '<script type="module">window.inlineRan = 1;</script>'
+        '<link rel="stylesheet" href="/page/style.css"></head>',
+    )
+
+    # Each revision below carries every edit before it, so a comparison is always
+    # against the revision immediately before and names one changed input.
+    document = source
+
+    def activate():
+        (page_dir / "index.html").write_text(document)
+        activated = revisioning_model.activate_source(page_dir, [])
+        assert activated.error is None, activated.error
+        assert activated.created
+        return artifact_model.read_artifact(page_dir, activated.revision)
+
+    base = activate()
+
+    document = document.replace("<h2>Plan</h2>", "<h2>The plan, restated</h2>")
+    reworded = activate()
+    assert reworded.digest != base.digest
+    assert reworded.executable == base.executable
+
+    (authored / "style.css").write_text("main { color: seagreen; }")
+    restyled = activate()
+    assert restyled.digest != reworded.digest
+    assert restyled.executable == base.executable
+
+    (authored / "app.js").write_text("window.result = 2;")
+    remoduled = activate()
+    assert remoduled.executable != restyled.executable
+
+    (authored / "widgets" / "lf-options.js").write_text(
+        "export function upgrade() { return true; }"
+    )
+    rewidgeted = activate()
+    assert rewidgeted.executable != remoduled.executable
+
+    document = document.replace("window.inlineRan = 1;", "window.inlineRan = 2;")
+    inlined = activate()
+    assert inlined.executable != rewidgeted.executable
+
+    declaration = json.loads((page_dir / "registry.json").read_text())["lf-options"]
+    declaration["description"] = "Options this page declares for itself."
+    (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
+    redeclared = activate()
+    assert redeclared.executable != inlined.executable
+
+    files_model.replace_files(
+        [(page_dir / "leaf.js", b"// re-vendored runtime", False)]
+    )
+    revendored = activate()
+    assert revendored.executable != redeclared.executable
+
+
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
     authored = page_dir / "page"
     (authored / "value.js").write_text("export const value = 1;")

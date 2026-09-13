@@ -736,10 +736,12 @@ def test_server_round_trip(server, page_dir):
     peer.close()
     status = arrived.status
     assert status == 200 and b"lf-options" in body
+    executable = artifact_model.read_artifact(page_dir, 2).executable
     marker = (
-        b'<meta name="lf-revision" data-lf-runtime content="2">'
-        b'<meta name="lf-version" data-lf-runtime content="1">'
-    )
+        '<meta name="lf-revision" data-lf-runtime content="2">'
+        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
+        '<meta name="lf-version" data-lf-runtime content="1">'
+    ).encode()
     artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
     entry = (
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
@@ -1089,6 +1091,54 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
         assert fetch(server + artifact_root + "/leaf.js")[0] == 200, address
 
 
+def test_state_and_delivery_agree_on_a_revisions_executable_identity(server, page_dir):
+    """The document carries its executable identity; state carries the live one.
+
+    A reader holding an open document is told the active revision through state.
+    Comparing that revision's executable digest with the one its own delivery
+    stamped in the head is the whole decision, so both readings must come from the
+    same capture and must be present at every address a document is served from.
+    """
+    publish(page_dir)
+
+    def served_state():
+        return json.loads(fetch(f"{server}/api/state")[1])["active"]
+
+    def delivered(address):
+        return fetch(server + address)[1].decode()
+
+    def meta(digest):
+        return f'<meta name="lf-executable" data-lf-runtime content="{digest}">'
+
+    active = served_state()
+    captured = artifact_model.read_artifact(page_dir, active["revision"])
+    assert active["executable"] == captured.executable
+    revision_address = (
+        f"/revisions/{files_model.revision_path(page_dir, active['revision']).name}"
+    )
+    for address in ("/", "/versions/v1.html", revision_address):
+        assert meta(captured.executable) in delivered(address), address
+
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>The plan, restated</h2>")
+    )
+    reworded = served_state()
+    assert reworded["revision"] > active["revision"]
+    assert reworded["executable"] == active["executable"]
+
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>", '<script type="module">window.ran = 1;</script></head>'
+        ).replace("<h2>Plan</h2>", "<h2>The plan, restated</h2>")
+    )
+    recoded = served_state()
+    assert recoded["revision"] > reworded["revision"]
+    assert recoded["executable"] != reworded["executable"]
+    live = delivered("/")
+    assert meta(recoded["executable"]) in live
+    assert meta(reworded["executable"]) not in live
+
+
 def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
@@ -1132,8 +1182,10 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
 
     body = fetch(f"{server}/")[1].decode()
 
+    executable = artifact_model.read_artifact(page_dir, 1).executable
     marker = (
         '<meta name="lf-revision" data-lf-runtime content="1">'
+        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
         '<meta name="lf-version" data-lf-runtime content="1">'
     )
     assert body.count(marker) == 1

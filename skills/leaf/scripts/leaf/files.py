@@ -167,6 +167,8 @@ def version_descriptors(page_dir: Path, events: list) -> list[dict]:
 
 def active_descriptor(page_dir: Path, events: list) -> dict | None:
     """The exact immutable document shown at the live root, or None before one."""
+    from leaf.revision_artifact import read_artifact
+
     revision = latest_revision(page_dir)
     if revision is None:
         return None
@@ -178,6 +180,12 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         "version": version,
         "url": f"/revisions/{path.name}",
         "label": label,
+        # This revision's identity as executable code, decided when it was
+        # captured. A reader already holding a document compares it with the
+        # digest that document's own delivery stamped, and needs a fresh document
+        # only when the two differ. Read once here, so every consumer of the
+        # active revision works from one reading of it.
+        "executable": read_artifact(page_dir, revision).executable,
         "activated_at": datetime.fromtimestamp(
             path.stat().st_mtime, timezone.utc
         ).isoformat(),

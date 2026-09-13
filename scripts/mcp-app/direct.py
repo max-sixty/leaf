@@ -17,7 +17,9 @@ from leaf.served_state.service import PageStateService
 def document_for(page: Path, bundle: Path, service: PageStateService) -> str:
     active = service.page_state()["active"]
     source = revision_path(page, active["revision"]).read_text()
-    document = runtime_document(source, active["revision"], active["version"]).decode()
+    document = runtime_document(
+        source, active["revision"], active["executable"], active["version"]
+    ).decode()
     document = inline_assets(document, page)
     # The host supplies the resource CSP; the HTTP fixture policy blocks inline JS.
     document = re.sub(

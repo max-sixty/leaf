@@ -388,6 +388,7 @@ def interactive_export_page(
     escaped_theme = re.sub(r"</style", r"<\/style", theme, flags=re.IGNORECASE)
     runtime_head = (
         f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+        f'<meta name="lf-executable" data-lf-runtime content="{artifact.executable}">'
         f'<meta name="lf-version" data-lf-runtime content="{version}">'
         f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">'
         f'<script type="importmap">{import_map}</script>'

@@ -8,9 +8,11 @@ selected layer whole also preserves its declaration-driven dynamic imports.
 
 A bundle contains exact source bytes, resources, their dependency edges, MIME
 types, the effective registry, and implementation provenance. Its canonical
-manifest determines its digest. The HTML revision file is the commit marker:
-the complete bundle is made durable before that file appears. Readers never
-discover a staged or incomplete revision, including after a process crash.
+manifest determines its digest, and carries a second ``executable`` digest over
+the inputs an already-open document cannot re-evaluate in place. The HTML
+revision file is the commit marker: the complete bundle is made durable before
+that file appears. Readers never discover a staged or incomplete revision,
+including after a process crash.
 """
 
 import hashlib
@@ -100,6 +102,11 @@ class RevisionArtifact:
     @cached_property
     def implementations(self) -> dict:
         return json.loads(self.manifest)["implementations"]
+
+    @cached_property
+    def executable(self) -> str:
+        """This revision's identity as executable code, decided once at capture."""
+        return json.loads(self.manifest)["executable"]
 
 
 def resolve_dependency(specifier: str, importer: str, *, module=False) -> str:
@@ -444,12 +451,37 @@ def _capture_artifact(
         }
         for tag, source in widget_sources.items()
     }
+    layer = registry.get("$layer", {})
+    # Which of this capture's inputs a standing document cannot take on in place. A
+    # module graph is evaluated once per document and a custom element is defined
+    # once, so new bytes behind either need a new document. Stylesheets, media,
+    # prose, and markup are absent because an open document can be given all of
+    # them, and a revision that only edits those should keep the reader's document.
+    executable = _digest(
+        _canonical_json(
+            {
+                "layer": layer,
+                "registry": resources["/registry.json"].digest,
+                "implementations": implementations,
+                "modules": {
+                    path: resource.digest
+                    for path, resource in resources.items()
+                    if resource.mime == "application/javascript"
+                },
+                "inline": [
+                    _digest(script["body"].encode("utf-8"))
+                    for script in document.inline_scripts
+                ],
+            }
+        )
+    )
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
             "entries": sorted(set(entries)),
+            "executable": executable,
             "public_modules": list(PUBLIC_MODULES),
-            "layer": registry.get("$layer", {}),
+            "layer": layer,
             "declarations": dict(declaration_sources or {}),
             "implementations": implementations,
             "resources": {

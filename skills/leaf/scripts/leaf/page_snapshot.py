@@ -104,6 +104,10 @@ def capture_page_snapshot(
             else revision_label(list(events), snapshot_active["revision"])
         )
         snapshot_active.setdefault("activated_at", observed_at)
+        # A preview serves the frozen candidate, not whatever the page directory
+        # holds, so its executable identity is that capture's rather than the live
+        # revision's.
+        snapshot_active["executable"] = artifacts[active["revision"]].executable
         taken = time.time()
     browser_data = browser_data_from(copy.deepcopy(data), registry)
     files_reading = hashlib.sha256(

@@ -268,6 +268,13 @@ belong to one live arrangement until its cleanup.
 `readingRegions()`, `effectiveScroller(node)`, `readingPosture(node)`, and
 `shownRegionBounds(node)` expose the shared readings. Compound widgets create a
 runtime-reserved stable id with `compoundReadingRegionId(owner, localName)`.
+Registration marks each body with `data-lf-reading-region`. A package may opt that
+exact body into a local annotation rail by declaring a nonzero
+`--lf-reading-region-rail` and reserving the same inline-end width in its layout. Core
+uses the rail only in bounded posture while auxiliary chrome can stand beside the content
+frame; at the covering breakpoint the annotation returns to inline flow. The property
+does not inherit, so every nested region that needs a rail declares and reserves its own
+room.
 `watchReadingRegionTransitions(listener)` receives a `before` reading while old geometry
 is intact and an `after` reading on settled new geometry; a newer posture change cancels
 the obsolete `after`. The continuity owner decides what to capture and restore.

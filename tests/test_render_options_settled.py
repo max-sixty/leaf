@@ -29,7 +29,7 @@ pytestmark = pytest.mark.nightly
 
 def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):
     """Moving the widget restores comparison updates without duplicating its row."""
-    page, errors = open_page(browser, serve(SETTLED_PAGE))
+    page = open_page(browser, serve(SETTLED_PAGE))
     page.evaluate("""() => {
         const group = document.getElementById("transport");
         group.remove();
@@ -42,7 +42,6 @@ def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):
 
     expect(page.locator("#transport > .lf-settled")).to_have_count(1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
-    assert errors == []
 
 
 def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
@@ -64,13 +63,12 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     reading rather than editing, so no version and no log has a word to say about
     it.
     """
-    page, errors = open_page(
+    page = open_page(
         browser, serve(SETTLED_PAGE, anchored=[("opt-strict", "arrives logged out")])
     )
     group = page.locator("#transport")
     height = "el => Math.round(el.getBoundingClientRect().height)"
 
-    assert errors == []
     collapsed = group.evaluate(height)
     assert page.locator("#transport lf-option:visible").count() == 0
     row = page.locator("#transport .lf-settled")
@@ -170,7 +168,7 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
     The disclosure's count and controls describe the complete current option set,
     including options reconstructed from the standing action and their later undo.
     """
-    page, errors = open_page(browser, serve(SETTLED_ASK_PAGE))
+    page = open_page(browser, serve(SETTLED_ASK_PAGE))
     group = page.locator("#jobs")
     row = group.locator(":scope > .lf-settled")
 
@@ -207,12 +205,11 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
         "job-heater",
         "job-camera",
     ]
-    assert errors == []
 
 
 def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
     """Print drops the dead controls but retains the selected option's check."""
-    page, errors = open_page(browser, serve(SETTLED_PAGE))
+    page = open_page(browser, serve(SETTLED_PAGE))
     row = page.locator("#transport .lf-settled")
     expect(row).to_contain_text("Settled: Lax cookie")
     expect(page.locator(".lf-banner")).to_be_visible()
@@ -226,7 +223,6 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
     after = "el => getComputedStyle(el, '::after').content"
     assert page.locator("#opt-lax").evaluate(after) == '"✓"'
     assert page.locator("#opt-strict").evaluate(after) == "none"
-    assert errors == []
 
 
 def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
@@ -246,7 +242,7 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
             "</lf-options></lf-ask>",
         },
     )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
 
@@ -259,4 +255,3 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
             f"#{group}'s question is drawn at {question:.0f} and its answer at "
             f"{summary:.0f}, so the group states what it settled before what it asked"
         )
-    assert errors == []

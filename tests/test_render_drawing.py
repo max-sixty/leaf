@@ -113,7 +113,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     """One pointer stroke starts on one semantic anchor, crosses the page beyond it,
     and the accepted comment keeps its context in the page instead of duplicating it."""
     url = serve(FEATURE_GALLERY)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     target = page.locator("#bg-choice-trail")
     target.evaluate("el => { el.style.position = 'relative'; el.style.zIndex = '1'; }")
     scroll_width = page.evaluate("document.documentElement.scrollWidth")
@@ -198,13 +198,11 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
         "Drawing comment"
     )
 
-    returned, returned_errors = open_page(browser, url)
+    returned = open_page(browser, url)
     expect(returned.locator(posted)).to_have_count(1)
     assert mark_relation(returned, posted, "#bg-choice-trail") == pytest.approx(
         relation, abs=0.02
     )
-    assert errors == []
-    assert returned_errors == []
     page.close()
     returned.close()
 
@@ -212,7 +210,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
 def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     """Whitespace is part of the drawable page plane. With no addressable element under the
     starting point, the stroke opens a page comment and keeps document coordinates."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     page.evaluate("document.body.style.minHeight = '180000px'")
     page.evaluate("scrollTo(0, 120000)")
     point = page.evaluate(
@@ -289,13 +287,12 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
         before["y"] - (after["scrollY"] - before["scrollY"]), abs=0.02
     )
     assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
-    assert errors == []
 
 
 def test_a_page_drawing_keeps_pasted_media_already_in_the_general_draft(browser, serve):
     """Adding a page drawing preserves the complete compound draft, including image
     Markdown projected out of the textarea as a thumbnail."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     field = page.locator(".lf-general textarea")
@@ -340,15 +337,14 @@ def test_a_page_drawing_keeps_pasted_media_already_in_the_general_draft(browser,
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["text"] == "![Pasted image](/media/051bee487bfb5d13.png)"
     assert event["drawing"]["format"] == "leaf-drawing/1"
-    assert errors == []
 
 
 def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_reader):
     """The drawing payload follows the general draft's cross-tab notification rather
     than waiting for a reload or an unrelated state poll to repaint."""
     url = serve(TARGETS_PAGE)
-    local, local_errors = open_page(browser, url, context=one_reader)
-    remote, remote_errors = open_page(browser, url, context=one_reader)
+    local = open_page(browser, url, context=one_reader)
+    remote = open_page(browser, url, context=one_reader)
     local.evaluate("document.body.style.minHeight = '180000px'")
     local.evaluate("scrollTo(0, 120000)")
     point = local.evaluate(
@@ -369,8 +365,6 @@ def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_reader
     expect(remote.locator(".lf-general .primary")).to_have_attribute(
         "aria-disabled", "false"
     )
-    assert local_errors == []
-    assert remote_errors == []
     local.close()
     remote.close()
 
@@ -379,8 +373,8 @@ def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_r
     """The anchored composer's draft watcher repaints its stroke as well as its target
     when another tab adds drawing geometry to the shared draft."""
     url = serve(TARGETS_PAGE)
-    local, local_errors = open_page(browser, url, context=one_reader)
-    remote, remote_errors = open_page(browser, url, context=one_reader)
+    local = open_page(browser, url, context=one_reader)
+    remote = open_page(browser, url, context=one_reader)
     draw_over(remote, remote.locator("#prose"))
     remote_path = remote.locator(".lf-drawing-pending path")
     before = remote_path.get_attribute("d")
@@ -400,8 +394,6 @@ def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_r
     assert remote_path.get_attribute("d") == local.locator(
         ".lf-drawing-pending path"
     ).get_attribute("d")
-    assert local_errors == []
-    assert remote_errors == []
     local.close()
     remote.close()
 
@@ -409,7 +401,7 @@ def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_r
 def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     """The general and anchored composers are independent durable draft contexts, so
     a new anchored stroke must not visually replace a standing page stroke."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     page.evaluate("document.body.style.minHeight = '180000px'")
     page.evaluate("scrollTo(0, 120000)")
     point = page.evaluate(
@@ -433,7 +425,6 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     assert event["anchor"] == {"section": "prose"}
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
-    assert errors == []
 
 
 def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
@@ -441,7 +432,7 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
 ):
     """Starting beside content keeps that horizontal item's semantic anchor, so opening
     its composer or reflowing the page cannot separate the ink from what it marks."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     target = page.locator("#prose")
     box = target.bounding_box()
     page.evaluate(
@@ -493,13 +484,12 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
     expect(
         page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
     ).to_have_count(1)
-    assert errors == []
 
 
 def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     """Drawing is a drag, not a new click meaning. A click is swallowed without
     opening a comment or activating the page, and Escape restores ordinary reading."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     target = page.locator("#prose")
     target.evaluate(
         "el => el.addEventListener('click', () => { el.dataset.activated = ''; })"
@@ -524,13 +514,12 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
     assert target.get_attribute("data-activated") is None
-    assert errors == []
 
 
 def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     """The document plane is drawable, but a press on Leaf's chrome remains the
     control's gesture rather than becoming a page drawing."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("w")
 
     page.locator(".lf-threads-toggle").click()
@@ -539,20 +528,17 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
-    assert errors == []
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
     """Adding Draw on w does not move the existing layer-review mode off l."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
 
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("l")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
-
-    assert errors == []
 
 
 def test_draw_mode_leaves_inline_conversation_controls_usable(browser, serve):
@@ -569,7 +555,7 @@ def test_draw_mode_leaves_inline_conversation_controls_usable(browser, serve):
             "text": "Can we discuss this line?",
         },
     )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     reply = page.get_by_role("textbox", name="Reply", exact=True)
     reply.scroll_into_view_if_needed()
 
@@ -581,13 +567,12 @@ def test_draw_mode_leaves_inline_conversation_controls_usable(browser, serve):
     expect(reply).to_be_focused()
     expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
-    assert errors == []
 
 
 def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve):
     """Generated controls remain part of the drawable page plane. Their cursor must
     promise the stroke that takes their pointer press instead of promising activation."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     option = page.locator("#bg-choice-trail")
     control = option.locator(".lf-pick")
     control.scroll_into_view_if_needed()
@@ -610,12 +595,11 @@ def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve
         )"""
     )
     assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
-    assert errors == []
 
 
 def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     """Joined option seams use the target under the pointer when the stroke starts."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     trail = page.locator("#bg-choice-trail")
     trail.scroll_into_view_if_needed()
     box = trail.bounding_box()
@@ -640,13 +624,12 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     assert event["anchor"] == {"section": target}
     assert page.locator("#bg-choice-street").get_attribute("chosen") is None
     assert page.locator("#bg-choice-trail").get_attribute("chosen") is None
-    assert errors == []
 
 
 def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):
     """Projection may replace an anchored element during pointer capture; the stroke
     follows the same semantic target without minting invalid geometry."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     target = page.locator("#prose")
     box = target.bounding_box()
     start = (box["x"] + 30, box["y"] + box["height"] / 2)
@@ -666,13 +649,12 @@ def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):
         coordinate is not None for point in drawing["points"] for coordinate in point
     )
     assert len(drawing["points"]) >= 2
-    assert errors == []
 
 
 def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     """The stroke is part of the comment draft. It persists as soon as it is captured,
     even when the optional explanatory text is still empty."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
 
     draw_over(page, page.locator("#prose"))
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
@@ -685,7 +667,6 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_value("")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
-    assert errors == []
 
 
 def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
@@ -693,7 +674,7 @@ def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
 ):
     """Persisted draft payload is an external boundary. Invalid drawing geometry is
     ignored while the independently valid words remain sendable."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     page.evaluate(
         """record => localStorage.setItem('lf-draft:general', JSON.stringify(record))""",
         {
@@ -719,7 +700,6 @@ def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["text"] == "Keep these words."
     assert "drawing" not in event
-    assert errors == []
 
 
 def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
@@ -727,7 +707,7 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
 ):
     """The selection draft has its own serialized envelope and applies the same
     drawing validation before page presentation or submission."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     page.evaluate(
         """record => {
           const anchor = {section: 'prose'};
@@ -761,13 +741,12 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
     assert event["anchor"] == {"section": "prose"}
     assert event["text"] == "Keep these anchored words."
     assert "drawing" not in event
-    assert errors == []
 
 
 def test_a_drawing_can_be_sent_without_words(browser, serve):
     """The ink is the comment's content, so its normal send action works while the
     accompanying text field is empty. Its thread does not repeat contextless ink."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
 
     draw_over(page, page.locator("#prose"))
     field = page.locator(".lf-fab-input")
@@ -788,7 +767,6 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     expect(page.locator(".lf-drawing-preview")).to_have_count(0)
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
     expect(page.locator("#prose")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    assert errors == []
 
 
 def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve):
@@ -810,20 +788,19 @@ def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve
         },
     )
 
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     expect(
         page.locator("#cd-q .lf-conversation-body .lf-drawing-preview")
     ).to_have_count(0)
     expect(page.locator("#cd-q .lf-drawing-reference")).to_have_text("Drawing comment")
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)
     expect(page.locator("#cd-q")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    assert errors == []
 
 
 def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, serve):
     """Draft ink consumes the anchor pass's outdated reading instead of stretching
     itself over the text-document widget after its original datum version disappears."""
-    page, errors = open_data_revision_diff(browser, serve)
+    page = open_data_revision_diff(browser, serve)
     target = page.locator(
         "lf-diff [data-line-type='change-deletion'][data-lf-datum]"
     ).first
@@ -839,13 +816,12 @@ def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, s
 
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    assert errors == []
 
 
 def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, serve):
     """When a data revision detaches a drawing target, its thread still names the
     drawing without claiming that the suppressed stroke is visible on the page."""
-    page, errors = open_data_revision_diff(browser, serve)
+    page = open_data_revision_diff(browser, serve)
     target = page.locator(
         "lf-diff [data-line-type='change-deletion'][data-lf-datum]"
     ).first
@@ -867,4 +843,3 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
     references = page.locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}
-    assert errors == []

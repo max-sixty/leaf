@@ -375,7 +375,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
 
         for url, runtime in zip(urls, runtimes, strict=True):
             page = browser.new_page(viewport={"width": 1200, "height": 900})
-            errors = watched(page)
+            watched(page)
             page.goto(url, wait_until="load")
             expect(page.locator(".lf-preview")).to_contain_text(
                 f"Preview · {runtime.name}"
@@ -383,7 +383,6 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
             expect(
                 page.get_by_role("heading", name="Shared runtime comparison")
             ).to_be_visible()
-            assert errors == []
             page.close()
     finally:
         for slot, page, runtime in zip(slots, pages, runtimes, strict=True):
@@ -457,7 +456,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert page_dir not in service_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
-    automation, automation_errors = open_page(browser, automation_url)
+    automation = open_page(browser, automation_url)
     expect(automation.locator(".lf-preview")).to_contain_text(
         f"Automation · {runtime.name}"
     )
@@ -472,7 +471,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     feedback = (page_dir / "events.jsonl").read_bytes()
     inode = (page_dir / "events.jsonl").stat().st_ino
 
-    with restarting(automation, automation_errors):
+    with restarting(automation):
         source.write_text(
             source.read_text(encoding="utf-8").replace(
                 "Rollout", "Automation follows source edits", 1
@@ -487,7 +486,6 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    assert automation_errors == []
     automation.close()
 
     automation_process.send_signal(signal.SIGINT)
@@ -534,7 +532,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     reader_url = reader_result.stdout.splitlines()[-1]
     claim = service_model.page_claim(reader_dir)
     assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
-    reader, reader_errors = open_page(browser, reader_url)
+    reader = open_page(browser, reader_url)
     expect(reader.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
     with sending(reader, "the reader option pick"):
         reader.locator("#opt-stage .lf-pick").click()
@@ -561,7 +559,6 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert "choose a new --slot" in refused.stderr
     assert "--reset" in refused.stderr
     assert (reader_dir / "events.jsonl").read_bytes() == reader_feedback
-    assert reader_errors == []
     reader.close()
 
     reset_automation = spawn(
@@ -582,12 +579,11 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert service_model.page_claim(reader_dir) is None
     assert reader_event not in events_model.read_events(reader_dir)
 
-    reset_page, reset_errors = open_page(browser, reset_url)
+    reset_page = open_page(browser, reset_url)
     expect(reset_page.locator(".lf-preview")).to_contain_text(
         f"Automation · {runtime.name}"
     )
     expect(reset_page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
-    assert reset_errors == []
     reset_page.close()
 
     reset_automation.send_signal(signal.SIGINT)
@@ -719,7 +715,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     """The open tab follows edits; rejected source never replaces its last good page."""
     source, runtime, directory, command, url = watched_preview
     original = source.read_text(encoding="utf-8")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     with sending(page, "the watched reader option pick"):
         page.locator("#opt-shim .lf-pick").click()
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
@@ -730,7 +726,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     generation = registry["$layer"]["generation"]
 
     theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-    with restarting(page, errors):
+    with restarting(page):
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
         expect(page.locator("h1")).to_have_css(
@@ -745,7 +741,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "events.jsonl").stat().st_ino == inode
 
     revised = original.replace("Rollout", "A watched source revision", 1)
-    with restarting(page, errors):
+    with restarting(page):
         source.write_text(revised, encoding="utf-8")
         expect(
             page.get_by_role("heading", name="A watched source revision")
@@ -753,7 +749,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    with restarting(page, errors):
+    with restarting(page):
         source.write_text("<p>invalid source</p>", encoding="utf-8")
         log_path = directory.with_name(f"{directory.name}.preview.log")
         deadline = time.monotonic() + 30
@@ -772,7 +768,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "index.html").read_text() == revised
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    with restarting(page, errors):
+    with restarting(page):
         source.write_text(
             revised.replace("A watched source revision", "Recovered watched source"),
             encoding="utf-8",
@@ -788,7 +784,6 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
-    assert errors == []
 
 
 def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
@@ -796,12 +791,11 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
 ):
     """Reset replaces the selected preview instead of carrying its event log over."""
     source, _, directory, command, url = watched_preview
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     with sending(page, "the reader option pick before reset"):
         page.locator("#opt-shim .lf-pick").click()
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert b'"kind": "action"' in (directory / "events.jsonl").read_bytes()
-    assert errors == []
     page.close()
 
     reset = subprocess.run(
@@ -816,9 +810,8 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
     assert (directory / "index.html").read_bytes() == source.read_bytes()
     assert b'"kind": "action"' not in (directory / "events.jsonl").read_bytes()
 
-    fresh, fresh_errors = open_page(browser, reset.stdout.splitlines()[-1])
+    fresh = open_page(browser, reset.stdout.splitlines()[-1])
     expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")
-    assert fresh_errors == []
     fresh.close()
 
 
@@ -839,10 +832,9 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     """Supervision precedes entry, dependency, registry and stylesheet loading."""
     _, runtime, directory, _, url = watched_preview
     if resource == "widgets/lf-options.js":
-        standing, errors = open_page(browser, url)
+        standing = open_page(browser, url)
         with sending(standing, "the standing reader option pick"):
             standing.locator("#opt-shim .lf-pick").click()
-        assert errors == []
         standing.close()
     page = browser.new_page()
     failures = []
@@ -980,7 +972,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         route.continue_()
 
     page.route(f"**/{interrupted}", stop_the_service)
-    with restarting(page, errors):
+    with restarting(page):
         page.goto(url, wait_until="load")
         # `load` is not the boundary: a widget is imported after it, so the stop is
         # waited for through the answer the page gives it rather than read straight
@@ -1003,7 +995,6 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=90
         )
         assert restarted.returncode == 0, restarted.stdout + restarted.stderr
-    assert errors == []
 
 
 def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
@@ -1101,8 +1092,11 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     assert result.stdout.splitlines()[-1] == str(out.resolve())
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
-    page.on("requestfailed", lambda request: errors.append(f"unfetched {request.url}"))
+    watched(page)
+    page.on(
+        "requestfailed",
+        lambda request: page.lf_errors.append(f"unfetched {request.url}"),
+    )
     page.goto(out.as_uri(), wait_until="load")
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
     title = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
@@ -1112,7 +1106,6 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     assert page.locator("script").count() == 0
     assert page.locator('link[rel="stylesheet"]').count() == 0
     assert page.locator("style").count() > 0
-    assert errors == []
 
 
 def test_exporting_an_example_leaves_the_live_preview_untouched(
@@ -1370,7 +1363,7 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
@@ -1380,7 +1373,6 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
     links.nth(1).click()
     expect(page.locator(":target")).to_have_attribute("id", href[1:])
     assert page.locator("script").count() == 0
-    assert errors == []
 
 
 def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path):
@@ -1410,14 +1402,13 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
     out = tmp_path / "gloss-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(copy)
+    watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
     expect(copy.locator(".lf-gloss-popover")).to_be_visible()
     expect(copy.locator(".lf-gloss-mark")).to_have_count(0)
     expect(copy.locator("lf-gloss")).to_contain_text(
         "walking skeletonA thin path through the real system."
     )
-    assert errors == []
     copy.close()
 
 
@@ -1451,12 +1442,11 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     out = tmp_path / "work-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator(".lf-receipt")).to_have_count(0)
     expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
-    assert errors == []
 
 
 @pytest.mark.parametrize("resolved", [False, True], ids=["open", "resolved"])
@@ -1498,7 +1488,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )
     selector = f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
-    live, live_errors = open_page(browser, url)
+    live = open_page(browser, url)
     thread = live.locator(selector)
     expect(thread).to_have_count(1)
     expect(thread.locator("button")).not_to_have_count(0)
@@ -1508,13 +1498,12 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         thread.locator("button:visible, textarea:visible, .lf-receipt:visible").count()
         == 0
     )
-    assert live_errors == []
     live.close()
 
     out = tmp_path / "thread-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page()
-    errors = watched(copy)
+    watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
     thread = copy.locator(selector)
     expect(thread).to_have_count(1)
@@ -1530,7 +1519,6 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         expect(thread.locator(".lf-conversation-body")).to_be_hidden()
     copy.emulate_media(media="print")
     expect(thread.locator(".lf-conversation-body")).to_be_visible()
-    assert errors == []
     copy.close()
 
 
@@ -1596,7 +1584,7 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
@@ -1607,7 +1595,6 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     expect(page.locator("#d-open")).to_contain_text(
         "The sample workshop is in the red room."
     )
-    assert errors == []
 
 
 def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
@@ -1620,7 +1607,7 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     no longer present.
     """
     url = serve(REPLAYED_PAGE)
-    live, live_errors = open_page(browser, url)
+    live = open_page(browser, url)
     live.get_by_role("button", name="Move: Wire the importer — Doing").focus()
     live.keyboard.press("Enter")
     live.keyboard.press("ArrowRight")
@@ -1628,19 +1615,17 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     expect(live.locator("#card-importer")).to_have_attribute(
         "data-lf-reader-override", "1"
     )
-    assert live_errors == []
     live.close()
 
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     card = page.locator("#card-importer")
     expect(card).to_have_attribute("data-lf-reader-override", "1")
     expect(card.locator(":scope > .lf-quiet")).to_have_text("your change")
     expect(page.locator(".lf-chrome")).to_have_count(0)
-    assert errors == []
 
 
 def test_a_copy_keeps_generated_native_controls_and_their_labels(
@@ -1674,10 +1659,9 @@ def test_a_copy_keeps_generated_native_controls_and_their_labels(
 """,
     )
     url = serve(source)
-    live, errors = open_page(browser, url)
+    live = open_page(browser, url)
     expect(live.get_by_role("checkbox", name="Show detail")).to_be_visible()
     expect(live.get_by_role("button", name="Run scripted action")).to_be_visible()
-    assert errors == []
     live.close()
 
     out = tmp_path / "native-controls-copy.html"
@@ -1764,8 +1748,8 @@ def test_an_exported_page_fixture_stands_on_its_own(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900}, bypass_csp=True)
-    errors = watched(page)
-    page.on("requestfailed", lambda r: errors.append(f"unfetched {r.url}"))
+    watched(page)
+    page.on("requestfailed", lambda r: page.lf_errors.append(f"unfetched {r.url}"))
     render_checks_model.prepare_standalone_probes(page)
     page.goto(out.as_uri(), wait_until="load")
     state = page.evaluate("""() => ({
@@ -1935,7 +1919,6 @@ def test_an_exported_page_fixture_stands_on_its_own(
     )
     assert covered == [], f"the copy draws its own words over each other: {covered}"
     assert axe_violations == [], axe_report
-    assert errors == [], f"{page_fixture.stem} needs a server to render: {errors}"
 
 
 def test_comparison_export_keeps_both_results_and_the_recorded_choice(
@@ -1950,7 +1933,7 @@ def test_comparison_export_keeps_both_results_and_the_recorded_choice(
     )
 
     page = browser.new_page(viewport={"width": 760, "height": 900}, bypass_csp=True)
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     current = page.locator("#comparison-current")
     proposed = page.locator("#comparison-proposed")
@@ -1968,7 +1951,6 @@ def test_comparison_export_keeps_both_results_and_the_recorded_choice(
         "Adopt one shared refresh per tab"
     )
     assert page.locator("script, .lf-chrome").count() == 0
-    assert errors == []
 
 
 def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
@@ -2137,7 +2119,7 @@ def test_a_copy_drops_live_element_projection_state(browser, serve, tmp_path):
         },
     )
 
-    live, errors = open_page(browser, url)
+    live = open_page(browser, url)
     figure = live.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
@@ -2150,5 +2132,4 @@ def test_a_copy_drops_live_element_projection_state(browser, serve, tmp_path):
     expect(copy.locator("#fig")).not_to_have_class(
         re.compile(r"\blf-(?:mark-el|projected-mark)\b")
     )
-    assert errors == []
     copy.close()

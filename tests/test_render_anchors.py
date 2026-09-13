@@ -89,7 +89,7 @@ pytestmark = pytest.mark.nightly
 
 def test_a_missing_node_has_no_passage_location(browser, serve):
     """No DOM node means no passage location, rather than a runtime error."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     found = page.evaluate(
         """async () => {
           const {closestAcross} = await import('/runtime/passages.js');
@@ -97,7 +97,6 @@ def test_a_missing_node_has_no_passage_location(browser, serve):
         }"""
     )
     assert found is None
-    assert errors == []
 
 
 def test_the_banner_stands_where_it_says_it_does(browser, serve):
@@ -107,7 +106,7 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
     also makes anchored browser scrolls stop above or below the visible page.
     """
     url = serve(LONG_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     stated, drawn = page.evaluate(
         """() => [
             parseFloat(getComputedStyle(document.body, '::before').height),
@@ -124,7 +123,6 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
         f"the banner is drawn to {drawn}px but the page reserves {stated}px, so the "
         "first block and anchored scrolls land against different edges"
     )
-    assert errors == [], errors
 
 
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
@@ -147,7 +145,7 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
     the class, the sweep that proves every passage is quotable structurally could not see
     the passages that weren't. Across the source corpus it reaches attribute-rendered
     headings, settled summaries, and the tab names in live-progress."""
-    page, errors = open_page(browser, serve(source))
+    page = open_page(browser, serve(source))
     result = page.evaluate("""async () => {
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
@@ -230,13 +228,12 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
         f"{len(result['astray'])} passages in {source.stem} painted outside what was "
         f"selected: {result['astray']}"
     )
-    assert errors == []
 
 
 def test_a_region_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     """A shrinking visible region gives the viewport its draft before it loses focus."""
     source = next(source for source in EXAMPLES if source.stem == "live-progress")
-    page, errors = open_page(browser, serve(source))
+    page = open_page(browser, serve(source))
     resized(page, 700, 850)
     page.evaluate("""() => {
         const range = document.createRange();
@@ -270,7 +267,6 @@ def test_a_region_leaving_the_viewport_keeps_its_focused_comment(browser, serve)
     expect(field).to_have_attribute("aria-label", "Comment on “4 of 5 checks passing”")
     page.keyboard.type(" What must Finance decide?")
     expect(field).to_have_value(draft + " What must Finance decide?")
-    assert errors == []
 
 
 def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, serve):
@@ -285,7 +281,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     unupgraded, where these spans don't exist. Drop their data-lf-gen and every widget
     holding a said attribute lights up as changed on every revision — a failure that
     looks like a busy page rather than like a bug."""
-    page, errors = open_page(browser, live_url(serve(SAID_PAGE)))
+    page = open_page(browser, live_url(serve(SAID_PAGE)))
 
     heading = page.locator('lf-column#col-now > [data-lf-said="label"]')
     box = heading.bounding_box()
@@ -335,7 +331,6 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["c-backfill"], "the diff read the runtime's own spans as text the base lacked"
-    assert errors == []
 
 
 @pytest.mark.parametrize("revision", [1, 2])
@@ -344,7 +339,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
 ):
     """Module-only words may sit between authored parts, but they cannot give the
     browser more context than the mapped revision can confirm."""
-    page, errors = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
+    page = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
     if revision == 2:
         # Activation mounts cloned nodes after preloading their widget modules.
         (serve.page_dir / ".fixture-versions" / "v2.html").write_text(
@@ -421,8 +416,6 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         page.keyboard.press("Escape")
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
-    assert errors == []
-
 
 @pytest.mark.parametrize("workspace", [False, True], ids=["ask", "workspace"])
 def test_quotes_cross_preserving_containers_and_remain_attached(
@@ -452,7 +445,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
         f'<p id="context">Release context.</p>{content}</section>',
     )
     url = live_url(serve(markup))
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     quote = "Release context. Which plan should lead?"
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     expected = anchor_capture_model.capture_anchor(
@@ -487,7 +480,6 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
     expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
         re.compile("detached")
     )
-    assert errors == []
 
 
 def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
@@ -499,7 +491,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     example = next(p for p in EXAMPLES if p.stem == "live-progress")
     quote = "1,998 / 1,999 rows"
     url = serve(example, anchored=[("lp-check-finance", quote)])
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
 
     before = events_model.read_events(serve.page_dir)
     sent = _traffic(page).sends
@@ -520,7 +512,6 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
 
     assert _traffic(page).sends == sent
     assert events_model.read_events(serve.page_dir) == before
-    assert errors == []
 
 
 def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, serve):
@@ -537,7 +528,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     A real drag, because the whole class of bug is text that looks selectable and
     isn't. Then the republish, because an anchor on a widget's word has to survive a
     version turning over the way one on a paragraph does."""
-    page, errors = open_page(browser, live_url(serve(CONTROL_LABEL_PAGE)))
+    page = open_page(browser, live_url(serve(CONTROL_LABEL_PAGE)))
 
     tab = page.get_by_role("tab", name="Heated bird bath")
     box = tab.locator("[data-lf-said]").bounding_box()
@@ -577,7 +568,6 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     assert page.locator(".lf-thread .lf-quote.detached").count() == 0, (
         "the comment came loose from the tab's name when the version turned over"
     )
-    assert errors == []
 
 
 def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
@@ -585,7 +575,7 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
 
     The browser's native selection remains available while an exposed pointer action
     and a direct keyboard action both work."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     # Keep the margin actions exposed beside the response field: its overlay is allowed
     # to cover nearby content, while a native selection must never intercept a press.
     resized(page, 930, 900)
@@ -610,7 +600,6 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
     page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").focus()
     page.keyboard.press("Enter")
     expect(page.locator("#sug-in-card")).to_have_attribute("data-lf-state", "accept")
-    assert errors == []
 
 
 def test_the_comment_button_stands_on_no_control(browser, serve):
@@ -619,7 +608,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     Check the controls' corners as well as their centres, then make the press. The hit
     test proves what receives the pointer; the click proves that the decision, rather
     than the floating response UI, handles it."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     # Wide enough that the suggestion still hangs its row in the margin — below 900 it
     # docks under its block and is out of the bar's way again.
     resized(page, 930, 900)
@@ -661,7 +650,6 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         page.locator(".lf-composer")
     ).to_be_hidden()  # the press decided, it didn't compose
     assert page.evaluate("getSelection().isCollapsed")
-    assert errors == []
 
 
 @pytest.mark.parametrize("route", ["Enter", "Space", "g"])
@@ -669,7 +657,7 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     browser, serve, route
 ):
     """A decision replaces the selection instead of reopening its Comment field."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     # This width leaves the suggestion's actions exposed beside the selected passage.
     # Generated hints deliberately omit controls covered by the response overlay.
     resized(page, 930, 900)
@@ -694,7 +682,6 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert page.evaluate("getSelection().isCollapsed")
-    assert errors == []
 
 
 def test_the_floating_response_bar_has_one_compact_face(browser, serve):
@@ -703,7 +690,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     The field is longer because it accepts words, but its type, border, colour, and
     elevation belong to the same compact family as the adjacent press. Its radius stays
     finite so it can grow into a multiline field without becoming a capsule."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
     select(
         page,
@@ -737,7 +724,6 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).boxShadow")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
-    assert errors == []
 
 
 # One rendered key face: the geometry a physical press claims wherever Leaf draws it, and
@@ -766,7 +752,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     url = serve(ADDRESSED_PAGE)
     for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     # Focus inside the first panel Ask paints that group's predictable digits, once a
     # keyboard gesture has asked for a paint — opening the composer is that gesture here.
@@ -817,7 +803,6 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     hint_face = faces(page, selection_key)[0]
     assert hint_face["key"] == option["key"]
     assert hint_face["emphasis"] == option["emphasis"]
-    assert errors == []
 
 
 def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
@@ -846,7 +831,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     do not make the intervening blocks one sentence.
 
     The reads use Leaf's pending highlight, the durable form of the native selection."""
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             INLINE_PAGE.replace(
@@ -967,7 +952,6 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
     select(page, spot("lf-specimen", "glyphs", 3), spot("lf-specimen", "close", 3))
     assert captured() == "glyphs set close"
-    assert errors == []
 
 
 def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
@@ -991,7 +975,7 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     `test_render_controls.py::test_a_selection_that_reaches_the_layer_stops_at_the_page`.
     """
     quoted = "Paragraph 3. Filler. Filler. Filler."
-    page, errors = open_page(browser, serve(LONG_PAGE, anchored=(("p3", quoted),)))
+    page = open_page(browser, serve(LONG_PAGE, anchored=(("p3", quoted),)))
     resized(page, 1400, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1044,7 +1028,6 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
         f"the mark and the quote disagree: {pending_text(page)!r} against {quote!r}"
     )
     assert quote in page.locator(".lf-fab-input").get_attribute("aria-label")
-    assert errors == []
 
 
 def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
@@ -1054,7 +1037,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     All of them name the same words, so all of them have to find them — otherwise a
     comment made last month hangs off a passage the page insists isn't there."""
     url = serve(INLINE_PAGE)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     passage = "bold text and emphasis inside it"
     forms = {
         "as the page holds it": passage,
@@ -1120,7 +1103,6 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
         return painted && painted.compareBoundaryPoints(Range.START_TO_START, r) === 0;
     }""")
     assert landed, "'set up' anchored onto 'setup', an earlier and different word"
-    assert errors == []
 
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
@@ -1131,7 +1113,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     character, which no UTF-8 file can hold. The server refuses that write and the
     reader is told it is offline, with no way to ever send the comment."""
     url = serve(INLINE_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     def compose_on(block):
         page.locator(block).click(click_count=3)
@@ -1167,7 +1149,6 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     assert page.locator(".lf-thread").count() == 1, (
         f"the comment never posted — the page says {page.locator('.lf-notice').text_content()!r}"
     )
-    assert errors == []
 
 
 def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
@@ -1178,7 +1159,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     and a link inside a highlighted passage stops navigating. Real button presses,
     because a synthetic click event sails straight past the gap it lives in."""
     url = serve(INLINE_PAGE)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
@@ -1222,7 +1203,6 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     ), (
         "clicking the composer's own highlight opened the panel, but it belongs to no thread"
     )
-    assert errors == []
 
 
 def test_a_click_on_a_mark_decides_once(browser, serve):
@@ -1234,7 +1214,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     panel starts shut here because a panel already open is the case with no reflow."""
     version_url = serve(INLINE_PAGE)
     url = live_url(version_url)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     # A quote inside the figure's caption: a painted range, so opening the panel reflows the
     # text out from under the pointer. An element anchor wouldn't show it — a figure still
     # covers the same point after the column narrows.
@@ -1271,7 +1251,6 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     )
     stamp_version_file(d, 2, "two")
     wait_for_revision(page, 2)
-    assert errors == []
 
 
 def test_code_is_colored_without_a_word_moving(browser, serve):
@@ -1286,7 +1265,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     the color of its own ink. The quote below is written the way `leaf comment`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-code.lf-rendered') !== null"
     )
@@ -1420,7 +1399,6 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     marked = page.evaluate("""() => [...CSS.highlights.get('lf-mark').values()]
                                      .map(r => r.toString()).join("")""")
     assert marked == "alembic upgrade head", f"the mark landed on {marked!r}"
-    assert errors == []
 
 
 def test_every_language_returns_the_source_it_was_given(browser, serve):
@@ -1433,7 +1411,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
 
     It is also what a version bump of the vendored bundle has to survive."""
     url = serve(CODE_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     langs = registry_storage.load_registry(serve.page_dir)["$languages"]["names"]
     samples = [
         'def f(x):\n    """doc\n    <b>&amp;</b>\n    """\n    return f"{x!r}"  # ok\n',
@@ -1492,7 +1470,6 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
         langs,
     )
     assert pierre_bad == [], f"Pierre lacks a declared language: {pierre_bad}"
-    assert errors == []
 
 
 def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
@@ -1503,7 +1480,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     be absent from syntax input and selection text. Pierre still tokenizes each
     reconstructed side as a whole, so a Python string spanning changed lines remains a
     string."""
-    page, errors = open_page(browser, serve(DIFF_PAGE))
+    page = open_page(browser, serve(DIFF_PAGE))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
@@ -1689,7 +1666,6 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return selection.toString();
     }""")
     assert selected == "  burst: 40"
-    assert errors == []
 
 
 def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
@@ -1700,7 +1676,7 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
     Leaf's syntax roles, and a file with no declared language still gets the same diff
     treatment without gaining invented syntax colour.
     """
-    page, errors = open_page(browser, serve(DIFF_PAGE))
+    page = open_page(browser, serve(DIFF_PAGE))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
@@ -1779,15 +1755,13 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
         for line in lines
     )
 
-    assert errors == []
-
 
 def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
     """A large patch can defer every file body without losing native disclosure."""
     authored = DIFF_PAGE.replace(
         '<lf-diff id="patch"><pre>', '<lf-diff id="patch" collapsed><pre>'
     )
-    page, errors = open_page(browser, serve(authored))
+    page = open_page(browser, serve(authored))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
@@ -1797,12 +1771,11 @@ def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
     assert details.evaluate_all("items => items.every(item => !item.open)")
     details.first.locator("summary").click()
     expect(details.first).to_have_attribute("open", "")
-    assert errors == []
 
 
 def test_a_diff_keeps_source_markup_inert(browser, serve):
     """Pierre returns HTML, but the diff remains data rather than a markup door."""
-    page, errors = open_page(browser, serve(DIFF_PAGE))
+    page = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate("""async () => {
       const payload = '<img src=x onerror=globalThis.__lfDiffPwned=1>';
       const host = document.createElement('lf-diff');
@@ -1842,12 +1815,11 @@ def test_a_diff_keeps_source_markup_inert(browser, serve):
         "handlers": 0,
         "executed": False,
     }
-    assert errors == []
 
 
 def test_a_diff_rejects_incomplete_hunks(browser, serve):
     """Missing or wrong hunk ranges must fail instead of hiding review evidence."""
-    page, errors = open_page(browser, serve(DIFF_PAGE))
+    page = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate("""async () => {
       const settle = async (id, lines) => {
         const host = document.createElement('lf-diff');
@@ -2117,12 +2089,11 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
             ),
         },
     ]
-    assert errors == []
 
 
 def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, serve):
     """A path-only rename remains evidence without an invented textual hunk."""
-    page, errors = open_page(browser, serve(DIFF_PAGE))
+    page = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate("""async () => {
       const host = document.createElement('lf-diff');
       host.id = 'mixed-rename-diff';
@@ -2197,12 +2168,11 @@ def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, se
         "saysRename": True,
         "wroteRename": False,
     }
-    assert errors == []
 
 
 def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
     """The documented entity for an empty context line survives wrapper cleanup."""
-    page, errors = open_page(browser, serve(DIFF_PAGE))
+    page = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate("""async () => {
       const host = document.createElement('lf-diff');
       host.id = 'final-empty-context-diff';
@@ -2243,7 +2213,6 @@ def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
         "error": None,
         "lines": ["visible", ""],
     }
-    assert errors == []
 
 
 def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, serve):
@@ -2268,7 +2237,7 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
         NATIVE_CONTROL_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     line = page.locator(".lf-shortcut-bar")
 
     box = page.locator("lf-shot input[type=checkbox]")
@@ -2324,7 +2293,6 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     # Neither control is handed a letter by any platform, so the page's own keyboard
     # stands behind both of them.
     expect(line).to_contain_text("comment")
-    assert errors == []
 
 
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
@@ -2333,7 +2301,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     reader the first one's passage wasn't in this version — while it sat outlined on
     screen for the second."""
     url = serve(INLINE_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     for text in ("first on the figure", "second on the figure"):
         post_event(
             page,
@@ -2366,7 +2334,6 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     )
     assert look["background"] == "none", look
     assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
-    assert errors == []
 
 
 FOCUSED_CONVERSATION = "document.activeElement?.closest('.lf-conversation-thread')"
@@ -2416,7 +2383,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
                 "anchor": {"section": ident},
             },
         )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator(".lf-thread")).to_have_count(2)
     seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
     assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
@@ -2436,7 +2403,6 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
         f"the hover promised the thread on {seam['at']}, and the press at the same point "
         f"opened: {opened}"
     )
-    assert errors == []
 
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
@@ -2469,7 +2435,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
             "anchor": {"section": "fig"},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     figure = page.locator("#fig")
     figure.scroll_into_view_if_needed()
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
@@ -2506,7 +2472,6 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     assert selected["line"] == "solid"
     assert selected["width"] != passive["width"]
     assert selected["color"] != passive["color"]
-    assert errors == []
 
 
 def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
@@ -2542,7 +2507,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, color_scheme="light", has_touch=True
     )
-    page, errors = open_page(browser, url, context=context)
+    page = open_page(browser, url, context=context)
     expect(page.locator(".lf-thread")).to_have_count(2)
     seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
     assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
@@ -2556,7 +2521,6 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     assert opened and f"About {seam['at']}." in opened, (
         f"a tap on the quote for {seam['at']} opened: {opened}"
     )
-    assert errors == []
 
 
 def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
@@ -2564,7 +2528,7 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
     moves the second without touching the first. A wrapped <mark> got this from :hover; a
     painted range has to be asked again, so everything that moves the page asks."""
     url = serve(LONG_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
@@ -2587,7 +2551,6 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
         "() => !document.body.classList.contains('lf-over-mark')"
         " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0"
     )
-    assert errors == []
 
 
 def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
@@ -2595,7 +2558,7 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
     words on either side are what tell the copies apart — so an anchor carries them, and
     the occurrence whose neighbours match wins. Driven through the real button, because
     the context is captured from the live selection and nowhere else."""
-    page, errors = open_page(browser, serve(TWICE_PAGE))
+    page = open_page(browser, serve(TWICE_PAGE))
     landed = page.evaluate("""async () => {
         const paras = [...document.querySelectorAll('#repeat p')];
         const p = paras.at(-1);
@@ -2617,7 +2580,6 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
     assert landed is True, (
         f"the second copy was picked, the mark went elsewhere ({landed})"
     )
-    assert errors == []
 
 
 def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser, serve):
@@ -2627,7 +2589,7 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     order is not evidence, so the comment first detaches visibly. An anchored agent reply
     then names the revised passage explicitly, and the complete thread moves there."""
     url = serve(DRIFT_V1)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     landed = page.evaluate("""() => {
         const p = document.querySelectorAll('#drift p')[0];
         const phrase = 'The version stamp never lands';
@@ -2697,7 +2659,6 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
         if event["kind"] in {"comment", "reply"}
     ]
     assert stored_root["anchor"] != stored_reply["anchor"]
-    assert errors == []
 
 
 def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, serve):
@@ -2705,7 +2666,7 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     historical quote remains readable in Threads, but it has no page mark, margin row,
     or destination that could conflate it with surviving content."""
     url = serve(DRIFT_V1)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     page.evaluate("""() => {
         const p = document.querySelector('#drift p');
         const phrase = 'The version stamp never lands';
@@ -2764,7 +2725,6 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     expect(quote).to_have_class(re.compile(r"\bdetached\b"))
     expect(quote).to_have_attribute("aria-disabled", "true")
     expect(quote).to_have_attribute("title", re.compile("no longer"))
-    assert errors == []
 
 
 def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
@@ -2774,7 +2734,7 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
     because a passage confirms its neighbours in full or not at all. The anchor would fall
     back to naming the first copy on that page for good, silently. No shipped example holds
     an astral character, so only a fixture can hold this."""
-    page, errors = open_page(browser, serve(ASTRAL_PAGE))
+    page = open_page(browser, serve(ASTRAL_PAGE))
     landed = page.evaluate("""async () => {
         const skip = '.lf-ui, script, style';
         const w = document.createTreeWalker(document.getElementById('astral'),
@@ -2804,7 +2764,6 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
     assert landed is True, (
         f"the emoji copy was picked, the mark went elsewhere ({landed})"
     )
-    assert errors == []
 
 
 @pytest.mark.parametrize(
@@ -2822,7 +2781,7 @@ def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
     Where the document itself ends there is no second side to store, and an empty one is
     not an absent constraint: it says nothing followed the passage anywhere, which is true
     of exactly one occurrence. Refusing to read it that way left the same wrong mark."""
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     landed = page.evaluate("""async () => {
         const p = document.querySelectorAll('#edge p')[1];
         // Through the full stop, so that with the section below removed the passage is the
@@ -2846,7 +2805,6 @@ def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
     assert landed is True, (
         f"the closing copy was picked, the mark went elsewhere ({landed})"
     )
-    assert errors == []
 
 
 def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
@@ -2872,7 +2830,7 @@ def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
             },
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     where = page.evaluate("""() => {
         const r = [...CSS.highlights.get('lf-mark')][0];
@@ -2881,7 +2839,6 @@ def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
     assert where == "First pass:", (
         f"an old anchor's thin bar changed where it lands: {where!r}"
     )
-    assert errors == []
 
 
 def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, serve):
@@ -2906,10 +2863,9 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
             },
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    assert errors == []
 
 
 def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
@@ -2922,7 +2878,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     asks the mark, the log and the panel the same question, on the second of two
     identical copies, which is also the case where the lead alone cannot answer it."""
     url = serve(TWO_COPIES_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     passage = page.locator("#second")
     picked = page.evaluate("() => document.querySelector('#second').textContent.length")
     assert picked > 400, "the fixture no longer outruns the pattern's own lead"
@@ -2977,7 +2933,6 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     assert anchor["prefix"].endswith("this other line."), (
         f"the neighbour naming which copy was picked is {anchor['prefix']!r}"
     )
-    assert errors == []
 
 
 def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
@@ -2988,7 +2943,7 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     asks is that the passage is still found, on the pass that runs after the send as
     much as on the one under the composer."""
     url = serve(CEILING_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     prose = page.evaluate("() => document.querySelector('main').textContent.length")
     assert prose > 12000, f"the fixture holds {prose} characters, under the ceiling"
 
@@ -3012,7 +2967,6 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
         re.compile("detached")
     )
-    assert errors == []
 
 
 def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serve):
@@ -3023,7 +2977,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     The cost of refusing is visible instead: the thread detaches until a later version
     makes its passage unique again."""
     url = serve(THIN_V1)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     posted = page.evaluate("""async () => {
         const p = document.querySelectorAll('#thin p')[0];
         const phrase = 'The version stamp never lands';
@@ -3052,7 +3006,6 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     wait_for_revision(page, 2)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    assert errors == []
 
 
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):
@@ -3073,7 +3026,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     version and never press anything, so with no reading here the chooser could offer
     a list nobody walks and a Compare control nobody presses on every page in examples/."""
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
 
     # Served at the newest version, with the earlier one behind the chooser.
     expect(page.locator(".lf-version")).to_have_text("v2")
@@ -3129,7 +3082,6 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     expect(page.locator(".lf-version")).to_have_text("v1")
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
-    assert errors == []
 
 
 def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
@@ -3145,7 +3097,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     The authored pair supplies the contrasts: one rewritten paragraph with a surviving
     and a replaced sentence, one new paragraph, and one new list item."""
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
     compare_with(page, 1)
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
@@ -3252,7 +3204,6 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     expect(page.locator("main .lf-ins-block")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.has('lf-version-insert')") is False
-    assert errors == []
 
 
 def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve):
@@ -3263,7 +3214,7 @@ def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve)
     )
     second = first.replace("old wording stood", "new wording stands")
     url = serve(first)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     d = serve.page_dir
     (d / ".fixture-versions" / "v2.html").write_text(second)
     stamp_version_file(d, 2, "revise the note")
@@ -3281,7 +3232,6 @@ def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve)
         "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
     )
     assert inserted == ["new", "stands"]
-    assert errors == []
 
 
 def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve):
@@ -3297,7 +3247,7 @@ def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve)
     second = first.replace("old wording stood", "new wording stands").replace(
         " keeps a trailing phrase", ""
     )
-    page, errors = open_page(browser, live_url(serve(first)))
+    page = open_page(browser, live_url(serve(first)))
     d = serve.page_dir
     (d / ".fixture-versions" / "v2.html").write_text(second)
     stamp_version_file(d, 2, "revise the forecast")
@@ -3316,7 +3266,6 @@ def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve)
     tail.click()
     expect(tail).to_have_attribute("aria-expanded", "true")
     expect(page.locator("#tail del")).to_have_text("keeps a trailing phrase")
-    assert errors == []
 
 
 def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, serve):
@@ -3342,7 +3291,7 @@ def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, 
         "            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
         "          </lf-column>",
     )
-    page, errors = open_page(browser, live_url(serve(first)))
+    page = open_page(browser, live_url(serve(first)))
     d = serve.page_dir
     (d / ".fixture-versions" / "v2.html").write_text(second)
     stamp_version_file(d, 2, "move the card")
@@ -3356,7 +3305,6 @@ def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, 
     change.click()
     expect(page.locator("#card .lf-version-inline-label")).to_have_count(0)
     expect(page.locator(".lf-notice")).to_have_text("card changed since v1")
-    assert errors == []
 
 
 def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
@@ -3415,7 +3363,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
         },
     )
     _publish(serve.page_dir, 2, second, "New route and map")
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
     assert page.locator("main .lf-margin-entry-icon").count() >= 2
     expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
 
@@ -3424,7 +3372,6 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     assert page.eval_on_selector_all(
         ".lf-ins-block", "els => els.map(e => e.id).sort()"
     ) == ["new-map", "route"]
-    assert errors == []
 
 
 def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
@@ -3436,7 +3383,7 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     url = serve(INLINE_PAGE)
     for n in range(2, 11):
         _publish(serve.page_dir, n, INLINE_PAGE, f"cut {n}")
-    page, errors = open_page(browser, url.replace("v1.html", "v10.html"))
+    page = open_page(browser, url.replace("v1.html", "v10.html"))
 
     # The menu is built whether or not it is open, so the order is readable without
     # a press — and the press is not what this test is about.
@@ -3461,12 +3408,11 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     expect(page.locator(".lf-version")).not_to_have_attribute(
         "data-lf-news", re.compile(r".*")
     )
-    assert errors == []
     page.close()
 
     # Pinned to the oldest, the chip naming the newest is the runtime's one place
     # that spells a version out in a sentence.
-    page, errors = open_page(browser, url, pin=True)
+    page = open_page(browser, url, pin=True)
     expect(page.locator(".lf-latest-chip")).to_have_text(
         "New page available → open v10"
     )
@@ -3474,7 +3420,6 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     expect(page.locator(".lf-version")).to_have_attribute(
         "aria-label", "v1: open versions; v10 available"
     )
-    assert errors == []
 
 
 def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
@@ -3488,13 +3433,12 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
         if event["kind"] == "note" and event["version"] == 1
     )
     files_model.revision_path(serve.page_dir, first["revision"]).unlink()
-    page, errors = open_page(browser, url.replace("v1.html", "v3.html"))
+    page = open_page(browser, url.replace("v1.html", "v3.html"))
 
     open_versions(page)
     menu_line = shortcut_bar_text(page)
     assert "2–3\nopen version" in menu_line, menu_line
     assert "1–3" not in menu_line, menu_line
-    assert errors == []
 
 
 def test_the_versions_menu_can_close_from_every_door(browser, serve):
@@ -3503,7 +3447,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     A first version's menu has no version walk, so its exits cannot depend on one.
     """
     url = serve(INLINE_PAGE)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     menu = page.locator(".lf-version-menu")
     line = page.locator(".lf-shortcut-bar")
 
@@ -3564,7 +3508,6 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(line).to_contain_text("walk — marking changes")
     expect(line).to_contain_text("open version")
     page.keyboard.press("Escape")
-    assert errors == []
 
 
 def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
@@ -3587,7 +3530,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     _publish(serve.page_dir, 2, INLINE_PAGE, long_note)
     _publish(serve.page_dir, 3, INLINE_PAGE, "third")
     # Pinned to v2, so there is a version either side of the one being read.
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
+    page = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
 
     btn = page.locator(".lf-version")
     menu = page.locator(".lf-version-menu")
@@ -3761,7 +3704,6 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     page.keyboard.press("3")
     page.wait_for_url(re.compile(r"/versions/v3\.html"))
     assert re.search(r"[?&]pin(?:=|&|$)", page.url)
-    assert errors == []
 
 
 def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
@@ -3790,7 +3732,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
         LONG_PAGE.replace("Paragraph 3.", "Paragraph three."),
         "reworded a paragraph",
     )
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
     menu = page.locator(".lf-version-menu")
     panel = page.locator(".lf-thread-panel")
     line = page.locator(".lf-shortcut-bar")
@@ -3846,7 +3788,6 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     page.keyboard.press("t")
     expect(panel).to_be_visible()
     expect(page.locator(".lf-thread").first).to_be_focused()
-    assert errors == []
 
 
 def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
@@ -3868,7 +3809,7 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
 <div style="height: 900px" aria-hidden="true"></div>
 """,
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(source, anchored=(("destination", "The passage remains readable"),)),
     )
@@ -3914,7 +3855,6 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
         covered["scroll"], abs=1
     )
     expect(destination).to_be_in_viewport()
-    assert errors == []
 
 
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
@@ -3935,7 +3875,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
 
     # A comparison checkbox is the menu's internal Tab stop rather than part of its
     # arrow-key row walk. Reaching it must not be mistaken for leaving the popup.
-    compared, compared_errors = open_page(browser, url.replace("/v1.html", "/v2.html"))
+    compared = open_page(browser, url.replace("/v1.html", "/v2.html"))
     open_versions(compared)
     compared.locator('.lf-version-row[data-lf-version="1"]').focus()
     compared.keyboard.press("Tab")
@@ -3980,10 +3920,9 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     compared.keyboard.up("Shift")
     expect(compared.locator(".lf-version-menu")).to_be_hidden()
     expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
-    assert compared_errors == []
     compared.close()
 
-    page, errors = open_page(browser, url, pin=True)
+    page = open_page(browser, url, pin=True)
 
     open_versions(page)
     expect(page.locator(".lf-version-menu")).to_be_visible()
@@ -3999,7 +3938,6 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
     page.keyboard.press("Space")
     page.wait_for_url(re.compile(r"/versions/v2\.html\?pin=$"))
-    assert errors == []
 
 
 def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
@@ -4009,7 +3947,7 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     the page, so no later state response can be relied on to rebuild the list."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
-    page, errors = open_page(browser, url, pin=True)
+    page = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
     expect(page.locator(".lf-version-row")).to_have_count(2)
 
@@ -4025,7 +3963,6 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     # Dismissal applies the deferred update without another publication.
     expect(page.locator(".lf-version-row")).to_have_count(3)
     expect(page.locator(".lf-version-row").first).to_contain_text("v3 (latest version)")
-    assert errors == []
 
 
 def test_dismissing_versions_during_thread_upgrade_preserves_the_new_version(
@@ -4069,7 +4006,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
         },
     )
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
-    page, errors = open_page(browser, url, pin=True)
+    page = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
     page.locator(".lf-version").click()
     expect(menu).to_be_visible()
@@ -4105,7 +4042,6 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
         page.evaluate("() => window.finishMenuPreparation()")
     told(page)
     expect(page.locator(".lf-version-row").first).to_contain_text("v3 (latest version)")
-    assert errors == []
 
 
 def test_the_current_page_has_a_menu_local_key(browser, serve):
@@ -4124,7 +4060,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     _publish(serve.page_dir, 3, INLINE_PAGE, "three")
-    page, errors = open_page(browser, url, pin=True)
+    page = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
     help_el = page.locator(".lf-command-reference")
     expect(page.locator(".lf-latest-chip")).to_be_visible()
@@ -4162,7 +4098,6 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Open the current page")
-    assert errors == []
 
 
 def test_comparison_selection_moves_before_its_documents_finish_loading(browser, serve):
@@ -4172,7 +4107,7 @@ def test_comparison_selection_moves_before_its_documents_finish_loading(browser,
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, v2, "reworded the neighbour")
     _publish(serve.page_dir, 3, v3, "reworded the compound")
-    page, errors = open_page(browser, url.replace("v1.html", "v3.html"))
+    page = open_page(browser, url.replace("v1.html", "v3.html"))
 
     compare_with(page, 1)
     expect(page.locator(".lf-ins-block")).to_have_count(2)
@@ -4205,7 +4140,6 @@ def test_comparison_selection_moves_before_its_documents_finish_loading(browser,
     expect(v2_compare).not_to_have_attribute("aria-busy", re.compile(r".+"))
     expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
     expect(page.locator(".lf-ins-block")).to_have_count(1)
-    assert errors == []
 
 
 def test_pending_comparison_moves_with_a_live_revision(browser, serve):
@@ -4214,7 +4148,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
     v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, v2, "reworded the neighbour")
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     expect(page.locator(".lf-version")).to_have_text("v2")
 
     held = []
@@ -4258,7 +4192,6 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
         if held and not released:
             held[0].continue_()
         page.unroute(view_request)
-    assert errors == []
 
 
 def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
@@ -4284,7 +4217,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, v2, "reworded the neighbour")
     _publish(serve.page_dir, 3, v3, "reworded the compound")
-    page, errors = open_page(browser, url.replace("v1.html", "v3.html"))
+    page = open_page(browser, url.replace("v1.html", "v3.html"))
 
     # The previous version: the one change this version made.
     compare_with(page, 2)
@@ -4378,7 +4311,6 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     expect(page.locator(".lf-version")).to_have_text("v3")
     expect(menu).to_be_visible()
-    assert errors == []
 
 
 def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
@@ -4392,7 +4324,7 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     the selection starts in one node and ends in another. That is the ordinary shape of a
     passage in a coloured block, and the anchor knows nothing about it — a span is no text
     block, so both readings still collapse to the same run of characters."""
-    page, errors = open_page(browser, serve(TWICE_PAGE))
+    page = open_page(browser, serve(TWICE_PAGE))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
@@ -4437,7 +4369,6 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     assert landed is True, (
         f"the added line was picked, the mark went elsewhere ({landed})"
     )
-    assert errors == []
 
 
 def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
@@ -4470,7 +4401,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             ]
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
@@ -4513,7 +4444,6 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     panel_settled(page, True)
     expect(page.locator(".lf-thread .lf-quote")).to_have_text("§ app.py · file")
     expect(page.locator(".lf-thread")).to_contain_text("Review this file as a whole.")
-    assert errors == []
 
 
 def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
@@ -4544,7 +4474,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
 +    return f"tok:{request.token.id}"
 """,
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
@@ -4789,7 +4719,6 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "quotes => quotes.map(quote => [...quote.classList])"
     )
     assert all("detached" not in classes for classes in quote_classes), quote_classes
-    assert errors == []
 
 
 @pytest.mark.parametrize("scheme", ("light", "dark"))
@@ -4830,7 +4759,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             },
         },
     )
-    page, errors = open_page(browser, url, color_scheme=scheme)
+    page = open_page(browser, url, color_scheme=scheme)
     thread = page.locator(
         f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
     )
@@ -5041,7 +4970,6 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
     expect(strip.locator('.lf-react[data-token="change"]')).to_be_visible()
-    assert errors == []
     with sending(page, "the inline reaction"):
         strip.locator('.lf-react[data-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
@@ -5119,7 +5047,6 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "Confirmed from the inline thread.",
     )
     expect(thread).to_contain_text("Confirmed from the inline thread.")
-    assert errors == []
 
 
 def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
@@ -5163,7 +5090,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
             "anchor": {"section": "patch", "datum": '["app.py","new",1]'},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     patch_tab = page.locator("#patch-tab")
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
     page.get_by_role("button", name=re.compile("^Threads")).click()
@@ -5180,7 +5107,6 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     )
     expect(added).to_be_in_viewport()
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
-    assert errors == []
 
 
 @pytest.mark.parametrize(
@@ -5248,7 +5174,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
             "anchor": {"section": "patch", "datum": '["second.py","new",1]'},
         },
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         url,
         init_script="""
@@ -5325,7 +5251,6 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     assert page.evaluate("window.__leafFragmentRequests") == ["first.py", "second.py"]
-    assert errors == []
 
 
 def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
@@ -5368,7 +5293,7 @@ def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
     data_model.cmd_data_set(
         serve.page_dir, "review-patch", manifest("first.py", "old", "first")
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("lf-diff summary")).to_contain_text("first.py")
 
     data_model.cmd_data_set(
@@ -5399,7 +5324,6 @@ def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(1)
     assert len(refused) == 1
-    assert errors == []
 
 
 def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
@@ -5431,7 +5355,7 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
         ]
     }
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.evaluate(
         "window.priorManifest = document.querySelector('#patch').manifestSnapshot"
     )
@@ -5458,7 +5382,6 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
         "stale": "source review-patch revision 1 changed before loading fragment app.py",
         "current": replacement,
     }
-    assert errors == []
 
 
 def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
@@ -5511,7 +5434,7 @@ def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
         requests.append(True)
         route.fulfill(status=200, json={"revision": -1})
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.route("**/api/data*", refuse)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
@@ -5534,14 +5457,13 @@ def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
     with page.expect_response(lambda response: "/api/data" in response.url):
         summary.click()
     assert len(requests) == 2
-    assert errors == []
 
 
 def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     browser, serve
 ):
     """Text and comments leave the stage; a retained control keeps its caret."""
-    page, errors = open_page(browser, serve(DIFF_PAGE))
+    page = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate(
         """async () => {
           const {shadowStage} = await import('/runtime/widget-api.js');
@@ -5575,7 +5497,6 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
         "value": "draft reply",
         "selection": [2, 5],
     }
-    assert errors == []
 
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
@@ -5589,7 +5510,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     this move. The clearing sweep is the other half — a mark the repaint cannot reach is
     a mark that outlives its reason — so the second comment has to take the first's place
     rather than stand beside it."""
-    page, errors = open_page(browser, serve(TWICE_PAGE))
+    page = open_page(browser, serve(TWICE_PAGE))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
@@ -5626,7 +5547,6 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     told(page)
     expect(row).not_to_have_class(marked)
     expect(row).not_to_contain_text("comment")
-    assert not errors, errors
 
 
 # The runtime's whole visible vocabulary for "somebody has said something about these
@@ -5726,7 +5646,7 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
     the same strip over words nobody has said anything about has to come back under it,
     or the reading is answering about descenders and would pass with every line gone.
     """
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(LONG_PAGE, anchored=(("p3", "Paragraph 3."),)),
         color_scheme=scheme,
@@ -5786,4 +5706,3 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
             f"unmarked control is at {control:.0%}. A marked passage whose only signal "
             f"is its wash is one the reader never learns is marked. All: {seen}"
         )
-    assert errors == []

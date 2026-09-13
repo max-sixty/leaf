@@ -150,11 +150,23 @@ integrates with Leaf may import the public `/runtime/widget-api.js` module. Leaf
 the complete local dependency graph, effective registry, and selected layer bytes in the
 same immutable revision as the markup they control.
 
-Every live revision activates by reloading the stable live address into a fresh browser
-document, including a content-only change. Leaf waits while a reader is composing,
-dragging, or has an unresolved delivery. Reading position, recoverable drafts,
-comparison, and a still-valid authored standing are restored explicitly; element
-instances and arbitrary module state do not cross the boundary.
+A live revision reaches a reader one of two ways, and what the revision changes decides
+which. Every revision states what it is as running code: its registry, its module graph,
+and the bodies of its inline modules. Where that is unchanged, the arriving markup is
+patched onto the page the reader is standing in. They keep their caret, selection,
+hover, scroll and focus, every widget whose authored markup you did not touch keeps its
+element and the state the log gave it, and a key sequence they were part-way through
+goes on naming the page in front of them. Where it differs, the stable live address
+opens a fresh document, because a running document cannot evaluate a module twice or
+redefine an element; reading position, recoverable drafts, comparison, and a still-valid
+authored standing are restored explicitly, while element instances and arbitrary module
+state do not cross. Either way Leaf waits while a reader is composing, dragging, or has
+an unresolved delivery.
+
+Prose, styling, media, and markup are not code, so revising them costs a reader nothing.
+Within a patched revision, a widget whose authored markup changed is replaced rather
+than corrected, so its module renders the new baseline from scratch; one you left alone
+keeps its element and everything the reader had done inside it.
 
 Page modules follow the behavior-module contract in `references/packages.md`. In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state

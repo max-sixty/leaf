@@ -53,7 +53,10 @@ frame. Synchronous input layout, ResizeObserver height-only placement, and the s
 animation frames retain their own timing contracts;
 `runtime/standing.js` owns the standing content and geometry phases;
 `runtime/dom-children.js` reconciles retained children without moving nodes already in
-place; conversation owners supply reaction teardown when removing their surfaces;
+place, and reconciles one authored tree onto the source of another, matching by id and
+then by position so that what a reader holds on a node — caret, selection, hover, focus
+— survives a revision; every judgement it cannot make from the DOM alone is its
+caller's; conversation owners supply reaction teardown when removing their surfaces;
 `runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
 `runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
 document roots so authored revision replacement can leave that live state in place;
@@ -187,9 +190,12 @@ report, and work-claim feeds;
 newest-version chip, its `g V` destination row and the menu's local `v` scope, forced
 live activation,
 version-comparison state, its marks and chooser paint, the inline text diff a
-marked block discloses, version document loading,
-authored-root replacement, the persisted semantic reading landmarks carried across that
-replacement, and the page-block reading directional walks start from;
+marked block discloses, version document loading, the one activation door and the two
+installs behind it — the authored page patched in place, or a fresh document — which
+the arriving revision's executable identity decides, the served revision's own authored
+source that decides which widgets a patch may keep, the persisted semantic reading
+landmarks carried across either, and the page-block reading directional walks start
+from;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
 `runtime/validation.js` is the private adapter through which render checks inspect
@@ -294,7 +300,7 @@ Each mutable fact has one writer:
 | authored widget state | markup after widget upgrade, before projection | `captureAuthoredFacets` reads typed initial values; `rememberAuthoredParents` preserves pre-upgrade anchor parentage |
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
-| version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
+| version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision whose executable identity is this document's is patched onto the authored page in place; one whose differs navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
 | accepted history | the server event log | the application publisher adopts one complete server answer |
 | the reading the page has applied | the server's `/api/state` answer | the publisher adopts `reading`; state presentation paints `data-lf-reading` only after every required view succeeds |
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |

@@ -1444,7 +1444,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           .lf-focus-visible, [aria-busy="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 /* Where a subject has no page edge of its own, one receipt follows the reader move it
-   acknowledges: Sent, Picked up, then Active when an explicit work claim names that
+   acknowledges: Sent, Picked up, then Working when an explicit work claim names that
    subject. A conversation receipt always uses a message's metadata row; an eventless
    thread claim uses its root message, and a frozen widget uses its owning message. Page
    targets present the same projection through their existing margin entry. The state
@@ -1463,7 +1463,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-message-receipt[data-lf-phase="queued"],
 .lf-message-receipt.is-picked-up { color: var(--accent); }
 .lf-message-receipt[data-lf-phase="sent"],
-.lf-message-receipt.is-active { color: var(--ok-ink); }
+.lf-message-receipt.is-working { color: var(--ok-ink); }
 .lf-message-receipt[data-lf-phase="waiting"],
 .lf-message-receipt[data-lf-dropped],
 .lf-message-receipt[data-lf-dropped] .lf-receipt-state { color: var(--warn-ink); }

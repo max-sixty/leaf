@@ -32,7 +32,7 @@ export {
   MARGIN_ENTRY_SCHEMA,
   marginEntry,
   setMarginEntryState,
-  syncMarginAgentPhase,
+  syncMarginAgentWorkflow,
   syncMarginEntryCount,
   syncMarginEntrySelection,
   registerMarginContribution,

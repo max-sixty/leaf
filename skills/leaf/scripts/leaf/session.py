@@ -47,7 +47,7 @@ def check_local_claim(state: str, detail: str) -> None:
     if state != "working":
         sys.exit("--on says what you are working on; use it with `working`")
     if not detail:
-        sys.exit("--on needs a detail; an Active receipt with no words says nothing")
+        sys.exit("--on needs a detail; a Working receipt with no words says nothing")
 
 
 def cmd_status(
@@ -80,7 +80,7 @@ def cmd_delivery_claim(
     detail: str = DELIVERY_CLAIM_DETAIL,
     event_id: str | None = None,
 ) -> str:
-    """Mark one exact, still-outstanding move from a delivery as Active.
+    """Mark one exact, still-outstanding move from a delivery as Working.
 
     The immutable delivery supplies the page and candidate event identities. The
     page transaction re-derives its unsettled interactions and writes the claim

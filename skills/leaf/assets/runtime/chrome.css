@@ -239,32 +239,32 @@
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Ownership colors the carrier's glyph; active work also colors its interior. The
+/* Agent workflow colors the carrier's glyph after pickup; working also colors its interior. The
    ordinary contour continues to communicate the entry's behavior. */
 .lf-margin-entry:is(
-  [data-lf-agent-phase="picked_up"],
-  [data-lf-agent-phase="active"]
+  [data-lf-agent-workflow="picked_up"],
+  [data-lf-agent-workflow="working"]
 )
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
 .lf-margin-entry:is(
-  [data-lf-agent-phase="picked_up"],
-  [data-lf-agent-phase="active"]
+  [data-lf-agent-workflow="picked_up"],
+  [data-lf-agent-workflow="working"]
 )[data-lf-tone="positive"] {
   border-color: var(--ok-ink);
 }
 .lf-margin-entry:is(
-  [data-lf-agent-phase="picked_up"],
-  [data-lf-agent-phase="active"]
+  [data-lf-agent-workflow="picked_up"],
+  [data-lf-agent-workflow="working"]
 )[data-lf-tone="negative"] {
   border-color: var(--danger-ink);
 }
-.lf-margin-entry[data-lf-agent-phase="active"] {
+.lf-margin-entry[data-lf-agent-workflow="working"] {
   --lf-agent-tint: var(--ok-wash);
   background: var(--lf-agent-tint);
 }
-.lf-margin-entry[data-lf-agent-phase="active"][data-lf-behavior="action"] {
+.lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
 .lf-margin-entry[data-lf-agent-arrival] {
@@ -339,8 +339,8 @@
    the delay there is something to say, and the cases where there is are the ones
    that need it: a heavy page, or a reader who reached a --host page across a
    network. So a surface goes quiet only once the wait has run long enough to notice,
-   and a fast answer never shows this rule at all. Agent ownership remains legible
-   through the fade, so one control can carry both durable ownership and its transient
+   and a fast answer never shows this rule at all. The agent workflow remains legible
+   through the fade, so one control can carry both durable work and its transient
    confirmation wait. The reduced-motion guard (theme.css) zeroes the duration and leaves the delay standing,
    which is the right reading of it: the fade is what a reader asked not to have, the
    waiting is not.
@@ -1733,12 +1733,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
     color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
   .lf-page-map-action:is(
-    [data-lf-agent-phase="picked_up"],
-    [data-lf-agent-phase="active"]
+    [data-lf-agent-workflow="picked_up"],
+    [data-lf-agent-workflow="working"]
   ) > .lf-margin-kind {
     color: var(--ok-ink);
   }
-  .lf-page-map-action[data-lf-agent-phase="active"] {
+  .lf-page-map-action[data-lf-agent-workflow="working"] {
     --lf-agent-tint: var(--ok-wash);
     background: var(--lf-agent-tint);
   }

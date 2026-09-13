@@ -270,7 +270,7 @@ def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
     )
 
     # A later open-ended subject claim is useful for work that outlives this
-    # delivery, but it is not a second interaction beside the exact Active receipt.
+    # delivery, but it is not a second interaction beside the exact Working receipt.
     continued = _status(page_dir, "working", "Applying the choice", "--on", "choice")
     assert continued.exit_code == 0, continued.output
     [receipt] = page_state(page_dir)["activity"]["interactions"]

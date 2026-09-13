@@ -62,14 +62,18 @@ import { currentProjection } from "./projection/state.js";
 import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
 
-// The canonical receipt owns attendance; visual consumers share its current phase.
-export function agentWorkPhase(receipt) {
-  return receipt &&
-    !receipt.quiet &&
-    !receipt.dropped &&
-    ["active", "picked_up"].includes(receipt.phase)
-    ? receipt.phase
-    : null;
+// The canonical receipt supplies one reader-facing workflow stage. Transport evidence
+// remains in `phase`; consumers use this projection instead of independently deciding
+// whether the move is sent, waiting, queued, picked up, working, or awaiting continuation.
+export function agentWorkflowStage(receipt) {
+  if (!receipt) return null;
+  if (receipt.phase === "active")
+    return receipt.quiet || receipt.dropped ? "was_working" : "working";
+  if (receipt.phase === "picked_up")
+    return receipt.dropped ? "picked_up_ended" : "picked_up";
+  if (receipt.phase === "queued") return "queued";
+  if (receipt.phase === "waiting") return "waiting";
+  return "sent";
 }
 
 function updateTarget(target) {

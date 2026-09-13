@@ -1828,7 +1828,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     """A widget needs no x-work declaration to acknowledge the reader's move.
 
     The owner's existing page-edge margin entry keeps its DOM identity while durable transport
-    acceptance advances Sent to Picked up and a real claim makes it Active. Once authored
+    acceptance advances Sent to Picked up and a real claim makes it Working. Once authored
     markup records the choice and completes the claim, the margin entry disappears; the widget
     carries the chosen state itself.
     """

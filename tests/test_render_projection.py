@@ -76,11 +76,11 @@ from render_cases_navigation import (
 )
 from render_harness import (
     BOTH_STAMPS,
+    CORPUS_SOURCES,
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
     ONE_FRAME,
-    PAGE_FIXTURES,
     RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
@@ -113,7 +113,7 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 VISUAL_REVIEW_GALLERY = next(
-    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
 
 

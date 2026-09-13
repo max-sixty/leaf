@@ -40,8 +40,9 @@ from render_cases_widgets import (
     CUT_BOXES_PAGE,
 )
 from render_harness import (
+    CORPUS_PAGE,
+    CORPUS_SOURCES,
     LONG_PAGE,
-    PAGE_FIXTURES,
     REPLAYED_PAGE,
     leaf_page,
     open_page,
@@ -2344,14 +2345,11 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
         page.close()
 
 
-@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
-def test_an_exported_page_fixture_stands_on_its_own(
-    page_fixture, browser, serve, tmp_path
-):
-    """Every shipped example and the developer gallery is copied to a file and opened
-    from disk. No server answers, so anything still reaching for one is a hole, and the
-    console is where a hole says so. Every page fixture runs because what a copy loses
-    is per-widget — the corpus alone would pass while a widget it lacks was broken.
+def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
+    """The composed page corpus is copied to a file and opened from disk. No server
+    answers, so anything still reaching for one is a hole, and the console is where a
+    hole says so. The generated corpus contains every authored fixture and widget; its
+    outer tabs are revealed before the complete standalone document is read.
 
     A copy over-promising is the other half of that, and it went unread for as long as
     there was nothing here asking. Tab into an exported decision page landed on a pick
@@ -2362,7 +2360,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
     holding a tab stop or a role, a control standing there with nothing left behind it,
     and a hand or a grab under the pointer — and every question is put to the markers
     rather than to any widget."""
-    url = serve(page_fixture)
+    url = serve(CORPUS_PAGE)
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
@@ -2371,6 +2369,14 @@ def test_an_exported_page_fixture_stands_on_its_own(
     page.on("requestfailed", lambda r: page.lf_errors.append(f"unfetched {r.url}"))
     render_checks_model.prepare_standalone_probes(page)
     page.goto(out.as_uri(), wait_until="load")
+    outer_tabs = page.locator("#corpus > lf-tab")
+    assert outer_tabs.count() == len(CORPUS_SOURCES), (
+        "the generated corpus does not contain every authored source"
+    )
+    assert outer_tabs.evaluate_all(
+        "tabs => { tabs.forEach(tab => tab.hidden = false); "
+        "return tabs.every(tab => tab.checkVisibility()); }"
+    ), "the complete exported corpus is not visible to the inspection"
     state = page.evaluate("""() => ({
         live: document.documentElement.hasAttribute('data-lf-live'),
         scripts: document.querySelectorAll('script').length,
@@ -2399,9 +2405,8 @@ def test_an_exported_page_fixture_stands_on_its_own(
         // And it is put to the residents that make the claim rather than to everything
         // under main. A widget asking for width is drawn past the column by design and
         // lands in the band beside it while claiming nothing, so a reading satisfied by
-        // any overlap at all answered for a board or a diagram on three of the five
-        // copies that hold a strip: the strip could have been held open for nothing and
-        // the band still read as occupied. The claimants are the ones the cascade names
+        // any overlap at all can answer for a board or a diagram while the strip is held
+        // open for nothing. The claimants are the ones the cascade names
         // — aside.sidebar writes --strip-l, while aside.sidenote and the living
         // margin's items write --claim-note and --claim-rail. A copy
         // carries no .lf-chrome, read above, and a project layer's own --lf-claim-right
@@ -2439,8 +2444,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
                           // playground declares its artifact binding before the agent
                           // captures one, so the live page shows that slot no more than
                           // the copy does and the copy withholds nothing. Read against
-                          // the corpus, this exempts that slot and nothing else — every
-                          // other fixture's reading is already empty.
+                          // the corpus, this exempts that slot and nothing else.
                           && !el.closest('details, [data-lf-offer], [data-lf-retired], '
                                          + '[hidden], .lf-ui, style, script')
                           && getComputedStyle(el).display !== 'contents')
@@ -2683,7 +2687,7 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
     is a session that does not exist behind a file, which is the same lie the chrome is
     dropped for. Nothing else on the tab is worth losing over it: the mark still says
     which product wrote the file, and it is inlined, so it survives the copy leaving the
-    machine that served it (test_an_exported_page_fixture_stands_on_its_own is what says no
+    machine that served it (test_the_exported_corpus_stands_on_its_own is what says no
     link here still points at a server)."""
     url = serve(LONG_PAGE)
     out = tmp_path / "standalone.html"

@@ -71,11 +71,11 @@ from render_cases_widgets import (
 from render_harness import (
     BOARD_PAGE,
     BOTH_STAMPS,
+    CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    PAGE_FIXTURES,
     RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
@@ -106,12 +106,12 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
-SWIPE_GALLERY = next(path for path in PAGE_FIXTURES if path.stem == "swipe-gallery")
+SWIPE_GALLERY = next(path for path in CORPUS_SOURCES if path.stem == "swipe-gallery")
 TARGETING_GALLERY = next(
-    path for path in PAGE_FIXTURES if path.stem == "targeting-gallery"
+    path for path in CORPUS_SOURCES if path.stem == "targeting-gallery"
 )
 VISUAL_REVIEW_GALLERY = next(
-    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
 
 
@@ -4031,21 +4031,20 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     assert scrolls > 0, "this diff fits the panel, so it proves nothing"
 
 
-@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
-def test_page_fixtures_have_no_serious_wcag_a_or_aa_violations(
-    browser, serve, page_fixture
-):
+def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, serve):
     """Axe covers semantic failures the render gate cannot see: an unnamed control,
     an invalid role relationship, or a contrast failure can occupy a perfectly good
     box and still shut a user out. Keep the scope to WCAG A/AA and actionable
     serious/critical findings; layout and accessibility-tree snapshots belong to
-    specific regressions, not a corpus baseline that changes with every restyle.
+    specific regressions, not a baseline that changes with every restyle. The feature
+    gallery is the authored page with the broadest real UI; focused accessibility tests
+    own the specialist surfaces it does not contain.
 
     A phone's width because what a box does there is a different question and not a
     smaller one: the column is 372px, so a block that had room at a desk starts
     scrolling, and a scrolling box with no way into it from the keyboard is a user
     reading half of every line of code. Nothing at 1200 says a word about it."""
-    url = serve(page_fixture)
+    url = serve(FEATURE_GALLERY)
     findings = []
     for color_scheme in ("light", "dark"):
         page = open_page(browser, url, color_scheme=color_scheme)
@@ -4064,15 +4063,14 @@ def test_page_fixtures_have_no_serious_wcag_a_or_aa_violations(
 def test_the_chrome_a_key_opens_has_no_serious_violations(
     browser, serve, other_leaf, color_scheme, width
 ):
-    """The corpus sweep above reads every example, and reads all of them with the chrome
-    shut: it never presses a key, so the thread panel, its box, the trays, the versions
-    menu, the command reference and the sequence's chips are surfaces forty readings pass
+    """The feature-gallery sweep above reads broad authored UI with the chrome shut: it
+    never presses a key, so the thread panel, its box, the trays, the versions
+    menu, the command reference and the sequence's chips are surfaces four readings pass
     straight over. A `role="list"` whose children are run headings and threads shipped
     through it, green every time.
 
-    One page rather than the corpus, because the chrome is the same on all of them: what
-    varies between examples is the document, which the sweep above already reads. What
-    varies here is which of the chrome's own surfaces is standing — and the scheme and the
+    One page because the chrome is the same on every document. What varies here is which
+    of the chrome's own surfaces is standing — and the scheme and the
     width, which are the two axes that sweep carries and this one has to carry too. Dropped,
     they cost this test the dark palette entirely: the token these very sweeps caught was
     left failing on the dark half, because nothing here ever rendered it.

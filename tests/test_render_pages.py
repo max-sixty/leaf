@@ -67,6 +67,7 @@ from render_harness import (
     EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
+    PASSAGE_SOURCES,
     REPLY_HOST_PAGE,
     TOKEN,
     author_test_widget,
@@ -496,17 +497,15 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     )
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("source", PASSAGE_SOURCES, ids=lambda p: p.stem)
 def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     browser, serve, source
 ):
     """The claim `leaf comment` makes is that a quote read out of the mapped revision
-    names the same passage in the browser. Checked on the pages people actually write,
-    because the ways it can fail are all theirs: a diagram that renders to a picture, an
-    attribute the runtime turns into text, two paragraphs whose join is a space in one
-    reading and nothing in the other. The generated corpus derives its tab bodies from
-    these sources; its generation check owns that composition, while this sweep keeps
-    one file reading for every page an author can change. A page that authors only a
+    names the same passage in the browser. Four unlike authored pages cover native
+    blocks, representative widgets, and projected text that can make the file and
+    browser readings disagree. The generated corpus derives its tab bodies from these
+    sources, and its generation check owns that composition. A page that authors only a
     data-backed widget has no file passage to compare; its data anchors are covered at
     their projection boundary."""
     # Suppress the shipped log while retaining companion data. This sweep

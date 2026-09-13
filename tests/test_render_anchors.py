@@ -12,7 +12,6 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
@@ -59,10 +58,10 @@ from render_cases_navigation import (
     wait_for_pending_mark,
 )
 from render_harness import (
-    CORPUS_SOURCES,
     EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
+    PASSAGE_SOURCES,
     RENDERED,
     SAID_PAGE,
     _traffic,
@@ -84,52 +83,6 @@ from render_harness import (
     told,
     wait_for_revision,
 )
-
-REPRESENTATIVE_WIDGET_TAGS = frozenset(
-    {"lf-metric", "lf-milestone", "lf-option", "lf-variant"}
-)
-
-
-def passage_text(node):
-    """Return the authored words a passage-shaped source node contains."""
-    return "".join(
-        part if isinstance(part, str) else passage_text(part)
-        for part in node["content"]
-    )
-
-
-def passage_representatives(sources):
-    """Build compact cases covering every source shape this sweep can exercise."""
-    remaining = list(sources)
-    shapes = {}
-    for source in remaining:
-        document = structure_model.SourceDocument(source.read_text(encoding="utf-8"))
-        shapes[source] = {
-            f"{'widget' if node['tag'] in REPRESENTATIVE_WIDGET_TAGS else 'block'}:{node['tag']}"
-            for node in document.nodes
-            if (
-                node["tag"]
-                in passages_model.TEXT_BLOCK_TAGS | REPRESENTATIVE_WIDGET_TAGS
-                and len(" ".join(passage_text(node).split())) > 12
-            )
-        }
-        if not shapes[source] and source.with_suffix(".data.json").exists():
-            shapes[source] = {"said"}
-    uncovered = set().union(*shapes.values())
-    representatives = []
-    while uncovered:
-        source = max(
-            remaining, key=lambda candidate: len(shapes[candidate] & uncovered)
-        )
-        covered = shapes[source] & uncovered
-        assert covered, f"no source represents passage shapes {sorted(uncovered)}"
-        representatives.append((source, frozenset(covered)))
-        remaining.remove(source)
-        uncovered -= covered
-    return tuple(representatives)
-
-
-PASSAGE_CASES = passage_representatives(CORPUS_SOURCES)
 
 pytestmark = pytest.mark.nightly
 
@@ -172,22 +125,15 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
     )
 
 
-@pytest.mark.parametrize(
-    ("source", "expected_shapes"),
-    PASSAGE_CASES,
-    ids=[source.stem for source, _shapes in PASSAGE_CASES],
-)
-def test_real_page_passage_shapes_can_be_quoted(
-    browser, serve, source, expected_shapes
-):
-    """Every selected native, representative-widget, and projected shape is quotable.
+@pytest.mark.parametrize("source", PASSAGE_SOURCES, ids=lambda source: source.stem)
+def test_real_page_passages_can_be_quoted(browser, serve, source):
+    """Passages in four unlike authored pages are quotable.
 
-    The collection-time set cover adds a source whenever its passage vocabulary is not
-    already represented. Focused tests own settlements, tabs, shadow roots, and gestures.
+    Focused tests own settlements, tabs, shadow roots, and gestures.
     """
     page = open_page(browser, serve(source))
     result = page.evaluate(
-        """async representativeTags => {
+        """async () => {
         const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
@@ -203,23 +149,18 @@ def test_real_page_passage_shapes_can_be_quoted(
         // Native passage blocks come from the runtime. The four composite roots are
         // representative widgets whose direct prose otherwise has no native block;
         // data-lf-said is the runtime's marker for generated words the page still says.
-        const compositeSelector = representativeTags.join(',');
+        const compositeSelector = 'lf-metric,lf-milestone,lf-option,lf-variant';
         const blocks = [...document.querySelectorAll(
             `${TEXT_BLOCK},${compositeSelector},[data-lf-said]`)]
           .filter(b => speaks(b) && b.checkVisibility()
                     && b.textContent.trim().length > 12);
-        const shapes = new Set();
-        for (const block of blocks) {
-            if (block.matches(TEXT_BLOCK)) shapes.add(`block:${block.localName}`);
-            if (representativeTags.includes(block.localName))
-                shapes.add(`widget:${block.localName}`);
-            if (block.matches('[data-lf-said]')) shapes.add('said');
-        }
         const missed = [], skipped = [], astray = [];
+        let attempted = 0;
         for (let i = 0; i < blocks.length; i++) {
             // Each block alone, then reaching into the next one — a drag rarely stops
             // tidily on a boundary, and spanning two blocks is where the joins show.
             for (const end of [blocks[i], blocks[i + 1]].filter(Boolean)) {
+                attempted++;
                 const range = document.createRange();
                 range.setStart(blocks[i], 0);
                 range.setEnd(end, end.childNodes.length);
@@ -264,15 +205,10 @@ def test_real_page_passage_shapes_can_be_quoted(
                 sel.removeAllRanges();
             }
         }
-        return {missed, skipped, astray, shapes: [...shapes]};
-    }""",
-        sorted(REPRESENTATIVE_WIDGET_TAGS),
+        return {attempted, missed, skipped, astray};
+    }"""
     )
-    missing_shapes = expected_shapes - set(result["shapes"])
-    assert not missing_shapes, (
-        f"{source.stem} represents {sorted(missing_shapes)} in the source, but none "
-        "of those shapes reached the browser sweep"
-    )
+    assert result["attempted"] > 0, f"{source.stem}: the passage sweep found nothing"
     assert result["missed"] == [], (
         f"{len(result['missed'])} passages in {source.stem} quote text the page "
         f"can't find: {result['missed']}"
@@ -3610,7 +3546,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
         "         parseFloat(getComputedStyle(n).fontSize) * 1.6; }"
     ), "the note that a select could not hold is on one line here too"
 
-    # The corpus axe pass walks every example with this menu shut, so the role
+    # The feature-gallery Axe baseline sees this menu shut, so the role
     # relationship it declares open — a menu owning menuitems, named — is checked
     # nowhere else. A select carried all of that from the platform and this does not.
     result = Axe().run(

@@ -204,7 +204,7 @@ uv run pytest tests
 ```
 
 `tests/CLAUDE.md` owns environment setup, focused runs, nightly selection, and
-the Linux suite. `wt merge` runs pre-commit and the everyday suite on the rebased
+the Linux authority. `wt merge` runs pre-commit and the everyday suite on the rebased
 tree. Pull requests and main run that gate plus the website-worker checks. Tend
 adds focused tests during review. A daily CI run exercises the complete suite in
 one job.
@@ -246,8 +246,11 @@ on a Mac, or fail inside the whole suite under the default `-n 2` and pass alone
 under `-n0`. Use the base SHA's GitHub Actions run as the control; a local Docker
 image is not the hosted runner, and an Apple-silicon image must either emulate the
 CPU or give up installed Chrome. A green run several commits behind the base is
-not that control. Until the failure reproduces on the base SHA, it is this
-branch's. Once it does, the branch lands the ordinary way, and a red hook takes
+not that control. Main's own push run may be cancelled when the next merge lands,
+and `nightly` does not run on a push. Rerun a cancelled base-SHA run, or push that
+SHA as a branch and dispatch `ci` on it for the nightly selection. Until the
+failure reproduces on the base SHA, treat it as this branch's. Once it does, the
+branch lands the ordinary way, and a red hook takes
 the `--no-hooks` route above. `lint` is the only required check, so a red `test`
 does not block a merge and this rule is all that gates one.
 

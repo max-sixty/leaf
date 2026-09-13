@@ -26,6 +26,9 @@ The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer. The
 ordinary and nightly suites run directly on the host. Docker is needed only for
 the complete website boundary.
 
+A container without IPv6 cannot run the two tests that bind the stated-host
+wildcard `::`; run those from a workstation.
+
 The everyday suite needs no network after setup. It runs one shipped page through the
 browser gate and the shared chrome contracts whose regressions must block a pull request:
 

@@ -2,7 +2,10 @@
 
 import json
 import shutil
+import threading
+from urllib.error import HTTPError
 from urllib.parse import urlsplit
+from urllib.request import urlopen
 
 from interact_support import ROOT
 from leaf.anchor_capture import capture_anchor
@@ -11,6 +14,7 @@ from leaf.files import revision_path
 from leaf.mcp_app import app_html, app_snapshot, apply_event
 from leaf.mcp_page import ProcessPageServer, page_state
 from leaf.revisioning import activate_source
+from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
 from playwright.sync_api import expect
 from render_support import leaf_page, live_url, open_page
@@ -99,6 +103,48 @@ window.addEventListener("message", (event) => {
 """
 
 
+def test_process_state_waits_for_a_serialized_activation(page_dir, monkeypatch):
+    pages = ProcessPageServer()
+    selected = threading.Event()
+    answer = {}
+    try:
+        url = pages.open(page_dir)
+        handler = pages._httpd.RequestHandlerClass
+        original_select = handler._select_page
+
+        def observe_state_request(request_handler):
+            result = original_select(request_handler)
+            if result and urlsplit(request_handler.path).path == "/api/state":
+                selected.set()
+            return result
+
+        monkeypatch.setattr(handler, "_select_page", observe_state_request)
+        source = page_dir / "index.html"
+        source.write_text(source.read_text().replace("<h2>Plan</h2>", "<h2>Next</h2>"))
+
+        def read_state():
+            try:
+                with urlopen(f"{url}api/state") as response:
+                    answer.update(status=response.status, body=response.read().decode())
+            except HTTPError as error:
+                answer.update(status=error.code, body=error.read().decode())
+            except Exception as error:  # noqa: BLE001 - preserve the thread's answer
+                answer.update(error=f"{type(error).__name__}: {error}")
+
+        with PageTransaction(page_dir) as page:
+            request = threading.Thread(target=read_state)
+            request.start()
+            assert selected.wait(timeout=10)
+            activated = activate_source(page_dir, page.events)
+            assert activated.error is None and activated.revision == 2
+        request.join(timeout=10)
+        assert not request.is_alive()
+        assert answer.get("status") == 200, answer
+        assert json.loads(answer["body"])["active"]["revision"] == 2
+    finally:
+        pages.close()
+
+
 def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
     append_event(
         page_dir,
@@ -159,6 +205,13 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
     pages = ProcessPageServer()
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     errors = []
+    failed_responses = []
+    page.on(
+        "response",
+        lambda response: (
+            failed_responses.append(response) if response.status >= 400 else None
+        ),
+    )
     page.on(
         "console",
         lambda message: (
@@ -298,7 +351,8 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
             ),
             encoding="utf-8",
         )
-        revised = activate_source(page_dir, read_events(page_dir))
+        with PageTransaction(page_dir) as page_transaction:
+            revised = activate_source(page_dir, page_transaction.events)
         assert revised.error is None and revised.revision == 3
         page.locator("#late").wait_for()
         page.wait_for_function("() => document.querySelector('#late').naturalWidth > 0")
@@ -321,6 +375,10 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         )
         assert page.url.startswith(f"{pages.origin}{root}/versions/v1.html")
         assert page.locator("#plan > h2").inner_text() == "Plan"
+        assert [
+            {"status": response.status, "url": response.url, "body": response.text()}
+            for response in failed_responses
+        ] == []
         assert errors == []
     finally:
         page.close()

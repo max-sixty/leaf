@@ -303,7 +303,7 @@ def capture_artifact(
     )
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=8)
 def _capture_artifact_stamped(
     page_dir: Path,
     html: bytes,
@@ -525,7 +525,7 @@ def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
     )
 
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=8)
 def _read_artifact_stamped(
     path: Path,
     bundle: Path,

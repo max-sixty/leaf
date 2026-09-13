@@ -72,7 +72,7 @@ from render_harness import (
     round_trip,
     select,
     sending,
-    stamp_version_file,
+    stamp_page,
     told,
 )
 
@@ -2522,8 +2522,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     expect(diagram.locator(":scope > .lf-mark-note")).to_have_count(1)
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b"))
 
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(PART_DIAGRAM_V2)
-    stamp_version_file(serve.page_dir, 2, "reordered")
+    stamp_page(serve.page_dir, PART_DIAGRAM_V2, "reordered")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
     expect(diagram.locator('g[data-id="S"]')).to_have_class(
@@ -2671,8 +2670,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     # v2 rebuilds the SVG around an inserted state. The mark follows the authored token
     # to the replacement box rather than retaining a detached renderer node.
     state.evaluate("el => { window.lfOldQueued = el; }")
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(TYPED_PARTS_V2)
-    stamp_version_file(serve.page_dir, 2, "one state earlier")
+    stamp_page(serve.page_dir, TYPED_PARTS_V2, "one state earlier")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
     assert page.evaluate("() => !window.lfOldQueued.isConnected")

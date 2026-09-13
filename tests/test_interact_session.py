@@ -43,7 +43,6 @@ from interact_support import (
     record_claim,
     serving,
     spawn_probe,
-    stage_fixture_source,
     stamp,
     start_server_command,
     state_json,
@@ -63,6 +62,7 @@ from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
+from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -244,7 +244,7 @@ def test_delivery_claim_refuses_an_event_outside_the_delivery(page_dir):
 
 
 def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice">', 1))
     publish(page_dir)
     chosen = append_command(
@@ -561,7 +561,7 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
     work_page = PAGE.replace(
         "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(work_page)
+    (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
     action = append_command(
         page_dir,
@@ -901,7 +901,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
         "Check the fallback before cutover.</lf-card>\n"
         '</lf-column></lf-board>\n<lf-diagram id="flow">',
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(work_page)
+    (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
 
     claimed = _status(
@@ -926,10 +926,10 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
 
     # A new version that leaves the widget alone does not settle the claim by mere
     # chronology. It publishes normally and the same local work remains standing.
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v2</title>")
     )
-    unrelated = stamp(page_dir, 2, "Elsewhere")
+    unrelated = stamp(page_dir, "Elsewhere")
     assert unrelated.exit_code == 0, unrelated.output
     claim = next(
         update
@@ -940,10 +940,10 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert claim["disposition"] == "effective"
 
     # Settlement is explicit and durable on the version note.
-    (page_dir / ".fixture-versions" / "v3.html").write_text(
+    (page_dir / "index.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v3</title>")
     )
-    settled = stamp(page_dir, 3, "Rollout checked", completes=("rollout-card",))
+    settled = stamp(page_dir, "Rollout checked", completes=("rollout-card",))
     assert settled.exit_code == 0, settled.output
     note = events_model.read_events(page_dir)[-1]
     assert note["settles"] == [{"kind": "work", "id": "rollout-card"}]
@@ -980,8 +980,8 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
         count=1,
         flags=re.DOTALL,
     )
-    (page_dir / ".fixture-versions" / "v4.html").write_text(without_seat)
-    changed = stamp(page_dir, 4, "Changed presentation")
+    (page_dir / "index.html").write_text(without_seat)
+    changed = stamp(page_dir, "Changed presentation")
     assert changed.exit_code == 0, changed.output
 
     # Removing the subject itself would remove the target margin entry. Publication still
@@ -993,22 +993,22 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
         count=1,
         flags=re.DOTALL,
     )
-    (page_dir / ".fixture-versions" / "v5.html").write_text(without_target)
-    dropped = stamp(page_dir, 5, "Removed")
+    (page_dir / "index.html").write_text(without_target)
+    dropped = stamp(page_dir, "Removed")
     assert dropped.exit_code == 1
     assert (
         "would remove the local target for active work on 'rollout-card'"
         in dropped.output
     )
 
-    finished = stamp(page_dir, 5, "Removed", completes=("rollout-card",))
+    finished = stamp(page_dir, "Removed", completes=("rollout-card",))
     assert finished.exit_code == 0, finished.output
 
     # Naming no active widget claim is an unearned settlement, not inert metadata.
-    (page_dir / ".fixture-versions" / "v6.html").write_text(
+    (page_dir / "index.html").write_text(
         without_target.replace("<title>t</title>", "<title>t · v6</title>")
     )
-    unearned = stamp(page_dir, 6, "Again", completes=("rollout-card",))
+    unearned = stamp(page_dir, "Again", completes=("rollout-card",))
     assert unearned.exit_code == 1
     assert "no active widget work claim" in unearned.output
 
@@ -1653,6 +1653,8 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
 def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
     page_dir, request
 ):
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
     comment = events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Can you answer here?"},
@@ -3034,7 +3036,7 @@ def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(pag
         '  <lf-card id="rollout-card"><strong>Ship the rollout</strong></lf-card>\n'
         '</lf-column></lf-board>\n<lf-diagram id="flow">',
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(work_page)
+    (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
     claimed = _status(
         page_dir, "working", "checking the rollout", "--on", "rollout-card"
@@ -3081,12 +3083,12 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     work_page = PAGE.replace(
         "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(work_page)
+    (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v2</title>")
     )
-    advanced = stamp(page_dir, 2, "Checked the surrounding plan")
+    advanced = stamp(page_dir, "Checked the surrounding plan")
     assert advanced.exit_code == 0, advanced.output
 
     # The reader still has r1 open after r2 became active. That move is new work,
@@ -3126,10 +3128,10 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
         page_dir, "working", "checking the completed choice", "--on", "plan-choice"
     )
     assert claimed.exit_code == 0, claimed.output
-    (page_dir / ".fixture-versions" / "v3.html").write_text(
+    (page_dir / "index.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v3</title>")
     )
-    answered = stamp(page_dir, 3, "Answered the completed choice")
+    answered = stamp(page_dir, "Answered the completed choice")
     assert answered.exit_code == 0, answered.output
 
     acknowledgments = page_state(page_dir)["activity"]["interactions"]
@@ -3148,7 +3150,7 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     """A content model says what authors may put inside a widget, not whether core
     may add local chrome there. Inline prose has no block slot, and a prose option is
     itself the click target of its holder; neither becomes a seat by inference."""
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         PAGE.replace(
             "<lf-chip>effort: low</lf-chip>",
@@ -3231,6 +3233,8 @@ def test_a_batch_says_what_each_kind_present_asks_of_the_agent(page_dir, capsys)
 
 
 def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     handling = registry["$events"]["handling"]["comment"]
@@ -3529,6 +3533,8 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
 
 
 def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
     asked = events_model.append_event(
         page_dir,
         {
@@ -3583,6 +3589,8 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
 
 
 def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_dir):
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
     asked = events_model.append_event(
         page_dir,
         {
@@ -3725,7 +3733,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir)
@@ -3817,7 +3825,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     """A sent widget lives in one conversation and may answer another. The raw
     event is stored once, while exact selection and wait expose both semantic
     memberships without duplicating the event in a delivered batch."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     serving(page_dir, 1)
     target = events_model.append_event(
@@ -3903,7 +3911,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     """A host request is meaningful only beside the message that declared its
     package widget. Keep that message even when a long conversation would normally
     elide it from the delivery envelope."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     serving(page_dir, 1)
     root = events_model.append_event(
@@ -3996,7 +4004,7 @@ def test_a_delivery_addresses_a_version_response_explicitly(page_dir, capsys):
         "response": {"kind": "version", "verb": "choose"},
     }
     registry_path.write_text(json.dumps(registry))
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
     publish(page_dir)
     serving(page_dir, 1)
@@ -4052,8 +4060,7 @@ SETTLING_ACCEPT = {
 
 
 def _settling_page(page_dir):
-    (page_dir / ".fixture-versions" / "v1.html").write_text(SETTLING_PAGE)
-    stage_fixture_source(page_dir, 1, reset_unstamped=True)
+    (page_dir / "index.html").write_text(SETTLING_PAGE)
     events_model.append_event(page_dir, dict(SETTLING_DECISION))
     result = check(page_dir)
     assert result.exit_code == 0, result.output
@@ -4197,9 +4204,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     no page to be seen. Both arms assert the two readings agree; the arms differ
     in what they agree on, so neither can be passing on a delivery that never
     settles anything."""
-    versions = page_dir / ".fixture-versions"
-    versions.joinpath("v1.html").write_text(PICKS_PAGE)
-    versions.joinpath("v2.html").write_text(PICKS_PAGE)
+    (page_dir / "index.html").write_text(PICKS_PAGE)
     serving(page_dir, 1)
     opened = events_model.append_event(
         page_dir,
@@ -4265,7 +4270,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
     truncation is to rerun, and a rerun prints the same oversize header. So the
     digest keeps the message that opened the thread and the most recent, and
     says how many it dropped between."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     serving(page_dir, 1)
     markup = (
@@ -4328,7 +4333,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     nowhere but the log. So a long conversation whose question sits early would
     otherwise deliver `choose m-cap` with nothing saying what `gm` asked or what
     `m-cap` said — the defect this reading exists to fix, surviving the bound."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     serving(page_dir, 1)
     root = events_model.append_event(
@@ -7306,9 +7311,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     The unrewritten arm is the control: the pick still stands, the thread reads
     answered, and the hook must say nothing. Without it a guard that blocked on
     every acknowledged comment would pass the other arm."""
-    versions = claimed / ".fixture-versions"
-    versions.joinpath("v1.html").write_text(PICKS_PAGE)
-    versions.joinpath("v2.html").write_text(PICKS_PAGE)
+    (claimed / "index.html").write_text(PICKS_PAGE)
     session_model.cmd_status(claimed, "waiting", "")
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
@@ -7485,7 +7488,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
 def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns_it(
     claimed, capsys
 ):
-    version = claimed / ".fixture-versions" / "v1.html"
+    version = claimed / "index.html"
     version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
     publish(claimed)
     session_model.cmd_status(claimed, "waiting", "")

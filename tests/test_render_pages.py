@@ -78,7 +78,7 @@ from render_harness import (
     panel_settled,
     refuse,
     resized,
-    stamp_version_file,
+    stamp_page,
     told,
     wait_for_revision,
     watched,
@@ -598,8 +598,7 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
 
     page = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
-    stamp_version_file(d, 2, "a twin")
+    stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     where = page.evaluate(
@@ -677,8 +676,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     )
     page = open_page(browser, live_url(url))
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
-    (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
-    stamp_version_file(d, 2, "a twin")
+    stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
 
@@ -969,8 +967,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     url = serve(TWIN_V1)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
-    (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
-    stamp_version_file(d, 2, "a twin")
+    stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
     page.locator(".lf-version").click()
     menu = page.locator(".lf-version-menu")

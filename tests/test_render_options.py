@@ -59,7 +59,6 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
-    stamp_version_file,
     told,
     wait_for_revision,
 )
@@ -321,10 +320,11 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     # The generated check is not authored text, so rewording another option marks only
     # that option in the version comparison.
     d = serve.page_dir
-    (d / ".fixture-versions" / "v2.html").write_text(
-        CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best")
+    stamp_page(
+        d,
+        CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best"),
+        "two",
     )
-    stamp_version_file(d, 2, "two")
     wait_for_revision(page, 2)
     compare_with(page)
     page.wait_for_function(

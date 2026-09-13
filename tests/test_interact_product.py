@@ -21,7 +21,6 @@ from interact_support import (
     check,
     comment,
     fetch,
-    fixture_version_path,
     fragment_errors,
     live_versions,
     page_state,
@@ -55,6 +54,8 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     source = page_dir / "index.html"
     source.write_text(PAGE)
 
+    initial = revisioning_model.activate_source(page_dir, [])
+    assert initial.error is None and initial.created and initial.revision == 1
     existing = revisioning_model.activate_source(page_dir, [])
     assert existing.error is None and not existing.created and existing.revision == 1
 
@@ -331,23 +332,17 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     group += (
         '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-ask>'
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")
     )
     publish(page_dir)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("</main>", group.format(" settled", " chosen") + "</main>")
-    )
-    (page_dir / "index.html").write_bytes(
-        (page_dir / ".fixture-versions" / "v2.html").read_bytes()
     )
     assert checking_command.cmd_check(page_dir) == 0
     capsys.readouterr()
 
-    (page_dir / ".fixture-versions" / "v2.html").write_text(PAGE)
-    (page_dir / "index.html").write_bytes(
-        (page_dir / ".fixture-versions" / "v2.html").read_bytes()
-    )
+    (page_dir / "index.html").write_text(PAGE)
     assert checking_command.cmd_check(page_dir) == 0
     assert (
         "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick', 'pick-decision']"
@@ -453,10 +448,9 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
         # Every authored version, not only the current one. A prior version is markup
         # a builder stamps through the same door, so a fault in one stops preview and
         # the site build — which is a slow way to hear it from this gate.
-        for number, version in enumerate(example_versions(example), start=1):
+        for version in example_versions(example):
             markup = version.read_text()
             (d / "index.html").write_text(markup)
-            fixture_version_path(d, number).write_text(markup)
             activated = revisioning_model.activate_source(d, [])
             assert activated.error is None
             result = check(d)
@@ -726,7 +720,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
     )
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir, version=2)
@@ -782,7 +776,7 @@ def declare_options_version_response(page_dir):
 
 def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     declare_options_version_response(page_dir)
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     unchosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     version.write_text(unchosen)
     publish(page_dir)
@@ -840,7 +834,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
 
     unrelated = unchosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
-    (page_dir / ".fixture-versions" / "v2.html").write_text(unrelated)
+    (page_dir / "index.html").write_text(unrelated)
     publish(page_dir, version=2)
     still_unresolved = CliRunner().invoke(
         cli_model.cli,
@@ -857,7 +851,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
         '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
         1,
     )
-    (page_dir / ".fixture-versions" / "v3.html").write_text(v3)
+    (page_dir / "index.html").write_text(v3)
     publish(page_dir, version=3)
     resolved = CliRunner().invoke(
         cli_model.cli,
@@ -871,7 +865,7 @@ def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(chosen)
+    (page_dir / "index.html").write_text(chosen)
     publish(page_dir)
     proposal = events_model.append_event(
         page_dir,
@@ -885,7 +879,7 @@ def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
         },
     )
 
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         chosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
     )
     publish(page_dir, version=2)
@@ -903,7 +897,7 @@ def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
         '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
         1,
     )
-    (page_dir / ".fixture-versions" / "v3.html").write_text(answered)
+    (page_dir / "index.html").write_text(answered)
     publish(page_dir, version=3)
     resolved = CliRunner().invoke(
         cli_model.cli,
@@ -915,7 +909,7 @@ def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
 def test_a_version_response_can_settle_a_standing_decision(page_dir):
     declare_options_version_response(page_dir)
     asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / ".fixture-versions" / "v1.html").write_text(asking)
+    (page_dir / "index.html").write_text(asking)
     publish(page_dir)
     proposal = events_model.append_event(
         page_dir,
@@ -929,7 +923,7 @@ def test_a_version_response_can_settle_a_standing_decision(page_dir):
         },
     )
 
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         asking.replace(
             '<lf-options id="choice" choose>',
             '<lf-options id="choice" choose settled>',
@@ -948,7 +942,7 @@ def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(chosen)
+    (page_dir / "index.html").write_text(chosen)
     publish(page_dir)
     proposal = events_model.append_event(
         page_dir,
@@ -966,7 +960,7 @@ def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
         '<lf-options id="choice" choose>',
         '<lf-options id="choice" choose settled>',
     )
-    (page_dir / ".fixture-versions" / "v2.html").write_text(settled)
+    (page_dir / "index.html").write_text(settled)
     publish(page_dir, version=2)
     resolved = CliRunner().invoke(
         cli_model.cli,
@@ -985,7 +979,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
 ):
     declare_options_version_response(page_dir)
     asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / ".fixture-versions" / "v1.html").write_text(asking)
+    (page_dir / "index.html").write_text(asking)
     publish(page_dir)
     pick = {
         "kind": "action",
@@ -1011,7 +1005,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
     if pick_after_proposal:
         append_command(page_dir, pick)
 
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         asking.replace("</main>", "<p>Unrelated update.</p>\n</main>")
     )
     publish(page_dir, version=2)
@@ -1025,7 +1019,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
         "requires a page version that answers its originating Ask" in unresolved.output
     )
 
-    (page_dir / ".fixture-versions" / "v3.html").write_text(
+    (page_dir / "index.html").write_text(
         asking.replace(
             '<lf-options id="choice" choose>',
             '<lf-options id="choice" choose restated>',
@@ -1124,10 +1118,10 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
     assert ok.exit_code == 0, ok.output
     # And a new version taking the reply's id fails check.
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace('<section id="plan">', '<section id="plan"><p id="q1">stolen</p>')
     )
-    result = check(page_dir, version=2)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert (
         "taken by widget markup in a reply" in result.output and "q1" in result.output
@@ -1139,12 +1133,12 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     and points ARIA at them. An authored id there would aim those references at the page
     instead, silently. One rule over both places an id can be authored: a version, and
     the widget markup in Claude's reply."""
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             '<section id="plan">', '<section id="plan"><p id="lf-msg-7">mine</p>'
         )
     )
-    result = check(page_dir, version=2)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "lf- namespace" in result.output and "lf-msg-7" in result.output
     (page_dir / "index.html").write_text(PAGE)
@@ -1258,7 +1252,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_AGENT", "Hub")
-    _tasks_version(page_dir, 1, "active")
+    _tasks_version(page_dir, "active")
     service_model.claim_page(page_dir)
     published(page_dir)
     events_model.append_event(
@@ -1308,7 +1302,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_dir):
-    source = page_dir / ".fixture-versions" / "v1.html"
+    source = page_dir / "index.html"
     source.write_text(
         source.read_text().replace(
             "</section>",
@@ -1568,6 +1562,8 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     page_dir, monkeypatch
 ):
     """An edit uses the active revision's contract, not a broken candidate."""
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     message = events_model.append_event(
         page_dir,
@@ -1681,12 +1677,12 @@ def test_export_prints_threads_and_versions(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "revision": 2,
+            "revision": 1,
             "widget": "b",
             "action": "move",
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
             "meaning": {
-                "document": {"kind": "page", "revision": 2},
+                "document": {"kind": "page", "revision": 1},
                 "coordinate": ["b", "card-x", "position"],
                 "depends": ["b", "card-x", "col-done"],
             },
@@ -1708,7 +1704,7 @@ def test_export_prints_threads_and_versions(page_dir):
         },
     )
     # An abandoned newer draft is not the live page whose exchange is exported.
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Abandoned draft</title>")
     )
     result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
@@ -1751,6 +1747,8 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
     """Text renders with every raw tag escaped, so a plain reply has nothing to
     validate and posts without the registry; markup is checked against it, so without
     one the gate refuses rather than guessing."""
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
     (page_dir / "registry.json").unlink()
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
@@ -1862,7 +1860,6 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         )
         assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
         (d / "index.html").write_text(example.read_text())
-        fixture_version_path(d, 1).write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         for operation in data_operations(example):
             if operation["kind"] == "set":

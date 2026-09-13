@@ -77,7 +77,6 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
-    stamp_version_file,
     take_browser_errors,
     told,
     wait_for_revision,
@@ -5906,8 +5905,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     without_passage = re.sub(r'<p id="p1">.*?</p>', "", noted_page, flags=re.DOTALL)
-    (d / ".fixture-versions" / "v2.html").write_text(without_passage)
-    stamp_version_file(d, 2, "remove the quoted passage")
+    stamp_page(d, without_passage, "remove the quoted passage")
     wait_for_revision(page, 2)
     # Narrowing is interaction-local heap state, not part of the revision handoff. The
     # fresh document starts at Open; choosing Resolved again reveals the durable thread.
@@ -8320,8 +8318,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
 
     # A v2 lands and the live page follows it; on v2 the menu's own keys are
     # live, having a list to walk and a base to walk onto.
-    (d / ".fixture-versions" / "v2.html").write_text(NOTED_PAGE)
-    stamp_version_file(d, 2, "two")
+    stamp_page(d, NOTED_PAGE, "two")
     wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     expect(page.locator(".lf-version-menu")).to_have_attribute(

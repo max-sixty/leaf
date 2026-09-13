@@ -110,16 +110,6 @@ def stamp_page(
     return json.loads(result.output)
 
 
-def stamp_version_file(page_dir: Path, version: int, text: str) -> dict:
-    """Move a fixture-authored candidate through the real stamp boundary."""
-    path = page_dir / ".fixture-versions" / f"v{version}.html"
-    html = path.read_text(encoding="utf-8")
-    path.unlink()
-    note = stamp_page(page_dir, html, text)
-    assert note["version"] == version
-    return note
-
-
 def wait_for_revision(page, revision: int) -> None:
     """Wait until a live tab has installed and applied one immutable revision."""
     page.wait_for_function(
@@ -511,12 +501,10 @@ def serve(tmp_path, monkeypatch, initialized_page):
         for event in events:
             events_model.append_event(d, event)
         if fixture is None:
-            (d / ".fixture-versions").mkdir(exist_ok=True)
             activated = revisioning_model.activate_source(
                 d, events_model.read_events(d)
             )
             assert activated.error is None and activated.revision == 1, activated.error
-            (d / ".fixture-versions" / "v1.html").write_text(source)
             events_model.append_event(
                 d,
                 {

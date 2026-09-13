@@ -156,7 +156,7 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
         '<lf-diagram id="flow">',
         '<lf-diagram id="flow" parts="node:A node:B">',
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(parted)
+    (page_dir / "index.html").write_text(parted)
     publish(page_dir)
 
     valid = {
@@ -193,7 +193,7 @@ def test_a_datum_comment_must_name_the_data_revision_its_section_displayed(
     """The browser's source provenance is admitted at the same transaction boundary
     as the comment. A replacement racing the POST makes the comment outdated, not
     invalid; a future revision or a source the section never bound is forged."""
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     first_version = PAGE.replace(
         "</section>",
         '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
@@ -210,7 +210,7 @@ def test_a_datum_comment_must_name_the_data_revision_its_section_displayed(
         '<lf-diff id="frozen" source="review-patch" snapshot="1">'
         "<pre></pre></lf-diff></section>",
     )
-    (page_dir / ".fixture-versions" / "v2.html").write_text(second_version)
+    (page_dir / "index.html").write_text(second_version)
     publish(page_dir, 2)
     event = {
         "kind": "comment",
@@ -705,6 +705,8 @@ def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
 
 def test_server_round_trip(server, page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
+    initial = revisioning_model.activate_source(page_dir, [])
+    assert initial.error is None and initial.revision == 1
     source = page_dir / "index.html"
     source.write_text(
         source.read_text()
@@ -1127,7 +1129,7 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     source = PAGE.replace(
         "<title>t</title>", "<title>Backfill plan\u2028Q3</title>"
     ).replace("</head>", "  </head>")
-    (page_dir / ".fixture-versions" / "v1.html").write_text(source, encoding="utf-8")
+    (page_dir / "index.html").write_text(source, encoding="utf-8")
     assert check(page_dir).exit_code == 0
     publish(page_dir)
 
@@ -1172,7 +1174,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         "<title>t</title>",
         '<title>t</title>\n<meta name="lf-review" content="sign-off">',
     ).replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / ".fixture-versions" / "v2.html").write_text(signoff)
+    (page_dir / "index.html").write_text(signoff)
     publish(page_dir, version=2)
     status, body = fetch(
         f"{server}/api/event",
@@ -1384,7 +1386,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     assert status == 400
     assert json.loads(body)["error"] == "comment revision must be one of [1]"
 
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Moved</title>")
     )
     publish(page_dir, 2)
@@ -1434,7 +1436,7 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
 
 
 def test_action_door_owns_generated_child_snapshots(server, page_dir):
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -1482,7 +1484,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     Its receipt, semantic coordinate, winner, undo offer, and readiness coverage all
     name the event accepted by this same POST response and the same sequence boundary.
     """
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -1527,7 +1529,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     """The DOM need not re-fold the log to know a prior action will reappear."""
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -1592,8 +1594,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         "type": "string"
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    versions = page_dir / ".fixture-versions"
-    versions.joinpath("v1.html").write_text(old_page)
+    (page_dir / "index.html").write_text(old_page)
     publish(page_dir, 1)
     reaction = event_model.append_event(
         page_dir,
@@ -1617,7 +1618,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             },
         },
     )
-    versions.joinpath("v2.html").write_text(new_page)
+    (page_dir / "index.html").write_text(new_page)
     publish(page_dir, 2)
     event_model.append_event(
         page_dir,
@@ -1762,7 +1763,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     Later writes may land while its immutable base document is loading. The on-demand
     view therefore names the already-observed sequence and projects no event beyond it.
     """
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -1821,7 +1822,7 @@ def test_a_comparison_view_refuses_a_future_log_boundary(server, page_dir):
 def test_state_projects_only_the_shown_and_next_revisions(server, page_dir):
     publish(page_dir, 1)
     for version in (2, 3):
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+        (page_dir / "index.html").write_text(
             PAGE.replace("<title>t</title>", f"<title>v{version}</title>")
         )
         publish(page_dir, version)
@@ -1963,7 +1964,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     registry = json.loads((page_dir / "registry.json").read_text())
     board = registry["lf-board"]["x-example"]
     publish(page_dir, version=1)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("</section>", board + "\n</section>")
     )
     publish(page_dir, version=2)
@@ -2032,7 +2033,7 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations></lf-ask></lf-task></lf-command>"
     )
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -2110,7 +2111,7 @@ def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, pa
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations></lf-ask></lf-task></lf-command>"
     )
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -2156,7 +2157,7 @@ def test_server_refuses_a_second_request_while_the_first_is_pending(server, page
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
         "</lf-operations></lf-ask></lf-task></lf-command>"
     )
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -2224,7 +2225,7 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
         "</lf-operations></lf-ask></lf-task></lf-command>"
     )
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -2280,7 +2281,7 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
     assert closed_status == 400, closed_body
     assert "already completed request" in json.loads(closed_body)["error"]
 
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         version.read_text().replace("What next?", "What next now?")
     )
     publish(page_dir, 2)
@@ -2297,7 +2298,7 @@ def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir)
@@ -2348,8 +2349,8 @@ def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
 
     first_status, first_body = ask(1)
     assert first_status == 200, first_body
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
-        (page_dir / ".fixture-versions" / "v1.html")
+    (page_dir / "index.html").write_text(
+        (page_dir / "index.html")
         .read_text()
         .replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
     )
@@ -2369,7 +2370,7 @@ def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir)
@@ -2548,7 +2549,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
         "requires": {"target": "self", "awaiting": True},
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -2643,7 +2644,7 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
         "awaiting": True,
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -2750,7 +2751,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     (page_dir / "widgets" / "lf-quota.js").write_text("export default class {}\n")
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             "</section>",
@@ -4636,7 +4637,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     """The stronger send is one comment, not a comment followed by a pause action.
     Its target is therefore checked at the comment door against the same declaration
     that rendered the control, or a forged field could pause any id on the page."""
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         PAGE.replace(
             "</section>",
@@ -4683,7 +4684,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
 def test_a_version_response_comment_requires_its_declared_exact_section(
     server, page_dir
 ):
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
@@ -4734,7 +4735,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     note. Otherwise the successor can go live without ever being checked against
     the decision that replays onto it."""
     html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    (page_dir / ".fixture-versions" / "v1.html").write_text(html)
+    (page_dir / "index.html").write_text(html)
     publish(page_dir)
     (page_dir / "index.html").write_text(
         html.replace("<title>t</title>", "<title>next</title>")

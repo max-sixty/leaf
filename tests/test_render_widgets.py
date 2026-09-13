@@ -91,7 +91,6 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
-    stamp_version_file,
     take_browser_errors,
     told,
     undo,
@@ -7697,14 +7696,15 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     # had the blocks in question.
     expect(page.locator("#cd-q .lf-conversation-msg")).to_have_count(2)
 
-    (d / ".fixture-versions" / "v2.html").write_text(
+    stamp_page(
+        d,
         CONVERSATION_DIFF_PAGE.replace(
             '<p id="cd-lede">The south pair is up and drawing traffic.</p>',
             '<p id="cd-lede">The south pair is up and drawing traffic.</p>\n'
             '<p id="cd-new">The north pair waits on brackets.</p>',
-        )
+        ),
+        "two",
     )
-    stamp_version_file(d, 2, "two")
     wait_for_revision(page, 2)
     expect(page.locator("#cd-q .lf-conversation-msg")).to_have_count(2)
 

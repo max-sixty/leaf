@@ -110,6 +110,8 @@ window.addEventListener("message", (event) => {
 
 
 def test_process_state_waits_for_a_serialized_activation(page_dir, monkeypatch):
+    initial = activate_source(page_dir, read_events(page_dir))
+    assert initial.error is None and initial.revision == 1
     pages = ProcessPageServer()
     selected = threading.Event()
     answer = {}
@@ -152,6 +154,8 @@ def test_process_state_waits_for_a_serialized_activation(page_dir, monkeypatch):
 
 
 def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
+    initial = activate_source(page_dir, read_events(page_dir))
+    assert initial.error is None and initial.revision == 1
     append_event(
         page_dir,
         {
@@ -403,7 +407,7 @@ window.authoredModulePattern = (/api/);
         )
     )
     activated = activate_source(page_dir, read_events(page_dir))
-    assert activated.error is None and activated.revision == 2
+    assert activated.error is None and activated.revision == 1
     pages = ProcessPageServer()
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     errors = []
@@ -820,12 +824,12 @@ def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_
         )
     )
     activated = activate_source(page_dir, read_events(page_dir))
-    assert activated.error is None and activated.revision == 2
+    assert activated.error is None and activated.revision == 1
     (page_dir / "registry.json").write_text("{broken candidate")
     (styles / "palette.css").write_text("#plan h2 { color: red; }")
     (assets / "badge.svg").write_text("not the captured image")
     _, private = app_snapshot(str(page_dir))
-    assert private["revision"] == 2
+    assert private["revision"] == 1
     assert private["source_error"]
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     try:

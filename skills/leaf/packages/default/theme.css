@@ -133,14 +133,9 @@
       scrollbar-gutter: stable;
     }
     .lf-pane-body[data-lf-reading-region] {
+      --lf-reading-region-rail: 44px;
       position: relative;
       padding-inline-end: calc(14px + var(--lf-reading-region-rail));
-    }
-    /* The layer gate holds this literal to chrome-layout's covering boundary. */
-    @media screen and (not (width <= 840px)) {
-      .lf-pane-body[data-lf-reading-region] {
-        --lf-reading-region-rail: 44px;
-      }
     }
   }
 }

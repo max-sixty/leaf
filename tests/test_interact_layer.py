@@ -936,9 +936,6 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     layout = (runtime / "chrome-layout.js").read_text()
     trays = (runtime / "trays.js").read_text()
     presentation = (runtime / "presentation.js").read_text()
-    default_sheet = (
-        schema_model.SKILL_ROOT / "packages" / "default" / "theme.css"
-    ).read_text()
     sheet = (schema_model.ASSETS / "theme.css").read_text() + (
         runtime / "chrome.css"
     ).read_text()
@@ -949,7 +946,6 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     panel = int(constant(r"^export const THREAD_PANEL_W = (\d+);", layout))
     tray = int(constant(r"^const TRAY_SLOT_W = (\d+);", trays))
     assert 'covers: () => key !== "asks" || trayCovers(),' in trays
-    assert f"(not (width <= {panel * 2}px))" in default_sheet
     for spelling in (
         f"(width <= {panel * 2}px)",
         f"(width > {panel * 2}px)",

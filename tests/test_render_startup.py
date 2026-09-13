@@ -3389,7 +3389,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the banner above already says.
     expect(receipts).to_have_count(2)
-    expect(held_receipt).to_have_text("● Active — reading the reconnect traces")
+    expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
+        "● Active — reading the reconnect traces"
+    )
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(held_receipt).to_have_count(1)
     expect(other_receipt).to_have_count(1)
@@ -3419,7 +3421,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head '
         f'> .lf-receipt[data-receipt-id="{followup["id"]}"]'
     )
-    expect(held_receipt).to_have_text("● Active — reading the reconnect traces")
+    expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
+        "● Active — reading the reconnect traces"
+    )
     expect(followup_receipt).to_contain_text("✓ Sent")
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"

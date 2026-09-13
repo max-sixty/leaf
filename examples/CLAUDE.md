@@ -48,12 +48,14 @@ under `versions/` remain historical inputs only when the page's version story us
 
 The nightly run uses this corpus in two ways. Page-sensitive contracts run every
 public example, the feature gallery, and the generated corpus: each renders in both
-palettes, passes axe, and exports with its scripts gone. Authored-content sweeps
-quote every source passage and resolve anchors written from every source file.
-Shared runtime mechanisms use causal representatives instead of repeating the same
-gesture over every page, and each representative has a non-vacuity floor naming the
-reason it stands there. A widget that stands in no source page is one the
-whole-page contracts have never seen, and its own green tests read as coverage.
+palettes, passes axe, and exports with its scripts gone. Authored-content sweeps quote
+a compact set of source pages covering every native passage tag, the sweep's four
+representative direct-text widget roots, and wholly projected data pages, then resolve
+anchors written from every source file. Shared runtime mechanisms use causal
+representatives instead of repeating the same gesture over every page, and each
+representative has a non-vacuity floor naming the shapes it stands for. A widget
+that stands in no source page is one the whole-page contracts have never seen, and its
+own green tests read as coverage.
 
 `test_every_widget_in_the_vocabulary_stands_in_a_corpus_source` is the floor. It
 reads the widget list off the registry and the package list off `layer.json`

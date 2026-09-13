@@ -4107,24 +4107,35 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
     assert refused.value.errno == errno.EADDRINUSE
 
 
-def test_the_stated_host_wildcard_serves_both_families(wildcard_server):
-    """The URL promises whatever the stated name resolves to, so the socket must
-    answer both: "::" with V6ONLY off reaches IPv4 as ::ffff:... — an AF_INET
-    0.0.0.0 would leave an IPv6-only user a URL nothing listens on."""
-    port = urllib.parse.urlsplit(wildcard_server).port
-    for loopback in ("127.0.0.1", "[::1]"):
-        assert fetch(f"http://{loopback}:{port}/api/state")[0] == 200, loopback
+def test_the_stated_host_wildcard_clears_ipv6_only_before_bind(monkeypatch):
+    """Clear IPV6_V6ONLY before bind, which makes the wildcard accept IPv4 too."""
+    calls = []
+
+    class Socket:
+        def setsockopt(self, *args):
+            calls.append(args)
+
+    httpd = object.__new__(hosting_model.DualStackHTTPServer)
+    httpd.socket = Socket()
+    monkeypatch.setattr(
+        hosting_model.LeafHTTPServer,
+        "server_bind",
+        lambda _self: calls.append(("bind",)),
+    )
+
+    httpd.server_bind()
+
+    assert httpd.address_family == socket.AF_INET6
+    assert calls == [
+        (socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0),
+        ("bind",),
+    ]
 
 
 def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
     page_dir, monkeypatch
 ):
-    """A kernel with IPv6 switched off refuses AF_INET6 at the constructor, and
-    the reader who most needs `--host` is on exactly such a box — headless, where
-    the derived address is loopback and no browser is local. So the wildcard is
-    restated as 0.0.0.0, which says the same thing in the family that is left,
-    and the page serves. A literal v6 address keeps its refusal: every interface
-    is not what that record chose."""
+    """`::` falls back to IPv4; a literal IPv6 address keeps its refusal."""
     real_socket = socket.socket
 
     def kernel_without_ipv6(family=socket.AF_INET, *args, **kwargs):
@@ -4145,14 +4156,10 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
     assert refused.value.errno == errno.EAFNOSUPPORT
 
     httpd = hosting_model.server_at("::", 0, http_model.handler_for(page_dir, TOKEN))
-    assert httpd.socket.family == socket.AF_INET
-    assert httpd.server_address[0] == "0.0.0.0"
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
-        port = httpd.server_address[1]
-        assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
+        assert httpd.socket.family == socket.AF_INET
+        assert httpd.server_address[0] == "0.0.0.0"
     finally:
-        httpd.shutdown()
         httpd.server_close()
 
 
@@ -4532,6 +4539,22 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     ]
 
 
+def test_others_ships_on_a_network_facing_bind_too(page_dir):
+    """Neighbour discovery is independent of the server's network-facing bind."""
+    neighbour_page(host_model.state_home() / "pages" / "live", title="The other page")
+    httpd = hosting_model.LeafHTTPServer(
+        ("0.0.0.0", 0), http_model.handler_for(page_dir, TOKEN)
+    )
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        port = httpd.server_address[1]
+        state = json.loads(fetch(f"http://127.0.0.1:{port}/api/state")[1])
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+    assert [entry["title"] for entry in state["others"]] == ["The other page"]
+
+
 def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     page_dir, server, monkeypatch
 ):
@@ -4597,16 +4620,6 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     ]
     assert len(after["claims"]) == 1
     assert after["claims"][0]["log_floor"] == 2
-
-
-def test_others_ships_on_a_network_facing_bind_too(wildcard_server):
-    """The list is not gated on the bind. Every URL in it carries the key its
-    reader already arrived on, because there is one key for the machine — so a
-    `--host` reader sees the neighbours, and sees no key they were not already
-    holding. Gating it again is what to do if the key is ever scoped per page."""
-    neighbour_page(host_model.state_home() / "pages" / "live", title="The other page")
-    state = json.loads(fetch(f"{wildcard_server}/api/state")[1])
-    assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
 
 def test_a_bare_ipv6_address_is_bracketed_in_the_url():

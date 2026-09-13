@@ -59,7 +59,7 @@ PINS = {
     "entities": "7.0.1",
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
-    "@pierre/diffs": "1.4.1",
+    "@pierre/diffs": "1.4.2",
     "@modelcontextprotocol/ext-apps": "1.7.5",
     "@floating-ui/dom": "1.8.0",
     "@floating-ui/core": "1.8.0",

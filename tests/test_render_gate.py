@@ -11,6 +11,7 @@ import pytest
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     append_command,
+    running_http_server,
 )
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
@@ -88,7 +89,6 @@ from render_harness import (
     panel_settled,
     primed,
     resized,
-    running_http_server,
     take_browser_errors,
 )
 
@@ -2451,9 +2451,10 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
         f"the word is laid out against {measured['against']}, not the box scrolling it"
     )
     assert measured["loose"] == {"marked": True, "position": "relative"}, measured
-    assert measured["held"] == {"marked": False, "position": "relative"}, (
-        f"a box the page positioned holds its own and takes no mark: {measured}"
-    )
+    assert measured["held"] == {
+        "marked": False,
+        "position": "relative",
+    }, f"a box the page positioned holds its own and takes no mark: {measured}"
     assert (
         measured["rest"]["sideways"] == 0 and measured["scrolled"]["sideways"] == 0
     ), f"the page grew sideways reaching for the word: {measured}"

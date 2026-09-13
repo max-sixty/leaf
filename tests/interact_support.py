@@ -22,6 +22,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 import anyio
@@ -125,6 +126,32 @@ def spawn_probe(spawn, page_dir, body, **environment):
         text=True,
         env=os.environ | {"PAGE": str(page_dir)} | env,
     )
+
+
+def wait_for(read, accepts, *, failure: str, timeout: float = 10):
+    """Return the first accepted reading, or fail with the last one observed."""
+    deadline = time.monotonic() + timeout
+    while True:
+        reading = read()
+        if accepts(reading):
+            return reading
+        if time.monotonic() >= deadline:
+            pytest.fail(f"{failure}; last reading was {reading!r}")
+        time.sleep(0.05)
+
+
+@contextmanager
+def running_http_server(httpd):
+    """Serve an HTTP fixture and close every thread and socket it creates."""
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield httpd
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive(), "the fixture HTTP server did not stop"
 
 
 def pytest_configure(config):

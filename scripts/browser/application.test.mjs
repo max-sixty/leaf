@@ -391,8 +391,14 @@ test("semantic epochs include visible revision facts but not transport metadata"
   ];
   app.adopt(revisionFacts);
   assert.ok(app.read().semanticEpoch > beforeRevisionFacts);
-  assert.equal(app.read().effective.publishedAt, revisionFacts.browser.views[1].published_at);
-  assert.deepEqual(app.read().effective.updates, revisionFacts.browser.views[1].updates);
+  assert.equal(
+    app.read().effective.publishedAt,
+    revisionFacts.browser.views[1].published_at,
+  );
+  assert.deepEqual(
+    app.read().effective.updates,
+    revisionFacts.browser.views[1].updates,
+  );
 
   const stable = app.read().semanticEpoch;
   const metadata = structuredClone(revisionFacts);

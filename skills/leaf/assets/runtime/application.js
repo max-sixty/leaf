@@ -368,6 +368,7 @@ export function mountApplication(dependencies) {
   });
 
   conversation = createConversationPresentation({
+    available: dependencies.conversationAvailable ?? true,
     panelIsOpen: dependencies.panelIsOpen,
     setThreadCount: dependencies.setThreadCount,
     onConversationChanged: dependencies.onConversationChanged,

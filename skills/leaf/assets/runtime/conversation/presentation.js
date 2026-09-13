@@ -29,6 +29,7 @@ function renderHolds(threads) {
 }
 
 export function createConversationPresentation({
+  available = true,
   panelIsOpen,
   setThreadCount,
   onConversationChanged,
@@ -131,6 +132,7 @@ export function createConversationPresentation({
 
   function apply(snapshot) {
     return present(snapshot.effective.conversation, () => {
+      if (!available) return;
       if (snapshot.phase !== "ready") {
         return setUnavailable(snapshot.phase);
       }
@@ -139,11 +141,14 @@ export function createConversationPresentation({
   }
 
   function repaintCurrent() {
-    return present(readApplication().effective.conversation, () => paintCurrent());
+    return present(readApplication().effective.conversation, () => {
+      if (available) return paintCurrent();
+    });
   }
 
   function refreshNarrowing() {
     return present(readApplication().effective.conversation, () => {
+      if (!available) return;
       const threads = conversationState().all;
       const prepared = renderThreads(threads, listView);
       paintAcknowledgments();

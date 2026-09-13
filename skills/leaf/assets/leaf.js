@@ -320,6 +320,7 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
+  conversationAvailable: !offlineInteractive,
   reportPageError,
   createEngagement,
   targetChooserOpen: () => targets.targetChooserOpen(),

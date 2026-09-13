@@ -1195,6 +1195,35 @@ OFFLINE_REGISTRY = {
 }
 
 
+def test_interactive_export_with_an_ask_reaches_application_presentation(
+    browser, serve, tmp_path
+):
+    """Offline mode omits conversation chrome without leaving its ticket pending."""
+    url = serve(ROOT / "examples" / "notification-playground.html")
+    interactive = tmp_path / "interactive-with-ask.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    page = browser.new_page()
+    page.goto(interactive.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=10000
+    )
+    expect(page.locator(".lf-chrome")).to_have_count(0)
+    page.close()
+
+
 def test_interactive_export_runs_captured_local_behavior_without_a_host(
     browser, serve, tmp_path
 ):

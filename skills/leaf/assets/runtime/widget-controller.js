@@ -254,6 +254,9 @@ function createWidgetController(owner) {
     return preparationHandle;
   };
 
+  const presentPreparation = (handle, value, completion) =>
+    handle.present(value, completion, (reason) => failSoft(owner, reason));
+
   const presentRender = (reading, callbacks) => {
     const firstRender = renderedReading !== reading;
     if (firstRender) {
@@ -376,7 +379,8 @@ function createWidgetController(owner) {
     }
     if (preparation && !preparationHandle) {
       const handle = prepared();
-      if (handle) void handle.present(preparation.value, preparation.completion);
+      if (handle)
+        void presentPreparation(handle, preparation.value, preparation.completion);
     }
   };
 
@@ -506,7 +510,7 @@ function createWidgetController(owner) {
       batch.completion = completion;
       preparation = { value, completion };
       const handle = prepared();
-      if (handle) void handle.present(value, completion);
+      if (handle) void presentPreparation(handle, value, completion);
       const clear = () => {
         if (preparationBatch?.completion === completion) preparationBatch = null;
       };

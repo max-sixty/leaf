@@ -91,6 +91,18 @@ def delivered(output: str) -> tuple[dict, dict, list[dict]]:
     return payload, batch, batch["events"]
 
 
+def wait_for(read, accepts, *, failure: str, timeout: float = 10):
+    """Return the first accepted reading, or fail with the last one observed."""
+    deadline = time.monotonic() + timeout
+    while True:
+        reading = read()
+        if accepts(reading):
+            return reading
+        if time.monotonic() >= deadline:
+            pytest.fail(f"{failure}; last reading was {reading!r}")
+        time.sleep(0.05)
+
+
 def fake_codex_cli(tmp_path: Path) -> tuple[Path, Path]:
     """A process-boundary `codex queue` implementation for adapter tests."""
     program = tmp_path / "fake-codex"
@@ -1558,17 +1570,21 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
 
     observer.start()
     first_turn.set()
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline and len(clears) < 1:
-        time.sleep(0.01)
-    assert len(clears) == 1
+    wait_for(
+        lambda: len(clears),
+        lambda count: count == 1,
+        failure="the first Codex turn did not clear its stream activity",
+        timeout=5,
+    )
     assert observer.available.is_set()
 
     second_turn.set()
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline and len(clears) < 2:
-        time.sleep(0.01)
-    assert len(clears) == 2
+    wait_for(
+        lambda: len(clears),
+        lambda count: count == 2,
+        failure="the second Codex turn did not clear its stream activity",
+        timeout=5,
+    )
     assert observer.available.is_set()
     observer.stop()
 
@@ -1837,18 +1853,19 @@ def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
 
     release.set()
     assert completed.wait(timeout=5)
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        replies = [
-            event
-            for event in events_model.read_events(page_dir)
-            if event["kind"] == "reply"
-        ]
-        if replies and "reply" not in (
-            files_model.read_json(page_dir / "status.json").get("stream") or {}
-        ):
-            break
-        time.sleep(0.01)
+    replies, _ = wait_for(
+        lambda: (
+            [
+                event
+                for event in events_model.read_events(page_dir)
+                if event["kind"] == "reply"
+            ],
+            files_model.read_json(page_dir / "status.json").get("stream") or {},
+        ),
+        lambda reading: bool(reading[0]) and "reply" not in reading[1],
+        failure="the streamed reply was not committed after completion",
+        timeout=5,
+    )
 
     assert [
         (reply["parent"], reply["responds"], reply["text"], reply["attempt"])
@@ -2466,10 +2483,12 @@ def test_app_server_unexpected_notification_error_clears_availability(request):
     request.addfinalizer(observer.stop)
 
     assert sent.wait(timeout=2)
-    deadline = time.monotonic() + 2
-    while time.monotonic() < deadline and observer.available.is_set():
-        time.sleep(0.01)
-    assert not observer.available.is_set()
+    wait_for(
+        observer.available.is_set,
+        lambda available: not available,
+        failure="the notification error did not clear app-server availability",
+        timeout=2,
+    )
     assert observer.start_delivery({}) is None
     observer.stop()
     release.set()
@@ -4479,11 +4498,11 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
         env=os.environ,
     )
     lease_path = leases_model.waiter_lease_path(page_dir, host_model.host_identity())
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and not leases_model.lock_is_held(lease_path):
-        if acknowledging.poll() is not None:
-            break
-        time.sleep(0.05)
+    wait_for(
+        lambda: (leases_model.lock_is_held(lease_path), acknowledging.poll()),
+        lambda reading: reading[0] or reading[1] is not None,
+        failure="the acknowledgement neither rearmed the wait nor exited",
+    )
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path), (
@@ -5089,12 +5108,11 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
         stderr=subprocess.PIPE,
         text=True,
     )
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and not leases_model.lock_is_held(
-        page_dir / "waiter.lock"
-    ):
-        time.sleep(0.05)
-    assert leases_model.lock_is_held(page_dir / "waiter.lock")
+    wait_for(
+        lambda: leases_model.lock_is_held(page_dir / "waiter.lock"),
+        bool,
+        failure="the bare wait never took its lease",
+    )
 
     host_env = os.environ | {
         "CLAUDE_CODE_SESSION_ID": "host-owner",
@@ -5107,20 +5125,17 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
         stderr=subprocess.PIPE,
         text=True,
     )
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        claim = service_model.page_claim(page_dir)
-        if (
+    wait_for(
+        lambda: service_model.page_claim(page_dir),
+        lambda claim: bool(
             claim
             and claim["id"] == "host-owner"
             and leases_model.lock_is_held(
                 leases_model.waiter_lease_path(page_dir, claim)
             )
-        ):
-            break
-        time.sleep(0.05)
-    else:
-        pytest.fail("the host wait never claimed the page")
+        ),
+        failure="the host wait never claimed the page and took its lease",
+    )
 
     events_model.append_event(
         page_dir,
@@ -5713,13 +5728,11 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         service_model.claim_path(page), {**claim, "pid": os.getpid()}
     )
     try:
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if files_model.read_json(page / "cursor.json") == {"seq": delivered["seq"]}:
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail("the accepted delivery receipt was not recovered")
+        wait_for(
+            lambda: files_model.read_json(page / "cursor.json"),
+            lambda cursor: cursor == {"seq": delivered["seq"]},
+            failure="the accepted delivery cursor was not recovered",
+        )
 
         assert [json.loads(line) for line in log.read_text().splitlines()] == [
             ["queue", "--help"]
@@ -5728,10 +5741,11 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         session_model.cmd_status(page, "idle", "")
         with service_model.PageTransaction(page) as transaction:
             transaction.release_claim()
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and codex_model.adapter_is_live("codex-thread"):
-        time.sleep(0.05)
-    assert not codex_model.adapter_is_live("codex-thread")
+    wait_for(
+        lambda: codex_model.adapter_is_live("codex-thread"),
+        lambda live: not live,
+        failure="the Codex adapter stayed live after releasing its page",
+    )
 
 
 @pytest.mark.parametrize(
@@ -5783,16 +5797,14 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         service_model.claim_path(page), {**claim, "pid": os.getpid()}
     )
     try:
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if (
-                codex_model.adapter_is_live("codex-thread")
-                and page_state(page)["listening"]
-            ):
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail("the detached Codex carrier did not remain live")
+        wait_for(
+            lambda: (
+                codex_model.adapter_is_live("codex-thread"),
+                page_state(page)["listening"],
+            ),
+            all,
+            failure="the detached Codex carrier did not become live and listening",
+        )
 
         assert service_model.page_claim(page)["turn_closed"] is None
         events_model.append_event(
@@ -5833,15 +5845,11 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 page, {"kind": "comment", "author": "user", "text": text}
             )
             comments.append(events_model.read_events(page)[-1])
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if files_model.read_json(page / "cursor.json") == {
-                "seq": comments[-1]["seq"]
-            }:
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail("later clicks did not reach the next delivery")
+        wait_for(
+            lambda: files_model.read_json(page / "cursor.json"),
+            lambda cursor: cursor == {"seq": comments[-1]["seq"]},
+            failure="the cursor did not reach the later delivery",
+        )
 
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         assert calls[0] == ["queue", "--help"]
@@ -5872,12 +5880,13 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             # The page cursor is durable before the adapter records that receipt and
             # archives its queue. Wait for that second boundary instead of treating the
             # cursor's visibility as proof that the history move is already complete.
-            deadline = time.monotonic() + 10
-            while (
-                queue := files_model.read_json(queue_history)
-            ) is None and time.monotonic() < deadline:
-                time.sleep(0.05)
-            assert queue is not None, f"delivery did not reach history: {queue_history}"
+            queue = wait_for(
+                lambda queue_history=queue_history: files_model.read_json(
+                    queue_history
+                ),
+                lambda reading: reading is not None,
+                failure=f"the delivery did not reach history at {queue_history}",
+            )
             assert queue["state"] == "accepted"
             assert all(batch["receipted"] for batch in queue["batches"])
             payloads.append(payload)
@@ -5906,10 +5915,11 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         with service_model.PageTransaction(page) as transaction:
             transaction.release_claim()
 
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and codex_model.adapter_is_live("codex-thread"):
-        time.sleep(0.05)
-    assert not codex_model.adapter_is_live("codex-thread")
+    wait_for(
+        lambda: codex_model.adapter_is_live("codex-thread"),
+        lambda live: not live,
+        failure="the Codex adapter stayed live after finishing its deliveries",
+    )
 
 
 def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
@@ -5944,10 +5954,11 @@ def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
 
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and codex_model.adapter_is_live("codex-thread"):
-        time.sleep(0.05)
-    assert not codex_model.adapter_is_live("codex-thread")
+    wait_for(
+        lambda: codex_model.adapter_is_live("codex-thread"),
+        lambda live: not live,
+        failure="the Codex adapter stayed live with no restartable page",
+    )
     adapter_log = codex_model.adapter_log_path("codex-thread").read_text(
         encoding="utf-8"
     )
@@ -6091,12 +6102,11 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
     )
 
     try:
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline and not codex_model.adapter_is_live(
-            "codex-thread"
-        ):
-            time.sleep(0.05)
-        assert codex_model.adapter_is_live("codex-thread")
+        wait_for(
+            lambda: codex_model.adapter_is_live("codex-thread"),
+            bool,
+            failure="the Codex adapter never became live for delivery retry",
+        )
         events_model.append_event(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
@@ -6118,12 +6128,11 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
         files_model.write_json(
             service_model.claim_path(page), {**claim, "pid": dead_pid}
         )
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline and codex_model.adapter_is_live(
-            "codex-thread"
-        ):
-            time.sleep(0.05)
-        assert not codex_model.adapter_is_live("codex-thread")
+        wait_for(
+            lambda: codex_model.adapter_is_live("codex-thread"),
+            lambda live: not live,
+            failure="the Codex adapter outlived its page claim",
+        )
         assert adapter.wait(timeout=5) == 0
         assert codex_queues("codex-thread")[0][1]["state"] == "offering"
         assert files_model.read_json(page / "cursor.json") is None
@@ -6158,22 +6167,22 @@ def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
         stderr=subprocess.PIPE,
         text=True,
     )
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and not codex_model.adapter_is_live(
-        "codex-thread"
-    ):
-        time.sleep(0.05)
-    assert codex_model.adapter_is_live("codex-thread")
+    wait_for(
+        lambda: codex_model.adapter_is_live("codex-thread"),
+        bool,
+        failure="the Codex adapter never became live for the accepted receipt",
+    )
 
     events_model.append_event(
         page, {"kind": "comment", "author": "user", "text": "hello adapter"}
     )
     comment = events_model.read_events(page)[-1]
     started = queue_wait.with_name(f"{queue_wait.name}.started")
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and not started.exists():
-        time.sleep(0.05)
-    assert started.exists()
+    wait_for(
+        started.exists,
+        bool,
+        failure="the accepted receipt never entered the fake Codex queue",
+    )
 
     successor = record_claim(page, id="successor", host="codex", agent="Codex")
     queue_wait.with_name(f"{queue_wait.name}.release").write_text("", encoding="utf-8")
@@ -6223,16 +6232,14 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         service_model.claim_path(page), {**claim, "pid": os.getpid()}
     )
     try:
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if (
-                codex_model.adapter_is_live("codex-thread")
-                and page_state(page)["listening"]
-            ):
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail("the detached Codex carrier did not remain live")
+        wait_for(
+            lambda: (
+                codex_model.adapter_is_live("codex-thread"),
+                page_state(page)["listening"],
+            ),
+            all,
+            failure="the detached Codex carrier did not become live and listening",
+        )
 
         with service_model.PageTransaction(page) as transaction:
             transaction.close_turn("codex-thread")
@@ -6242,13 +6249,11 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         events_model.append_event(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if files_model.read_json(page / "cursor.json") == {"seq": 1}:
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail("the adapter did not acknowledge its batch")
+        wait_for(
+            lambda: files_model.read_json(page / "cursor.json"),
+            lambda cursor: cursor == {"seq": 1},
+            failure="the queued delivery cursor did not advance",
+        )
 
         assert service_model.page_claim(page)["turn_closed"] == closed
         queued = page_state(page)["activity"]
@@ -6262,7 +6267,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
 
 
 def test_adding_a_page_cannot_race_the_codex_adapter_exit(
-    codex_claimed_page, under_codex, codex_env, tmp_path
+    codex_claimed_page, under_codex, codex_env, tmp_path, spawn
 ):
     first = codex_claimed_page
     second = tmp_path / "second-page"
@@ -6273,27 +6278,63 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
         "FAKE_CODEX_LOG": str(log),
     }
     session_model.cmd_status(first, "waiting", "first page")
-    started = under_codex(
-        shlex.join(
-            [
-                str(launcher),
-                "codex",
-                "start",
-                str(first),
-                "--codex-path",
-                str(program),
-            ]
-        ),
-        environment,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+    start_lock = codex_model.adapter_start_lock_path("codex-thread")
+    read_gate = tmp_path / "adapter-read-gate"
+    os.mkfifo(read_gate)
+    reading = tmp_path / "adapter-reading"
+    marker = tmp_path / "adapter-final-recheck"
+    probe = """\
+from leaf import codex as codex_model
+
+native_read_watch_pass = codex_model.read_watch_pass
+native_flocked = codex_model.flocked
+finishing = False
+
+def observed_read_watch_pass(*args, **kwargs):
+    global finishing
+    reading = Path(os.environ["READING"])
+    if not reading.exists():
+        reading.write_text("reading", encoding="utf-8")
+        with open(os.environ["READ_GATE"], "rb") as gate:
+            gate.read(1)
+    reading = native_read_watch_pass(*args, **kwargs)
+    finishing = reading.outcome is not None or not reading.live
+    return reading
+
+@contextlib.contextmanager
+def observed_flocked(path, **kwargs):
+    if finishing and Path(path).resolve() == Path(os.environ["START_LOCK"]).resolve():
+        Path(os.environ["MARKER"]).write_text("requested", encoding="utf-8")
+    with native_flocked(path, **kwargs) as stream:
+        yield stream
+
+codex_model.read_watch_pass = observed_read_watch_pass
+codex_model.flocked = observed_flocked
+raise SystemExit(codex_model.run_adapter(os.environ["CODEX_PATH"]))
+"""
+    adapter = spawn_probe(
+        spawn,
+        first,
+        probe,
+        CLAUDE_CODE_SESSION_ID="",
+        CLAUDE_PID="",
+        CLAUDE_JOB_DIR="",
+        CODEX_THREAD_ID="codex-thread",
+        CODEX_PATH=program,
+        START_LOCK=start_lock,
+        READ_GATE=read_gate,
+        READING=reading,
+        MARKER=marker,
+        FAKE_CODEX_LOG=log,
     )
-    out, err = started.communicate(timeout=60)
-    assert started.returncode == 0, f"{out}{err}"
-    claim = service_model.page_claim(first)
-    files_model.write_json(
-        service_model.claim_path(first), {**claim, "pid": os.getpid()}
+    wait_for(
+        lambda: (
+            codex_model.adapter_is_live("codex-thread"),
+            page_state(first)["listening"],
+            reading.exists(),
+        ),
+        all,
+        failure="the first adapter did not begin its page read",
     )
 
     subprocess.run([launcher, "page", "init", second], check=True)
@@ -6307,10 +6348,15 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
     session_model.cmd_status(second, "waiting", "second page")
     starter = None
     try:
-        start_lock = codex_model.adapter_start_lock_path("codex-thread")
         with events_model.flocked(start_lock):
             session_model.cmd_status(first, "idle", "")
-            time.sleep(1.5)  # let the adapter reach its locked final recheck
+            with open(read_gate, "wb") as gate:
+                gate.write(b"1")
+            wait_for(
+                marker.exists,
+                bool,
+                failure="the first adapter did not reach its final start-lock recheck",
+            )
             starter = under_codex(
                 shlex.join(
                     [
@@ -6327,14 +6373,11 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            deadline = time.monotonic() + 10
-            while time.monotonic() < deadline:
-                claim = service_model.page_claim(second)
-                if claim and claim["id"] == "codex-thread":
-                    break
-                time.sleep(0.05)
-            else:
-                pytest.fail("the second start did not claim before the exit lock")
+            wait_for(
+                lambda: service_model.page_claim(second),
+                lambda claim: claim and claim["id"] == "codex-thread",
+                failure="the second start did not claim before the exit lock",
+            )
 
         out, err = starter.communicate(timeout=60)
         assert starter.returncode == 0, f"{out}{err}"
@@ -6342,16 +6385,14 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
         files_model.write_json(
             service_model.claim_path(second), {**claim, "pid": os.getpid()}
         )
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            if (
-                codex_model.adapter_is_live("codex-thread")
-                and page_state(second)["listening"]
-            ):
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail("the adapter exited after the second page joined its watch")
+        wait_for(
+            lambda: (
+                codex_model.adapter_is_live("codex-thread"),
+                page_state(second)["listening"],
+            ),
+            all,
+            failure="the adapter exited after the second page joined its watch",
+        )
     finally:
         if starter is not None and starter.poll() is None:
             starter.terminate()
@@ -6362,10 +6403,8 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
                 transaction.release_claim()
         subprocess.run([launcher, "server", "stop", second], check=True)
 
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and codex_model.adapter_is_live("codex-thread"):
-        time.sleep(0.05)
-    assert not codex_model.adapter_is_live("codex-thread")
+    out, err = adapter.communicate(timeout=60)
+    assert adapter.returncode == 0, f"{out}{err}"
 
 
 def test_failed_codex_delivery_start_restores_the_previous_page_claim(
@@ -6701,14 +6740,11 @@ def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
         text=True,
     )
 
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        session = service_model.page_claim(page) or {}
-        if session.get("id") == "leaf-watcher" and page_state(page)["listening"]:
-            break
-        time.sleep(0.05)
-    else:
-        pytest.fail("the watcher task never claimed the page and entered leaf wait")
+    wait_for(
+        lambda: (service_model.page_claim(page) or {}, page_state(page)["listening"]),
+        lambda reading: reading[0].get("id") == "leaf-watcher" and reading[1],
+        failure="the watcher task never claimed the page and entered leaf wait",
+    )
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     assert capsys.readouterr().out == ""
 
@@ -6745,14 +6781,11 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
         stderr=subprocess.PIPE,
         text=True,
     )
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        session = service_model.page_claim(page) or {}
-        if session.get("id") == "leaf-watcher-1" and page_state(page)["listening"]:
-            break
-        time.sleep(0.05)
-    else:
-        pytest.fail("the first watcher never claimed the page")
+    wait_for(
+        lambda: (service_model.page_claim(page) or {}, page_state(page)["listening"]),
+        lambda reading: reading[0].get("id") == "leaf-watcher-1" and reading[1],
+        failure="the first watcher never claimed the page and entered leaf wait",
+    )
 
     second = under_codex(
         shlex.join([str(launcher), "wait", str(page)]),
@@ -6761,14 +6794,11 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
         stderr=subprocess.PIPE,
         text=True,
     )
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        session = service_model.page_claim(page) or {}
-        if session.get("id") == "leaf-watcher-2" and page_state(page)["listening"]:
-            break
-        time.sleep(0.05)
-    else:
-        pytest.fail("the replacement watcher never claimed the page")
+    wait_for(
+        lambda: (service_model.page_claim(page) or {}, page_state(page)["listening"]),
+        lambda reading: reading[0].get("id") == "leaf-watcher-2" and reading[1],
+        failure="the replacement watcher never claimed the page and entered leaf wait",
+    )
 
     first_out, first_err = first.communicate(timeout=60)
     assert (first.returncode, first_out) == (2, ""), first_err
@@ -6806,14 +6836,11 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
         text=True,
     )
 
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        session = service_model.page_claim(page) or {}
-        if session.get("id") == "leaf-watcher-1" and page_state(page)["listening"]:
-            break
-        time.sleep(0.05)
-    else:
-        pytest.fail("the first watcher never claimed the page")
+    wait_for(
+        lambda: (service_model.page_claim(page) or {}, page_state(page)["listening"]),
+        lambda reading: reading[0].get("id") == "leaf-watcher-1" and reading[1],
+        failure="the first watcher never claimed the page before the held poll",
+    )
 
     status_path = page / "status.json"
     status_path.unlink()
@@ -6876,10 +6903,11 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         text=True,
         env=os.environ,
     )
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and not leases_model.lock_is_held(lease_path):
-        time.sleep(0.05)
-    assert leases_model.lock_is_held(lease_path)
+    wait_for(
+        lambda: leases_model.lock_is_held(lease_path),
+        bool,
+        failure="the first wait never took its exact lease",
+    )
 
     second = subprocess.run(
         [launcher, "wait", str(page_dir)],
@@ -8004,10 +8032,12 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert hosting_model.start_server(claimed)  # a real detached server to clean up
     session_model.cmd_status(claimed, "waiting", "")
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
-    deadline = time.time() + 5
-    while server_model.running_server(claimed):
-        assert time.time() < deadline, "the unclaimed session server stayed up"
-        time.sleep(0.05)
+    wait_for(
+        lambda: server_model.running_server(claimed),
+        lambda running: not running,
+        failure="the unclaimed session server stayed up after session end",
+        timeout=5,
+    )
     assert files_model.read_json(claimed / "status.json")["state"] == "waiting"
     assert files_model.read_json(claimed / "service.json")["enabled"] is True
     claim = service_model.page_claim(claimed)
@@ -8041,10 +8071,12 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     assert presence_model.presence(page_dir, [])["session_alive"] is True
 
     (job / "state.json").unlink()
-    deadline = time.time() + 5
-    while server_model.running_server(page_dir):
-        assert time.time() < deadline, "the deleted job's server stayed up"
-        time.sleep(0.05)
+    wait_for(
+        lambda: server_model.running_server(page_dir),
+        lambda running: not running,
+        failure="the background-job server stayed up after its job was deleted",
+        timeout=5,
+    )
     assert service_model.owned_pages("bg-job") == []
     assert presence_model.presence(page_dir, [])["session_alive"] is False
 
@@ -8328,10 +8360,12 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     stopping = threading.Thread(target=stop)
     stopping.start()
     try:
-        deadline = time.time() + 5
-        while files_model.read_json(page_dir / "service.json")["enabled"]:
-            assert time.time() < deadline, "server stop never disabled the service"
-            time.sleep(0.01)
+        wait_for(
+            lambda: files_model.read_json(page_dir / "service.json")["enabled"],
+            lambda enabled: not enabled,
+            failure="server stop never disabled the service",
+            timeout=5,
+        )
         returned_while_paused = not stopping.is_alive()
     finally:
         os.kill(server.pid, signal.SIGCONT)

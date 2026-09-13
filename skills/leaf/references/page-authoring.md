@@ -164,9 +164,8 @@ and nothing distinguishes the two, so the words may land in either — the reade
 no node and the page is in order, but give either element an `id` if which is which
 matters. Where it differs, the stable live address
 opens a fresh document, because a running document cannot evaluate a module twice or
-redefine an element; reading position, recoverable drafts, comparison, and a still-valid
-authored standing are restored explicitly, while element instances and arbitrary module
-state do not cross. Either way Leaf waits while a reader is composing, dragging, or has
+redefine an element; reading position, recoverable drafts, and comparison are restored
+explicitly, while element instances, focus, and arbitrary module state do not cross. Either way Leaf waits while a reader is composing, dragging, or has
 an unresolved delivery.
 
 Prose, styling, media, and markup are not code, so revising them costs a reader nothing.

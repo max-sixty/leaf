@@ -2922,53 +2922,6 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         page.close()
 
 
-def test_live_activation_revalidates_control_meaning_and_consumes_the_handoff(
-    browser, serve
-):
-    """A surviving id cannot transfer focus to a changed action, or replay it later.
-
-    Each revision here changes the page's own code, which is the one thing a live
-    document cannot take on, so every one of them arrives in a fresh document and the
-    reader's standing crosses through the handoff or not at all.
-    """
-    first = executable_revision(
-        leaf_page(
-            "First action",
-            '<h1>Review</h1><button id="operation" type="button">Inspect</button>',
-        ),
-        "one",
-    )
-    second = (
-        first.replace("First action", "Second action")
-        .replace(">Inspect</button>", ">Publish</button>")
-        .replace('"one"', '"two"')
-    )
-    page = open_page(browser, live_url(serve(first)))
-    operation = page.get_by_role("button", name="Inspect", exact=True)
-    operation.focus()
-    expect(operation).to_be_focused()
-
-    (serve.page_dir / "index.html").write_text(second)
-    wait_for_revision(page, 2)
-    expect(page.get_by_role("button", name="Publish", exact=True)).not_to_be_focused()
-    assert page.evaluate("document.activeElement === document.body")
-
-    # An unchanged action does retain focus across a subsequent live revision.
-    page.get_by_role("button", name="Publish", exact=True).focus()
-    (serve.page_dir / "index.html").write_text(
-        second.replace("Second action", "Third action").replace('"two"', '"three"')
-    )
-    wait_for_revision(page, 3)
-    expect(page.get_by_role("button", name="Publish", exact=True)).to_be_focused()
-
-    # Its one-use handoff must not restore that action on an ordinary reload.
-    page.locator("h1").click()
-    page.reload()
-    page.wait_for_function(BOTH_STAMPS)
-    assert page.evaluate("document.activeElement === document.body")
-    page.close()
-
-
 def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
     """Composition reads the control inside a widget's shadow tree, not its host."""
     version_url = serve(LIVE_V1)

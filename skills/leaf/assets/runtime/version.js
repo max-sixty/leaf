@@ -57,13 +57,15 @@
  * version address with `?pin`, and it stays at the revision it was pinned at while
  * offering the newest-version chip. The view record carries reading position and the
  * decision-walk landmark across navigation. A reload install additionally carries a
- * one-use handoff containing that reading, the standing comparison, and the authored
- * or retained runtime control the reader held. The new document restores a control only
- * when its owner and meaning survive. Otherwise it restores the surviving authored
- * owner or leaves focus on the page. Explicit historical travel carries neither focus
- * nor a selection. Durable drafts and stored chrome arrangement use their existing
- * stores; transient retained chrome revalidates its own semantic handoff. Native
- * selections and arbitrary module state never cross documents.
+ * one-use handoff containing that reading, the standing comparison, the pointer, and the
+ * margin's own retained standing, which is keyed by the entries and owners it names
+ * rather than by where anything sat. Focus on the page is not in it: an authored control
+ * has no identity a new document could be sure it had found again, only a shape — an
+ * owner's id, a tag, a class, a count among its siblings, a string of its words — and a
+ * guess that lands on the wrong control hands it the reader's next press. Focus goes to
+ * the page instead, where its keys are live. Explicit historical travel carries neither
+ * focus nor a selection. Durable drafts and stored chrome arrangement use their existing
+ * stores. Native selections and arbitrary module state never cross documents.
  *
  * The handoff is scoped to this page and consumed once, even when a newer revision
  * overtakes the one that triggered navigation. Ordinary reloads and history travel
@@ -81,12 +83,9 @@
  * back navigation. `landArrival` applies that ranking only after final page geometry is
  * available.
  *
- * Historical travel preserves directional continuity without claiming the reader still
- * stands on a control. A reload install restores only the reader's revalidated standing,
- * after authoritative presentation, so a changed control cannot inherit their next press.
- * A patch answers the same question by holding still: focus the revision did not disturb
- * is never restored because it was never lost, and standing is put back only where the
- * replaced control dropped it.
+ * Neither install claims the reader still stands on a control. A patch does not have to
+ * claim it: focus the revision did not disturb was never lost, because the control is
+ * the same element. A reload cannot, so it does not try.
  *
  * Served identity is read before boot mutates the document, and it includes what each
  * declared widget in this page was written as, one digest per id, decided by the capture
@@ -155,7 +154,6 @@ import {
 } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
-import { focusDestination } from "./focus.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButCommandReference } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
@@ -1373,7 +1371,6 @@ export function createVersionController({
   // be carried across anything.
   async function activateRevision(doc, target) {
     const view = captureView();
-    const standing = captureStanding();
     // A pending selection is standing too: cancel its old-document request before the
     // authored page changes, then restore that base against the arriving revision.
     const comparedFrom = selectedBase();
@@ -1461,11 +1458,10 @@ export function createVersionController({
     await settlePageInterface();
     syncLayout();
     restoreView(view);
-    // Standing restores only where the reader let go of it. A patch that kept the
-    // control they held leaves focus exactly where it was, and `restoreStanding`
-    // stands down for it; one that replaced the control leaves focus on `body`, which
-    // is the case this answers.
-    restoreStanding(standing);
+    // Focus is not restored, because a patch does not take it: a control the revision
+    // kept is the same element, still holding it. One the revision replaced drops it to
+    // `body`, where the page's own keys are live, which is the honest answer for a
+    // reader whose control the revision took away.
     if (comparedFrom !== null) showComparison(comparedFrom);
     // The same words the fresh document says on arrival. The page changing under a
     // reader is the thing announced, and which install carried it is not their business.
@@ -1547,7 +1543,6 @@ export function createVersionController({
         revision: target.revision,
         url: location.href,
         view,
-        standing: captureStanding(),
         retainedStanding: captureRetainedStanding(),
         comparison: selectedBase(),
         pointer: pointerAt(),
@@ -1845,73 +1840,6 @@ export function createVersionController({
     watchReadingRegionTransitions(readingRegionTransition);
   }
 
-  // Standing is an authored owner and a control, not a saved DOM node. Match the control's
-  // declared role, form identity, and words as well as its location so a replacement or
-  // reordered action cannot receive the next press intended for its predecessor.
-  const controlMeaning = (control) =>
-    JSON.stringify([
-      control.localName,
-      ...[
-        "role",
-        "type",
-        "name",
-        "value",
-        "aria-label",
-        "href",
-        "target",
-        "formaction",
-        "formmethod",
-      ].map((name) => control.getAttribute(name)),
-      control.matches("button, a, input, select, textarea, [role]")
-        ? control.textContent
-        : null,
-    ]);
-
-  function captureStanding() {
-    const held = focused();
-    if (!held || held === document.body || inChrome(held)) return null;
-    const main = document.querySelector("body > main");
-    const place = closestAcross(held, "[id]:not(.lf-ui)");
-    if (!place || !main || !containsAcross(main, place)) return null;
-    const owner = { id: place.id, tag: place.localName };
-    if (place === held) return { ...owner, meaning: controlMeaning(held) };
-    // The first class is the one the control was built with; later ones are state the
-    // fresh control will not be wearing yet. Escaped, since an authored class need not
-    // be a bare identifier.
-    const kind = [held.localName, held.classList[0] && CSS.escape(held.classList[0])]
-      .filter(Boolean)
-      .join(".");
-    return {
-      ...owner,
-      kind,
-      index: [...place.querySelectorAll(kind)].indexOf(held),
-      meaning: controlMeaning(held),
-    };
-  }
-  // The same control where the revision kept it; the place where it kept only that; and
-  // nothing where it kept neither — a reader whose item the revision removed is standing
-  // nowhere, and body, where the page's own keys are live, is the honest answer.
-  function restoreStanding(standing) {
-    if (!standing) return;
-    // A reader who focused something during startup has already chosen another place.
-    const held = focused();
-    if (held && held !== document.body) return;
-    const place = elementById(standing.id);
-    if (!place || place.localName !== standing.tag || inChrome(place)) return;
-    const control =
-      standing.kind === undefined
-        ? place
-        : (place.querySelectorAll(standing.kind)[standing.index] ?? place);
-    if (
-      control &&
-      controlMeaning(control) === standing.meaning &&
-      !control.matches(":disabled, [aria-disabled='true']")
-    )
-      focusDestination(control);
-    else if (!place.matches("button, a, input, select, textarea, [role]"))
-      focusDestination(place);
-  }
-
   function installArrival() {
     installReadingContinuity();
     // Ordinary reload and history travel belong to the browser. The root is its document
@@ -1959,8 +1887,7 @@ export function createVersionController({
       if (handoff) {
         restorePointer(handoff.pointer);
         restoreView(handoff.view);
-        if (!restoreRetainedStanding(handoff.retainedStanding))
-          restoreStanding(handoff.standing);
+        restoreRetainedStanding(handoff.retainedStanding);
         if (handoff.comparison !== null && stamped(handoff.comparison))
           showComparison(handoff.comparison);
         return;

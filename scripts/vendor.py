@@ -60,7 +60,7 @@ PINS = {
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.4.2",
-    "@modelcontextprotocol/ext-apps": "1.7.5",
+    "@modelcontextprotocol/ext-apps": "2.0.0",
     "@floating-ui/dom": "1.8.0",
     "@floating-ui/core": "1.8.0",
     "@floating-ui/utils": "0.2.12",

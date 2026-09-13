@@ -19,6 +19,7 @@ from leaf.mcp_page import (
 )
 from leaf.mcp_server import make_mcp_server
 from leaf.revisioning import activate_source
+from vendor import PINS
 
 
 def activate(page_dir, html=PAGE):
@@ -217,7 +218,14 @@ def test_shipped_adaptive_app_is_one_self_contained_html_blob():
     assert "LEAF_MCP_STYLE" not in page
     assert "LEAF_MCP_SCRIPT" not in page
     assert "LEAF_MCP_ICON" not in page
-    assert "@modelcontextprotocol/ext-apps 1.7.5" in page
+    # The version comes from the pin rather than a number written here, for the
+    # reason `vendor.py` states over PINS: a second copy is what lets the tracked
+    # bytes and the pin disagree. Written out, this assertion only ever failed
+    # because someone bumped the pin, and passed again once they retyped it here.
+    assert (
+        f"@modelcontextprotocol/ext-apps {PINS['@modelcontextprotocol/ext-apps']}"
+        in page
+    )
     assert '<script src="' not in page
     assert '<link rel="stylesheet"' not in page
     assert "leaf_refresh" in page

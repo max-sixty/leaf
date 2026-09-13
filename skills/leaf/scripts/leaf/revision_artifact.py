@@ -106,7 +106,24 @@ class RevisionArtifact:
     @cached_property
     def executable(self) -> str:
         """This revision's identity as executable code, decided once at capture."""
-        return json.loads(self.manifest)["executable"]
+        return manifest_executable(json.loads(self.manifest))
+
+
+def manifest_executable(manifest: dict) -> str:
+    """The digest a revision was captured with, or a refusal that says why there is none.
+
+    Capture has written this field since the browser learned to take a revision on in
+    place, and a revision saved before that carries a manifest without it. Every served
+    document reads it, so the bare lookup failure landed as a 500 on a page's whole
+    version history and named nothing a reader or an agent could act on.
+    """
+    try:
+        return manifest["executable"]
+    except KeyError:
+        raise ArtifactError(
+            "this revision was captured before revisions recorded what they are as "
+            "executable code; save the page again to record it"
+        ) from None
 
 
 def resolve_dependency(specifier: str, importer: str, *, module=False) -> str:
@@ -567,6 +584,24 @@ def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
         file_stamp(bundle),
         manifest_stamp,
     )
+
+
+def read_manifest(page_dir: Path, revision: int) -> dict:
+    """One revision's manifest, without materializing the resources beside it.
+
+    ``read_artifact`` reads every captured byte of a revision, which is what a caller
+    serving one needs and what a caller reading a single manifest field pays for on a
+    cache miss. The active descriptor is that second caller, and it answers every state
+    read.
+    """
+    bundle = revision_path(page_dir, revision).absolute().with_suffix("")
+    manifest_path = bundle / "manifest.json"
+    return _read_manifest_stamped(manifest_path, file_stamp(manifest_path))
+
+
+@lru_cache(maxsize=8)
+def _read_manifest_stamped(manifest_path: Path, manifest_stamp: tuple | None) -> dict:
+    return json.loads(_read_stamped(manifest_path, manifest_stamp))
 
 
 @lru_cache(maxsize=8)

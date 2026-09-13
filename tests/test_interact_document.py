@@ -248,6 +248,29 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     assert reissued.executable != restamped.executable
 
 
+def test_a_revision_saved_before_the_executable_digest_says_so(page_dir):
+    """A page whose history predates this field still serves its own version list.
+
+    Every delivered document reads the digest, so a manifest without one turned a
+    revision saved by an older Leaf into a 500 on the whole page — and the failure
+    named a missing dictionary key, which is a bug report against Leaf rather than
+    something a reader or an agent can do anything about. Saving the page again
+    records it.
+    """
+    (page_dir / "index.html").write_text(PAGE, encoding="utf-8")
+    revision = files_model.require_revision(page_dir)
+    manifest_path = (
+        files_model.revision_path(page_dir, revision).with_suffix("") / "manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["executable"]
+
+    with pytest.raises(artifact_model.ArtifactError) as refusal:
+        artifact_model.manifest_executable(manifest)
+    assert "captured before" in str(refusal.value)
+    assert "save the page again" in str(refusal.value)
+
+
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
     authored = page_dir / "page"
     (authored / "value.js").write_text("export const value = 1;")

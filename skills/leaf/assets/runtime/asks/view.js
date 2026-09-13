@@ -142,6 +142,7 @@ import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { ASK_AT } from "./tray-list.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
 import { PRESENTATION } from "../presentation.js";
+import { retainReaderIntent } from "../reader-intent.js";
 import {
   attachApplicationPresentation,
   failSoftAfterRetention,
@@ -1050,9 +1051,12 @@ export function createAskView({
     // before the reveal and focus land; otherwise the correct navigation happens
     // invisibly behind the very sheet that offered it.
     if (!inChrome(next) && trayIsOpen("asks") && trayCovers()) setOpenTray(null);
+    const mayArrive = retainReaderIntent();
     await reveal(next); // a settled group or an inactive tab has no geometry until it opens
+    if (!mayArrive() || !next.isConnected) return false;
     const source = askSource(next);
     if (source !== next) await reveal(source); // let the answering widget settle its own chrome
+    if (!mayArrive() || !next.isConnected || !source.isConnected) return false;
     landed = next;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the reader is standing, rather than both saying the second.
@@ -1084,6 +1088,7 @@ export function createAskView({
     }
     const state = unansweredAsks().includes(next) ? "waiting on you" : "answered";
     announce(walkPositionLabel("Ask", asks.indexOf(next) + 1, asks.length, state));
+    return true;
   }
 
   function goToAsk(next, asks) {
@@ -1096,13 +1101,20 @@ export function createAskView({
     const asks = openAsks();
     if (!asks.length) return;
     const next = askStep(asks, dir);
-    goToAsk(next, asks);
-    beginWalk("ask", "Ask", () =>
-      listWalkPosition(openAsks(), standingIn(), {
-        identity: (ask) => ask.id,
-        qualifier: "open",
-      }),
-    );
+    const begin = () =>
+      beginWalk("ask", "Ask", () =>
+        listWalkPosition(openAsks(), standingIn(), {
+          identity: (ask) => ask.id,
+          qualifier: "open",
+        }),
+      );
+    // The walk reads the standing destination, so begin it after asynchronous reveal
+    // has moved focus. A failed reveal has not arrived and must not register the prior
+    // focused Ask as this walk's destination.
+    const ready = goToAsk(next, asks).then((arrived) => {
+      if (arrived) begin();
+    });
+    void ready.catch(() => {});
   }
 
   const answered = () => {
@@ -1158,6 +1170,7 @@ export function createAskView({
     markHere,
     goToAsk,
     stepAsk,
+    restoreTrayFocus: (id) => asksList.focusAfterPaint(id),
     landedAt: () => landed,
     setLanded: (value) => (landed = value),
   };

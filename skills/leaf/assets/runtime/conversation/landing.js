@@ -34,6 +34,7 @@ import { threadsBox } from "./panel-elements.js";
 import { reachedForWords } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
 import { SAYS_IN, SAY_BOX } from "./selectors.js";
+import { retainReaderIntent } from "../reader-intent.js";
 
 export { SAY_BOX } from "./selectors.js";
 const conversationReturns = new WeakMap();
@@ -143,20 +144,13 @@ function prepareLanding({ held = null, box, route = null }) {
   return { held, box };
 }
 
-// A completion may navigate only until the reader's next gesture or focus moves
-// elsewhere. Replacing its control can drop focus to body without a new intent.
-let landingIntent = 0;
-const leaveLanding = () => landingIntent++;
-for (const type of ["pointerdown", "keydown", "input", "wheel"])
-  addEventListener(type, leaveLanding, { capture: true, passive: true });
-addEventListener("blur", leaveLanding);
 const retainLanding = (source, available, fallback = null) => {
-  const intent = landingIntent;
+  const retained = retainReaderIntent();
   return () => {
     const at = focused();
     return (
       available() &&
-      intent === landingIntent &&
+      retained() &&
       (at === document.body || at === fallback || source.contains(at))
     );
   };

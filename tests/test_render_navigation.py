@@ -1694,6 +1694,77 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     assert errors == []
 
 
+def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
+    """A rejected reveal neither advances nor marks the existing Ask walk."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    position = page.locator(".lf-walk-position")
+    page.keyboard.press("a")
+    expect(position).to_have_text("Ask 1 of 4 open")
+    page.evaluate(
+        """async () => {
+          const {attachApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          window.failedAskRegion = attachApplicationPresentation('ask-reveal-probe', {});
+          const held = new Promise((_resolve, reject) => {
+            window.rejectAskReveal = reject;
+          });
+          document.querySelector('#sug-refill').addEventListener('lf-reveal', event => {
+            const ready = failedAskRegion.present(null, held);
+            ready.then(() => {}, () => { window.askRevealRejected = true; });
+            event.detail.present(ready);
+            window.askRevealStarted = true;
+          }, {once: true});
+        }"""
+    )
+    try:
+        page.keyboard.press("a")
+        page.wait_for_function("window.askRevealStarted === true", timeout=3000)
+        expect(page.locator("#live-question-decision")).to_be_focused()
+        page.evaluate("() => { rejectAskReveal(new Error('ask reveal probe')); }")
+        page.wait_for_function("window.askRevealRejected === true", timeout=3000)
+        shortcut_bar_text(page)
+        assert position.text_content() == "Ask 1 of 4 open"
+        assert position.get_attribute("data-lf-boundary") is None
+        expect(page.locator("#live-question-decision")).to_be_focused()
+        assert errors == ["leaf: Presentation failed: ask reveal probe"]
+    finally:
+        page.evaluate("failedAskRegion.disconnect()")
+        round_trip(page)
+        page.close()
+
+
+def test_a_delayed_ask_reveal_yields_to_the_readers_new_destination(browser, serve):
+    """A completed old reveal cannot steal focus or register an Ask arrival."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    position = page.locator(".lf-walk-position")
+    page.keyboard.press("a")
+    expect(page.locator("#live-question-decision")).to_be_focused()
+    expect(position).to_have_text("Ask 1 of 4 open")
+    page.evaluate(
+        """() => {
+          const held = new Promise(resolve => { window.releaseAskReveal = resolve; });
+          held.then(() => { window.askRevealSettled = true; });
+          document.querySelector('#sug-refill').addEventListener('lf-reveal', event => {
+            event.detail.present(held);
+            window.askRevealStarted = true;
+          }, {once: true});
+        }"""
+    )
+
+    page.keyboard.press("a")
+    page.wait_for_function("window.askRevealStarted === true", timeout=3000)
+    page.locator(".lf-threads-toggle").click()
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    page.evaluate("releaseAskReveal()")
+    page.wait_for_function("window.askRevealSettled === true", timeout=3000)
+    page.evaluate(RENDERED)
+
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    assert position.text_content() == "Ask 1 of 4 open"
+    assert position.get_attribute("data-lf-boundary") is None
+    assert errors == []
+
+
 def test_a_questions_digits_are_drawn_whole(browser, serve):
     """A binding badge arrives into room its option already holds, and lands on nothing.
 
@@ -2789,10 +2860,8 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     assert errors == []
 
 
-def test_a_hovered_thread_rebinds_to_a_replaced_anchor(browser, serve):
-    """A live version replaces the authored nodes but keeps the thread and its anchor.
-    With the pointer parked on that card, the semantic hover id does not change; its
-    Range still must move from the detached v1 text node onto the connected v2 one."""
+def test_a_hovered_thread_rebinds_after_fresh_revision_activation(browser, serve):
+    """A fresh revision drops heap-local hover, then resolves it against its own text."""
     url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
     page, errors = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
@@ -2800,14 +2869,6 @@ def test_a_hovered_thread_rebinds_to_a_replaced_anchor(browser, serve):
     point = card_body(page, "About this bit.")
     page.mouse.move(*point)
     wait_hovered(page, "bold text")
-    page.evaluate(
-        "() => { window.__lfOldHoverNode = "
-        "[...CSS.highlights.get('lf-mark-hover')][0].startContainer; }"
-    )
-    # Keep the same live card under the pointer throughout the swap. This isolates the
-    # anchor pass's record replacement from the view transition's temporary snapshots.
-    page.evaluate("() => { document.startViewTransition = undefined; }")
-
     v2 = INLINE_PAGE.replace(
         "<strong>bold text</strong>", '<span data-v2="true">bold text</span>'
     )
@@ -2815,24 +2876,26 @@ def test_a_hovered_thread_rebinds_to_a_replaced_anchor(browser, serve):
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
     page.wait_for_selector('[data-v2="true"]')
+    wait_hovered(page, "")
+    page.mouse.move(0, 0)
+    page.mouse.move(*card_body(page, "About this bit."))
     wait_hovered(page, "bold text")
     state = page.evaluate("""() => {
         const range = [...CSS.highlights.get('lf-mark-hover')][0];
         return {
-            oldConnected: window.__lfOldHoverNode.isConnected,
             text: range?.toString() ?? null,
-            rebound: Boolean(range && range.startContainer !== window.__lfOldHoverNode),
             connected: Boolean(range?.startContainer.isConnected),
+            inV2: Boolean(document.querySelector('[data-v2="true"]')
+              ?.contains(range?.startContainer)),
             card: document.querySelector('.lf-thread')?.classList.contains('lf-mark-hover'),
         };
     }""")
     assert state == {
-        "oldConnected": False,
         "text": "bold text",
-        "rebound": True,
         "connected": True,
+        "inV2": True,
         "card": True,
-    }, f"the parked hover did not move from the detached v1 anchor to v2: {state}"
+    }, f"the fresh hover did not resolve against the v2 anchor: {state}"
     expect(page.locator(".lf-thread")).to_have_class(re.compile(r"\blf-mark-hover\b"))
     assert errors == []
 
@@ -4068,6 +4131,51 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.type("gc1")
     expect(ta1).to_have_value("gc1")
     expect(ta1).to_be_focused()
+    assert errors == []
+
+
+def test_returning_from_threads_restores_the_exact_ask(browser, serve):
+    """A repainted tray restores the Ask that was focused, not its first row."""
+    html = ADDRESSED_PAGE.replace(
+        "</main>",
+        """
+        <lf-ask id="second-ask">
+          <h2>A second question</h2>
+          <lf-options id="second-options" choose>
+            <lf-option id="second-one">First answer</lf-option>
+            <lf-option id="second-two">Second answer</lf-option>
+          </lf-options>
+        </lf-ask>
+        </main>
+        """,
+    )
+    url = serve(html)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A thread",
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1280, 800)
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    row = page.locator('.lf-asks-row[data-lf-at="second-ask"]')
+    expect(row).to_be_visible()
+    row.focus()
+    expect(row).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("Escape")
+
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    expect(row).to_be_focused()
     assert errors == []
 
 
@@ -5832,6 +5940,15 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     (d / ".fixture-versions" / "v2.html").write_text(without_passage)
     stamp_version_file(d, 2, "remove the quoted passage")
     wait_for_revision(page, 2)
+    # Narrowing is interaction-local heap state, not part of the revision handoff. The
+    # fresh document starts at Open; choosing Resolved again reveals the durable thread.
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "false"
+    )
+    page.locator('[data-filter-value="resolved"]').click()
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).to_have_class(re.compile(r"\bdetached\b"))
     expect(resolved_quote).to_have_attribute("aria-disabled", "true")
@@ -8267,6 +8384,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Later version")
     expect(help_el).not_to_contain_text("Earlier version")
     page.keyboard.press("Escape")
+    expect(line).to_have_attribute("data-lf-shelf-open", "true")
 
     # A v2 lands and the live page follows it; on v2 the menu's own keys are
     # live, having a list to walk and a base to walk onto.
@@ -8277,6 +8395,12 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(page.locator(".lf-version-menu")).to_have_attribute(
         "aria-keyshortcuts", "ArrowUp ArrowDown 1 2 Enter Space v"
     )
+    # A fresh document does not inherit the prior runtime's expanded shortcut shelf.
+    # The first press expands it; the second opens the current document's reference.
+    expect(line).to_have_attribute("data-lf-shelf-open", "false")
+    page.keyboard.press("?")
+    expect(line).to_have_attribute("data-lf-shelf-open", "true")
+    expect(help_el).to_be_hidden()
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
     expect(help_el).to_contain_text("Later version")

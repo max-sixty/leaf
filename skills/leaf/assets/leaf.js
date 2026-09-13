@@ -622,6 +622,7 @@ const auxiliaryChrome = createAuxiliaryChromeNavigation({
   setPanel: threadPanelController.setPanel,
   setOpenTray: trays.setOpenTray,
   openInlineThread: app.margin.openInlineThread,
+  restoreAskFocus: asks.restoreTrayFocus,
 });
 goToSequence = createGoToSequence({
   panelIsOpen,

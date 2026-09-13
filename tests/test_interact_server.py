@@ -4107,8 +4107,8 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
     assert refused.value.errno == errno.EADDRINUSE
 
 
-def test_the_stated_host_wildcard_is_dual_stack(monkeypatch):
-    """The IPv6 wildcard accepts both address families when the kernel has IPv6."""
+def test_the_stated_host_wildcard_clears_ipv6_only_before_bind(monkeypatch):
+    """Clear IPV6_V6ONLY before bind, which makes the wildcard accept IPv4 too."""
     calls = []
 
     class Socket:
@@ -4537,6 +4537,22 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             },
         },
     ]
+
+
+def test_others_ships_on_a_network_facing_bind_too(page_dir):
+    """Neighbour discovery is independent of the server's network-facing bind."""
+    neighbour_page(host_model.state_home() / "pages" / "live", title="The other page")
+    httpd = hosting_model.LeafHTTPServer(
+        ("0.0.0.0", 0), http_model.handler_for(page_dir, TOKEN)
+    )
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        port = httpd.server_address[1]
+        state = json.loads(fetch(f"http://127.0.0.1:{port}/api/state")[1])
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+    assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
 
 def test_state_reads_claims_and_their_log_floor_in_one_transaction(

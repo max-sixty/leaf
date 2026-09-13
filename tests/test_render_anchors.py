@@ -87,7 +87,7 @@ from render_harness import (
 
 
 def passage_representatives(sources):
-    """Build a compact source set covering every widget and native passage tag."""
+    """Build compact cases that name what each selected source adds to the sweep."""
     remaining = list(sources)
     shapes = {}
     for source in remaining:
@@ -108,13 +108,13 @@ def passage_representatives(sources):
         )
         covered = shapes[source] & uncovered
         assert covered, f"no source represents passage shapes {sorted(uncovered)}"
-        representatives.append(source)
+        representatives.append((source, frozenset(covered)))
         remaining.remove(source)
         uncovered -= covered
     return tuple(representatives)
 
 
-PASSAGE_SOURCES = passage_representatives(CORPUS_SOURCES)
+PASSAGE_CASES = passage_representatives(CORPUS_SOURCES)
 
 pytestmark = pytest.mark.nightly
 
@@ -157,8 +157,14 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
     )
 
 
-@pytest.mark.parametrize("source", PASSAGE_SOURCES, ids=lambda p: p.stem)
-def test_real_page_passage_shapes_can_be_quoted(browser, serve, source):
+@pytest.mark.parametrize(
+    ("source", "expected_shapes"),
+    PASSAGE_CASES,
+    ids=[source.stem for source, _shapes in PASSAGE_CASES],
+)
+def test_real_page_passage_shapes_can_be_quoted(
+    browser, serve, source, expected_shapes
+):
     """Passages covering every authored widget and native block shape are quotable.
 
     The collection-time set cover adds a source whenever its widget vocabulary is not
@@ -234,8 +240,12 @@ def test_real_page_passage_shapes_can_be_quoted(browser, serve, source):
                 sel.removeAllRanges();
             }
         }
-        return {missed, skipped, astray};
+        return {missed, skipped, astray, count: blocks.length};
     }""")
+    assert result["count"] > 0, (
+        f"{source.stem} is the sole representative for {sorted(expected_shapes)}, "
+        "but none of its passages reached the sweep"
+    )
     assert result["missed"] == [], (
         f"{len(result['missed'])} passages in {source.stem} quote text the page "
         f"can't find: {result['missed']}"

@@ -77,9 +77,9 @@ the repo root, which is also the payload project: `uv sync` installs `leaf`
 from this checkout editable, dev group included, so a test importing `leaf`
 gets the checkout directly.
 
-Subprocess tests use `LEAF_COMMAND` from `conftest.py`. Only an installed-payload
-test invokes `bin/leaf`, because only that boundary is about the launcher's uv
-environment. `install_payload()` copies tracked and unignored candidate files,
+Subprocess tests use `LEAF_COMMAND` from `conftest.py`. A test invokes `bin/leaf` only
+where the launcher itself is the subject: the installed payload's copy, and the shim's
+own uv dispatch. `install_payload()` copies tracked and unignored candidate files,
 including unstaged additions.
 
 Because candidate payloads include untracked files, `interact_support.py` refuses

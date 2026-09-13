@@ -626,8 +626,10 @@ class AppServerClient:
         self.last_activity_update = 0.0
         self.started = False
         self.request_id = 2
-        self.requests: queue.Queue[tuple[dict, queue.Queue]] = queue.Queue()
-        self.deferred: tuple[dict, queue.Queue] | None = None
+        self.requests: queue.Queue[dict] = queue.Queue()
+        self.deferred: dict | None = None
+        self.waiter_lock = threading.Lock()
+        self.waiters: dict[str, queue.Queue] = {}
         self.bindings: dict[str, AppServerReplyStream] = {}
         self.ready: queue.Queue[BaseException | None] = queue.Queue(maxsize=1)
         self.thread = threading.Thread(
@@ -650,21 +652,25 @@ class AppServerClient:
     def stop(self) -> None:
         self.stop_event.set()
         self.available.clear()
+        self._fail_pending(RuntimeError("Codex App Server client stopped"))
         if self.socket is not None:
             self.socket.close()
         self.thread.join(timeout=3)
-        _clear_stream_activity(self.thread_id)
-        for stream in self.bindings.values():
-            stream.disconnect()
+        self._disconnect_streams()
 
     def start_delivery(self, payload: dict) -> dict | None:
         """Open a turn once this observed App Server task is idle."""
-        if not self.available.is_set():
-            return None
         answer: queue.Queue[tuple[dict | None, Exception | None]] = queue.Queue(
             maxsize=1
         )
-        self.requests.put((payload, answer))
+        with self.waiter_lock:
+            if self.stop_event.is_set() or not self.available.is_set():
+                return None
+            delivery_id = payload["id"]
+            if delivery_id in self.waiters:
+                raise RuntimeError(f"delivery {delivery_id} is already pending")
+            self.waiters[delivery_id] = answer
+            self.requests.put(payload)
         result = answer.get()
         result, error = result
         if error is not None:
@@ -722,24 +728,20 @@ class AppServerClient:
                 )
                 self.events.turn_id = active
                 _set_stream_activity(self.thread_id, active, "Working in Codex")
-            self.available.set()
+            with self.waiter_lock:
+                if self.stop_event.is_set():
+                    return
+                self.available.set()
             if not self.started:
                 self.started = True
                 self.ready.put(None)
             while not self.stop_event.is_set():
-                if self.deferred is not None and self.events.turn_id is None:
-                    request = self.deferred
-                    self.deferred = None
-                else:
+                payload = self._next_delivery()
+                if payload is not None:
                     try:
-                        request = self.requests.get_nowait()
-                    except queue.Empty:
-                        request = None
-                if request is not None:
-                    try:
-                        self._start_delivery(socket, *request)
+                        self._start_delivery(socket, payload)
                     except Exception as error:
-                        request[1].put((None, error))
+                        self._answer_delivery(payload["id"], error=error)
                         raise
                     continue
                 try:
@@ -748,7 +750,32 @@ class AppServerClient:
                     continue
                 self._read(json.loads(raw))
 
-    def _start_delivery(self, socket, payload: dict, answer: queue.Queue) -> None:
+    def _next_delivery(self) -> dict | None:
+        """Take the next scheduled delivery that still owns a live waiter."""
+        while True:
+            with self.waiter_lock:
+                if self.deferred is not None:
+                    if self.events.turn_id is not None:
+                        return None
+                    payload = self.deferred
+                    self.deferred = None
+                else:
+                    try:
+                        payload = self.requests.get_nowait()
+                    except queue.Empty:
+                        return None
+                if payload["id"] in self.waiters:
+                    return payload
+
+    def _defer_delivery(self, payload: dict) -> bool:
+        """Keep a live delivery scheduled until the provider becomes idle."""
+        with self.waiter_lock:
+            if payload["id"] not in self.waiters:
+                return False
+            self.deferred = payload
+            return True
+
+    def _start_delivery(self, socket, payload: dict) -> None:
         pending: list[dict] = []
 
         def request(method: str, params: dict) -> dict:
@@ -757,7 +784,7 @@ class AppServerClient:
             return self._send(socket, method, request_id, params, pending)
 
         if self.events.turn_id is not None:
-            self.deferred = (payload, answer)
+            self._defer_delivery(payload)
             return
         try:
             result = request(
@@ -767,27 +794,29 @@ class AppServerClient:
             self._read_pending(pending)
             if self.events.turn_id is None:
                 raise
-            self.deferred = (payload, answer)
+            self._defer_delivery(payload)
             return
         turn = result.get("turn") or {}
         if not turn.get("id"):
             raise RuntimeError("Codex App Server returned no turn id")
         self.events.restore_turn(turn)
-        self.deferred = (payload, answer)
-        observed_answer = self._read_pending(pending, defer_answer=True)
-        if observed_answer is not None:
-            observed_answer.put(({"phase": "opened", "turn": turn["id"]}, None))
+        if not self._defer_delivery(payload):
+            return
+        for delivery_id, turn_id in self._read_pending(pending, defer_answer=True):
+            self._answer_delivery(
+                delivery_id,
+                result={"phase": "opened", "turn": turn_id},
+            )
 
     def _read_pending(
         self, pending: list[dict], *, defer_answer: bool = False
-    ) -> queue.Queue | None:
+    ) -> list[tuple[str, str]]:
         """Read notifications held behind one request, in arrival order."""
-        observed_answer = None
+        observed_deliveries = []
         for message in pending:
-            observed_answer = (
-                self._read(message, defer_answer=defer_answer) or observed_answer
-            )
-        return observed_answer
+            if observed := self._read(message, defer_answer=defer_answer):
+                observed_deliveries.append(observed)
+        return observed_deliveries
 
     def _bind(self, turn_id: str, delivery_id: str, target: dict) -> None:
         self.bindings[turn_id] = AppServerReplyStream(
@@ -850,11 +879,13 @@ class AppServerClient:
         path = queue_path(self.thread_id, delivery_id)
         with flocked(delivery_lock_path(self.thread_id)):
             queue_record = read_json(path)
-        answer = self._accept_observed_delivery(turn_id, delivery_id, queue_record)
+        self._accept_observed_delivery(turn_id, delivery_id, queue_record)
         target = delivery_stream_reply_target(self.thread_id, delivery_id)
         if target is None:
-            if answer is not None:
-                answer.put(({"phase": "opened", "turn": turn_id}, None))
+            self._answer_delivery(
+                delivery_id,
+                result={"phase": "opened", "turn": turn_id},
+            )
             return
         status = turn.get("status", "failed")
         if status == "inProgress":
@@ -875,15 +906,17 @@ class AppServerClient:
                     file=sys.stderr,
                     flush=True,
                 )
-        if answer is not None:
-            answer.put(({"phase": "opened", "turn": turn_id}, None))
+        self._answer_delivery(
+            delivery_id,
+            result={"phase": "opened", "turn": turn_id},
+        )
 
     def _accept_observed_delivery(
         self,
         turn_id: str,
         delivery_id: str,
         queue_record: dict | None = None,
-    ) -> queue.Queue | None:
+    ) -> None:
         """Accept only provider evidence that carries the offered delivery id."""
         if queue_record is None:
             path = queue_path(self.thread_id, delivery_id)
@@ -891,31 +924,24 @@ class AppServerClient:
                 queue_record = read_json(path)
         if queue_record is not None and queue_record["state"] == "offering":
             accept_codex_delivery(self.thread_id, turn=turn_id)
-        if self.deferred is None or self.deferred[0]["id"] != delivery_id:
-            return None
-        _, answer = self.deferred
-        self.deferred = None
-        return answer
 
-    def _read(self, message: dict, *, defer_answer: bool = False) -> queue.Queue | None:
+    def _read(
+        self, message: dict, *, defer_answer: bool = False
+    ) -> tuple[str, str] | None:
         update = self.events.read(message)
         if update is None:
             return
         turn_id = update["turn"]
-        observed_answer = None
+        observed_delivery = None
         if message.get("method") == "turn/started":
             _open_stream_turn(self.thread_id, turn_id)
         delivery_id = app_server_delivery_id(message)
         if delivery_id is not None and turn_id not in self.bindings:
-            answer = self._accept_observed_delivery(turn_id, delivery_id)
+            self._accept_observed_delivery(turn_id, delivery_id)
             target = delivery_stream_reply_target(self.thread_id, delivery_id)
             if target is not None:
                 self._bind(turn_id, delivery_id, target)
-            if answer is not None:
-                if defer_answer:
-                    observed_answer = answer
-                else:
-                    answer.put(({"phase": "opened", "turn": turn_id}, None))
+            observed_delivery = (delivery_id, turn_id)
         self.last_activity_update = project_app_server_activity(
             self.events,
             message,
@@ -935,7 +961,13 @@ class AppServerClient:
                     file=sys.stderr,
                     flush=True,
                 )
-        return observed_answer
+        if observed_delivery is not None and not defer_answer:
+            self._answer_delivery(
+                observed_delivery[0],
+                result={"phase": "opened", "turn": observed_delivery[1]},
+            )
+            return None
+        return observed_delivery
 
     def _finish_binding(
         self, turn_id: str, state: str, text: str
@@ -944,6 +976,54 @@ class AppServerClient:
         if stream is None:
             return None
         return stream.finish(state, text)
+
+    def _fail_pending(self, error: BaseException) -> None:
+        """Return every delivery waiter owned by this client to its retry boundary."""
+        with self.waiter_lock:
+            answers = list(self.waiters.values())
+            self.waiters.clear()
+            self.deferred = None
+            while True:
+                try:
+                    self.requests.get_nowait()
+                except queue.Empty:
+                    break
+        for answer in answers:
+            answer.put((None, error))
+
+    def _answer_delivery(
+        self,
+        delivery_id: str,
+        *,
+        result: dict | None = None,
+        error: BaseException | None = None,
+    ) -> None:
+        """Resolve a delivery only after all fallible reply binding has succeeded."""
+        with self.waiter_lock:
+            answer = self.waiters.pop(delivery_id, None)
+            if self.deferred is not None and self.deferred["id"] == delivery_id:
+                self.deferred = None
+        if answer is not None:
+            answer.put((result, error))
+
+    def _disconnect_streams(self) -> None:
+        """Disconnect projections without breaking the observer recovery boundary."""
+        failures = []
+        try:
+            _clear_stream_activity(self.thread_id)
+        except Exception as error:  # noqa: BLE001
+            failures.append(error)
+        for stream in list(self.bindings.values()):
+            try:
+                stream.disconnect()
+            except Exception as error:  # noqa: BLE001
+                failures.append(error)
+        if failures:
+            print(
+                f"Codex App Server stream cleanup failed: {failures[0]}",
+                file=sys.stderr,
+                flush=True,
+            )
 
     def _run(self) -> None:
         failures = 0
@@ -955,15 +1035,8 @@ class AppServerClient:
             # notification failure may leave the adapter marked available.
             except Exception as error:  # noqa: BLE001
                 self.available.clear()
-                _clear_stream_activity(self.thread_id)
-                for stream in self.bindings.values():
-                    stream.disconnect()
-                while True:
-                    try:
-                        _, answer = self.requests.get_nowait()
-                    except queue.Empty:
-                        break
-                    answer.put((None, error))
+                self._fail_pending(error)
+                self._disconnect_streams()
                 if not self.started:
                     self.ready.put(error)
                     return

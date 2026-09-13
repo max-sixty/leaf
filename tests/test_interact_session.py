@@ -2149,17 +2149,6 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
     with pytest.raises(RuntimeError, match="already bound to another delivery"):
         conversation_model.reserve_delivery_reply("codex-thread", "delivery-2", target)
 
-    conversation_model.release_delivery_reply("codex-thread", "delivery-1", target)
-    accepted = conversation_model.cmd_reply(
-        page_dir,
-        comment["id"],
-        "Provider never started",
-        "",
-        for_event=comment["id"],
-        identity={"agent": "Codex", "session": "codex-thread"},
-    )
-    assert accepted["text"] == "Provider never started"
-
 
 def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
     comment = events_model.append_event(
@@ -2485,6 +2474,191 @@ def test_app_server_unexpected_notification_error_clears_availability(request):
     release.set()
 
 
+def test_stopping_an_app_server_client_releases_every_delivery_waiter(monkeypatch):
+    class Socket:
+        def close(self):
+            pass
+
+    class Thread:
+        def __init__(self, client):
+            self.client = client
+
+        def join(self, timeout):
+            # A request already owned by the observer may become deferred while
+            # the closing socket lets its thread finish.
+            assert not self.client._defer_delivery({"id": "deferred"})
+
+    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    observer.thread_id = "codex-thread"
+    observer.stop_event = threading.Event()
+    observer.available = threading.Event()
+    observer.available.set()
+    observer.socket = Socket()
+    observer.bindings = {}
+    observer.requests = queue.Queue()
+    observer.waiter_lock = threading.Lock()
+    deferred_answer = queue.Queue(maxsize=1)
+    queued_answer = queue.Queue(maxsize=1)
+    observer.deferred = None
+    observer.waiters = {
+        "deferred": deferred_answer,
+        "queued": queued_answer,
+    }
+    observer.thread = Thread(observer)
+    observer.requests.put({"id": "queued"})
+    monkeypatch.setattr(codex_model, "_clear_stream_activity", lambda *_: None)
+
+    observer.stop()
+
+    for answer in (deferred_answer, queued_answer):
+        result, error = answer.get_nowait()
+        assert result is None
+        assert isinstance(error, RuntimeError)
+        assert str(error) == "Codex App Server client stopped"
+    assert observer.deferred is None
+    assert observer.requests.empty()
+
+
+def test_stopping_an_app_server_client_cannot_miss_a_registering_waiter(monkeypatch):
+    enqueue_started = threading.Event()
+    resume_enqueue = threading.Event()
+
+    class PausingQueue(queue.Queue):
+        def put(self, item, block=True, timeout=None):
+            enqueue_started.set()
+            assert resume_enqueue.wait(timeout=2)
+            super().put(item, block, timeout)
+
+    class Socket:
+        def close(self):
+            pass
+
+    class Thread:
+        def join(self, timeout):
+            pass
+
+    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    observer.thread_id = "codex-thread"
+    observer.stop_event = threading.Event()
+    observer.available = threading.Event()
+    observer.available.set()
+    observer.socket = Socket()
+    observer.thread = Thread()
+    observer.bindings = {}
+    observer.deferred = None
+    observer.waiter_lock = threading.Lock()
+    observer.waiters = {}
+    observer.requests = PausingQueue()
+    monkeypatch.setattr(codex_model, "_clear_stream_activity", lambda *_: None)
+    outcome = queue.Queue(maxsize=1)
+
+    def start_delivery():
+        try:
+            observer.start_delivery({"id": "registering"})
+        except BaseException as error:  # noqa: BLE001
+            outcome.put(error)
+
+    caller = threading.Thread(target=start_delivery, daemon=True)
+    caller.start()
+    assert enqueue_started.wait(timeout=2)
+
+    stopper = threading.Thread(target=observer.stop, daemon=True)
+    stopper.start()
+    assert observer.stop_event.wait(timeout=2)
+    resume_enqueue.set()
+
+    error = outcome.get(timeout=2)
+    caller.join(timeout=2)
+    stopper.join(timeout=2)
+    assert isinstance(error, codex_model.AppServerDeliveryUncertain)
+    assert str(error) == "Codex App Server client stopped"
+    assert not caller.is_alive()
+    assert not stopper.is_alive()
+    assert observer.requests.empty()
+
+
+def test_an_app_server_failure_releases_every_delivery_waiter_before_cleanup(
+    monkeypatch, capsys
+):
+    class StopAfterFailure:
+        stopped = False
+
+        def is_set(self):
+            return self.stopped
+
+        def wait(self, _timeout):
+            self.stopped = True
+            return True
+
+    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    observer.thread_id = "codex-thread"
+    observer.stop_event = StopAfterFailure()
+    observer.available = threading.Event()
+    observer.available.set()
+    cleanup = []
+
+    class Stream:
+        def disconnect(self):
+            cleanup.append("stream")
+            raise OSError("stream cleanup failed")
+
+    observer.bindings = {"turn": Stream()}
+    observer.started = True
+    observer.ready = queue.Queue(maxsize=1)
+    observer.requests = queue.Queue()
+    observer.waiter_lock = threading.Lock()
+    deferred_answer = queue.Queue(maxsize=1)
+    queued_answer = queue.Queue(maxsize=1)
+    observer.deferred = {"id": "deferred"}
+    observer.waiters = {
+        "deferred": deferred_answer,
+        "queued": queued_answer,
+    }
+    observer.requests.put({"id": "queued"})
+    observer._connect = lambda: (_ for _ in ()).throw(ConnectionError("offline"))
+
+    def fail_activity_cleanup(*_args):
+        cleanup.append("activity")
+        raise OSError("activity cleanup failed")
+
+    monkeypatch.setattr(codex_model, "_clear_stream_activity", fail_activity_cleanup)
+
+    observer._run()
+
+    for answer in (deferred_answer, queued_answer):
+        result, error = answer.get_nowait()
+        assert result is None
+        assert isinstance(error, ConnectionError)
+        assert str(error) == "offline"
+    assert not observer.available.is_set()
+    assert observer.deferred is None
+    assert observer.requests.empty()
+    assert cleanup == ["activity", "stream"]
+    assert "stream cleanup failed: activity cleanup failed" in capsys.readouterr().err
+
+
+def test_an_app_server_does_not_displace_a_deferred_delivery():
+    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    observer.events = codex_model.AppServerEvents("codex-thread")
+    observer.events.turn_id = "active-turn"
+    observer.waiter_lock = threading.Lock()
+    observer.waiters = {
+        "first": queue.Queue(maxsize=1),
+        "second": queue.Queue(maxsize=1),
+    }
+    observer.deferred = {"id": "first"}
+    observer.requests = queue.Queue()
+    observer.requests.put({"id": "second"})
+
+    assert observer._next_delivery() is None
+    assert observer.deferred == {"id": "first"}
+
+    observer.events.turn_id = None
+    assert observer._next_delivery() == {"id": "first"}
+    assert observer.deferred is None
+    assert observer._next_delivery() == {"id": "second"}
+
+
 def test_an_active_app_server_turn_starts_the_delivery_once_idle(page_dir):
     events_model.append_event(
         page_dir,
@@ -2501,6 +2675,8 @@ def test_an_active_app_server_turn_starts_the_delivery_once_idle(page_dir):
     observer.events.turn_id = "active-turn"
     observer.request_id = 2
     observer.deferred = None
+    observer.waiter_lock = threading.Lock()
+    observer.waiters = {}
     observer.bindings = {}
     observer.last_activity_update = 0.0
     sent = []
@@ -2513,7 +2689,8 @@ def test_an_active_app_server_turn_starts_the_delivery_once_idle(page_dir):
     answer = queue.Queue()
 
     payload = prepared.payload
-    observer._start_delivery(None, payload, answer)
+    observer.waiters[payload["id"]] = answer
+    observer._start_delivery(None, payload)
 
     assert answer.empty()
     assert sent == []
@@ -2521,7 +2698,7 @@ def test_an_active_app_server_turn_starts_the_delivery_once_idle(page_dir):
     assert deferred is not None
     observer.deferred = None
     observer.events.turn_id = None
-    observer._start_delivery(None, *deferred)
+    observer._start_delivery(None, deferred)
 
     assert answer.empty()
     observer._read(
@@ -2551,12 +2728,72 @@ def test_an_active_app_server_turn_starts_the_delivery_once_idle(page_dir):
     ]
 
 
+def test_a_binding_failure_keeps_the_delivery_waiter_reachable(page_dir, monkeypatch):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Bind this reply"},
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir,
+        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
+        {"pid": os.getpid()},
+    )
+    payload = prepared.payload
+    answer = queue.Queue(maxsize=1)
+    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    observer.thread_id = "codex-thread"
+    observer.events = codex_model.AppServerEvents("codex-thread")
+    observer.bindings = {}
+    observer.deferred = payload
+    observer.waiter_lock = threading.Lock()
+    observer.waiters = {payload["id"]: answer}
+    observer.requests = queue.Queue()
+    observer.last_activity_update = 0.0
+
+    def fail_binding(*_args):
+        raise OSError("cannot persist reply binding")
+
+    monkeypatch.setattr(observer, "_bind", fail_binding)
+
+    with pytest.raises(OSError, match="cannot persist reply binding") as failure:
+        observer._read(
+            {
+                "method": "item/started",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "leaf-turn",
+                    "startedAtMs": 1,
+                    "item": {
+                        "id": "delivery",
+                        "type": "functionCallOutput",
+                        "name": "leaf_delivery",
+                        "output": json.dumps(payload),
+                    },
+                },
+            }
+        )
+
+    assert answer.empty()
+    assert observer.waiters[payload["id"]] is answer
+    assert observer.deferred == payload
+
+    observer._fail_pending(failure.value)
+
+    result, error = answer.get_nowait()
+    assert result is None
+    assert error is failure.value
+    assert observer.waiters == {}
+    assert observer.deferred is None
+
+
 def test_an_idle_app_server_rejection_returns_to_the_retry_boundary():
     observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
     observer.thread_id = "codex-thread"
     observer.events = codex_model.AppServerEvents("codex-thread")
     observer.request_id = 2
     observer.deferred = None
+    observer.waiter_lock = threading.Lock()
+    observer.waiters = {"delivery-1": queue.Queue()}
 
     sent = []
 
@@ -2569,15 +2806,13 @@ def test_an_idle_app_server_rejection_returns_to_the_retry_boundary():
         pytest.fail("a rejected direct turn must wait for App Server to become idle")
 
     observer._send = reject
-    answer = queue.Queue()
-
     with pytest.raises(
         codex_model.AppServerRequestRejected,
         match="active turn cannot be steered",
     ):
-        observer._start_delivery(None, {"id": "delivery-1"}, answer)
+        observer._start_delivery(None, {"id": "delivery-1"})
 
-    assert answer.empty()
+    assert observer.waiters["delivery-1"].empty()
     assert [request[:2] for request in sent] == [("turn/start", 2)]
     assert observer.deferred is None
 
@@ -2596,6 +2831,8 @@ def test_a_rejected_direct_turn_still_reads_the_turn_it_was_refused_for(monkeypa
     observer.last_activity_update = 0.0
     observer.request_id = 2
     observer.deferred = None
+    observer.waiter_lock = threading.Lock()
+    observer.waiters = {"delivery-1": queue.Queue()}
     opened = []
     activity = []
     monkeypatch.setattr(
@@ -2617,13 +2854,11 @@ def test_a_rejected_direct_turn_still_reads_the_turn_it_was_refused_for(monkeypa
         raise codex_model.AppServerRequestRejected("the active turn cannot be steered")
 
     observer._send = reject
-    answer = queue.Queue()
+    observer._start_delivery(None, {"id": "delivery-1"})
 
-    observer._start_delivery(None, {"id": "delivery-1"}, answer)
-
-    assert answer.empty()
+    assert observer.waiters["delivery-1"].empty()
     assert observer.deferred is not None
-    assert observer.deferred[0]["id"] == "delivery-1"
+    assert observer.deferred["id"] == "delivery-1"
     assert observer.events.turn_id == "desktop-turn"
     assert opened == ["desktop-turn"]
     assert activity == [("desktop-turn", "Starting")]
@@ -5240,6 +5475,8 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     observer.events = codex_model.AppServerEvents("codex-thread")
     observer.bindings = {}
     observer.deferred = None
+    observer.waiter_lock = threading.Lock()
+    observer.waiters = {}
     observer._restore_delivery_binding(
         {
             "id": "recovered-turn",

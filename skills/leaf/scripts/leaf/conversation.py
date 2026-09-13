@@ -60,19 +60,6 @@ def reserve_delivery_reply(session_id: str, delivery_id: str, target: dict) -> N
         page.bind_delivery_reply(session_id, target["responds"], attempt)
 
 
-def release_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
-    """Release a reservation whose delivery did not reach its provider."""
-    try:
-        with PageTransaction(Path(target["page"])) as page:
-            page.clear_delivery_reply_binding(
-                session_id,
-                target["responds"],
-                delivery_reply_attempt(delivery_id),
-            )
-    except FileNotFoundError:
-        pass
-
-
 def delivery_reply_reserved(session_id: str, delivery_id: str, target: dict) -> bool:
     """Whether an observed provider still owns this delivery's reply address."""
     try:

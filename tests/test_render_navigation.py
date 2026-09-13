@@ -337,6 +337,12 @@ def test_a_pane_comment_uses_its_region_rail_and_returns_to_flow(browser, serve)
     assert placement["cluster"]["top"] == pytest.approx(
         placement["sibling"]["top"], abs=1
     )
+    assert (
+        page.locator("#left-reading .lf-pane-body").evaluate(
+            "body => getComputedStyle(body).getPropertyValue('--lf-reading-region-rail')"
+        )
+        == "44px"
+    )
 
     cluster.get_by_role("button", name=re.compile(r"^Thread, ")).click()
     preview = page.locator(".lf-margin-preview")
@@ -484,9 +490,19 @@ def test_a_bounded_pane_loaded_at_covering_width_keeps_its_inline_comment(
         expect(cluster).not_to_have_attribute(
             "data-lf-margin-region", re.compile(r".+")
         )
-        assert page.locator("#single-reading .lf-pane-body").evaluate(
-            "body => body.contains(document.querySelector('[data-lf-margin-for]'))"
+        pane_body = page.locator("#single-reading .lf-pane-body")
+        reading = pane_body.evaluate(
+            """body => ({
+              containsComment: body.contains(document.querySelector('[data-lf-margin-for]')),
+              rail: getComputedStyle(body).getPropertyValue('--lf-reading-region-rail'),
+              paddingInlineEnd: getComputedStyle(body).paddingInlineEnd,
+            })"""
         )
+        assert reading == {
+            "containsComment": True,
+            "rail": "0px",
+            "paddingInlineEnd": "14px",
+        }
     finally:
         context.close()
 

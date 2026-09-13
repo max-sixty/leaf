@@ -112,6 +112,8 @@ def passage_representatives(sources):
                 and len(" ".join(passage_text(node).split())) > 12
             )
         }
+        if not shapes[source] and source.with_suffix(".data.json").exists():
+            shapes[source] = {"said"}
     uncovered = set().union(*shapes.values())
     representatives = []
     while uncovered:
@@ -177,7 +179,7 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
 def test_real_page_passage_shapes_can_be_quoted(
     browser, serve, source, expected_shapes
 ):
-    """Every selectable native and direct-text composite shape is quotable.
+    """Every selected native, direct-text, and projected page shape is quotable.
 
     The collection-time set cover adds a source whenever its passage vocabulary is not
     already represented. Focused tests own settlements, tabs, shadow roots, and gestures.
@@ -210,6 +212,7 @@ def test_real_page_passage_shapes_can_be_quoted(
             if (block.matches(TEXT_BLOCK)) shapes.add(`block:${block.localName}`);
             if (compositeTags.includes(block.localName))
                 shapes.add(`widget:${block.localName}`);
+            if (block.matches('[data-lf-said]')) shapes.add('said');
         }
         const missed = [], skipped = [], astray = [];
         for (let i = 0; i < blocks.length; i++) {

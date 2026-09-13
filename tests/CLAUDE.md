@@ -147,12 +147,15 @@ reading of the band a box shows, naming overflow, paint containment, and
 `content-visibility`; `version check --render` and `RINGS_DRAWN` both consume it
 rather than copying it.
 
-A focus ring is drawn only for a press: `element.focus()` sets `:focus` and not
-`:focus-visible`, so a control focused from script wears no ring, and every
-reading of one comes back the same empty as a control whose ring is fine. Reach
-it with a real `Tab`, or focus it and press `Tab` then `Shift+Tab` back, and
-assert the ring is there before asserting anything about its shape. Which box
-wears the ring is a separate question from which holds focus: a decision may
+A focus ring is drawn only in keyboard modality: `element.focus()` alone sets
+`:focus` and not `:focus-visible`. A direct specimen first presses `Tab`, then
+focuses its exact sequential stop and requires it to retain `:focus-visible`.
+The reading must find a ring on that stop, its ancestor, or the exact semantic
+carrier the test links to it before asserting anything about the ring's shape.
+A separate fast sweep reaches every stop in the selected pages' ordinary Tab
+orders, and a planted test reaches the banner and thread list through their real
+keys before taking the ring away. Which box wears the ring is a separate
+question from which holds focus: a decision may
 wrap the control reached, a joined option group may stand for the pick that gave
 up focus, and an anchored element may have no focus of its own. The reading
 therefore sweeps every box painting a ring and asks the paint, never
@@ -177,15 +180,15 @@ must report nothing,
 shadows the layer draws that are not the band in front of the reading and then
 stands the band on the window's foot, and
 `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` fails
-on any rule the corpus never paints and any scope its walk never opens. A ring
+on any rule with no causal specimen and any required surface that does not open. A ring
 is credited when a box painting the layer's band also carries a name; a name
 whose ring a later rule took away is not credited — which is what keeps the
 response bar's own controls off `pressable`, the floor rule whose outline the bar
 removes — and a ring painted with no name is its own finding. Nothing reads
 `@media` or `@supports`: the reading is taken on screen.
 
-The walk also asks at every stop whether the reader can see where the keyboard
-is, and four answers count: the platform's own ring (`outline-style: auto`), the
+Each focused specimen also asks whether the reader can see where the keyboard
+is. Four answers count: the platform's own ring (`outline-style: auto`), the
 layer's here ring on the stop or an ancestor drawing for it, the element mark's
 own ink at the indicated weight, and the band the anchored response bar casts as
 a shadow — the sweep's own reading of it, so the two halves of the file agree on
@@ -194,9 +197,8 @@ written, since a `color-mix` and a plain token spell one colour two ways. Any
 outline an element wears for a reason other than focus silently costs it the
 ring it would otherwise have had.
 
-A Tab walk states its starting point as well as its end. `blur()` leaves the
-sequential focus navigation starting point where the blurred control stood, so
-the next Tab runs off the end of the order; `document.body.focus()` resets it.
+An opening key sequence states its starting point. `blur()` retains the previous
+sequential focus navigation position; `document.body.focus()` resets it.
 
 A reach case answers for the shapes it is written over, and a ring has two,
 outset and inset. `ring_faults`'s cover check steps past the ring's own band

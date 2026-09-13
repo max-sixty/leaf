@@ -153,9 +153,9 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
 
     A reader's open document keeps its module graph and its defined elements for as
     long as it lives, so the capture states which revisions can be given to that
-    document and which need a new one. Words and styling are given to it; modules,
-    widget implementations, the registry that binds them, and inline module bodies
-    are not.
+    document and which need a new one. Words, styling, and the stamp a vendoring
+    run leaves behind can be given to it. The vocabulary that binds elements to
+    modules, the module bytes, and the inline module bodies cannot.
     """
     authored = page_dir / "page"
     (authored / "widgets").mkdir(parents=True)
@@ -217,6 +217,32 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     )
     revendored = activate()
     assert revendored.executable != redeclared.executable
+
+    # `$layer` also records where a vendoring run came from. The fingerprint
+    # identifies the composed layer independently of its epoch and the producer
+    # names the checkout that built it, so neither says anything about the code
+    # this document would have to evaluate.
+    def restamp(**stamp):
+        layer_path = page_dir / "registry.json"
+        vendored = json.loads(layer_path.read_text())
+        vendored["$layer"] = {**vendored["$layer"], **stamp}
+        files_model.replace_files([(layer_path, json.dumps(vendored).encode(), False)])
+
+    restamp(
+        fingerprint="sha256:" + "b" * 64,
+        producer={"commit": "abcdef1", "dirty": True},
+    )
+    restamped = activate()
+    assert restamped.digest != revendored.digest
+    assert restamped.executable == revendored.executable
+
+    # The generation is the epoch `sameLayer` refuses a write across. Vendoring
+    # also substitutes it into `runtime/layer-client.js`, so a real re-vendor moves
+    # the modules as well; the digest names it directly rather than inheriting the
+    # boundary from wherever that epoch happens to be written.
+    restamp(generation="0123456789abcdef0123456789abcdef")
+    regenerated = activate()
+    assert regenerated.executable != restamped.executable
 
 
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):

@@ -457,12 +457,27 @@ def _capture_artifact(
     # once, so new bytes behind either need a new document. Stylesheets, media,
     # prose, and markup are absent because an open document can be given all of
     # them, and a revision that only edits those should keep the reader's document.
+    #
+    # The vocabulary is digested without `$layer`, whose other fields describe the
+    # vendoring run rather than the code it installed: the content fingerprint and
+    # the producer's commit say where a layer came from, and neither changes what
+    # the browser evaluates. `generation` is the reload-safety epoch `sameLayer`
+    # refuses a write across, so it stands on its own here. A capture takes the
+    # registry it is handed, and one composed without a vendored layer has no
+    # epoch to name.
     executable = _digest(
         _canonical_json(
             {
-                "layer": layer,
-                "registry": resources["/registry.json"].digest,
-                "implementations": implementations,
+                "generation": layer.get("generation"),
+                "vocabulary": _digest(
+                    _canonical_json(
+                        {
+                            tag: entry
+                            for tag, entry in registry.items()
+                            if tag != "$layer"
+                        }
+                    )
+                ),
                 "modules": {
                     path: resource.digest
                     for path, resource in resources.items()

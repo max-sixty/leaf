@@ -560,10 +560,10 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     assert "no longer speaks" in result.output and "`shorten`" in result.output
 
 
-def test_init_does_not_revalidate_a_historical_event_record_schema(
+def test_init_refuses_a_historical_event_record_outside_its_declared_schema(
     page_dir,
 ):
-    """Event shape is enforced at append, not by candidate validation."""
+    """The captured $events contract remains the readable shape of the log."""
     publish(page_dir)
     events_model.append_event(
         page_dir,
@@ -579,7 +579,9 @@ def test_init_does_not_revalidate_a_historical_event_record_schema(
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code != 0
+    assert "kind `comment` record" in result.output
+    assert "mood" in result.output
 
 
 def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
@@ -1740,6 +1742,107 @@ def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
     still_refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert still_refused.exit_code != 0
     assert "source 'builds' loses its contract 'builds'" in still_refused.output
+
+
+def _page_owned_fragmented_source(page_dir):
+    schema = {
+        "type": "object",
+        "properties": {
+            "files": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "key": {"type": "string"},
+                        "patch": {"type": "string"},
+                        "body": {"type": "string"},
+                    },
+                    "required": ["key", "patch", "body"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["files"],
+        "additionalProperties": False,
+    }
+    contract = {
+        "description": "Page-owned file payloads.",
+        "schema": schema,
+        "fragments": {"items": "files", "key": "key", "value": "patch"},
+    }
+    widget = element_declaration("lf-local-data")
+    widget["properties"]["source"] = {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$",
+    }
+    widget["required"].append("source")
+    widget["x-data"] = {"document": {"contract": "local-files", "source": "source"}}
+    widget["x-example"] = (
+        '<lf-local-data id="example-local-data" source="example"></lf-local-data>'
+    )
+    authored = page_dir / "page" / "registry.json"
+    authored.write_text(
+        json.dumps(
+            {
+                "$data": {"contracts": {"local-files": contract}},
+                "lf-local-data": widget,
+            }
+        )
+    )
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</section>",
+            '<lf-local-data id="local-data" source="files"></lf-local-data></section>',
+        )
+    )
+    activated = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert activated.error is None and activated.created
+    data_model.cmd_data_set(
+        page_dir,
+        "files",
+        {"files": [{"key": "app.py", "patch": "old", "body": "new"}]},
+    )
+    return authored
+
+
+def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_dir):
+    """A same-named contract cannot redirect old readers to a different field."""
+    authored = _page_owned_fragmented_source(page_dir)
+    declarations = json.loads(authored.read_text())
+    declarations["$data"]["contracts"]["local-files"]["fragments"]["value"] = "body"
+    authored.write_text(json.dumps(declarations))
+
+    activation = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert "schema or fragment coordinate changes" in activation.error
+    with pytest.raises(data_model.DataError, match="schema or fragment coordinate"):
+        data_model.cmd_data_set(
+            page_dir,
+            "files",
+            {"files": [{"key": "app.py", "patch": "next", "body": "other"}]},
+        )
+    revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert revendored.exit_code != 0
+    assert "schema or fragment coordinate" in revendored.output
+
+
+def test_page_owned_data_contract_description_can_improve(page_dir):
+    authored = _page_owned_fragmented_source(page_dir)
+    declarations = json.loads(authored.read_text())
+    declarations["$data"]["contracts"]["local-files"]["description"] = (
+        "A clearer description of the same file payloads."
+    )
+    authored.write_text(json.dumps(declarations))
+
+    activation = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+
+    assert activation.error is None and activation.created
 
 
 def test_revendoring_cannot_forget_an_immutable_data_selection(page_dir, tmp_path):

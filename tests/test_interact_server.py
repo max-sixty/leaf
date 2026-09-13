@@ -57,6 +57,7 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
+from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
@@ -378,7 +379,9 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
         "required": ["files"],
         "additionalProperties": False,
     }
-    declare_data_input(page_dir, "review-patch", schema, contract="diff-files")
+    declare_data_input(
+        page_dir, "review-patch", schema, contract="diff-files", activate=False
+    )
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["$data"]["contracts"]["diff-files"]["fragments"] = {
@@ -387,6 +390,10 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
         "value": "patch",
     }
     registry_path.write_text(json.dumps(registry))
+    activated = revisioning_model.activate_source(
+        page_dir, event_model.read_events(page_dir)
+    )
+    assert activated.error is None
     with pytest.raises(data_model.DataError, match="fragment keys must be unique"):
         data_model.cmd_data_set(
             page_dir,
@@ -449,6 +456,81 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
     )
     assert status == 409
     assert "data revision 1 is stale" in json.loads(body)["error"]
+
+
+def test_historical_fragment_reads_keep_the_document_revision_and_layer(
+    server, page_dir
+):
+    """A pinned document reads current data through its captured data contract."""
+    source = PAGE.replace(
+        "</section>",
+        '<lf-diff id="patch" source="review-patch" collapsed>'
+        "<pre></pre></lf-diff></section>",
+    )
+    (page_dir / "index.html").write_text(source)
+    first = revisioning_model.activate_source(
+        page_dir, event_model.read_events(page_dir)
+    )
+    assert first.error is None
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 1,
+            "revision": first.revision,
+            "text": "first",
+        },
+    )
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
+    )
+    data_model.cmd_data_set(
+        page_dir, "review-patch", data_model.unified_diff_manifest(patch)
+    )
+    first_layer = artifact_model.read_artifact(page_dir, first.revision).registry[
+        "$layer"
+    ]["generation"]
+
+    # Re-vendoring changes the active layer epoch while preserving the data contract.
+    vendoring_model.cmd_init(page_dir)
+    (page_dir / "index.html").write_text(source.replace("<h1>A</h1>", "<h1>B</h1>"))
+    second = revisioning_model.activate_source(
+        page_dir, event_model.read_events(page_dir)
+    )
+    assert second.error is None and second.revision != first.revision
+    second_layer = artifact_model.read_artifact(page_dir, second.revision).registry[
+        "$layer"
+    ]["generation"]
+    assert second_layer != first_layer
+
+    status, body = fetch(
+        f"{server}/api/state?revision={first.revision}",
+        headers={"Leaf-View-Revision": str(first.revision)},
+    )
+    historical = json.loads(body)
+    assert status == 200
+    assert historical["layer"]["generation"] == first_layer
+    assert (
+        "patch"
+        not in historical["data"]["sources"]["review-patch"]["value"]["files"][0]
+    )
+
+    address = urllib.parse.urlsplit(server)
+    connection = http.client.HTTPConnection(address.hostname, address.port)
+    connection.request(
+        "GET",
+        "/api/data?data_revision=1&source=review-patch&key=app.py&t=" + TOKEN,
+        headers={"Leaf-View-Revision": str(first.revision)},
+    )
+    response = connection.getresponse()
+    fragment = json.loads(response.read())
+    connection.close()
+
+    assert response.status == 200
+    assert response.getheader("Leaf-Layer") == first_layer
+    assert fragment["value"] == patch
 
 
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
@@ -3720,7 +3802,9 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         "required": ["files"],
         "additionalProperties": False,
     }
-    declare_data_input(page_dir, "patches", schema, contract="patch-list")
+    declare_data_input(
+        page_dir, "patches", schema, contract="patch-list", activate=False
+    )
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["$data"]["contracts"]["patch-list"]["fragments"] = {
         "items": "files",
@@ -3728,6 +3812,10 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         "value": "patch",
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
+    activated = revisioning_model.activate_source(
+        page_dir, event_model.read_events(page_dir)
+    )
+    assert activated.error is None
     data_model.cmd_data_set(
         page_dir, "patches", {"files": [{"key": "a.py", "patch": "old"}]}
     )

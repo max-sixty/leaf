@@ -27,9 +27,9 @@ leaf version export <page> -o <file> --interactive
 ```
 
 It runs the captured revision's modules and normal Leaf renderers without host chrome
-or network access. Accepted page state is included, while actions and requests that
-need an agent or server are unavailable before dispatch. The default command remains
-the script-free record.
+or network access. Accepted page state and contract-declared data fragments are
+included, while actions and requests that need an agent or server are unavailable
+before dispatch. The default command remains the script-free record.
 
 ## Address and authentication
 

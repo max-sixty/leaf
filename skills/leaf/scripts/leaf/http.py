@@ -444,10 +444,25 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("key is required")
         if snapshot is not None and not valid_snapshot_id(snapshot):
             raise ValueError("snapshot must be a positive decimal revision")
+        view_revision = self.requested_view_revision()
+        if view_revision is not None:
+            revisions = (
+                set(self.page_snapshot.artifacts)
+                if self.page_snapshot is not None
+                else set(list_revisions(self.page_dir))
+            )
+            if view_revision not in revisions:
+                raise ValueError(f"unknown view revision r{view_revision}")
+            registry = self._artifact(view_revision).registry
+        elif self.page_snapshot is not None:
+            registry = self.page_snapshot.registry
+        else:
+            registry = require_registry(self.page_dir)
+        self.response_layer = registry["$layer"]["generation"]
         if self.page_snapshot is not None:
             return data_fragment(
                 self.page_snapshot.data,
-                self.page_snapshot.registry,
+                registry,
                 data_revision=data_revision,
                 source=source,
                 key=key,
@@ -456,7 +471,7 @@ class Handler(BaseHTTPRequestHandler):
         with PageTransaction(self.page_dir):
             return read_data_fragment(
                 self.page_dir,
-                require_registry(self.page_dir),
+                registry,
                 data_revision=data_revision,
                 source=source,
                 key=key,

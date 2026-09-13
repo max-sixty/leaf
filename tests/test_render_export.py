@@ -1327,6 +1327,61 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     page.close()
 
 
+def test_interactive_export_hydrates_captured_data_fragments_offline(
+    browser, serve, tmp_path
+):
+    """A frozen interactive copy keeps unopened fragmented payloads usable."""
+    serve(
+        leaf_page(
+            "offline fragmented data",
+            '<h1>Review</h1><lf-diff id="patch" source="review-patch" collapsed>'
+            "<pre></pre></lf-diff>",
+        )
+    )
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
+    )
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", data_model.unified_diff_manifest(patch)
+    )
+    interactive = tmp_path / "fragmented-interactive.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    page = browser.new_page()
+    watched(page)
+    external = []
+    document_url = interactive.as_uri()
+    page.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if request.url != document_url and not request.url.startswith("data:")
+            else None
+        ),
+    )
+    page.goto(document_url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.locator("lf-diff summary").click()
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
+    ).to_have_count(1)
+    assert external == []
+    page.close()
+
+
 @pytest.mark.parametrize(
     "stem",
     ["notification-playground", "data-explorer", "code-comparison"],

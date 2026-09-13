@@ -1,11 +1,12 @@
 """The complete state response for one served page."""
 
+import copy
 import time
 from pathlib import Path
 
 from ..acknowledgments import canonical_acknowledgments
 from ..activity import canonical_activity, canonical_stream_reply
-from ..data import browser_data
+from ..data import browser_data, browser_data_from
 from ..event_log import now_iso
 from ..events import build_threads
 from ..files import active_descriptor, version_descriptors
@@ -124,6 +125,7 @@ def full_state(
         )
         identity = selected_registry["$layer"]
     else:
+        selected_registry = registry
         identity = (
             layer_metadata(page_dir) if layer_identity is None else layer_identity
         )
@@ -152,9 +154,11 @@ def full_state(
             else version_descriptors(page_dir, events)
         ),
         "source_error": source_error,
-        "data": data_override
-        if data_override is not None
-        else browser_data(page_dir, registry),
+        "data": (
+            browser_data_from(copy.deepcopy(data_override), selected_registry)
+            if data_override is not None
+            else browser_data(page_dir, selected_registry)
+        ),
         **present,
         "activity": activity,
         "browser": browser,

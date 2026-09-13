@@ -338,6 +338,7 @@ def _bind_authored_modules(
 def interactive_export_page(
     artifact: RevisionArtifact,
     state: dict,
+    data: dict,
     revision: int,
     version: int,
 ) -> str:
@@ -374,7 +375,9 @@ def interactive_export_page(
     import_map = _json_script(
         {"imports": {f"leaf:{path}": url for path, url in sorted(modules.items())}}
     )
-    payload = _json_script({"state": state, "resources": embedded_resources})
+    payload = _json_script(
+        {"state": state, "data": data, "resources": embedded_resources}
+    )
     hashes = [script_hash(import_map), *(script_hash(body) for body in authored_inline)]
     policy = (
         "default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; "
@@ -612,7 +615,9 @@ def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False)
             page_snapshot=snapshot,
             layer_identity=snapshot.layer,
         ).page_state(revision)
-        html = interactive_export_page(artifact, state, revision, version)
+        html = interactive_export_page(
+            artifact, state, snapshot.data, revision, version
+        )
     else:
         with (
             preview_server(page_dir, document, revision, version=version) as url,

@@ -11,7 +11,7 @@
    seat; they do not fetch it, mutate the accepted copy, or keep a hidden current-value
    map of their own.*/
 
-import { runtime } from "./context.js";
+import { offlineData, offlineInteractive, runtime } from "./context.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -20,7 +20,7 @@ import {
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
-import { reportPageError, sameDelivery } from "./layer-client.js";
+import { layerHeaders, reportPageError, sameDelivery } from "./layer-client.js";
 
 export function acceptData(candidate) {
   if (
@@ -263,18 +263,36 @@ export async function loadDataFragment(manifest, key) {
       `source ${source} revision ${manifest.revision} changed before loading fragment ${key}`,
     );
   const revision = runtime.data.revision;
+  if (offlineInteractive) {
+    const stored = offlineData();
+    if (!stored || stored.revision !== revision)
+      throw new Error("interactive export data does not match its frozen state");
+    const sourceStore = stored.sources?.[source];
+    if (!sourceStore || sourceStore.contract !== manifest.contract)
+      throw new Error("interactive export fragment does not match its source");
+    const selected = snapshot ? sourceStore.snapshots?.[snapshot] : sourceStore;
+    if (
+      !selected ||
+      (snapshot
+        ? Number(snapshot) !== manifest.revision
+        : sourceStore.revision !== manifest.revision)
+    )
+      throw new Error("interactive export fragment does not match its revision");
+    const items = selected.value?.[contract.fragments.items];
+    const matches = Array.isArray(items)
+      ? items.filter((item) => item?.[contract.fragments.key] === key)
+      : [];
+    if (matches.length !== 1 || !(contract.fragments.value in matches[0]))
+      throw new Error("interactive export fragment does not match its key");
+    return structuredClone(matches[0][contract.fragments.value]);
+  }
   const params = new URLSearchParams({
     data_revision: String(revision),
     source,
     key,
   });
   if (snapshot) params.set("snapshot", snapshot);
-  const { offlineInteractive } = await import("./context.js");
-  if (offlineInteractive)
-    throw new Error(
-      "data fragments need a Leaf server and are unavailable in this copy",
-    );
-  const response = await fetch(`/api/data?${params}`);
+  const response = await fetch(`/api/data?${params}`, { headers: layerHeaders() });
   if (response.ok && !sameDelivery(response)) {
     throw new Error("Leaf's data vocabulary changed while loading a fragment");
   }

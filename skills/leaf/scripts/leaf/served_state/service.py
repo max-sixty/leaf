@@ -64,7 +64,7 @@ class PageStateService:
                 if snapshot is not None
                 else None
             ),
-            data_override=snapshot.browser_data if snapshot is not None else None,
+            data_override=snapshot.data if snapshot is not None else None,
             versions_override=snapshot.versions if snapshot is not None else None,
             presence_override=snapshot.presence if snapshot is not None else None,
             live_stream_override=snapshot.live_stream if snapshot is not None else None,

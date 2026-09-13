@@ -10,9 +10,11 @@ from typing import NamedTuple
 from .data import empty_data, read_data
 from .data_contracts import (
     data_contract_errors,
+    data_contract_transition_errors,
     data_snapshot_selections,
     merge_data_bindings,
     page_data_documents,
+    working_data_bindings,
 )
 from .event_log import flocked, now_iso
 from .files import (
@@ -196,7 +198,9 @@ def _refuse_data_contract_drift(
     # exact older layer it exists to migrate. Binding discovery only reads x-data.
     if current := read_json(page_dir / "registry.json"):
         documents = page_data_documents(page_dir, events)
-        standing_bindings, standing_errors = merge_data_bindings(documents, current)
+        standing_bindings, standing_errors = working_data_bindings(
+            page_dir, current, events
+        )
         incoming_bindings, incoming_errors = merge_data_bindings(documents, incoming)
         binding_errors = list(dict.fromkeys(standing_errors + incoming_errors))
         binding_changes = [
@@ -221,13 +225,17 @@ def _refuse_data_contract_drift(
             for document, _ordinal, tag, widget, _line, input_name in [seat]
             if incoming_snapshots.get(seat) != standing_snapshots.get(seat)
         ]
-        if binding_errors or binding_changes or selection_changes:
+        contract_changes = data_contract_transition_errors(page_dir, events, incoming)
+        if binding_errors or binding_changes or selection_changes or contract_changes:
             sys.exit(
                 "this page's immutable documents do not keep one meaning for each "
                 "data source:\n"
                 + "\n".join(
                     f"  - {error}"
-                    for error in binding_errors + binding_changes + selection_changes
+                    for error in binding_errors
+                    + binding_changes
+                    + selection_changes
+                    + contract_changes
                 )
                 + "\npreserve those bindings and snapshot selectors in the incoming "
                 "registry before re-vendoring."

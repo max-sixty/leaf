@@ -13,6 +13,7 @@ if (
   (!offlinePayload ||
     typeof offlinePayload !== "object" ||
     !offlinePayload.state ||
+    !offlinePayload.data ||
     !offlinePayload.resources)
 )
   throw new TypeError("Leaf's interactive export payload is incomplete");
@@ -20,6 +21,9 @@ if (
 export const offlineInteractive = offlinePayload !== null;
 export const offlineState = () =>
   offlineInteractive ? structuredClone(offlinePayload.state) : null;
+// The fragment reader never mutates this captured authority. Keep one in-memory copy:
+// cloning a multi-megabyte split source for each opened file would defeat fragmentation.
+export const offlineData = () => (offlineInteractive ? offlinePayload.data : null);
 export const runtimeModule = (path) =>
   offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
 export const runtimeResource = (path) => {

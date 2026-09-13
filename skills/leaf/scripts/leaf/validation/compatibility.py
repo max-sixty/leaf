@@ -68,6 +68,7 @@ def candidate_vocabulary_gaps(
     if not events:
         return []
     tokens = incoming.get("$reactions", {}).get("tokens", {})
+    contracts = incoming["$events"]["kinds"]
     thread = thread_structure(events)
     revisions = {}
     registries = {}
@@ -96,7 +97,11 @@ def candidate_vocabulary_gaps(
     for e in events:
         kind = e["kind"]
         key = None
-        if e.get("token") and e["id"] not in withdrawn and e["token"] not in tokens:
+        if kind not in contracts:
+            key = f"kind `{kind}`"
+        elif error := event_contracts.event_record_error(contracts[kind], e):
+            key = f"kind `{kind}` record: {error}"
+        elif e.get("token") and e["id"] not in withdrawn and e["token"] not in tokens:
             key = f"reaction token `{e['token']}` no longer declared by $reactions"
         elif anchor_participates(e) and (
             (

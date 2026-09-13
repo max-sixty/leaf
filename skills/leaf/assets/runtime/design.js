@@ -19,7 +19,7 @@ inspectEl.setAttribute("aria-hidden", "true");
 export const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
 
-/* The reader commenting on the layer rather than the page: what a widget looks like or
+/* The reader marking presentation or interaction intent: what a widget looks like or
  * does, a control, the runtime's own chrome. A mode rather than a sequence, because it is
  * entered for a batch of remarks and changes what a press means everywhere: a press
  * comments on what it lands on and does nothing else, so a card can be pointed at
@@ -28,7 +28,7 @@ legendRoot.setAttribute("aria-hidden", "true");
  * comments on the block it is in. `designModeOn` is the state; the body marker, the banner's
  * wash, the toggle's pressed face and the name under the pointer are its renderings,
  * written by the one setter, and every comment opened while it stands carries
- * `about: "layer"`, which is how the agent tells a remark about the layer from one about
+ * `about: "design"`, which is how the agent tells design intent from a remark about
  * the page's words. The mode owns that state and supplies `active` to every
  * renderer or command that needs the reading. */
 

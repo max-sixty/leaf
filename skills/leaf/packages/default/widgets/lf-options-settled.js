@@ -80,7 +80,7 @@ export class SettledOptions {
     );
     for (const el of [
       ...options,
-      ...this.#host.querySelectorAll(":scope > :is(.lf-another, .lf-done)"),
+      ...this.#host.querySelectorAll(":scope > :is(.lf-another, lf-options-done)"),
     ])
       if (this.#isOpen) el.removeAttribute("hidden");
       else el.setAttribute("hidden", HIDDEN);

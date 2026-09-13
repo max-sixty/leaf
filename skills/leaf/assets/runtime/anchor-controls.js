@@ -24,7 +24,7 @@ import { registry } from "./registry.js";
 import { targetElement, targetParts } from "./resolved-target.js";
 import { el, offer, reveal } from "./widget-elements.js";
 
-export const NOTE = "lf-mark-note";
+const NOTE = "lf-mark-note";
 const SEAT = "lf-reacts";
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
@@ -46,6 +46,7 @@ export function createAnchorControls({
   const reactionSeats = new Map();
   let mounted = false;
   let invalidationQueued = false;
+  let pendingVisualActions = new Map();
 
   function syncReactionRemoval(record) {
     for (const mark of record.seat.querySelectorAll(":scope > .lf-react-mark"))
@@ -95,10 +96,9 @@ export function createAnchorControls({
     return seat;
   }
 
-  function prepareVisualActions() {
+  function visualActionPlan() {
     const groups = new Map();
     const claimed = [];
-    const kept = new Set();
     for (const candidate of pageQueryAll(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
@@ -123,7 +123,13 @@ export function createAnchorControls({
           group.push(target);
         }
     }
+    return groups;
+  }
 
+  function publishVisualActions() {
+    const groups = pendingVisualActions;
+    pendingVisualActions = new Map();
+    const kept = new Set();
     for (const [seat, targets] of groups) {
       if (!targets.length) continue;
       let record = visualActionHolders.get(seat);
@@ -180,6 +186,11 @@ export function createAnchorControls({
     }
     for (const holder of pageQueryAll(".lf-visual-actions"))
       if (!kept.has(holder)) holder.remove();
+  }
+
+  function prepareVisualActions() {
+    pendingVisualActions = visualActionPlan();
+    if (document.body.hasAttribute("data-lf-presented")) publishVisualActions();
   }
 
   // CSS highlights create no accessibility nodes. One hidden button per containing
@@ -395,7 +406,6 @@ export function createAnchorControls({
   function mount() {
     if (mounted) return;
     mounted = true;
-    document.addEventListener("lf-projection", queueInvalidation);
     document.addEventListener("lf-layout", onLayoutInvalidated);
     document.addEventListener("pointerdown", onOutsideReaction, { capture: true });
     messageReferenceRoot.addEventListener("click", onMessageReference);
@@ -403,7 +413,6 @@ export function createAnchorControls({
 
   function destroy() {
     if (mounted) {
-      document.removeEventListener("lf-projection", queueInvalidation);
       document.removeEventListener("lf-layout", onLayoutInvalidated);
       document.removeEventListener("pointerdown", onOutsideReaction, { capture: true });
       messageReferenceRoot.removeEventListener("click", onMessageReference);
@@ -411,6 +420,7 @@ export function createAnchorControls({
     mounted = false;
     for (const record of reactionSeats.values()) record.margin.unregister();
     reactionSeats.clear();
+    pendingVisualActions = new Map();
     for (const holder of pageQueryAll(".lf-visual-actions")) holder.remove();
     for (const note of pageQueryAll(`.${NOTE}`)) note.remove();
   }
@@ -425,6 +435,7 @@ export function createAnchorControls({
     mount,
     destroy,
     render,
+    publishVisualActions,
     dockSeats,
     visualActionAnchor,
   };

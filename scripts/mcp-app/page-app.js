@@ -110,9 +110,8 @@ function themeCss(base = "", dark = "") {
   return chosen.replaceAll(":root", ":host");
 }
 
-function pageCss(leaf) {
-  return `${themeCss(leaf.theme, leaf.darkTheme)}
-    ${(leaf.authoredCss || "").replaceAll(":root", ":host")}
+function pageCss() {
+  return `
     :host {
       display: block !important;
       position: relative !important;
@@ -360,10 +359,23 @@ function renderSnapshot(state) {
   pageLoading.hidden = true;
   blankPageFrame();
   pageHost.hidden = false;
-  const style = document.createElement("style");
-  style.dataset.leafTheme = "";
-  style.textContent = pageCss(state);
-  shadow.replaceChildren(style, cleanDocument(state.document));
+  const theme = document.createElement("style");
+  theme.dataset.leafTheme = "";
+  theme.textContent = themeCss(state.theme, state.darkTheme);
+  const authored = state.authoredStyles.map(({ css, media }) => {
+    const style = document.createElement("style");
+    style.textContent = css.replaceAll(":root", ":host");
+    style.media = media;
+    return style;
+  });
+  const containment = document.createElement("style");
+  containment.textContent = pageCss();
+  shadow.replaceChildren(
+    theme,
+    ...authored,
+    containment,
+    cleanDocument(state.document),
+  );
   containSnapshotHost();
   resetComposer();
   showStatus(
@@ -505,7 +517,7 @@ function applyHostContext(update) {
     displayMode === "fullscreen" ? "Return inline" : "Fullscreen";
   if (currentMode === "snapshot" && hostContext.theme !== previousTheme) {
     const style = shadow.querySelector("style[data-leaf-theme]");
-    if (style) style.textContent = pageCss(current);
+    if (style) style.textContent = themeCss(current.theme, current.darkTheme);
   }
 }
 

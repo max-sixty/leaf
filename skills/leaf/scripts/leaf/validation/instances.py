@@ -295,11 +295,10 @@ def request_offer_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
-def reference_contract_error(
-    record: dict, attribute: str, target_record: dict | None, registry: dict
+def target_reference_contract_error(
+    reference: dict, target_record: dict | None, registry: dict
 ) -> str | None:
-    """Why one existing target fails its package-declared relation, if it does."""
-    reference = registry[record["tag"]]["x-refers"][attribute]
+    """Why one resolved target fails a package-declared relation, if it does."""
     via = reference.get("via")
     if via is None:
         return None
@@ -325,9 +324,19 @@ def reference_contract_error(
         if target_record is not None
         else "the target is not a registered widget"
     )
+    return f"must name a {via} widget where {expected}; {actual}"
+
+
+def reference_contract_error(
+    record: dict, attribute: str, target_record: dict | None, registry: dict
+) -> str | None:
+    """Why one existing x-refers target fails its declared relation, if it does."""
+    reference = registry[record["tag"]]["x-refers"][attribute]
+    error = target_reference_contract_error(reference, target_record, registry)
     return (
-        f'{at(record)}: {attribute}="{record["attrs"].get(attribute)}" must '
-        f"name a {via} widget where {expected}; {actual}"
+        f'{at(record)}: {attribute}="{record["attrs"].get(attribute)}" {error}'
+        if error
+        else None
     )
 
 

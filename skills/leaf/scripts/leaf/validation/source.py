@@ -6,7 +6,8 @@ from typing import NamedTuple
 from leaf.data import empty_data, read_data
 from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.registry.contract import RegistryError
-from leaf.registry.storage import load_registry
+from leaf.registry.storage import read_page_registry
+from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, links_with_rel
 from leaf.styles import (
@@ -17,6 +18,7 @@ from leaf.styles import (
     root_tokens,
 )
 from leaf.thread_context import thread_structure
+from leaf.validation.compatibility import candidate_vocabulary_gaps
 from leaf.validation.instances import (
     addressable_instance_errors,
     ask_surface_errors,
@@ -58,6 +60,7 @@ class SourceCheck(NamedTuple):
     errors: list[str]
     advice: list[str]
     column: int
+    artifact: RevisionArtifact | None = None
 
 
 def _source_bytes(page_dir: Path) -> tuple[bytes, str | None]:
@@ -86,10 +89,14 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
     errors.extend(page_boundary_errors(parser))
 
     for script in parser.external_scripts:
-        errors.append(
-            f"<script src> (line {script['line']}) belongs to delivery; "
-            "authored behavior must be an inline module"
-        )
+        if (
+            set(script["attrs"]) != {"type", "src"}
+            or script["attrs"].get("type") != "module"
+        ):
+            errors.append(
+                f"<script src> (line {script['line']}) must be an authored module "
+                'with exactly type="module" and src'
+            )
 
     for script in parser.inline_scripts:
         if script["attrs"] != {"type": "module"}:
@@ -105,11 +112,11 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
         )
 
     stylesheets = links_with_rel(parser.links, "stylesheet")
-    if stylesheets:
-        errors.append(
-            "external stylesheets belong to delivery; put page-specific rules "
-            f"in <style>, found {[asset['attrs'] for asset in stylesheets]}"
-        )
+    for stylesheet in stylesheets:
+        if set(stylesheet["attrs"]) != {"rel", "href"}:
+            errors.append(
+                f"<link rel=stylesheet> (line {stylesheet['line']}) must have exactly rel and href"
+            )
 
     for link in links_with_rel(parser.links, "canonical"):
         errors.append(
@@ -194,16 +201,6 @@ def _registry_errors(
             {event["id"] for event in events if event["kind"] == "comment"},
         )
     )
-    for tag, entry in registry.items():
-        if (
-            tag.startswith("lf-")
-            and entry["x-upgrade"]
-            and not (page_dir / "widgets" / f"{tag}.js").is_file()
-        ):
-            errors.append(
-                f"registry marks <{tag}> as upgraded but widgets/{tag}.js "
-                "isn't vendored; run `leaf page init`"
-            )
     return stored_data, errors
 
 
@@ -264,12 +261,26 @@ def check_source(
     html = data.decode("utf-8")
     document = SourceDocument(html)
     errors = _document_errors(page_dir, document)
+    page_registry = None
     try:
-        registry = load_registry(page_dir)
+        page_registry = read_page_registry(page_dir)
+        registry = page_registry.registry if page_registry is not None else None
     except RegistryError as error:
         registry = None
         errors.append(str(error))
-    revision = revision_reading(page_dir, data, events, registry)
+    artifact = None
+    if not errors and registry is not None:
+        try:
+            artifact = capture_artifact(
+                page_dir,
+                document,
+                registry,
+                declaration_sources=page_registry.declaration_sources,
+                widget_sources=page_registry.widget_sources,
+            )
+        except ArtifactError as error:
+            errors.append(str(error))
+    revision = revision_reading(page_dir, data, events, artifact)
     stored_data, registry_errors = _registry_errors(
         page_dir, events, document, registry
     )
@@ -279,6 +290,16 @@ def check_source(
         events, document, registry, revision
     )
     errors.extend(source_history_errors)
+    if registry is not None and revision.predecessor:
+        errors.extend(
+            candidate_vocabulary_gaps(
+                page_dir,
+                events,
+                document,
+                registry,
+                revision.predecessor,
+            )
+        )
 
     transition = transition_reading(document, events, registry, revision)
     errors.extend(
@@ -308,4 +329,5 @@ def check_source(
         errors,
         advice,
         column,
+        artifact,
     )

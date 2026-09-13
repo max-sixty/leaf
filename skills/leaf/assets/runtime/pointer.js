@@ -15,3 +15,12 @@ document.addEventListener("pointermove", remember, { capture: true });
 document.addEventListener("pointerdown", remember, { capture: true });
 
 export const pointerAt = () => ({ x, y });
+
+// An automatic revision activation replaces the document, not the reader's pointer.
+// New input wins over a handoff captured by the departing document.
+export function restorePointer(point) {
+  if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y))
+    return;
+  x = point.x;
+  y = point.y;
+}

@@ -7,7 +7,7 @@ import {
   once,
   failSoft,
   registerVisualParts,
-  settle,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 let rendererReady;
@@ -110,9 +110,9 @@ customElements.define(
       this.visualPartRegistration = registerVisualParts(this, () =>
         [...this.visualParts].map(([id, part]) => ({ id, ...part })),
       );
-      // Registered with settle() so the runtime holds view restore and the first
+      // Registered with the controller so the runtime holds view restore and the first
       // anchor pass until the SVG is in and the page's geometry is final.
-      settle(this.render());
+      widgetController(this).present(this.render());
     }
 
     async render() {

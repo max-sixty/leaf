@@ -881,7 +881,7 @@ export function createPageKeys({
     },
   ]);
 
-  // Design mode: a page mode the reader stands in for a batch of remarks about the layer.
+  // Design mode: a page mode the reader stands in for a batch of design remarks.
   // Its Escape is the innermost rung while it stands — a composer opened in it closes
   // first (COMPOSER is nearer), then the mode, then the panels — and the press it is made
   // of is not a key at all, so that row binds nothing and says nothing on the line, the
@@ -1274,8 +1274,7 @@ export function createPageKeys({
   // sequential steps while its interaction stands; this projection keeps the complete
   // route in the tooltip at rest.
   //
-  // The pass runs in the standing chrome's frame, which the `lf-actions` heartbeat asks for
-  // every two seconds on a page nobody has touched, so every name it writes goes through
+  // The pass runs in the standing chrome's frame, so every name it writes goes through
   // `keeps` and says nothing where the control already says it. Restated title or shortcut
   // metadata is news to whatever is reading the page — the mutation stream a screen reader
   // rebuilds its buffer from — and these controls stand on the banner the margin projection

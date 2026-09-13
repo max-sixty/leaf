@@ -4,6 +4,13 @@
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
 import { runtime } from "./context.js";
+import {
+  applicationState,
+  readApplication,
+  setPresentationFailureReporter,
+  whenApplicationRegionsPresented,
+  whenWidgetsPresented,
+} from "./semantic-state.js";
 import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
@@ -16,18 +23,12 @@ import {
 import { paintKeys } from "./keyboard/scopes.js";
 import { pendingTraffic } from "./traffic.js";
 import { createPendingLedger } from "./pending/state.js";
-import {
-  pendingApprovals as pendingApprovalEvents,
-  pendingRequests as pendingRequestEvents,
-  unresolvedAttempts,
-} from "./pending/model.js";
 import { createDelivery } from "./delivery.js";
 import {
   createProjectionPresentation,
   shallowSigs as projectionShallowSigs,
-  standingState as projectionStandingState,
 } from "./projection/presentation.js";
-import { currentProjection, projectionDeferred } from "./projection/state.js";
+import { projectionDeferred } from "./projection/state.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createConversationPresentation } from "./conversation/presentation.js";
@@ -38,7 +39,6 @@ import {
   registerThreadSurface as registerSurface,
   renderSurfaces,
 } from "./conversation/surfaces.js";
-import { createRequests } from "./requests.js";
 import { createStateApplication } from "./state-application.js";
 import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
 import { createProjectionUpdates } from "./updates.js";
@@ -51,6 +51,7 @@ const app = () => {
 
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
+  setPresentationFailureReporter(dependencies.reportPageError);
   const ledger = createPendingLedger({ newAttempt, now: saidNow });
   const hasPending = ledger.hasUnresolved;
   const engagement = dependencies.createEngagement({
@@ -65,34 +66,53 @@ export function mountApplication(dependencies) {
 
   const stateApplying = () => stateApplication?.isApplying() ?? false;
 
-  const readings = () => ({
-    phase: runtime.statePhase,
-    view: runtime.view,
-    conversation: runtime.browser?.conversation,
-    pendingEntries: ledger.snapshot(),
-    receipts: runtime.browser?.receipts ?? [],
-  });
-  const conversationReadings = () => ({
-    phase: runtime.statePhase,
-    serverThreads: runtime.browser?.conversation?.threads ?? [],
-    receipts: runtime.browser?.receipts ?? [],
-    pendingEntries: ledger.snapshot(),
-  });
   const pendingEntries = ledger.snapshot;
-  const currentReceipts = () => runtime.browser?.receipts ?? [];
-  const pendingApprovals = () =>
-    pendingApprovalEvents(pendingEntries(), currentReceipts());
-  const pendingRequests = () =>
-    pendingRequestEvents(pendingEntries(), currentReceipts());
+  const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
+  const pendingApprovals = () => readApplication().effective.pendingApprovals;
+  const pendingRequests = () => readApplication().effective.pendingRequests;
   const openAsks = () => readOpenAsks(pendingRequests());
   const unansweredAsks = () => readUnansweredAsks(pendingRequests());
   const approvalBlockingAsks = () => readApprovalBlockingAsks(pendingRequests());
   const watchAsks = (owner, callback) => observeAsks(owner, pendingRequests, callback);
 
-  const releasePending = () => {
-    const released = projection.releasableEntries(ledger.snapshot());
+  const releasableActions = () =>
+    ledger
+      .snapshot()
+      .filter(
+        (entry) =>
+          entry.answered &&
+          entry.event.kind === "action" &&
+          (entry.rejected || (entry.presented && entry.readEvent)),
+      );
+
+  const releasePending = async () => {
+    const candidates = releasableActions();
+    if (!candidates.length) return false;
+    const attempts = new Set(candidates.map((entry) => entry.event.attempt));
+    const stillCurrent = () =>
+      releasableActions().some((entry) => attempts.has(entry.event.attempt));
+    await Promise.all([
+      whenWidgetsPresented([...new Set(candidates.map((entry) => entry.event.widget))]),
+      whenApplicationRegionsPresented(
+        ["projection:chrome", "conversation", "asks"],
+        stillCurrent,
+      ),
+    ]);
+    // Waiting can cross a newer publication. Retire only the candidates selected
+    // before the wait and only if their semantic settlement still permits release.
+    const released = releasableActions().filter((entry) =>
+      attempts.has(entry.event.attempt),
+    );
+    // Widget updates and the conversation, projection, and Ask owners have now committed
+    // this surviving semantic reading. Paint its command surface while the same pending
+    // records still stand; removing an accounted record is then a semantic no-op.
+    if (released.length) paintKeys();
     for (const entry of released) ledger.remove(entry);
     return released.length > 0;
+  };
+
+  const releasePendingSafely = (context) => {
+    void releasePending().catch((error) => console.error(`leaf: ${context}`, error));
   };
 
   let invalidating = false;
@@ -104,9 +124,9 @@ export function mountApplication(dependencies) {
     if (invalidating) return undefined;
     invalidating = true;
     try {
-      projection.present(readings());
+      projection.present(readApplication());
       return backgroundConversation(
-        conversation.apply(conversationReadings()),
+        conversation.apply(readApplication()),
         "conversation preparation",
       );
     } finally {
@@ -127,12 +147,7 @@ export function mountApplication(dependencies) {
   const projection = createProjectionPresentation({
     onDeferredReady: () => {
       if (!retryProjection()) return;
-      if (releasePending()) paintKeys();
-      document.dispatchEvent(new Event("lf-actions"));
-    },
-    onDomIntroduced: () => {
-      invalidateDom();
-      dependencies.pageGeometry.pageShifted();
+      releasePendingSafely("deferred pending release");
     },
   });
   const dataProjection = createDataProjection({ invalidateDom });
@@ -144,36 +159,32 @@ export function mountApplication(dependencies) {
       console.error(`leaf: ${context}`, error);
     });
   };
+  const presentConversation = () => conversation.apply(readApplication());
   const refreshConversation = () =>
-    backgroundConversation(
-      conversation.apply(conversationReadings()),
-      "conversation preparation",
-    );
+    backgroundConversation(presentConversation(), "conversation preparation");
 
-  function post(event) {
+  function startPost(event) {
     const entry = ledger.enqueue(event);
     if (!entry) {
       notice(`Couldn't send — attempt ${event.attempt} is already in use`);
-      return Promise.resolve(null);
+      return null;
     }
-    let staged = false;
     let presentationError = null;
+    let conversationPresentation = Promise.resolve();
     try {
-      pendingTraffic(unresolvedAttempts(ledger.snapshot()));
-      staged = projection.stageOptimistic(entry);
+      pendingTraffic(readApplication().effective.delivery);
+      projection.stageOptimistic(entry);
       // Desired state changes at enqueue even where the widget has already painted the
       // same value. Conversation gestures are folded in this call stack before transport.
-      projection.present(readings());
-      backgroundConversation(
-        conversation.apply(conversationReadings()),
+      projection.present(readApplication());
+      conversationPresentation = backgroundConversation(
+        conversation.apply(readApplication()),
         "optimistic conversation preparation",
       );
     } catch (error) {
       presentationError = error;
     } finally {
       try {
-        if (staged || event.kind === "done" || event.kind === "request")
-          document.dispatchEvent(new Event("lf-actions"));
         if (entry.message) announce("Message sent");
         paintKeys();
       } catch (error) {
@@ -190,7 +201,76 @@ export function mountApplication(dependencies) {
     // apparent refusal for callers that restore drafts or clear busy state from it.
     if (presentationError)
       console.error("leaf: optimistic presentation", presentationError);
-    return entry.answer;
+    return Object.freeze({
+      answer: entry.answer,
+      presentation: conversationPresentation,
+    });
+  }
+
+  const post = (event) => startPost(event)?.answer ?? Promise.resolve(null);
+
+  function dispatchWidget(descriptor, command) {
+    const reading = applicationState.selectWidget(descriptor).read();
+    if (command.kind === "undo") {
+      const candidate = Object.values(reading.actions)
+        .flatMap(({ undo }) => undo)
+        .find(
+          (event) => event.attempt === command.target || event.id === command.target,
+        );
+      if (!candidate) return null;
+      // A receipt proves acceptance, but the action remains in the ledger until its
+      // authoritative projection has presented. Do not let an older durable action
+      // leapfrog that proof: the incomplete reading may still change which commands
+      // the page can honestly offer. The exact action still may withdraw itself,
+      // including before its own forward POST settles, because the ordered ledger owns
+      // both attempts together.
+      const acceptedPresentationPending = readApplication().unresolved.some(
+        (entry) =>
+          entry.event.kind === "action" &&
+          entry.answered &&
+          entry.readEvent &&
+          entry.readEvent.id !== candidate.id &&
+          !entry.presented,
+      );
+      if (acceptedPresentationPending) return null;
+      runtime.undoing = true;
+      paintKeys();
+      const started = startPost({ kind: "undo", undoes: candidate.id });
+      if (!started) {
+        runtime.undoing = false;
+        paintKeys();
+        return null;
+      }
+      return started.answer
+        .then((accepted) => {
+          if (accepted) notice("Took back your last change — sent");
+          return accepted;
+        })
+        .finally(() => {
+          runtime.undoing = false;
+          paintKeys();
+        });
+    }
+    const entry =
+      command.kind === "action"
+        ? reading.actions[command.verb]
+        : command.kind === "request"
+          ? reading.requests[command.verb]
+          : null;
+    if (!entry?.available) return null;
+    return (
+      startPost({
+        kind: command.kind,
+        revision: runtime.currentRevision,
+        widget: descriptor.id,
+        action: command.verb,
+        detail: structuredClone(command.detail ?? {}),
+        ...(command.references && {
+          references: structuredClone(command.references),
+        }),
+        ...(command.attempt && { attempt: command.attempt }),
+      })?.answer ?? null
+    );
   }
 
   const projectionCommands = createProjectionCommands({
@@ -199,20 +279,18 @@ export function mountApplication(dependencies) {
     unaccountedGesture: engagement.unaccountedGesture,
   });
   const projectionUpdates = createProjectionUpdates({
-    projectionCommitted: projection.projectionCommitted,
     coordinateProjectionCommitted: projection.coordinateProjectionCommitted,
   });
-  const requests = createRequests({ post, pendingRequests });
 
   const createComment = (event) =>
     post({ kind: "comment", revision: runtime.currentRevision, ...event });
   const createReply = (event) =>
     post({ kind: "reply", revision: runtime.currentRevision, ...event });
   const setResolved = (parent, resolved) =>
-    post({
+    startPost({
       kind: resolved ? "resolve" : "unresolve",
       parent,
-    });
+    }) ?? { answer: Promise.resolve(null), presentation: Promise.resolve() };
 
   const replyView = {
     createReply,
@@ -295,6 +373,7 @@ export function mountApplication(dependencies) {
   });
 
   conversation = createConversationPresentation({
+    available: dependencies.conversationAvailable ?? true,
     panelIsOpen: dependencies.panelIsOpen,
     setThreadCount: dependencies.setThreadCount,
     onConversationChanged: dependencies.onConversationChanged,
@@ -311,19 +390,20 @@ export function mountApplication(dependencies) {
     renderSurfaces,
   });
 
-  const applyConversation = () => conversation.apply(conversationReadings());
-  const presentProjection = () => projection.present(readings());
+  const applyConversation = () => conversation.apply(readApplication());
+  const prepareProjection = () => projection.prepare(readApplication());
+  const presentProjection = (prepared) =>
+    projection.present(readApplication(), prepared);
   const accountPending = (receipts) => {
     const removed = ledger.account(receipts);
-    const released = releasePending();
-    if (removed || released) paintKeys();
+    if (removed) paintKeys();
+    releasePendingSafely("receipt presentation");
   };
 
   stateApplication = createStateApplication({
     prepareActivation: dependencies.state.prepareActivation,
     acceptData: dependencies.state.acceptData,
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
-    replaceClaimState: dependencies.state.replaceClaimState,
     isSignoffDeclared: dependencies.state.isSignoffDeclared,
     paintApproval: dependencies.state.paintApproval,
     renderStatus: dependencies.state.renderStatus,
@@ -331,71 +411,55 @@ export function mountApplication(dependencies) {
     stateSignoff: dependencies.state.stateSignoff,
     renderOthers: dependencies.state.renderOthers,
     applyConversation,
+    renderAsks: dependencies.renderAsks,
+    prepareProjection,
     presentProjection,
     accountPending,
     panelIsOpen: dependencies.panelIsOpen,
-    refreshHover: dependencies.anchorPaint.refreshHover,
-    repaint: dependencies.onConversationChanged,
     paintKeys,
-    retainConversationFocus: dependencies.retainConversationFocus,
-    updateFab: dependencies.updateFab,
   });
 
   const flushQueuedInvalidation = async () => {
     if (!queuedInvalidation || stateApplying()) return;
     queuedInvalidation = false;
     if (retryProjection()) {
-      if (releasePending()) paintKeys();
-      document.dispatchEvent(new Event("lf-actions"));
+      releasePendingSafely("queued pending release");
       return;
     }
     await invalidateDom();
   };
   const receiveState = (state) =>
     stateApplication.receiveState(state).finally(async () => {
-      // External wakes that arrived while the candidate was fallible now read either
-      // the adopted state or the complete snapshot rollback restored.
+      // External wakes read the latest semantic root, including local gestures made
+      // while an accepted reading was still preparing its views.
       try {
         await flushQueuedInvalidation();
       } catch (error) {
-        // This retry happens after the state transaction has committed or rolled back.
-        // Its presentation failure must not replace that canonical transaction result.
+        // A retry's presentation failure does not change the accepted reading.
         console.error("leaf: queued projection retry", error);
       }
     });
 
   delivery = createDelivery({
     ledger,
-    currentReceipts: () => runtime.browser?.receipts ?? [],
+    currentReceipts,
     applyAcceptedState: receiveState,
     settleRejected: () =>
       stateApplication.runSerialized(async () => {
-        projection.present(readings());
-        const prepared = conversation.apply(conversationReadings());
-        releasePending();
+        projection.present(readApplication());
+        const prepared = conversation.apply(readApplication());
+        releasePendingSafely("rejected event presentation");
         await prepared;
       }),
     settlementChanged: (_entry, accepted) => {
       if (accepted) {
         // A poll can account for the attempt before delivery marks its entry answered.
-        // Retry release after that candidate has committed and ledger.accept has run;
-        // this is the point undo and other semantic readers may observe the entry leave.
-        void stateApplication
-          .runSerialized(() => {
-            if (!releasePending()) return;
-            paintKeys();
-            document.dispatchEvent(new Event("lf-actions"));
-          })
-          .catch((error) =>
-            console.error("leaf: accepted event reconciliation", error),
-          );
+        // Retry after ledger.accept; release itself waits for every owning presentation
+        // region before undo and other semantic readers may observe the entry leave.
+        releasePendingSafely("accepted event reconciliation");
         return;
       }
       paintKeys();
-      // An accepted response's state application owns the semantic repaint once its
-      // awaited presentation commits. A definitive refusal has no state application,
-      // so its completed local reconciliation emits the change here.
-      document.dispatchEvent(new Event("lf-actions"));
     },
     reportApplicationError: (error) =>
       console.error("leaf: rejected event reconciliation", error),
@@ -410,7 +474,7 @@ export function mountApplication(dependencies) {
     stateApplying,
     releasePending,
     renderConversation: applyConversation,
-    panelIsOpen: dependencies.panelIsOpen,
+    presentProjection,
     receiveState,
   });
 
@@ -430,7 +494,6 @@ export function mountApplication(dependencies) {
   application = {
     ...projectionCommands,
     ...projectionUpdates,
-    ...requests,
     ...engagement,
     approvalBlockingAsks,
     beginRead: beginStateRead,
@@ -438,7 +501,7 @@ export function mountApplication(dependencies) {
     createComment,
     createPageComment: createComment,
     createReply,
-    currentProjection,
+    dispatchWidget,
     hasPending,
     invalidateDom,
     landInConversation: dependencies.landInConversation,
@@ -455,30 +518,25 @@ export function mountApplication(dependencies) {
     readAndApply: feed.readAndApply,
     receiveState,
     refreshConversation,
+    presentConversation,
     refreshNarrowing: conversation.refreshNarrowing,
     registerThreadSurface,
-    requestAvailable: requests.requestAvailable,
     resetAuthoredPage: projection.resetAuthoredPage,
     setResolved,
     shallowSigs: projectionShallowSigs,
-    standingState: projectionStandingState,
     startFeed: feed.startFeed,
-    watchRequestLifecycle: requests.watchRequestLifecycle,
     watchAsks,
     wireInput: dependencies.wireInput,
   };
   return application;
 }
 
-export const actionAvailable = (...args) => app().actionAvailable(...args);
-export const actionSequence = (...args) => app().actionSequence(...args);
-export const actionStands = (...args) => app().actionStands(...args);
 export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
 export const beginRead = (...args) => app().beginRead(...args);
 export const conversationBox = (...args) => app().conversationBox(...args);
 export const createComment = (...args) => app().createComment(...args);
 export const createReply = (...args) => app().createReply(...args);
-export const currentProjectionReading = (...args) => app().currentProjection(...args);
+export const dispatchWidget = (...args) => app().dispatchWidget(...args);
 export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInConversation = (...args) => app().landInConversation(...args);
@@ -494,20 +552,11 @@ export const readAndApply = (...args) => app().readAndApply(...args);
 export const receiveState = (...args) => app().receiveState(...args);
 export const refreshConversation = (...args) => app().refreshConversation(...args);
 export const registerThreadSurface = (...args) => app().registerThreadSurface(...args);
-export const requestAvailable = (...args) => app().requestAvailable(...args);
-export const sendAction = (...args) => app().sendAction(...args);
-export const sendRequest = (...args) => app().sendRequest(...args);
 export const shallowSigs = (...args) => app().shallowSigs(...args);
 export const startFeed = (...args) => app().startFeed(...args);
-export const standingState = (...args) => app().standingState(...args);
 export const unaccountedGesture = (...args) => app().unaccountedGesture(...args);
 export const undoable = (...args) => app().undoable(...args);
-export const undoableAction = (...args) => app().undoableAction(...args);
 export const undoLast = (...args) => app().undoLast(...args);
-export const withdraw = (...args) => app().withdraw(...args);
-export const withdrawableAction = (...args) => app().withdrawableAction(...args);
-export const watchActions = (...args) => app().watchActions(...args);
 export const watchAsks = (...args) => app().watchAsks(...args);
-export const watchRequestLifecycle = (...args) => app().watchRequestLifecycle(...args);
 export const watchUpdates = (...args) => app().watchUpdates(...args);
 export const wireInput = (...args) => app().wireInput(...args);

@@ -11,12 +11,17 @@ from .event_log import now_iso
 from .files import (
     list_revisions,
     revision_label,
-    revision_name,
     revision_path,
     version_descriptors,
 )
 from .presence import other_leaves, presence_fingerprint, presence_with_activity
-from .registry.storage import layer_metadata, require_registry
+from .registry.storage import read_page_registry
+from .revision_artifact import (
+    RevisionArtifact,
+    artifact_name,
+    capture_artifact,
+    read_artifact,
+)
 from .service import PageTransaction
 from .structure import SourceDocument
 
@@ -33,6 +38,7 @@ class PageSnapshot:
     data: dict
     browser_data: dict
     versions: tuple[dict, ...]
+    artifacts: dict[int, RevisionArtifact]
     documents: dict[int, SourceDocument]
     revision_names: dict[int, str]
     presence: dict
@@ -44,29 +50,50 @@ class PageSnapshot:
 
 
 def capture_page_snapshot(
-    page_dir: Path, document: SourceDocument, active: dict
+    page_dir: Path,
+    document: SourceDocument,
+    active: dict,
+    *,
+    artifact: RevisionArtifact | None = None,
 ) -> PageSnapshot:
     """Freeze a candidate and every page authority it is projected against."""
+    if artifact is not None and artifact.html != document.data:
+        raise ValueError("preview artifact does not contain the checked document")
     with PageTransaction(page_dir) as page:
         events = tuple(copy.deepcopy(page.events))
         snapshot_active = copy.deepcopy(active)
-        registry = copy.deepcopy(require_registry(page_dir))
-        layer = copy.deepcopy(layer_metadata(page_dir))
         data = read_data(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(page_dir, list(events))))
         revisions = list_revisions(page_dir)
-        documents = {
-            revision: SourceDocument(
-                revision_path(page_dir, revision).read_text(encoding="utf-8")
-            )
-            for revision in revisions
+        artifacts = {
+            revision: read_artifact(page_dir, revision) for revision in revisions
         }
-        documents[active["revision"]] = document
+        selected = artifact or artifacts.get(active["revision"])
+        if selected is None or selected.html != document.data:
+            page_registry = read_page_registry(page_dir)
+            if page_registry is None:
+                raise ValueError(
+                    f"no registry.json in {page_dir}; run `leaf page init` first"
+                )
+            selected = capture_artifact(
+                page_dir,
+                document,
+                page_registry.registry,
+                declaration_sources=page_registry.declaration_sources,
+                widget_sources=page_registry.widget_sources,
+            )
+        artifacts[active["revision"]] = selected
+        registry = copy.deepcopy(selected.registry)
+        layer = copy.deepcopy(registry["$layer"])
+        documents = {
+            revision: SourceDocument(artifact.html.decode("utf-8"))
+            for revision, artifact in artifacts.items()
+        }
         revision_names = {
             revision: revision_path(page_dir, revision).name for revision in revisions
         }
-        revision_names[active["revision"]] = revision_name(
-            active["revision"], document.data
+        revision_names[active["revision"]] = (
+            artifact_name(active["revision"], artifacts[active["revision"]]) + ".html"
         )
         present, live_stream = presence_with_activity(page_dir, list(events))
         others = tuple(copy.deepcopy(other_leaves(page_dir)))
@@ -106,6 +133,7 @@ def capture_page_snapshot(
         data=data,
         browser_data=browser_data,
         versions=versions,
+        artifacts=artifacts,
         documents=documents,
         revision_names=revision_names,
         presence=copy.deepcopy(present),

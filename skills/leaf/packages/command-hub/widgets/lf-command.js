@@ -497,14 +497,10 @@ function paint(plan) {
   for (const worker of snapshot.workers)
     if (!worker.element.hasAttribute("data-lf-command-worker"))
       worker.element.dataset.lfCommandWorker = "1";
-  const changed = [
-    ...snapshot.goals.map((goal) => renderGoal(goal)),
-    renderHeader(snapshot),
-    renderStopped(snapshot),
-    renderFleet(snapshot),
-  ].some(Boolean);
-  if (changed)
-    document.dispatchEvent(new CustomEvent("lf-command-update", { detail: snapshot }));
+  for (const goal of snapshot.goals) renderGoal(goal);
+  renderHeader(snapshot);
+  renderStopped(snapshot);
+  renderFleet(snapshot);
   restoreFocus?.();
 }
 

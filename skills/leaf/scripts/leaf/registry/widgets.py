@@ -12,7 +12,7 @@ from .contract import (
     RegistryError,
     declares_string,
     json_validator,
-    registry_path,
+    reference_relation_error,
     state_specs,
     visual_part_attribute,
 )
@@ -34,6 +34,14 @@ def element_declarations(registry: dict, path) -> dict:
             f"{path}: invalid element declaration names: {invalid_names}"
         )
     return {tag: entry for tag, entry in registry.items() if tag.startswith("lf-")}
+
+
+def _recorded_attributes(entry: dict) -> set[str]:
+    return {
+        record["attr"]
+        for _channel, _verb, spec in state_specs(entry)
+        if (record := spec.get("record")) and "attr" in record
+    }
 
 
 def validate_widget_schemas(declarations: dict, path) -> None:
@@ -64,11 +72,7 @@ def validate_widget_schemas(declarations: dict, path) -> None:
                 for verb, spec in entry.get("x-request", {}).get("verbs", {}).items()
             ),
         ]
-        recorded_attributes = {
-            record["attr"]
-            for _channel, _verb, spec in state_specs(entry)
-            if (record := spec.get("record")) and "attr" in record
-        }
+        recorded_attributes = _recorded_attributes(entry)
         for channel, verb, spec in declared_verbs:
             try:
                 Draft202012Validator.check_schema(spec["detail"])
@@ -178,7 +182,7 @@ def validate_widget_relations(
         _validate_widget_interactions(tag, entry, properties, awaits, response, path)
         validate_widget_state_relations(tag, entry, declarations, path)
         validate_widget_record_contracts(
-            tag, entry, properties, said, declarations, path
+            tag, entry, properties, said, registry, declarations, path
         )
         validate_widget_retirement(tag, entry, slots, declarations, path)
 
@@ -290,6 +294,11 @@ def _validate_widget_structure(
                     f"{path}: <{tag}> x-request offer <{member}> attribute "
                     f"`{attribute}` must be required"
                 )
+            if attribute in _recorded_attributes(member_entry):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-request offer <{member}> attribute "
+                    f"`{attribute}` is written by x-state or x-report"
+                )
             if unknown := sorted(set(values) - verbs):
                 raise RegistryError(
                     f"{path}: <{tag}> x-request offer <{member}> `{attribute}` "
@@ -373,29 +382,8 @@ def _validate_widget_structure(
                 f"{path}: <{tag}> {key} names undeclared attributes {unknown}"
             )
     for attribute, reference in entry.get("x-refers", {}).items():
-        via = reference.get("via")
-        if via is None:
-            continue
-        relation = registry_path(registry, via)
-        if not isinstance(relation, dict):
-            raise RegistryError(
-                f"{path}: <{tag}> x-refers `{attribute}` names unknown registry "
-                f"map {via!r}"
-            )
-        predicate = reference["where"]
-        matches = [
-            target
-            for target, declaration in relation.items()
-            if target in declarations
-            and isinstance(declaration, dict)
-            and all(declaration.get(key) == value for key, value in predicate.items())
-        ]
-        if not matches:
-            expected = ", ".join(f"{key}={value!r}" for key, value in predicate.items())
-            raise RegistryError(
-                f"{path}: <{tag}> x-refers `{attribute}` requires {via} "
-                f"where {expected}, but no declared widget matches"
-            )
+        if error := reference_relation_error(reference, registry, declarations):
+            raise RegistryError(f"{path}: <{tag}> x-refers `{attribute}` {error}")
     if part_attribute := visual_part_attribute(entry):
         if not (
             "id" in entry.get("required", [])

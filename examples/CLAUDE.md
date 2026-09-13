@@ -92,7 +92,9 @@ layer the website serves. Every bundled package belongs in it, whether or not a
 page uses that package today: the list is what the corpus floors read to decide
 which vocabulary they cover.
 
-An example's markup is its current version. A page fixture that was revised ships
+An example's markup is its current version. A sibling `<stem>.page/` directory is
+copied to the prepared page's `page/` directory when the example owns declarations,
+modules, styles, or other captured resources. A page fixture that was revised ships
 each earlier version in its sibling `versions/` directory as `<stem>.vN.html`.
 `example_versions` in `scripts/example_data.py` is the one reader of that list, in
 filename order, and each builder walks it oldest first through the real `version

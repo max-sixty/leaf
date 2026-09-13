@@ -2,7 +2,7 @@
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { bindings } from "../keyboard/bindings.js";
-import { el } from "../widget-elements.js";
+import { el, LAYOUT } from "../widget-elements.js";
 
 import {
   blockAt,
@@ -416,7 +416,7 @@ export function createTargetChooser({
   }
 
   // Page text is the one walk source too expensive to rebuild on every chrome paint.
-  // `lf-actions` is the runtime's broad source invalidation, so refresh only while this
+  // Layout invalidation is its mechanical source, so refresh only while this
   // owner is standing; the read handed to the shared walk remains a cheap cached lookup.
   function refreshMatchWalk() {
     if (walkPosition()?.kind !== "page-search") return;
@@ -826,7 +826,7 @@ export function createTargetChooser({
       scrolling = false;
       repaint();
     });
-    document.addEventListener("lf-actions", refreshMatchWalk);
+    document.addEventListener(LAYOUT, refreshMatchWalk);
   }
   return {
     visibleTargets,

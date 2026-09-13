@@ -20,8 +20,10 @@ def page_reading(page_dir: Path) -> str:
     Every direct child of the page directory, rather than the files a state response is
     known to read. The known-list is unmaintainable in the way that does not fail
     loudly: leave one out and the page simply stops hearing about that kind of news,
-    with nothing red to say so. Directories are stamped without descending, which is
-    enough — a new revision moves `revisions/`, a stamp moves `events.jsonl`, and the
+    with nothing red to say so. The authored `page/` tree is also stamped recursively:
+    changing a module dependency or stylesheet is a candidate revision even when the
+    HTML stays unchanged. Other directories are stamped without descending — a new
+    revision moves `revisions/`, a stamp moves `events.jsonl`, and the
     vendored layer cannot change under a served page at all, since re-vendoring restarts
     the server.
 
@@ -40,6 +42,11 @@ def page_reading(page_dir: Path) -> str:
         (entry.name, file_stamp(entry))
         for entry in page_dir.iterdir()
         if entry.name not in UNWATCHED and not STAGED.fullmatch(entry.name)
+    )
+    stamps.extend(
+        (entry.relative_to(page_dir).as_posix(), file_stamp(entry))
+        for entry in sorted((page_dir / "page").rglob("*"))
+        if entry.is_file() and not STAGED.fullmatch(entry.name)
     )
     stamps.append(("", file_stamp(claim_path(page_dir))))
     return hashlib.sha256(repr(stamps).encode()).hexdigest()[:16]

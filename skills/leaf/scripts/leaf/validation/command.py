@@ -5,8 +5,9 @@ from contextlib import nullcontext
 from pathlib import Path
 
 from leaf.event_log import flocked, read_events
-from leaf.files import list_revisions, revision_path
+from leaf.files import list_revisions
 from leaf.leases import transition_lock
+from leaf.revision_artifact import read_artifact
 
 from .source import check_source
 
@@ -48,7 +49,7 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
         revision = active
         if (
             not active
-            or revision_path(page_dir, active).read_bytes() != result.document.data
+            or read_artifact(page_dir, active).digest != result.artifact.digest
         ):
             revision = active + 1
         return render_check(
@@ -56,5 +57,6 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
             document=result.document,
             revision=revision,
             transition_held=True,
+            artifact=result.artifact,
         )
     return 0

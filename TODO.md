@@ -6,19 +6,16 @@ remain in git history.
 
 ## Now
 
-- **Make the page instance complete and its browser state coherent.** Treat the
-  [page-instance boundary](notes/page-instance-boundary.md) and
-  [reactive runtime vision](notes/reactive-browser-runtime.md) as one program: capture a
-  complete revision, prove page-owned declarations through the final public behavior
-  API, cut semantic publication and rendering over, then add interactive export through
-  the shared presentation boundary. Authored pages remain ordinary HTML and
-  installations gain no frontend build.
-
-- **Make Leaf a complete playground builder.** Once the joint page and runtime boundary
-  exists, follow the [playground capability plan](notes/playground-capability-plan.md) to
-  unify custom state with controls and output, restore discovery and task-shaped
-  recipes, improve Targeting, add representative website examples, and preserve
-  interaction in the shared offline mode.
+- **Make live revision activation feel like one continuously evolving document.** When
+  the captured registry and executable module graph are unchanged, patch authored HTML
+  in place at text-node granularity, recapture changed widget baselines, and publish one
+  semantic snapshot. Let retained DOM identity make the browser preserve focus, caret,
+  selection, hover, scroll, and armed keyboard routes; do not add parallel handoff code
+  for state the browser already owns. Navigate through the existing fresh-document path
+  only when captured executable inputs changed. Keep immutable revisions, stamps, and
+  comparisons in the background, and prove prose-only edits retain an untouched native
+  selection, parked hover, element identity, and an armed route while an executable
+  change still performs one correct reload.
 
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
@@ -88,6 +85,30 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   choose and participate in real recurring tasks.
 
 ## Later
+
+- **Finish the Lit rendering cutover for Leaf-owned generated UI.** Move the remaining
+  imperative chrome, inline-conversation, margin, and retained suggestion-control paint
+  onto Lit elements or templates fed by read-only application projections. Preserve
+  authored child nodes and local focus, selection, disclosure, drag, and animation state;
+  delete each reconciliation adapter when its last caller moves. Plain-JavaScript
+  package modules remain supported through the same public widget API.
+
+- **Remove the remaining semantic compatibility readings.** Derive the Ask inventory
+  and suggestion settlement entirely from the immutable application snapshot, then
+  remove DOM and `data-lf-state` as input stores. Keep DOM attributes only as rendered
+  output and extend the import/ownership gate so a new semantic store outside the
+  publisher fails before it lands.
+
+- **Share immutable revision resources by digest.** Two minimal default-layer
+  revisions currently store 3,200,741 and 3,200,749 bytes, with 179 identical
+  resource digests copied into both bundles. Put captured bytes in a page-local
+  `objects/sha256/<digest>` store and let each immutable manifest retain the logical
+  path, MIME type, dependency edges, and digest. Publication must write, verify, and
+  fsync collision-checked objects before the revision manifest and HTML marker become
+  discoverable. Historical HTTP routes, standalone export, and static-site output must
+  continue to materialize the revision's logical paths. Prove crash recovery, digest
+  collision refusal, revision replacement, repeated media, and a hundred-revision size
+  profile before cutting over and deleting the per-revision resource copies.
 
 - **Find a specific first task for the public home page.** The current page starts
   with the comment-and-revise loop: a visitor asks Leaf guide to edit their private copy.

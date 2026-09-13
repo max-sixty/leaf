@@ -136,11 +136,16 @@ lf-operations { display: grid; grid-template-columns: repeat(auto-fit, minmax(14
 lf-operation { position: relative; display: block; padding: var(--sp-3) 5.5rem var(--sp-3) var(--sp-3);
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
   --lf-block-frame: 1; }
-lf-operation[data-lf-requested] { background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
-lf-operation > .lf-request-press { position: absolute; top: var(--sp-3); right: var(--sp-3); }
-lf-operations > .lf-request-status { grid-column: 1 / -1; color: var(--muted); font: var(--t-6) var(--sans); }
-lf-operations > .lf-request-status[data-status="failed"] { color: var(--danger-ink); }
-lf-operations > .lf-request-status[data-status="succeeded"] { color: var(--ok-ink); }
+lf-operation:has(> lf-request-control[data-lf-requested]) {
+  background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
+lf-operation > lf-request-control > .lf-request-press {
+  position: absolute; top: var(--sp-3); right: var(--sp-3); }
+lf-operations > .lf-request-render-root > .lf-request-status {
+  grid-column: 1 / -1; color: var(--muted); font: var(--t-6) var(--sans); }
+lf-operations > .lf-request-render-root > .lf-request-status[data-status="failed"] {
+  color: var(--danger-ink); }
+lf-operations > .lf-request-render-root > .lf-request-status[data-status="succeeded"] {
+  color: var(--ok-ink); }
 
 lf-worktree { display: block; margin: var(--sp-2) 0; padding-left: var(--sp-3);
   border-left: 2px solid var(--rule); }

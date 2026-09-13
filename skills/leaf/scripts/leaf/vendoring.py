@@ -10,9 +10,11 @@ from typing import NamedTuple
 from .data import empty_data, read_data
 from .data_contracts import (
     data_contract_errors,
+    data_contract_transition_errors,
     data_snapshot_selections,
     merge_data_bindings,
     page_data_documents,
+    working_data_bindings,
 )
 from .event_log import flocked, now_iso
 from .files import (
@@ -34,6 +36,8 @@ from .layer import (
 from .leases import lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
+from .registry.contract import read_registry_declarations
+from .registry.page import compose_page_registry
 from .schema import (
     CURSOR_FILE,
     DATA_FILE,
@@ -48,8 +52,8 @@ from .schema import (
     STATUS_FILE,
 )
 from .service import PageTransaction, claim_path
-from .structure import parse_revision
-from .validation.compatibility import vocabulary_gaps
+from .structure import SourceDocument, parse_revision
+from .validation.compatibility import candidate_vocabulary_gaps
 from .work import widget_work_without_targets
 
 
@@ -159,12 +163,23 @@ def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> N
 def _refuse_vocabulary_drift(
     page_dir: Path, events: list[dict], incoming: dict
 ) -> None:
-    # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
-    # where drift has to be caught: a tag or verb the new layer omits, or a
-    # detail schema that no longer accepts an old payload, makes a recorded
-    # action foreign on the first reload — the lost-decision bug reintroduced
-    # through vocabulary drift instead of version-scoping.
-    gaps = vocabulary_gaps(page_dir, events, incoming)
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return
+    try:
+        document = SourceDocument((page_dir / "index.html").read_text(encoding="utf-8"))
+    except (FileNotFoundError, UnicodeDecodeError):
+        # An unreadable candidate cannot activate, but re-vendoring must still
+        # preserve the active page until the source is repaired.
+        document = parse_revision(page_dir, revision)
+    gaps = candidate_vocabulary_gaps(
+        page_dir,
+        events,
+        document,
+        incoming,
+        revision,
+        validate_event_records=True,
+    )
     if gaps:
         sys.exit(
             "this page's log holds vocabulary the incoming layer no longer speaks:\n"
@@ -184,7 +199,9 @@ def _refuse_data_contract_drift(
     # exact older layer it exists to migrate. Binding discovery only reads x-data.
     if current := read_json(page_dir / "registry.json"):
         documents = page_data_documents(page_dir, events)
-        standing_bindings, standing_errors = merge_data_bindings(documents, current)
+        standing_bindings, standing_errors = working_data_bindings(
+            page_dir, current, events
+        )
         incoming_bindings, incoming_errors = merge_data_bindings(documents, incoming)
         binding_errors = list(dict.fromkeys(standing_errors + incoming_errors))
         binding_changes = [
@@ -209,13 +226,17 @@ def _refuse_data_contract_drift(
             for document, _ordinal, tag, widget, _line, input_name in [seat]
             if incoming_snapshots.get(seat) != standing_snapshots.get(seat)
         ]
-        if binding_errors or binding_changes or selection_changes:
+        contract_changes = data_contract_transition_errors(page_dir, events, incoming)
+        if binding_errors or binding_changes or selection_changes or contract_changes:
             sys.exit(
                 "this page's immutable documents do not keep one meaning for each "
                 "data source:\n"
                 + "\n".join(
                     f"  - {error}"
-                    for error in binding_errors + binding_changes + selection_changes
+                    for error in binding_errors
+                    + binding_changes
+                    + selection_changes
+                    + contract_changes
                 )
                 + "\npreserve those bindings and snapshot selectors in the incoming "
                 "registry before re-vendoring."
@@ -256,6 +277,26 @@ def _validate_page_transition(
     _refuse_vocabulary_drift(page_dir, events, incoming)
     _refuse_data_contract_drift(page_dir, events, incoming)
     _refuse_untargeted_work(page_dir, events, incoming)
+
+
+def _effective_registry(page_dir: Path, composition: LayerComposition) -> dict:
+    """Compose authored declarations over the prospective vendored layer."""
+    source = page_dir / "page" / "registry.json"
+    declarations = read_registry_declarations(source) or {}
+    widget_paths = {
+        *(f"widgets/{name}" for name in composition.directory_files["widgets"]),
+        *(
+            path.relative_to(page_dir).as_posix()
+            for path in (page_dir / "page" / "widgets").glob("lf-*.js")
+            if path.is_file()
+        ),
+    }
+    return compose_page_registry(
+        composition.registry,
+        declarations,
+        widget_paths,
+        source=source,
+    ).registry
 
 
 def _stamp_layer(
@@ -302,6 +343,7 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
     directories = {
         page_dir / "revisions",
         page_dir / MEDIA_DIR,
+        page_dir / "page",
         *(page_dir / sub for sub in PACKAGE_DIRS),
     }
     for target in file_targets:
@@ -441,7 +483,9 @@ def _vendor_page(
     # A bad late package must not leave the registry newer than the theme or its
     # modules.
     composition = compose_layer(roots)
-    _validate_page_transition(page_dir, events, composition.registry)
+    _validate_page_transition(
+        page_dir, events, _effective_registry(page_dir, composition)
+    )
     layer = _stamp_layer(composition, selected)
     directories = _checked_destinations(page_dir, layer)
     _commit_layer(page_dir, fresh=fresh, layer=layer, directories=directories)

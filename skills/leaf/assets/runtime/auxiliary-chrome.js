@@ -10,6 +10,7 @@ export function createAuxiliaryChromeNavigation({
   setPanel,
   setOpenTray,
   openInlineThread,
+  restoreAskFocus,
 }) {
   function auxiliaryFocusRoute(control) {
     if (!control || control === document.body) return () => null;
@@ -29,10 +30,14 @@ export function createAuxiliaryChromeNavigation({
     const ask = control?.closest?.(".lf-asks-row[data-lf-at]");
     if (ask) {
       const target = ask.dataset.lfAt;
-      return () =>
-        [...asksPanel.querySelectorAll(".lf-asks-row[data-lf-at]")].find(
-          (row) => row.dataset.lfAt === target,
-        ) ?? null;
+      return () => {
+        const current = [
+          ...asksPanel.querySelectorAll(".lf-asks-row[data-lf-at]"),
+        ].find((row) => row.dataset.lfAt === target);
+        if (current) return current;
+        restoreAskFocus(target);
+        return asksPanel;
+      };
     }
     const thread = control?.closest?.(".lf-thread[data-id]");
     if (thread) {

@@ -34,6 +34,7 @@ import { threadsBox } from "./panel-elements.js";
 import { reachedForWords } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
 import { SAYS_IN, SAY_BOX } from "./selectors.js";
+import { retainReaderIntent } from "../reader-intent.js";
 
 export { SAY_BOX } from "./selectors.js";
 const conversationReturns = new WeakMap();
@@ -143,23 +144,8 @@ function prepareLanding({ held = null, box, route = null }) {
   return { held, box };
 }
 
-// A completion may navigate only until the reader's next gesture or focus moves
-// elsewhere. Replacing its control can drop focus to body without a new intent.
-let landingIntent = 0;
-const leaveLanding = () => landingIntent++;
-for (const type of ["pointerdown", "keydown", "input", "wheel"])
-  addEventListener(type, leaveLanding, { capture: true, passive: true });
-addEventListener("blur", leaveLanding);
 const retainLanding = (source, available, fallback = null) => {
-  const intent = landingIntent;
-  return () => {
-    const at = focused();
-    return (
-      available() &&
-      intent === landingIntent &&
-      (at === document.body || at === fallback || source.contains(at))
-    );
-  };
+  return retainReaderIntent({ source, available, fallback });
 };
 
 export const retainPanelLanding = (source, panelIsOpen) =>
@@ -295,18 +281,36 @@ const listNode = (id) => {
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls. Sending a reply stays with its
 // editor through revealConversation instead.
-function showThreadNow(id, focus, revealThread) {
+async function showThreadNow(id, focus, revealThread) {
+  const mayArrive = retainReaderIntent({
+    source: focused(),
+    available: () => threadsBox.isConnected,
+    fallback: threadsBox,
+  });
+  // A direct arrival owns the target's one transition cue. Remove a retained arrival
+  // animation before an asynchronous reveal gives the browser a frame to start it.
+  threadsBox
+    .querySelector(
+      `.lf-thread[data-id="${CSS.escape(id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
+    )
+    ?.classList.remove("grow");
   let node = listNode(id);
   const going = node?.closest(".lf-going");
   if (going) {
     finishFold(going.dataset.id);
-    revealThread(id);
+    const revealed = revealThread(id);
+    if (!revealed) return false;
+    await revealed;
+    if (!mayArrive()) return false;
     node = listNode(id);
   } else if (!node) {
-    revealThread(id);
+    const revealed = revealThread(id);
+    if (!revealed) return false;
+    await revealed;
+    if (!mayArrive()) return false;
     node = listNode(id);
   }
-  if (!node) return;
+  if (!node || !mayArrive()) return false;
   const thread = node.closest(".lf-thread");
   if (focus) {
     const destination =
@@ -332,6 +336,7 @@ function showThreadNow(id, focus, revealThread) {
   target.classList.remove("grow");
   target.classList.add("flash");
   setTimeout(() => target.classList.remove("flash"), 1300);
+  return true;
 }
 
 export function createConversationLanding({ setPanel, scrollToThread, revealThread }) {
@@ -348,7 +353,14 @@ export function createConversationLanding({ setPanel, scrollToThread, revealThre
   const landInConversation = (box, route = null) => landIn({ box, route });
   const showThread = (id, { focus = "reply" } = {}) => {
     setPanel(true);
-    showThreadNow(id, focus, revealThread);
+    const ready = showThreadNow(id, focus, revealThread);
+    // Pointer and keyboard routes deliberately discard this ticket. The conversation
+    // coordinator reports its one failure; the landing result keeps that rejection out
+    // of both discarded event-handler promises and callers that continue a delivery.
+    return ready.then(
+      (arrived) => arrived,
+      () => false,
+    );
   };
   return { landIn, landInConversation, showThread };
 }

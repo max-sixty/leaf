@@ -9,7 +9,11 @@
    schedules an update. A failed update restores both committed faces before the
    coordinator reports and settles the attempt. */
 import { LitElement, html, repeat } from "../vendor/browser-runtime.js";
-import { attachApplicationPresentation } from "./semantic-state.js";
+import {
+  attachApplicationPresentation,
+  failSoftAfterRetention,
+  PresentationRetentionError,
+} from "./semantic-state.js";
 import { foldShelf, showNews } from "./banner-shelf.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 
@@ -167,7 +171,7 @@ class LiveLeavesList extends LitElement {
       try {
         await this.#retainCommitted();
       } catch (restoreError) {
-        throw new AggregateError(
+        throw new PresentationRetentionError(
           [error, restoreError],
           "Leaves presentation and retention failed",
         );
@@ -190,7 +194,7 @@ class LiveLeavesList extends LitElement {
     });
     // `present` writes the ticket synchronously before assigning either face, so a
     // waiter cannot resume between semantic publication and Lit scheduling.
-    const ready = this.#handle.present(model, completion, () => this);
+    const ready = this.#handle.present(model, completion, failSoftAfterRetention(this));
     void this.#commit(model, generation).then(resolve, reject);
     return ready;
   }

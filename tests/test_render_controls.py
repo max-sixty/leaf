@@ -429,9 +429,10 @@ def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, se
         "title", "Approve this work; the page stays open for follow-up"
     )
     kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
-    assert kinds[-2:] == ["done", "undo"], (
-        f"the withdrawal is not in the log as its own event: {kinds}"
-    )
+    assert kinds[-2:] == [
+        "done",
+        "undo",
+    ], f"the withdrawal is not in the log as its own event: {kinds}"
 
     # And the press is available again, which is what makes this a correction rather than
     # a page the reader has spent.
@@ -3105,6 +3106,51 @@ def test_a_failed_leaves_update_keeps_the_committed_list_and_settles(
     expect(rows).to_have_count(1)
     expect(line).to_have_text("Working — the next paint lands")
     assert errors == ["leaf: Presentation failed: deliberate leaves failure"]
+    page.close()
+
+
+def test_a_failed_leaves_restore_keeps_application_presentation_pending(
+    browser, serve, other_leaf, live_leaf
+):
+    """A list that cannot paint either a candidate or its fallback is not presented."""
+    _, closing_dir = live_leaf("closing", "The closing leaf")
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('lf-leaves-list');
+          const render = list.render.bind(list);
+          let failures = 2;
+          list.render = () => {
+            if (failures-- > 0) throw new Error('deliberate leaves failure');
+            return render();
+          };
+        }"""
+    )
+    files_model.write_json(
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    page.wait_for_function(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return presentation.readApplicationPresentation().pending.includes('leaves');
+        }"""
+    )
+    assert errors == ["leaf: Presentation failed: presentation and fail-soft failed"]
+
+    # A later complete reading replaces the failed ticket and opens readiness again.
+    told(page)
+    page.wait_for_function(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return !presentation.readApplicationPresentation().pending.includes('leaves');
+        }"""
+    )
     page.close()
 
 

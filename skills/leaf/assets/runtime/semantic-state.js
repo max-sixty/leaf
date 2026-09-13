@@ -26,6 +26,13 @@ export const attachApplicationPresentation = (region, renderer) =>
   presentation.attach(region, renderer);
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(`widget:${widget}:${kind}`, renderer);
+
+export class PresentationRetentionError extends AggregateError {}
+
+export const failSoftAfterRetention = (proof) => (reason) => {
+  if (reason instanceof PresentationRetentionError) throw reason;
+  return proof;
+};
 const currentApplicationPresentation = () => ({
   document: documentToken,
   semanticEpoch: readApplication().semanticEpoch,

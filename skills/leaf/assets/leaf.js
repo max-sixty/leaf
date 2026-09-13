@@ -1,4 +1,5 @@
 /* Leaf runtime boot and application composition root. */
+import "./vendor/browser-runtime.js";
 import chromeSheet from "./runtime/chrome.css" with { type: "css" };
 import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
 import { chromeRoot } from "./runtime/chrome.js";

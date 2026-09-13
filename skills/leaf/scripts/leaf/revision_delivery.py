@@ -14,7 +14,7 @@ import turbohtml
 from tinycss2.serializer import serialize_string_value
 
 from .revision_artifact import Resource, resolve_dependency, rewrite_module
-from .structure import SourceDocument
+from .structure import SourceDocument, rewrite_resource_attribute
 
 
 def _resource_url(value: str, logical_path: str, asset_root: str) -> str:
@@ -120,14 +120,24 @@ def deliver_document(source: str, asset_root: str) -> str:
                 element, "href", _resource_url(attrs["href"], "/index.html", asset_root)
             )
         if element.tag != "script":
-            for name in ("src", "poster"):
-                value = attrs.get(name)
-                if value and value.startswith(
-                    ("/page/", "page/", "./page/", "/media/")
-                ):
-                    attribute(
-                        element, name, _resource_url(value, "/index.html", asset_root)
-                    )
+            for name, value in attrs.items():
+                if not isinstance(value, str):
+                    continue
+                delivered = rewrite_resource_attribute(
+                    element.tag,
+                    attrs,
+                    name,
+                    value,
+                    lambda reference: (
+                        _resource_url(reference, "/index.html", asset_root)
+                        if reference.startswith(
+                            ("/page/", "page/", "./page/", "/media/")
+                        )
+                        else reference
+                    ),
+                )
+                if delivered != value:
+                    attribute(element, name, delivered)
         if attrs.get("style"):
             value = _stylesheet(attrs["style"], "/index.html", asset_root, block=True)
             if value != attrs["style"]:

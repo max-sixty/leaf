@@ -1690,6 +1690,8 @@ def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_p
         """
 <h1 id="title">Captured appearance</h1>
 <figure id="badge"><img src="/page/icon.svg" alt="Captured badge" width="24" height="24"></figure>
+<svg id="vector" width="24" height="24"><image href="/page/icon.svg" width="24" height="24"></image></svg>
+<img id="responsive" srcset="/page/icon.svg 1x, /page/icon-2.svg 2x" alt="Responsive badge">
 <p id="inline" style="background-image: url('/page/icon.svg')">Inline asset</p>
 <pre id="quoted"><code>url('/page/icon.svg')</code></pre>
 """,
@@ -1699,6 +1701,7 @@ def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_p
         source,
         page_files={
             "icon.svg": icon,
+            "icon-2.svg": icon.replace("navy", "green"),
             "styles/main.css": """
 @import "./nested/palette.css" layer(captured) supports(display: grid) screen;
 #title { color: var(--export-tone) !important; }
@@ -1749,6 +1752,17 @@ body { --export-tone: rgb(12, 34, 56); }
         expect(page.locator("#title")).to_have_css("color", "rgb(12, 34, 56)")
         expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
             "naturalWidth", 24
+        )
+        assert (
+            page.locator("#vector image")
+            .get_attribute("href")
+            .startswith("data:image/svg+xml;base64,")
+        )
+        assert (
+            page.locator("#responsive")
+            .get_attribute("srcset")
+            .count("data:image/svg+xml;base64,")
+            == 2
         )
         expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
         for selector in ("#badge", "#inline"):

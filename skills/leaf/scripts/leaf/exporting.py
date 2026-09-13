@@ -47,7 +47,7 @@ from leaf.revision_artifact import (
 )
 from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.served_state.service import PageStateService
-from leaf.structure import UTF8_BOM, SourceDocument
+from leaf.structure import UTF8_BOM, SourceDocument, rewrite_resource_attribute
 
 ResourceReader = Callable[[str], Resource]
 
@@ -236,25 +236,21 @@ def inline_assets(
             for name, value in attrs.items():
                 if name == "style":
                     replacement = assets.css(value, document_url)
-                elif (
-                    name in {"src", "poster"}
-                    and element.tag not in {"script", "iframe"}
-                ) or (
-                    name in {"href", "xlink:href"}
-                    and (
-                        element.tag in {"image", "use"}
-                        or element.tag == "link"
-                        and "icon" in attrs.get("rel", [])
+                else:
+                    replacement = rewrite_resource_attribute(
+                        element.tag,
+                        attrs,
+                        name,
+                        value,
+                        lambda reference: assets.url(reference, document_url, ()),
                     )
-                ):
-                    replacement = assets.url(value, document_url, ())
-                elif (
+                if (
                     element.tag == "meta"
                     and name == "content"
                     and attrs.get("http-equiv", "").lower() == "content-security-policy"
                 ):
                     replacement = _embedded_policy(value)
-                else:
+                elif replacement == value and name != "style":
                     continue
                 if replacement != value:
                     span = location.attrs[name.lower()]

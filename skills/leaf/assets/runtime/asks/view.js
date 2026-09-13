@@ -144,6 +144,8 @@ import { availableCommandRoutes } from "../keyboard/dispatch.js";
 import { PRESENTATION } from "../presentation.js";
 import {
   attachApplicationPresentation,
+  failSoftAfterRetention,
+  PresentationRetentionError,
   readApplication,
   watchSemantic,
 } from "../semantic-state.js";
@@ -336,7 +338,7 @@ export function createAskView({
           bannerControls.retainCommitted(),
         ]);
       } catch (retaining) {
-        throw new AggregateError(
+        throw new PresentationRetentionError(
           [error, retaining],
           "Ask presentation and retention failed",
         );
@@ -362,7 +364,7 @@ export function createAskView({
     const ready = presentation().present(
       readApplication().semanticEpoch,
       completion,
-      () => asksRenderer,
+      failSoftAfterRetention(asksRenderer),
     );
     prior?.resolve();
     queueMicrotask(() => {

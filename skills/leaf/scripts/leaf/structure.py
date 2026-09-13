@@ -102,6 +102,64 @@ HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
 SCRIPT_URL_ATTRIBUTES = {"action", "formaction", "href", "src", "xlink:href"}
 
 
+def _srcset_urls(value: str):
+    """Yield URL spans from the browser's comma-and-descriptor image candidate form."""
+    cursor = 0
+    while cursor < len(value):
+        while cursor < len(value) and (value[cursor].isspace() or value[cursor] == ","):
+            cursor += 1
+        start = cursor
+        while cursor < len(value) and not value[cursor].isspace():
+            cursor += 1
+        end = cursor
+        while end > start and value[end - 1] == ",":
+            end -= 1
+        if end > start:
+            yield start, end, value[start:end]
+        if end != cursor:
+            continue
+        depth = 0
+        while cursor < len(value):
+            char = value[cursor]
+            if char == "(":
+                depth += 1
+            elif char == ")" and depth:
+                depth -= 1
+            elif char == "," and not depth:
+                cursor += 1
+                break
+            cursor += 1
+
+
+def resource_attribute_urls(tag: str, attrs: dict, name: str, value: str):
+    """Return the resource URLs carried by one admitted HTML attribute."""
+    normalized_tag = tag.lower()
+    if name == "srcset" and normalized_tag in {"img", "source"}:
+        return tuple(url for _, _, url in _srcset_urls(value))
+    if name in {"src", "poster"} and normalized_tag not in {"script", "iframe"}:
+        return (value,)
+    if name in {"href", "xlink:href"} and (
+        normalized_tag in {"feimage", "image", "use"}
+        or normalized_tag == "link"
+        and "icon" in attrs.get("rel", [])
+    ):
+        return (value,)
+    return ()
+
+
+def rewrite_resource_attribute(tag: str, attrs: dict, name: str, value: str, rewrite):
+    """Rewrite just the URL tokens in one resource-valued HTML attribute."""
+    urls = resource_attribute_urls(tag, attrs, name, value)
+    if not urls:
+        return value
+    if name != "srcset":
+        return rewrite(value)
+    rewritten = value
+    for start, end, url in reversed(tuple(_srcset_urls(value))):
+        rewritten = rewritten[:start] + rewrite(url) + rewritten[end:]
+    return rewritten
+
+
 class SourceDocument:
     """One browser-compatible structural reading of authored HTML.
 
@@ -413,17 +471,21 @@ class SourceDocument:
         if markers:
             self.reserved_markers.append((tag, line, markers))
         self.media_refs.update(
-            value
-            for value in attrs.values()
-            if isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
+            reference
+            for name, value in attrs.items()
+            if isinstance(value, str)
+            for reference in (
+                resource_attribute_urls(tag, attrs, name, value)
+                or (() if name == "srcset" else (value,))
+            )
+            if reference.startswith(f"/{MEDIA_DIR}/")
         )
         self.page_resource_refs.update(
-            value
+            reference
             for name, value in attrs.items()
-            if name in {"src", "poster"}
-            and tag != "script"
-            and isinstance(value, str)
-            and value.startswith(("/page/", "page/", "./page/"))
+            if isinstance(value, str)
+            for reference in resource_attribute_urls(tag, attrs, name, value)
+            if reference.startswith(("/page/", "page/", "./page/"))
         )
 
         if tag == "noscript" or (

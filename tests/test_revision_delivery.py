@@ -2,9 +2,10 @@
 
 from urllib.parse import urljoin, urlsplit
 
+import pytest
 import tinycss2
 from interact_support import PAGE
-from leaf.revision_artifact import Resource, capture_artifact
+from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import deliver_document, deliver_resource
 from leaf.structure import SourceDocument
 
@@ -25,7 +26,9 @@ const lazy = () => import('/page/later.js');
 </head><body><main>
 <p title="./page/app.js">A literal /page/app.js and &amp; spelling.</p>
 <img src="./page/café.svg#leaf" alt='🍂 /page/café.svg'>
+<img srcset="./page/café.svg 1x, /page/poster.png 2x" alt="Responsive leaf">
 <video poster="/page/poster.png"></video>
+<svg><image href="/page/café.svg#leaf"></image><filter><feImage href="/page/poster.png"></feImage></filter></svg>
 <img src="data:image/svg+xml;base64,PHN2Zy8+" alt="Embedded">
 <div style="background: url(&quot;./page/inline.svg&quot;); color: red">Text</div>
 </main></body></html>""".replace("\n", "\r\n")
@@ -38,7 +41,13 @@ const lazy = () => import('/page/later.js');
     assert f'import "{ROOT}/page/inline.js";' in delivered
     assert f'import("{ROOT}/page/later.js")' in delivered
     assert parsed.tree.find("img").attrs["src"] == ROOT + "/page/caf%C3%A9.svg#leaf"
+    assert (
+        parsed.tree.find_all("img")[1].attrs["srcset"]
+        == f"{ROOT}/page/caf%C3%A9.svg 1x, {ROOT}/page/poster.png 2x"
+    )
     assert parsed.tree.find("video").attrs["poster"] == ROOT + "/page/poster.png"
+    assert parsed.tree.find("image").attrs["href"] == ROOT + "/page/caf%C3%A9.svg#leaf"
+    assert parsed.tree.find("feImage").attrs["href"] == ROOT + "/page/poster.png"
     assert f"{ROOT}/page/background.svg#leaf" in parsed.css
     assert ROOT + "/page/inline.svg" in parsed.inline_styles[0]
     for unchanged in (
@@ -119,17 +128,27 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
         'main { background-image: url("./image.svg"); }'
     )
     (authored / "image.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    (authored / "image-2.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
     source = PAGE.replace(
         "</head>",
         '<script type="module" src="./page/app.js"></script>'
         '<link rel="stylesheet" href="page/style.css"></head>',
-    ).replace("</main>", '<img src="./page/image.svg" alt="Leaf"></main>')
+    ).replace(
+        "</main>",
+        '<svg><image href="./page/image.svg"></image></svg>'
+        '<img srcset="./page/image.svg 1x, ./page/image-2.svg 2x" '
+        'alt="Leaf"></main>',
+    )
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     delivered = SourceDocument(deliver_document(source, ROOT))
     entries = [
         delivered.external_scripts[0]["attrs"]["src"],
         delivered.links[0]["attrs"]["href"],
-        delivered.tree.find("img").attrs["src"],
+        delivered.tree.find("image").attrs["href"],
+        *(
+            candidate.split()[0]
+            for candidate in delivered.tree.find("img").attrs["srcset"].split(",")
+        ),
     ]
     for address in ("/p/reader/", "/p/reader/versions/v1.html", ROOT + ".html"):
         for entry in entries:
@@ -138,3 +157,15 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
             logical = request.removeprefix(ROOT)
             assert logical in artifact.resources
             assert deliver_resource(artifact.resources[logical], logical, ROOT)
+
+
+def test_capture_refuses_a_missing_svg_resource(tmp_path):
+    source = PAGE.replace(
+        "</main>",
+        '<svg><image href="/page/missing.svg"></image></svg></main>',
+    )
+
+    with pytest.raises(
+        ArtifactError, match=r"/page/missing\.svg: cannot capture dependency"
+    ):
+        capture_artifact(tmp_path, SourceDocument(source), {})

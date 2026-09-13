@@ -4382,7 +4382,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         "revision": 2,
         "data_revision": 2,
     }
-    current = (serve.page_dir / ".fixture-versions" / "v1.html").read_text()
+    current = (serve.page_dir / "index.html").read_text()
     _publish(
         serve.page_dir,
         2,
@@ -5069,7 +5069,7 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
     )
     d = serve.page_dir
     original_document = page.evaluate("performance.timeOrigin")
-    current = (d / ".fixture-versions" / "v1.html").read_text()
+    current = (d / "index.html").read_text()
     _publish(
         d,
         2,

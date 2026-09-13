@@ -97,7 +97,7 @@ from render_harness import (
     round_trip,
     select,
     sending,
-    stamp_version_file,
+    stamp_page,
     take_browser_errors,
     told,
     undo,
@@ -792,8 +792,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     expect(pinned.locator(".lf-banner-more")).not_to_have_attribute(
         "data-lf-news", re.compile(r".*")
     )
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
-    stamp_version_file(serve.page_dir, 2, "two")
+    stamp_page(serve.page_dir, html, "two")
     expect(pinned.locator(".lf-latest-chip")).to_have_class(
         re.compile(r"lf-news-shown")
     )
@@ -836,8 +835,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
-    stamp_version_file(serve.page_dir, 2, "two")
+    stamp_page(serve.page_dir, html, "two")
     panel_comment(serve.page_dir, "Is this ready?", author="claude")
     page = open_page(browser, url)
     resized(page, 1280, 900)
@@ -965,8 +963,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # the reader to the next standing control instead of silently dropping them on body.
     page = open_page(browser, url.replace("/v1.html", "/v2.html"), pin=True)
     resized(page, 1200, 900)
-    (serve.page_dir / ".fixture-versions" / "v3.html").write_text(html)
-    stamp_version_file(serve.page_dir, 3, "three")
+    stamp_page(serve.page_dir, html, "three")
     expect(page.locator(".lf-latest-chip")).to_have_class(re.compile(r"lf-news-shown"))
     answer_all = page.locator(".lf-answer-all")
     # The blanket answer decides its decisions one at a time, so the press owes one round
@@ -2304,8 +2301,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     page_at_rest(page)
 
     def publish_v2():
-        (d / ".fixture-versions" / "v2.html").write_text(html)
-        stamp_version_file(d, 2, "two")
+        stamp_page(d, html, "two")
 
     # The same events a second tab's presses would have posted, which is the only way one
     # user's browser hears about another's decisions.
@@ -2545,8 +2541,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         '<title>long</title><meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
-    stamp_version_file(serve.page_dir, 2, "two")
+    stamp_page(serve.page_dir, html, "two")
     page = open_page(browser, url)
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     expect(page.locator(".lf-signoff")).to_be_visible()
@@ -3557,8 +3552,7 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     revised = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', '<h1 id="t">Long after replacement</h1>'
     )
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(revised)
-    stamp_version_file(serve.page_dir, 2, "replace the document")
+    stamp_page(serve.page_dir, revised, "replace the document")
     told(page)
     expect(page.locator("#t")).to_have_text("Long after replacement")
 
@@ -4087,8 +4081,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     each is proved standing before axe reads it — a sweep over a surface that never opened
     is a green that means nothing, which is the shape `tests/CLAUDE.md` names."""
     url = serve(ADDRESSED_PAGE, comments=1)
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(ADDRESSED_PAGE)
-    stamp_version_file(serve.page_dir, 2, "two")
+    stamp_page(serve.page_dir, ADDRESSED_PAGE, "two")
     page = open_page(browser, url)
     resized(page, width, 900)
     page.emulate_media(color_scheme=color_scheme)
@@ -4677,8 +4670,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         )
         .replace('id="quota-ready" chosen', 'id="quota-ready"')
     )
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(quota_v2)
-    stamp_version_file(serve.page_dir, 2, "same plan")
+    stamp_page(serve.page_dir, quota_v2, "same plan")
     told(current)
     expect(current.locator(".lf-version")).to_contain_text("v2")
     expect(current.locator("#task")).not_to_have_attribute("data-lf-reported", "1")

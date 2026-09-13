@@ -59,7 +59,7 @@ from render_harness import (
     round_trip,
     sending,
     shortcut_bar_text,
-    stamp_version_file,
+    stamp_page,
     ticked,
     told,
     wait_for_revision,
@@ -233,8 +233,7 @@ def test_page_round_trip(browser, serve):
     round_trip(page)
 
     # Claude ships v2 with the passage moved; the page follows on its next poll.
-    (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
-    stamp_version_file(d, 2, "moved")
+    stamp_page(d, JOURNEY_V2, "moved")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
     assert page.evaluate("performance.timeOrigin") != original_document, (
@@ -521,8 +520,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == ""
 
     d = serve.page_dir
-    (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
-    stamp_version_file(d, 2, "v2")
+    stamp_page(d, JOURNEY_V2, "v2")
     told(page)
     expect(page.locator(".lf-latest-chip")).to_be_visible()
     assert "/versions/" not in page.url
@@ -1523,8 +1521,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     v2 = NOTED_PAGE.replace(
         "A short second passage.", "A revised short second passage."
     )
-    (d / ".fixture-versions" / "v2.html").write_text(v2)
-    stamp_version_file(d, 2, "v2")
+    stamp_page(d, v2, "v2")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
 
@@ -1541,8 +1538,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
     )
-    (d / ".fixture-versions" / "v3.html").write_text(v3)
-    stamp_version_file(d, 3, "v3")
+    stamp_page(d, v3, "v3")
     told(page)
     expect(page.locator(".lf-latest-chip")).to_be_visible()
     expect(page.locator(".lf-version")).to_contain_text("v2")
@@ -2863,8 +2859,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     d = serve.page_dir
     for version, text in ((1, "First recorded body."), (2, "Second recorded body.")):
         if version == 2:
-            (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
-            stamp_version_file(d, 2, "v2")
+            stamp_page(d, JOURNEY_V2, "v2")
         append_command(
             d,
             {
@@ -2943,8 +2938,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
     # And the agent answers with a version that carries neither — the page generator
     # emitting its own idea of the board and the draft, as one did for five
     # versions running.
-    (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
-    stamp_version_file(d, 2, "v2")
+    stamp_page(d, JOURNEY_V2, "v2")
 
     page = open_page(browser, url.replace("v1.html", "v2.html"))
     page.wait_for_function(

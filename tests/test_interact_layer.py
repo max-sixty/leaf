@@ -25,7 +25,6 @@ from interact_support import (
     case_alias,
     check,
     element_declaration,
-    fixture_version_path,
     install_payload,
     record_claim,
     shipped_payload,
@@ -2751,7 +2750,7 @@ def test_package_init_starts_one_checked_upgraded_widget(
     )
     assert initialized.exit_code == 0, initialized.output
     assert (page / "widgets" / "lf-risk-note.js").read_text() == module
-    fixture_version_path(page, 1).write_text(
+    (page / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-risk-note id="release-risk"><strong>Release risk'
@@ -3010,7 +3009,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
         package / "vendor" / "callout-schema.json"
     ).read_text()
 
-    fixture_version_path(page, 1).write_text(
+    (page / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-callout id="custom-note">'

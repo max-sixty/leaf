@@ -103,7 +103,6 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
-    stamp_version_file,
     ticked,
     told,
     undo,
@@ -3672,10 +3671,8 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     monkeypatch.setattr(render_gate_model, "SERVED_TIMEOUT_MS", 1500)
     d = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
-    (d / ".fixture-versions").mkdir()
-    for n in (1, 2):
-        (d / ".fixture-versions" / f"v{n}.html").write_text(REPLY_HOST_PAGE)
-        stamp_version_file(d, n, "t")
+    for _ in (1, 2):
+        stamp_page(d, REPLY_HOST_PAGE, "t")
 
     asked = threading.Event()
     release = threading.Event()
@@ -3734,8 +3731,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         )
 
     def stamp(n, html):
-        (d / ".fixture-versions" / f"v{n}.html").write_text(html)
-        stamp_version_file(d, n, "t")
+        stamp_page(d, html, "t")
         return url.replace("v1.html", f"v{n}.html")
 
     # v2 says nothing about either decision; both stand, and nothing is reported.
@@ -3784,8 +3780,7 @@ def test_render_accepts_actions_made_after_the_authored_change(
     url = serve(previous)
     d = serve.page_dir
     current = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    (d / ".fixture-versions" / "v2.html").write_text(current)
-    stamp_version_file(d, 2, "t")
+    stamp_page(d, current, "t")
     append_command(
         d,
         {
@@ -3868,8 +3863,7 @@ customElements.define("lf-pair", class extends HTMLElement {
 
     act(1, "first")
     current = previous.replace('second="a"', 'second="b"')
-    (d / ".fixture-versions" / "v2.html").write_text(current)
-    stamp_version_file(d, 2, "t")
+    stamp_page(d, current, "t")
     act(2, "second")
     # Both renderState writes hit the same id. Only the newer facet was authored.
     assert (
@@ -4795,8 +4789,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     honored = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
-    (d / ".fixture-versions" / "v2.html").write_text(honored)
-    stamp_version_file(d, 2, "t")
+    stamp_page(d, honored, "t")
     third = open_page(browser, url.replace("v1.html", "v2.html"))
     expect(third.locator("#col-done #card-importer")).to_be_visible()
     # Absence only counts once replay has decided every action.

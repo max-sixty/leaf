@@ -89,7 +89,7 @@ def test_a_written_comment_quotes_the_whole_passage(page_dir):
         '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n',
         f"  <p>{passage}</p>\n  <p>Deploys pause overnight.</p>\n",
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(long)
+    (page_dir / "index.html").write_text(long)
     event = json.loads(
         comment(published(page_dir), "--quote", passage, "--text", "x").output
     )
@@ -110,7 +110,7 @@ def test_a_quote_closing_its_section_stores_the_next_sections_words(page_dir):
         "</main>",
         '<section id="rollout">\n  <p>The rollout resumes.</p>\n</section>\n</main>',
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(two)
+    (page_dir / "index.html").write_text(two)
     event = json.loads(
         comment(
             published(page_dir), "--quote", "Deploys pause overnight.", "--text", "x"
@@ -130,7 +130,7 @@ def test_a_comment_refuses_a_quote_the_version_holds_twice(page_dir):
     """Which copy was meant is a question with an answer, and there is someone to ask.
     The browser has to guess because the user has already gone; this doesn't."""
     twice = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n  <p>Ship dark.</p>")
-    (page_dir / ".fixture-versions" / "v1.html").write_text(twice)
+    (page_dir / "index.html").write_text(twice)
     result = comment(published(page_dir), "--quote", "Ship dark", "--text", "x")
     assert result.exit_code != 0
     assert "2 times" in result.output
@@ -211,7 +211,7 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
         '<lf-diagram id="flow">',
         '<lf-diagram id="flow" parts="node:A node:B">',
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(parted)
+    (page_dir / "index.html").write_text(parted)
     published(page_dir)
 
     result = comment(
@@ -255,7 +255,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
         '<p id="old-wording">The retry starts here.</p>'
         '<lf-diagram id="flow" parts="node:A node:B">',
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(v1)
+    (page_dir / "index.html").write_text(v1)
     published(page_dir)
     root = json.loads(
         comment(
@@ -339,7 +339,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
         '<lf-diagram id="flow">',
         '<p id="old-wording">The retry starts here.</p><lf-diagram id="flow">',
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(v1)
+    (page_dir / "index.html").write_text(v1)
     published(page_dir)
     root = json.loads(
         comment(
@@ -516,7 +516,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         '<lf-tasks id="work"><lf-task id="held-goal" status="active" talk>'
         "<strong>Held goal</strong></lf-task></lf-tasks></section>",
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(v1)
+    (page_dir / "index.html").write_text(v1)
     published(page_dir)
     root = events_model.append_event(
         page_dir,
@@ -612,13 +612,13 @@ def test_a_version_keeps_each_declared_visual_part_addressable(page_dir):
         '<lf-diagram id="flow">',
         '<lf-diagram id="flow" parts="node:A node:B">',
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(parted)
+    (page_dir / "index.html").write_text(parted)
     published(page_dir)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         parted.replace(' parts="node:A node:B"', ' parts="node:B"')
     )
 
-    result = check(page_dir, 2)
+    result = check(page_dir)
     assert result.exit_code != 0
     assert (
         "visual parts present in revision r1 but dropped in index.html" in result.output
@@ -637,7 +637,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
         '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n'
         "  <p>After the diagram.</p>",
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(fenced)
+    (page_dir / "index.html").write_text(fenced)
     published(page_dir)
     across = comment(
         page_dir,
@@ -682,7 +682,6 @@ def test_an_edited_draft_reads_as_the_users_words(page_dir):
 def test_comments_reach_reader_generated_choices_without_source_copying(page_dir):
     html = PAGE.replace("<lf-options>", '<lf-options id="routes" choose>')
     (page_dir / "index.html").write_text(html)
-    (page_dir / ".fixture-versions" / "v1.html").write_text(html)
     publish(page_dir)
     identity = "routes-option-reader"
     words = "Use <a literal> & keep the source unchanged."
@@ -711,10 +710,10 @@ def test_comments_reach_reader_generated_choices_without_source_copying(page_dir
 
     # A later source version still omits the generated option. The open anchored
     # conversation and the option's words must both remain reachable.
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         html.replace("The cutoff lives", "The active cutoff lives")
     )
-    published = stamp(page_dir, 2, "Clarified the cutoff.")
+    published = stamp(page_dir, "Clarified the cutoff.")
     assert published.exit_code == 0, published.output
     later = comment(
         page_dir, "--section", identity, "--quote", words, "--text", "Still here."
@@ -748,8 +747,8 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
         '<lf-draft id="note"><pre>\nAdds --dry-run to every mutating command.',
         '<lf-draft id="note" restated><pre>\nOnly purge gets a dry-run; the rest apply live.',
     )
-    (page_dir / ".fixture-versions" / "v2.html").write_text(revised)
-    noted = stamp(page_dir, 2, "took the pen back")
+    (page_dir / "index.html").write_text(revised)
+    noted = stamp(page_dir, "took the pen back")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "the rest apply live", "--text", "x")
     assert kept.exit_code == 0, kept.output
@@ -791,10 +790,10 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     words the page stopped showing a version ago."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         DRAFTED.replace("<title>t</title>", "<title>t · revised</title>")
     )
-    noted = stamp(page_dir, 2, "changes elsewhere")
+    noted = stamp(page_dir, "changes elsewhere")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "purge and rebuild only", "--text", "x")
     assert kept.exit_code == 0, kept.output
@@ -807,7 +806,7 @@ def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir)
     has to offer them — otherwise a metric's own number is the one thing on the page
     Claude can't point at. Both edges the registry can give one are here: the option's
     chip band opens the element, and the metric's delta closes it."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             '  <lf-diagram id="flow">',
             '  <lf-metrics><lf-metric id="k-visits" value="312" delta="+41"'
@@ -876,7 +875,7 @@ def test_a_decision_that_empties_its_widget_takes_it_off_sections_reach(page_dir
         "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
         "</lf-suggestion>",
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(lone)
+    (page_dir / "index.html").write_text(lone)
     published(page_dir)
     for wid in ("sug-drop", "sug-add"):
         ok = comment(page_dir, "--section", wid, "--text", "x")
@@ -906,7 +905,7 @@ def test_a_decision_settles_which_copy_a_quote_names(page_dir):
     twice = SUGGESTED.replace(
         "<h2>Plan</h2>", "<h2>Plan</h2>\n  <p>Refill every feeder each morning.</p>"
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(twice)
+    (page_dir / "index.html").write_text(twice)
     published(page_dir)
     ambiguous = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
@@ -932,8 +931,8 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
     ).replace(
         '<lf-suggestion id="sug-refill">', '<lf-suggestion id="sug-refill" restated>'
     )
-    (page_dir / ".fixture-versions" / "v2.html").write_text(revised)
-    noted = stamp(page_dir, 2, "revised the proposal")
+    (page_dir / "index.html").write_text(revised)
+    noted = stamp(page_dir, "revised the proposal")
     assert noted.exit_code == 0, noted.output
     result = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
@@ -978,8 +977,8 @@ def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
         '<p id="refill-camera">Refill when the camera shows it half-empty.</p>\n',
     )
     assert "sug-refill" not in honored and "refill-rule" not in honored
-    (page_dir / ".fixture-versions" / "v2.html").write_text(honored)
-    assert check(page_dir, 2).exit_code == 0
+    (page_dir / "index.html").write_text(honored)
+    assert check(page_dir).exit_code == 0
 
     accepted = next(
         e for e in events_model.read_events(page_dir) if e["kind"] == "action"
@@ -987,13 +986,13 @@ def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
-    assert check(page_dir, 2).exit_code == 1
+    assert check(page_dir).exit_code == 1
 
 
 def test_what_the_reader_never_sees_is_not_quotable(page_dir):
     """The runtime roots a section-less anchor at document.body, so a <title> is text no
     anchor can reach — and a page's title is often a sentence from the page as well."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Backfill cutover plan</title>")
     )
     result = comment(
@@ -1128,7 +1127,7 @@ def test_a_closed_thread_stops_asking(page_dir):
     Otherwise an agent that asked and then answered the question for itself leaves
     the reader a standing decision for the life of the page, pointing into the disclosure
     closed threads live in."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = events_model.append_event(
         page_dir,

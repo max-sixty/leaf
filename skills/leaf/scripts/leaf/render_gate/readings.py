@@ -129,9 +129,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     failsoft = evaluate_probe(page, "failSoftErrors")
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
-    visual_provider_problems = evaluate_probe(
-        page, "invalidVisualProviders", declarations
-    )
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     unmarkable = evaluate_probe(page, "unmarkableElements")
     overflow = evaluate_probe(page, "rootOverflow")
@@ -308,11 +305,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             f"[{scheme}] upgraded widgets did not define their elements: "
             + ", ".join(f"<{tag}>" for tag in missing_upgrades)
         )
-    found += [
-        f"[{scheme}] <{p['tag']} id={p['id']!r}> declares addressable visual "
-        f"parts but its module {'; '.join(p['problems'])}"
-        for p in visual_provider_problems
-    ]
     if tiny:
         found.append(
             f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"

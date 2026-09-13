@@ -228,6 +228,12 @@ vendored page and uses its HTTP API. A render-gate test calls
 directly only when the helper itself carries a contract that would otherwise be
 hard to diagnose, such as the traffic wait reaching its deadline.
 
+A probe's independent faults belong on one composed page when its findings attribute
+each fault separately. Put clean controls beside them and assert the relevant populations
+before calling the public gate, then compare its complete result where the fixture owns
+every expected finding. Do not start a fresh browser gate merely to vary one declaration
+or stylesheet rule that the same reading can distinguish by owner, role, or surface.
+
 A reading the layer makes from declarations belongs on a widget that declares
 them, not on whichever shipped entry currently does. `serve` takes
 `layer_registry` and `layer_widgets` for that: a project-package entry and its

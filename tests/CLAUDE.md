@@ -106,11 +106,12 @@ registry it was generated from.
 
 The authored-source render gate runs every public example, regression page, and
 developer gallery independently. The broad Axe baseline uses the feature gallery at
-both widths and color schemes; it is intentionally incomplete, with focused tests
-owning specialist accessibility surfaces. Standalone export runs once on generated
-`examples/corpus.html`, revealing its outer tabs before inspecting the whole payload
-composition. File-to-browser anchor parity reuses the passage sweep's four unlike
-authored pages. A source gets its own case only when its content is the cause under test.
+both widths and color schemes. The exported corpus's 420px Axe pass reads the specialist
+package pages in their non-live form; focused tests read live chrome surfaces. Standalone
+export runs once on generated `examples/corpus.html`, revealing its outer tabs before
+inspecting the whole payload composition. File-to-browser anchor parity uses four unlike
+authored pages that contain file passages. A source gets its own case only when its
+content is the cause under test.
 
 That comparison is the whole of what a test over prose can prove. An assertion
 that some sentence stands in a file a model reads fails only when somebody

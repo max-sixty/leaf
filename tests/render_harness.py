@@ -83,6 +83,13 @@ PASSAGE_SOURCES = (
     ROOT / "examples" / "developer" / "visual-review-gallery.html",
 )
 
+ANCHOR_SOURCES = (
+    FEATURE_GALLERY,
+    ROOT / "examples" / "pr-walkthrough.html",
+    ROOT / "examples" / "ship-review.html",
+    ROOT / "examples" / "developer" / "swipe-gallery.html",
+)
+
 
 def leaf_page(title: str, body: str, *, head: str = "") -> str:
     """A complete page carrying the presentation boundary every fixture shares."""

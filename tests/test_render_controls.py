@@ -3156,9 +3156,7 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     )
     assert take_browser_errors(page) == [
         (
-            "leaf: Presentation failed: presentation and fail-soft failed: "
-            "Leaves presentation and retention failed: deliberate leaves failure; "
-            "deliberate leaves failure; Leaves presentation and retention failed: "
+            "leaf: Presentation failed: Leaves presentation and retention failed: "
             "deliberate leaves failure; deliberate leaves failure"
         )
     ]

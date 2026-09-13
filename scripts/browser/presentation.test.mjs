@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createPresentationCoordinator } from "./presentation.ts";
+import { createPresentationCoordinator, describeFailure } from "./presentation.ts";
 
 const deferred = () => {
   let resolve;
@@ -351,8 +351,9 @@ test("a failed presentation and fail-soft report both failures", async () => {
   assert.equal(failures.length, 1);
   assert(failures[0] instanceof AggregateError);
   assert.deepEqual(failures[0].errors, [rendering, retaining]);
+  assert.equal(failures[0].message, "presentation and fail-soft failed");
   assert.equal(
-    failures[0].message,
+    describeFailure(failures[0]),
     "presentation and fail-soft failed: widget presentation failed: " +
       "widget named its failure; committed view could not be restored",
   );

@@ -122,7 +122,7 @@ interface RegionWaiter<
   readonly cancelled?: () => boolean;
 }
 
-function describeFailure(reason: unknown): string {
+export function describeFailure(reason: unknown): string {
   const message = reason instanceof Error ? reason.message : String(reason);
   if (!(reason instanceof AggregateError) || reason.errors.length === 0)
     return message;
@@ -365,10 +365,11 @@ export function createPresentationCoordinator<
               proof = failSoft(reason);
               recovered = true;
             } catch (fallbackError) {
-              reported = new AggregateError(
-                [reason, fallbackError],
-                `presentation and fail-soft failed: ${describeFailure(reason)}; ${describeFailure(fallbackError)}`,
-              );
+              if (fallbackError !== reason)
+                reported = new AggregateError(
+                  [reason, fallbackError],
+                  "presentation and fail-soft failed",
+                );
             }
           }
           reportFailure(reported);

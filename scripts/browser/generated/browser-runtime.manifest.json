@@ -47,6 +47,7 @@
     "createApplicationPublisher",
     "createPresentationCoordinator",
     "createSemanticApplication",
+    "describeFailure",
     "html",
     "repeat"
   ],
@@ -54,12 +55,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 42689,
-      "sha256": "9b1aa0984834a685ffa0e5cb441af7b0731bc3c5ac44820a87f83aefc5abe342"
+      "bytes": 42700,
+      "sha256": "2e53a46155f5bbf2acb9afd811a54d284138d1b64f77d0bfc02a046047ce33f2"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 372907,
-      "sha256": "20e56fbaf1c5c04089421d791fbf856cc8cd61672d8e4f8d866c7e73e844ca0a"
+      "bytes": 372872,
+      "sha256": "3c486e831b14e6d6f0ab97f39b47b0d2dd062fc0837f268665bc71e8fe47f80a"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 7267,

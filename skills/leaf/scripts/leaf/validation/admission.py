@@ -7,6 +7,7 @@ from leaf.data import read_data
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
+from leaf.revision_artifact import read_artifact
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_structure
 
@@ -47,6 +48,31 @@ def version_ids(page_dir: Path) -> set:
     return ids
 
 
+def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> list[str]:
+    """Refuse thread markup an immutable page cannot render.
+
+    Conversation markup has no revision boundary: every open historical document
+    receives it.  Admission against only the active registry can therefore freeze a
+    newly introduced widget into the log even though an older pinned document has no
+    declaration or implementation for it.  Ask every captured registry at the append
+    door, while the message can still be refused, and group equal failures so a long
+    page history does not produce one copy per revision.
+    """
+    failures: dict[str, list[int]] = {}
+    revisions = list_revisions(page_dir)
+    for revision in revisions[:-1]:
+        registry = read_artifact(page_dir, revision).registry
+        for error in thread_markup_contract_errors(fragment, registry):
+            failures.setdefault(error, []).append(revision)
+    return [
+        "pinned revision"
+        + ("s " if len(revisions) > 1 else " ")
+        + ", ".join(f"r{revision}" for revision in revisions)
+        + f" cannot render this thread markup: {error}"
+        for error, revisions in failures.items()
+    ]
+
+
 def check_markup(
     page_dir: Path,
     kind: str,
@@ -74,6 +100,7 @@ def check_markup(
     # anything can still be done about it.
     errs = (
         thread_markup_contract_errors(frag, registry)
+        + pinned_thread_markup_errors(page_dir, frag)
         + fragment_style_errors(frag)
         + media_errors(frag, page_dir)
         + data_binding_errors(

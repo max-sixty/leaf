@@ -2,6 +2,7 @@
 
 import re
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 from leaf.files import file_stamp
@@ -32,6 +33,57 @@ def read_registry(path: Path):
 def load_registry(page_dir: Path):
     """The page's complete vendored vocabulary, or None before `page init`."""
     return read_registry(page_dir / "registry.json")
+
+
+def read_page_registry(page_dir: Path):
+    """Read the mutable candidate's vocabulary and widget provenance.
+
+    Revision capture uses ``compose_page_registry`` directly with its captured
+    declarations and file inventory. This filesystem reading is for callers
+    examining the authored candidate, never an already activated revision.
+    """
+    page_dir = page_dir.absolute()
+    source = page_dir / "page" / "registry.json"
+    widgets = tuple(
+        sorted(
+            (
+                path.relative_to(page_dir).as_posix(),
+                file_stamp(path),
+            )
+            for directory in (page_dir / "widgets", page_dir / "page" / "widgets")
+            for path in directory.glob("lf-*.js")
+            if path.is_file()
+        )
+    )
+    return _read_page_registry_stamped(
+        page_dir,
+        file_stamp(page_dir / "registry.json"),
+        file_stamp(source),
+        widgets,
+    )
+
+
+@lru_cache(maxsize=128)
+def _read_page_registry_stamped(
+    page_dir: Path,
+    layer_stamp: tuple | None,
+    declaration_stamp: tuple | None,
+    widgets: tuple[tuple[str, tuple], ...],
+):
+    """Compose one candidate vocabulary until any input file changes."""
+    from .page import compose_page_registry
+
+    layer = load_registry(page_dir)
+    if layer is None:
+        return None
+    source = page_dir / "page" / "registry.json"
+    declarations = read_registry_declarations(source) or {}
+    return compose_page_registry(
+        layer,
+        declarations,
+        [path for path, _stamp in widgets],
+        source=source,
+    )
 
 
 def layer_metadata(page_dir: Path) -> dict:
@@ -91,8 +143,20 @@ def layer_generation(page_dir: Path) -> str:
 
 
 def require_registry(page_dir: Path) -> dict:
-    """The vendored vocabulary, for a command that has nothing to do without one."""
-    registry = load_registry(page_dir)
+    """The active revision's vocabulary, or the candidate before first activation."""
+    registry = active_registry(page_dir)
     if registry is None:
         sys.exit(f"no registry.json in {page_dir}; run `leaf page init` first")
     return registry
+
+
+def active_registry(page_dir: Path) -> dict | None:
+    """Read semantic commands against the same declarations as the live document."""
+    from leaf.files import latest_revision
+    from leaf.revision_artifact import read_artifact
+
+    revision = latest_revision(page_dir)
+    if revision is not None:
+        return read_artifact(page_dir, revision).registry
+    candidate = read_page_registry(page_dir)
+    return candidate.registry if candidate is not None else None

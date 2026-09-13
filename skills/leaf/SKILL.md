@@ -1,6 +1,6 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes reader input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
+description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes reader input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
@@ -15,12 +15,11 @@ changes nothing. Then read
 messages, `references/conversation-threads.md`. Process every batch and every
 event. Each event's `obligation.response`, when present, names the Leaf operation
 it required when captured: a reply, a page revision closed with `leaf resolve`,
-or `leaf receipt`. Recheck current page or conversation state before writing
-because a later event may already have settled it. The Codex host contract uses a
-direct App Server turn's final message when its `leaf_delivery` has exactly one plain
-reply. A queued `leaf-delivery` pointer and every other response shape use the explicit
-Leaf command. Do not initialize or hand the page over again in response to an existing
-delivery.
+or `leaf receipt`. Recheck current page or conversation state before writing because a
+later event may already have settled it. The current host contract names whether it
+binds a plain reply to the turn's normal final message; otherwise use the explicit Leaf
+command. Version and request responses use their explicit Leaf commands. Do not
+initialize or hand the page over again in response to an existing delivery.
 
 Otherwise, present the session's subject as a live HTML page. The user comments
 on exact passages, acts through the page's widgets, and follows revisions in
@@ -59,7 +58,8 @@ checkout keeps the launcher at `bin/leaf`.
    `visual-review` for an ordered website run with aligned before-and-after evidence,
    and `targeting` for selecting and proposing changes to preview elements, as in
    `leaf page init --package diagram --package diff <page>`. Re-running `page init`
-   with the selection adds it to a page already written.
+   with the selection adds it to a page already written. Bespoke explorer or simulator
+   behavior stays in that page's module and does not require a task-specific package.
 2. Read `references/page-authoring.md`, then the authoring reference each part of
    the page needs (listed under "Author a version" below). Write
    `<page>/index.html` using only the registry's vocabulary. A valid save becomes
@@ -167,7 +167,7 @@ so a phase does not depend on discovering a chain of references.
   URL, `--host`, a standing page, re-vendoring a served page, or resuming another
   session's page.
 - `references/packages.md`: for a package-design request, a page-authored module, or
-  an event with `"about": "layer"`.
+  an event with `"about": "design"`.
 
 ### Use a separate Codex watcher
 

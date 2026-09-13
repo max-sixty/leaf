@@ -29,7 +29,7 @@ _THEME_READY = "() => globalThis.__leafRenderDriver.themeReady()"
 _PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings()"
 
 
-def _call(page, name: str, args: tuple) -> dict:
+def _call(page, name: str, args: tuple, timeout_ms: int | None = None) -> dict:
     route = PROBE_ROUTE
     if page.url.startswith("file:"):
         if not getattr(page, "_leaf_standalone_probes_prepared", False):
@@ -37,11 +37,20 @@ def _call(page, name: str, args: tuple) -> dict:
                 "prepare_standalone_probes must run before file navigation"
             )
         route = STANDALONE_FILE_ROUTE
+    else:
+        route = page.evaluate(
+            """route => {
+          const entry = document.querySelector('script[data-lf-entry]')?.dataset.lfEntry;
+          return entry ? new URL(route.slice(1), new URL(entry, location.href)).href : route;
+        }""",
+            route,
+        )
     return {
         "route": route,
         "name": name,
         "args": list(args),
-        "timeoutMs": getattr(page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS),
+        "timeoutMs": timeout_ms
+        or getattr(page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS),
     }
 
 
@@ -104,11 +113,16 @@ def evaluate_probe(page, name: str, *args):
     return page.evaluate(_PROBE, call)
 
 
-def wait_for_probe(page, name: str, *args) -> None:
-    """Wait until one named browser probe returns a truthy value."""
+def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> None:
+    """Wait until one named browser probe returns a truthy value.
+
+    The default patience suits a reading that arrives once the page settles. A caller
+    waiting on work the page is doing on its behalf states its own budget, because the
+    page answers nothing at all while that work holds its main thread.
+    """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    call = _call(page, name, args)
+    call = _call(page, name, args, timeout_ms)
     _load_probes(page, call)
     try:
         page.wait_for_function(_PROBE, arg=call, timeout=call["timeoutMs"])
@@ -132,7 +146,7 @@ def wait_for_presentation(
     stages = [("dataApplied", (data_revision,))]
     if replayed_events:
         stages.append(("logApplied", (replayed_events,)))
-    stages.append(("presented", ()))
+    stages.append(("currentPresented", ()))
     if settled:
         stages.append(("pageSettled", ()))
     for name, args in stages:

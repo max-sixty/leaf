@@ -12,30 +12,40 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.served_state import page as served_page
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASK_PAGE,
-    BOARD_PAGE,
-    CHIPS,
-    EXAMPLES,
-    FEATURE_GALLERY,
-    GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
     PANEL_PAGE,
     REPORT_PAGE,
     SUGGESTION_PAGE,
+    live_url,
+    panel_comment,
+)
+from render_cases_layout import (
+    token_colour,
+)
+from render_cases_navigation import (
+    CHIPS,
     _publish,
+    address_code,
+    go_to_address,
+)
+from render_cases_widgets import (
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
+)
+from render_harness import (
+    BOARD_PAGE,
+    EXAMPLES,
+    FEATURE_GALLERY,
     _traffic,
     _until,
-    address_code,
     compare_with,
-    go_to_address,
+    consume_browser_errors,
     leaf_page,
-    live_url,
     margins_laid_out,
     navigate,
     open_page,
-    panel_comment,
     panel_settled,
     resized,
     round_trip,
@@ -43,7 +53,6 @@ from render_support import (
     sending,
     stamp_page,
     ticked,
-    token_colour,
     told,
     undo,
     wait_for_revision,
@@ -136,7 +145,7 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     the contributor's primary/overflow state must also remain untouched.
     """
     corpus = next(example for example in EXAMPLES if example.stem == "corpus")
-    page, errors = open_page(browser, serve(corpus))
+    page = open_page(browser, serve(corpus))
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-cluster").count() >= 15
@@ -156,7 +165,7 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     }
     reading = page.evaluate(
         """async () => {
-          const {layoutMarginRows} = await import('/runtime/margin-layout.js');
+          const {layoutMarginRows} = await window.__lfRuntimeImport('/runtime/margin-layout.js');
           const rows = [...document.querySelectorAll('.lf-margin-cluster')];
           const boxes = () => rows.map(row => {
             const {x, y, width, height} = row.getBoundingClientRect();
@@ -187,14 +196,12 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
         name: after[name] - before[name] for name in ("LayoutCount", "RecalcStyleCount")
     }
     assert all(count <= 30 for count in work.values()), work
-    assert errors == []
-    page.close()
 
 
 def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
     browser, serve
 ):
-    page, errors = open_page(
+    page = open_page(
         browser, serve(DUPLICATE_REGION_PAGE, events=DUPLICATE_REGION_COMMENTS)
     )
     resized(page, 390, 760)
@@ -240,8 +247,6 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
             ':scope > .lf-thread[data-id="comment-proposed-deployment"] textarea'
         )
     ).to_be_focused()
-    assert errors == []
-    page.close()
 
 
 def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
@@ -263,7 +268,7 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
     anything. The heartbeat is the one render a settled page is allowed here, and it
     comes every two seconds, so at most one of these frames can carry it.
     """
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1280, 900)
     margins_laid_out(page)
     assert page.locator(".lf-react-mark").count() >= 1
@@ -283,21 +288,19 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
     )
 
     assert layouts <= 1, layouts
-    assert errors == []
-    page.close()
 
 
 def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serve):
-    """A heartbeat refresh cannot force layout once per Page Map location."""
+    """A viewport refresh cannot force layout once per Page Map location."""
     corpus = next(example for example in EXAMPLES if example.stem == "corpus")
-    page, errors = open_page(browser, serve(corpus))
+    page = open_page(browser, serve(corpus))
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-cluster").count() >= 15
     # The corpus carries the gallery's contained frames, and a frame still arriving lays
-    # itself out in this page's own process. Counted against five dispatches that touch
-    # nothing, that reads as the heartbeat forcing layout: the measurement is of a
-    # refresh, so what is measured has to have stopped arriving first.
+    # itself out in this page's own process. Counted against five viewport refreshes that
+    # change no dimensions, that reads as the refresh forcing layout: what is measured
+    # has to have stopped arriving first.
     page.wait_for_function(
         """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
              (frame) => frame.hasAttribute('data-interaction-ready'))"""
@@ -310,7 +313,8 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     }
     refreshes = 5
     geometry_reads = page.evaluate(
-        """refreshes => {
+        """async refreshes => {
+          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
           const main = document.querySelector('main');
           const rect = main.getBoundingClientRect.bind(main);
           let reads = 0;
@@ -318,8 +322,10 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
             reads += 1;
             return rect();
           };
-          for (let i = 0; i < refreshes; i++)
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+          for (let i = 0; i < refreshes; i++) {
+            window.dispatchEvent(new Event('resize'));
+            await frame();
+          }
           main.getBoundingClientRect = rect;
           return reads;
         }""",
@@ -337,13 +343,11 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
             "RecalcStyleCount",
         )
     }
-    # These bounds leave room for browser bookkeeping while refusing a widget render
-    # that writes its already-painted state on every heartbeat.
-    assert work["LayoutCount"] <= refreshes * 4, work
-    assert work["RecalcStyleCount"] <= refreshes * 18, work
-    assert geometry_reads == refreshes, geometry_reads
-    assert errors == []
-    page.close()
+    # These bounds include the browser's viewport bookkeeping while refusing work that
+    # scales with every Page Map location.
+    assert work["LayoutCount"] <= refreshes * 8, work
+    assert work["RecalcStyleCount"] <= refreshes * 30, work
+    assert refreshes <= geometry_reads <= refreshes * 2, geometry_reads
 
 
 # Both pages stand still with nothing dispatched, so both give the settled reading:
@@ -383,13 +387,13 @@ HEARTBEAT_PAGES = (
 
 
 @pytest.mark.parametrize("page_source, population, measurements", HEARTBEAT_PAGES)
-def test_an_unchanged_heartbeat_restates_no_margin_name(
+def test_an_unchanged_viewport_refresh_restates_no_margin_name(
     browser, serve, page_source, population, measurements
 ):
-    """The heartbeat must not rewrite a name, state, or word it is not changing.
+    """A viewport refresh must not rewrite a name, state, or word it is not changing.
 
-    `render` is bound to `lf-actions`, so an unconditional write here restates
-    itself every two seconds on a page nobody has touched: the mutation stream a
+    `render` follows semantic and viewport refreshes, so an unconditional write here
+    restates itself on a page nobody has touched: the mutation stream a
     screen reader rebuilds its buffer from, and a dirty box for whatever reads
     next. The corpus used to restate 205 attributes and the margin entry's
     words on every pass.
@@ -419,10 +423,10 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
 
     Half of `render` runs in a frame callback — `scheduleMarginLayout`,
     `scheduleRoving` and `scheduleMarginEntryLabels` are its whole tail — and five
-    dispatches in one synchronous task never reach it. Each beat is therefore read
-    across a settled frame, which both pages now allow. The measurements each page
-    is expected to show are named beside its population and asserted exactly, so a
-    run that stopped letting the frame run could not return `[]` and look clean.
+    refreshes in one synchronous task never reach it. Each refresh is therefore
+    read across a settled frame, which both pages now allow. The measurements each
+    page is expected to show are named beside its population and asserted exactly,
+    so a run that stopped letting the frame run could not return `[]` and look clean.
 
     What remains on that reading is not a name being restated: each entry in the
     probe table is a measurement that modifies the DOM to read it and puts it back.
@@ -430,12 +434,12 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
     directions — a new unchanged write cannot arrive unnamed, and closing a probe
     turns this red rather than passing quietly.
     """
-    page, errors = open_page(browser, serve(page_source))
+    page = open_page(browser, serve(page_source))
     resized(page, 1440, 900)
     margins_laid_out(page)
     for selector, least in population.items():
         assert page.locator(selector).count() >= least, selector
-    heartbeat = page.evaluate(
+    refresh = page.evaluate(
         """async ({refreshes}) => {
           const frame = () => new Promise(
             resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
@@ -495,7 +499,7 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
           const unchanged = [];
           const news = [];
           for (let i = 0; i < refreshes; i++) {
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+            window.dispatchEvent(new Event('resize'));
             await frame();
             await frame();
             seen.push(...observer.takeRecords());
@@ -555,34 +559,32 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
         }""",
         {"refreshes": 5},
     )
-    unnamed = [row for row in heartbeat["unchanged"] if row["probe"] is None]
+    unnamed = [row for row in refresh["unchanged"] if row["probe"] is None]
     assert unnamed == [], unnamed
-    assert heartbeat["news"] == [], heartbeat["news"]
+    assert refresh["news"] == [], refresh["news"]
     # The reach the readings above are worth: the nav alone would leave more than
     # half of either page's hosts, and every writer under them, unwatched, and a
     # reading that stopped settling would see none of the frame's measurements.
-    assert heartbeat["docked"] >= heartbeat["hosts"] / 2, heartbeat
-    assert measurements <= set(heartbeat["probes"]), measurements
-    assert {row["probe"] for row in heartbeat["unchanged"]} == measurements, heartbeat[
+    assert refresh["docked"] >= refresh["hosts"] / 2, refresh
+    assert measurements <= set(refresh["probes"]), measurements
+    assert {row["probe"] for row in refresh["unchanged"]} == measurements, refresh[
         "unchanged"
     ]
-    assert errors == []
-    page.close()
 
 
-def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
+def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     """A row the pass leaves docked is not marked docked again.
 
     `layoutMarginRows` reads the standing posture before it clears anything and
     leaves a row that still cannot hang where it is, so that row skips the clear
     and reaches the placement loop already carrying `lf-docked`. `add`
     re-serializes `class` whether or not the token is new, and this pass runs on
-    the heartbeat through `render`'s tail, so the unguarded mark was a same-value
-    `class` write per docked row every two seconds: a record a screen reader
+    a refresh through `render`'s tail, so the unguarded mark was a same-value
+    `class` write per docked row on every pass: a record a screen reader
     rebuilds its buffer from, for a row that did not move. Measured on this
     fixture before the guard, five beats wrote `class` five times.
 
-    Neither page the heartbeat reading above is taken on can state it. The corpus
+    Neither page the refresh reading above is taken on can state it. The corpus
     stands still, but every row it draws hangs, and the compact posture that would
     dock them withholds them as `lf-withheld` instead; the gallery stands still too
     now, but it docks no row at that viewport at all — measured, none of the
@@ -597,12 +599,12 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
     clean reading a guarded one does.
     """
     fixture = leaf_page("Docked reading", '<p id="target">Target passage</p>')
-    page, errors = open_page(browser, serve(fixture))
+    page = open_page(browser, serve(fixture))
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           controls.append(marginEntry(offer('button', ''), {
             key: 'act', icon: 'dot', label: 'Act on the target', rank: 'primary'}));
@@ -631,7 +633,7 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
           observer.observe(document.body, {subtree: true, attributes: true,
             attributeOldValue: true, attributeFilter: ['class']});
           for (let i = 0; i < refreshes; i++) {
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+            window.dispatchEvent(new Event('resize'));
             await frame(); await frame();
           }
           wrote.push(...observer.takeRecords());
@@ -645,8 +647,6 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
     )
     assert marks == {"passes": 5, "marks": []}, marks
     expect(row).to_have_class(re.compile(r"lf-docked"))
-    assert errors == []
-    page.close()
 
 
 def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
@@ -658,18 +658,18 @@ def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
     declaration that stops at the call site is re-inferred there: the proxy takes
     the disclosure default, writes `aria-expanded`, and `syncForwardedMarginEntryState`
     reads `null` off the source and strips it again the same pass. That is an add
-    and a remove every heartbeat, and news to the document's disclosure watch, for
+    and a remove every refresh, and news to the document's disclosure watch, for
     exactly the margin entry the declaration was added for — a module contributing a
     reading whose relation another writer owns. No shipped page draws one, so the
     seam is stated here rather than on the corpus.
     """
     fixture = leaf_page("Forwarded reading", '<p id="target">Target passage</p>')
-    page, errors = open_page(browser, serve(fixture))
+    page = open_page(browser, serve(fixture))
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           controls.append(
             marginEntry(offer('button', ''), {
@@ -690,14 +690,17 @@ def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
     proxy = page.locator(".lf-margin-option-proxy")
     expect(proxy).to_have_count(1)
     relation = page.evaluate(
-        """refreshes => {
+        """async refreshes => {
+          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
           const group = document.querySelector('.lf-margin-options');
           const records = [];
           const observer = new MutationObserver(list => records.push(...list));
           observer.observe(group, {subtree: true, attributes: true,
             attributeOldValue: true, attributeFilter: ['aria-expanded']});
-          for (let i = 0; i < refreshes; i++)
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+          for (let i = 0; i < refreshes; i++) {
+            window.dispatchEvent(new Event('resize'));
+            await frame();
+          }
           records.push(...observer.takeRecords());
           observer.disconnect();
           return {
@@ -714,15 +717,13 @@ def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
     )
     assert relation["wrote"] == [], relation["wrote"]
     assert relation["standing"] is None, relation
-    assert errors == []
-    page.close()
 
 
 def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
     browser, serve
 ):
     """Re-laying docked controls cannot pull a reader back from the bottom."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 700, 500)
     margins_laid_out(page)
     assert page.locator(".lf-margin-cluster.lf-docked").count() >= 10
@@ -740,7 +741,7 @@ def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
           const laidOut = new Promise(resolve =>
             document.addEventListener('lf-margin-layout', resolve, {once: true})
           );
-          document.dispatchEvent(new CustomEvent('lf-actions'));
+          window.dispatchEvent(new Event('resize'));
           await laidOut;
           await frame();
           return {before, after: reading()};
@@ -749,8 +750,6 @@ def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
 
     assert position["before"]["y"] == position["before"]["end"]
     assert position["after"] == position["before"]
-    assert errors == []
-    page.close()
 
 
 def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
@@ -763,11 +762,11 @@ def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
         '<p id="between">Unrelated intervening prose</p>'
         '<p id="second">Second target</p></section>',
     )
-    page, errors = open_page(browser, serve(fixture))
+    page = open_page(browser, serve(fixture))
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           for (const [id, count] of [['first', 8], ['second', 1]]) {
             const controls = document.createElement('span');
             for (let i = 0; i < count; i++) controls.append(
@@ -799,8 +798,6 @@ def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
             assert first.evaluate(
                 "item => item.parentElement === document.querySelector('main')"
             )
-    assert errors == []
-    page.close()
 
 
 def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, serve):
@@ -809,12 +806,12 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
         "Close margin labels",
         '<p id="first">First target</p><p id="second">Second target</p>',
     )
-    page, errors = open_page(browser, serve(fixture))
+    page = open_page(browser, serve(fixture))
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           for (const id of ['first', 'second']) {
             registerMarginContribution({key: id, target: document.getElementById(id),
               controls: marginEntry(offer('button', ''), {
@@ -860,8 +857,6 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     assert label.evaluate("node => node.getAnimations().length") == 0, (
         "a keyboard destination delayed its label behind paint-only motion"
     )
-    assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -869,7 +864,7 @@ def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
     browser, serve, width
 ):
     """Every label in a tightly stacked real cluster finds a clear side."""
-    page, errors = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
+    page = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
     resized(page, width, 900)
     page.locator("#bg-neighbors").scroll_into_view_if_needed()
     for target in ("bg-neighbor-a", "bg-neighbor-b", "bg-neighbor-c"):
@@ -896,8 +891,6 @@ def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
                 }"""
             )
             assert reading == {"inside": True, "overlaps": 0}
-    assert errors == []
-    page.close()
 
 
 def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve):
@@ -913,7 +906,7 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
         **comment,
         "text": "Keep the count badge under the same pointer too.",
     }
-    page, errors = open_page(browser, serve(PANEL_PAGE, events=[comment, another]))
+    page = open_page(browser, serve(PANEL_PAGE, events=[comment, another]))
     resized(page, 1280, 900)
     marker = page.locator('[data-lf-margin-for="how-cap"] > .lf-margin-marker')
     icon = marker.locator(":scope > .lf-margin-entry-icon")
@@ -928,13 +921,17 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     box = badge.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate(
+        """async () => {
+          window.dispatchEvent(new Event('resize'));
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+        }"""
+    )
     assert icon.evaluate("node => node === window.__heldMarginEntryIcon")
     assert badge.evaluate("node => node === window.__heldMarginEntryBadge")
     page.mouse.up()
     expect(marker).to_have_attribute("data-test-clicks", "1")
-    assert errors == []
-    page.close()
 
 
 def resized_shell(page, inline_size, height):
@@ -1012,7 +1009,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     context = browser.new_context(
         viewport={"width": width, "height": 900}, reduced_motion="reduce"
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             FEATURE_GALLERY,
@@ -1069,14 +1066,10 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
         assert abs(control["x"] - chip["x"]) <= 2, geometry
         assert abs(control["y"] - chip["y"]) <= 2, geometry
 
-    assert errors == []
-    page.close()
-    context.close()
-
 
 def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     """The page and margin projections identify the same selected Ask."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
 
     page.keyboard.press("a")
@@ -1099,14 +1092,11 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
         page.locator('[data-lf-margin-for="bracket-decision"] > .lf-margin-marker')
     ).to_have_attribute("data-lf-target-selected", "")
 
-    assert errors == []
-    page.close()
-
 
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
 def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
     """The developer sampler stays usable after edits, verdicts, and dense overflow."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, width, 900)
 
     for target, outcome in (
@@ -1146,7 +1136,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     # `navigate` both read as the platform reporting a deferral rather than the page
     # failing — only a notice the confirming attempt repeats is a fault. A bare reload
     # leaves the first one standing in `errors` for this test's closing assertion.
-    navigate(page, errors, page.url)
+    navigate(page, page.url)
     expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
 
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
@@ -1184,15 +1174,13 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     expect(crowded.locator(f'[data-event="{reaction["id"]}"]')).to_have_count(0)
     last = events_model.read_events(serve.page_dir)[-1]
     assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])
-    assert errors == []
-    page.close()
 
 
 def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     browser, serve
 ):
     """The gallery keeps every reader-visible margin entry treatment together."""
-    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
 
     atlas = page.locator("#bg-margin-controls-specimens")
@@ -1208,7 +1196,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     )
     grammar = page.evaluate(
         """async () => {
-          const {MARGIN_ENTRY_SCHEMA} = await import('/runtime/widget-api.js');
+          const {MARGIN_ENTRY_SCHEMA} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return MARGIN_ENTRY_SCHEMA;
         }"""
     )
@@ -1419,16 +1407,13 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(projection).to_have_attribute("aria-expanded", "true")
     expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
 
-    assert errors == []
-    page.close()
-
 
 def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
     browser, serve
 ):
     """The atlas remains at the top edge when reaction controls above it appear."""
     context = browser.new_context(viewport={"width": 700, "height": 900})
-    page, errors = open_page(
+    page = open_page(
         browser,
         f"{live_url(serve(FEATURE_GALLERY))}#bg-margin-controls",
         context=context,
@@ -1440,9 +1425,6 @@ def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
         })"""
     )
     assert abs(position["top"] - position["clear"]) < 2, position
-    assert errors == []
-    page.close()
-    context.close()
 
 
 def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
@@ -1454,7 +1436,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     journey holds each one long enough to prove that the former only dims until
     confirmation while the latter keeps its workflow treatment.
     """
-    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
 
     expect(page.locator("#bg-button-accepted")).to_have_attribute(
@@ -1466,7 +1448,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
         seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    ).to_have_count(0)
+    ).to_have_count(1)
 
     draft = page.locator('[data-lf-margin-for="bg-draft"]')
     draft.locator(".lf-draft-pencil").click()
@@ -1586,17 +1568,16 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
         workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    ).to_have_count(0)
+    ).to_have_count(1)
 
-    assert errors and all("400" in error for error in errors)
-    page.close()
+    consume_browser_errors(page, "400")
 
 
 def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_sections(
     browser, serve
 ):
     """One compact sample collects the margin entry schema; feature sections keep examples."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
@@ -1669,7 +1650,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
         seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    ).to_have_count(0)
+    ).to_have_count(1)
 
     feature_headings = page.locator(
         "main section h2:has(> .bg-feature-detail), "
@@ -1762,8 +1743,6 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         "5 · 🔎 · support.",
         "6 · 🎯 · prioritize.",
     ]
-    assert errors == []
-    page.close()
 
 
 def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
@@ -1773,7 +1752,7 @@ def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
     this vocabulary reaches a call site — would otherwise get the default and no word
     about it, and the widget would look as if it had stated nothing.
     """
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     refusal = page.evaluate(
         """async () => {
           const {offer, marginEntry} = await import('/runtime/widget-api.js');
@@ -1788,17 +1767,15 @@ def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
         }"""
     )
     assert refusal == "Unknown margin entry option: role"
-    assert errors == []
-    page.close()
 
 
 def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, serve):
     """One owner plus one margin entry key must identify one activation source."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     message = page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (const label of ['First', 'Second'])
             controls.append(marginEntry(offer('button', ''), {
@@ -1819,19 +1796,18 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
         == 'Duplicate margin entry key "same" in margin contribution "ambiguous"'
     )
     expect(page.locator('[data-lf-margin-for="how-cap"]')).to_have_count(0)
-    assert errors == []
-    page.close()
 
 
 def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     browser, serve
 ):
     """One retained proxy follows margin entry semantics and ARIA without owning activation."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
           const {offer, marginEntry, setMarginEntryState, syncMarginEntrySelection,
-            registerMarginContribution} = await import('/runtime/widget-api.js');
+            registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const control = marginEntry(offer('button', ''), {
             key: 'inspect', icon: 'question', label: 'Inspect source',
             context: 'Patch ready',
@@ -1925,15 +1901,13 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     proxy.click()
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => window.lfCanonicalPresses") == 1
-    assert errors == []
-    page.close()
 
 
 def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
     browser, serve
 ):
     """Visible locations get local hints while the complete Map keeps every location."""
-    page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     resized(page, 1440, 300)
 
     page.keyboard.press("g")
@@ -1981,13 +1955,11 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     search.fill("")
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(12)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_sheet
-    assert errors == []
-    page.close()
 
 
 def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     """A late action-only location is reachable while it is visible."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
     margins_laid_out(page)
     page.evaluate(
@@ -2014,13 +1986,11 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
             name="Show before — a sample run list with and without a status column",
         )
     ).to_be_focused()
-    assert errors == []
-    page.close()
 
 
 def test_margin_target_hover_requires_pointer_movement(browser, serve):
     """Page motion under a parked pointer cannot take ownership from the keyboard."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1280, 720)
     page.locator("#bg-choice-ask").scroll_into_view_if_needed()
     go_to_address(page, "Margin entry", "bg-choice-ask")
@@ -2062,13 +2032,11 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
 
     page.mouse.move(pointer["x"] + 1, pointer["y"])
     expect(trace).to_be_visible()
-    assert errors == []
-    page.close()
 
 
 def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     """Replacing a hovered margin host cannot transfer its pointer ownership."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1280, 720)
     margins_laid_out(page)
     target = page.locator("#bg-draft")
@@ -2118,13 +2086,11 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         int(replacement_box["y"] + replacement_box["height"] / 2),
     )
     expect(trace).to_be_visible()
-    assert errors == []
-    page.close()
 
 
 def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     """Each visible margin entry gets an exact route rather than an aggregate default."""
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             leaf_page(
@@ -2199,13 +2165,10 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     expect(page.locator("#address-disclosure textarea")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
-    assert errors == []
-    page.close()
-
 
 def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, serve):
     """Late action-only targets keep their verbs in the complete Page Map."""
-    page, errors = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
+    page = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
     resized(page, 1440, 900)
     page.evaluate(
         """() => {
@@ -2250,7 +2213,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
             node => node.nodeType === Node.TEXT_NODE && node.textContent.includes('Pack')
           );
           word.textContent = word.textContent.replace('Pack', 'Carry');
-          document.dispatchEvent(new CustomEvent('lf-actions'));
+          window.dispatchEvent(new Event('resize'));
         }"""
     )
     expect(search).to_be_focused()
@@ -2265,7 +2228,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
             node => node.nodeType === Node.TEXT_NODE && node.textContent.includes('Carry')
           );
           word.textContent = word.textContent.replace('Carry', 'Pack');
-          document.dispatchEvent(new CustomEvent('lf-actions'));
+          window.dispatchEvent(new Event('resize'));
         }"""
     )
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(3)
@@ -2276,7 +2239,13 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
         "button", name="Reject the suggested change: blue", exact=True
     )
     reject.evaluate("button => button.dataset.testIdentity = 'held'")
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate(
+        """async () => {
+          window.dispatchEvent(new Event('resize'));
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+        }"""
+    )
     expect(reject).to_have_attribute("data-test-identity", "held")
     reject.focus()
     with sending(page, "the reject"):
@@ -2287,20 +2256,18 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
         "bg-neighbor-b",
         "reject",
     )
-    assert errors == []
-    page.close()
 
 
 def test_tab_into_a_margin_entry_cluster_replaces_ellipsis_with_all_margin_entries(
     browser, serve
 ):
     """Keyboard arrival expands one target's peers instead of focusing its overflow."""
-    page, errors = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
+    page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           registerMarginContribution({key: 'extra', target: document.querySelector('#sug-refill'),
             controls: marginEntry(offer('button', ''), {
               key: 'details', icon: 'comment', label: 'Details',
@@ -2344,13 +2311,11 @@ def test_tab_into_a_margin_entry_cluster_replaces_ellipsis_with_all_margin_entri
     page.locator("#insert").click()
     expect(more).to_be_visible()
     expect(options).to_be_hidden()
-    assert errors == []
-    page.close()
 
 
 def test_left_and_right_walk_the_revealed_margin_entry_cluster(browser, serve):
     """Horizontal arrows move between the peer margin entries revealed on keyboard entry."""
-    page, errors = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
+    page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
     resized(page, 1440, 900)
     page.locator("#before-margin-entries").focus()
     page.keyboard.press("Tab")
@@ -2366,13 +2331,10 @@ def test_left_and_right_walk_the_revealed_margin_entry_cluster(browser, serve):
     expect(accept).to_be_focused()
     expect(page.locator(".lf-walk-position")).to_have_text("Action 1 of 2")
 
-    assert errors == []
-    page.close()
-
 
 def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serve):
     """The settled content and its Undo stay in one engaged cluster."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     options = item.locator(":scope > .lf-margin-options")
@@ -2390,8 +2352,6 @@ def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serv
     expect(
         item.get_by_role("button", name=re.compile(r"^Undo rejecting"))
     ).to_be_focused()
-    assert errors == []
-    page.close()
 
 
 CLUSTER_SHAPE = """() => [...document.querySelectorAll('.lf-margin-cluster')].map(
@@ -2412,9 +2372,7 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
     The shape is read as markup rather than as visibility, because on paper nothing in
     the margin is visible either way; what the fold does is empty the option group and
     take the margin entries out of the host."""
-    page, errors = open_page(
-        browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION])
-    )
+    page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     margins_laid_out(page)
     standing = page.evaluate(CLUSTER_SHAPE)
@@ -2432,16 +2390,12 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
     expect(thistle.locator(".lf-margin-marker")).to_have_attribute(
         "aria-label", re.compile(r"^Thread, ")
     )
-    assert errors == []
-    page.close()
 
 
 def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
     """The Page Map is a vertical list: its arrows stop at its first and last markers,
     while Home and End remain direct routes to those edges."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     markers = page.locator(".lf-margin-marker:visible")
     assert markers.count() > 1, "the Page Map has no pair of visible markers to walk"
 
@@ -2462,8 +2416,6 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
 
     page.keyboard.press("Home")
     assert page.locator(":focus").get_attribute("aria-label") == first
-    assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
@@ -2471,7 +2423,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     browser, serve, scheme
 ):
     """Tone keeps its meaning through interaction and agent-workflow states."""
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(leaf_page("margin entry tones", '<p id="target">A shared target</p>')),
     )
@@ -2480,7 +2432,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, setMarginEntryState, syncMarginAgentWorkflow} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('div');
           controls.className = 'lf-ui';
           for (const tone of ['neutral', 'positive', 'negative']) {
@@ -2587,17 +2539,13 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
         focused.append(button.evaluate(read))
     assert_icon_only(hovered)
     assert_icon_only(focused)
-    assert errors == []
-    page.close()
 
 
 def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_entries(
     browser, serve
 ):
     """A primary action acts; the ellipsis unfolds the remaining margin entries in place."""
-    page, errors = open_page(
-        browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION])
-    )
+    page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
 
     suggestion = page.locator("[data-lf-for='sug-refill'].lf-sug-actions")
@@ -2773,7 +2721,13 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     accept.focus()
     # Reconciliation that does not change the target order leaves the complete item in
     # place, so a focused contribution remains focused.
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate(
+        """async () => {
+          window.dispatchEvent(new Event('resize'));
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+        }"""
+    )
     expect(accept).to_be_focused()
     rail = page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
     column = page.locator("main").evaluate(
@@ -2877,17 +2831,12 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "keep" and sent["anchor"] == {"section": "sug-refill"}
 
-    assert errors == []
-    page.close()
-
 
 def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, serve):
     """Which location of how many, and how far down, is how a reader listening places a
     margin entry in the walk. Painted, the same words read as progress toward something, which
     is not what they say, so they belong to the accessible name alone."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     buttons = page.evaluate(
         """() => [...document.querySelectorAll('.lf-margin-entry')].map(control => ({
@@ -2901,9 +2850,6 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
         assert "percent down" in button["name"], button
     for button in buttons:
         assert not re.search(r"\d+ of \d+|percent down", button["word"]), button
-
-    assert errors == []
-    page.close()
 
 
 def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
@@ -2927,7 +2873,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     )
     assert sent.exit_code == 0, sent.output
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     resized(page, 1440, 900)
     marker = page.locator('[data-lf-margin-for="t-parser"] > .lf-margin-marker')
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, 1 of 1,"))
@@ -2943,9 +2889,6 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     expect(page.locator("#t-mounts")).to_be_focused()
     expect(marker).not_to_be_focused()
 
-    assert errors == []
-    page.close()
-
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
 def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_motion):
@@ -2954,7 +2897,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     A second thread at the same target supplies the aggregation contrast: working
     outranks picked up without growing another margin seat or changing the press.
     """
-    page, errors = open_page(
+    page = open_page(
         browser,
         live_url(
             serve(
@@ -3079,7 +3022,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
           observer.observe(node, {attributes: true, attributeOldValue: true,
             attributeFilter: ['title', 'aria-description']});
           for (let pass = 0; pass < 3; pass++) {
-            document.dispatchEvent(new CustomEvent('lf-actions'));
+            window.dispatchEvent(new Event('resize'));
             await new Promise(requestAnimationFrame);
             await new Promise(requestAnimationFrame);
           }
@@ -3131,7 +3074,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # primary must retain the workflow, and its own accessible description survives it.
     page.evaluate("""async () => {
       const {offer, marginEntry, registerMarginContribution} =
-        await import('/runtime/widget-api.js');
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
       const controls = document.createElement('span');
       const edit = marginEntry(offer('button', ''), {
         key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
@@ -3162,8 +3105,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # A contributor can forward a control whose workflow was already painted.
     # Use the same canonical receipt to exercise its real secondary option proxy.
     page.evaluate("""async () => {
-      const {syncMarginAgentWorkflow} = await import('/runtime/widget-api.js');
-      const {runtime} = await import('/runtime/context.js');
+      const {syncMarginAgentWorkflow} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
       const receipt = runtime.activity.interactions.find(item => item.phase === 'active');
       syncMarginAgentWorkflow(window.agentCancel, receipt);
     }""")
@@ -3175,7 +3118,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(proxy).to_have_attribute("aria-description", f"Working · {detail}")
     assert workflow_text_mutations(proxy) == []
     page.evaluate("""async () => {
-      const {syncMarginAgentWorkflow} = await import('/runtime/widget-api.js');
+      const {syncMarginAgentWorkflow} = await window.__lfRuntimeImport('/runtime/widget-api.js');
       syncMarginAgentWorkflow(window.agentCancel, null);
       window.agentContribution.unregister();
     }""")
@@ -3205,8 +3148,6 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
         and geometry["whiteSpace"] == "nowrap"
         and geometry["textOverflow"] == "ellipsis"
     ), geometry
-    assert errors == []
-    page.close()
 
 
 def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):
@@ -3215,7 +3156,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     The visible Page Map joins those same arrivals; reopening it later or repainting
     the two units cannot restart either pulse.
     """
-    page, errors = open_page(browser, live_url(serve(BOARD_PAGE)))
+    page = open_page(browser, live_url(serve(BOARD_PAGE)))
     resized(page, 1440, 900)
     for card in ("card-heater", "card-baffle"):
         page.locator(f"#{card} .lf-grip").focus()
@@ -3285,7 +3226,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     # Alternate the two same-target receipt identities through repeated real renders.
     page.evaluate("""async () => {
       for (let pass = 0; pass < 3; pass++) {
-        document.dispatchEvent(new CustomEvent('lf-actions'));
+        window.dispatchEvent(new Event('resize'));
         await new Promise(requestAnimationFrame);
         await new Promise(requestAnimationFrame);
       }
@@ -3298,8 +3239,6 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     expect(dialog.locator('[data-lf-agent-workflow="working"]')).to_have_count(2)
     expect(dialog.locator("[data-lf-agent-arrival]")).to_have_count(0)
     assert page.evaluate("window.unitArrivals.length") == 4
-    assert errors == []
-    page.close()
 
 
 def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
@@ -3317,7 +3256,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     seat, so the cluster's identity survives the change of promise. Once the handoff and
     claim are complete, the margin entry leaves instead of restating widget state.
     """
-    page, errors = open_page(browser, live_url(serve(ASK_PAGE)))
+    page = open_page(browser, live_url(serve(ASK_PAGE)))
     page_dir = serve.page_dir
     resized(page, 1440, 900)
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
@@ -3512,7 +3451,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     # Standing there is not the same as being the way in. A repaint under the reader
     # leaves the rail's one stop on a margin entry that acts, and the status without one.
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    page.evaluate("() => window.dispatchEvent(new Event('resize'))")
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame("
         "() => requestAnimationFrame(done)))"
@@ -3551,7 +3490,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const control = marginEntry(offer('button', ''), {
             key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
           });
@@ -3619,19 +3558,16 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
     expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
 
-    assert errors == []
-    page.close()
-
 
 def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     browser, serve
 ):
     """Proxy presses preserve a reader's explicit fold until they leave or close it."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           const primary = marginEntry(offer('button', ''), {
             key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
@@ -3716,9 +3652,6 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     expect(more).to_be_hidden()
     expect(primary).to_be_focused()
 
-    assert errors == []
-    page.close()
-
 
 @pytest.mark.parametrize("width", [1440, 390])
 def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths(
@@ -3729,12 +3662,12 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
         "Dense margin entry targets",
         '<p id="first">First target</p><p id="second">Second target</p>',
     )
-    page, errors = open_page(browser, serve(fixture))
+    page = open_page(browser, serve(fixture))
     resized(page, width, 900)
     page.evaluate(
         """async () => {
           const {offer, marginEntry, setMarginEntryState, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           window.marginEntryFixtures = [];
           for (const [index, id] of ['first', 'second'].entries()) {
             const target = document.getElementById(id);
@@ -3847,8 +3780,6 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
         expect(
             item.get_by_role("button", name=f"Detail 1 {target}", exact=True)
         ).to_be_visible()
-    assert errors == []
-    page.close()
 
 
 def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
@@ -3857,11 +3788,11 @@ def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
     """A reading-only target never grows a seventh margin entry beside its marker."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Keep this thread visible.", {"section": "how-cap"})
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (let index = 0; index < 6; index += 1)
             controls.append(marginEntry(offer('button', ''), {
@@ -3881,22 +3812,18 @@ def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
     expect(item.locator(".lf-margin-spill")).to_have_attribute(
         "data-lf-spill-count", "2"
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     browser, serve
 ):
     """The Page Map cannot anchor a thread card to a margin entry it has hidden."""
-    page, errors = open_page(
-        browser, serve(SUGGESTION_PAGE, events=[COMMENT_ON_SUGGESTION])
-    )
+    page = open_page(browser, serve(SUGGESTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (let i = 0; i < 5; i++) controls.append(marginEntry(offer('button', ''), {
             key: `detail-${i}`, icon: 'dot', label: `Detail ${i}`, rank: 'secondary'
@@ -3915,15 +3842,13 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     expect(page.locator(".lf-thread-panel")).to_contain_text(
         COMMENT_ON_SUGGESTION["text"]
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     browser, serve
 ):
     """A walked thread uses the free strip without covering its whole control cluster."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1838, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
@@ -3988,13 +3913,10 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(reply).to_have_value("The covered terrace is easier to find.")
 
-    assert errors == []
-    page.close()
-
 
 def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     """A readable free margin outranks an overlay and follows the selected cluster."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 2672, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
@@ -4066,9 +3988,6 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     page.evaluate("scrollBy(0, innerHeight)")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
-    assert errors == []
-    page.close()
-
 
 def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     browser, serve
@@ -4081,12 +4000,12 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
         "text": "First thread at this target.",
         "anchor": {"section": "how-cap"},
     }
-    page, errors = open_page(browser, serve(PANEL_PAGE, events=[comment]))
+    page = open_page(browser, serve(PANEL_PAGE, events=[comment]))
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const primary = marginEntry(offer('button', ''), {
             key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
           });
@@ -4173,15 +4092,12 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(thread).to_be_focused()
 
-    assert errors == []
-    page.close()
-
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     browser, serve
 ):
     """The durable section coordinate does not pull the visible RHS receipt to its top."""
-    page, errors = open_page(browser, serve(UNID_SELECTION_PAGE))
+    page = open_page(browser, serve(UNID_SELECTION_PAGE))
     resized(page, 1600, 900)
     paragraph = page.locator("#s-how > p:nth-of-type(2)")
     box = paragraph.bounding_box()
@@ -4214,17 +4130,15 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     reaction.click()
     expect(reaction).to_have_attribute("aria-expanded", "true")
     expect(reaction).to_have_css("border-top-color", token_colour(page, "--accent"))
-    assert errors == []
-    page.close()
 
 
 def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, serve):
     """Nested, sibling, and slotted targets follow their rendered order."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     readings = page.evaluate(
         """async () => {
               const { marginEntry, registerMarginContribution } =
-                await import('/runtime/widget-api.js');
+                await window.__lfRuntimeImport('/runtime/widget-api.js');
           const makeRecord = label => {
             const shell = document.createElement('div');
             const root = shell.attachShadow({mode: 'open'});
@@ -4345,8 +4259,6 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             "slot a target",
         ],
     }
-    assert errors == []
-    page.close()
 
 
 def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
@@ -4356,12 +4268,12 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
         layer_registry=GENERIC_VISUAL_LAYER,
         layer_widgets=GENERIC_VISUAL_WIDGETS,
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     resized(page, 1280, 720)
     page.evaluate(
         """async () => {
               const {marginEntry, registerMarginContribution} =
-                await import('/runtime/widget-api.js');
+                await window.__lfRuntimeImport('/runtime/widget-api.js');
           const status = marginEntry(document.createElement('span'), {
             key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
           });
@@ -4413,15 +4325,11 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
 
     page.mouse.move(0, 0)
     expect(trace).to_be_hidden()
-    assert errors == []
-    page.close()
 
 
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1600, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="ask"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
@@ -4432,16 +4340,13 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     marker.click()
     expect(preview).to_be_hidden()
 
-    assert errors == []
-    page.close()
-
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_the_margin_reply_keeps_its_shape_when_the_reader_enters_it(
     browser, serve, color_scheme
 ):
     """The compact reply is the editor at rest, not a differently shaped precursor."""
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
         color_scheme=color_scheme,
@@ -4476,17 +4381,12 @@ def test_the_margin_reply_keeps_its_shape_when_the_reader_enters_it(
         == resting_face
     )
 
-    assert errors == []
-    page.close()
-
 
 def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     browser, serve
 ):
     """One location groups its thread and engaged handoff without moving the page."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(marker).to_have_count(1)
@@ -4641,17 +4541,12 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(options).to_be_visible()
     expect(preview).to_be_hidden()
 
-    assert errors == []
-    page.close()
-
 
 def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     browser, serve
 ):
     """Ordinary design paint never promises to rise above the browser's top layer."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
@@ -4673,16 +4568,13 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(preview).to_be_hidden()
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
-    assert errors == []
-    page.close()
-
 
 @pytest.mark.parametrize("width", [1440, 1920])
 def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     browser, serve, width
 ):
     """The anchored thread is a complete conversation clear of its source controls."""
-    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
@@ -4799,16 +4691,13 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     expect(page.locator(f'.lf-thread[data-id="{root_id}"] textarea')).to_be_focused()
     assert page.evaluate("() => window.__openedMarginModes") == []
 
-    assert errors == []
-    page.close()
-
 
 def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):
     """The margin entry's destination follows the open auxiliary surface, not available margin."""
     sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
-    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
 
@@ -4825,8 +4714,6 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
     ).to_be_visible()
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
-    assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -4836,7 +4723,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     browser, serve, width, panel_open
 ):
     """A send continues in the open panel or beside the passage, keeping the page put."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     resized(page, width, 900)
     if panel_open:
         page.locator(".lf-threads-toggle").click()
@@ -4886,9 +4773,6 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(preview).to_be_hidden()
         expect(page.locator(".lf-page-map-toggle")).to_be_focused()
 
-    assert errors == []
-    page.close()
-
 
 # Read the card with the selected target's whole control cluster. The overlay may cover
 # the document, but it keeps that cluster clear and stays aligned with its outside edge.
@@ -4927,7 +4811,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
-    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
     send_anchored_comment(page, "Check the January failure mode.")
 
@@ -4944,10 +4828,9 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
         or narrow["cardTop"] >= narrow["controlsBottom"] + 7
     ), narrow
 
-    assert errors == []
     page.close()
 
-    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1920, 900)
     send_anchored_comment(page, "Check the January failure mode.")
 
@@ -4955,9 +4838,6 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     assert wide["cardWidth"] >= 459, wide
     assert wide["cardLeft"] >= wide["mainRight"], wide
     assert wide["cardLeft"] >= wide["controlsRight"] + 7, wide
-
-    assert errors == []
-    page.close()
 
 
 def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve):
@@ -4969,9 +4849,7 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
         "text": "Keep the second conversation separate.",
         "anchor": {"section": "bracket"},
     }
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK, second_comment])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK, second_comment]))
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
@@ -5035,14 +4913,11 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-thread.flash")).to_have_count(0)
 
-    assert errors == []
-    page.close()
-
 
 def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, serve):
     """The shipped exchange stays beside the page without obscuring its own controls."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
     page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1920, 900)
     marker = page.get_by_role(
@@ -5102,6 +4977,15 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry
 
+    words = thread.locator(".lf-conversation-body").first
+    words_box = words.bounding_box()
+    page.mouse.move(words_box["x"] + 1, words_box["y"] + 10)
+    page.mouse.down()
+    page.mouse.move(words_box["x"] + 180, words_box["y"] + 10, steps=10)
+    page.mouse.up()
+    selected = page.evaluate("getSelection().toString()")
+    assert len(selected) > 10 and selected in words.inner_text(), selected
+
     thread.get_by_role("button", name="Reply", exact=True).click()
     send = preview.get_by_role("button", name="Send")
     send.focus()
@@ -5117,13 +5001,28 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
         """card => {
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const box = card.getBoundingClientRect();
+          const list = card.querySelector('.lf-margin-preview-list');
           return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
-                  clientHeight: card.clientHeight, scrollHeight: card.scrollHeight};
+                  clientHeight: list.clientHeight, scrollHeight: list.scrollHeight};
         }"""
     )
     assert capped["top"] >= capped["bannerBottom"] + 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
+    # The conversation scrolls; its subject and settlement remain usable. A tall
+    # focused root must not scroll the title away just to fit its entire transcript.
+    title = preview.locator(".lf-margin-preview-title")
+    resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
+    title_box = title.bounding_box()
+    resolve_box = resolve.bounding_box()
+    preview.locator(".lf-margin-preview-list").hover()
+    page.mouse.wheel(0, -800)
+    ticked(page)
+    assert title.bounding_box() == pytest.approx(title_box, abs=0.5)
+    assert resolve.bounding_box() == pytest.approx(resolve_box, abs=0.5)
+    assert title_box["y"] >= capped["top"], title_box
+    assert resolve_box["y"] >= capped["top"], resolve_box
+    assert resolve_box["y"] + resolve_box["height"] <= capped["bottom"], resolve_box
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")
@@ -5189,17 +5088,36 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     expect(preview).to_be_visible()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    assert errors == []
-    page.close()
+    page.keyboard.press("Escape")
+    resized(page, 1280, 600)
+    marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
+    marker.click()
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("textarea")
+    draft = "\n".join(
+        f"Line {n}: " + "The reply keeps its complete editor visible. " * 2
+        for n in range(18)
+    )
+    editor.fill(draft)
+    for edge, caret in [("ArrowLeft", 0), ("ArrowRight", len(draft))]:
+        editor.press("ControlOrMeta+a")
+        editor.press(edge)
+        expect(editor).to_have_value(draft)
+        assert editor.evaluate("node => node.selectionStart") == caret
+        page.wait_for_function("""() => {
+          const list = document.querySelector('.lf-margin-preview-list').getBoundingClientRect();
+          const editor = document.querySelector('.lf-margin-preview textarea').getBoundingClientRect();
+          const send = document.querySelector('.lf-margin-preview .lf-compose-submit').getBoundingClientRect();
+          return editor.top >= list.top - 1 && editor.bottom <= list.bottom + 1
+            && send.top >= list.top && send.bottom <= list.bottom + 1;
+        }""")
 
 
 def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighted(
     browser, serve
 ):
     """An open card does not own the highlight after the reader aims elsewhere."""
-    page, errors = open_page(
-        browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION])
-    )
+    page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     suggestion = page.locator('[data-lf-margin-for="sug-refill"]')
     suggestion.locator(".lf-margin-more").click()
@@ -5210,15 +5128,11 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
     expect(trace).to_be_visible()
     ticked(page)
     expect(trace).to_be_visible()
-    assert errors == []
-    page.close()
 
 
 def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
     """Walking the Page Map never inserts an unrequested thread into the Tab order."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     preview = page.locator(".lf-margin-preview")
@@ -5231,8 +5145,6 @@ def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
     expect(toggle).to_be_focused()
     expect(preview).to_be_hidden()
     expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
-    assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [1000, 1207, 1208, 1440, 1720])
@@ -5251,7 +5163,7 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
             else ""
         ),
     )
-    page, errors = open_page(browser, serve(source))
+    page = open_page(browser, serve(source))
     resized(page, width, 900)
 
     def position():
@@ -5296,9 +5208,6 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert position() == initial
 
-    assert errors == []
-    page.close()
-
 
 def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_gesture(
     browser, serve
@@ -5316,7 +5225,7 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     reserving where a real page's width, its claims and its exhibits meet; a fixture
     built to make those agree would prove nothing about any page a reader opens."""
     example = next(page for page in EXAMPLES if page.stem == "triage-board")
-    page, errors = open_page(browser, live_url(serve(example)))
+    page = open_page(browser, live_url(serve(example)))
     margins_laid_out(page)
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
@@ -5348,15 +5257,10 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
         == column
     ), "withdrawing the move handed the strip back and moved the column with it"
 
-    assert errors == []
-    page.close()
-
 
 def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     """A tray or authored sidebar does not turn the contextual card into a panel."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
@@ -5378,13 +5282,12 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(page.locator(".lf-margin-preview")).to_be_visible()
 
-    assert errors == []
     page.close()
 
     sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(sidebar_page, events=[ACTION_ON_ASK, COMMENT_ON_ASK]),
     )
@@ -5431,15 +5334,10 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
         or composition["cardTop"] >= composition["controlsBottom"] + 7
     ), composition
 
-    assert errors == []
-    page.close()
-
 
 def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     target = page.locator("#bracket")
@@ -5454,16 +5352,11 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
     margins_laid_out(page)
     assert offset() == pytest.approx(before, abs=1)
 
-    assert errors == []
-    page.close()
-
 
 @pytest.mark.parametrize("opener", ["keyboard", "pointer"])
 def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, opener):
     """The rail becomes a touch-sized index when the margin no longer exists."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 390, 760)
     expect(page.locator(".lf-margin-projection")).to_be_hidden()
     toggle = page.locator(".lf-page-map-toggle")
@@ -5527,13 +5420,11 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     return_focus = page.locator("body") if opener == "keyboard" else toggle
     expect(return_focus).to_be_focused()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-    assert errors == []
-    page.close()
 
 
 def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
     """A dialog returns to the visible door that exposed its folded Page Map control."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
     more = page.get_by_role("button", name="More page controls", exact=True)
     more.click()
@@ -5546,15 +5437,11 @@ def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
     expect(dialog).to_be_hidden()
     expect(more).to_be_focused()
     expect(more).to_have_attribute("aria-expanded", "false")
-    assert errors == []
-    page.close()
 
 
 def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve):
     """A responsive posture exposes one map surface, never both at once."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
@@ -5565,15 +5452,10 @@ def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve
     expect(page.locator(".lf-page-map-toggle")).to_be_visible()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
-    assert errors == []
-    page.close()
-
 
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
     """The Page Map is one destination while its compact rail changes posture."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 390, 760)
     page.locator(".lf-page-map-toggle").click()
     dialog = page.locator(".lf-page-map-dialog")
@@ -5588,15 +5470,10 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
         dialog.get_by_role("button", name=re.compile(r"^Open your change: Your change"))
     ).to_be_visible()
 
-    assert errors == []
-    page.close()
-
 
 def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     """The open dialog is a live projection, not a snapshot from its opening press."""
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    )
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 390, 760)
     page.locator(".lf-page-map-toggle").click()
     dialog = page.locator(".lf-page-map-dialog")
@@ -5625,13 +5502,10 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     expect(actions).to_have_count(6)
     expect(actions.first).to_be_focused()
 
-    assert errors == []
-    page.close()
-
 
 def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     """A pinned marker card stays current while its semantic location is retained."""
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             ASK_PAGE,
@@ -5671,9 +5545,6 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
         "A second reading arrived while the preview was pinned."
     )
 
-    assert errors == []
-    page.close()
-
 
 @pytest.mark.parametrize("width", [1440, 1920])
 def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, width):
@@ -5684,7 +5555,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, widt
     disclosure opening above the marker. The reflow here is a section growing, which is
     what every one of those cases is to the margin.
     """
-    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.evaluate(
@@ -5722,14 +5593,11 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, widt
         after["marker"] - before["marker"], abs=0.5
     ), (before, after)
 
-    assert errors == []
-    page.close()
-
 
 def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
     version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.focus()
@@ -5742,14 +5610,11 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(marker).to_be_focused()
 
-    assert errors == []
-    page.close()
-
 
 def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     """A retained preview must trace the new document's matching destination."""
     version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
@@ -5768,9 +5633,6 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(trace).to_be_visible()
 
-    assert errors == []
-    page.close()
-
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):
     """Comparison marks are another projection, not DOM scraped by the map."""
@@ -5781,7 +5643,7 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
         ASK_PAGE.replace("Three jobs", "Four jobs"),
         "The heading now names four jobs.",
     )
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
 
     compare_with(page, 1)
     expect(
@@ -5790,9 +5652,6 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
     page.locator(".lf-version").click()
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="change"]')).to_have_count(0)
-
-    assert errors == []
-    page.close()
 
 
 def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serve):
@@ -5809,7 +5668,7 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
     On the shipped page it happened on: a thread on plain prose stands in the
     toolbar host, which is placed off the column's box, where a contributed
     cluster is hoisted into the column and rides it for free."""
-    page, errors = open_page(
+    page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "log-retention"))
     )
     resized(page, 1440, 900)
@@ -5861,5 +5720,3 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
         assert landed == pytest.approx(rest, abs=1), (
             f"after {close}: the thread margin entry stands at {landed}, the column's rest is {rest}"
         )
-    assert errors == []
-    page.close()

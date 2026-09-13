@@ -213,6 +213,13 @@ lf-playground-value {
   gap: var(--sp-2);
 }
 
+.lf-playground-unavailable {
+  flex-basis: 100%;
+  color: var(--ink-2);
+  font: var(--t-6)/1.3 var(--sans);
+  text-align: end;
+}
+
 .lf-playground-copy.is-copied {
   border-color: var(--ok);
   background: var(--ok-tint);

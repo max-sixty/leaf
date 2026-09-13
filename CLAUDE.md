@@ -137,6 +137,18 @@ does not reconstruct widgets or replay baseline actions into the DOM. Page-widge
 state is bounded by document version; widgets frozen into thread markup use the
 conversation window.
 
+The active document has one immutable application publication. Its publisher alone
+combines authored baselines, the complete admitted server reading, and the ordered
+unresolved ledger into current state; browser components consume read-only selections
+from it. Presentation proof is separate: it records whether required renderers have
+committed the active document's current semantic epoch. Renderer nodes, promises, and
+DOM attributes never enter the semantic snapshot.
+
+Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their
+mechanical browser owners until a gesture becomes a declared application fact. Their
+renderings are not semantic authority, and repainting them does not create a semantic
+epoch.
+
 Python also derives one top-level `activity` reading from the agent's status
 declaration, claim and turn identity, watcher lease, pickup events, and unsettled
 reader moves. The banner, thread receipts, margin receipts, neighboring-page rows,
@@ -205,18 +217,19 @@ uv run pytest tests
 
 `tests/CLAUDE.md` owns environment setup, focused runs, nightly selection, and
 the Linux authority. `wt merge` runs pre-commit and the everyday suite on the rebased
-tree. Pull requests and main run that gate plus the website-worker checks. Tend
-adds focused tests during review. A daily CI run exercises the complete suite in
-one job.
+tree. Pull requests run that gate plus the website-worker checks. Main runs the
+gate; when a push changes the site, `publish-site` runs the website checks before
+deploying it. Tend adds focused tests during review. A daily CI run exercises the
+complete suite in one job.
 
 That suite reads the Python adapter under `worker/`: `tests/test_website_server.py`
-loads `worker/server.py` and `worker/reply.py` and drives their route, and pre-commit's
-ruff hooks take them as they take every other Python file. Nothing on either landing
+loads `worker/server.py` and drives its routes. Pre-commit's ruff hooks take it as they
+take every other Python file. Nothing on either landing
 path parses `worker/src/`: pre-commit's whitespace and typos hooks take those files,
 but its prettier and eslint hooks take JavaScript and HTML rather than
-TypeScript. So a TypeScript change carries no gate until `ci`'s
-`test` job runs it, which on a `wt merge` is after main has already moved. Run
-it before landing one:
+TypeScript. A pull request runs its website gate before merge, but a direct
+`wt merge` first runs it in `publish-site`, after main has already moved. Run it
+before landing a TypeScript change directly:
 
 ```sh
 npm ci --prefix worker

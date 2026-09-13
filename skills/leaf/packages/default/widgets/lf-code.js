@@ -13,7 +13,7 @@ import {
   once,
   failSoft,
   quietWord,
-  settle,
+  widgetController,
   synNodes,
   syntax,
   tokenLines,
@@ -35,10 +35,10 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
-      // Registered with settle() so the runtime holds the first anchor pass until
+      // Registered with the controller so the runtime holds the first anchor pass until
       // the lines are in — the tokenizer loads lazily, so even an uncolored block
       // lands a microtask late and one writer has to finish before another reads.
-      settle(this.render());
+      widgetController(this).present(this.render());
     }
 
     async render() {

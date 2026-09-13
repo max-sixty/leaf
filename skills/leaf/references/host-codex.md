@@ -36,9 +36,9 @@ leaf codex start <page>
 
 The launcher owns both processes. Exiting the terminal stops its App Server, so
 each terminal is independent and no fixed port or separate server tab remains.
-Observed activity ends with that server. The detached page carrier falls back to
-Codex's durable local task queue, so later reader input can still open a turn
-when the task is resumed in the CLI or Desktop app.
+Observed activity ends with that server. The detached page carrier reconnects to its
+App Server; it does not switch an observed reply to a second, explicit-output transport
+after losing the stream.
 
 To run the two processes separately instead, start a loopback WebSocket listener
 and pass the same endpoint to both clients:
@@ -58,27 +58,31 @@ Leaf resumes the current task as a second client. Plan updates, tool starts,
 reasoning summaries, and waits for approval or user input become the page's short
 current activity detail. If the task is idle, Leaf starts one turn with the
 complete delivery as a structured `leaf_delivery` tool output. If the task is
-already active, Leaf queues the same immutable delivery rather than steering
-unrelated page input into that turn. A delivery can span pages and conversations;
-neither case changes its shape or response rules.
+already active, Leaf retains the immutable delivery in its own durable queue, observes
+the current turn, and starts the delivery directly as soon as the task is idle. It does
+not steer unrelated page input into the current turn or copy the delivery into App
+Server's separate queue. A delivery can span pages and conversations; the App Server
+adapter preserves that ordered envelope while presenting one chronological slice per
+turn.
 
 The delivery, its provider turn, and each response obligation have stable identities.
-A directly started turn records the delivery id as its client message id. When that
-`leaf_delivery` has exactly one plain reply obligation, write the reply as the normal
-final message. Leaf streams that message into the addressed thread and commits its
+A started turn records the delivery id as its client message id. Each observed slice
+contains at most one plain reply. Write that reply
+as the normal final message. Leaf streams it into the addressed thread and commits its
 completed text through the same reply contract as `leaf reply`; do not run a reply
 command for that response. The committed reply retains the thread's standing anchor.
+Its immutable delivery address remains authoritative if the turn closes, the observer
+reconnects, or a later turn starts; current-turn identity governs only live activity and
+provisional text. A later plain reply remains pending for the next slice. Version and
+receipt obligations in the current slice still use their explicit `resolve` and
+`receipt` operations.
 
-A `leaf-delivery` pointer may arrive through Codex's durable local queue with no App
-Server observer left to bind or stream its turn. Claiming its first outstanding move
+A `leaf-delivery` pointer may instead arrive through Codex's durable local queue with no
+App Server observer left to bind or stream its turn. Claiming its first outstanding move
 updates the page immediately; reading the immutable envelope does not. Follow the
-UI-first delivery claim in `conversation-loop.md`, then use the
-explicit `reply`, `resolve`, or `receipt` operation for every obligation, including one
-plain reply. A live observer may also recognize the exact pointer, but its final-message
-commit skips an obligation the explicit operation already settled. The immutable
-delivery address remains authoritative if the turn closes, the observer reconnects, or
-a later turn starts; current-turn identity governs only live activity and provisional
-text.
+UI-first delivery claim in `conversation-loop.md`, then use the explicit `reply`,
+`resolve`, or `receipt` operation for every obligation, including one plain reply. A
+later observer skips an obligation that an explicit operation already settled.
 Keep the CLI open because it is still the interactive client for approvals and
 user input.
 
@@ -120,20 +124,20 @@ input into one delivery and freezes it. Input collected after the freeze belongs
 to the next delivery. Starting the command again for another page adds that page
 to the same task-wide watch.
 
-The App Server starts the complete envelope directly only when its task is idle.
-Its acceptance records the returned turn before acknowledging pickup. Otherwise
-the queue service starts a later turn while the connected Codex client remains the
-interactive client for approvals and user input. A completed turn does not stop
-the adapter. If the task has been unloaded, the item stays queued until Codex
-reopens it.
+The App Server starts the complete envelope directly only when its task is idle. The
+start response identifies a candidate turn; the observer acknowledges pickup only when
+that turn's item stream carries the exact delivery id. Otherwise Leaf keeps the offered
+delivery durable, observes the active turn, and starts the next turn when the task
+becomes idle. The connected Codex client remains the interactive client for approvals
+and user input. A completed turn does not stop the adapter.
 
 The queued message is a `leaf-delivery` XML element shown as one line in a code
 block. It names the canonical `delivery claim` operation and an immutable delivery
 `id`; run it before `leaf delivery read <id>`, then process the envelope's `batches`
-with explicit Leaf operations. Do not wait or acknowledge: the adapter owns
-both. The same delivery id may return after an uncertain queue
-response, so treat a page-and-sequence pair already handled in this task as a
-retry. Queue acceptance records **Queued** activity.
+with explicit Leaf operations. Do not wait or acknowledge: the adapter owns both. The
+same delivery id may return after an uncertain unobserved queue response, so treat a
+page-and-sequence pair already handled in this task as a retry. Queue acceptance records
+**Queued** activity.
 
 The immutable delivery and mutable adapter queue record are separate. Once a
 delivery is accepted and every page batch is acknowledged, the adapter archives

@@ -22,7 +22,9 @@ from leaf.registry.contract import (
     visual_parts,
 )
 from leaf.requests import request_lifecycles_for, request_phases
-from leaf.structure import parse_revision
+from leaf.schema import EVENT_REFERENCES_SCHEMA
+from leaf.structure import parse_revision, resolve_source_target_reference
+from leaf.validation.instances import target_reference_contract_error
 
 
 def event_record_error(contract: dict, event: dict, browser: bool = False):
@@ -71,6 +73,22 @@ def declared_event_error(
         )
     if message := schema_error(spec["detail"], event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
+    declared_references = spec.get("references", {})
+    supplied_references = event.get("references", {})
+    if "references" in event and (
+        message := schema_error(EVENT_REFERENCES_SCHEMA, supplied_references)
+    ):
+        return f"<{tag}> {kind} {event['action']!r} references are invalid: {message}"
+    if missing := sorted(set(declared_references) - set(supplied_references)):
+        return (
+            f"<{tag}> {kind} {event['action']!r} is missing declared reference "
+            f"roles {missing}"
+        )
+    if unexpected := sorted(set(supplied_references) - set(declared_references)):
+        return (
+            f"<{tag}> {kind} {event['action']!r} carries undeclared reference "
+            f"roles {unexpected}"
+        )
     if "resolves" in event["detail"] and not event["detail"]["resolves"]:
         return f"<{tag}> {kind} {event['action']!r} resolves must name a non-empty thread id"
     if message := schema_error(
@@ -83,12 +101,48 @@ def declared_event_error(
     return None
 
 
+def event_reference_error(
+    event: dict, spec: dict, document, registry: dict, *, fragment: bool = False
+) -> str | None:
+    """Why one declared role does not name its exact authored source target."""
+    for role, contract in spec.get("references", {}).items():
+        resolution = resolve_source_target_reference(
+            document, event["references"][role], fragment=fragment
+        )
+        if resolution["status"] != "resolved":
+            return (
+                f"reference role {role!r} is {resolution['status']} in its "
+                "authored document"
+            )
+        if event["references"][role]["kind"] == "structure" and resolution[
+            "target"
+        ].get("attrs", {}).get("id"):
+            return (
+                f"reference role {role!r} resolves to an authored id and must use "
+                "that exact id record"
+            )
+        if error := target_reference_contract_error(
+            contract, resolution["target"], registry
+        ):
+            return f"reference role {role!r} {error}"
+    return None
+
+
+def thread_reference_document(structure, widget: str):
+    """The one frozen markup fragment that authored a thread widget, or None."""
+    matches = [
+        fragment
+        for fragment in structure.fragments.values()
+        if widget in fragment.by_id
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 def declared_action_error(
     event: dict,
     page_by_id: dict,
     thread_by_id: dict,
     registry: dict,
-    prior_registry: dict | None = None,
     *,
     stored: bool = True,
 ):
@@ -126,20 +180,8 @@ def declared_action_error(
             f"<{tag}> action {event['action']!r} has a generated snapshot but its "
             "declaration creates no children"
         )
-    if prior_registry is not None:
-        prior = (
-            prior_registry.get(tag, {})
-            .get("x-state", {})
-            .get(event["action"], {})
-            .get("creates")
-        )
-        if prior != creates:
-            return (
-                f"<{tag}> action {event['action']!r} changes its recorded creates "
-                f"declaration from {prior!r} to {creates!r}"
-            )
     # The exhibit rule at the door, not only in the shipped runtime's
-    # sendAction: an exhibited widget is a mention, and the log outranks the
+    # browser controller: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader
     # made on quoted material. Any sender the key admits reaches this door.
     if quoted_in(rec, registry):
@@ -372,6 +414,21 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
     spec = registry[tag]["x-state"][event["action"]]
+    if spec.get("references"):
+        reference_document = (
+            page
+            if page_rec
+            else thread_reference_document(thread.structure, event["widget"])
+        )
+        if reference_document is None:
+            return (
+                f"<{tag}> {event['widget']!r} has no unique authored document for "
+                "its references"
+            )
+        if error := event_reference_error(
+            event, spec, reference_document, registry, fragment=not page_rec
+        ):
+            return f"<{tag}> action {event['action']!r} is invalid: {error}"
     requirement = spec.get("requires")
     completion = spec.get("completion")
     position = (spec.get("record") or {}).get("kind") == "position"
@@ -470,13 +527,15 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     return None
 
 
-def report_contract_error(event: dict, page_by_id: dict, registry: dict):
+def report_contract_error(
+    event: dict, page, registry: dict, *, resolve_references: bool = True
+):
     """Why a structurally complete report violates its widget's declaration —
     the CLI door's mirror of the POST door's action_contract_error. Page markup
     only, never a reply's: a report has to be answerable, and thread markup is
     frozen in the log, so no version could ever absorb or overrule one made
     there."""
-    rec = page_by_id.get(event["widget"])
+    rec = page.by_id.get(event["widget"])
     tag = rec["tag"] if rec else None
     if tag is None:
         return (
@@ -485,4 +544,10 @@ def report_contract_error(event: dict, page_by_id: dict, registry: dict):
             "reports name page widgets only; thread markup is frozen, so no "
             "version could ever answer a report made there"
         )
-    return declared_event_error(event, tag, registry, "report", "x-report")
+    if error := declared_event_error(event, tag, registry, "report", "x-report"):
+        return error
+    if resolve_references:
+        spec = registry[tag]["x-report"][event["action"]]
+        if error := event_reference_error(event, spec, page, registry):
+            return f"<{tag}> report {event['action']!r} is invalid: {error}"
+    return None

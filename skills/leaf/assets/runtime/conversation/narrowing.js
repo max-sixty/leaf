@@ -5,6 +5,10 @@
    combination "waiting on you and resolved". The conditional placement chip appears
    only when this page has a detached anchored thread to find.
 
+   The panel title stays fixed. The search row discloses the controls; a narrowed
+   view states its result and active facets even while those controls are closed.
+   Reset clears every facet and the search together.
+
    These are the panel's own view. The page's marks, inline conversation seats and
    banner counts keep reading the whole log. No narrowing is stored: returning to a
    page should not silently hide conversation. Cards remain in the document while
@@ -12,12 +16,14 @@
    read them by id. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsReader } from "./model.js";
-import { el } from "../widget-elements.js";
 import {
   filterControls,
   findInput,
   goneBtn,
-  panelTitle,
+  filterToggle,
+  resetFilters,
+  viewSummary,
+  viewRow,
   scopeButtons,
   stateButtons,
   subjectButtons,
@@ -63,7 +69,7 @@ const matchesScope = (thread, value = scope) =>
     ? !thread.anchor && !thread.detached_from
     : Boolean(thread.anchor) || Boolean(thread.detached_from));
 const matchesSubject = (thread, value = subject) =>
-  !value || (value === "layer") === (thread.root.about === "layer");
+  !value || (value === "design") === (thread.root.about === "design");
 const matchesGone = (_thread, group, value = onlyGone) =>
   !value || group.key === "gone";
 
@@ -74,9 +80,8 @@ export const inFilter = (thread, group) =>
   matchesSubject(thread) &&
   matchesGone(thread, group);
 
-const noMatch = el("div", "lf-empty");
-export function noMatchNote() {
-  const said = finding
+export function noMatchText() {
+  return finding
     ? `No shown thread matches “${finding}”.`
     : scope || subject || onlyGone
       ? "No threads match these filters."
@@ -87,8 +92,6 @@ export function noMatchNote() {
           : state === "resolved"
             ? "No resolved threads."
             : "No open threads.";
-  if (noMatch.textContent !== said) noMatch.textContent = said;
-  return noMatch;
 }
 
 const entries = (threads, groups) =>
@@ -106,12 +109,23 @@ const setButton = (button, selected, amount) => {
 // on "Page" would promise threads the selected Open/Resolved state then hid.
 export function paintNarrowing(threads, shown, groups = new Map()) {
   const rows = entries(threads, groups);
-  const baseline =
-    state === "resolved"
-      ? threads.length
-      : threads.filter((thread) => !thread.resolved).length;
-  panelTitle.textContent =
-    narrowed() && baseline ? `Showing ${shown.length} of ${baseline}` : "Threads";
+  const baseline = threads.filter((thread) =>
+    state === "resolved" ? thread.resolved : !thread.resolved,
+  ).length;
+  const lifecycle = state === "resolved" ? "resolved" : "open";
+  const amount =
+    shown.length === baseline ? `${shown.length}` : `${shown.length} of ${baseline}`;
+  const facets = [
+    `${amount} ${lifecycle} ${baseline === 1 ? "thread" : "threads"}`,
+    state === "reader" || state === "agent"
+      ? stateButtons[state].dataset.filterLabel
+      : null,
+    scope ? scopeButtons[scope].dataset.filterLabel : null,
+    subject ? subjectButtons[subject].dataset.filterLabel : null,
+    onlyGone ? goneBtn.dataset.filterLabel : null,
+  ].filter(Boolean);
+  viewSummary.textContent = facets.join(" · ");
+  viewRow.hidden = !narrowed();
 
   for (const [value, button] of Object.entries(stateButtons)) {
     const amount = count(
@@ -176,8 +190,15 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
 
 function renarrow(refreshNarrowing) {
   if (runtime.statePhase !== "ready") return;
-  refreshNarrowing();
-  threadsBox.scrollTop = 0;
+  const ready = refreshNarrowing();
+  // Reset after the keyed list has committed. The coordinator owns rejection reporting;
+  // observe this continuation on both paths so an event listener that discards the
+  // returned ticket cannot create another page-level rejection.
+  void ready.then(
+    () => (threadsBox.scrollTop = 0),
+    () => {},
+  );
+  return ready;
 }
 
 const choose = (kind, value, refreshNarrowing) => {
@@ -189,6 +210,15 @@ const choose = (kind, value, refreshNarrowing) => {
 };
 
 export function wireNarrowing(refreshNarrowing) {
+  filterToggle.onclick = () => {
+    filterControls.hidden = !filterControls.hidden;
+    filterToggle.setAttribute("aria-expanded", String(!filterControls.hidden));
+  };
+  resetFilters.onclick = () => {
+    // Reset retires its own control; keep the reader at the surviving disclosure.
+    if (document.activeElement === resetFilters) filterToggle.focus();
+    widen(refreshNarrowing);
+  };
   findInput.addEventListener("input", () => {
     finding = findInput.value.trim().toLowerCase();
     renarrow(refreshNarrowing);
@@ -236,12 +266,12 @@ export function retainNarrowing(refreshNarrowing) {
     // Restore only while the direct arrival's view still stands. Typing in the
     // optimistic reply box does not change this reading and must not strand a refused
     // Reopen under the Open filter; changing the search or facets deliberately does.
-    restore: (before = null) => {
+    restore: async (before = null) => {
       if (!same(reading(), replacement)) return false;
-      before?.();
+      await before?.();
       ({ finding, state, scope, subject, onlyGone } = retained);
       findInput.value = retained.words;
-      renarrow(refreshNarrowing);
+      await renarrow(refreshNarrowing);
       return true;
     },
   };
@@ -263,6 +293,5 @@ export function revealThread(id, refreshNarrowing) {
   );
   if (!thread) return false;
   clearNarrowing(thread.resolved ? "resolved" : "open");
-  renarrow(refreshNarrowing);
-  return true;
+  return renarrow(refreshNarrowing);
 }

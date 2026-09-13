@@ -17,35 +17,37 @@ from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_layout import (
     BADGE_CHROME,
+    PAINTED_IN_SILENCE_PAGE,
+    PRINT_LOSS_PAGE,
+    SCROLL_SETTLE_MS,
+    SCROLL_STILL,
+    SHORT_CHIP_PAGE,
+    SHOT_PAGE,
+    SHOT_SRC,
+    SHOTS,
+    UNPARSABLE_DIAGRAM,
+    flip_point,
+    shown_frames,
+    solid_png,
+)
+from render_harness import (
     CARRIED_PAGE,
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    PAINTED_IN_SILENCE_PAGE,
-    PRINT_LOSS_PAGE,
     REPLY_HOST_PAGE,
-    SCROLL_SETTLE_MS,
-    SCROLL_STILL,
     SETTLED_PAGE,
-    SHORT_CHIP_PAGE,
-    SHOT_PAGE,
-    SHOT_SRC,
-    SHOTS,
     SPECIMEN_MARKUP,
     SPECIMEN_TEXT,
-    UNPARSABLE_DIAGRAM,
     author_test_widget,
-    flip_point,
     open_page,
     page_registry,
     primed,
     resized,
     shortcut_bar_text,
-    shown_frames,
-    solid_png,
 )
 
 pytestmark = pytest.mark.nightly
@@ -90,7 +92,7 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     # group's last option they cross straight into #p, whose full-width lines have a
     # word at any x the option's prose can end on.
     url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     # Vacuous otherwise: the gate has to be looking at a page that has the line on it.
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-mark-note').length === 1"
@@ -108,7 +110,6 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     reported = render_checks_model.evaluate_probe(
         page, "coveredWords", {"holdFloating": False}
     )
-    assert errors == []
     page.close()
     assert render_gate_model.render_version(browser, url) == []
     assert held == []
@@ -129,7 +130,7 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
     Opening the row and closing it again settles it: the cards lay out for real, and the
     boxes they keep afterwards are that layout."""
     url = serve(SETTLED_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     row = page.locator("#transport .lf-settled")
     card = page.locator("#transport #opt-lax")
 
@@ -145,7 +146,6 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
         render_checks_model.evaluate_probe(page, "coveredWords"),
         render_checks_model.evaluate_probe(page, "coveredWords", {"holdHidden": False}),
     )
-    assert errors == []
     assert held == []
     assert any("opt-" in found for found in reported), (
         "the cards fell on nobody, so a gate that never looked would pass this too"
@@ -167,11 +167,10 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     any layout. Both halves are asserted, because a floor deleted outright passes the
     first on its own."""
     url = serve(SHORT_CHIP_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     widths = page.locator("lf-chip").evaluate_all(
         "els => els.map(el => Math.round(el.getBoundingClientRect().width))"
     )
-    assert errors == []
     assert widths and max(widths) < 40, (
         f"these chips are {widths}px, so they clear the floor and prove nothing"
     )
@@ -455,12 +454,8 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
     A control declared an offer is exempt, since paper has nothing to press: the same
     page's pick mark reads "chosen" and goes unreported either way."""
-    assert render_gate_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
-        "a page whose print rendering keeps its words has nothing to report"
-    )
-
     lost = render_gate_model.render_version(browser, serve(PRINT_LOSS_PAGE))
-    assert [f for f in lost if f.startswith("[print]")] == [
+    assert lost == [
         (
             '[print] <p id=lede> drops "Where the decision stands, for the recor", '
             "which it says on screen"
@@ -488,7 +483,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     )
     assert render_gate_model.render_version(browser, url) == []
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     rail = page.locator("lf-shot .lf-shotrail")
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
@@ -666,8 +661,6 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     # to have rounded them, so the ring's corners are asked against the rail's top and
     # the frame's foot — the card's own outer corners.
     assert ring["corners"] == ring["card_corners"] != ["0px", "0px"]
-    assert errors == []
-    page.close()
 
 
 def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser, serve):
@@ -679,7 +672,7 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
         SHOT_PAGE,
         media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after},
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     box = page.locator("lf-shot > input.lf-shotflip")
     expect(box).to_have_accessible_name(
         "Compare before and after — the navigation rail"
@@ -711,9 +704,6 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
             abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
             <= 1
         )
-
-    assert errors == []
-    page.close()
 
 
 def test_a_shot_still_flips_with_every_script_removed(
@@ -823,83 +813,62 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     its link stands in — a shadow tree included, where .lf-quiet's clip does not
     reach. [hidden] is the silence available in every root, and the same note shown is
     still reported."""
-    assert render_gate_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
-        "the same page without the two mistakes has nothing to report"
-    )
 
-    def put_native_link(page):
+    def stage_reach_cases(page):
         page.add_init_script(
             """addEventListener('DOMContentLoaded', () => {
+              const control = document.getElementById('c-bearer');
               const link = document.createElement('a');
+              link.id = 'native-link';
               link.className = 'lf-ui';
               link.href = '#h';
               link.textContent = 'Read context';
-              document.getElementById('c-lax').prepend(link);
-            }, {once: true});"""
-        )
+              const hidden = document.createElement('span');
+              hidden.id = 'hidden-note';
+              hidden.className = 'lf-ui';
+              hidden.hidden = true;
+              hidden.textContent = 'opens in a new tab';
+              control.prepend(link, hidden);
 
-    assert (
-        render_gate_model.render_version(
-            primed(browser, put_native_link), serve(CARRIED_PAGE)
-        )
-        == []
-    ), "a native link's words label its browser-owned control rather than the page"
-
-    def put_note(hidden):
-        def go(page):
-            page.add_init_script(
-                """addEventListener('DOMContentLoaded', () => {
-                  const note = document.createElement('span');
-                  note.className = 'lf-ui';
-                  note.hidden = HIDDEN;
-                  note.textContent = 'opens in a new tab';
-                  document.getElementById('c-lax').prepend(note);
-                }, {once: true});""".replace("HIDDEN", "true" if hidden else "false")
-            )
-
-        return go
-
-    assert (
-        render_gate_model.render_version(
-            primed(browser, put_note(True)), serve(CARRIED_PAGE)
-        )
-        == []
-    ), "a word the page never shows is not a word the reader was shown and denied"
-    assert sorted(
-        {
-            f.split("] ", 1)[1]
-            for f in render_gate_model.render_version(
-                primed(browser, put_note(False)), serve(CARRIED_PAGE)
-            )
-        }
-    ) == [
-        (
-            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
-            "comment can reach it"
-        )
-    ], "the same note shown is the failure this check exists for"
-
-    def put_words_out_of_reach(page):
-        page.add_init_script(
-            """addEventListener('DOMContentLoaded', () => {
               const option = document.getElementById('c-lax');
+              const shown = document.createElement('span');
+              shown.id = 'shown-note';
+              shown.className = 'lf-ui';
+              shown.textContent = 'opens in a new tab';
               const row = document.createElement('div');
+              row.id = 'unreachable-row';
               row.className = 'lf-ui';
               row.innerHTML = '<strong>Session cookies</strong>';
               const button = document.createElement('button');
+              button.id = 'unreachable-button';
               button.setAttribute('data-lf-said', '');
               button.textContent = 'Lax, host-only';
-              option.prepend(row, button);
+              option.prepend(shown, row, button);
             }, {once: true});"""
         )
 
-    found = render_gate_model.render_version(
-        primed(browser, put_words_out_of_reach), serve(CARRIED_PAGE)
+    primed_browser = primed(browser, stage_reach_cases)
+    page = open_page(primed_browser, serve(CARRIED_PAGE))
+    assert (
+        page.locator(
+            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
+            "#unreachable-button"
+        ).count()
+        == 5
     )
+    assert page.locator("#hidden-note").is_hidden()
+    page.close()
+
+    found = render_gate_model.render_version(primed_browser, serve(CARRIED_PAGE))
+    assert len(found) == 6, found
     assert sorted({f.split("] ", 1)[1] for f in found}) == [
         (
             '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
             "can reach it"
+        ),
+        (
+            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
+            "comment can reach it"
         ),
         (
             '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where no '

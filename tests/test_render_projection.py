@@ -8,7 +8,11 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import (
+    COMMAND_HUB_PACKAGE,
+    SHIPPED_PACKAGES,
+    append_command,
+)
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -16,22 +20,18 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASKS_IN_ORDER,
     ASKS_PAGE,
-    BOTH_STAMPS,
     BOXLESS_SECTION_PAGE,
     COMMAND_HUB_EXAMPLE,
-    COMMAND_HUB_PACKAGE,
     COMMAND_HUB_PAGE,
-    EXAMPLE_MEDIA,
-    EXAMPLE_PACKAGES,
-    IMPORTER_CARD,
     KEPT_SECTION_PAGE,
     LIVE_KEYS_V1,
     LIVE_KEYS_V2,
@@ -40,50 +40,61 @@ from render_support import (
     LIVE_V2,
     LIVE_V3,
     MARKDOWN_REPLY,
-    ONE_FRAME,
-    PAGE_FIXTURES,
     REF_PAGE,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
-    RENDERED,
-    REPLAYED_PAGE,
-    REPLY_HOST_PAGE,
     REPORT_PAGE,
     RETIRED_WIDGET_PAGE,
     RING,
     ROSTER_PAGE,
-    SCROLL_SETTLE_MS,
     SCROLL_SETTLED,
-    SHIPPED_PACKAGES,
-    SPECIMEN_MARKUP,
-    SPECIMEN_TEXT,
     STANDING_ACTIONS,
     STANDING_PAGE,
     SUGGESTION_PAGE,
     THREAD_ASKS,
-    TOKEN,
     TRAVEL_PAGE,
     TWO_HOLDER_PAGE,
     TWO_HOLDER_SPARE_PAGE,
     WRAP_TOP,
-    _traffic,
-    _until,
+    backdate_note,
+    drifting_widget,
+    live_url,
+    stale_report,
+    trial_family,
+)
+from render_cases_layout import (
+    SCROLL_SETTLE_MS,
+    token_colour,
+    unfolded_button,
+)
+from render_cases_navigation import (
     actions,
     address_code,
-    author_test_widget,
-    backdate_note,
-    compare_with,
     composer_quote,
-    drifting_widget,
     go_to_address,
+    painted,
+)
+from render_harness import (
+    BOTH_STAMPS,
+    EXAMPLE_MEDIA,
+    EXAMPLE_PACKAGES,
+    IMPORTER_CARD,
+    ONE_FRAME,
+    PAGE_FIXTURES,
+    RENDERED,
+    REPLAYED_PAGE,
+    REPLY_HOST_PAGE,
+    SPECIMEN_MARKUP,
+    SPECIMEN_TEXT,
+    TOKEN,
+    author_test_widget,
+    compare_with,
+    consume_browser_errors,
     holding,
     leaf_page,
-    live_url,
-    nudge,
     open_page,
     opened_tab,
     page_registry,
-    painted,
     panel_settled,
     post_event,
     refuse,
@@ -91,15 +102,11 @@ from render_support import (
     round_trip,
     sending,
     shortcut_bar_text,
-    stale_report,
     stamp_page,
     stamp_version_file,
     ticked,
-    token_colour,
     told,
-    trial_family,
     undo,
-    unfolded_button,
     wait_for_revision,
     watched,
 )
@@ -132,7 +139,7 @@ def test_inspection_and_browser_share_retirement_and_bound_input_origins(
         source.read_text().replace('id="captured"', 'id="captured" snapshot="1"')
     )
     data_model.cmd_data_set(serve.page_dir, "instructions", "Current instructions.\n")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#change lf-old")).to_be_hidden()
@@ -169,8 +176,6 @@ def test_inspection_and_browser_share_retirement_and_bound_input_origins(
         assert rendered["revision"] == revision
         assert rendered["data_revision"] == 2
         assert binding["edit"]["operation"] == operation
-    assert errors == []
-    page.close()
 
 
 def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, serve):
@@ -207,7 +212,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
         "checks": {"Browser contract": "running", "Unit suite": "passed"},
     }
     data_model.cmd_data_set(serve.page_dir, "pr-1842", record)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     widget = page.locator("#reviewed-pr")
     card = widget.locator(":scope > .lf-pr-card")
 
@@ -307,8 +312,6 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     page.emulate_media(media="print")
     expect(card.locator(".lf-pr-description-body")).to_be_visible()
     page.emulate_media(media="screen")
-    assert errors == []
-    page.close()
 
 
 def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
@@ -337,7 +340,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
             "checks": {"Unit suite": "passed"},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     observed = page.locator(".lf-pr-observed")
     expect(observed).to_have_text(re.compile(r"^Observed just now$"))
 
@@ -352,8 +355,6 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     ticked(page)
     expect(observed).to_have_text(re.compile(r"^Observed 3h ago$"))
-    assert errors == []
-    page.close()
 
 
 def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
@@ -384,7 +385,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
     page = browser.new_page(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
     )
-    errors = watched(page)
+    watched(page)
     held = []
     page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
     try:
@@ -395,7 +396,6 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         page.locator("#reviewed-pr").evaluate("element => element.remove()")
         held.pop(0).continue_()
         page.wait_for_timeout(100)
-        assert errors == []
     finally:
         while held:
             held.pop(0).continue_()
@@ -448,7 +448,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
             ]
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     widget = page.locator("#request-calls")
     lines = widget.locator(".lf-call-line")
 
@@ -660,8 +660,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
-    assert errors == []
-    page.close()
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -738,7 +736,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
             'snapshot="1"></lf-visual-review></main>',
         )
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     case_thread = events_model.append_event(
         serve.page_dir,
         {
@@ -1025,7 +1023,6 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     assert after_box["top"] >= before_box["bottom"]
     page.emulate_media(media="screen")
-    assert errors == []
 
     invalid_focus = changed | {
         "cases": [
@@ -1088,7 +1085,6 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     with sending(page, "a corrected visual disposition"):
         first.get_by_role("button", name="Needs work").click()
     expect(first).to_have_attribute("data-disposition", "needs-work")
-    page.close()
 
 
 def test_visual_review_empty_navigation_is_unavailable(browser, serve):
@@ -1101,14 +1097,12 @@ def test_visual_review_empty_navigation_is_unavailable(browser, serve):
             packages=("visual-review",),
         )
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     widget = page.locator("#visual-run")
     expect(widget.get_by_role("button", name="Previous")).to_be_disabled()
     expect(widget.get_by_role("combobox", name="Selected visual case")).to_be_disabled()
     expect(widget.get_by_role("button", name="Next")).to_be_disabled()
     expect(widget.get_by_text("Waiting for visual-run data.")).to_be_visible()
-    assert errors == []
-    page.close()
 
 
 def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve):
@@ -1175,7 +1169,7 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     context.route("**/media/slow-*.svg", lambda route: held.append(route))
     page = None
     try:
-        page, errors = open_page(browser, url, context=context)
+        page = open_page(browser, url, context=context)
         data_model.cmd_data_set(
             serve.page_dir,
             "docs-run",
@@ -1198,7 +1192,10 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         host = page.locator("#visual-run .lf-vr-shot-host")
         host.evaluate(
             """node => {
+              const current = node.querySelector('lf-shot');
               const replacement = document.createElement('lf-shot');
+              replacement.id = current.id;
+              replacement._lfPresentGenerated = current._lfPresentGenerated;
               replacement.setAttribute('before', '/media/3cf0e3efe80c6b01.png');
               replacement.setAttribute('after', '/media/4f465a0582ab00fe.png');
               replacement.setAttribute('alt', 'Replacement evidence');
@@ -1231,7 +1228,6 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
             )
             == "390px"
         )
-        assert errors == []
     finally:
         while held:
             held.pop(0).abort()
@@ -1247,7 +1243,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     the pixels, and a tall mobile pair keeps its authored focus width side by side inside
     the scrolling evidence stage. Capture facts follow the comparison rather than delaying it.
     """
-    page, errors = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
     expect(widget).to_have_attribute("data-lf-workspace-context", "root")
@@ -1410,14 +1406,12 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight > node.clientHeight"
     )
-    assert errors == []
-    page.close()
 
 
 def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     browser, serve
 ):
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(VISUAL_REVIEW_GALLERY),
         init_script="""
@@ -1447,8 +1441,6 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     )
     assert marker == '""'
     expect(case.locator(".lf-vr-focus")).to_have_text("20, 100 · 350 × 640 CSS px")
-    assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("quote_anchor", [True, False], ids=["passage", "whole-datum"])
@@ -1463,7 +1455,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         )
     )
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     if quote_anchor:
         page.locator("#source code").evaluate(
             """code => {
@@ -1518,8 +1510,6 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         expected_anchor["quote"] = "Original source words."
     assert comment["anchor"] == expected_anchor
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Outdated")
-    assert errors == []
-    page.close()
 
 
 def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
@@ -1551,7 +1541,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
         ]
     }
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     diff = page.locator("#patch")
     progress = diff.locator(".lf-diff-progress")
     summaries = diff.locator("summary")
@@ -1672,9 +1662,6 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(reviews.nth(2)).to_be_hidden()
     page.emulate_media(media="screen")
 
-    assert errors == []
-    page.close()
-
 
 def test_a_diff_without_review_tracking_keeps_the_browsing_tools(browser, serve):
     authored = leaf_page(
@@ -1705,7 +1692,7 @@ diff --git a/tests/second.py b/tests/second.py
 </pre></lf-diff>
 """,
     )
-    page, errors = open_page(browser, serve(authored))
+    page = open_page(browser, serve(authored))
     diff = page.locator("#patch")
 
     expect(page.locator("#single .lf-diff-progress")).to_have_text("1 file")
@@ -1718,18 +1705,14 @@ diff --git a/tests/second.py b/tests/second.py
     expect(diff.locator("summary").nth(0)).to_be_hidden()
     expect(diff.locator("summary").nth(1)).to_be_visible()
 
-    assert errors == []
-    page.close()
 
-
-def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
+def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     browser, serve
 ):
     """A valid save advances the live surface; stamping only changes its label.
 
-    The next file is fetched while the reader keeps this document, then its authored
-    main replaces the old one and replay catches it up. The URL, runtime identity, open
-    chrome, and passage's viewport coordinate therefore survive. Five paragraphs arrive
+    A revision opens a fresh document at the same address. The open panel and the
+    passage's viewport coordinate survive through explicit saved state. Five paragraphs arrive
     above that passage so a raw scroll offset cannot satisfy the position assertion.
     """
     # Deliberately collide with a property the runtime owns after startup. Authored
@@ -1739,7 +1722,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         '<html lang="en" style="--lf-thread-panel-width: 420px">',
     ).replace("<body>", '<body tabindex="0">')
     version_url = serve(first)
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
     assert "/versions/" not in page.url, f"the live address redirected to {page.url}"
 
     page.locator("#live-reading").scroll_into_view_if_needed()
@@ -1747,8 +1730,9 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         """() => { document.scrollingElement.scrollBy({
           top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
           behavior: 'instant'
-        }); window.__leafDocument = 'the same runtime'; }"""
+        }); }"""
     )
+    original_document = page.evaluate("performance.timeOrigin")
     before = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -1768,8 +1752,8 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     told(page)
     expect(page).to_have_title("Live second")
 
-    assert page.evaluate("window.__leafDocument") == "the same runtime", (
-        "the version replaced the browser document rather than its authored page"
+    assert page.evaluate("performance.timeOrigin") != original_document, (
+        "the revision retained the previous browser document"
     )
     assert "/versions/" not in page.url, (
         f"the update changed the live address to {page.url}"
@@ -1824,7 +1808,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     page.evaluate("document.body.focus({preventScroll: true})")
     assert page.evaluate("document.activeElement === document.body")
 
-    page.evaluate("window.__leafMain = document.querySelector('main')")
+    draft_document = page.evaluate("performance.timeOrigin")
     stamped = CliRunner().invoke(
         cli_model.cli,
         ["version", "stamp", str(serve.page_dir), "--text", "new findings"],
@@ -1835,18 +1819,16 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     signoff = page.locator(".lf-signoff")
     expect(signoff).to_be_visible()
     assert signoff.evaluate("el => parseFloat(el.style.minWidth) > 0"), (
-        "soft activation measured approval while its control was detached"
+        "approval was measured while its control was detached"
     )
-    assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
-        "stamping the displayed revision replaced its main"
+    assert page.evaluate("performance.timeOrigin") == draft_document, (
+        "stamping the displayed revision replaced its document"
     )
 
     page.locator(".lf-general textarea").fill("This comment belongs to the live draft.")
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
-    assert errors == []
-    page.close()
 
 
 def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser, serve):
@@ -1874,7 +1856,7 @@ def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser,
 """,
     )
     version_url = serve(first)
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
     resized(page, 668, 704)
 
     clip_heading = """() => {
@@ -1953,8 +1935,6 @@ def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser,
         f"version travel left the heading under reader chrome: {landed}"
     )
     assert landed["title"]["top"] > landed["chrome"]["bottom"], landed
-    assert errors == []
-    page.close()
 
 
 def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
@@ -1995,7 +1975,7 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
 <div style="height: 1000px"></div>
 """,
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         live_url(serve(first, packages=(*EXAMPLE_PACKAGES, "./.leaf"))),
     )
@@ -2029,14 +2009,13 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
     wait_for_revision(page, 2)
     after = paragraph.evaluate("el => el.getBoundingClientRect().top")
     assert abs(after - before) <= 4, (before, after)
-    assert errors == []
-    page.close()
 
 
 def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, serve):
     """One active semantic reading wins when several regions begin sharing the page."""
-    pane = lambda side: (
-        f"""
+
+    def pane(side):
+        return f"""
     <lf-pane id="{side}-reading" label="{side.title()} reading">
       <p id="{side}-start">{side.title()} start with enough words for a landmark.</p>
       <div style="height: 320px"></div>
@@ -2046,7 +2025,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
       <div style="height: 700px"></div>
       <p>{side.title()} end.</p>
     </lf-pane>"""
-    )
+
     first = leaf_page(
         "Active region continuity",
         f"""
@@ -2059,7 +2038,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
 </lf-workspace>
 """,
     )
-    page, errors = open_page(browser, live_url(serve(first)))
+    page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
     workspace = page.locator("#reading-workspace")
     expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
@@ -2098,8 +2077,6 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
         "el => el.getBoundingClientRect().top"
     )
     assert abs(after - before) <= 4, (before, after)
-    assert errors == []
-    page.close()
 
 
 def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser, serve):
@@ -2112,7 +2089,7 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
 <div style="height: 1000px"></div>
     """
     first = leaf_page("Empty active region continuity", content)
-    page, errors = open_page(browser, live_url(serve(first)))
+    page = open_page(browser, live_url(serve(first)))
     page.locator("#standing-control").focus()
     before = page.locator("#reading-title").evaluate(
         "heading => heading.getBoundingClientRect().top"
@@ -2137,8 +2114,6 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
         "heading => heading.getBoundingClientRect().top"
     )
     assert abs(after - before) <= 4, (before, after)
-    assert errors == []
-    page.close()
 
 
 def test_revision_reveals_an_active_region_without_any_reading_landmark(browser, serve):
@@ -2150,7 +2125,7 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 <div style="height: 1000px"></div>
     """
     first = leaf_page("Textless active region continuity", content)
-    page, errors = open_page(browser, live_url(serve(first)))
+    page = open_page(browser, live_url(serve(first)))
     page.locator("#standing-control").focus()
 
     revised = leaf_page(
@@ -2167,8 +2142,6 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
     expect(page.locator("#prior-controls")).to_have_attribute("open", "")
     expect(page.locator("#standing-control")).to_be_focused()
-    assert errors == []
-    page.close()
 
 
 def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):
@@ -2201,7 +2174,7 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
 </lf-workspace>
 """,
     )
-    page, errors = open_page(browser, live_url(serve(first)))
+    page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
     workspace = page.locator("#reading-workspace")
     expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
@@ -2231,8 +2204,6 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
         page.locator("#active-pane .lf-pane-body").evaluate("pane => pane.scrollTop")
         == 0
     )
-    assert errors == []
-    page.close()
 
 
 def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser, serve):
@@ -2305,7 +2276,7 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
         "Nested offset ownership",
         parent("left", active) + parent("right"),
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         live_url(
             serve(
@@ -2333,39 +2304,48 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
 
     assert right.evaluate("scroller => scroller.scrollTop") == 0
     expect(page.locator("#standing-control")).to_be_focused()
-    assert errors == []
-    page.close()
 
 
 def test_a_live_revision_with_new_authored_code_reloads_the_document(browser, serve):
-    """A module revision gets a fresh realm instead of inheriting old behavior."""
-    first = LIVE_V1.replace(
-        "</head>",
-        '<script type="module">globalThis.__authoredRevision = "one";</script></head>',
+    """A new constructor and its listeners run once, with fresh local state."""
+    module = """<script type="module">
+customElements.define('page-counter', class extends HTMLElement {
+  connectedCallback() {
+    let count = 0;
+    const button = document.createElement('button');
+    const label = () => { button.textContent = `Count ${count}`; };
+    button.addEventListener('click', () => { count += 1; label(); });
+    label();
+    this.append(button);
+  }
+});
+document.querySelector('#counter').append(document.createElement('page-counter'));
+</script>"""
+    first = LIVE_V1.replace("</head>", module + "</head>").replace(
+        "</main>", '<div id="counter"></div></main>'
     )
     second = LIVE_V2.replace(
-        "</head>",
-        '<script type="module">globalThis.__authoredRevision = "two";</script></head>',
-    )
-    page, errors = open_page(browser, live_url(serve(first)))
-    page.wait_for_function("() => globalThis.__authoredRevision === 'one'")
-    page.evaluate("globalThis.__oldDocument = true")
+        "</head>", module.replace("count += 1", "count += 10") + "</head>"
+    ).replace("</main>", '<div id="counter"></div></main>')
+    page = open_page(browser, live_url(serve(first)))
+    page.get_by_role("button", name="Count 0", exact=True).click()
+    expect(page.get_by_role("button", name="Count 1", exact=True)).to_be_visible()
+    original_document = page.evaluate("performance.timeOrigin")
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
 
     expect(page).to_have_title("Live second")
-    page.wait_for_function("() => globalThis.__authoredRevision === 'two'")
-    assert page.evaluate("globalThis.__oldDocument") is None
+    page.get_by_role("button", name="Count 0", exact=True).click()
+    expect(page.get_by_role("button", name="Count 10", exact=True)).to_be_visible()
+    assert page.evaluate("performance.timeOrigin") != original_document
     assert "/versions/" not in page.url
-    assert errors == []
-    page.close()
 
 
 def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser, serve):
     version_url = serve(LIVE_V1)
-    pinned, pinned_errors = open_page(browser, version_url)
-    live, live_errors = open_page(browser, live_url(version_url))
+    pinned = open_page(browser, version_url)
+    live = open_page(browser, live_url(version_url))
 
     (serve.page_dir / "index.html").write_text(LIVE_V2.replace("</main>", ""))
     told(live)
@@ -2390,7 +2370,6 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     expect(pinned).to_have_title("Live first")
     expect(pinned).to_have_url(re.compile(r"/versions/v1\.html"))
     expect(pinned.locator(".lf-version")).to_contain_text("v1")
-    assert pinned_errors == [] and live_errors == []
     pinned.close()
     live.close()
 
@@ -2402,7 +2381,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     leaves the textarea, the ordinary poll activates the already-published version.
     """
     version_url = serve(LIVE_V1)
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
     page.locator(".lf-threads-toggle").click()
     general = page.locator(".lf-general textarea")
     general.fill("Do not replace the page under these words.")
@@ -2412,8 +2391,8 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     expect(page).to_have_title("Live first")
     expect(page.locator(".lf-latest-chip")).to_be_visible()
 
-    # An explicit press may override the hold, but it is still an in-place activation:
-    # the live address and the panel draft both survive it.
+    # An explicit press may override the hold: the live address and the durable panel
+    # draft both survive the new document.
     page.locator(".lf-latest-chip").click()
     expect(page).to_have_title("Live second")
     assert "/versions/" not in page.url
@@ -2445,29 +2424,18 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
         "el => el.style.getPropertyValue('--lf-thread-panel-width').trim()"
     ), "activation erased a runtime-owned root property"
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
-    assert errors == []
-    page.close()
 
 
-def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
+def test_live_activation_restores_standing_but_restarts_keyboard_sequences(
     browser, serve
 ):
-    """A revision arriving under a reader mid-press keeps their next press live.
+    """Only explicit, revalidated standing crosses the fresh-document boundary.
 
-    Two kinds of pending input meet an activation. A sequence is the runtime's: bare `g`
-    names the visible targets, and the chips are read off whichever document is standing,
-    so the window holds through the swap and a fresh hint lands in the new page — minus
-    the hint for a link the revision took away, which is the honest reading. The reader's
-    standing is the document's: the Ask's "1–3 One / Two / Another option" actions
-    remain live over a focused pick mark, and the swap that replaced main dropped that
-    focus onto body, taking the offer down with it — the digit then picked nothing,
-    silently. The place is written down by id before the swap and handed back after it,
-    so the fresh mark holds the focus and the digit picks, acknowledged in the bottom
-    status. One revision arrives as a
-    draft and the next as a stamped version, since both replace the page under the
-    reader by the same door."""
+    An armed sequence is local to its document; the reader starts it again against the
+    current target set. A surviving authored control keeps its keyboard meaning.
+    """
     version_url = serve(LIVE_KEYS_V1)
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
     chips = page.locator(".lf-go-to-hint")
     link_chips = page.locator('.lf-go-to-hint[data-lf-go-to-kind="Link"]')
 
@@ -2476,9 +2444,11 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_V2)
     told(page)
     expect(page).to_have_title("Live keys second")
+    expect(link_chips).to_have_count(0)
+    page.keyboard.press("g")
     expect(link_chips).to_have_count(2)
     assert "visible target" in shortcut_bar_text(page), (
-        "the sequence did not follow the new document"
+        "the new sequence did not use the current document"
     )
     page.keyboard.type(address_code(page, "Link", "lk-link-three"))
     expect(page.locator("#lk-para")).to_be_focused()
@@ -2506,24 +2476,12 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
         "Chose “Two” — sent"
     )
     round_trip(page)
-    assert errors == []
-    page.close()
 
 
-def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_broken(
-    browser, serve
-):
-    """A read can outlive the revision it named and come back to a page that has moved.
-
-    An answer carries the view of the revision its request named and of the active one
-    the page may activate into, and of no other. A press that activates while such a read
-    is in the air therefore leaves the page standing on a revision the answer says nothing
-    about, and composition holds it from taking the newer one instead. That is a stale
-    answer rather than a broken page: nothing is applied, nothing is reported, and the
-    next read — asked on the revision the page now stands on — carries it forward.
-    """
+def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
+    """A request started by the old realm cannot apply a later response in the new one."""
     version_url = serve(LIVE_V1)
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
     page.locator(".lf-threads-toggle").click()
     general = page.locator(".lf-general textarea")
     general.fill("Do not replace the page under these words.")
@@ -2559,7 +2517,9 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
 
     page.route("**/api/state*", hold_the_first_read)
     try:
-        nudge(serve.page_dir)
+        session_model.cmd_status(
+            serve.page_dir, "working", "exercising the held state request"
+        )
         holding(page, held, 1, "the read from revision 1")
 
         # The chip's own read remains independent of the background read held above. It
@@ -2581,18 +2541,9 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
             "$layer"
         ]["generation"]
         assert held[0].request.headers.get("leaf-layer") == generation
-        traffic = _traffic(page).read()
-        assert traffic.asked == traffic.heard + 1, (
-            "the held read ended before the test released it"
-        )
         release_the_held_read()
-        _until(page, lambda t: t.heard > traffic.heard, "a state answer came back")
-        # Not `ticked`: the heartbeat dispatches `lf-actions` on its own cadence, so the
-        # page's next pass can be one this delivery had no part in. Wait instead until
-        # the page holds the reading the server holds.
         told(page)
         expect(page).to_have_title("Live second")
-        assert errors == []
         assert [
             event
             for event in events_model.read_events(serve.page_dir)
@@ -2605,7 +2556,6 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
         told(page)
         expect(page).to_have_title("Live third")
         assert "/versions/" not in page.url
-        assert errors == []
     finally:
         # A route handler is a live browser resource after the verdict stops depending
         # on it, and an abandoned one hangs context teardown even when every assertion
@@ -2615,10 +2565,47 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
         page.close()
 
 
+def test_live_activation_revalidates_control_meaning_and_consumes_the_handoff(
+    browser, serve
+):
+    """A surviving id cannot transfer focus to a changed action, or replay it later."""
+    first = leaf_page(
+        "First action",
+        '<h1>Review</h1><button id="operation" type="button">Inspect</button>',
+    )
+    second = first.replace("First action", "Second action").replace(
+        ">Inspect</button>", ">Publish</button>"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    operation = page.get_by_role("button", name="Inspect", exact=True)
+    operation.focus()
+    expect(operation).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    wait_for_revision(page, 2)
+    expect(page.get_by_role("button", name="Publish", exact=True)).not_to_be_focused()
+    assert page.evaluate("document.activeElement === document.body")
+
+    # An unchanged action does retain focus across a subsequent live revision.
+    page.get_by_role("button", name="Publish", exact=True).focus()
+    (serve.page_dir / "index.html").write_text(
+        second.replace("Second action", "Third action")
+    )
+    wait_for_revision(page, 3)
+    expect(page.get_by_role("button", name="Publish", exact=True)).to_be_focused()
+
+    # Its one-use handoff must not restore that action on an ordinary reload.
+    page.locator("h1").click()
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    assert page.evaluate("document.activeElement === document.body")
+    page.close()
+
+
 def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
     """Composition reads the control inside a widget's shadow tree, not its host."""
     version_url = serve(LIVE_V1)
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
     page.evaluate(
         """() => {
           const host = document.createElement('section');
@@ -2646,70 +2633,44 @@ def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
     page.evaluate(
         "() => document.querySelector('#shadow-editor').shadowRoot.activeElement.blur()"
     )
-    ticked(page)
+    wait_for_revision(page, 2)
     expect(page).to_have_title("Live second")
-    assert errors == []
-    page.close()
 
 
-def test_overlapping_state_answers_share_one_live_version_activation(browser, serve):
-    """Two ordinary polls cannot replace the main twice.
+def test_a_pending_navigation_prevents_another_live_activation(browser, serve):
+    """The departing document stops applying state after its navigation starts."""
+    page = open_page(browser, live_url(serve(LIVE_V1)))
+    held = []
 
-    Hold the shared version-file request past one polling interval, so a second timer
-    response joins the first while both await that document. One transition proves the
-    serialization is at the commit boundary, after asynchronous preparation, rather than
-    only before it.
-    """
-    page, errors = open_page(browser, live_url(serve(LIVE_V1)))
-    page.evaluate(
-        """() => {
-          const start = document.startViewTransition.bind(document);
-          window.__leafTransitions = 0;
-          document.startViewTransition = update => {
-            window.__leafTransitions += 1;
-            return start(update);
-          };
-        }"""
-    )
+    def hold_navigation(route):
+        if route.request.is_navigation_request():
+            held.append(route)
+        else:
+            route.continue_()
 
-    def slow_version(route):
-        time.sleep(3)
-        route.continue_()
+    page.route("**/*", hold_navigation)
+    try:
+        (serve.page_dir / "index.html").write_text(LIVE_V2)
+        holding(page, held, 1, "the fresh revision document")
+        # A newer save overtakes this navigation. The same live root response owns
+        # the final revision; the old realm cannot launch another activation.
+        (serve.page_dir / "index.html").write_text(LIVE_V3)
+        held[0].continue_()
+        told(page)
+        expect(page).to_have_title("Live third")
+        assert len(held) == 1
+    finally:
+        page.unroute("**/*", hold_navigation)
 
-    page.route("**/revisions/r2-*.html", slow_version)
+
+def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
+    """Fresh-document activation does not depend on same-document animation."""
+    page = open_page(browser, live_url(serve(LIVE_V1)))
+    page.evaluate("document.startViewTransition = undefined")
     (serve.page_dir / "index.html").write_text(LIVE_V2)
 
     expect(page).to_have_title("Live second", timeout=10_000)
-    assert page.evaluate("window.__leafTransitions") == 1
-    assert errors == []
-    page.close()
-
-
-def test_a_skipped_transition_lands_the_version_without_a_fault(browser, serve):
-    """A skipped view transition still runs its update, but it rejects `ready`, which
-    the activation never awaits. Unhandled, that rejection reached the page's error
-    report, and every version landing in a hidden tab wrote an `error` event into
-    the log. The harness cannot hide a document, so the skip is invoked directly; it
-    is the same algorithm a hidden document runs.
-    """
-    page, errors = open_page(browser, live_url(serve(LIVE_V1)))
-    page.evaluate(
-        """() => {
-          const start = document.startViewTransition.bind(document);
-          document.startViewTransition = update => {
-            const transition = start(update);
-            transition.skipTransition();
-            return transition;
-          };
-        }"""
-    )
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
-
-    # The rejection is dispatched before the skipped update runs as its own task, so
-    # a landed version is the edge after which the report would already be written.
-    expect(page).to_have_title("Live second", timeout=10_000)
-    assert errors == []
-    page.close()
+    page.wait_for_function(BOTH_STAMPS)
 
 
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
@@ -2727,7 +2688,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     back the control they were standing on, so the Ask they were in wears it still."""
     url = serve(ASKS_PAGE)
     d = serve.page_dir
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     # Short enough that an Ask in the middle of the window has page text above it,
     # which is the whole of what makes the coarse reading the wrong one.
     resized(page, 900, 400)
@@ -2761,8 +2722,6 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     }"""), "the reader is at the top of the window, where either reading would do"
     page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
-    assert errors == []
-    page.close()
 
 
 def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser, serve):
@@ -2777,7 +2736,7 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     sections all draw boxes never sees it."""
     url = serve(BOXLESS_SECTION_PAGE)
     d = serve.page_dir
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     resized(page, 900, 600)
 
     # Read from inside the wrapper, so every block on screen is one of its own and the
@@ -2810,8 +2769,6 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
         f"the reader left the wrapper's words {before}px from the top of the window and "
         f"was put back at {after}px"
     )
-    assert errors == []
-    page.close()
 
 
 def test_the_ring_says_where_the_reader_is_standing(browser, serve):
@@ -2835,7 +2792,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     row the keyboard is on carries the band alone. Which row, in the same band — one ring
     still meaning one thing. An arrival is the other side of that: it stands the reader on
     the decision rather than in the control, so there the decision's own ring is the one."""
-    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ASKS_PAGE))
     question = page.locator("#live-question-decision")
     page.keyboard.press("a")
     expect(question).to_have_attribute("data-lf-ask", "1")
@@ -2938,8 +2895,6 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
         "the reader standing in the chrome is drawn in some other band than the "
         f"one a decision uses: {toggle.evaluate(RING)} against {decision_ring}"
     )
-    assert errors == []
-    page.close()
 
 
 def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
@@ -2970,7 +2925,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
             "anchor": {"section": "sug-refill"},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")
@@ -3035,8 +2990,6 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     ), "the address left the reader outside the cluster it pressed"
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
-    assert errors == []
-    page.close()
 
 
 def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
@@ -3068,7 +3021,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
         )["id"]
         for section in ("flow", "long-part")
     }
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
 
     def quote(section):
@@ -3100,8 +3053,6 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
                    const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop);
                    return r.height > innerHeight && Math.abs(r.top - clear) < 2; }"""
     )
-    assert errors == []
-    page.close()
 
 
 def test_the_ask_walk_follows_registry_declarations(browser, serve):
@@ -3115,8 +3066,13 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
         "resolves"
     ]
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the declaration change",
+    )
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, live_url(url))
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/4")
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
@@ -3127,8 +3083,6 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
     ]:
         page.keyboard.press("a")
         expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
-    assert errors == []
-    page.close()
 
 
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
@@ -3146,7 +3100,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     same status."""
     url = serve(REPORT_PAGE)
     d = serve.page_dir
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     fraction = page.locator("#t-feeders > .lf-chips")
     expect(fraction).to_contain_text("1/2 done")
     expect(page.locator(".lf-asks")).to_be_hidden()  # nothing waits on the reader
@@ -3211,8 +3165,6 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["t-parser"]
-    assert errors == []
-    page.close()
 
 
 def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
@@ -3230,7 +3182,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         REPORT_PAGE.replace("</main>", '<p id="new-copy">A new prose line.</p></main>'),
         "added prose",
     )
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
     held = []
     requests = []
 
@@ -3246,7 +3198,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         page.locator(".lf-version").click()
         with page.expect_request("**/api/view*"):
             page.locator('.lf-version-diff[data-lf-version="1"]').click()
-        page.wait_for_timeout(0)  # let the request event enter its route callback
+        holding(page, held, 1, "the first comparison view")
         assert held, "the first comparison view was not held"
         held[0][1] = held[0][0].fetch()
 
@@ -3267,7 +3219,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         with page.expect_request("**/api/view*"):
             held[0][0].fulfill(response=held[0][1])
             held[0][2] = True
-        page.wait_for_timeout(0)
+        holding(page, requests, 2, "the retried comparison view")
         assert len(requests) >= 2, "the stale comparison view was not retried"
         expect(page.locator(".lf-version")).to_have_text("v2")
         expect(page.locator(".lf-version")).to_have_class(re.compile(r"\bon\b"))
@@ -3277,8 +3229,6 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         if held and not held[0][2]:
             held[0][0].fulfill(response=held[0][1])
         page.unroute("**/api/view*")
-    assert errors == []
-    page.close()
 
 
 def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
@@ -3293,7 +3243,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     that has said nothing all day is idle, which is what it said."""
     url = serve(ROSTER_PAGE)
     d = serve.page_dir
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     wren, finch = page.locator("#ag-wren"), page.locator("#ag-finch")
     # Before any worker has spoken, the row dates from the version that asserted it —
     # not from nothing, which would leave a fleet dead since last night reading exactly
@@ -3351,15 +3301,13 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     expect(wren.locator(".lf-doing")).to_have_count(0)
     expect(wren.locator(".lf-heard")).to_have_text("last heard 3h ago")
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
-    assert errors == []
-    page.close()
 
 
 def test_claims_and_reports_share_one_canonical_update_feed(
     browser, serve, monkeypatch
 ):
     """Claims and reports keep distinct lifecycles behind one typed reading."""
-    page, errors = open_page(browser, live_url(serve(ROSTER_PAGE)))
+    page = open_page(browser, live_url(serve(ROSTER_PAGE)))
     d = serve.page_dir
     # Event ids and authored element ids belong to different identity spaces. Give
     # the thread and widget the same spelling so only the typed target can separate
@@ -3407,7 +3355,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     told(page)
 
     updates = page.evaluate(
-        "async () => (await import('/runtime/widget-api.js')).updateSequence()"
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
     )
     by_source = {update["source"]: update for update in updates}
     assert set(by_source) == {"claim", "report"}
@@ -3444,7 +3392,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     assert by_source["report"]["session"] == by_source["claim"]["session"]
     targeted = page.evaluate(
         """async () => {
-            const feed = await import('/runtime/widget-api.js');
+            const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
             return {
                 widget: feed.updateSequence(document.querySelector('#ag-wren')),
                 thread: feed.updateSequence({kind: 'thread', id: 'ag-wren'}),
@@ -3477,19 +3425,17 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     wait_for_revision(page, 2)
 
     updates = page.evaluate(
-        "async () => (await import('/runtime/widget-api.js')).updateSequence()"
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
     )
     by_source = {update["source"]: update for update in updates}
     assert by_source["claim"]["disposition"] == "settled"
     assert by_source["report"]["disposition"] == "settled"
     expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
-    assert errors == []
-    page.close()
 
 
-def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serve):
-    """A report's prose and durable fields describe the same committed reading."""
-    page, errors = open_page(browser, serve(ROSTER_PAGE))
+def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
+    """The page-wide drag gate withholds widget views and projection coverage."""
+    page = open_page(browser, serve(ROSTER_PAGE))
     d = serve.page_dir
     row = page.locator("#ag-wren")
 
@@ -3508,8 +3454,15 @@ def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serv
     told(page)
     expect(row).to_have_attribute("state", "working")
     expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
 
-    page.evaluate("document.body.classList.add('lf-dragging')")
+    page.evaluate(
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, true);
+        }"""
+    )
     second = CliRunner().invoke(
         cli_model.cli,
         [
@@ -3525,12 +3478,18 @@ def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serv
     told(page)
     expect(row).to_have_attribute("state", "working")
     expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
 
-    page.evaluate("document.body.classList.remove('lf-dragging')")
+    page.evaluate(
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, false);
+        }"""
+    )
     expect(row).to_have_attribute("state", "idle")
     expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
-    assert errors == []
-    page.close()
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
 
 
 def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve):
@@ -3544,7 +3503,7 @@ def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve)
     whose whole design is that a claim nobody revises must not be repeated as fact."""
     url = serve(ROSTER_PAGE)
     d = serve.page_dir
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     siskin = page.locator("#ag-siskin")
     expect(siskin.locator(".lf-heard")).to_have_text("last heard just now")
     expect(siskin.locator(".lf-cold")).to_have_count(0)
@@ -3556,19 +3515,15 @@ def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve)
     # An idle worker is not called out for the same silence: it claimed nothing.
     expect(page.locator("#ag-finch .lf-heard")).to_have_text("last heard 3h ago")
     expect(page.locator("#ag-finch .lf-cold")).to_have_count(0)
-    assert errors == []
-    page.close()
 
 
 def test_a_rosters_clock_keeps_moving_when_the_server_stops_answering(browser, serve):
     """A clock advances held state even without a new state response."""
-    page, errors = open_page(browser, serve(ROSTER_PAGE))
+    page = open_page(browser, serve(ROSTER_PAGE))
     page.route("**/api/state*", refuse)
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     expect(page.locator("#ag-wren .lf-heard")).to_have_text("last heard 3h ago")
     expect(page.locator("#ag-wren .lf-cold")).to_have_text("quiet")
-    assert errors == []
-    page.close()
 
 
 def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
@@ -3587,7 +3542,7 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     on it."""
     url = serve(ROSTER_PAGE)
     d = serve.page_dir
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.evaluate(
         "() => { window.__kept = [...document.querySelectorAll('#ag-wren .lf-doing,"
         " #ag-wren .lf-branch, #ag-wren .lf-state')].map(e => e.firstChild); }"
@@ -3620,8 +3575,6 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     assert sent.exit_code == 0, sent.output
     told(page)
     expect(page.locator("#ag-wren .lf-doing")).to_have_text("on to the baffles")
-    assert errors == []
-    page.close()
 
 
 def test_a_rosters_state_column_is_measured_from_the_words_it_holds(browser, serve):
@@ -3633,7 +3586,7 @@ def test_a_rosters_state_column_is_measured_from_the_words_it_holds(browser, ser
     column clears the widest word, which is what a stated number stopped doing
     silently."""
     url = serve(ROSTER_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     pills = page.locator("#crew > lf-agent > .lf-state")
     expect(pills).to_have_count(3)
     lefts, widest = page.evaluate(
@@ -3653,8 +3606,6 @@ def test_a_rosters_state_column_is_measured_from_the_words_it_holds(browser, ser
         " return g.querySelector('strong').getBoundingClientRect().left"
         "      >= p.getBoundingClientRect().right; }"
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
@@ -3678,7 +3629,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
     """
     url = serve(REPORT_PAGE)
     d = serve.page_dir
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     # The fraction is the last chip its parent builds, after owner and when.
     fraction = page.locator("#t-feeders > .lf-chips span").last
     expect(fraction).to_have_text("1/2 done")
@@ -3697,8 +3648,6 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
         f"the fraction resized as it recounted, {before}px to {after}px — a box "
         "the reader was given no gesture to explain"
     )
-    assert errors == []
-    page.close()
 
 
 def test_the_render_gate_reports_a_server_that_stops_answering(
@@ -3882,9 +3831,12 @@ def test_render_separates_old_and_new_facets_on_one_element(
     }
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-pair.js").write_text(
-        """import { once } from "/runtime/widget-api.js";
+        """import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-pair", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     for (const [facet, reading] of Object.entries(state)) {
       if (reading.value === null) this.removeAttribute(facet);
@@ -3973,11 +3925,25 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         )
         assert sent.exit_code == 0, sent.output
 
-    page, errors = open_page(browser, url)
-    standing = page.evaluate("""async () => (await import('/runtime/widget-api.js')).standingState()
-        .flatMap(({widget, state}) => Object.entries(state).flatMap(([facet, value]) =>
-          (value.units ? Object.values(value.units) : [value]).filter(({action}) => action)
-            .map(({action}) => [widget.id, widget.localName, facet, action])))""")
+    page = open_page(browser, url)
+    standing_ids = sorted(
+        {widget for widget, _action, _detail in STANDING_ACTIONS}
+        | {"ab-baffles", "ab-wren"}
+    )
+    standing = page.evaluate(
+        """async ids => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return ids.flatMap(id => {
+            const widget = document.getElementById(id);
+            const state = widgetController(widget).read().state;
+            return Object.entries(state).flatMap(([facet, value]) =>
+              (value.units ? Object.values(value.units) : [value])
+                .filter(({action}) => action)
+                .map(({action}) => [widget.id, widget.localName, facet, action]));
+          });
+        }""",
+        standing_ids,
+    )
     page.close()
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     declared = {
@@ -3997,7 +3963,6 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         for widget, _tag, facet, action in standing
         if widget == "ab-pick"
     } == {("selection", "choose"), ("completion", "answer")}
-    assert errors == []
     assert render_gate_model.render_version(browser, url) == []
 
 
@@ -4048,9 +4013,12 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-tally", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     if (state.count.value === null) this.removeAttribute("count");
     else this.setAttribute("count", state.count.value);
@@ -4079,24 +4047,22 @@ customElements.define("lf-tally", class extends HTMLElement {
             },
         )
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#tally-fitted")).to_have_attribute("count", "7")
     expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     standing = page.evaluate(
-        """async () => (await import('/runtime/widget-api.js')).standingState()
-          .filter(state => state.widget?.id === 'tally-fitted')
-          .map(({state}) => state.count.value)"""
+        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+          .widgetController(document.getElementById('tally-fitted')).read()
+          .state.count.value"""
     )
-    assert standing == ["7"]
+    assert standing == "7"
 
     original = page.locator("#tally-seen").element_handle()
     page.keyboard.press("z")
     round_trip(page)
     assert page.locator("#tally-seen").get_attribute("count") == authored
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
-    assert errors == []
-    page.close()
 
 
 def test_state_origin_readings_compose_on_one_target(browser, serve):
@@ -4106,12 +4072,12 @@ def test_state_origin_readings_compose_on_one_target(browser, serve):
     and restatement origins remain separate. An outline property could only show the
     last of these; the projection handed to the margin must preserve all three.
     """
-    page, errors = open_page(browser, serve(REPORT_PAGE))
+    page = open_page(browser, serve(REPORT_PAGE))
     origins = page.evaluate(
         """async () => {
           const [{projectionOrigins}, {authoredStates}] = await Promise.all([
-            import('/runtime/projection/model.js'),
-            import('/runtime/projection/authored.js'),
+            window.__lfRuntimeImport('/runtime/projection/model.js'),
+            window.__lfRuntimeImport('/runtime/projection/authored.js'),
           ]);
           const entry = (id, kind, facet) => ({
             unit: 't-parser',
@@ -4137,8 +4103,6 @@ def test_state_origin_readings_compose_on_one_target(browser, serve):
         {"origin": "reader", "unit": "t-parser"},
         {"origin": "reported", "unit": "t-parser"},
     ]
-    assert errors == []
-    page.close()
 
 
 def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
@@ -4214,9 +4178,12 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
         """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-owner", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     for (const [id, order] of Object.entries(state.placement.value)) {
       const zone = document.getElementById(id);
@@ -4228,9 +4195,12 @@ customElements.define("lf-owner", class extends HTMLElement {
     )
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
         """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { this.setAttribute("pinned", state.placement.value); }
 });
 """
@@ -4262,13 +4232,18 @@ customElements.define("lf-piece", class extends HTMLElement {
     ):
         append_command(serve.page_dir, event)
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     standing = page.evaluate(
-        """async () => (await import('/runtime/widget-api.js')).standingState()
-          .filter(({widget}) => ['owner', 'piece'].includes(widget.id))
-          .map(({widget, state}) => [widget.id, (state.placement.units?.piece ?? state.placement).action])"""
+        """async () => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return ['owner', 'piece'].map(id => {
+            const widget = document.getElementById(id);
+            const {state} = widgetController(widget).read();
+            return [id, (state.placement.units?.piece ?? state.placement).action];
+          });
+        }"""
     )
     assert standing == [["owner", "move"], ["piece", "pin"]]
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
@@ -4294,8 +4269,6 @@ customElements.define("lf-piece", class extends HTMLElement {
     told(page)
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
-    assert errors == []
-    page.close()
 
 
 def test_complete_positions_compose_across_independent_widget_owners(
@@ -4339,9 +4312,12 @@ def test_complete_positions_compose_across_independent_widget_owners(
     path.write_text(json.dumps(declarations))
     (
         path.parent / "widgets" / "lf-token.js"
-    ).write_text("""import { once } from "/runtime/widget-api.js";
+    ).write_text("""import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-token", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     const {to, index} = state.placement.detail;
     const parent = document.getElementById(to);
@@ -4357,7 +4333,7 @@ customElements.define("lf-token", class extends HTMLElement {
         + "</lf-lane>",
     )
     url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    sender, sender_errors = open_page(browser, url)
+    sender = open_page(browser, url)
     for name, index in [("d", 0), ("c", 1)]:
         response = post_event(
             sender,
@@ -4372,7 +4348,7 @@ customElements.define("lf-token", class extends HTMLElement {
             },
         )
         assert response.ok, response.text()
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     order = "nodes => nodes.map(node => node.id)"
     assert page.locator("#lane > lf-token").evaluate_all(order) == [
         "token-d",
@@ -4391,7 +4367,6 @@ customElements.define("lf-token", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('token-c')")
     assert render_checks_model.evaluate_probe(page, "relativeReplays") == []
     told(sender)
-    assert errors == sender_errors == []
     page.close()
     sender.close()
 
@@ -4522,7 +4497,7 @@ def test_a_page_at_rest_is_read_across_a_widgets_own_root(
         drifting_widget(tmp_path, monkeypatch, deep=True),
         packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
     # The banner's dot pulses forever and is deliberately not the page moving, so the
@@ -4537,8 +4512,6 @@ def test_a_page_at_rest_is_read_across_a_widgets_own_root(
     assert render_checks_model.evaluate_probe(page, "moving") == [
         "<lf-drift id=drift-note>"
     ]
-    assert errors == []
-    page.close()
 
 
 def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
@@ -4577,7 +4550,6 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     assert page.evaluate("() => document.body.dataset.lfPresented") is None, (
         "the page presented anyway, so the words with nothing over them are in it"
     )
-    page.close()
 
 
 def test_the_render_gate_reads_a_page_that_has_finished_arriving(
@@ -4686,11 +4658,11 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
             "detail": {},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await import("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
@@ -4707,7 +4679,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         "widget-owned data-lf-state disappeared with the runtime's private attributes"
     )
     positions = page.evaluate("""async () => {
-        const { shallowSigs } = await import("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
         const root = document.createElement("div");
         root.id = "signature-root";
         root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
@@ -4744,8 +4716,6 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     } == {"first", "second"}
     assert json.loads(positions["before"]["nested"])["parent"] == "first"
     assert json.loads(positions["before"]["thread-widget"])["parent"] == ""
-    assert errors == []
-    page.close()
 
 
 def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
@@ -4758,7 +4728,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     neighbours. The honoring version says the state itself, so on it the
     disagreement and both renderings are gone."""
     url = serve(REPLAYED_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     # The keyboard gesture takes the same #send path as a drag. The sender's own
     # replay is a no-op, which is exactly the case the version snapshot covers.
@@ -4782,7 +4752,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
 
     # A fresh tab reads the same fact from replay alone, and paints both its Page Map
     # reading and its durable spoken state.
-    second, second_errors = open_page(browser, url)
+    second = open_page(browser, url)
     expect(second.locator("#card-importer")).to_have_attribute(
         "data-lf-reader-override", "1"
     )
@@ -4829,7 +4799,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     )
     (d / ".fixture-versions" / "v2.html").write_text(honored)
     stamp_version_file(d, 2, "t")
-    third, third_errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    third = open_page(browser, url.replace("v1.html", "v2.html"))
     expect(third.locator("#col-done #card-importer")).to_be_visible()
     # Absence only counts once replay has decided every action.
     third.wait_for_function("() => document.body.dataset.lfApplied === '1'")
@@ -4841,7 +4811,6 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
         third.get_by_role("button", name="Move: Wire the importer — Done", exact=True)
     ).to_be_visible()
 
-    assert errors == [] and second_errors == [] and third_errors == []
     for tab in (page, second, third):
         tab.close()
 
@@ -4853,7 +4822,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     decision they eventually take has to reach the thread — rejecting retires the
     text the comment was made on, and a comment pointing into markup nobody can
     see has to read as detached rather than as a live mark that jumps nowhere."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     page.evaluate("""() => {
         const r = document.createRange();
         r.selectNodeContents(document.querySelector('#sug-refill lf-new'));
@@ -4888,8 +4857,6 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
@@ -4915,7 +4882,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
             "detail": {},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
         re.compile(r"\bdetached\b")
@@ -4923,8 +4890,6 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     assert painted(page, "lf-mark") == "", (
         "the first pass anchored inside a slot the user's decision had retired"
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
@@ -4948,7 +4913,7 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
         anchored=[("th-now", "warmed on every deploy")],
         packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
     expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
         re.compile(r"\bdetached\b")
@@ -4957,8 +4922,6 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
         "the quote found nothing to paint: an undecided holder read as a retired slot, "
         "so the anchor pass skipped every word inside it"
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_settled_third_party_holder_wears_the_layers_mark(
@@ -4995,7 +4958,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
             "detail": {},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
     expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
@@ -5005,7 +4968,6 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
         "the quote matched inside a slot the logged decision retired: nothing wrote "
         "the settlement mark for a module that doesn't"
     )
-    assert errors == []
     page.close()
 
     # The mark follows the fold out as well as in: the file's standing state is the
@@ -5023,7 +4985,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
             "detail": {},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     assert page.locator("#th-cache").get_attribute("data-lf-state") is None
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
     expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
@@ -5033,8 +4995,6 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
         "the displaced decision's slot is back on the page, so its quote must "
         "anchor again"
     )
-    assert errors == []
-    page.close()
 
 
 def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
@@ -5065,9 +5025,12 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
         spec["record"] = record
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { once } from "/runtime/widget-api.js";
+        """import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { this.setAttribute("decision", state.settlement.value); }
 });
 """
@@ -5087,7 +5050,7 @@ customElements.define("lf-trial", class extends HTMLElement {
             "detail": {"decision": "shelved"},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#th-cache")).to_have_attribute("decision", "shelved")
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
@@ -5102,8 +5065,6 @@ customElements.define("lf-trial", class extends HTMLElement {
         "data-lf-state", re.compile(r".+")
     )
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    assert errors == []
-    page.close()
 
 
 def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
@@ -5116,7 +5077,12 @@ def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
     trial_family(tmp_path)
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """\
+import {widgetController} from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState() { throw new Error("trial replay broke"); }
 });
 """
@@ -5134,14 +5100,11 @@ customElements.define("lf-trial", class extends HTMLElement {
         },
     )
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache .lf-error")).to_contain_text("trial replay broke")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-    assert any(
-        "<lf-trial> renderState threw: trial replay broke" in error for error in errors
-    ), errors
-    page.close()
+    consume_browser_errors(page, "<lf-trial> renderState threw: trial replay broke")
 
 
 def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
@@ -5154,7 +5117,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     slot (a later layer's rule outranking the default, a module re-showing what it
     folded): the words stay on screen where the reader can select what no comment
     can anchor to, and the gate must say so. Then the theme goes back and the
-    vendored module is rewritten to mark every trial after projection commits: on the undecided
+    vendored module marks every trial after the controller publishes: on the undecided
     spare that is a settlement the log never decided, silencing words the reader can
     still see, and the gate must say that too. Both failures render perfectly, which
     is why each is put back deliberately."""
@@ -5180,7 +5143,12 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     css = vendored.read_text()
     assert css.count(hide) == 1
     vendored.write_text(css.replace(hide, ""))
-    failures = render_gate_model.render_version(browser, url)
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the visible settled slot",
+    )
+    failures = render_gate_model.render_version(browser, live_url(url))
     assert any(
         "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
         in failure
@@ -5189,17 +5157,56 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
 
     vendored.write_text(css)
     module = serve.page_dir / "widgets" / "lf-trial.js"
-    source = module.read_text()
-    upgrade_line = "if (!once(this)) return;"
-    assert source.count(upgrade_line) == 1
     module.write_text(
-        source.replace(
-            upgrade_line,
-            upgrade_line
-            + '\n      document.addEventListener("lf-actions", () => this.setAttribute("data-lf-state", "shelve"));',
-        )
+        """\
+import {once, widgetController} from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends HTMLElement {
+  #controller;
+  #presented;
+  #stop;
+  connectedCallback() {
+    this.#controller ??= widgetController(this);
+    if (!once(this)) {
+      this.#subscribe();
+      return;
+    }
+    this.#subscribe();
+  }
+  disconnectedCallback() {
+    this.#stop?.();
+    this.#stop = undefined;
+    this.#presented?.disconnect();
+    this.#presented = undefined;
+  }
+  #subscribe() {
+    this.#stop ??= this.#controller.subscribe(reading => this.#markAfterPresentation(reading));
+    this.#markAfterPresentation(this.#controller.read());
+  }
+  #markAfterPresentation(reading) {
+    if (!reading.state) return;
+    if (document.body.dataset.lfPresented === "1") {
+      this.setAttribute("data-lf-state", "shelve");
+      return;
+    }
+    this.#presented ??= new MutationObserver(() => {
+      if (document.body.dataset.lfPresented !== "1") return;
+      this.#presented.disconnect();
+      this.#presented = undefined;
+      if (this.isConnected) this.setAttribute("data-lf-state", "shelve");
+    });
+    this.#presented.observe(document.body, {
+      attributes: true, attributeFilter: ["data-lf-presented"],
+    });
+  }
+});
+"""
     )
-    failures = render_gate_model.render_version(browser, url)
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the false settlement mark",
+    )
+    failures = render_gate_model.render_version(browser, live_url(url))
     assert any(
         "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
         "records no decision" in failure
@@ -5226,7 +5233,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
             "detail": {},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#sug-swap lf-old")).to_be_hidden()
     assert (
         page.locator("#old-group .lf-settled [data-lf-said]").evaluate(
@@ -5241,8 +5248,6 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
         "a quote matched inside the half the user accepted away, because the "
         "label there declared itself the page speaking"
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser, serve):
@@ -5262,7 +5267,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
             "anchor": {"section": "sug-thistle"},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     thread = page.locator(".lf-thread .lf-quote").first
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
     # Pending, the outline hangs on a box the reader can see, and it is read as a box
@@ -5280,8 +5285,6 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     unfolded_button(page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject")).click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
-    assert errors == []
-    page.close()
 
 
 def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
@@ -5314,7 +5317,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
             "text": MARKDOWN_REPLY,
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     body = page.locator(".lf-msg.claude .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
@@ -5340,8 +5343,6 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     # the message says.
     text = body.inner_text()
     assert "**" not in text and "Vec<T>" in text
-    assert errors == []
-    page.close()
 
 
 def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader):
@@ -5368,7 +5369,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader)
             "text": "See [the bath](#p-bath), not [the old note](#gone).",
         },
     )
-    page, errors = open_page(browser, url, context=one_reader)
+    page = open_page(browser, url, context=one_reader)
     page.locator(".lf-threads-toggle").click()
 
     live = page.locator('.lf-msg-body a[href="#p-bath"]')
@@ -5417,8 +5418,6 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader)
     dead.click(force=True)
     assert page.url == was, page.url
     assert page.evaluate("() => document.scrollingElement.scrollTop") == at
-    assert errors == []
-    page.close()
 
 
 def test_an_arrival_lands_where_the_url_aimed(browser, serve):
@@ -5441,7 +5440,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
 
     # A fresh tab: nothing saved, nothing to outrank. The target is behind a tab that
     # does not exist until the upgrade runs, which is after the browser has jumped.
-    page, errors = open_page(browser, f"{url}#p-bath")
+    page = open_page(browser, f"{url}#p-bath")
     expect(page.locator("#tab-bath")).not_to_have_attribute("hidden", hidden)
     page.wait_for_function(onscreen, arg="p-bath")
 
@@ -5465,8 +5464,6 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
     page.wait_for_function(onscreen, arg="tail-end")
-    assert errors == []
-    page.close()
 
 
 def test_an_arrival_keeps_a_readable_native_fragment_where_the_browser_landed_it(
@@ -5484,7 +5481,7 @@ def test_an_arrival_keeps_a_readable_native_fragment_where_the_browser_landed_it
 """,
         )
     )
-    page, errors = open_page(browser, f"{url}#arrival")
+    page = open_page(browser, f"{url}#arrival")
     arrival = page.locator("#arrival")
     position = arrival.evaluate(
         """element => ({
@@ -5493,8 +5490,6 @@ def test_an_arrival_keeps_a_readable_native_fragment_where_the_browser_landed_it
         })"""
     )
     assert abs(position["top"] - position["clear"]) < 2, position
-    assert errors == []
-    page.close()
 
 
 def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
@@ -5513,13 +5508,11 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
             "text": "Retry up to *five* times.",
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     body = page.locator(".lf-msg-body.lf-suggest-body")
     expect(body).to_have_text("Retry up to *five* times.")
     expect(body.locator("em")).to_have_count(0)
-    assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("asynchronous", [False, True], ids=["draft", "async-body"])
@@ -5560,15 +5553,20 @@ def test_thread_body_initial_state_waits_for_upgrade(browser, serve, asynchronou
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import {once, settle} from '/runtime/widget-api.js';
+import {once, widgetController} from '/runtime/widget-api.js';
 customElements.define('lf-delayed-body', class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
   connectedCallback() {
-    if (!once(this)) return;
-    settle(new Promise(resolve => requestAnimationFrame(() => {
-      this.querySelector('pre').textContent = 'First line.\\nSecond line.';
-      resolve();
-    })));
+    if (once(this)) {
+      this.#controller.present(new Promise(resolve => requestAnimationFrame(() => {
+        this.querySelector('pre').textContent = 'First line.\\nSecond line.';
+        resolve();
+      })));
+    }
+    this.#stop ??= this.#controller.subscribe(() => {});
   }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { this.querySelector('pre').textContent = state.body.value; }
 });
 """
@@ -5596,7 +5594,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
             "markup": f'<{tag} id="reply-body"><pre>\n    First line.\n    Second line.\n</pre></{tag}>',
         },
     )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     widget = page.locator("#reply-body")
     original = widget.element_handle()
@@ -5619,8 +5617,6 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     undo(page)
     assert body.text_content() == "First line.\nSecond line."
     assert original.evaluate("node => node === document.getElementById('reply-body')")
-    assert errors == []
-    page.close()
 
 
 def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve):
@@ -5636,7 +5632,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
 </lf-ask></main>""",
     )
     url = serve(host)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     held = []
     page.route("**/widgets/lf-draft.js", lambda route: held.append(route))
     events_model.append_event(
@@ -5661,7 +5657,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
                 "markup": '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n</pre></lf-draft>',
             },
         )
-    page.wait_for_timeout(0)  # dispatch the held request's route callback
+    holding(page, held, 1, "the frozen draft module")
     assert len(held) == 1
     with page.expect_response("**/api/event") as newer:
         page.locator("#delivery-now").click()
@@ -5690,8 +5686,6 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         "node => node === document.getElementById('crossed-draft')"
     )
     expect(page.locator("#delivery-now")).to_have_attribute("chosen", "")
-    assert errors == []
-    page.close()
 
 
 def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
@@ -5736,7 +5730,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "detail": {"options": ["rp-shim"]},
         },
     )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
     assert page.locator("#rp-live lf-option[chosen]").count() == 1
@@ -5753,8 +5747,6 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     undo(page)
     assert events_model.read_events(d)[-1]["kind"] == "undo"
     expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
-    assert errors == []
-    page.close()
 
 
 def test_a_thread_question_asks_until_answered(browser, serve):
@@ -5773,7 +5765,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     decisions = page.locator(".lf-asks")
     expect(decisions).to_have_text("Asks 0/2")
 
@@ -5810,7 +5802,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # asked a set question in.
     seam = page.locator("#tq-set").evaluate(
         """el => { const done = el.querySelector('.lf-done');
-                   const last = done.previousElementSibling;
+                   const last = done.parentElement.previousElementSibling;
                    const a = last.getBoundingClientRect();
                    const b = done.getBoundingClientRect();
                    return {gap: Math.round((b.top - a.bottom) * 10) / 10,
@@ -5855,7 +5847,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # A reader who made no gesture gets the same pressed press and the same closed
     # decision — replay is what puts it there, and the one representation is what replay
     # writes, so there is nothing for a version or a markup copy to fall behind.
-    other, other_errors = open_page(browser, url)
+    other = open_page(browser, url)
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect(other.locator(".lf-asks")).to_have_text("Asks 2/2")
     assert (
@@ -5864,7 +5856,6 @@ def test_a_thread_question_asks_until_answered(browser, serve):
         )
         == []
     ), "replaying the answer left an attribute the entry never declared"
-    assert other_errors == []
     other.close()
 
     # Taking back a recordless chrome answer rebuilds its authored controls and the
@@ -5907,8 +5898,6 @@ def test_a_thread_question_asks_until_answered(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
     assert sent[-1]["action"] == "answer", "the sequence's digit must not pick"
-    assert errors == []
-    page.close()
 
 
 def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
@@ -5919,14 +5908,14 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     authored state after replay has accounted for the action."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     done = page.locator("#tq-set .lf-done")
     with page.expect_request("**/api/event"):
         done.click()
-    page.wait_for_timeout(0)
+    holding(page, held, 1, "the thread answer")
     accepted_answer = held[0].fetch()
     attempt = held[0].request.post_data_json["attempt"]
     accepted = next(
@@ -5946,10 +5935,8 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     assert [
         (event["widget"], event["action"]) for event in actions(serve.page_dir)
     ] == [("tq-set", "answer")]
-    assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.unroute("**/api/event")
-    page.close()
 
 
 def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
@@ -5958,7 +5945,7 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     that baseline instead of leaving a decision the log never took."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     held = []
@@ -5981,8 +5968,7 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
 
     expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
     assert actions(serve.page_dir) == []
-    assert errors and all("400" in error for error in errors)
-    page.close()
+    consume_browser_errors(page, "400")
 
 
 def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
@@ -5993,7 +5979,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     the separate completion facet, retaining both visible facts."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.keyboard.press("a")
     page.locator("#tq-logs").click()
     round_trip(page)
@@ -6028,8 +6014,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         ("choose", {"options": ["tq-logs"]}),
         ("answer", {}),
     ]
-    assert errors and all("400" in error for error in errors)
-    page.close()
+    consume_browser_errors(page, "400")
 
 
 def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, serve):
@@ -6037,7 +6022,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     the local outcome belonging to that attempt."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -6082,8 +6067,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     expect(done).not_to_have_attribute("aria-busy", "true")
     expect(done).to_have_attribute("aria-pressed", "false")
     assert actions(serve.page_dir) == []
-    assert errors and all("400" in error for error in errors)
-    page.close()
+    consume_browser_errors(page, "400")
 
 
 def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
@@ -6092,7 +6076,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     done = page.locator("#tq-set .lf-done")
@@ -6116,8 +6100,6 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [("tq-set", "answer")]
-    assert errors == []
-    page.close()
 
 
 def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
@@ -6128,7 +6110,7 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[0])
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
     events_model.append_event(
@@ -6138,11 +6120,10 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     expect(page.locator(".lf-asks")).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     expect(page.locator(".lf-thread:not([hidden]) #tq-one")).to_have_count(1)
     expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")
-    assert errors == []
-    page.close()
 
 
 def test_agent_places_its_live_line_before_command_evidence(browser, serve):
@@ -6156,14 +6137,12 @@ def test_agent_places_its_live_line_before_command_evidence(browser, serve):
 </lf-roster>
 """,
     )
-    page, errors = open_page(browser, serve(command))
+    page = open_page(browser, serve(command))
 
     assert page.locator("#worker").evaluate(
         """worker => [...worker.children].map(child => child.classList.contains('lf-agent-line')
           ? 'line' : child.id).filter(Boolean)"""
     ) == ["line", "proof"]
-    assert errors == []
-    page.close()
 
 
 def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
@@ -6198,7 +6177,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
 </lf-roster>
 """,
     )
-    page, errors = open_page(browser, serve(command))
+    page = open_page(browser, serve(command))
     head = page.locator("#proof > .lf-worktree-snapshot > .lf-worktree-head")
     head.focus()
 
@@ -6257,14 +6236,12 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     expect(frozen).to_have_attribute("aria-expanded", "true")
     page.keyboard.press(" ")
     expect(frozen).to_have_attribute("aria-expanded", "false")
-    assert errors == []
-    page.close()
 
 
 def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, serve):
     """A normal note does not consume the goal's stronger pause door. The reader
     can start a later held thread, whose root remains the one atomic hold fact."""
-    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     goal = page.locator("#goal-parser")
     conversation = goal.locator(":scope > .lf-conversation")
@@ -6286,8 +6263,6 @@ def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, 
         ("Keep parsing; this is only a note.", None),
         ("Finish the hunk, then park.", "goal-parser"),
     ]
-    assert errors == []
-    page.close()
 
 
 def test_command_goal_conversation_follows_its_declaration_not_talk(
@@ -6308,14 +6283,12 @@ def test_command_goal_conversation_follows_its_declaration_not_talk(
 </lf-command>""",
     )
     url = serve(command, layer_registry={"lf-task": task})
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     conversation = page.locator("#goal > .lf-conversation")
     expect(
         conversation.get_by_role("textbox", name="Say something here")
     ).to_be_visible()
     expect(conversation.get_by_role("button", name="pause", exact=True)).to_be_visible()
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt(
@@ -6323,15 +6296,16 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
 ):
     """A typed host request paints and locks its siblings before the log answers,
     then waits for its exact receipt."""
-    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
     available = operations.evaluate(
         """async holder => {
-          const leaf = await import('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const reading = widgetController(holder).read();
           return [
-            leaf.requestAvailable(holder, 'restart'),
-            leaf.requestAvailable(holder, 'land')
+            reading.requests.restart.available,
+            reading.requests.land.available,
           ];
         }"""
     )
@@ -6340,26 +6314,15 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     page.locator(".lf-asks").click()
     request_row = page.locator('.lf-asks-row[data-lf-at="dedupe-operations-decision"]')
     expect(request_row).to_have_attribute("data-lf-answer-state", "open")
-    page.evaluate(
-        """() => {
-          window.__lfFirstRequestAnswer = new Promise(resolve => {
-            document.addEventListener('lf-actions', () => queueMicrotask(() => {
-              resolve(document.querySelector(
-                '[data-lf-at="dedupe-operations-decision"] .lf-asks-answer'
-              ).textContent);
-            }), {once: true});
-          });
-        }"""
-    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     operations.get_by_role("button", name="Restart with a fresh worker").click()
     holding(page, held, 1, "the restart request")
     expect(operations).to_contain_text("restart requested · waiting for the host")
     expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
-    assert page.evaluate("() => window.__lfFirstRequestAnswer") == (
+    expect(request_row.locator(".lf-asks-answer")).to_have_text(
         "Restart with a fresh worker"
-    ), "the open Asks tray missed the package's first request projection"
+    )
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -6411,7 +6374,93 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     expect(page.locator("#atlas-record")).to_contain_text(
         "restart succeeded · Deduplicate the corpus snapshot"
     )
-    assert errors == []
+
+
+def test_request_controls_join_presentation_without_replacing_authored_items(
+    browser, serve
+):
+    """The holder's render proof includes its Lit controls and retains page nodes."""
+    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    operations = page.locator("#dedupe-operations")
+    restart = operations.locator(':scope > lf-operation[verb="restart"]')
+    button = restart.get_by_role("button", name="Restart with a fresh worker")
+    expect(button).to_be_visible()
+    page.evaluate(
+        """async holder => {
+          const item = holder.querySelector(':scope > lf-operation[verb="restart"]');
+          const control = item.querySelector(':scope > lf-request-control');
+          window.requestItem = item;
+          window.requestControl = control;
+          window.requestAuthoredChildren = [...item.childNodes].filter(
+            child => child !== control
+          );
+          window.requestIdentityHeld = () =>
+            holder.querySelector(':scope > lf-operation[verb="restart"]') === requestItem &&
+            requestItem.querySelector(':scope > lf-request-control') === requestControl &&
+            requestAuthoredChildren.every((child, index) =>
+              requestItem.childNodes[index] === child
+            );
+
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          window.releaseRequestControl = release;
+          const schedule = control.scheduleUpdate.bind(control);
+          control.scheduleUpdate = async () => {
+            control.scheduleUpdate = schedule;
+            await held;
+            return schedule();
+          };
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          window.whenRequestPresented = presentation.whenApplicationPresented;
+          window.readRequestPresentation = presentation.readApplicationPresentation;
+        }""",
+        operations.element_handle(),
+    )
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    try:
+        button.click()
+        holding(page, held, 1, "the request whose generated control update is held")
+        page.evaluate(
+            "() => { requestPresentationReady = false; "
+            "void whenRequestPresented().then(() => { "
+            "requestPresentationReady = true; }); }"
+        )
+        assert page.evaluate("requestPresentationReady") is False
+        assert "widget:dedupe-operations:render" in page.evaluate(
+            "readRequestPresentation().pending"
+        )
+        assert page.evaluate("requestIdentityHeld()") is True
+
+        page.evaluate("releaseRequestControl()")
+        page.wait_for_function("requestPresentationReady")
+        expect(operations).to_contain_text("restart requested · waiting for the host")
+        expect(button).to_have_attribute("aria-disabled", "true")
+
+        operations.evaluate(
+            """holder => {
+              const parent = holder.parentNode;
+              const next = holder.nextSibling;
+              holder.remove();
+              parent.insertBefore(holder, next);
+              window.reconnectedRequestReady = false;
+              whenRequestPresented().then(() => {
+                reconnectedRequestReady = true;
+              });
+            }"""
+        )
+        page.wait_for_function("reconnectedRequestReady")
+        assert page.evaluate("requestIdentityHeld()") is True
+    finally:
+        page.evaluate("releaseRequestControl?.()")
+        if held:
+            held[0].continue_()
+        page.unroute("**/api/event")
+
+    round_trip(page)
     page.close()
 
 
@@ -6431,7 +6480,7 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
   </lf-operations>
 </lf-ask></lf-task></lf-command>""",
     )
-    page, errors = open_page(browser, live_url(serve(first)))
+    page = open_page(browser, live_url(serve(first)))
     operations = page.locator("#commands")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     with sending(page, "the restart request"):
@@ -6469,8 +6518,6 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     expect(operations.get_by_role("button", name="Restart")).to_have_attribute(
         "aria-disabled", "false"
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, serve):
@@ -6487,7 +6534,7 @@ def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, ser
   </lf-operations>
 </lf-ask></lf-task></lf-command>""",
     )
-    page, errors = open_page(browser, serve(source))
+    page = open_page(browser, serve(source))
 
     page.keyboard.press("a")
     expect(page.locator("#command-decision")).to_be_focused()
@@ -6496,16 +6543,13 @@ def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, ser
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
 
-    assert errors == []
-    page.close()
-
 
 def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serve):
     """The panel is a second document. Its operation asks while ready, hands the
     turn to the host while pending, returns after failure, and keeps its completed
     receipt across page revisions without borrowing the page holder's lifecycle.
     A later plain reply does not hide that earlier structural request."""
-    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -6524,11 +6568,12 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
             "parent": root["id"],
             "text": "Choose the host operation.",
             "markup": (
+                '<lf-ask id="thread-command-decision">'
+                "<h3>What should the host do?</h3>"
                 '<lf-operations id="thread-commands" target="parser-dedupe" '
-                'worker="w-5" worktree="tree-w-5" '
-                'label="What should the host do?">'
+                'worker="w-5" worktree="tree-w-5">'
                 '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations>"
+                "</lf-operations></lf-ask>"
             ),
         },
     )
@@ -6605,13 +6650,11 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     wait_for_revision(page, 2)
     expect(operations).to_contain_text("restart succeeded")
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/6")
-    assert errors == []
-    page.close()
 
 
 def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, serve):
     """A receipt records the host outcome; it does not rewrite the page's plan."""
-    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     with sending(page, "the park request"):
         page.locator("#dedupe-operations").get_by_role(
             "button", name="Park it for tomorrow"
@@ -6659,15 +6702,13 @@ def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, s
     expect(stopped).not_to_contain_text("Deduplicate the corpus snapshot")
     expect(page.locator("#dedupe-operations")).to_have_count(0)
     expect(page.locator("#parser-dedupe")).to_have_attribute("status", "planned")
-    assert errors == []
-    page.close()
 
 
 def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     browser, serve
 ):
     """Failure makes another attempt available and leaves authored state alone."""
-    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
     with sending(page, "the park request"):
         operations.get_by_role("button", name="Park it for tomorrow").click()
@@ -6708,8 +6749,6 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text(
         "Deduplicate the corpus snapshot"
     )
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
@@ -6718,7 +6757,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     a decision."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
     controls = page.locator(".lf-draft-controls[data-lf-for='ledger-cargo']")
     controls.get_by_role("button", name="Edit ledger-cargo").click()
@@ -6744,8 +6783,6 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
         "privileged input"
     )
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, serve):
@@ -6755,7 +6792,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
     stale_report(d, "w-2", "stalled without a new commit", 3)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     head = page.locator("#hub-plan > .lf-command-head")
     expect(head).to_contain_text("6/18 leaves")
     expect(head).to_contain_text("2 running")
@@ -6862,8 +6899,6 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
@@ -6878,7 +6913,7 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     everywhere else: the rows say the same thing on screen either way, and `paperWords`
     reads no text inside a declared offer, so the gate cannot report a word that only
     ever stood in one."""
-    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     fleet = page.locator("#hub-plan > .lf-fleet-view")
     stopped = page.locator("#hub-plan > .lf-stopped-view")
     fleet.locator(":scope > summary").click()
@@ -6911,22 +6946,17 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
            )"""
     ), "a roster name declares itself an echo of the words its target says"
 
-    assert errors == []
-    page.close()
-
 
 def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
     long_when = "handoff-" + "unbroken" * 40
     markup = COMMAND_HUB_PAGE.replace('when="week 3"', f'when="{long_when}"', 1)
-    page, errors = open_page(browser, serve(markup))
+    page = open_page(browser, serve(markup))
     resized(page, 390, 900)
 
     expect(page.locator("#goal-parser > .lf-task-meta")).to_contain_text(long_when)
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve):
@@ -6935,7 +6965,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     and releases that input row without claiming the dependent work completed."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
     controls = page.locator(".lf-draft-controls[data-lf-for='ledger-cargo']")
     controls.get_by_role("button", name="Edit ledger-cargo").click()
@@ -6965,8 +6995,6 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     expect(page.locator("#atlas-record")).to_contain_text("ledger-cargo")
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
     expect(page.locator("#ledger-variance")).to_have_attribute("status", "planned")
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, serve):
@@ -6993,12 +7021,10 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
         count=1,
         flags=re.DOTALL,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     expect(page.get_by_role("button", name="Asks 0/1")).to_be_visible()
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("1 stopped")
     expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text("Blocked goal")
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_quotes_host_operations_without_offering_a_request(browser, serve):
@@ -7020,7 +7046,7 @@ def test_command_hub_quotes_host_operations_without_offering_a_request(browser, 
         count=1,
         flags=re.DOTALL,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
 
     expect(page.locator("#example-commands .lf-request-press")).to_have_count(0)
     expect(page.locator(".lf-asks")).to_be_hidden()
@@ -7029,12 +7055,10 @@ def test_command_hub_quotes_host_operations_without_offering_a_request(browser, 
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "request"
     ]
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser, serve):
-    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     fleet = page.locator("#hub-plan > .lf-fleet-view")
     fleet.locator(":scope > summary").click()
@@ -7071,14 +7095,12 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     assert sent.exit_code == 0, sent.output
     told(page)
     expect(summary).to_be_focused()
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_repaints_anchors_after_generated_projections_change(
     browser, serve
 ):
-    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     # The worktree head is a generated passage. Its disclosure arrow and the Command
     # projection can change without invalidating the branch fact the comment named.
@@ -7112,8 +7134,6 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
           .some(range => range.toString().includes('atlas/xml-declarations'))"""
     )
     assert "atlas/xml-declarations" in painted(page, "lf-mark")
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, serve):
@@ -7131,7 +7151,7 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
         )["id"]
         for target in ("schema-operations", "w-1", "lf-tree-w-1-diff")
     }
-    page, errors = open_page(browser, f"{url}#schema-operations")
+    page = open_page(browser, f"{url}#schema-operations")
     page.emulate_media(reduced_motion="reduce")
     # Initial anchor painting already reveals its evidence. Close both disclosures
     # again so the quote gesture, rather than page startup, is the single changed
@@ -7192,8 +7212,6 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     expect(
         page.locator("#tree-w-1 > .lf-worktree-snapshot > .lf-worktree-head")
     ).to_have_attribute("aria-expanded", "true")
-    assert errors == []
-    page.close()
 
 
 def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
@@ -7202,7 +7220,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     resolution restores it with the same evidence and comment id."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     goal = page.locator("#goal-parser")
     conversation = goal.locator(":scope > .lf-conversation")
     conversation.get_by_role("textbox").fill("Finish the current hunk, then park here.")
@@ -7250,8 +7268,6 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         for event in events_model.read_events(d)
         if event["kind"] in {"comment", "resolve", "undo"}
     ] == ["comment", "resolve", "undo"]
-    assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -7310,7 +7326,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
 
     latest = url.replace("/versions/v1.html", "/")
     offset_ms = client_clock_offset_hours * 60 * 60 * 1000
-    page, errors = open_page(
+    page = open_page(
         browser,
         latest,
         init_script=f"""
@@ -7325,44 +7341,21 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
     )
     expect(row).to_contain_text("0m")
     expect(row).not_to_contain_text("3h")
-    assert errors == []
-    page.close()
 
 
-def test_command_hub_stops_listening_after_live_version_replacement(browser, serve):
-    """A command removed with the old main cannot emit another projection."""
+def test_command_hub_gets_a_new_document_after_live_version_replacement(browser, serve):
+    """Old command owners and their event listeners disappear with the document."""
     url = serve(COMMAND_HUB_EXAMPLE)
-    page, errors = open_page(browser, live_url(url))
-    page.evaluate("window.__retiredCommand = document.querySelector('#hub-plan')")
+    page = open_page(browser, live_url(url))
+    original_document = page.evaluate("performance.timeOrigin")
     stamp_page(serve.page_dir, COMMAND_HUB_PAGE, "same plan")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    page.evaluate(
-        """() => {
-          window.__retiredUpdates = 0;
-          document.addEventListener("lf-command-update", event => {
-            if (event.detail.plan === window.__retiredCommand)
-              window.__retiredUpdates += 1;
-          });
-        }"""
-    )
-
-    retired_updates = page.evaluate(
-        f"""async () => {{
-          window.__retiredCommand.querySelector('#api-errors')
-            .setAttribute('status', 'done');
-          await ({ONE_FRAME})();
-          return window.__retiredUpdates;
-        }}"""
-    )
-
-    assert retired_updates == 0
-    assert errors == []
-    page.close()
+    assert page.evaluate("performance.timeOrigin") != original_document
 
 
 def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, serve):
-    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     root = events_model.append_event(
         d,
@@ -7400,8 +7393,6 @@ def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, s
     expect(page.locator("#atlas-record")).to_contain_text(
         "Released · Replace the XML parser (goal-parser)"
     )
-    assert errors == []
-    page.close()
 
 
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
@@ -7420,7 +7411,7 @@ def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
 """,
     )
 
-    page, errors = open_page(browser, serve(command))
+    page = open_page(browser, serve(command))
 
     expect(page.locator("#outer > .lf-command-head")).to_contain_text("0/1 leaves")
     expect(page.locator("#outer > .lf-command-head")).to_contain_text("1 workers")
@@ -7431,8 +7422,6 @@ def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     page.locator("#inner > .lf-fleet-view summary").click()
     page.get_by_role("link", name="§ inner-worker", exact=True).click()
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
-    assert errors == []
-    page.close()
 
 
 def test_project_widget_can_join_the_orchestration_projection(
@@ -7485,7 +7474,7 @@ def test_project_widget_can_join_the_orchestration_projection(
     )
     url = serve(command, layer_registry=registry)
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     expect(page.locator("#hub > .lf-command-head")).to_contain_text("0/1 leaves")
     expect(page.locator("#hub > .lf-command-head")).to_contain_text("1 stopped")
@@ -7493,8 +7482,6 @@ def test_project_widget_can_join_the_orchestration_projection(
         "Custom project goal"
     )
     expect(page.get_by_role("button", name="Asks 0/1")).to_be_visible()
-    assert errors == []
-    page.close()
 
 
 def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, serve):
@@ -7516,7 +7503,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     looking like one that is waiting.
 
     The request also uses the ordinary button focus ring, reached by keyboard."""
-    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     face = """el => { const cs = getComputedStyle(el);
         return {cursor: cs.cursor, opacity: cs.opacity,
                 background: cs.backgroundColor, radius: cs.borderTopLeftRadius,
@@ -7587,8 +7574,6 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     assert spent["cursor"] == "default", (
         "a spent request still takes the hand, so the page invites a press it will refuse"
     )
-    assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("replacement", ["rebuilt", "removed"])
@@ -7615,7 +7600,7 @@ def test_datum_travel_resolves_the_destination_after_reveal(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         "@@ -1 +1,2 @@\n changed()\n+added()\n",
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#calls .lf-call-group")).to_have_attribute("open", "")
     # A container may synchronously rebuild its projection while revealing it.
     # Repeat that lifecycle on every reveal so a second reveal after resolution
@@ -7650,5 +7635,3 @@ def test_datum_travel_resolves_the_destination_after_reveal(
         expect(page.locator(".lf-live")).to_have_text(
             "app.py:2 is not present in the exact patch"
         )
-    assert errors == []
-    page.close()

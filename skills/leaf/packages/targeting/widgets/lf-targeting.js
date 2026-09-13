@@ -1,14 +1,14 @@
 /* lf-targeting: a local visual-edit draft with one structured durable action.
  *
- * The preview remains authored light DOM. Selection records an authored id when one
- * exists and otherwise an exact element path plus visible context. Working changes
- * mutate only declared box-model properties, after saving the prior inline value;
- * every repaint restores those values before applying the current ordered draft.
- * Prose carries a target key beside its words. The complete target/change graph is
- * submitted as one recordless action, so replay, refusal, and undo use Leaf's ordinary
- * projection instead of a widget-owned event history. */
+ * The preview remains authored DOM. Core captures and resolves every selected target;
+ * labels and visible context describe a reference but never participate in its identity.
+ * Working changes mutate only declared box-model properties, after saving the prior
+ * inline value; every repaint restores those values before applying the current ordered
+ * draft. Prose carries a target key beside its words. The complete target/change graph
+ * is submitted as one recordless action, so replay, refusal, and undo use Leaf's
+ * ordinary projection instead of a widget-owned event history. */
 import {
-  actionAvailable,
+  captureTargetReference,
   commands,
   failSoft,
   layoutChanged,
@@ -16,10 +16,11 @@ import {
   offer,
   once,
   paintKeys,
-  projectionChanged,
   quoted,
+  resolveTargetReference,
   says,
-  sendAction,
+  targetCandidates,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 const STYLE_PROPERTIES = [
@@ -46,6 +47,7 @@ function option(value, label) {
 customElements.define(
   "lf-targeting",
   class extends HTMLElement {
+    #controller = widgetController(this);
     #preview = null;
     #editor = null;
     #arm = null;
@@ -75,10 +77,19 @@ customElements.define(
     #restoredStyles = new Map();
     #interactive = false;
     #ready = false;
+    #resumeProjection = null;
+    #stop = null;
+    #targetChanges = new MutationObserver(() => this.#render());
 
     connectedCallback() {
       if (!once(this)) {
         if (this.#interactive) this.#applyPreview();
+        this.#watchTargets();
+        if (this.#interactive) {
+          if (this.#dirty && !this.#resumeProjection)
+            this.#resumeProjection = this.#controller.defer();
+          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
+        }
         return;
       }
       try {
@@ -92,6 +103,9 @@ customElements.define(
         this.classList.toggle("lf-targeting-quoted", !this.#interactive);
         if (this.#interactive) this.#build();
         this.#ready = true;
+        this.#watchTargets();
+        if (this.#interactive)
+          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         this.#render();
       } catch (error) {
         this.#restorePreview();
@@ -100,8 +114,54 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#disarm();
+      this.#targetChanges.disconnect();
+      this.#stop?.();
+      this.#stop = null;
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
+      this.disarm();
       this.#restorePreview();
+    }
+
+    #watchTargets() {
+      this.#targetChanges.disconnect();
+      if (this.#interactive && this.#preview)
+        this.#targetChanges.observe(this.#preview, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["id"],
+        });
+    }
+
+    arm() {
+      if (this.#ready && this.#interactive) this.#setArmed(true);
+    }
+
+    disarm() {
+      if (this.#ready && this.#interactive) this.#setArmed(false);
+    }
+
+    reset() {
+      if (!this.#ready || !this.#interactive) return;
+      this.#configuration = copy(this.#projected);
+      this.#finishDraft();
+      this.disarm();
+      this.#render();
+    }
+
+    currentDraft() {
+      return copy({
+        armed: this.#armed,
+        dirty: this.#dirty,
+        configuration: this.#configuration,
+        resolutions: Object.fromEntries(
+          this.#configuration.targets.map((target) => [
+            target.key,
+            this.#resolution(target).status,
+          ]),
+        ),
+      });
     }
 
     #build() {
@@ -118,7 +178,9 @@ customElements.define(
       );
       this.#status.id = `${this.id}-targeting-status`;
       toolbar.append(this.#arm, this.#status);
-      this.#arm.addEventListener("click", () => this.#setArmed(!this.#armed));
+      this.#arm.addEventListener("click", () =>
+        this.#armed ? this.disarm() : this.arm(),
+      );
 
       this.#candidateList = offer("section", "lf-targeting-candidates");
       this.#candidateList.setAttribute("aria-label", "Target boundary choices");
@@ -245,7 +307,9 @@ customElements.define(
             keys: ["Enter"],
             does: "Choose the focused preview element",
             line: "choose this element",
-            when: () => this.#armed && this.#preview.contains(document.activeElement),
+            when: () =>
+              this.#armed &&
+              targetCandidates(this.#preview, document.activeElement).length > 0,
             run: () => this.#showCandidates(document.activeElement),
           },
           {
@@ -254,7 +318,10 @@ customElements.define(
             does: "Stop selecting elements",
             line: "stop selecting",
             when: () => this.#armed,
-            run: () => this.#disarm(true),
+            run: () => {
+              this.disarm();
+              this.#arm.focus({ preventScroll: true });
+            },
           },
         ],
         {
@@ -293,24 +360,12 @@ customElements.define(
       paintKeys();
     }
 
-    #disarm(refocus = false) {
-      if (!this.#armed) return;
-      this.#setArmed(false);
-      if (refocus && this.#arm?.isConnected) this.#arm.focus({ preventScroll: true });
-    }
-
-    #authoredElement(start) {
-      let element = start instanceof Element ? start : null;
-      while (element && element !== this.#preview && element.matches(GENERATED))
-        element = element.parentElement;
-      return element && (element === this.#preview || this.#preview.contains(element))
-        ? element
-        : null;
-    }
-
     #pointed = (event) => {
       if (!this.#armed) return;
-      const element = this.#authoredElement(event.target);
+      const element = targetCandidates(this.#preview, {
+        x: event.clientX,
+        y: event.clientY,
+      })[0];
       if (element === this.#hovered) return;
       this.#clearHovered();
       this.#hovered = element;
@@ -326,36 +381,27 @@ customElements.define(
 
     #clicked = (event) => {
       if (!this.#armed) return;
-      const element = this.#authoredElement(event.target);
-      if (!element) return;
+      if (!this.#showCandidates({ x: event.clientX, y: event.clientY })) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      this.#showCandidates(element);
     };
 
-    #showCandidates(element) {
-      if (!this.#armed) return;
-      this.#candidates = [];
-      for (
-        let current = this.#authoredElement(element);
-        current;
-        current = current.parentElement
-      ) {
-        if (!current.matches(GENERATED)) this.#candidates.push(current);
-        if (current === this.#preview || this.#candidates.length === 4) break;
-      }
+    #showCandidates(source) {
+      if (!this.#armed) return false;
+      this.#candidates = targetCandidates(this.#preview, source);
+      if (!this.#candidates.length) return false;
       this.#candidateList.replaceChildren(
         offer("p", "lf-targeting-heading", "Choose target boundary"),
       );
       for (const candidate of this.#candidates) {
-        const selector = this.#selector(candidate);
+        const selection = this.#selection(candidate);
         const button = offer("button", "lf-btn lf-targeting-candidate-choice");
         const title = document.createElement("strong");
         title.textContent = `${this.#kind(candidate)} — ${this.#defaultName(candidate)}`;
         const context = offer(
           "span",
           "lf-targeting-candidate-context",
-          `${selector.label} · ${selector.text || "No visible text"}`,
+          `${selection.label} · ${selection.text || "No visible text"}`,
         );
         button.append(title, context);
         button.addEventListener("click", () => this.#addTarget(candidate));
@@ -364,18 +410,10 @@ customElements.define(
       this.#candidateList.hidden = false;
       this.#candidateList.querySelector("button")?.focus({ preventScroll: true });
       layoutChanged(this);
+      return true;
     }
 
-    #selector(element) {
-      const path = [];
-      for (let current = element; current && current !== this.#preview;) {
-        const parent = current.parentElement;
-        const siblings = [...parent.children].filter(
-          (node) => !node.matches(GENERATED) && node.localName === current.localName,
-        );
-        path.unshift({ tag: current.localName, index: siblings.indexOf(current) });
-        current = parent;
-      }
+    #selection(element) {
       const classes = this.#authoredClasses.get(element) ?? [];
       const descriptor = element.id
         ? `${element.localName}#${element.id}`
@@ -384,29 +422,14 @@ customElements.define(
           : element.localName;
       const text = normalizedWords(says(element)).slice(0, 100);
       return {
-        ...(element.id ? { authoredId: element.id } : {}),
-        path,
+        reference: captureTargetReference(this.#preview, element),
         label: `<${descriptor}>`,
         text,
       };
     }
 
-    #resolve(selector) {
-      if (selector.authoredId) {
-        const element = document.getElementById(selector.authoredId);
-        if (element === this.#preview || this.#preview.contains(element))
-          return element;
-        return null;
-      }
-      let element = this.#preview;
-      for (const step of selector.path) {
-        const matches = [...element.children].filter(
-          (child) => !child.matches(GENERATED) && child.localName === step.tag,
-        );
-        element = matches[step.index];
-        if (!element) return null;
-      }
-      return element;
+    #resolution(target) {
+      return resolveTargetReference(this.#preview, target.reference);
     }
 
     #defaultName(element) {
@@ -435,20 +458,13 @@ customElements.define(
     }
 
     #addTarget(element) {
-      const selector = this.#selector(element);
-      const signature = JSON.stringify({
-        authoredId: selector.authoredId ?? null,
-        path: selector.path,
-      });
+      const selection = this.#selection(element);
+      const signature = JSON.stringify(selection.reference);
       const existing = this.#configuration.targets.find(
-        (target) =>
-          JSON.stringify({
-            authoredId: target.selector.authoredId ?? null,
-            path: target.selector.path,
-          }) === signature,
+        (target) => JSON.stringify(target.reference) === signature,
       );
       if (existing) {
-        this.#disarm();
+        this.disarm();
         this.#candidateList.hidden = true;
         this.#targetList
           .querySelector(`[data-target-key="${existing.key}"] input`)
@@ -460,11 +476,11 @@ customElements.define(
         name: this.#defaultName(element),
         scope: "element",
         className: null,
-        selector,
+        ...selection,
       };
       this.#configuration.targets.push(target);
       this.#candidateList.hidden = true;
-      this.#disarm();
+      this.disarm();
       this.#changed();
       this.#styleTarget.value = target.key;
       this.#instructionTarget.value = target.key;
@@ -482,9 +498,20 @@ customElements.define(
     }
 
     #changed() {
-      this.#dirty = true;
+      this.#beginDraft();
       this.#render();
       paintKeys();
+    }
+
+    #beginDraft() {
+      this.#dirty = true;
+      this.#resumeProjection ??= this.#controller.defer();
+    }
+
+    #finishDraft() {
+      this.#dirty = false;
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
     }
 
     #render() {
@@ -512,11 +539,13 @@ customElements.define(
       for (const target of this.#configuration.targets) {
         const row = offer("section", "lf-targeting-target");
         row.dataset.targetKey = target.key;
+        const resolution = this.#resolution(target);
+        row.dataset.lfTargetStatus = resolution.status;
         const fields = offer("div", "lf-targeting-form-row");
         const name = offer("input", "lf-targeting-name", undefined, "text");
         name.name = `${this.id}-${target.key}-name`;
         name.value = target.name;
-        name.setAttribute("aria-label", `Name for ${target.selector.label}`);
+        name.setAttribute("aria-label", `Name for ${target.label}`);
         const priorName = target.name;
         name.addEventListener("input", () => {
           const value = normalizedWords(name.value);
@@ -526,7 +555,7 @@ customElements.define(
             const targetOption = select.querySelector(`option[value="${target.key}"]`);
             if (targetOption) targetOption.textContent = value;
           }
-          this.#dirty = true;
+          this.#beginDraft();
           this.#paintAvailability();
         });
         name.addEventListener("change", () => {
@@ -584,15 +613,23 @@ customElements.define(
         fields.append(name, scope, className, remove);
         row.append(
           fields,
-          offer("p", "lf-targeting-change-summary", target.selector.label),
+          offer(
+            "p",
+            "lf-targeting-change-summary",
+            resolution.status === "resolved"
+              ? target.label
+              : `${target.label} · ${resolution.status === "detached" ? "Detached" : "Ambiguous"} target`,
+          ),
         );
         this.#targetList.append(row);
       }
     }
 
     #classesFor(target) {
-      const element = this.#resolve(target.selector);
-      return element ? (this.#authoredClasses.get(element) ?? []) : [];
+      const resolution = this.#resolution(target);
+      return resolution.status === "resolved"
+        ? (this.#authoredClasses.get(resolution.element) ?? [])
+        : [];
     }
 
     #classCount(className) {
@@ -647,9 +684,9 @@ customElements.define(
     }
 
     #elementsFor(target) {
-      const representative = this.#resolve(target.selector);
-      if (!representative) return [];
-      if (target.scope !== "class" || !target.className) return [representative];
+      const resolution = this.#resolution(target);
+      if (resolution.status !== "resolved") return [];
+      if (target.scope !== "class" || !target.className) return [resolution.element];
       return [this.#preview, ...this.#preview.querySelectorAll("*")].filter((element) =>
         (this.#authoredClasses.get(element) ?? []).includes(target.className),
       );
@@ -700,7 +737,10 @@ customElements.define(
         !this.#sending &&
         this.#configuration.targets.length > 0 &&
         this.#configuration.changes.length > 0 &&
-        actionAvailable(this, "submit")
+        this.#configuration.targets.every(
+          (target) => this.#resolution(target).status === "resolved",
+        ) &&
+        (this.#controller.read().actions.submit?.available ?? false)
       );
     }
 
@@ -712,10 +752,7 @@ customElements.define(
     }
 
     #revertDraft() {
-      this.#configuration = copy(this.#projected);
-      this.#dirty = false;
-      this.#render();
-      projectionChanged();
+      this.reset();
       notice("Draft reverted");
     }
 
@@ -723,13 +760,17 @@ customElements.define(
       if (!this.#canSubmit()) return;
       const detail = copy(this.#configuration);
       this.#sending = true;
-      this.#dirty = false;
+      this.#finishDraft();
       this.#submit.setAttribute("aria-busy", "true");
       this.#paintAvailability();
       try {
-        const accepted = await sendAction(this, "submit", detail);
+        const accepted = await this.#controller.dispatch({
+          kind: "action",
+          verb: "submit",
+          detail,
+        })?.delivery;
         if (accepted) notice("Targeted changes submitted");
-        else this.#dirty = true;
+        else this.#beginDraft();
       } finally {
         this.#sending = false;
         this.#submit.removeAttribute("aria-busy");
@@ -747,23 +788,21 @@ customElements.define(
         0,
         ...this.#configuration.changes.map((change) => Number(change.id.slice(7))),
       );
-      this.#dirty = false;
+      this.#finishDraft();
       this.#render();
     }
 
     renderState(state) {
-      if (!this.#ready) return true;
+      if (!this.#ready) return;
       const configuration =
         state.configuration?.action === "submit"
           ? state.configuration.detail
           : emptyConfiguration();
       const signature = JSON.stringify(configuration);
-      if (signature === this.#projectionSignature) return true;
-      if (this.#dirty) return false;
+      if (signature === this.#projectionSignature) return;
       this.#projectionSignature = signature;
       this.#projected = copy(configuration);
       this.#load(configuration);
-      return true;
     }
   },
 );

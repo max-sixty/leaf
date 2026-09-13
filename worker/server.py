@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import secrets
 import shutil
 import signal
 import subprocess
@@ -28,19 +27,22 @@ from urllib.parse import urlsplit
 from leaf.codex import (
     AppServerEvents,
     AppServerReplyStream,
+    AppServerRequestRejected,
     _app_server_connect,
     _clear_stream_activity,
     _set_stream_activity,
     abandon_codex_delivery,
-    accept_codex_delivery,
     app_server_delivery_id,
-    open_queued_codex_delivery,
+    app_server_initialize_params,
+    app_server_turn_start_params,
+    delivery_queue_state,
+    open_app_server_delivery,
     prepare_codex_delivery,
     project_app_server_activity,
-    queue_delivery,
     stream_reply_target,
 )
-from leaf.conversation import cmd_reply
+from leaf.conversation import cmd_reply, reserve_delivery_reply
+from leaf.delivery import read_delivery
 from leaf.hosting import server_at
 from leaf.http import Handler, scope_page_urls
 from leaf.leases import take_waiter_lease, waiter_lease_path
@@ -72,11 +74,9 @@ PAGE_RESOURCE = re.compile(
 AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_REPLY_PATH = "/_leaf/agent/reply"
-AGENT_RESPOND_PATH = "/_leaf/agent/respond"
 RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
 CODEX_SOCKET = RUNTIME_DIRECTORY / "leaf-website-codex.sock"
 CODEX_LOG = RUNTIME_DIRECTORY / "leaf-website-codex.log"
-AGENT_REPLY_COMMAND = str(Path(__file__).with_name("reply.py"))
 CODEX_ENDPOINT = f"unix://{CODEX_SOCKET}"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 CODEX_INSTRUCTIONS = """You are Leaf guide for one public leaf.page session. The
@@ -84,16 +84,12 @@ page directory in your working directory is the complete scope of this task.
 
 Reader input arrives inline as a structured `leaf_delivery` tool output or as a
 `leaf-delivery` pointer. For either form, first run `$LEAF delivery claim ID` with its
-exact id. For a pointer, then run `$LEAF delivery read ID`.
-Use exactly one response path for the delivery:
-
-- With exactly one response whose kind is `reply`, your normal final message is the
-  only reply operation. The host binds, streams, and commits it. Do not run
-  `$LEAF_REPLY`, including after editing or publishing; retain the thread's standing
-  anchor.
-- With several replies, use `$LEAF_REPLY EVENT_ID "..."` once per reply obligation.
-  The explicit command may add the current `--quote`, `--section`, or
-  `--section ... --part ...` target when an edit moved the thread.
+exact id. For a pointer, then run `$LEAF delivery read ID`. Each App Server delivery
+contains at most one response whose kind is `reply`.
+The normal final message is that reply's only writer: the host binds its destination
+before the turn, streams it, and commits the completed text. Do not run `$LEAF reply`
+for a delivered reply, including after editing or publishing. It retains the thread's
+standing anchor.
 
 A version response edits the page and ends with
 `$LEAF resolve . --to RESPONSE_CONVERSATION`; a request ends with `$LEAF receipt`.
@@ -232,6 +228,32 @@ def agent_event_thread(page_dir: Path, event_id: str) -> str | None:
         return session if isinstance(session, str) and session else None
 
 
+def next_unaccepted_agent_event(
+    page_dir: Path,
+    *,
+    excluding: tuple[str, ...] = (),
+) -> str | None:
+    """Return the next obligation not already assigned to a provider delivery."""
+    with PageTransaction(page_dir) as page:
+        activation = activate_source(page_dir, page.events)
+        if activation.error:
+            raise ValueError(activation.error)
+        activity = full_state(page_dir, page.events)["activity"]
+        sessions = {
+            interaction.get("event"): interaction.get("delivery_session")
+            for interaction in activity["interactions"]
+        }
+        return next(
+            (
+                obligation["event"]
+                for obligation in activity["obligations"]
+                if obligation.get("event") not in excluding
+                and not sessions.get(obligation.get("event"))
+            ),
+            None,
+        )
+
+
 class WebsiteCodexHost:
     """Own one private App Server and attach real Leaf delivery to its tasks."""
 
@@ -244,14 +266,13 @@ class WebsiteCodexHost:
         self.codex_path = codex_path or shutil.which("codex")
         self.socket_path = socket_path
         self.log_path = log_path
-        self.reply_token_path = socket_path.with_suffix(".reply-token")
         self.endpoint = f"unix://{socket_path}"
         self.process: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.next_request_id = 0
         self.waiter_leases = {}
-        self.reply_token = secrets.token_urlsafe(32)
-        self.reply_token_owned = False
+        self.stop_event = threading.Event()
+        self.following_threads: set[str] = set()
 
     def prewarm(self) -> threading.Thread:
         """Start App Server behind HTTP readiness instead of the first agent request."""
@@ -323,6 +344,7 @@ class WebsiteCodexHost:
 
     def close(self) -> None:
         """Stop the App Server and release this host's listening proof."""
+        self.stop_event.set()
         with self.lock:
             for lease in self.waiter_leases.values():
                 lease.close()
@@ -331,16 +353,6 @@ class WebsiteCodexHost:
             self.process = None
         if process is not None:
             self._stop_server(process)
-        if self.reply_token_owned:
-            self.reply_token_path.unlink(missing_ok=True)
-            self.reply_token_owned = False
-
-    def response_authorized(self, authorization: str | None) -> bool:
-        """Whether a private adapter caller holds this process's reply capability."""
-        return bool(
-            authorization
-            and secrets.compare_digest(authorization, f"Bearer {self.reply_token}")
-        )
 
     def _stop_server(self, process: subprocess.Popen) -> None:
         if process.poll() is None:
@@ -364,9 +376,6 @@ class WebsiteCodexHost:
         started = time.monotonic()
         log_agent("app_server_spawn_started")
         self.socket_path.unlink(missing_ok=True)
-        self.reply_token_path.write_text(self.reply_token, encoding="utf-8")
-        self.reply_token_path.chmod(0o600)
-        self.reply_token_owned = True
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.log_path, "ab", buffering=0) as log:
             self.process = subprocess.Popen(
@@ -374,8 +383,6 @@ class WebsiteCodexHost:
                 env={
                     **os.environ,
                     "LEAF": LEAF_COMMAND,
-                    "LEAF_REPLY": AGENT_REPLY_COMMAND,
-                    "LEAF_REPLY_TOKEN": str(self.reply_token_path),
                 },
                 cwd=os.environ.get("LEAF_SITE_ROOT", "/app/site"),
                 stdin=subprocess.DEVNULL,
@@ -410,13 +417,7 @@ class WebsiteCodexHost:
             self._send(
                 socket,
                 "initialize",
-                {
-                    "clientInfo": {
-                        "name": "leaf-website",
-                        "title": "Leaf website",
-                        "version": "0",
-                    }
-                },
+                app_server_initialize_params("leaf-website", "Leaf website"),
                 pending,
             )
             socket.send(json.dumps({"method": "initialized", "params": {}}))
@@ -424,8 +425,10 @@ class WebsiteCodexHost:
             if before_close is not None:
                 follow = before_close(socket, result, pending)
                 if follow is not None:
+                    thread_id = follow[1]
+                    self.following_threads.add(thread_id)
                     threading.Thread(
-                        target=self._follow_turn,
+                        target=self._run_follow_turn,
                         args=(socket, *follow, tuple(pending)),
                         daemon=True,
                     ).start()
@@ -434,6 +437,27 @@ class WebsiteCodexHost:
         finally:
             if not followed:
                 socket.close()
+
+    def _run_follow_turn(self, socket, *follow) -> None:
+        """Hold one thread's delivery scheduling seat while its turn is observed."""
+        page_dir = follow[0]
+        thread_id = follow[1]
+        event_ids = follow[4]
+        continuation = None
+        completed = False
+        try:
+            self._follow_turn(socket, *follow)
+            completed = True
+        finally:
+            with self.lock:
+                self.following_threads.discard(thread_id)
+                if completed:
+                    continuation = next_unaccepted_agent_event(
+                        page_dir,
+                        excluding=event_ids,
+                    )
+        if continuation is not None and not self.stop_event.is_set():
+            self.attach(page_dir, continuation)
 
     def _finish_turn(
         self,
@@ -468,6 +492,29 @@ class WebsiteCodexHost:
         if activation.error:
             raise ValueError(activation.error)
 
+    def _resume_turn_stream(self, thread_id: str):
+        """Reconnect to App Server and recover its complete turn reading."""
+        socket = _app_server_connect(self.endpoint)
+        try:
+            self._send(
+                socket,
+                "initialize",
+                app_server_initialize_params("leaf-website", "Leaf website"),
+            )
+            socket.send(json.dumps({"method": "initialized", "params": {}}))
+            result = self._send(
+                socket,
+                "thread/resume",
+                {"threadId": thread_id, "excludeTurns": False},
+            )
+            # The complete resumed thread is authoritative for every notification
+            # that preceded this response. Replaying those notifications after the
+            # snapshot would append their text deltas twice.
+            return socket, result["thread"]
+        except BaseException:
+            socket.close()
+            raise
+
     def _follow_turn(
         self,
         socket,
@@ -477,13 +524,14 @@ class WebsiteCodexHost:
         leaf_turn: str | None,
         event_ids: tuple[str, ...],
         reply_target: dict | None = None,
-        queued_delivery_id: str | None = None,
+        delivery_id: str | None = None,
         initial_messages: tuple[dict, ...] = (),
     ) -> None:
         """Project notifications and account for the turn's terminal outcome."""
         events = AppServerEvents(thread_id)
         events.turn_id = turn_id
-        awaiting_queued_start = queued_delivery_id is not None
+        awaiting_delivery_start = turn_id is None and delivery_id is not None
+        reconcile_once = awaiting_delivery_start
         last_stream_update = 0.0
         reply_stream = None
         terminal: dict
@@ -491,19 +539,32 @@ class WebsiteCodexHost:
         first_notification = True
         first_activity = True
         first_model_message = True
+        first_reply_text = True
+        reconnect_failures = 0
+        start_rejections = 0
         event_fields = agent_event_fields(event_ids)
         pending = list(initial_messages)
         if turn_id is not None:
             _set_stream_activity(thread_id, turn_id, "Starting")
             if reply_target is not None:
+                assert delivery_id is not None
                 reply_stream = AppServerReplyStream(
                     thread_id,
                     turn_id,
+                    delivery_id,
                     reply_target,
                 )
         log_agent("turn_following_started", **event_fields, turnId=turn_id)
         try:
             while True:
+                if (
+                    reconcile_once
+                    and awaiting_delivery_start
+                    and not pending
+                    and delivery_queue_state(thread_id, delivery_id) == "offering"
+                ):
+                    reconcile_once = False
+                    socket.close()
                 if pending:
                     message = pending.pop(0)
                     buffered = True
@@ -512,31 +573,202 @@ class WebsiteCodexHost:
                         message = json.loads(socket.recv(timeout=1))
                     except TimeoutError:
                         continue
+                    except (OSError, WebSocketException) as error:
+                        if reply_stream is not None:
+                            reply_stream.disconnect()
+                        socket.close()
+                        while True:
+                            try:
+                                socket, thread = self._resume_turn_stream(thread_id)
+                                reconnect_failures = 0
+                                break
+                            except (OSError, WebSocketException) as reconnect_error:
+                                reconnect_failures += 1
+                                log_agent(
+                                    "turn_stream_reconnect_failed",
+                                    **event_fields,
+                                    turnId=turn_id,
+                                    deliveryId=delivery_id,
+                                    error=type(reconnect_error).__name__,
+                                    attempt=reconnect_failures,
+                                )
+                                if self.stop_event.is_set():
+                                    raise RuntimeError(
+                                        "the website App Server host closed"
+                                    ) from error
+                                try:
+                                    with self.lock:
+                                        self._ensure_server()
+                                except (OSError, RuntimeError):
+                                    pass
+                                if self.stop_event.wait(
+                                    min(30, 2 ** min(reconnect_failures - 1, 5))
+                                ):
+                                    raise RuntimeError(
+                                        "the website App Server host closed"
+                                    ) from error
+                        turns = thread.get("turns", [])
+                        if awaiting_delivery_start:
+                            recovered = next(
+                                (
+                                    turn
+                                    for turn in reversed(turns)
+                                    if app_server_delivery_id(
+                                        {
+                                            "method": "turn/started",
+                                            "params": {"turn": turn},
+                                        }
+                                    )
+                                    == delivery_id
+                                ),
+                                None,
+                            )
+                            if (
+                                recovered is None
+                                and delivery_queue_state(thread_id, delivery_id)
+                                == "offering"
+                            ):
+                                payload = read_delivery(delivery_id)
+                                status = thread.get("status", {}).get("type")
+                                if status == "active":
+                                    recovered = None
+                                else:
+                                    try:
+                                        started_turn = self._send(
+                                            socket,
+                                            "turn/start",
+                                            app_server_turn_start_params(
+                                                thread_id,
+                                                payload,
+                                            ),
+                                            pending,
+                                        )["turn"]
+                                        if not started_turn.get("id"):
+                                            raise RuntimeError(
+                                                "Codex App Server returned no turn id"
+                                            )
+                                        events.restore_turn(started_turn)
+                                        start_rejections = 0
+                                        recovered = None
+                                    except AppServerRequestRejected:
+                                        start_rejections += 1
+                                        socket.close()
+                                        if self.stop_event.wait(
+                                            min(30, 2 ** min(start_rejections - 1, 5))
+                                        ):
+                                            raise RuntimeError(
+                                                "the website App Server host closed"
+                                            )
+                                        continue
+                                    except (
+                                        OSError,
+                                        TimeoutError,
+                                        ValueError,
+                                        WebSocketException,
+                                    ):
+                                        socket.close()
+                                        continue
+                            if recovered is not None:
+                                turn_id = recovered["id"]
+                                leaf_turn = open_app_server_delivery(
+                                    page_dir,
+                                    thread_id,
+                                    delivery_id,
+                                    event_ids,
+                                    turn_id,
+                                )
+                                awaiting_delivery_start = False
+                                log_agent(
+                                    "turn_delivery_bound",
+                                    **event_fields,
+                                    turnId=turn_id,
+                                    deliveryId=delivery_id,
+                                    recovered=True,
+                                )
+                                if reply_target is not None:
+                                    assert delivery_id is not None
+                                    reply_stream = AppServerReplyStream(
+                                        thread_id,
+                                        turn_id,
+                                        delivery_id,
+                                        reply_target,
+                                    )
+                        else:
+                            recovered = next(
+                                (turn for turn in turns if turn.get("id") == turn_id),
+                                None,
+                            )
+                            if recovered is None:
+                                raise RuntimeError(
+                                    "the resumed App Server thread no longer contains "
+                                    f"turn {turn_id}"
+                                ) from error
+                        if recovered is not None:
+                            events.restore_turn(recovered)
+                            if reply_stream is not None:
+                                restored_text = events.final_text(recovered)
+                                if (
+                                    restored_text
+                                    and reply_stream.restore(restored_text)
+                                    and first_reply_text
+                                ):
+                                    log_agent(
+                                        "turn_reply_first_text_published",
+                                        **event_fields,
+                                        turnId=turn_id,
+                                        durationMs=round(
+                                            (time.monotonic() - started) * 1000
+                                        ),
+                                        recovered=True,
+                                    )
+                                    first_reply_text = False
+                        log_agent(
+                            "turn_stream_reconnected",
+                            **event_fields,
+                            turnId=turn_id,
+                            deliveryId=delivery_id,
+                        )
+                        if (
+                            recovered is not None
+                            and recovered.get("status") != "inProgress"
+                        ):
+                            terminal = recovered
+                            break
+                        continue
                     buffered = False
-                if awaiting_queued_start:
+                if awaiting_delivery_start:
                     update = events.read(message)
                     if update is None:
                         continue
-                    if app_server_delivery_id(message) != queued_delivery_id:
+                    if app_server_delivery_id(message) != delivery_id:
+                        if (
+                            update.get("completed")
+                            and delivery_queue_state(thread_id, delivery_id)
+                            == "offering"
+                        ):
+                            socket.close()
                         continue
                     turn_id = update["turn"]
-                    leaf_turn = open_queued_codex_delivery(
+                    leaf_turn = open_app_server_delivery(
                         page_dir,
                         thread_id,
+                        delivery_id,
                         event_ids,
                         turn_id,
                     )
-                    awaiting_queued_start = False
+                    awaiting_delivery_start = False
                     log_agent(
                         "turn_delivery_bound",
                         **event_fields,
                         turnId=turn_id,
-                        deliveryId=queued_delivery_id,
+                        deliveryId=delivery_id,
                     )
                     if reply_target is not None:
+                        assert delivery_id is not None
                         reply_stream = AppServerReplyStream(
                             thread_id,
                             turn_id,
+                            delivery_id,
                             reply_target,
                         )
                 else:
@@ -605,8 +837,24 @@ class WebsiteCodexHost:
                     _set_stream_activity,
                     _clear_stream_activity,
                 )
-                if reply_stream is not None:
-                    reply_stream.update(update)
+                published = (
+                    reply_stream.update(update) if reply_stream is not None else False
+                )
+                message_update = update.get("message") if update is not None else None
+                if (
+                    published
+                    and message_update is not None
+                    and bool(message_update["text"])
+                    and first_reply_text
+                ):
+                    log_agent(
+                        "turn_reply_first_text_published",
+                        **event_fields,
+                        turnId=turn_id,
+                        durationMs=round((time.monotonic() - started) * 1000),
+                        recovered=False,
+                    )
+                    first_reply_text = False
                 if (
                     update is not None
                     and update.get("completed")
@@ -616,11 +864,11 @@ class WebsiteCodexHost:
                     break
         except (OSError, RuntimeError, ValueError, WebSocketException) as error:
             detail = str(error) or type(error).__name__
-            if awaiting_queued_start:
+            if awaiting_delivery_start:
                 log_agent(
                     "turn_delivery_unbound",
                     **event_fields,
-                    deliveryId=queued_delivery_id,
+                    deliveryId=delivery_id,
                     error=type(error).__name__,
                 )
             else:
@@ -678,7 +926,7 @@ class WebsiteCodexHost:
                     pending.append(message)
                 continue
             if error := message.get("error"):
-                raise RuntimeError(error.get("message") or str(error))
+                raise AppServerRequestRejected(error.get("message") or str(error))
             return message.get("result") or {}
 
     def _start_turn(
@@ -688,7 +936,15 @@ class WebsiteCodexHost:
         thread_id: str,
         process: subprocess.Popen,
         pending: list[dict] | None = None,
-    ) -> tuple[Path, str, str, str, tuple[str, ...], dict | None, None]:
+    ) -> tuple[
+        Path,
+        str,
+        str | None,
+        str | None,
+        tuple[str, ...],
+        dict | None,
+        str,
+    ]:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
@@ -704,46 +960,55 @@ class WebsiteCodexHost:
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
         starting_turn = f"delivery:{prepared.payload['id']}"
         _set_stream_activity(thread_id, starting_turn, "Starting")
+        reply_target = stream_reply_target(prepared.payload)
+        if reply_target is not None:
+            reserve_delivery_reply(thread_id, prepared.payload["id"], reply_target)
         try:
             turn = self._send(
                 socket,
                 "turn/start",
-                {
-                    "threadId": thread_id,
-                    "clientUserMessageId": prepared.payload["id"],
-                    "input": [],
-                    "toolOutput": {
-                        "name": "leaf_delivery",
-                        "output": json.dumps(prepared.payload, separators=(",", ":")),
-                    },
-                    "turnTrigger": "leaf",
-                },
+                app_server_turn_start_params(thread_id, prepared.payload),
                 pending,
             )["turn"]
-            accepted = accept_codex_delivery(thread_id, turn=turn["id"])
-            if len(accepted) != 1 or accepted[0]["page"] != page_dir:
-                raise RuntimeError(
-                    "the website Codex turn accepted an unexpected page batch"
-                )
-        except BaseException:
+        except AppServerRequestRejected:
             _clear_stream_activity(thread_id, starting_turn)
-            raise
-        delivery = accepted[0]
-        event_ids = delivery["events"]
+            return (
+                page_dir,
+                thread_id,
+                None,
+                None,
+                prepared_events,
+                reply_target,
+                prepared.payload["id"],
+            )
+        except (OSError, TimeoutError, ValueError, WebSocketException):
+            _clear_stream_activity(thread_id, starting_turn)
+            return (
+                page_dir,
+                thread_id,
+                None,
+                None,
+                prepared_events,
+                reply_target,
+                prepared.payload["id"],
+            )
+        turn_id = turn.get("id")
+        if not turn_id:
+            raise RuntimeError("Codex App Server returned no turn id")
         log_agent(
-            "turn_start_completed",
-            **agent_event_fields(event_ids),
-            turnId=turn["id"],
+            "turn_start_acknowledged",
+            **agent_event_fields(prepared_events),
+            turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
         return (
             page_dir,
             thread_id,
-            turn["id"],
-            delivery["turn"],
-            event_ids,
-            stream_reply_target(prepared.payload),
             None,
+            None,
+            prepared_events,
+            reply_target,
+            prepared.payload["id"],
         )
 
     def _start_thread(
@@ -753,7 +1018,15 @@ class WebsiteCodexHost:
 
         def attach(
             socket, result: dict, pending: list[dict]
-        ) -> tuple[Path, str, str, str, tuple[str, ...], dict | None, None]:
+        ) -> tuple[
+            Path,
+            str,
+            str | None,
+            str | None,
+            tuple[str, ...],
+            dict | None,
+            str,
+        ]:
             thread_id = result["thread"]["id"]
             return self._start_turn(socket, page_dir, thread_id, process, pending)
 
@@ -810,27 +1083,25 @@ class WebsiteCodexHost:
                 identity,
                 {"pid": process.pid},
             )
-            if self.codex_path is None:
-                raise RuntimeError("cannot find the `codex` executable on PATH")
-            queue_delivery(
-                self.codex_path,
-                thread_id,
-                prepared.prompt,
-                self.endpoint,
-            )
-            accepted = accept_codex_delivery(thread_id, phase="queued")
-            if len(accepted) != 1 or accepted[0]["page"] != page_dir:
-                raise RuntimeError(
-                    "the website Codex queue accepted an unexpected page batch"
+            reply_target = stream_reply_target(prepared.payload)
+            if reply_target is not None:
+                reserve_delivery_reply(
+                    thread_id,
+                    prepared.payload["id"],
+                    reply_target,
                 )
-            delivery = accepted[0]
+            prepared_events = tuple(
+                event["id"]
+                for batch in prepared.payload["batches"]
+                for event in batch["events"]
+            )
             return (
                 page_dir,
                 thread_id,
                 None,
                 None,
-                delivery["events"],
-                stream_reply_target(prepared.payload),
+                prepared_events,
+                reply_target,
                 prepared.payload["id"],
             )
 
@@ -881,10 +1152,19 @@ class WebsiteCodexHost:
                             if claim and claim.get("host") == "codex"
                             else None
                         )
-                        if thread_id is None or not self._resume_and_start(
-                            page_dir, thread_id, process, event_id
-                        ):
-                            thread_id = self._start_thread(page_dir, process, event_id)
+                        if thread_id not in self.following_threads:
+                            while (
+                                agent_event_pending(page_dir, event_id)
+                                and agent_event_thread(page_dir, event_id) is None
+                            ):
+                                if thread_id is None or not self._resume_and_start(
+                                    page_dir, thread_id, process, event_id
+                                ):
+                                    thread_id = self._start_thread(
+                                        page_dir, process, event_id
+                                    )
+                                if thread_id in self.following_threads:
+                                    break
         except (OSError, RuntimeError, ValueError) as error:
             log_agent(
                 "container_start_failed",
@@ -921,54 +1201,6 @@ class WebsiteCodexHost:
             if claim and claim.get("host") == "codex":
                 abandon_codex_delivery(claim["id"], event_id)
             return accepted
-
-    def respond(
-        self,
-        page_dir: Path,
-        event_id: str,
-        text: str,
-        *,
-        quote: str = "",
-        section: str = "",
-        part: str = "",
-    ) -> dict | None:
-        """Post a claimed turn's reply through this already-running adapter."""
-        started = time.monotonic()
-        log_agent("agent_response_started", eventId=event_id)
-        try:
-            with self.lock:
-                claim = page_claim(page_dir)
-                if claim is None or claim.get("host") != "codex":
-                    raise ValueError("agent response has no Codex page claim")
-                accepted = cmd_reply(
-                    page_dir,
-                    None,
-                    text,
-                    "",
-                    for_event=event_id,
-                    quote=quote,
-                    section=section,
-                    part=part,
-                    attempt=agent_attempt(event_id),
-                    skip_if_settled=True,
-                    identity={"agent": WEBSITE_AGENT, "session": claim["id"]},
-                    validate_source=True,
-                )
-        except (OSError, SystemExit, ValueError) as error:
-            log_agent(
-                "agent_response_failed",
-                eventId=event_id,
-                durationMs=round((time.monotonic() - started) * 1000),
-                error=type(error).__name__,
-            )
-            raise
-        log_agent(
-            "agent_response_completed",
-            eventId=event_id,
-            durationMs=round((time.monotonic() - started) * 1000),
-            status="appended" if accepted is not None else "settled",
-        )
-        return accepted
 
 
 _agent_host: WebsiteCodexHost | None = None
@@ -1007,38 +1239,6 @@ def _agent_failure(posted: dict) -> tuple[str, str, str]:
         {"event": posted["event"], "text": posted["text"]}, with_text=True
     )
     return event_id, text, failure
-
-
-def _agent_response(posted: dict) -> tuple[str, str, dict[str, str]]:
-    """Validate the private adapter's canonical reply fields."""
-    target_fields = {"quote", "section", "part"}
-    if not isinstance(posted, dict) or not set(posted).issubset(
-        {"event", "text", *target_fields}
-    ):
-        raise ValueError("agent response has unknown fields")
-    event_id, text = _agent_event(
-        {key: posted[key] for key in ("event", "text") if key in posted},
-        with_text=True,
-    )
-    target = {key: posted.get(key, "") for key in target_fields}
-    if any(not isinstance(value, str) for value in target.values()):
-        raise ValueError("agent response target fields must be strings")
-    assert text is not None
-    return event_id, text, target
-
-
-def _agent_response_timing(headers) -> dict[str, int]:
-    """Validate the private helper's process and request clocks."""
-    values = {}
-    for header, field in (
-        ("Leaf-Agent-Helper-Entered-At-Ms", "helperEnteredAtMs"),
-        ("Leaf-Agent-Helper-Request-At-Ms", "helperRequestAtMs"),
-    ):
-        raw = headers.get(header)
-        if raw is None or not raw.isascii() or not raw.isdecimal() or len(raw) > 16:
-            raise ValueError(f"{header} must be a Unix millisecond timestamp")
-        values[field] = int(raw)
-    return values
 
 
 def published_page(
@@ -1106,22 +1306,14 @@ class WebsitePageHandler(Handler):
 
     def _post(self) -> None:
         path = urlsplit(self.path).path
-        if path not in {AGENT_START_PATH, AGENT_REPLY_PATH, AGENT_RESPOND_PATH}:
+        if path not in {AGENT_START_PATH, AGENT_REPLY_PATH}:
             super()._post()
             return
         if self.posted_error:
             self._json({"error": self.posted_error}, 400)
             return
-        if path == AGENT_RESPOND_PATH and not self.agent_host.response_authorized(
-            self.headers.get("Authorization")
-        ):
-            self._json({"error": "agent response is not authorized"}, 403)
-            return
         try:
-            if path == AGENT_RESPOND_PATH:
-                event_id, text, target = _agent_response(self.posted)
-                helper_timing = _agent_response_timing(self.headers)
-            elif path == AGENT_REPLY_PATH:
+            if path == AGENT_REPLY_PATH:
                 event_id, text, failure = _agent_failure(self.posted)
             else:
                 event_id, text = _agent_event(self.posted, with_text=False)
@@ -1134,25 +1326,6 @@ class WebsitePageHandler(Handler):
                 self._json({"status": "settled"})
                 return
             self._json({"status": "started", "thread": thread_id})
-            return
-
-        if path == AGENT_RESPOND_PATH:
-            log_agent(
-                "agent_response_helper_arrived",
-                eventId=event_id,
-                **helper_timing,
-            )
-            try:
-                accepted = self.agent_host.respond(
-                    self.page_dir, event_id, text, **target
-                )
-            except (SystemExit, ValueError) as error:
-                self._json({"error": str(error)}, 400)
-                return
-            if accepted is None:
-                self._json({"status": "settled"})
-                return
-            self._json({"status": "appended", "event": accepted["id"]})
             return
 
         try:

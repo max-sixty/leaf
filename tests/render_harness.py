@@ -55,8 +55,6 @@ from page_fixtures import package_selection_args, prepare_page, read_fixture
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
-pytestmark = pytest.mark.nightly
-
 ROOT = Path(__file__).parent.parent
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
@@ -129,8 +127,7 @@ def wait_for_revision(page, revision: int) -> None:
         "?.content === String(revision)",
         arg=revision,
     )
-    # activateRevision writes the marker while it is replacing the authored document,
-    # before the encompassing state transaction replays and publishes its reading.
+    # Navigation installs the marker before the fresh runtime reads authoritative state.
     # The marker answers which source is installed; the reading answers whether that
     # source and the server state that selected it became one complete browser view.
     told(page)
@@ -427,6 +424,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
         preview=None,
         website_publication=None,
         seed_log=True,
+        page_files=None,
     ):
         monkeypatch.chdir(tmp_path)  # resolve explicitly selected fixture packages
         project = tmp_path / ".leaf"
@@ -502,6 +500,10 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 if fixture_media.is_file():
                     (d / "media").mkdir(exist_ok=True)
                     shutil.copy2(fixture_media, d / "media" / fixture_media.name)
+        for name, content in (page_files or {}).items():
+            path = d / "page" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
         for name, data in (media or {}).items():
             path = d / name.lstrip("/")
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -592,8 +594,9 @@ def post_event(page, url, **kwargs):
 # inside the thing under test; that watcher was a second representation of the outbox's
 # lifecycle, and it needed a protocol of its own to keep step — a post a reload killed
 # that no event reported, a waiter woken before the listeners that counted, a body read
-# with no deadline. The runtime already states readiness for this reader (`lfUpgraded`,
-# `lfApplied`, `lfPresented`); delivery is one more fact it states rather than one the
+# with no deadline. The runtime already states arrival for this reader (`lfUpgraded`,
+# `lfApplied`, `lfPresented`) and current readiness through its coordinator; delivery is
+# one more fact it states rather than one the
 # harness infers, and nothing is injected to obtain it.
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
@@ -864,12 +867,19 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
         )
     if upgrade:
         (package / "widgets" / f"{tag}.js").write_text(
-            'import { once } from "/runtime/widget-api.js";\n\n'
+            'import { once, widgetController } from "/runtime/widget-api.js";\n\n'
             "customElements.define(\n"
             f'  "{tag}",\n'
             "  class extends HTMLElement {\n"
+            "    #controller = widgetController(this);\n"
+            "    #stop = null;\n"
             "    connectedCallback() {\n"
-            "      if (!once(this)) return;\n"
+            "      once(this);\n"
+            "      this.#stop ??= this.#controller.subscribe(() => {});\n"
+            "    }\n"
+            "    disconnectedCallback() {\n"
+            "      this.#stop?.();\n"
+            "      this.#stop = null;\n"
             "    }\n"
             "  },\n"
             ");\n"
@@ -967,24 +977,27 @@ def held_stale(context):
     return stale
 
 
-# The page's three readiness facts: `lf-upgraded` is the document's — widgets upgraded
-# and the anchor pass run — `lf-applied` is the log's, written at the end of every replay
-# pass, and `lf-presented` says the authoritative projection or offline fallback has been
-# released to the reader. The first read starts beside widget startup, but its answer stays
-# unapplied until the document earns its upgrade stamp. Either half may finish first.
+# The page's arrival facts plus its current presentation reading. `lf-upgraded` is the
+# document's — widgets upgraded and the anchor pass run — `lf-applied` is the log's,
+# written at the end of every replay pass, and `lf-presented` says the initial
+# authoritative projection or offline fallback was released to the reader. That last
+# attribute is monotonic, so the coordinator must also say the current semantic epoch is
+# presented before a test can interact with or inspect the page.
 #
-# One predicate, because it was spelled out in eleven places and only the one that
-# noticed ever grew the second half. `open_page` took it when a loaded Linux runner
-# dropped three keypresses into pages with nothing yet to answer them; every navigation a
-# test makes for itself kept waiting on the document alone. What that leaves out is not a nicety of
-# the log: the version chooser and the live-pages button are drawn from a read's answer
-# and Threads has no count until one lands, so a page at the document's stamp is a page
-# whose banner the reader would not recognize.
-BOTH_STAMPS = (
-    "() => document.body.dataset.lfUpgraded === '1'"
-    " && document.body.dataset.lfApplied !== undefined"
-    " && document.body.dataset.lfPresented === '1'"
-)
+# Keep one predicate for `open_page` and the navigations tests perform directly. The
+# version chooser, live-pages button, and thread count are drawn from the application
+# reading, so a document-only wait can return a page whose banner the reader would not
+# recognize. The coordinator check also prevents the monotonic arrival attributes from
+# authorizing interaction during a later repaint.
+BOTH_STAMPS = """() => {
+  if (
+    document.body.dataset.lfUpgraded !== '1' ||
+    document.body.dataset.lfApplied === undefined ||
+    document.body.dataset.lfPresented !== '1'
+  ) return false;
+  const entry = document.querySelector('script[data-lf-entry]');
+  return entry?.lfCurrentPresentationReady?.() ?? false;
+}"""
 STORED_DRAFT_TEXT = """ctx => {
   try {
     const record = JSON.parse(localStorage.getItem('lf-draft:' + ctx));
@@ -996,6 +1009,33 @@ STORED_DRAFT_SETTLED = """ctx => {
     return JSON.parse(localStorage.getItem('lf-draft:' + ctx))?.settled === true;
   } catch { return false; }
 }"""
+
+
+_BROWSER_PROBLEM_LISTS = None
+
+
+@contextmanager
+def clean_browser():
+    """Reject every browser problem a test did not explicitly consume.
+
+    The function-scoped browser fixture owns this collector along with its contexts.
+    A worker runs one test at a time, so one process-local collector covers pages made
+    by `open_page`, render/export helpers, and tests that navigate a page themselves.
+    """
+    global _BROWSER_PROBLEM_LISTS
+    assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
+    captured = []
+    _BROWSER_PROBLEM_LISTS = captured
+    try:
+        yield
+    finally:
+        _BROWSER_PROBLEM_LISTS = None
+    problems = [
+        f"{getattr(page, 'url', '<browser page>')}: {problem}"
+        for page, problem_list in captured
+        for problem in problem_list
+    ]
+    assert problems == [], problems
 
 
 def watched(page):
@@ -1017,7 +1057,12 @@ def watched(page):
     that drift in its quietest form.
 
     Must be called before the page navigates, the init script being what carries it."""
+    assert _BROWSER_PROBLEM_LISTS is not None, (
+        "watched pages need the function-scoped browser fixture"
+    )
     errors = []
+    _BROWSER_PROBLEM_LISTS.append((page, errors))
+    page.lf_errors = errors
 
     def console_message(message):
         if problem := render_gate_model.console_problem(message):
@@ -1026,11 +1071,18 @@ def watched(page):
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
+    # Diagnostics join the document's captured module graph, not the mutable layer.
+    page.add_init_script(
+        script="""window.__lfRuntimeImport = path => {
+          const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+          return import(new URL(path.replace(/^\\//, ''), new URL(entry, location.href)).href);
+        };"""
+    )
     return errors
 
 
 @contextmanager
-def restarting(page, errors):
+def restarting(page):
     """Enclose a span in which the test stops and replaces the page's own server.
 
     A stopped server answers no fetch, and the words the failure arrives in depend on
@@ -1041,20 +1093,35 @@ def restarting(page, errors):
 
     The test controls the span rather than the wording, so it reads the span. Complaints
     inside a block belong to the restart by construction and are dropped; outside every
-    block the reading is `errors == []`. Assert any diagnostic the test means to produce
-    before leaving the block, because nothing said inside it survives.
+    block the browser fixture still rejects any problem. Assert any diagnostic the test
+    means to produce before leaving the block, because nothing said inside it survives.
 
     End the block on the assertion that proves the restart landed — the new heading, the
     new layer, the replacement server's answer — since that is what puts the interrupted
-    fetches behind the discard. The presented stamp waited for here is a settle rather
-    than that proof: a page that never reloaded still carries it.
+    fetches behind the discard. Current coordinator readiness waited for here is a settle
+    rather than that proof: a page that never reloaded may still become ready again.
     """
-    mark = len(errors)
+    mark = len(page.lf_errors)
     yield
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=30000
-    )
-    del errors[mark:]
+    page.wait_for_function(BOTH_STAMPS, timeout=30000)
+    del page.lf_errors[mark:]
+
+
+def take_browser_errors(page):
+    """Return and consume problems a test intentionally caused on one page."""
+    errors = page.lf_errors[:]
+    page.lf_errors.clear()
+    return errors
+
+
+def consume_browser_errors(page, *expected):
+    """Assert and consume intentional problems, accounting for every entry."""
+    assert expected, "expected browser-error fragments cannot be empty"
+    errors = take_browser_errors(page)
+    assert errors and all(
+        any(fragment in error for fragment in expected) for error in errors
+    ), errors
+    return errors
 
 
 # Rendered turns, waited for with a deadline of their own.
@@ -1104,14 +1171,16 @@ ONE_FRAME = f"() => ({FRAMES})(1)"
 RENDERED = f"() => ({FRAMES})(2)"
 
 
-def navigate(page, errors, url, *, wait_until="load", ready=BOTH_STAMPS):
+def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
 
     A platform notice seen once under load is not a page fault; one repeated by the
-    confirming navigation is. Everything else remains in `errors` from the attempt
-    that reported it, and anything arriving after this helper returns remains strict.
+    confirming navigation is. Everything else remains on the page from the attempt that
+    reported it, and anything arriving after this helper returns remains strict.
     """
+
+    errors = page.lf_errors
 
     def complete_navigation():
         start = len(errors)
@@ -1184,13 +1253,13 @@ def open_page(
     because the URL a handover carries already has a query holding the page's key: a
     test appending its own `?pin` overwrote that key and got a page that never loaded.
 
-    `upgraded` takes the page's three readiness facts for having finished, `BOTH_STAMPS`
-    above saying what each answers. Twenty-two tests stood on the first pair the day it
-    was written here, and a dockerised Linux runner had named three.
+    `upgraded` waits for the page's arrival facts and the coordinator's current
+    presentation reading, with `BOTH_STAMPS` above saying what each answers.
 
     Navigation waits for `load`, so the stylesheet and media that determine layout have
     arrived. Network silence is not a readiness fact; the stamps state that the document
-    and its log finished applying.
+    and its log finished applying, and the coordinator states that their current
+    presentation work has settled.
 
     `color_scheme` sets the medium before page modules evaluate. A supplied context owns
     its own medium instead, just as it owns the rest of its browser state.
@@ -1224,7 +1293,6 @@ def open_page(
         url += ("&" if "?" in url else "?") + "pin"
     navigate(
         page,
-        errors,
         url,
         wait_until=wait_until,
         ready=(
@@ -1233,7 +1301,7 @@ def open_page(
             else "() => document.querySelector('.lf-banner') !== null"
         ),
     )
-    return page, errors
+    return page
 
 
 def opened_tab(page, destination, press, timeout=10_000):
@@ -1380,8 +1448,11 @@ def held_events(browser, request):
 
     Enabling interception on an already loaded page can let its first POST escape
     both the route and Playwright's request events. Tests release each held route
-    explicitly; teardown releases any left behind after a failed assertion.
+    explicitly; teardown releases any left behind after a failed assertion. Owning the
+    server fixture makes that release precede server shutdown, so a held request never
+    resumes into a closed socket during teardown.
     """
+    request.getfixturevalue("serve")
     held = []
 
     def prepare(page):
@@ -1425,7 +1496,7 @@ def margins_laid_out(page):
     than polling again, so a predicate handing back the layout's own result would return
     at once and prove nothing."""
     page.wait_for_function(
-        "() => import('/runtime/margin-layout.js')"
+        "() => window.__lfRuntimeImport('/runtime/margin-layout.js')"
         ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
         timeout=render_checks_model.SERVED_TIMEOUT_MS,
     )

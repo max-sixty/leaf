@@ -6,6 +6,7 @@ import { containsAcross } from "../passages.js";
 import { COVERING } from "../chrome-layout.js";
 import { registerReadingArrangement } from "../reading-regions.js";
 import { el } from "../widget-elements.js";
+import { createThreadListView } from "./thread-list-view.js";
 
 export const panel = el("dialog", "lf-ui lf-thread-panel");
 panel.id = "lf-threads";
@@ -17,6 +18,18 @@ closeBtn.setAttribute("aria-label", "Close threads");
 export const panelTitle = el("span", "lf-auxiliary-title", "Threads");
 panelHead.append(panelTitle, closeBtn);
 
+export const filterToggle = el("button", "lf-btn lf-thread-filter-toggle", "Filters");
+filterToggle.type = "button";
+filterToggle.setAttribute("aria-expanded", "false");
+filterToggle.setAttribute("aria-controls", "lf-thread-filters");
+export const viewSummary = el("span", "lf-thread-view-summary");
+export const resetFilters = el("button", "lf-btn lf-thread-filter-reset", "Reset");
+resetFilters.type = "button";
+resetFilters.setAttribute("aria-label", "Reset thread filters");
+export const viewRow = el("div", "lf-thread-view");
+viewRow.hidden = true;
+viewRow.append(viewSummary, resetFilters);
+
 const findRow = el("div", "lf-find");
 export const findInput = document.createElement("input");
 findInput.type = "search";
@@ -25,7 +38,7 @@ findInput.className = "lf-find-box";
 findInput.placeholder = "Find in threads";
 findInput.setAttribute("aria-label", "Find in threads");
 findInput.title = "Find in threads";
-findRow.append(findInput);
+findRow.append(findInput, filterToggle);
 
 const filterButton = (kind, value, label, className = "") => {
   const button = el(
@@ -61,12 +74,14 @@ export const scopeButtons = {
 };
 export const subjectButtons = {
   content: filterButton("subject", "content", "Content"),
-  layer: filterButton("subject", "layer", "Layer"),
+  design: filterButton("subject", "design", "Design"),
 };
 export const goneBtn = filterButton("gone", "gone", "No longer here");
 goneBtn.hidden = true;
 
 export const filterControls = el("div", "lf-thread-filters");
+filterControls.id = "lf-thread-filters";
+filterControls.hidden = true;
 filterControls.setAttribute("aria-label", "Filter threads");
 const facetRow = el("div", "lf-thread-filter-facets");
 facetRow.append(
@@ -79,7 +94,8 @@ filterControls.append(
   facetRow,
 );
 
-export const threadsBox = el("div", "lf-threads");
+export const threadsBox = createThreadListView();
+threadsBox.className = "lf-threads";
 threadsBox.tabIndex = -1;
 threadsBox.setAttribute("role", "group");
 threadsBox.setAttribute("aria-label", "Threads");
@@ -92,7 +108,7 @@ export const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
 export const panelFoot = el("div", "lf-thread-panel-foot");
 panelFoot.append(generalRow);
-panel.append(panelHead, findRow, filterControls, threadsFrame, panelFoot);
+panel.append(panelHead, findRow, viewRow, filterControls, threadsFrame, panelFoot);
 
 export const inPanel = (panelIsOpen) =>
   panelIsOpen() && containsAcross(panel, focused());

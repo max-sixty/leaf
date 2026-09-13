@@ -17,9 +17,12 @@ from types import SimpleNamespace
 import pytest
 import verify_site
 from click.testing import CliRunner
-from leaf.codex import _prompt as delivery_prompt
 from leaf.codex import _queues as codex_queues
+from leaf.codex import accept_codex_delivery
+from leaf.codex import delivery_pointer_prompt as delivery_prompt
+from leaf.delivery import DELIVERY_FORMAT
 from leaf.event_log import append_event, read_events
+from leaf.files import revision_path
 from leaf.hosting import server_at
 from leaf.http import supervised_document
 
@@ -29,11 +32,6 @@ _spec = importlib.util.spec_from_file_location(
 )
 website_server = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(website_server)
-_reply_spec = importlib.util.spec_from_file_location(
-    "website_reply", ROOT / "worker" / "reply.py"
-)
-website_reply = importlib.util.module_from_spec(_reply_spec)
-_reply_spec.loader.exec_module(website_reply)
 _previews_spec = importlib.util.spec_from_file_location(
     "example_previews", ROOT / "scripts" / "example-previews.py"
 )
@@ -84,7 +82,6 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
 class FakeCodexHost:
     def __init__(self):
         self.attached = []
-        self.responded = []
 
     def attach(self, page_dir: Path, event_id: str) -> str | None:
         if not website_server.agent_event_pending(page_dir, event_id):
@@ -95,19 +92,12 @@ class FakeCodexHost:
         self.attached.append(page_dir)
         return "codex-thread"
 
-    def response_authorized(self, authorization: str | None) -> bool:
-        return authorization == "Bearer adapter-secret"
-
     def fallback_reply(
         self, page_dir: Path, event_id: str, text: str, failure: str
     ) -> dict | None:
         return website_server.WebsiteCodexHost("codex").fallback_reply(
             page_dir, event_id, text, failure
         )
-
-    def respond(self, page_dir: Path, event_id: str, text: str, **target) -> dict:
-        self.responded.append((page_dir, event_id, text, target))
-        return {"id": "fast-reply"}
 
 
 PAGE_SOURCE = """<!doctype html>
@@ -192,7 +182,7 @@ def test_agent_logs_are_structured_and_content_free(capsys):
 
 def test_agent_logs_keep_every_event_in_a_batched_turn_searchable(capsys):
     website_server.log_agent(
-        "turn_start_completed",
+        "turn_start_acknowledged",
         **website_server.agent_event_fields(("event-1", "event-2")),
         turnId="turn-1",
     )
@@ -200,13 +190,13 @@ def test_agent_logs_keep_every_event_in_a_batched_turn_searchable(capsys):
     assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
         {
             "component": "leaf-agent",
-            "event": "turn_start_completed",
+            "event": "turn_start_acknowledged",
             "turnId": "turn-1",
             "eventId": "event-1",
         },
         {
             "component": "leaf-agent",
-            "event": "turn_start_completed",
+            "event": "turn_start_acknowledged",
             "turnId": "turn-1",
             "eventId": "event-2",
         },
@@ -237,6 +227,12 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         website_server,
         "page_claim",
         lambda page: {"id": "hosted-thread", "host": "codex"},
+    )
+    reserved = []
+    monkeypatch.setattr(
+        website_server,
+        "reserve_delivery_reply",
+        lambda *args: reserved.append(args),
     )
     requests = []
     follows = []
@@ -272,8 +268,6 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         "close_session_turn",
         lambda *args: closed.append(args),
     )
-    queued = []
-    accepted = []
     monkeypatch.setattr(
         website_server,
         "prepare_codex_delivery",
@@ -303,22 +297,8 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     )
     monkeypatch.setattr(
         website_server,
-        "queue_delivery",
-        lambda *args: queued.append(args),
-    )
-    monkeypatch.setattr(
-        website_server,
-        "accept_codex_delivery",
-        lambda *args, **kwargs: (
-            accepted.append((args, kwargs))
-            or [
-                {
-                    "page": page_dir,
-                    "events": ("reader-event",),
-                    "turn": None,
-                }
-            ]
-        ),
+        "agent_event_thread",
+        lambda *_: "hosted-thread" if follows or started else None,
     )
 
     thread_id = host.attach(page_dir, "reader-event")
@@ -339,10 +319,23 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         if status == "active"
         else [("socket", page_dir, "hosted-thread", process, [])]
     )
+    assert reserved == (
+        [
+            (
+                "hosted-thread",
+                "delivery-1",
+                {
+                    "page": str(page_dir),
+                    "reply_to": "reader-event",
+                    "responds": "reader-event",
+                },
+            )
+        ]
+        if status == "active"
+        else []
+    )
     assert closed == ([("hosted-thread",)] if closes_turn else [])
     if status == "active":
-        assert queued == [("codex", "hosted-thread", "delivery-pointer", host.endpoint)]
-        assert accepted == [(("hosted-thread",), {"phase": "queued"})]
         assert follows[0][-1] == "delivery-1"
         assert follows[0][-2] == {
             "page": str(page_dir),
@@ -350,7 +343,174 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
             "responds": "reader-event",
         }
     else:
-        assert queued == []
+        assert len(follows) == 1
+
+
+def test_an_active_thread_keeps_its_deferred_delivery_for_the_follower(
+    page_dir, monkeypatch
+):
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "first"},
+    )
+    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    accept_codex_delivery("hosted-thread", turn="active-turn")
+    second = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "second"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    process = type("Process", (), {"pid": os.getpid()})()
+    follows = []
+
+    def request(method, params, before_close=None):
+        follow = before_close(
+            "socket",
+            {
+                "thread": {
+                    "id": "hosted-thread",
+                    "status": {"type": "active"},
+                }
+            },
+            [],
+        )
+        follows.append(follow)
+        return {"thread": {"id": "hosted-thread"}}
+
+    monkeypatch.setattr(host, "_request", request)
+    monkeypatch.setattr(host, "_hold_waiter", lambda *_: None)
+    assert host._resume_and_start(
+        page_dir,
+        "hosted-thread",
+        process,
+        second["id"],
+    )
+    [follow] = follows
+    assert follow[2:4] == (None, None)
+    assert follow[4] == (second["id"],)
+    [(_, queue)] = codex_queues("hosted-thread")
+    assert queue["state"] == "offering"
+
+
+def test_attach_accepts_its_named_event_after_an_older_reply_slice(
+    page_dir, monkeypatch
+):
+    first = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "first"},
+    )
+    second = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "second"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+
+    class Process:
+        pid = os.getpid()
+
+    process = Process()
+    deliveries = []
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+
+    def accept(phase, turn):
+        prepared = website_server.prepare_codex_delivery(
+            page_dir, identity, {"pid": process.pid}
+        )
+        deliveries.append(
+            [
+                event["id"]
+                for batch in prepared.payload["batches"]
+                for event in batch["events"]
+            ]
+        )
+        accept_codex_delivery("hosted-thread", phase=phase, turn=turn)
+
+    def start_thread(*args):
+        accept("opened", "first-turn")
+        return "hosted-thread"
+
+    def resume_and_start(*args):
+        accept("queued", None)
+        return True
+
+    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+    monkeypatch.setattr(host, "_start_thread", start_thread)
+    monkeypatch.setattr(host, "_resume_and_start", resume_and_start)
+
+    assert host.attach(page_dir, second["id"]) == "hosted-thread"
+    assert deliveries == [[first["id"]], [second["id"]]]
+    assert website_server.agent_event_thread(page_dir, second["id"]) == "hosted-thread"
+
+
+def test_attach_leaves_an_uncertain_delivery_to_its_reconciliation_follower(
+    page_dir, monkeypatch
+):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "first"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    process = type("Process", (), {"pid": os.getpid()})()
+    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+    dispatches = []
+
+    def uncertain_start(target, running, event_id):
+        prepared = website_server.prepare_codex_delivery(
+            target,
+            {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+            {"pid": running.pid},
+        )
+        dispatches.append((event_id, prepared.payload["id"]))
+        host.following_threads.add("hosted-thread")
+        return "hosted-thread"
+
+    monkeypatch.setattr(host, "_start_thread", uncertain_start)
+    monkeypatch.setattr(
+        host,
+        "_resume_and_start",
+        lambda *_: pytest.fail("the attach loop redispatched an uncertain delivery"),
+    )
+
+    assert host.attach(page_dir, comment["id"]) == "hosted-thread"
+    assert host.attach(page_dir, comment["id"]) == "hosted-thread"
+    assert len(dispatches) == 1
+
+
+def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    host.following_threads.add("hosted-thread")
+    monkeypatch.setattr(host, "_follow_turn", lambda *_: None)
+    rescans = []
+
+    def next_event(target, *, excluding):
+        assert "hosted-thread" not in host.following_threads
+        rescans.append((target, excluding))
+        return "next-event"
+
+    monkeypatch.setattr(website_server, "next_unaccepted_agent_event", next_event)
+    continued = []
+
+    def attach(target, event_id):
+        assert "hosted-thread" not in host.following_threads
+        continued.append((target, event_id))
+        return "hosted-thread"
+
+    monkeypatch.setattr(host, "attach", attach)
+    host._run_follow_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        "provider-turn",
+        "leaf-turn",
+        ("first-event",),
+        None,
+        "delivery-1",
+        (),
+    )
+
+    assert rescans == [(page_dir, ("first-event",))]
+    assert continued == [(page_dir, "next-event")]
 
 
 def test_a_queued_website_reply_binds_only_to_its_delivery_turn(page_dir):
@@ -360,7 +520,7 @@ def test_a_queued_website_reply_binds_only_to_its_delivery_turn(page_dir):
         {"kind": "comment", "author": "user", "text": "first"},
     )
     website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    website_server.accept_codex_delivery("hosted-thread")
+    accept_codex_delivery("hosted-thread")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second while active"},
@@ -368,7 +528,7 @@ def test_a_queued_website_reply_binds_only_to_its_delivery_turn(page_dir):
     prepared = website_server.prepare_codex_delivery(
         page_dir, identity, {"pid": os.getpid()}
     )
-    [queued] = website_server.accept_codex_delivery("hosted-thread", phase="queued")
+    [queued] = accept_codex_delivery("hosted-thread", phase="queued")
 
     def queued_turn(turn_id, delivery_id):
         return {
@@ -440,7 +600,8 @@ def test_a_queued_website_reply_binds_only_to_its_delivery_turn(page_dir):
             self.closed = True
 
     socket = Socket()
-    website_server.WebsiteCodexHost("codex")._follow_turn(
+    host = website_server.WebsiteCodexHost("codex")
+    host._follow_turn(
         socket,
         page_dir,
         "hosted-thread",
@@ -477,7 +638,7 @@ def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir)
     )
     identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
     website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    [opened] = website_server.accept_codex_delivery("hosted-thread")
+    [opened] = accept_codex_delivery("hosted-thread")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second while active"},
@@ -485,7 +646,7 @@ def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir)
     prepared = website_server.prepare_codex_delivery(
         page_dir, identity, {"pid": os.getpid()}
     )
-    [queued] = website_server.accept_codex_delivery("hosted-thread", phase="queued")
+    [queued] = accept_codex_delivery("hosted-thread", phase="queued")
     website_server._set_stream_activity(
         "hosted-thread", opened["turn"], "Still working"
     )
@@ -531,7 +692,9 @@ def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir)
             self.closed = True
 
     socket = Socket()
-    website_server.WebsiteCodexHost("codex")._follow_turn(
+    host = website_server.WebsiteCodexHost("codex")
+    host.stop_event.set()
+    host._follow_turn(
         socket,
         page_dir,
         "hosted-thread",
@@ -563,7 +726,6 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     requests = []
     sent = []
     prepared = []
-    accepted = []
 
     def request(method, params, before_close=None):
         requests.append((method, params))
@@ -589,21 +751,6 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
             )
         ),
     )
-    monkeypatch.setattr(
-        website_server,
-        "accept_codex_delivery",
-        lambda *args, **kwargs: (
-            accepted.append((args, kwargs))
-            or [
-                {
-                    "page": page_dir,
-                    "events": ("reader-event",),
-                    "turn": "leaf-turn",
-                }
-            ]
-        ),
-    )
-
     assert host._start_thread(
         page_dir, type("Process", (), {"pid": 41})(), "reader-event"
     ) == ("hosted-thread")
@@ -639,7 +786,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
             [],
         )
     ]
-    assert accepted == [(("hosted-thread",), {"turn": "initial-turn"})]
+    assert sent[0][-1] == []
 
 
 def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
@@ -751,102 +898,6 @@ def test_the_benchmark_passes_local_and_remote_targets_explicitly(monkeypatch):
     assert len(calls) == 2
 
 
-def test_the_private_reply_client_resolves_manifest_routes(tmp_path):
-    site = tmp_path / "site"
-    pages = {
-        "/": ("_leaf/pages/index", "product"),
-        "/examples": ("_leaf/pages/examples", "product"),
-        "/examples/triage-board": ("examples/triage-board", "example"),
-    }
-    write_manifest(site, pages)
-    for route, (directory, _kind) in pages.items():
-        page_dir = site / directory
-        page_dir.mkdir(parents=True, exist_ok=True)
-        expected = "" if route == "/" else route
-        assert website_reply.published_route(page_dir) == expected
-
-
-def test_the_private_reply_client_carries_a_new_thread_target():
-    assert website_reply.response_payload(
-        [
-            "reader-event",
-            "Moved the thread.",
-            "--section",
-            "result",
-            "--part",
-            "chart",
-        ]
-    ) == {
-        "event": "reader-event",
-        "text": "Moved the thread.",
-        "section": "result",
-        "part": "chart",
-    }
-
-
-def test_the_private_reply_client_timing_is_numeric():
-    assert website_server._agent_response_timing(
-        {
-            "Leaf-Agent-Helper-Entered-At-Ms": "1789180475000",
-            "Leaf-Agent-Helper-Request-At-Ms": "1789180475125",
-        }
-    ) == {
-        "helperEnteredAtMs": 1789180475000,
-        "helperRequestAtMs": 1789180475125,
-    }
-    with pytest.raises(ValueError, match="Unix millisecond"):
-        website_server._agent_response_timing(
-            {
-                "Leaf-Agent-Helper-Entered-At-Ms": "1789180475000",
-                "Leaf-Agent-Helper-Request-At-Ms": "unknown",
-            }
-        )
-
-
-def test_the_private_reply_client_sends_its_timing(tmp_path, monkeypatch, capsys):
-    token = tmp_path / "reply-token"
-    token.write_text("adapter-secret", encoding="utf-8")
-    requests = []
-
-    class Response:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return None
-
-        def read(self):
-            return b'{"status":"appended"}'
-
-    def urlopen(request, timeout):
-        requests.append((request, timeout))
-        return Response()
-
-    monkeypatch.setattr(
-        website_reply.sys,
-        "argv",
-        ["reply.py", "reader-event", "The reply."],
-    )
-    monkeypatch.setattr(website_reply, "published_route", lambda page: "/example")
-    monkeypatch.setattr(
-        website_reply.time,
-        "time_ns",
-        iter([1_000_000_000, 1_125_000_000]).__next__,
-    )
-    monkeypatch.setattr(website_reply.urllib.request, "urlopen", urlopen)
-    monkeypatch.setenv("LEAF_REPLY_TOKEN", str(token))
-
-    website_reply.main()
-
-    request, timeout = requests[0]
-    headers = {key.lower(): value for key, value in request.header_items()}
-    assert request.full_url == "http://127.0.0.1:8080/example/_leaf/agent/respond"
-    assert headers["leaf-agent-helper-entered-at-ms"] == "1000"
-    assert headers["leaf-agent-helper-request-at-ms"] == "1125"
-    assert timeout == 20
-    assert capsys.readouterr().out == '{"status":"appended"}\n'
-
-
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
     """A hosted task must not discover or initialize another plugin environment."""
     site_root = tmp_path / "site"
@@ -872,12 +923,8 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
 
     assert host._ensure_server() is not None
     assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
-    assert (
-        launched["options"]["env"]["LEAF_REPLY"] == website_server.AGENT_REPLY_COMMAND
-    )
-    assert launched["options"]["env"]["LEAF_REPLY_TOKEN"] == str(host.reply_token_path)
-    assert host.reply_token_path.read_text(encoding="utf-8") == host.reply_token
-    assert host.reply_token_path.stat().st_mode & 0o777 == 0o600
+    assert "LEAF_REPLY" not in launched["options"]["env"]
+    assert "LEAF_REPLY_TOKEN" not in launched["options"]["env"]
     assert launched["options"]["cwd"] == str(site_root)
     assert "LEAF_SKILL_DIR" not in launched["options"]["env"]
     assert launched["command"] == [
@@ -886,27 +933,19 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         "--listen",
         host.endpoint,
     ]
-    assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
-    assert "structured `leaf_delivery` tool output" in website_server.CODEX_INSTRUCTIONS
-    assert "$LEAF delivery claim ID" in website_server.CODEX_INSTRUCTIONS
-    assert "$LEAF delivery read ID" in website_server.CODEX_INSTRUCTIONS
-    assert '$LEAF_REPLY EVENT_ID "..."' in website_server.CODEX_INSTRUCTIONS
-    assert "your normal final message is the\n  only reply operation" in (
-        website_server.CODEX_INSTRUCTIONS
-    )
-    assert "Do not run\n  `$LEAF_REPLY`" in website_server.CODEX_INSTRUCTIONS
-    assert "no separate `leaf publish` command" in website_server.CODEX_INSTRUCTIONS
-    assert "$LEAF version check" not in website_server.CODEX_INSTRUCTIONS
-    assert "$LEAF status" not in website_server.CODEX_INSTRUCTIONS
-    assert (
-        "$LEAF resolve . --to RESPONSE_CONVERSATION"
-        in website_server.CODEX_INSTRUCTIONS
-    )
-    assert "normal final" in website_server.CODEX_INSTRUCTIONS
-    assert "Use exactly one response path" in website_server.CODEX_INSTRUCTIONS
-    assert (
-        "The host binds, streams, and commits it" in website_server.CODEX_INSTRUCTIONS
-    )
+    instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
+    assert "$LEAF" in instructions
+    assert "structured `leaf_delivery` tool output" in instructions
+    assert "$LEAF delivery claim ID" in instructions
+    assert "$LEAF delivery read ID" in instructions
+    assert "at most one response whose kind is `reply`" in instructions
+    assert "normal final message is that reply's only writer" in instructions
+    assert "Do not run `$LEAF reply`" in instructions
+    assert "no separate `leaf publish` command" in instructions
+    assert "$LEAF version check" not in instructions
+    assert "$LEAF status" not in instructions
+    assert "$LEAF resolve . --to RESPONSE_CONVERSATION" in instructions
+    assert "binds its destination before" in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -974,7 +1013,17 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     monkeypatch.setattr(host, "_ensure_server", ensure_server)
     monkeypatch.setattr(host, "_warm_leaf_cli", lambda: None)
     monkeypatch.setattr(website_server, "page_claim", lambda page: None)
-    monkeypatch.setattr(host, "_start_thread", lambda *args: "hosted-thread")
+    delivered = []
+    monkeypatch.setattr(
+        host,
+        "_start_thread",
+        lambda *args: delivered.append(True) or "hosted-thread",
+    )
+    monkeypatch.setattr(
+        website_server,
+        "agent_event_thread",
+        lambda *_: "hosted-thread" if delivered else None,
+    )
 
     prewarm = host.prewarm()
     assert prewarm_started.wait(timeout=2)
@@ -1121,15 +1170,12 @@ def test_closing_the_website_host_stops_its_app_server(tmp_path):
     process = Process()
     host.process = process
     host.socket_path.touch()
-    host.reply_token_path.write_text(host.reply_token, encoding="utf-8")
-    host.reply_token_owned = True
 
     host.close()
 
     assert process.stopped
     assert host.process is None
     assert not host.socket_path.exists()
-    assert not host.reply_token_path.exists()
 
 
 def test_closing_a_host_that_started_no_server_preserves_the_shared_socket(tmp_path):
@@ -1137,12 +1183,10 @@ def test_closing_a_host_that_started_no_server_preserves_the_shared_socket(tmp_p
     socket_path = tmp_path / "app-server.sock"
     socket_path.touch()
     host = website_server.WebsiteCodexHost("codex", socket_path)
-    host.reply_token_path.write_text("another host's token", encoding="utf-8")
 
     host.close()
 
     assert socket_path.exists()
-    assert host.reply_token_path.read_text(encoding="utf-8") == "another host's token"
 
 
 def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
@@ -1179,28 +1223,40 @@ def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
     )
     host = website_server.WebsiteCodexHost("codex")
     during_start = []
+    competing_writer_rejected = []
 
     def reject(*args):
         during_start.append(
             website_server.full_state(page_dir, read_events(page_dir))["activity"]
         )
-        raise RuntimeError("rejected")
+        with pytest.raises(SystemExit, match="bound to this delivery's final message"):
+            website_server.cmd_reply(
+                page_dir,
+                comment["id"],
+                "Competing tool reply",
+                "",
+                for_event=comment["id"],
+                identity={"agent": "Codex", "session": "hosted-thread"},
+            )
+        competing_writer_rejected.append(True)
+        raise website_server.AppServerRequestRejected("rejected")
 
     monkeypatch.setattr(host, "_send", reject)
     try:
-        with pytest.raises(RuntimeError, match="rejected"):
-            host._start_turn(
-                "socket",
-                page_dir,
-                "hosted-thread",
-                type("Process", (), {"pid": os.getpid()})(),
-            )
+        follow = host._start_turn(
+            "socket",
+            page_dir,
+            "hosted-thread",
+            type("Process", (), {"pid": os.getpid()})(),
+        )
     finally:
         host.close()
 
+    assert follow[2:4] == (None, None)
     [(_, queue)] = codex_queues("hosted-thread")
     assert queue["state"] == "offering"
     assert queue["batches"][0]["events"] == [{"seq": 1, "id": comment["id"]}]
+    assert competing_writer_rejected == [True]
     assert during_start[0]["kind"] == "working"
     assert during_start[0]["detail"] == "Starting"
     assert (
@@ -1209,13 +1265,202 @@ def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
     )
 
 
+def test_a_lost_turn_start_ack_keeps_streamed_reply_authority(page_dir, monkeypatch):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host,
+        "_send",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError("lost ack")),
+    )
+    try:
+        follow = host._start_turn(
+            "socket",
+            page_dir,
+            "hosted-thread",
+            type("Process", (), {"pid": os.getpid()})(),
+        )
+    finally:
+        host.close()
+
+    assert follow[2:4] == (None, None)
+    assert follow[4] == (comment["id"],)
+    [(_, queue)] = codex_queues("hosted-thread")
+    assert queue["state"] == "offering"
+    with pytest.raises(SystemExit, match="bound to this delivery's final message"):
+        website_server.cmd_reply(
+            page_dir,
+            comment["id"],
+            "Competing tool reply",
+            "",
+            for_event=comment["id"],
+            identity={"agent": "Codex", "session": "hosted-thread"},
+        )
+
+
+def test_a_lost_turn_start_ack_retries_after_idle_reconciliation(page_dir, monkeypatch):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    later = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "then explain it"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host,
+        "_send",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError("lost ack")),
+    )
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
+
+    class LostSocket:
+        closed = False
+
+        def recv(self, timeout):
+            if self.closed:
+                raise OSError("connection lost")
+            raise TimeoutError("still waiting on the lost acknowledgement")
+
+        def close(self):
+            self.closed = True
+
+    delivery_payload = website_server.read_delivery(follow[-1])
+    messages = iter(
+        [
+            json.dumps(
+                {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "retry-turn",
+                        "startedAtMs": 999,
+                        "item": {
+                            "id": "delivery",
+                            "type": "functionCallOutput",
+                            "name": "leaf_delivery",
+                            "output": json.dumps(delivery_payload),
+                        },
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "retry-turn",
+                        "completedAtMs": 1_000,
+                        "item": {
+                            "id": "answer",
+                            "type": "agentMessage",
+                            "phase": "final_answer",
+                            "text": "Recovered reply.",
+                        },
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turn": {
+                            "id": "retry-turn",
+                            "status": "completed",
+                            "items": [
+                                {
+                                    "id": "answer",
+                                    "type": "agentMessage",
+                                    "phase": "final_answer",
+                                    "text": "Recovered reply.",
+                                }
+                            ],
+                        },
+                    },
+                }
+            ),
+        ]
+    )
+
+    class RetrySocket:
+        def recv(self, timeout):
+            return next(messages)
+
+        def close(self):
+            pass
+
+    retry_socket = RetrySocket()
+    monkeypatch.setattr(
+        host,
+        "_resume_turn_stream",
+        lambda thread: (
+            retry_socket,
+            {"id": thread, "status": {"type": "idle"}, "turns": []},
+        ),
+    )
+    retries = []
+
+    def retry_start(socket, method, params, pending=None):
+        retries.append((socket, method, params))
+        return {"turn": {"id": "retry-turn", "status": "inProgress", "items": []}}
+
+    monkeypatch.setattr(host, "_send", retry_start)
+    host._follow_turn(LostSocket(), *follow)
+
+    assert len(retries) == 1
+    assert retries[0][1] == "turn/start"
+    assert retries[0][2]["clientUserMessageId"] == follow[-1]
+    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [(reply["responds"], reply["text"]) for reply in replies] == [
+        (comment["id"], "Recovered reply.")
+    ]
+    assert (
+        website_server.next_unaccepted_agent_event(
+            page_dir,
+            excluding=follow[4],
+        )
+        == later["id"]
+    )
+
+
 def test_notifications_before_start_response_reach_the_turn_follower(
     page_dir, monkeypatch
 ):
+    payload = {
+        "format": DELIVERY_FORMAT,
+        "id": "delivery-1",
+        "batches": [{"events": [{"id": "reader-event"}]}],
+    }
     messages = iter(
         [
             json.dumps({"id": 0, "result": {}}),
             json.dumps({"id": 1, "result": {"thread": {"id": "hosted-thread"}}}),
+            json.dumps(
+                {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "initial-turn",
+                        "startedAtMs": 900,
+                        "item": {
+                            "id": "delivery",
+                            "type": "functionCallOutput",
+                            "name": "leaf_delivery",
+                            "output": json.dumps(payload),
+                        },
+                    },
+                }
+            ),
             json.dumps(
                 {
                     "method": "item/completed",
@@ -1226,6 +1471,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
                         "item": {
                             "id": "message-1",
                             "type": "agentMessage",
+                            "phase": "final_answer",
                             "text": "Deployment verified.",
                         },
                     },
@@ -1265,23 +1511,15 @@ def test_notifications_before_start_response_reach_the_turn_follower(
     monkeypatch.setattr(
         website_server,
         "prepare_codex_delivery",
-        lambda *args: SimpleNamespace(
-            payload={
-                "id": "delivery-1",
-                "batches": [{"events": [{"id": "reader-event"}]}],
-            }
-        ),
+        lambda *args: SimpleNamespace(payload=payload),
     )
     monkeypatch.setattr(
         website_server,
-        "accept_codex_delivery",
-        lambda *args, **kwargs: [
-            {
-                "page": page_dir,
-                "events": ("reader-event",),
-                "turn": "leaf-turn",
-            }
-        ],
+        "open_app_server_delivery",
+        lambda *args: "leaf-turn",
+    )
+    monkeypatch.setattr(
+        website_server, "next_unaccepted_agent_event", lambda *args, **kwargs: None
     )
     finished = []
     completed = threading.Event()
@@ -1337,7 +1575,8 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
         state = website_server.full_state(page_dir, read_events(page_dir))
 
         assert state["listening"] is True
-        assert state["activity"]["kind"] == "handling"
+        assert state["activity"]["kind"] == "working"
+        assert state["activity"]["detail"] == "Starting"
         assert state["activity"]["obligations"][0]["event"] == comment["id"]
 
         website_server._set_stream_activity(
@@ -1460,13 +1699,15 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     committed = []
 
     class ReplyStream:
-        def __init__(self, session, turn, target):
-            streamed.append((session, turn, dict(target)))
+        def __init__(self, session, turn, delivery, target):
+            streamed.append((session, turn, delivery, dict(target)))
 
         def update(self, update):
             message = update.get("message") if update is not None else None
             if message is not None and message["phase"] == "final_answer":
                 streamed.append((message["text"], message["complete"]))
+                return True
+            return False
 
         def finish(self, state, text):
             committed.append((state, text))
@@ -1498,6 +1739,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
             "reply_to": "reader-event",
             "responds": "reader-event",
         },
+        "delivery-1",
     )
 
     assert updates == [
@@ -1510,6 +1752,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         (
             "hosted-thread",
             "initial-turn",
+            "delivery-1",
             {
                 "page": str(page_dir),
                 "reply_to": "reader-event",
@@ -1529,6 +1772,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         "turn_item_started",
         "turn_item_completed",
         "turn_first_model_message",
+        "turn_reply_first_text_published",
         "turn_stream_completed",
     ]
     assert logs[3] == {
@@ -1545,6 +1789,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     assert logs[4]["exitCode"] == 0
     assert logs[6]["durationMs"] == 500
     assert logs[7]["phase"] == "final_answer"
+    assert logs[8]["recovered"] is False
     assert finished == [
         (
             page_dir,
@@ -1577,7 +1822,7 @@ def test_a_lost_starting_connection_leaves_its_response_obligation(page_dir):
         {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
         {"pid": os.getpid()},
     )
-    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+    [delivery] = accept_codex_delivery("hosted-thread")
 
     class Socket:
         closed = False
@@ -1589,7 +1834,9 @@ def test_a_lost_starting_connection_leaves_its_response_obligation(page_dir):
             self.closed = True
 
     socket = Socket()
-    website_server.WebsiteCodexHost("codex")._follow_turn(
+    host = website_server.WebsiteCodexHost("codex")
+    host.stop_event.set()
+    host._follow_turn(
         socket,
         page_dir,
         "hosted-thread",
@@ -1610,6 +1857,156 @@ def test_a_lost_starting_connection_leaves_its_response_obligation(page_dir):
     assert socket.closed
 
 
+def test_a_completed_final_is_recovered_after_the_turn_stream_disconnects(
+    page_dir, monkeypatch
+):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    prepared = website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = accept_codex_delivery("hosted-thread", turn="app-server-turn")
+
+    class Socket:
+        def __init__(self):
+            self.closed = False
+
+        def recv(self, timeout):
+            raise OSError("connection lost")
+
+        def close(self):
+            self.closed = True
+
+    initial_socket = Socket()
+    resumed_socket = Socket()
+    recovered = {
+        "id": "app-server-turn",
+        "status": "completed",
+        "items": [
+            {
+                "id": "answer",
+                "type": "agentMessage",
+                "phase": "final_answer",
+                "text": "Recovered answer.",
+            }
+        ],
+    }
+    host = website_server.WebsiteCodexHost("codex")
+    attempts = 0
+
+    def resume(thread_id):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError("App Server is still restarting")
+        return resumed_socket, {"id": thread_id, "turns": [recovered]}
+
+    monkeypatch.setattr(
+        host,
+        "_resume_turn_stream",
+        resume,
+    )
+    monkeypatch.setattr(host, "_ensure_server", lambda: None)
+    monkeypatch.setattr(host.stop_event, "wait", lambda timeout: False)
+
+    host._follow_turn(
+        initial_socket,
+        page_dir,
+        "hosted-thread",
+        "app-server-turn",
+        delivery["turn"],
+        delivery["events"],
+        website_server.stream_reply_target(prepared.payload),
+        prepared.payload["id"],
+    )
+
+    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [(reply["responds"], reply["text"]) for reply in replies] == [
+        (comment["id"], "Recovered answer.")
+    ]
+    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    assert attempts == 2
+    assert initial_socket.closed
+    assert resumed_socket.closed
+
+
+def test_an_empty_final_is_not_logged_as_visible_reply(page_dir, capsys):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    prepared = website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = accept_codex_delivery("hosted-thread", turn="app-server-turn")
+
+    class Socket:
+        def __init__(self):
+            self.closed = False
+            self.messages = iter(
+                [
+                    {
+                        "method": "item/completed",
+                        "params": {
+                            "threadId": "hosted-thread",
+                            "turnId": "app-server-turn",
+                            "startedAtMs": 1,
+                            "completedAtMs": 2,
+                            "item": {
+                                "id": "empty-answer",
+                                "type": "agentMessage",
+                                "phase": "final_answer",
+                                "text": "",
+                            },
+                        },
+                    },
+                    {
+                        "method": "turn/completed",
+                        "params": {
+                            "threadId": "hosted-thread",
+                            "turn": {
+                                "id": "app-server-turn",
+                                "status": "completed",
+                                "items": [],
+                            },
+                        },
+                    },
+                ]
+            )
+
+        def recv(self, timeout):
+            return json.dumps(next(self.messages))
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    website_server.WebsiteCodexHost("codex")._follow_turn(
+        socket,
+        page_dir,
+        "hosted-thread",
+        "app-server-turn",
+        delivery["turn"],
+        delivery["events"],
+        {
+            "page": str(page_dir),
+            "reply_to": comment["id"],
+            "responds": comment["id"],
+        },
+        prepared.payload["id"],
+    )
+
+    logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert "turn_reply_first_text_published" not in {record["event"] for record in logs}
+    assert socket.closed
+
+
 def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
     comment = append_event(
         page_dir,
@@ -1620,7 +2017,7 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
         {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
         {"pid": os.getpid()},
     )
-    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+    [delivery] = accept_codex_delivery("hosted-thread")
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
         "hosted-thread",
@@ -1651,7 +2048,7 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
         {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
         {"pid": os.getpid()},
     )
-    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+    [delivery] = accept_codex_delivery("hosted-thread")
     (page_dir / "index.html").write_text("<main>unfinished")
 
     with pytest.raises(ValueError):
@@ -1679,14 +2076,12 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    website_server.prepare_codex_delivery(
+    prepared = website_server.prepare_codex_delivery(
         page_dir,
         {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
         {"pid": os.getpid()},
     )
-    [delivery] = website_server.accept_codex_delivery(
-        "hosted-thread", turn="app-server-turn"
-    )
+    [delivery] = accept_codex_delivery("hosted-thread", turn="app-server-turn")
     (page_dir / "index.html").write_text("<main>unfinished")
 
     class Socket:
@@ -1731,6 +2126,7 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
                 "reply_to": comment["id"],
                 "responds": comment["id"],
             },
+            prepared.payload["id"],
         )
 
     claim = website_server.page_claim(page_dir)
@@ -1754,7 +2150,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
         {"pid": os.getpid()},
     )
-    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+    [delivery] = accept_codex_delivery("hosted-thread")
     website_server.cmd_reply(
         page_dir,
         comment["id"],
@@ -1787,7 +2183,7 @@ def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
     )
     identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
     website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    website_server.accept_codex_delivery("hosted-thread")
+    accept_codex_delivery("hosted-thread")
 
     reply = website_server.cmd_reply(
         page_dir,
@@ -1802,48 +2198,6 @@ def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
     )
 
     assert reply is None
-
-
-def test_an_explicit_website_reply_wins_over_the_streamed_final(page_dir):
-    comment = append_event(
-        page_dir,
-        {"kind": "comment", "author": "user", "text": "edit the page"},
-    )
-    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
-    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    [delivery] = website_server.accept_codex_delivery("hosted-thread")
-    target = {
-        "page": str(page_dir),
-        "reply_to": comment["id"],
-        "responds": comment["id"],
-    }
-    stream = website_server.AppServerReplyStream(
-        "hosted-thread", delivery["turn"], target
-    )
-    host = website_server.WebsiteCodexHost("codex")
-
-    reply = host.respond(
-        page_dir,
-        comment["id"],
-        "Done.",
-        quote="The cutoff lives in",
-        section="plan",
-    )
-
-    assert reply["parent"] == comment["id"]
-    assert reply["responds"] == comment["id"]
-    assert reply["text"] == "Done."
-    assert reply["session"] == "hosted-thread"
-    assert reply["attempt"] == website_server.agent_attempt(comment["id"])
-    assert reply["revision"] == 1
-    assert reply["anchor"]["section"] == "plan"
-    assert reply["anchor"]["quote"] == "The cutoff lives in"
-    assert stream.finish("completed", "Answered on the page.") is None
-    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
-    assert [(event["text"], event["responds"]) for event in replies] == [
-        ("Done.", comment["id"])
-    ]
-    assert "stream" not in website_server.PageTransaction(page_dir).status
 
 
 def test_a_host_fallback_survives_an_invalid_candidate_source(page_dir):
@@ -1900,7 +2254,7 @@ def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
         )
         turn_started.set()
         record_acceptance.wait(timeout=2)
-        website_server.accept_codex_delivery("hosted-thread")
+        accept_codex_delivery("hosted-thread")
         return "hosted-thread"
 
     monkeypatch.setattr(host, "_start_thread", start_thread)
@@ -1933,14 +2287,14 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     )
     identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
     website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    [old_delivery] = website_server.accept_codex_delivery("hosted-thread")
+    [old_delivery] = accept_codex_delivery("hosted-thread")
     website_server.close_session_turn("hosted-thread")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
     )
     website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    [new_delivery] = website_server.accept_codex_delivery("hosted-thread")
+    [new_delivery] = accept_codex_delivery("hosted-thread")
 
     website_server.WebsiteCodexHost("codex")._finish_turn(
         page_dir,
@@ -1987,7 +2341,11 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
 
         document, headers = get(f"{root}/examples/decision/")
         assert b'src="/examples/decision/sitenote.js"' in document
-        assert b'data-lf-entry="/examples/decision/leaf.js"' in document
+        artifact = revision_path(published, 1).stem
+        assert (
+            f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
+            in document
+        )
         assert headers["Content-Security-Policy"] == "frame-ancestors 'none'"
         assert headers["Leaf-Session"] == "active"
 
@@ -2046,37 +2404,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert started == {"status": "started", "thread": "codex-thread"}
         assert agent_host.attached == [published]
 
-        with pytest.raises(urllib.error.HTTPError) as unauthorized:
-            post(
-                f"{root}/examples/decision/_leaf/agent/respond",
-                {"event": comment["id"], "text": "Forged."},
-            )
-        assert unauthorized.value.code == 403
-
-        responded, _ = post(
-            f"{root}/examples/decision/_leaf/agent/respond",
-            {
-                "event": comment["id"],
-                "text": "This uses the private adapter.",
-                "quote": "The cutoff lives in",
-                "section": "plan",
-            },
-            {
-                "Authorization": "Bearer adapter-secret",
-                "Leaf-Agent-Helper-Entered-At-Ms": "1789180475000",
-                "Leaf-Agent-Helper-Request-At-Ms": "1789180475125",
-            },
-        )
-        assert responded == {"status": "appended", "event": "fast-reply"}
-        assert agent_host.responded == [
-            (
-                published,
-                comment["id"],
-                "This uses the private adapter.",
-                {"quote": "The cutoff lives in", "section": "plan", "part": ""},
-            )
-        ]
-
         for failure_fields in ({}, {"failure": "unknown"}, {"failure": None}):
             with pytest.raises(urllib.error.HTTPError) as invalid:
                 post(
@@ -2098,7 +2425,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
                 {"Leaf-Layer": state["layer"]["generation"]},
             )
         assert forged.value.code == 400
-
         monkeypatch.setenv("LEAF_AGENT", "Leaf guide")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
@@ -2229,7 +2555,11 @@ def test_a_product_route_uses_the_same_real_page_server(
     try:
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
-        assert f'data-lf-entry="{page_root}/leaf.js"'.encode() in document
+        artifact = revision_path(published, 1).stem
+        assert (
+            f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()
+            in document
+        )
         assert get(f"{root}{page_root}/sitenote.js")[0] == b"export {};"
         state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {
@@ -2285,7 +2615,7 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
         },
         {"pid": os.getpid()},
     )
-    website_server.accept_codex_delivery("already-started-thread")
+    accept_codex_delivery("already-started-thread")
     agent_host = FakeCodexHost()
     httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, agent_host))
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -2521,7 +2851,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
         {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
         {"pid": os.getpid()},
     )
-    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+    [delivery] = accept_codex_delivery("hosted-thread")
 
     handling = website_server.full_state(page_dir, read_events(page_dir))
     assert handling["activity"]["kind"] == "handling"

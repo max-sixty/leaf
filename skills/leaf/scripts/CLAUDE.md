@@ -11,6 +11,7 @@ domain modules.
 The main owners are:
 
 - `files` and `revisioning`: atomic page files and immutable revisions;
+- `revision_artifact` and `revision_delivery`: captured revision inputs and their delivery URLs;
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance;
 - `agent_state`: the agent-facing folded page-state and exact-conversation readings;
@@ -26,7 +27,8 @@ The main owners are:
 - `event_meaning`: admitted widget-command meaning and layer compatibility;
 - `events` and `projection`: standing event and durable state folds;
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
-  delivery context, and conversation writes;
+  delivery context, conversation writes, and the host-neutral delivery-bound reply
+  lifecycle;
 - `acknowledgments`: unsettled reader moves and their strongest delivery or
   subject-work evidence;
 - `activity`: the canonical page-level fold over acknowledgments, status, claim,
@@ -42,8 +44,8 @@ The main owners are:
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
-- `codex`: the private App Server terminal launcher, detached Codex queue delivery
-  and recovery, and the observer-only activity subscription;
+- `codex`: the private App Server terminal launcher, provider notification adapter,
+  detached Codex queue delivery and recovery, and observer-only subscriptions;
 - `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only
   snapshot fallback;
 - `presence`: page, claim, and neighboring-leaf presence readings;
@@ -103,9 +105,10 @@ declarations without a widget-name list.
 
 Within `registry/`, `contract` owns shared schema helpers and layer readings,
 `layer`, `widgets`, and `state` own their complete vocabulary contracts,
-`validation` composes those gates, `storage` owns the vendored-file cache and
-page lookup, and `reactions` owns reaction descriptions. Import the owner
-directly; the package initializer is only a marker.
+`validation` composes those gates, `page` composes page-owned declarations and
+records declaration and widget provenance, `storage` owns the vendored-file
+cache and page lookup, and `reactions` owns reaction descriptions. Import the
+owner directly; the package initializer is only a marker.
 
 Within `served_state/`, `wire` serializes one declared fold, `conversation` and
 `document` own their scoped browser readings, `browser` assembles the requested

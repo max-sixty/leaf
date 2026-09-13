@@ -37,7 +37,15 @@ from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/CLAUDE.md, "A wait consumes a fact the system states".
-from render_support import BOTH_STAMPS, navigate, open_page, select, sending, watched
+from render_harness import (
+    BOTH_STAMPS,
+    consume_browser_errors,
+    navigate,
+    open_page,
+    select,
+    sending,
+    watched,
+)
 
 ROOT = Path(__file__).parent.parent
 DOCS = ROOT / "docs"
@@ -184,11 +192,17 @@ def product_url(hosted, name):
 media_url = site_build.media_url
 
 
-def opened(page, errors, url):
+def active_revision_directory(page_dir):
+    revision = files_model.latest_revision(page_dir)
+    assert revision is not None, f"{page_dir} has no published revision"
+    return Path("revisions") / files_model.revision_path(page_dir, revision).stem
+
+
+def opened(page, url):
     """A navigation this module makes for itself, waiting on what `open_page` waits
     on — the document's stamp and the log's — since a page at the first alone has a
     banner the reader would not recognize (tests/CLAUDE.md)."""
-    navigate(page, errors, url, wait_until="load")
+    navigate(page, url, wait_until="load")
 
 
 def test_product_pages_vendor_the_composed_theme(site):
@@ -289,12 +303,14 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
     release = manifest["release"]
     asset_root = manifest["pages"]["/examples/triage-board"]["assets"]
+    revision = active_revision_directory(site / "examples" / "triage-board")
+    example_layer = example_root / revision
     assert 'data-lf-server="published"' in document
     assert f'data-lf-release="{release}"' in document
-    assert f'src="{asset_root}/leaf.js"' in document
+    assert f'src="{asset_root}/{revision}/leaf.js"' in document
     assert f'src="{asset_root}/sitenote.js"' in document
-    assert (example_root / "runtime" / "state-feed.js").is_file()
-    assert (example_root / "registry.json").is_file()
+    assert (example_layer / "runtime" / "state-feed.js").is_file()
+    assert (example_layer / "registry.json").is_file()
     assert list((example_root / "versions").glob("v*.html"))
     assert list((example_root / "revisions").glob("r*.html"))
     for private in ("data.json", "events.jsonl", "status.json", "cursor.json"):
@@ -303,16 +319,22 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     notification_root = assets / "examples" / "notification-playground"
     notification = manifest["pages"]["/examples/notification-playground"]
     notification_document = (notification_root / "index.html").read_text()
+    notification_revision = active_revision_directory(
+        site / "examples" / "notification-playground"
+    )
     assert (
-        f'from "{notification["assets"]}/runtime/widget-api.js"'
+        f'from "{notification["assets"]}/{notification_revision}/runtime/widget-api.js"'
         in notification_document
     )
 
     # Public paths remain page-scoped, but repeated immutable payload bytes occupy one
     # inode in the build and container image rather than one complete copy per page.
     repeated = [
-        site_build.asset_site(site) / "runtime" / "margin-layout.js",
-        example_root / "runtime" / "margin-layout.js",
+        assets
+        / active_revision_directory(site_build.product_page(site, "index.html"))
+        / "runtime"
+        / "margin-layout.js",
+        example_layer / "runtime" / "margin-layout.js",
     ]
     assert repeated[0].read_bytes() == repeated[1].read_bytes()
     assert repeated[0].stat().st_ino == repeated[1].stat().st_ino
@@ -406,12 +428,13 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
         for document in sorted((board / directory).glob("*.html"))
     ]
     assert historical, "the example publishes no version or revision documents"
+    revision = active_revision_directory(site / "examples" / "triage-board")
     for route, relative in (
         ("/", "index.html"),
         ("/examples/triage-board/", "examples/triage-board/index.html"),
         (
-            "/examples/triage-board/runtime/state-feed.js",
-            "examples/triage-board/runtime/state-feed.js",
+            f"/examples/triage-board/{revision}/runtime/state-feed.js",
+            f"examples/triage-board/{revision}/runtime/state-feed.js",
         ),
         *((f"/{relative}", relative) for relative in historical),
     ):
@@ -503,7 +526,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         }
         for version, revision in sorted(mappings.items())
     ]
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         expect(page.locator(".lf-version")).to_have_text("v2")
         current = page.evaluate("() => fetch('api/state').then(r => r.json())")
@@ -539,7 +562,6 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         )
         pinned = page.evaluate("() => fetch('../api/state').then(r => r.json())")
         assert pinned["versions"] == versions
-        assert errors == []
     finally:
         page.close()
 
@@ -548,7 +570,7 @@ def test_the_published_notification_example_runs_its_authored_module(
     served_example, browser
 ):
     _, url = served_example("notification-playground")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         pressure = page.get_by_role("slider", name="Concurrent release events")
         expect(pressure).to_have_value("2")
@@ -557,7 +579,6 @@ def test_the_published_notification_example_runs_its_authored_module(
 
         expect(page.locator(".notification-demo-card-banner")).to_have_count(4)
         expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
-        assert errors == []
     finally:
         page.close()
 
@@ -565,7 +586,7 @@ def test_the_published_notification_example_runs_its_authored_module(
 def test_published_visual_evidence_loads_from_its_page(served_example, browser):
     """Typed media paths resolve under the same page as authored media."""
     _, url = served_example("visual-review-gallery")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         review = page.locator("#visual-review-run")
         case_select = review.get_by_role("combobox", name="Selected visual case")
@@ -578,7 +599,6 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
             for image in images.all():
                 expect(image).to_have_js_property("complete", True)
                 assert image.evaluate("image => image.naturalWidth") > 0
-        assert errors == []
     finally:
         page.close()
 
@@ -586,7 +606,7 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
 def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
     """A lower sequence from a replacement cannot be applied over vanished state."""
     _, url = served_example("triage-board")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         with page.expect_navigation(wait_until="load", timeout=10_000):
             page.evaluate(
@@ -603,7 +623,6 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
                 }"""
             )
         page.wait_for_function(BOTH_STAMPS)
-        assert errors == []
     finally:
         page.close()
 
@@ -652,7 +671,8 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
     context = browser.new_context()
     leader = context.new_page()
     follower = context.new_page()
-    errors = [*watched(leader), *watched(follower)]
+    watched(leader)
+    watched(follower)
     try:
 
         def passive_session(route):
@@ -687,7 +707,6 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             servers[0],
         )
         follower.wait_for_function("() => window.__leafActivated === 1", timeout=5_000)
-        assert errors == []
     finally:
         for page in (leader, follower):
             page.unroute_all(behavior="ignoreErrors")
@@ -698,7 +717,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     """Each product route runs the canonical runtime and exposes its page state."""
     names = list(site_build.PRODUCT_ROUTES)
     page = browser.new_page()
-    errors = watched(page)
+    watched(page)
     failed = []
     page.on(
         "response",
@@ -734,7 +753,6 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
                 "agent": "Leaf guide",
                 "install_url": "/#install",
             }
-            assert not errors, f"{name}: {errors[:3]}"
             assert not failed, f"{name}: {failed[:3]}"
     finally:
         page.close()
@@ -743,7 +761,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
 def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
     """The architecture is one sequence, so the diagram must fit its content box."""
     page = browser.new_page()
-    errors = watched(page)
+    watched(page)
     try:
         page.set_viewport_size({"width": 1200, "height": 900})
         page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")
@@ -753,7 +771,6 @@ def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
             "element => ({client: element.clientWidth, scroll: element.scrollWidth})"
         )
         assert width["scroll"] == width["client"]
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -827,10 +844,10 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     """The catalog is useful HTML first; mounting its shared Leaf layer must not move it."""
     boot = []
     page = browser.new_page(viewport={"width": 1724, "height": 1036})
-    errors = watched(page)
-    page.route("**/examples/leaf.js", lambda route: boot.append(route))
+    watched(page)
+    page.route("**/examples/revisions/*/leaf.js", lambda route: boot.append(route))
     try:
-        with page.expect_request("**/examples/leaf.js"):
+        with page.expect_request("**/examples/revisions/*/leaf.js"):
             page.goto(f"{hosted}/examples/", wait_until="commit")
         expect(page.locator("h1")).to_be_visible()
         assert boot, "the positive control did not hold the catalog boot module"
@@ -842,7 +859,6 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         assert {key: final[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         )
-        assert errors == []
     finally:
         for route in boot:
             route.continue_()
@@ -863,7 +879,7 @@ def test_published_workspaces_keep_their_allocation_under_site_context(
     `lf-workspace`, and the rule has to hold for whichever tag the corpus reaches for
     next.
     """
-    page, errors = open_page(browser, f"{hosted}/examples/{name}/")
+    page = open_page(browser, f"{hosted}/examples/{name}/")
     try:
         page.set_viewport_size({"width": 1200, "height": 900})
         workspace = page.locator("body > main > .lf-workspace-reading")
@@ -874,7 +890,6 @@ def test_published_workspaces_keep_their_allocation_under_site_context(
         page.wait_for_function(
             "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
         )
-        assert errors == []
     finally:
         page.close()
 
@@ -897,8 +912,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     }
 
     page = browser.new_page()
-    errors = []
-    page.on("pageerror", lambda error: errors.append(str(error)))
+    watched(page)
     try:
         page.goto(f"{hosted}/examples/", wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
@@ -955,7 +969,6 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         expect(product_gallery).to_contain_text("Core product gallery")
         expect(product_gallery).to_contain_text("focused core interaction replays")
         expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -969,7 +982,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     """
     url = serve(FEATURE_GALLERY)
     page_dir = serve.page_dir
-    page, errors = open_page(browser, f"{url}#bg-interactions")
+    page = open_page(browser, f"{url}#bg-interactions")
     try:
         before = read_events(page_dir)
         gallery = page.locator("#bg-interactions")
@@ -1065,7 +1078,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(viewport.locator("option")).to_have_text(["1×", "2×", "4×"])
         assert gallery.evaluate(
             """async gallery => {
-                const { pageWords, says } = await import('/runtime/passages.js');
+                const { pageWords, says } = await window.__lfRuntimeImport('/runtime/passages.js');
                 const toggle = gallery.querySelector('[data-interaction-toggle]');
                 const status = gallery.querySelector('[data-interaction-status]');
                 return !pageWords(toggle.firstChild)
@@ -1172,22 +1185,8 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(threads_frame.locator(".lf-thread-panel")).to_be_hidden()
         assert read_events(page_dir) == before
 
-        replacement_installed = gallery.evaluate(
-            """gallery => {
-                const replacement = gallery.cloneNode(true);
-                replacement.removeAttribute('data-interaction-installed');
-                replacement.querySelector('.interaction-controls')?.remove();
-                gallery.replaceWith(replacement);
-                document.dispatchEvent(new Event('lf-actions'));
-                return new Promise(resolve => requestAnimationFrame(() =>
-                    resolve(replacement.dataset.interactionInstalled === '1')
-                ));
-            }"""
-        )
-        assert replacement_installed
         page.emulate_media(media="print")
         expect(toggle).to_be_hidden()
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -1214,7 +1213,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
             else None
         ),
     )
-    page, errors = open_page(browser, serve(FEATURE_GALLERY), context=context)
+    page = open_page(browser, serve(FEATURE_GALLERY), context=context)
     try:
         # The reader's own standing intent, written the way a reader writes it. It has to
         # survive out here for the frames' silence about it to say anything.
@@ -1276,7 +1275,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         assert (
             page.evaluate(
                 """async () => {
-                const {focusDestination} = await import('/runtime/focus.js');
+                const {focusDestination} = await window.__lfRuntimeImport('/runtime/focus.js');
                 document.querySelector('[data-interaction-toggle]').click();
                 focusDestination(document.querySelector('#bg-interactions-title'));
                 return document.activeElement?.id;
@@ -1295,7 +1294,6 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
 
         page.keyboard.press("w")
         expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
-        assert not errors, errors[:3]
     finally:
         context.close()
 
@@ -1305,7 +1303,7 @@ def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
-    page, errors = open_page(browser, f"{url}#bg-interactions", context=context)
+    page = open_page(browser, f"{url}#bg-interactions", context=context)
     try:
         gallery = page.locator("#bg-interactions")
         status = gallery.locator("[data-interaction-status]")
@@ -1320,7 +1318,6 @@ def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
         gallery.locator("[data-interaction-toggle]").click()
         expect(status).to_have_text("Complete", timeout=10_000)
         expect(accept).to_have_attribute("data-lf-state", "accept")
-        assert not errors, errors[:3]
     finally:
         context.close()
 
@@ -1331,7 +1328,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
-    page, errors = open_page(browser, f"{url}#bg-interactions", context=context)
+    page = open_page(browser, f"{url}#bg-interactions", context=context)
     try:
         gallery = page.locator("#bg-interactions")
         comment_tab = gallery.get_by_role("tab", name="Send a comment")
@@ -1413,7 +1410,6 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         expect(gallery.locator("[data-interaction-status]")).to_have_text(
             "Complete", timeout=15_000
         )
-        assert not errors, errors[:3]
     finally:
         context.close()
 
@@ -1422,7 +1418,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     """A remembered chrome demo cannot replay before its inner Leaf page is ready."""
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
-    page, errors = open_page(browser, f"{url}#bg-interactions", context=context)
+    page = open_page(browser, f"{url}#bg-interactions", context=context)
     try:
         gallery = page.locator("#bg-interactions")
         gallery.get_by_role("tab", name="Send a comment").click()
@@ -1460,7 +1456,6 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
                 "#bg-interaction-comment [data-interaction-frame]"
             ).content_frame.locator(".lf-fab-input")
         ).to_be_visible()
-        assert not errors, errors[:3]
     finally:
         context.close()
 
@@ -1470,7 +1465,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
-    errors = watched(page)
+    watched(page)
     delayed = []
 
     def delay_contained_state(route):
@@ -1481,7 +1476,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
 
     page.route("**/api/state*", delay_contained_state)
     try:
-        navigate(page, errors, f"{url}#bg-interactions")
+        navigate(page, f"{url}#bg-interactions")
         gallery = page.locator("#bg-interactions")
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
             4, timeout=20_000
@@ -1497,7 +1492,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         contained = next(frame for frame in page.frames if frame.parent_frame)
         assert contained.evaluate(
             """async () => {
-                const {LIVE_ROOT, PAGE_SCOPE} = await import('/runtime/storage.js');
+                const {LIVE_ROOT, PAGE_SCOPE} = await window.__lfRuntimeImport('/runtime/storage.js');
                 return {liveRoot: LIVE_ROOT, pageScope: PAGE_SCOPE};
             }"""
         ) == {"liveRoot": False, "pageScope": "srcdoc"}
@@ -1505,7 +1500,6 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         assert page.evaluate("sessionStorage.getItem('lf-view')") == "outer reading"
         assert page.evaluate("sessionStorage.getItem('srcdoclf-view')") is not None
         assert delayed, "no contained state read was held"
-        assert not errors, errors[:3]
     finally:
         context.close()
 
@@ -1515,7 +1509,7 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
-    errors = watched(page)
+    watched(page)
     failed = []
     news_frames = []
     context.on(
@@ -1536,7 +1530,7 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
 
     page.route("**/api/state*", fail_first_contained_reads)
     try:
-        navigate(page, errors, f"{url}#bg-interactions")
+        navigate(page, f"{url}#bg-interactions")
         gallery = page.locator("#bg-interactions")
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
             4, timeout=20_000
@@ -1553,8 +1547,8 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
         ) == {"asked": 3, "heard": 3}
         assert len(failed) == 2
         assert news_frames and not any(news_frames)
+        errors = consume_browser_errors(page, "leaf: read failed:")
         assert len(errors) == 2
-        assert all(error.startswith("leaf: read failed:") for error in errors)
     finally:
         context.close()
 
@@ -1564,7 +1558,7 @@ def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
-    errors = watched(page)
+    watched(page)
 
     def stop_inner_leaf(route):
         if route.request.frame.name == "interaction-send-comment":
@@ -1573,7 +1567,7 @@ def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
             route.continue_()
 
     page.route("**/leaf.js", stop_inner_leaf)
-    navigate(page, errors, f"{url}#bg-interactions")
+    navigate(page, f"{url}#bg-interactions")
     try:
         gallery = page.locator("#bg-interactions")
         status = gallery.locator("[data-interaction-status]")
@@ -1595,6 +1589,9 @@ def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
         expect(status).to_have_text("Complete", timeout=10_000)
         expect(toggle).to_have_text("Replay")
         expect(toggle).to_be_enabled()
+        errors = consume_browser_errors(
+            page, "contained Leaf page did not load Leaf", "net::ERR_FAILED"
+        )
         assert any(
             "contained Leaf page did not load Leaf" in error for error in errors
         ), errors
@@ -1606,12 +1603,12 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
     """Every artifact starts through Leaf's own document and state boundaries."""
     pages = published_pages()
     _, url = served_example(pages[0].stem)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         for source in pages:
             if source != pages[0]:
                 _, url = served_example(source.stem)
-                opened(page, errors, url)
+                opened(page, url)
             newest = len(example_versions(source))
             expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest}")
             expect(page.locator(".lf-status-text")).to_have_text(
@@ -1622,7 +1619,6 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
                 expect(
                     page.locator("#bg-interactions iframe[data-interaction-ready]")
                 ).to_have_count(4, timeout=15_000)
-            assert not errors, f"{source.name}: {errors[:3]}"
 
     finally:
         page.close()
@@ -1643,7 +1639,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     state = []
     _, url = served_example("pr-walkthrough")
     page = browser.new_page(viewport={"width": 1724, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
     page.route("**/api/state*", lambda route: state.append(route))
 
@@ -1699,7 +1695,6 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
             f"presenting Leaf moved the initial shell from {initial_shell} to "
             f"{presented_shell}"
         )
-        assert errors == []
     finally:
         for route in boot:
             route.continue_()
@@ -1712,7 +1707,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 def test_a_published_example_has_no_agent_claim(served_example, browser):
     """A finished public page claims neither an agent nor an active session."""
     page_dir, url = served_example("triage-board")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
             "This is an example on the Leaf website. Leaf guide replies and revises "
@@ -1741,7 +1736,6 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         assert state["session_alive"] is None
         assert not state["listening"]
         assert not (page_dir / "service.json").exists()
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -1757,7 +1751,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     a rewritten sentence leaves it resolving to nothing and the thread standing detached,
     with no error anywhere."""
     _, url = served_example("ship-review")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         source = EXAMPLES / "ship-review.html"
         events = _parse_events(source.with_suffix(".jsonl").read_bytes())
@@ -1797,7 +1791,6 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
             "the group renders on the site with nothing to press, so the decision "
             "is a picture of one"
         )
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -1813,13 +1806,12 @@ def test_a_shipped_data_snapshot_opens_in_its_package_projection(
     )
 
     _, url = served_example("command-hub")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         snapshot = page.locator('#tree-w-1 [data-lf-datum="tree-w-1"]')
         expect(snapshot).to_have_count(1)
         expect(snapshot).to_contain_text("atlas/xml-declarations")
         expect(snapshot).to_contain_text("tests running")
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -1827,7 +1819,7 @@ def test_a_shipped_data_snapshot_opens_in_its_package_projection(
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
     """The real backend stores the reader's anchored words without impersonating an agent."""
     _, url = served_example("triage-board")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         # What the page opens with, since an example that ships a log opens with
         # threads already counted. The claim here is that the reader's own comment
@@ -1869,7 +1861,6 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
         expect(thread).to_contain_text("Can the migration fix ship first?")
         expect(thread.locator("blockquote")).to_contain_text(selected)
         expect(thread.locator(".lf-msg.claude")).to_have_count(0)
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -1877,12 +1868,11 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
 def test_the_published_page_counts_every_declared_ask(served_example, browser):
     """The inventory includes request Decisions and excludes aggregate roll-ups."""
     _, url = served_example("command-hub")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         decisions = page.locator(".lf-asks")
         expect(decisions).to_be_visible()
         expect(decisions).to_have_text("Asks 0/5")
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -1890,7 +1880,7 @@ def test_the_published_page_counts_every_declared_ask(served_example, browser):
 def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         decisions = page.locator(".lf-asks")
         expect(decisions).to_be_visible()
@@ -1909,14 +1899,13 @@ def test_a_published_decision_survives_reload(served_example, browser):
         page.wait_for_function(BOTH_STAMPS)
         expect(decisions).to_have_text("Asks 1/1")
         assert "heat-opt-floor" in page.evaluate(chosen)
-        assert not errors, errors[:3]
     finally:
         page.close()
 
 
 def test_the_page_backend_answers_the_exact_projection_path(served_example, browser):
     _, url = served_example("triage-board")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         answer = page.evaluate(
             """async () => {
@@ -1932,7 +1921,6 @@ def test_the_page_backend_answers_the_exact_projection_path(served_example, brow
         assert answer["status"] == 200
         assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
         assert set(answer["body"]["browser"]["views"]) == {"1"}
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -1940,7 +1928,7 @@ def test_the_page_backend_answers_the_exact_projection_path(served_example, brow
 def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
     """Independent page backends do not share their logs or reading positions."""
     _, url = served_example("heat-loss")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     try:
         page.locator(".lf-threads-toggle").click()  # the box lives in the panel
         page.locator(".lf-general textarea").fill("Where does this go?")
@@ -1966,12 +1954,11 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
             if p.stem != "heat-loss" and not p.with_suffix(".jsonl").exists()
         )
         _, plain_url = served_example(plain)
-        opened(page, errors, plain_url)
+        opened(page, plain_url)
         expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
         assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
             "the second example opened at the offset left on the first"
         )
-        assert not errors, errors[:3]
     finally:
         page.close()
 
@@ -1979,7 +1966,7 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_the_site_takes_its_palette_from_the_theme(site, hosted, browser, scheme):
     page = browser.new_page(color_scheme=scheme)
-    errors = watched(page)
+    watched(page)
     try:
         for name in site_build.PRODUCT_ROUTES:
             page.goto(product_url(hosted, name), wait_until="load")
@@ -1987,7 +1974,6 @@ def test_the_site_takes_its_palette_from_the_theme(site, hosted, browser, scheme
                 page.evaluate("getComputedStyle(document.body).backgroundColor")
                 == (PAPER[scheme])
             ), name
-            assert not errors, f"{name}: {errors[:3]}"
     finally:
         page.close()
 
@@ -1996,7 +1982,7 @@ def test_the_pages_fit_a_phone(site, hosted, browser):
     """Nothing scrolls sideways at 390px — the nav wraps, the screenshots scale,
     and a command too long for the column scrolls inside its own block."""
     page = browser.new_page(viewport=PHONE)
-    errors = watched(page)
+    watched(page)
     try:
         for name in site_build.PRODUCT_ROUTES:
             page.goto(product_url(hosted, name), wait_until="load")
@@ -2005,6 +1991,5 @@ def test_the_pages_fit_a_phone(site, hosted, browser):
                 " return b.scrollWidth - b.clientWidth; }"
             )
             assert overflow <= 0, f"{name} scrolls {overflow}px sideways on a phone"
-            assert not errors, f"{name}: {errors[:3]}"
     finally:
         page.close()

@@ -121,6 +121,28 @@ def registry_path(registry: dict, path: str):
     return value
 
 
+def reference_relation_error(
+    reference: dict, registry: dict, declarations: dict
+) -> str | None:
+    """Why one `{via, where}` target relation cannot name a declared widget."""
+    via = reference.get("via")
+    if via is None:
+        return None
+    relation = registry_path(registry, via)
+    if not isinstance(relation, dict):
+        return f"names unknown registry map {via!r}"
+    predicate = reference["where"]
+    if any(
+        target in declarations
+        and isinstance(declaration, dict)
+        and all(declaration.get(key) == value for key, value in predicate.items())
+        for target, declaration in relation.items()
+    ):
+        return None
+    expected = ", ".join(f"{key}={value!r}" for key, value in predicate.items())
+    return f"requires {via} where {expected}, but no declared widget matches"
+
+
 def unresolved_schema_reference(schema: dict) -> str | None:
     """Return the first operative ref not supplied by this schema resource graph.
 

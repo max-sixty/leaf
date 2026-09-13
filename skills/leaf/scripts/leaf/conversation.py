@@ -1,4 +1,4 @@
-"""CLI commands that write conversation and worker-report events."""
+"""Conversation writes and the host-neutral delivery-bound reply lifecycle."""
 
 import json
 import sys
@@ -27,7 +27,7 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.schema import MESSAGE_KINDS
-from leaf.service import PageTransaction
+from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
 from leaf.validation.admission import check_markup, read_text_arg
@@ -48,6 +48,158 @@ def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
     _message(events, to)
     root_id = thread_roots(events)[to]
     return root_id, _messages(events).get(root_id)
+
+
+def reserve_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
+    """Reserve a delivery's response address before provider execution begins."""
+    attempt = delivery_reply_attempt(delivery_id)
+    with PageTransaction(Path(target["page"])) as page:
+        claim = page.active_claim
+        if claim is None or claim["id"] != session_id:
+            raise RuntimeError(f"page is not claimed by session {session_id!r}")
+        page.bind_delivery_reply(session_id, target["responds"], attempt)
+
+
+def delivery_reply_reserved(session_id: str, delivery_id: str, target: dict) -> bool:
+    """Whether an observed provider still owns this delivery's reply address."""
+    try:
+        with PageTransaction(Path(target["page"])) as page:
+            binding = (
+                (page.status.get("stream") or {}).get("reply_bindings") or {}
+            ).get(target["responds"])
+            return binding == {
+                "session": session_id,
+                "attempt": delivery_reply_attempt(delivery_id),
+            }
+    except FileNotFoundError:
+        return False
+
+
+class DeliveryReply:
+    """One delivery-bound reply from provisional text through durable commit."""
+
+    def __init__(
+        self,
+        session_id: str,
+        turn_id: str,
+        delivery_id: str,
+        target: dict,
+    ):
+        self.session_id = session_id
+        self.turn_id = turn_id
+        self.target = dict(target)
+        self.attempt = delivery_reply_attempt(delivery_id)
+        self.text = ""
+        self.replace(None, "")
+
+    def replace(
+        self,
+        item_id: str | None,
+        text: str,
+        *,
+        settles: bool = False,
+    ) -> bool:
+        """Replace the visible text without appending conversation history."""
+        self.text = text
+        try:
+            with PageTransaction(Path(self.target["page"])) as page:
+                claim = page.active_claim
+                if (
+                    claim is None
+                    or claim["id"] != self.session_id
+                    or claim.get("turn") != self.turn_id
+                    or claim.get("turn_closed") is not None
+                ):
+                    return False
+                page.set_stream_reply(
+                    self.session_id,
+                    self.turn_id,
+                    self.target["reply_to"],
+                    self.target["responds"],
+                    self.attempt,
+                    item_id,
+                    text,
+                    "active",
+                    settles=settles,
+                )
+                return True
+        except FileNotFoundError:
+            return False
+
+    def finish(
+        self,
+        state: str,
+        completed_text: str | None = None,
+    ) -> BaseException | None:
+        """Commit only a completed final, retaining rejected or partial text."""
+        if state == "completed" and completed_text:
+            try:
+                self._commit(completed_text)
+            except (OSError, RuntimeError, SystemExit, ValueError) as error:
+                self._set_state("failed", completed_text)
+                self._release_binding()
+                return error
+            return None
+        self._set_state(
+            state if state != "completed" else "partial",
+            self.text,
+        )
+        self._release_binding()
+        return None
+
+    def disconnect(self) -> None:
+        """Keep partial text visible while its provider connection recovers."""
+        self._set_state("disconnected", self.text)
+
+    def _set_state(self, state: str, text: str) -> None:
+        try:
+            with PageTransaction(Path(self.target["page"])) as page:
+                page.set_stream_reply_state(
+                    self.session_id,
+                    self.turn_id,
+                    self.attempt,
+                    text,
+                    state,
+                )
+        except FileNotFoundError:
+            pass
+
+    def _release_binding(self) -> None:
+        try:
+            with PageTransaction(Path(self.target["page"])) as page:
+                page.clear_delivery_reply_binding(
+                    self.session_id,
+                    self.target["responds"],
+                    self.attempt,
+                )
+        except FileNotFoundError:
+            pass
+
+    def _commit(self, text: str) -> dict | None:
+        page_dir = Path(self.target["page"])
+        try:
+            accepted = cmd_reply(
+                page_dir,
+                self.target["reply_to"],
+                text,
+                "",
+                for_event=self.target["responds"],
+                attempt=self.attempt,
+                skip_if_settled=True,
+                identity={"session": self.session_id},
+                validate_source=True,
+                claimed_session=self.session_id,
+            )
+            with PageTransaction(page_dir) as page:
+                page.clear_delivery_reply_binding(
+                    self.session_id,
+                    self.target["responds"],
+                    self.attempt,
+                )
+                page.clear_stream_reply(self.session_id, self.turn_id)
+            return accepted
+        except FileNotFoundError:
+            return None
 
 
 def thread_of(page_dir: Path, message_id: str) -> str:
@@ -220,6 +372,7 @@ def cmd_reply(
     failure: str | None = None,
     identity: dict | None = None,
     validate_source: bool = False,
+    claimed_session: str | None = None,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving or detaching its anchor.
 
@@ -233,6 +386,13 @@ def cmd_reply(
     body = read_text_arg(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
+        if claimed_session is not None:
+            claim = page.active_claim
+            if claim is None or claim["id"] != claimed_session:
+                raise RuntimeError(
+                    f"page is no longer claimed by session {claimed_session!r}"
+                )
+            posting_identity = {"agent": claim["agent"], "session": claim["id"]}
         events = page.events
         if attempt is not None:
             existing = next(
@@ -332,6 +492,17 @@ def cmd_reply(
                 sys.exit(
                     f"event {for_event!r} no longer requires a reply to {to!r}; "
                     "read the current delivery or conversation state"
+                )
+            stream = page.status.get("stream") or {}
+            binding = (stream.get("reply_bindings") or {}).get(for_event) or {}
+            claim = page.active_claim
+            if (
+                binding.get("attempt") != attempt
+                and claim is not None
+                and binding.get("session") == claim["id"]
+            ):
+                sys.exit(
+                    f"event {for_event!r} is bound to this delivery's final message"
                 )
         else:
             reply_roots = {
@@ -485,8 +656,9 @@ def cmd_reply(
             event["attempt"] = attempt
         if failure is not None:
             event["failure"] = failure
+        if relocating or markup:
+            event["revision"] = revision or latest_revision(page_dir)
         if relocating:
-            event["revision"] = revision
             event["anchor"] = anchor
         return page.append_event(event)
 
@@ -554,7 +726,14 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
 
 
 @contract_writer
-def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
+def cmd_report(
+    page_dir: Path,
+    widget: str,
+    verb: str,
+    fields: tuple,
+    *,
+    references: str | None = None,
+) -> None:
     """A worker's provisional news: a declared state change folded onto a page
     widget, validated at this door the way the POST door validates an action,
     stamped with the posting session's voice, and made against the active revision —
@@ -572,6 +751,12 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
         if not eq or not name:
             sys.exit(f"detail fields are name=value, got {field!r}")
         detail[name] = value
+    parsed_references = None
+    if references is not None:
+        try:
+            parsed_references = json.loads(references)
+        except json.JSONDecodeError as error:
+            sys.exit(f"references must be one JSON object: {error.msg}")
     with PageTransaction(page_dir) as page:
         events = page.events
         activate_source(page_dir, events)
@@ -585,9 +770,10 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
             "action": verb,
             "detail": detail,
             "revision": revision,
+            **({"references": parsed_references} if references is not None else {}),
         }
         if error := report_contract_error(
-            event, parse_revision(page_dir, revision).by_id, registry
+            event, parse_revision(page_dir, revision), registry
         ):
             sys.exit(error)
         accepted = page.append_event(event, registry)

@@ -12,11 +12,16 @@
 // media root in served JS (http.py's _ROOTED_PAGE_ROUTE), and this constant has to keep
 // speaking the canonical text that drafts and events carry. MEDIA_PATH's escaped form
 // below dodges the same rewrite; neither may be spelled the obvious way.
+import { offlineInteractive, runtimeResource } from "./context.js";
+
 const CANONICAL_MEDIA_ROOT = "/" + "media/";
-const declaredPageRoot = document.querySelector("script[data-lf-server]")?.dataset
-  .lfPageRoot;
-const MODULE_PAGE_ROOT =
-  declaredPageRoot === undefined
+const runtimeMarker = document.querySelector(
+  "script[data-lf-server], script[data-lf-runtime][data-lf-offline]",
+);
+const declaredPageRoot = runtimeMarker?.dataset.lfPageRoot;
+const MODULE_PAGE_ROOT = offlineInteractive
+  ? null
+  : declaredPageRoot === undefined
     ? new URL("../", import.meta.url)
     : new URL(`${declaredPageRoot || ""}/`, location.origin);
 const MEDIA_NAME = /^[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)$/;
@@ -29,8 +34,12 @@ export const isCanonicalMediaUrl = (href) => {
 };
 
 export const scopedMediaUrl = (href) =>
-  new URL(href.slice(CANONICAL_MEDIA_ROOT.length), new URL("media/", MODULE_PAGE_ROOT))
-    .pathname;
+  offlineInteractive
+    ? runtimeResource(href)
+    : new URL(
+        href.slice(CANONICAL_MEDIA_ROOT.length),
+        new URL("media/", MODULE_PAGE_ROOT),
+      ).pathname;
 
 export function readPastedMedia(value) {
   const paths = [];

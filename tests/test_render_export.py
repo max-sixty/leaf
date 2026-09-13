@@ -21,6 +21,7 @@ from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -29,12 +30,19 @@ from leaf.render_gate.preview import preview_server
 from leaf.structure import UTF8_BOM, SourceDocument
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
+    REPORT_PAGE,
+)
+from render_cases_layout import (
+    serious_axe_violations,
+)
+from render_cases_widgets import (
     CUT_BOXES_PAGE,
+)
+from render_harness import (
     LONG_PAGE,
     PAGE_FIXTURES,
     REPLAYED_PAGE,
-    REPORT_PAGE,
     leaf_page,
     open_page,
     panel_settled,
@@ -42,8 +50,8 @@ from render_support import (
     refuse,
     resized,
     restarting,
+    round_trip,
     sending,
-    serious_axe_violations,
     watched,
 )
 
@@ -369,7 +377,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
 
         for url, runtime in zip(urls, runtimes, strict=True):
             page = browser.new_page(viewport={"width": 1200, "height": 900})
-            errors = watched(page)
+            watched(page)
             page.goto(url, wait_until="load")
             expect(page.locator(".lf-preview")).to_contain_text(
                 f"Preview · {runtime.name}"
@@ -377,7 +385,6 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
             expect(
                 page.get_by_role("heading", name="Shared runtime comparison")
             ).to_be_visible()
-            assert errors == []
             page.close()
     finally:
         for slot, page, runtime in zip(slots, pages, runtimes, strict=True):
@@ -451,7 +458,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert page_dir not in service_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
-    automation, automation_errors = open_page(browser, automation_url)
+    automation = open_page(browser, automation_url)
     expect(automation.locator(".lf-preview")).to_contain_text(
         f"Automation · {runtime.name}"
     )
@@ -466,7 +473,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     feedback = (page_dir / "events.jsonl").read_bytes()
     inode = (page_dir / "events.jsonl").stat().st_ino
 
-    with restarting(automation, automation_errors):
+    with restarting(automation):
         source.write_text(
             source.read_text(encoding="utf-8").replace(
                 "Rollout", "Automation follows source edits", 1
@@ -481,7 +488,6 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    assert automation_errors == []
     automation.close()
 
     automation_process.send_signal(signal.SIGINT)
@@ -528,7 +534,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     reader_url = reader_result.stdout.splitlines()[-1]
     claim = service_model.page_claim(reader_dir)
     assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
-    reader, reader_errors = open_page(browser, reader_url)
+    reader = open_page(browser, reader_url)
     expect(reader.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
     with sending(reader, "the reader option pick"):
         reader.locator("#opt-stage .lf-pick").click()
@@ -555,7 +561,6 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert "choose a new --slot" in refused.stderr
     assert "--reset" in refused.stderr
     assert (reader_dir / "events.jsonl").read_bytes() == reader_feedback
-    assert reader_errors == []
     reader.close()
 
     reset_automation = spawn(
@@ -576,12 +581,11 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert service_model.page_claim(reader_dir) is None
     assert reader_event not in events_model.read_events(reader_dir)
 
-    reset_page, reset_errors = open_page(browser, reset_url)
+    reset_page = open_page(browser, reset_url)
     expect(reset_page.locator(".lf-preview")).to_contain_text(
         f"Automation · {runtime.name}"
     )
     expect(reset_page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
-    assert reset_errors == []
     reset_page.close()
 
     reset_automation.send_signal(signal.SIGINT)
@@ -713,7 +717,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     """The open tab follows edits; rejected source never replaces its last good page."""
     source, runtime, directory, command, url = watched_preview
     original = source.read_text(encoding="utf-8")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     with sending(page, "the watched reader option pick"):
         page.locator("#opt-shim .lf-pick").click()
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
@@ -724,7 +728,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     generation = registry["$layer"]["generation"]
 
     theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-    with restarting(page, errors):
+    with restarting(page):
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
         expect(page.locator("h1")).to_have_css(
@@ -739,7 +743,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "events.jsonl").stat().st_ino == inode
 
     revised = original.replace("Rollout", "A watched source revision", 1)
-    with restarting(page, errors):
+    with restarting(page):
         source.write_text(revised, encoding="utf-8")
         expect(
             page.get_by_role("heading", name="A watched source revision")
@@ -747,7 +751,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    with restarting(page, errors):
+    with restarting(page):
         source.write_text("<p>invalid source</p>", encoding="utf-8")
         log_path = directory.with_name(f"{directory.name}.preview.log")
         deadline = time.monotonic() + 30
@@ -766,7 +770,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "index.html").read_text() == revised
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    with restarting(page, errors):
+    with restarting(page):
         source.write_text(
             revised.replace("A watched source revision", "Recovered watched source"),
             encoding="utf-8",
@@ -782,8 +786,6 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
-    assert errors == []
-    page.close()
 
 
 def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
@@ -791,12 +793,11 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
 ):
     """Reset replaces the selected preview instead of carrying its event log over."""
     source, _, directory, command, url = watched_preview
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     with sending(page, "the reader option pick before reset"):
         page.locator("#opt-shim .lf-pick").click()
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert b'"kind": "action"' in (directory / "events.jsonl").read_bytes()
-    assert errors == []
     page.close()
 
     reset = subprocess.run(
@@ -811,9 +812,8 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
     assert (directory / "index.html").read_bytes() == source.read_bytes()
     assert b'"kind": "action"' not in (directory / "events.jsonl").read_bytes()
 
-    fresh, fresh_errors = open_page(browser, reset.stdout.splitlines()[-1])
+    fresh = open_page(browser, reset.stdout.splitlines()[-1])
     expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")
-    assert fresh_errors == []
     fresh.close()
 
 
@@ -834,10 +834,9 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     """Supervision precedes entry, dependency, registry and stylesheet loading."""
     _, runtime, directory, _, url = watched_preview
     if resource == "widgets/lf-options.js":
-        standing, errors = open_page(browser, url)
+        standing = open_page(browser, url)
         with sending(standing, "the standing reader option pick"):
             standing.locator("#opt-shim .lf-pick").click()
-        assert errors == []
         standing.close()
     page = browser.new_page()
     failures = []
@@ -889,7 +888,6 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
         == generation
     )
-    page.close()
 
 
 def test_a_failed_bootstrap_hears_a_static_registry_generation(
@@ -938,7 +936,6 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
     assert len(probes) >= 2
     assert len(navigations) == 2
     expect(status).not_to_be_visible()
-    page.close()
 
 
 @pytest.mark.parametrize("interrupted", ["registry.json", "widgets/lf-options.js"])
@@ -977,7 +974,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         route.continue_()
 
     page.route(f"**/{interrupted}", stop_the_service)
-    with restarting(page, errors):
+    with restarting(page):
         page.goto(url, wait_until="load")
         # `load` is not the boundary: a widget is imported after it, so the stop is
         # waited for through the answer the page gives it rather than read straight
@@ -1000,8 +997,6 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=90
         )
         assert restarted.returncode == 0, restarted.stdout + restarted.stderr
-    assert errors == []
-    page.close()
 
 
 def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
@@ -1076,6 +1071,419 @@ def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spaw
 
 # ---------- export: the page as one file ----------
 
+OFFLINE_WIDGET = """\
+import { LitElement, html, widgetController } from "/runtime/widget-api.js";
+
+customElements.define("lf-offline-test", class extends LitElement {
+  controller = widgetController(this);
+  reading = this.controller.read();
+  local = 0;
+  stop = null;
+
+  createRenderRoot() {
+    return this.shadowRoot ?? this.attachShadow({mode: "open", serializable: true});
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.stop ??= this.controller.subscribe(reading => {
+      this.reading = reading;
+      this.requestUpdate();
+    });
+  }
+
+  disconnectedCallback() {
+    this.stop?.();
+    this.stop = null;
+    super.disconnectedCallback();
+  }
+
+  choose() {
+    return this.controller.dispatch({
+      kind: "action", verb: "choose", detail: {choice: "chosen"},
+    });
+  }
+
+  requestRun() {
+    return this.controller.dispatch({kind: "request", verb: "run", detail: {}});
+  }
+
+  render() {
+    const choice = this.reading.state.choice?.value ?? this.getAttribute("choice");
+    const action = this.reading.actions.choose;
+    const request = this.reading.requests.run;
+    const unavailable = action.unavailable ?? request.unavailable;
+    return html`
+      <style>#local { color: rgb(12, 34, 56); }</style>
+      <button id="local" @click=${() => { this.local += 1; this.requestUpdate(); }}>
+        Increment locally
+      </button>
+      <output id="local-value">${this.local}</output>
+      <button id="choose" ?disabled=${!action.available} @click=${this.choose}>
+        Choose on host
+      </button>
+      <button id="request" ?disabled=${!request.available} @click=${this.requestRun}>
+        Request host work
+      </button>
+      <output id="choice">${choice}</output>
+      ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
+    `;
+  }
+});
+"""
+
+OFFLINE_REGISTRY = {
+    "lf-offline-test": {
+        "description": "A page-owned offline export test widget.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "choice": {"type": "string"},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "members",
+        "x-upgrade": True,
+        "x-state": {
+            "choose": {
+                "detail": {
+                    "type": "object",
+                    "properties": {"choice": {"type": "string"}},
+                    "required": ["choice"],
+                    "additionalProperties": False,
+                },
+                "facet": "choice",
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "choice", "value": "choice"},
+            }
+        },
+        "x-request": {
+            "offers": {"lf-offline-command": "verb"},
+            "verbs": {
+                "run": {
+                    "detail": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    }
+                }
+            },
+        },
+        "x-example": (
+            '<lf-offline-test id="offline-example" choice="idle">'
+            '<lf-offline-command verb="run">Run</lf-offline-command>'
+            "</lf-offline-test>"
+        ),
+    },
+    "lf-offline-command": {
+        "description": "One host request offered by the test widget.",
+        "type": "object",
+        "properties": {"verb": {"enum": ["run"]}},
+        "required": ["verb"],
+        "additionalProperties": False,
+        "x-owners": ["lf-offline-test"],
+        "x-content": "markup",
+        "x-upgrade": False,
+    },
+}
+
+
+def test_interactive_export_with_an_ask_reaches_application_presentation(
+    browser, serve, tmp_path
+):
+    """Offline mode omits conversation chrome without leaving its ticket pending."""
+    serve(ROOT / "examples" / "notification-playground.html")
+    interactive = tmp_path / "interactive-with-ask.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    page = browser.new_page()
+    watched(page)
+    page.goto(interactive.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=10000
+    )
+    expect(page.locator(".lf-chrome")).to_have_count(0)
+    page.close()
+
+
+def test_interactive_export_runs_captured_local_behavior_without_a_host(
+    browser, serve, tmp_path
+):
+    """One file boots the captured runtime, but never resurrects its host boundary."""
+    source = leaf_page(
+        "offline interactive",
+        """
+<h1>Offline interactive</h1>
+<lf-offline-test id="offline-widget" choice="idle">
+  <lf-offline-command verb="run">Run</lf-offline-command>
+</lf-offline-test>
+<a id="jump" href="#destination">Jump locally</a>
+<h2 id="destination">Destination</h2>
+""",
+    )
+    url = serve(
+        source,
+        page_files={
+            "registry.json": json.dumps(OFFLINE_REGISTRY),
+            "widgets/lf-offline-test.js": OFFLINE_WIDGET,
+        },
+    )
+    live = open_page(browser, url)
+    with sending(live, "the accepted page-owned choice"):
+        live.locator("#offline-widget").get_by_role(
+            "button", name="Choose on host"
+        ).click()
+    round_trip(live)
+    expect(live.locator("#offline-widget #choice")).to_have_text("chosen")
+    live.close()
+
+    # Export resolves the stamped artifact, never the mutable aliases left in the page
+    # directory after activation.
+    (serve.page_dir / "widgets" / "lf-offline-test.js").write_text(
+        'throw new Error("mutable widget source escaped its revision");',
+        encoding="utf-8",
+    )
+
+    interactive = tmp_path / "interactive.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+    assert "offline interactive" in result.output
+
+    static = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+    assert "<script" not in static.lower()
+
+    page = browser.new_page(viewport={"width": 1000, "height": 800})
+    watched(page)
+    external = []
+    document_url = interactive.as_uri()
+    page.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if request.url != document_url and not request.url.startswith("data:")
+            else None
+        ),
+    )
+    page.goto(document_url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
+    expect(page.locator(".lf-chrome")).to_have_count(0)
+    assert page.locator("#offline-widget").evaluate(
+        "owner => owner.shadowRoot.serializable"
+    )
+    assert (
+        page.locator("#offline-widget #local").evaluate(
+            "control => getComputedStyle(control).color"
+        )
+        == "rgb(12, 34, 56)"
+    )
+
+    page.locator("#offline-widget").get_by_role(
+        "button", name="Increment locally"
+    ).click()
+    expect(page.locator("#offline-widget #local-value")).to_have_text("1")
+    page.locator("#jump").click()
+    assert page.url.endswith("#destination")
+
+    expect(page.locator("#offline-widget #choose")).to_be_disabled()
+    expect(page.locator("#offline-widget #request")).to_be_disabled()
+    expect(page.locator("#offline-widget #unavailable")).to_have_text(
+        "no agent or server is available"
+    )
+    refused = page.locator("#offline-widget").evaluate(
+        """owner => [
+          owner.choose(),
+          owner.requestRun(),
+          owner.controller.dispatch({kind: 'undo', target: 'missing'}),
+        ]"""
+    )
+    assert refused == [None, None, None]
+    expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
+    assert external == []
+    page.close()
+
+
+def test_interactive_export_hydrates_captured_data_fragments_offline(
+    browser, serve, tmp_path
+):
+    """A frozen interactive copy keeps unopened fragmented payloads usable."""
+    serve(
+        leaf_page(
+            "offline fragmented data",
+            '<h1>Review</h1><lf-diff id="patch" source="review-patch" collapsed>'
+            "<pre></pre></lf-diff>",
+        )
+    )
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
+    )
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", data_model.unified_diff_manifest(patch)
+    )
+    interactive = tmp_path / "fragmented-interactive.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    page = browser.new_page()
+    watched(page)
+    external = []
+    document_url = interactive.as_uri()
+    page.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if request.url != document_url and not request.url.startswith("data:")
+            else None
+        ),
+    )
+    page.goto(document_url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.locator("lf-diff summary").click()
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
+    ).to_have_count(1)
+    assert external == []
+    page.close()
+
+
+@pytest.mark.parametrize(
+    "stem",
+    ["notification-playground", "data-explorer", "code-comparison"],
+)
+def test_playground_examples_keep_their_record_and_offline_interaction_modes(
+    browser, serve, tmp_path, stem
+):
+    source = ROOT / "examples" / f"{stem}.html"
+    url = serve(source)
+    live = open_page(browser, url)
+    playground = live.locator("lf-playground")
+
+    if stem == "notification-playground":
+        playground.get_by_role("button", name="Needs attention").click()
+        submit = playground.get_by_role("button", name="Create notification")
+    elif stem == "data-explorer":
+        live.locator('.query-row[data-filter-id="filter-2"] input').fill("80")
+        submit = playground.get_by_role("button", name="Build query")
+    else:
+        playground.get_by_role("button", name="Wrapped reader").click()
+        submit = playground.get_by_role("button", name="Apply treatment")
+    with sending(live, f"the {stem} configuration"):
+        submit.click()
+
+    static_path = tmp_path / f"{stem}-record.html"
+    static_path.write_text(
+        exporting_model.export_page(browser, url, serve.page_dir, "v1.html"),
+        encoding="utf-8",
+    )
+    live.close()
+
+    record = browser.new_page(viewport={"width": 480, "height": 700})
+    watched(record)
+    record.goto(static_path.as_uri(), wait_until="load")
+    expect(record.locator("script")).to_have_count(0)
+    expect(record.locator("lf-playground").get_by_role("button")).to_have_count(0)
+    expect(record.locator("lf-playground-output")).not_to_be_empty()
+    if stem == "notification-playground":
+        expect(record.locator(".notification-demo-card-banner")).to_have_count(4)
+    elif stem == "data-explorer":
+        expect(record.locator(".query-result-count")).to_have_text("1 matching release")
+    else:
+        expect(record.locator("lf-code.lf-rendered")).to_have_count(3)
+        expect(record.locator("#code-comparison-instruction")).to_contain_text(
+            "comfortable reading density"
+        )
+    assert record.evaluate("document.documentElement.scrollWidth") == 480
+    record.emulate_media(media="print")
+    expect(record.locator("lf-playground-output")).to_be_visible()
+    record.close()
+
+    interactive_path = tmp_path / f"{stem}-interactive.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive_path),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    offline = browser.new_page(viewport={"width": 900, "height": 700})
+    watched(offline)
+    external = []
+    document_url = interactive_path.as_uri()
+    offline.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if request.url != document_url and not request.url.startswith("data:")
+            else None
+        ),
+    )
+    offline.goto(document_url, wait_until="load")
+    expect(offline.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(offline.locator(".lf-chrome")).to_have_count(0)
+    expect(offline.locator(".lf-playground-submit")).to_be_disabled()
+    expect(offline.locator(".lf-playground-unavailable")).to_have_text(
+        "Submission unavailable: no agent or server is available."
+    )
+    if stem == "notification-playground":
+        offline.locator('lf-playground-control[name="events"] input').fill("2")
+        expect(offline.locator(".notification-demo-card-banner")).to_have_count(2)
+    elif stem == "data-explorer":
+        offline.get_by_role("button", name="Add filter").click()
+        expect(offline.locator(".query-row")).to_have_count(3)
+    else:
+        offline.locator('lf-playground-control[name="width"] input').fill("420")
+        expect(offline.locator('[data-candidate="A"]')).to_have_attribute(
+            "style", re.compile(r"width: 420px")
+        )
+        expect(offline.locator('[data-candidate="B"]')).to_have_attribute(
+            "style", re.compile(r"width: 420px")
+        )
+    assert external == []
+    offline.close()
+
 
 def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     browser,
@@ -1099,8 +1507,11 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     assert result.stdout.splitlines()[-1] == str(out.resolve())
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
-    page.on("requestfailed", lambda request: errors.append(f"unfetched {request.url}"))
+    watched(page)
+    page.on(
+        "requestfailed",
+        lambda request: page.lf_errors.append(f"unfetched {request.url}"),
+    )
     page.goto(out.as_uri(), wait_until="load")
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
     title = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
@@ -1110,8 +1521,6 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     assert page.locator("script").count() == 0
     assert page.locator('link[rel="stylesheet"]').count() == 0
     assert page.locator("style").count() > 0
-    assert errors == []
-    page.close()
 
 
 def test_exporting_an_example_leaves_the_live_preview_untouched(
@@ -1156,6 +1565,77 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
         exporting_model.export_page(
             primed(browser, break_probe), root_url, serve.page_dir, "v1.html"
         )
+
+
+def test_export_waits_for_a_current_presentation_opened_after_arrival(
+    browser, serve, monkeypatch
+):
+    """The monotonic arrival latch cannot authorize a later half-drawn copy."""
+    source = leaf_page(
+        "current export readiness",
+        '<h1>Current export readiness</h1><p id="export-reading">initial</p>',
+    )
+
+    def hold_later_presentation(page):
+        page.add_init_script(
+            """addEventListener('DOMContentLoaded', () => {
+              const arm = async () => {
+                if (
+                  window.__lfExportPresentation ||
+                  document.body.dataset.lfPresented !== '1'
+                ) return;
+                const entry = document.querySelector(
+                  'script[data-lf-entry]'
+                ).dataset.lfEntry;
+                const {attachApplicationPresentation} = await import(
+                  new URL(
+                    'runtime/semantic-state.js',
+                    new URL(entry, location.href),
+                  ).href
+                );
+                const target = document.querySelector('#export-reading');
+                const presentation = attachApplicationPresentation(
+                  'test:export-current-readiness', target,
+                );
+                let settle;
+                const completion = new Promise(resolve => { settle = resolve; });
+                window.__lfExportPresentation = presentation;
+                window.__lfReleaseExportPresentation = () => {
+                  target.textContent = 'current';
+                  settle();
+                };
+                void presentation.present('current', completion);
+              };
+              new MutationObserver(arm).observe(document.body, {
+                attributes: true,
+                attributeFilter: ['data-lf-presented'],
+              });
+              void arm();
+            }, {once: true});"""
+        )
+
+    original_wait = render_checks_model.wait_for_probe
+    probed = []
+
+    def release_at_current_probe(page, name, *args):
+        if name == "currentPresented":
+            probed.append(name)
+            page.wait_for_function(
+                "() => Boolean(window.__lfReleaseExportPresentation)"
+            )
+            page.evaluate("() => window.__lfReleaseExportPresentation()")
+        return original_wait(page, name, *args)
+
+    monkeypatch.setattr(render_checks_model, "wait_for_probe", release_at_current_probe)
+    exported = exporting_model.export_page(
+        primed(browser, hold_later_presentation),
+        serve(source),
+        serve.page_dir,
+        "v1.html",
+    )
+
+    assert probed == ["currentPresented"]
+    assert '<p id="export-reading">current</p>' in exported
 
 
 def test_export_waits_for_the_snapshot_the_browser_can_receive(
@@ -1246,7 +1726,116 @@ def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tm
     page.goto(out.as_uri(), wait_until="load")
     assert page.evaluate("document.characterSet") == "UTF-8"
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
-    page.close()
+
+
+def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_path):
+    """Nested imports and images come from the drawn revision, not mutable files."""
+    icon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="navy"/></svg>'
+    source = leaf_page(
+        "Captured appearance",
+        """
+<h1 id="title">Captured appearance</h1>
+<figure id="badge"><img src="/page/icon.svg" alt="Captured badge" width="24" height="24"></figure>
+<svg id="vector" width="24" height="24"><image href="/page/icon.svg" width="24" height="24"></image></svg>
+<img id="responsive" srcset="/page/icon.svg 1x, /page/icon-2.svg 2x" alt="Responsive badge">
+<p id="inline" style="background-image: url('/page/icon.svg')">Inline asset</p>
+<pre id="quoted"><code>url('/page/icon.svg')</code></pre>
+""",
+        head='<link rel="stylesheet" href="/page/styles/main.css">',
+    )
+    url = serve(
+        source,
+        page_files={
+            "icon.svg": icon,
+            "icon-2.svg": icon.replace("navy", "green"),
+            "styles/main.css": """
+@import "./nested/palette.css" layer(captured) supports(display: grid) screen;
+#title { color: var(--export-tone) !important; }
+""",
+            "styles/nested/palette.css": """
+@import "../main.css";
+body { --export-tone: rgb(12, 34, 56); }
+#badge { background-image: url('../../icon.svg'); }
+""",
+        },
+    )
+    # Replacing, not writing through the initialized fixture's immutable hardlinks.
+    files_model.replace_files(
+        [
+            (
+                serve.page_dir / "theme.css",
+                b":root { --mutable-theme-only: 1; }",
+                False,
+            ),
+            (
+                serve.page_dir / "runtime/chrome.css",
+                b":root { --mutable-chrome-only: 1; }",
+                False,
+            ),
+            (
+                serve.page_dir / "page/styles/nested/palette.css",
+                b"body { --export-tone: red; }",
+                False,
+            ),
+            (
+                serve.page_dir / "page/icon.svg",
+                icon.replace('"24"', '"48"').encode(),
+                False,
+            ),
+        ]
+    )
+    exported = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+    assert "--mutable-theme-only" not in exported
+    assert "--mutable-chrome-only" not in exported
+    out = tmp_path / "captured.html"
+    out.write_text(exported, encoding="utf-8")
+    page = browser.new_page()
+    watched(page)
+    requests = []
+    page.on("request", lambda request: requests.append(request.url))
+    try:
+        page.goto(out.as_uri(), wait_until="load")
+        expect(page.locator("#title")).to_have_css("color", "rgb(12, 34, 56)")
+        expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
+            "naturalWidth", 24
+        )
+        assert (
+            page.locator("#vector image")
+            .get_attribute("href")
+            .startswith("data:image/svg+xml;base64,")
+        )
+        assert (
+            page.locator("#responsive")
+            .get_attribute("srcset")
+            .count("data:image/svg+xml;base64,")
+            == 2
+        )
+        expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
+        for selector in ("#badge", "#inline"):
+            assert (
+                page.locator(selector)
+                .evaluate("el => getComputedStyle(el).backgroundImage")
+                .startswith('url("data:image/svg+xml;base64,')
+            )
+        assert requests == [out.as_uri()]
+    finally:
+        page.close()
+
+
+def test_export_refuses_a_rendered_asset_outside_the_page(browser, serve):
+    source = leaf_page(
+        "External rendered image",
+        '<h1>External rendered image</h1><img id="external" alt="External evidence">',
+        head="""<script type="module">
+document.querySelector('#external').src = 'https://outside.invalid/evidence.svg';
+</script>""",
+    )
+    url = serve(source)
+    with pytest.raises(
+        SystemExit,
+        match="could not embed its captured assets: export resource is outside the page",
+    ):
+        exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -1318,7 +1907,6 @@ def test_an_exported_scroll_cue_follows_its_native_scroller(
     assert end["position"] > 0.99, end
     assert (end["left"], end["right"]) == end_edges, end
     assert len({start["mask"], middle["mask"], end["mask"]}) == 3
-    page.close()
 
 
 def test_a_browser_too_old_to_copy_a_page_is_refused_by_its_own_version(
@@ -1371,7 +1959,7 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
@@ -1381,8 +1969,6 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
     links.nth(1).click()
     expect(page.locator(":target")).to_have_attribute("id", href[1:])
     assert page.locator("script").count() == 0
-    assert errors == []
-    page.close()
 
 
 def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path):
@@ -1412,14 +1998,13 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
     out = tmp_path / "gloss-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(copy)
+    watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
     expect(copy.locator(".lf-gloss-popover")).to_be_visible()
     expect(copy.locator(".lf-gloss-mark")).to_have_count(0)
     expect(copy.locator("lf-gloss")).to_contain_text(
         "walking skeletonA thin path through the real system."
     )
-    assert errors == []
     copy.close()
 
 
@@ -1453,13 +2038,11 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     out = tmp_path / "work-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator(".lf-receipt")).to_have_count(0)
     expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
-    assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("resolved", [False, True], ids=["open", "resolved"])
@@ -1480,13 +2063,20 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n',
     )
+    image = tmp_path / "evidence.svg"
+    image.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">'
+        '<rect width="24" height="24" fill="navy"/></svg>'
+    )
+    _, image_url = media_model.cmd_media(serve.page_dir, [image])[0]
     root = events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "Keep this check beside the changed line.",
+            "text": "Keep this check beside the changed line.\n\n"
+            f"![Review evidence]({image_url})",
             "anchor": {
                 "section": "patch",
                 "datum": '["app.py","new",1]',
@@ -1501,7 +2091,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )
     selector = f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
-    live, live_errors = open_page(browser, url)
+    live = open_page(browser, url)
     thread = live.locator(selector)
     expect(thread).to_have_count(1)
     expect(thread.locator("button")).not_to_have_count(0)
@@ -1511,13 +2101,12 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         thread.locator("button:visible, textarea:visible, .lf-receipt:visible").count()
         == 0
     )
-    assert live_errors == []
     live.close()
 
     out = tmp_path / "thread-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page()
-    errors = watched(copy)
+    watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
     thread = copy.locator(selector)
     expect(thread).to_have_count(1)
@@ -1528,12 +2117,14 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         thread.locator("summary").click()
     expect(thread.locator(".lf-conversation-body")).to_be_visible()
     expect(thread).to_contain_text("Keep this check beside the changed line.")
+    expect(thread.get_by_role("img", name="Review evidence")).to_have_js_property(
+        "naturalWidth", 24
+    )
     if resolved:
         thread.locator("summary").click()
         expect(thread.locator(".lf-conversation-body")).to_be_hidden()
     copy.emulate_media(media="print")
     expect(thread.locator(".lf-conversation-body")).to_be_visible()
-    assert errors == []
     copy.close()
 
 
@@ -1599,7 +2190,7 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
@@ -1610,8 +2201,6 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     expect(page.locator("#d-open")).to_contain_text(
         "The sample workshop is in the red room."
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
@@ -1624,7 +2213,7 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     no longer present.
     """
     url = serve(REPLAYED_PAGE)
-    live, live_errors = open_page(browser, url)
+    live = open_page(browser, url)
     live.get_by_role("button", name="Move: Wire the importer — Doing").focus()
     live.keyboard.press("Enter")
     live.keyboard.press("ArrowRight")
@@ -1632,20 +2221,17 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     expect(live.locator("#card-importer")).to_have_attribute(
         "data-lf-reader-override", "1"
     )
-    assert live_errors == []
     live.close()
 
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     card = page.locator("#card-importer")
     expect(card).to_have_attribute("data-lf-reader-override", "1")
     expect(card.locator(":scope > .lf-quiet")).to_have_text("your change")
     expect(page.locator(".lf-chrome")).to_have_count(0)
-    assert errors == []
-    page.close()
 
 
 def test_a_copy_keeps_generated_native_controls_and_their_labels(
@@ -1679,10 +2265,9 @@ def test_a_copy_keeps_generated_native_controls_and_their_labels(
 """,
     )
     url = serve(source)
-    live, errors = open_page(browser, url)
+    live = open_page(browser, url)
     expect(live.get_by_role("checkbox", name="Show detail")).to_be_visible()
     expect(live.get_by_role("button", name="Run scripted action")).to_be_visible()
-    assert errors == []
     live.close()
 
     out = tmp_path / "native-controls-copy.html"
@@ -1769,8 +2354,8 @@ def test_an_exported_page_fixture_stands_on_its_own(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900}, bypass_csp=True)
-    errors = watched(page)
-    page.on("requestfailed", lambda r: errors.append(f"unfetched {r.url}"))
+    watched(page)
+    page.on("requestfailed", lambda r: page.lf_errors.append(f"unfetched {r.url}"))
     render_checks_model.prepare_standalone_probes(page)
     page.goto(out.as_uri(), wait_until="load")
     state = page.evaluate("""() => ({
@@ -1940,7 +2525,6 @@ def test_an_exported_page_fixture_stands_on_its_own(
     )
     assert covered == [], f"the copy draws its own words over each other: {covered}"
     assert axe_violations == [], axe_report
-    assert errors == [], f"{page_fixture.stem} needs a server to render: {errors}"
 
 
 def test_comparison_export_keeps_both_results_and_the_recorded_choice(
@@ -1955,7 +2539,7 @@ def test_comparison_export_keeps_both_results_and_the_recorded_choice(
     )
 
     page = browser.new_page(viewport={"width": 760, "height": 900}, bypass_csp=True)
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     current = page.locator("#comparison-current")
     proposed = page.locator("#comparison-proposed")
@@ -1973,8 +2557,6 @@ def test_comparison_export_keeps_both_results_and_the_recorded_choice(
         "Adopt one shared refresh per tab"
     )
     assert page.locator("script, .lf-chrome").count() == 0
-    assert errors == []
-    page.close()
 
 
 def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
@@ -2019,7 +2601,6 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     expect(page.locator("#t-parser")).to_have_attribute("status", "done")
     expect(page.locator("#t-feeders > .lf-chips")).to_contain_text("2/2 done")
     expect(page.locator("#t-parser > .lf-quiet")).to_contain_text("reported update")
-    page.close()
 
 
 def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_path):
@@ -2144,7 +2725,7 @@ def test_a_copy_drops_live_element_projection_state(browser, serve, tmp_path):
         },
     )
 
-    live, errors = open_page(browser, url)
+    live = open_page(browser, url)
     figure = live.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
@@ -2157,5 +2738,4 @@ def test_a_copy_drops_live_element_projection_state(browser, serve, tmp_path):
     expect(copy.locator("#fig")).not_to_have_class(
         re.compile(r"\blf-(?:mark-el|projected-mark)\b")
     )
-    assert errors == []
     copy.close()

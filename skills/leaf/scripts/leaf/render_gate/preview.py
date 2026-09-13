@@ -8,6 +8,7 @@ from leaf.files import version_name
 from leaf.hosting import TemporaryPageServer
 from leaf.leases import transition_lock
 from leaf.page_snapshot import capture_page_snapshot
+from leaf.revision_artifact import RevisionArtifact
 from leaf.structure import SourceDocument
 
 
@@ -19,6 +20,7 @@ def preview_server(
     *,
     version: int | None = None,
     transition_held: bool = False,
+    artifact: RevisionArtifact | None = None,
 ):
     """Serve one exact document without changing the page's durable state.
 
@@ -41,7 +43,7 @@ def preview_server(
                 f"/versions/{version_name(version)}" if version is not None else "/"
             ),
         }
-        snapshot = capture_page_snapshot(page_dir, document, active)
+        snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
         server = TemporaryPageServer(
             page_dir, handler_options={"page_snapshot": snapshot}
         )

@@ -50,16 +50,20 @@ uv run pytest --lf --lfnf=none -x -n0
 Formatted CLI output lives in `tests/_regtest_outputs/`. After an intentional
 change, reset only the affected test, then inspect the recorded diff before committing:
 
+TODO(2026-09-12): Move more stable multiline CLI output contracts from partial
+string assertions to regtest snapshots.
+
 ```sh
 uv run pytest --regtest-reset -n0 <node-id>
 ```
 
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
-rebasing. Pull requests and main run pre-commit, the everyday suite, and the
-website-worker checks. Tend's review chooses the smallest additional test
-selection that covers the product paths a pull request changes. The scheduled
-CI run exercises the complete suite in one job:
+rebasing. Pull requests run pre-commit, the everyday suite, and the website-worker
+checks. Main runs the ordinary gate; `publish-site` runs the website checks before
+deploying a relevant main change. Tend's review chooses the smallest additional
+test selection that covers the product paths a pull request changes. The
+scheduled CI run exercises the complete suite in one job:
 
 ```sh
 uv run pytest tests --run-nightly
@@ -106,8 +110,8 @@ corpus sweeps include them. File-side fixtures live in `interact_support.py`. Br
 fixtures live in `render_harness.py`; reusable browser cases are grouped by
 interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
 Both fixture modules use `TemporaryPageServer`, the same process-owned server as
-`scripts/preview.py --automation`. `render_support.py` reexports that surface
-for the test modules rather than owning another copy. `test_site.py` reads the
+`scripts/preview.py --automation`. Test modules import support from its owning
+module directly. `test_site.py` reads the
 built site through its served URLs. Product documentation tests compare the docs
 with the shipped vocabulary and command surface: a shown command the click tree
 has not got, an `x-` key the guide omits, a table that has drifted from the
@@ -143,12 +147,15 @@ reading of the band a box shows, naming overflow, paint containment, and
 `content-visibility`; `version check --render` and `RINGS_DRAWN` both consume it
 rather than copying it.
 
-A focus ring is drawn only for a press: `element.focus()` sets `:focus` and not
-`:focus-visible`, so a control focused from script wears no ring, and every
-reading of one comes back the same empty as a control whose ring is fine. Reach
-it with a real `Tab`, or focus it and press `Tab` then `Shift+Tab` back, and
-assert the ring is there before asserting anything about its shape. Which box
-wears the ring is a separate question from which holds focus: a decision may
+A focus ring is drawn only in keyboard modality: `element.focus()` alone sets
+`:focus` and not `:focus-visible`. A direct specimen first presses `Tab`, then
+focuses its exact sequential stop and requires it to retain `:focus-visible`.
+The reading must find a ring on that stop, its ancestor, or the exact semantic
+carrier the test links to it before asserting anything about the ring's shape.
+A separate fast sweep reaches every stop in the selected pages' ordinary Tab
+orders, and a planted test reaches the banner and thread list through their real
+keys before taking the ring away. Which box wears the ring is a separate
+question from which holds focus: a decision may
 wrap the control reached, a joined option group may stand for the pick that gave
 up focus, and an anchored element may have no focus of its own. The reading
 therefore sweeps every box painting a ring and asks the paint, never
@@ -173,15 +180,15 @@ must report nothing,
 shadows the layer draws that are not the band in front of the reading and then
 stands the band on the window's foot, and
 `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` fails
-on any rule the corpus never paints and any scope its walk never opens. A ring
+on any rule with no causal specimen and any required surface that does not open. A ring
 is credited when a box painting the layer's band also carries a name; a name
 whose ring a later rule took away is not credited — which is what keeps the
 response bar's own controls off `pressable`, the floor rule whose outline the bar
 removes — and a ring painted with no name is its own finding. Nothing reads
 `@media` or `@supports`: the reading is taken on screen.
 
-The walk also asks at every stop whether the reader can see where the keyboard
-is, and four answers count: the platform's own ring (`outline-style: auto`), the
+Each focused specimen also asks whether the reader can see where the keyboard
+is. Four answers count: the platform's own ring (`outline-style: auto`), the
 layer's here ring on the stop or an ancestor drawing for it, the element mark's
 own ink at the indicated weight, and the band the anchored response bar casts as
 a shadow — the sweep's own reading of it, so the two halves of the file agree on
@@ -190,9 +197,8 @@ written, since a `color-mix` and a plain token spell one colour two ways. Any
 outline an element wears for a reason other than focus silently costs it the
 ring it would otherwise have had.
 
-A Tab walk states its starting point as well as its end. `blur()` leaves the
-sequential focus navigation starting point where the blurred control stood, so
-the next Tab runs off the end of the order; `document.body.focus()` resets it.
+An opening key sequence states its starting point. `blur()` retains the previous
+sequential focus navigation position; `document.body.focus()` resets it.
 
 A reach case answers for the shapes it is written over, and a ring has two,
 outset and inset. `ring_faults`'s cover check steps past the ring's own band
@@ -223,6 +229,12 @@ vendored page and uses its HTTP API. A render-gate test calls
 `leaf.render_gate.version.render_version`, not one of its probes. Test a helper
 directly only when the helper itself carries a contract that would otherwise be
 hard to diagnose, such as the traffic wait reaching its deadline.
+
+A probe's independent faults belong on one composed page when its findings attribute
+each fault separately. Put clean controls beside them and assert the relevant populations
+before calling the public gate, then compare its complete result where the fixture owns
+every expected finding. Do not start a fresh browser gate merely to vary one declaration
+or stylesheet rule that the same reading can distinguish by owner, role, or surface.
 
 A reading the layer makes from declarations belongs on a widget that declares
 them, not on whichever shipped entry currently does. `serve` takes
@@ -382,9 +394,12 @@ Open ordinary browser pages through `open_page`. It installs `Traffic` and
 
 - `data-lf-upgraded="1"` says widget upgrade finished.
 - `data-lf-applied` says a replay pass applied the event log.
-- `data-lf-presented="1"` says the authoritative projection or offline fallback
-  is safe for recorded interaction. The anchor pass and anchored composer begin
-  here; authored HTML may have painted earlier.
+- `data-lf-presented="1"` says the initial authoritative projection or offline fallback
+  crossed the interaction boundary. The anchor pass and anchored composer begin here;
+  authored HTML may have painted earlier.
+- The current presentation probe says every required renderer for the active semantic
+  epoch has settled. A later publication or same-epoch replacement can make it false
+  while `data-lf-presented` remains set.
 
 These are independent facts. Network quiet implies neither. A browser action
 sent before replay has landed may be ignored without a later assertion revealing
@@ -402,8 +417,14 @@ which browser error channels count.
 `navigate` handles the one browser notice that needs confirmation: a
 ResizeObserver-loop notice raised during handover is repeated with a complete
 second navigation; a recurring notice is a failure, a one-off platform notice is
-not. Tests assert `errors == []` after the behavior they drive, not just after
-load.
+not. The function-scoped browser fixture rejects every collected problem after the
+journey, then closes its remaining contexts. Context closure can cancel an outstanding
+request, so it is cleanup rather than part of the health reading. A test that
+intentionally produces a known class of problem uses `consume_browser_errors` at the
+causal point; every collected entry must match one of its named fragments. Use
+`take_browser_errors` only when the test itself asserts the exact list or partitions
+every entry. Filtering the collector or leaving expected noise behind is not an
+assertion.
 
 ## A wait consumes a fact the system states
 
@@ -550,6 +571,8 @@ Enabling interception on an already-running page can let that POST reach the
 server without a route callback. `open_page` arms each page it makes on a
 pattern nothing ever asks for, so a route a test registers later only adds to a
 list the browser is already consulting; a page made another way is unarmed.
+`held_events` also owns the server fixture ordering: its finalizer releases held
+requests before server shutdown rather than resuming them into a closed socket.
 
 A handler that appends a route to `held` has established only that the browser
 made the request. Before reading that list — indexing it, asserting its length,
@@ -602,8 +625,8 @@ produces an HTTP error, assert the enriched status-and-URL entry collected by
 
 A test that stops the page's own server has no way to keep the browser quiet
 about it. Bracket the span that makes the noise instead of listing what it says.
-`restarting` drops what the page said inside the block, so the reading everywhere
-else is `errors == []`, and a diagnostic the test means to produce is asserted
+`restarting` drops what the page said inside the block, so the fixture's reading
+everywhere else remains clean, and a diagnostic the test means to produce is asserted
 inside the block that produces it. A filter stated over a whole test's output
 takes a new member every time a fetch moves, and it ends up describing the test's
 own noise. `test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back`
@@ -738,10 +761,11 @@ that distinguish causes. `open_page` enriches HTTP failures with status and URL;
 `round_trip` reports both ends of its wait; a fixture cleanup failure names the
 server or process it could not stop.
 
-At the end of a browser journey, assert the collected problems after all gestures,
-polls, reloads, and route releases, then close the page or let its
-owning context close it. If an earlier fault is intentionally induced, assert
-and remove that exact expected entry at the point it occurs.
+The `browser` fixture checks collected problems after all gestures, polls, reloads, and
+route releases, then closes the remaining contexts. Close a page explicitly only when
+the lifecycle or an earlier release matters to the journey. If an earlier fault is
+intentionally induced, assert and consume that exact expected entry at the point it
+occurs.
 
 Assert durable output as meaning rather than formatter layout. Collapse
 whitespace when testing what a page says, use `spoken` when the registry-backed

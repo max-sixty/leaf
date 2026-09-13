@@ -451,6 +451,8 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
         page.mouse.move(8, 450)
         page.mouse.wheel(0, -200)
         page.wait_for_function("before => scrollY < before", arg=revealed_scroll)
+        page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+        assert page.evaluate("scrollY") < revealed_scroll
         expect(page.locator(".lf-fab-bar")).to_have_attribute(
             "data-lf-placement", placement
         )
@@ -467,19 +469,24 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
 
 def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser, serve):
     """The stable vertical choice reads both the visible band and scroll travel."""
+    passage = (
+        "A passage near the end of its page has more reachable room above it. "
+        + "Its full block must keep the same room while the viewport clips it. " * 5
+    )
     page, errors = open_page(
         browser,
         serve(
             leaf_page(
                 "Comment above",
-                '<div style="height: 100vh"></div><p id="passage">'
-                "A passage near the end of its page has more reachable room above it."
-                '</p><div style="height: 500px"></div>',
+                f'<div style="height: 100vh"></div><p id="passage">{passage}'
+                '</p><div style="height: 800px"></div>',
             )
         ),
     )
     resized(page, 390, 900)
-    page.evaluate("() => scrollTo({top: document.documentElement.scrollHeight})")
+    page.evaluate(
+        "() => scrollTo({top: document.getElementById('passage').offsetTop - 300})"
+    )
     page.evaluate(RENDERED)
     paragraph = page.locator("#passage")
     points = paragraph.evaluate(
@@ -517,10 +524,14 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         }"""
     )
     assert boxes["barBottom"] <= boxes["passageTop"], boxes
+    float_height = bar.evaluate(
+        "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-float-h'))"
+    )
     last_scroll = page.evaluate("scrollY")
     maximum_scroll = page.evaluate(
         "document.scrollingElement.scrollHeight - innerHeight"
     )
+    assert maximum_scroll - last_scroll > 450
     page.mouse.move(8, 450)
     for _ in range(math.ceil((maximum_scroll - last_scroll) / 150)):
         page.mouse.wheel(0, 150)
@@ -528,7 +539,11 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
         moved = page.evaluate("scrollY")
         assert moved > last_scroll
+        assert bar.evaluate(
+            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-float-h'))"
+        ) == pytest.approx(float_height, abs=1)
         last_scroll = moved
+    assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
     assert errors == []
     page.close()

@@ -434,21 +434,17 @@ export function createResponseSurface({
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     const clips = new Map();
     const parts = block ? shownParts(block) : [];
+    // Room is a reading of the whole block; clipping changes as the reader scrolls.
+    // Attachment uses the visible part so the field still meets what is on screen.
+    const roomRect =
+      union(parts.map((part) => shownBox(part)).filter(Boolean)) || target;
     const keepClear =
-      union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
-      // Scrolled clear of the viewport, the block keeps its column and loses its shown
-      // rect, so the clipped reading has nothing left to say about where the field may
-      // stand. Its unclipped bounds answer the question the clipped one was asked. The
-      // fall through to the passage did the one thing the rule above forbids: beside a
-      // short selection the field took the words after it, left the free margin, and
-      // came to rest on the sentences the reader had scrolled to.
-      union(parts.map((part) => shownBox(part))) ||
-      target;
+      union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) || roomRect;
     const scroller = effectiveScroller(readingRegion ?? owner);
     const visibleVerticalRoom = (side) =>
       side === "top"
-        ? keepClear.top - boundary.top - 6
-        : boundary.bottom - keepClear.bottom - 6;
+        ? roomRect.top - boundary.top - 6
+        : boundary.bottom - roomRect.bottom - 6;
     const verticalRoom = (side) => {
       const travel =
         side === "top"
@@ -460,7 +456,7 @@ export function createResponseSurface({
       return Math.max(
         0,
         Math.min(
-          boundary.height - keepClear.height - 6,
+          boundary.height - roomRect.height - 6,
           visibleVerticalRoom(side) + travel,
         ),
       );

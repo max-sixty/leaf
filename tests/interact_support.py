@@ -560,11 +560,9 @@ def before_choice(page, markup):
 
 
 def suggest(page_dir, markup=SUGGESTION):
-    """Write and publish v1 carrying a suggestion, and an unchanged v2 to
-    check against."""
+    """Write and publish v1 carrying a suggestion to check against."""
     (page_dir / "index.html").write_text(before_choice(PAGE, markup))
     publish(page_dir)
-    (page_dir / "index.html").write_text(before_choice(PAGE, markup))
 
 
 def decide(page_dir, outcome, widget="sug-refill"):

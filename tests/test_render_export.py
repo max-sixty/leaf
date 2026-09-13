@@ -1190,6 +1190,24 @@ def test_export_waits_for_the_snapshot_the_browser_can_receive(
     assert exported.startswith(UTF8_BOM)
 
 
+def test_export_state_route_follows_the_canonical_page_root(browser):
+    """A multiplexed page keeps its capability prefix when export reads state."""
+    page = browser.new_page()
+    page.set_content(
+        '<link rel="canonical" href="/p/page-capability/" data-lf-runtime>'
+    )
+    try:
+        assert (
+            exporting_model._state_url(
+                page,
+                "https://leaf.invalid/p/page-capability/versions/v2.html",
+            )
+            == "https://leaf.invalid/p/page-capability/api/state"
+        )
+    finally:
+        page.close()
+
+
 def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tmp_path):
     source = leaf_page("Café handoff", "<h1>Café handoff</h1>").replace(
         '<html lang="en">', '<html data-padding="' + "&" * 300 + '">'

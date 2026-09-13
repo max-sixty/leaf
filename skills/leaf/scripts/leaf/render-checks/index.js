@@ -10,4 +10,4 @@ export * from "./replay.js";
 export * from "./runtime.js";
 export * from "./widgets.js";
 export * from "./words.js";
-export { bake } from "./standalone.js";
+export { bake, exportPrepared, prepareExport } from "./standalone.js";

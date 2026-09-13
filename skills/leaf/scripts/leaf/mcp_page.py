@@ -24,15 +24,8 @@ from .structure import SourceDocument
 PAGE_RESOURCE_URI = "ui://leaf/page/v1.html"
 PAGE_APP_RESOURCE = MCP_APP / "page-app.html"
 PAGE_FORMAT = "leaf.page/v1"
+PAGE_READY_SOURCE = Path(__file__).with_name("mcp-page-ready.js")
 _READY_PATH = "/mcp-ready.js"
-_READY_SCRIPT = (
-    b"if(window.parent!==window){const ready=()=>{if(document.body?.dataset."
-    b'lfPresented!=="1")return false;window.parent.postMessage({type:'
-    b'"leaf:mcp-page-ready"},"*");return true};if(!ready()){const observer='
-    b"new MutationObserver(()=>{if(ready())observer.disconnect()});observer.observe("
-    b"document.documentElement,{attributes:true,subtree:true,attributeFilter:"
-    b'["data-lf-presented"]})}}\n'
-)
 
 
 def _with_ready_signal(body: bytes, page_root: str) -> bytes:
@@ -94,7 +87,11 @@ class _RoutedPageHandler(Handler):
 
     def _get(self):
         if urlsplit(self.path).path == _READY_PATH:
-            self._send(200, "text/javascript; charset=utf-8", _READY_SCRIPT)
+            self._send(
+                200,
+                "text/javascript; charset=utf-8",
+                PAGE_READY_SOURCE.read_bytes(),
+            )
             return
         super()._get()
 

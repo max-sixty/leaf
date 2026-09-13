@@ -85,7 +85,7 @@ from render_harness import (
     wait_for_revision,
 )
 
-PASSAGE_WIDGET_TAGS = frozenset(
+REPRESENTATIVE_WIDGET_TAGS = frozenset(
     {"lf-metric", "lf-milestone", "lf-option", "lf-variant"}
 )
 
@@ -105,10 +105,11 @@ def passage_representatives(sources):
     for source in remaining:
         document = structure_model.SourceDocument(source.read_text(encoding="utf-8"))
         shapes[source] = {
-            f"{'widget' if node['tag'] in PASSAGE_WIDGET_TAGS else 'block'}:{node['tag']}"
+            f"{'widget' if node['tag'] in REPRESENTATIVE_WIDGET_TAGS else 'block'}:{node['tag']}"
             for node in document.nodes
             if (
-                node["tag"] in passages_model.TEXT_BLOCK_TAGS | PASSAGE_WIDGET_TAGS
+                node["tag"]
+                in passages_model.TEXT_BLOCK_TAGS | REPRESENTATIVE_WIDGET_TAGS
                 and len(" ".join(passage_text(node).split())) > 12
             )
         }
@@ -179,14 +180,14 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
 def test_real_page_passage_shapes_can_be_quoted(
     browser, serve, source, expected_shapes
 ):
-    """Every selected native, direct-text, and projected page shape is quotable.
+    """Every selected native, representative-widget, and projected shape is quotable.
 
     The collection-time set cover adds a source whenever its passage vocabulary is not
     already represented. Focused tests own settlements, tabs, shadow roots, and gestures.
     """
     page = open_page(browser, serve(source))
     result = page.evaluate(
-        """async compositeTags => {
+        """async representativeTags => {
         const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
@@ -202,7 +203,7 @@ def test_real_page_passage_shapes_can_be_quoted(
         // Native passage blocks come from the runtime. The four composite roots are
         // representative widgets whose direct prose otherwise has no native block;
         // data-lf-said is the runtime's marker for generated words the page still says.
-        const compositeSelector = compositeTags.join(',');
+        const compositeSelector = representativeTags.join(',');
         const blocks = [...document.querySelectorAll(
             `${TEXT_BLOCK},${compositeSelector},[data-lf-said]`)]
           .filter(b => speaks(b) && b.checkVisibility()
@@ -210,7 +211,7 @@ def test_real_page_passage_shapes_can_be_quoted(
         const shapes = new Set();
         for (const block of blocks) {
             if (block.matches(TEXT_BLOCK)) shapes.add(`block:${block.localName}`);
-            if (compositeTags.includes(block.localName))
+            if (representativeTags.includes(block.localName))
                 shapes.add(`widget:${block.localName}`);
             if (block.matches('[data-lf-said]')) shapes.add('said');
         }
@@ -265,7 +266,7 @@ def test_real_page_passage_shapes_can_be_quoted(
         }
         return {missed, skipped, astray, shapes: [...shapes]};
     }""",
-        sorted(PASSAGE_WIDGET_TAGS),
+        sorted(REPRESENTATIVE_WIDGET_TAGS),
     )
     missing_shapes = expected_shapes - set(result["shapes"])
     assert not missing_shapes, (

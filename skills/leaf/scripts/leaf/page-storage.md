@@ -25,7 +25,12 @@ A page directory holds:
                          re-vendor reaches the digest through the modules it
                          replaced. Two revisions sharing the digest differ only in
                          what a live document can be given, so a reader keeps their
-                         open document across the change.
+                         open document across the change. Beside it, `widgets`
+                         maps each declared widget id in the authored main to a
+                         digest of its authored markup, taken from the parsed tree
+                         before delivery rewrites any address; a patch keeps a
+                         widget whose digest the arriving revision repeats and
+                         replaces every other one.
                          The live root follows the active revision, and each
                          revision is also served at its own address under the same
                          delivery boundary as the root.

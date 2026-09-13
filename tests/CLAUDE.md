@@ -50,16 +50,20 @@ uv run pytest --lf --lfnf=none -x -n0
 Formatted CLI output lives in `tests/_regtest_outputs/`. After an intentional
 change, reset only the affected test, then inspect the recorded diff before committing:
 
+TODO(2026-09-12): Move more stable multiline CLI output contracts from partial
+string assertions to regtest snapshots.
+
 ```sh
 uv run pytest --regtest-reset -n0 <node-id>
 ```
 
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
-rebasing. Pull requests and main run pre-commit, the everyday suite, and the
-website-worker checks. Tend's review chooses the smallest additional test
-selection that covers the product paths a pull request changes. The scheduled
-CI run exercises the complete suite in one job:
+rebasing. Pull requests run pre-commit, the everyday suite, and the website-worker
+checks. Main runs the ordinary gate; `publish-site` runs the website checks before
+deploying a relevant main change. Tend's review chooses the smallest additional
+test selection that covers the product paths a pull request changes. The
+scheduled CI run exercises the complete suite in one job:
 
 ```sh
 uv run pytest tests --run-nightly
@@ -106,8 +110,8 @@ corpus sweeps include them. File-side fixtures live in `interact_support.py`. Br
 fixtures live in `render_harness.py`; reusable browser cases are grouped by
 interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
 Both fixture modules use `TemporaryPageServer`, the same process-owned server as
-`scripts/preview.py --automation`. `render_support.py` reexports that surface
-for the test modules rather than owning another copy. `test_site.py` reads the
+`scripts/preview.py --automation`. Test modules import support from its owning
+module directly. `test_site.py` reads the
 built site through its served URLs. Product documentation tests compare the docs
 with the shipped vocabulary and command surface: a shown command the click tree
 has not got, an `x-` key the guide omits, a table that has drifted from the
@@ -739,9 +743,10 @@ that distinguish causes. `open_page` enriches HTTP failures with status and URL;
 server or process it could not stop.
 
 At the end of a browser journey, assert the collected problems after all gestures,
-polls, reloads, and route releases, then close the page or let its
-owning context close it. If an earlier fault is intentionally induced, assert
-and remove that exact expected entry at the point it occurs.
+polls, reloads, and route releases. The `browser` fixture closes every context the
+test leaves open; close one explicitly only when the lifecycle or an earlier release
+matters to the journey. If an earlier fault is intentionally induced, assert and remove
+that exact expected entry at the point it occurs.
 
 Assert durable output as meaning rather than formatter layout. Collapse
 whitespace when testing what a page says, use `spoken` when the registry-backed

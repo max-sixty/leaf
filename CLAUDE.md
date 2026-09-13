@@ -205,9 +205,10 @@ uv run pytest tests
 
 `tests/CLAUDE.md` owns environment setup, focused runs, nightly selection, and
 the Linux authority. `wt merge` runs pre-commit and the everyday suite on the rebased
-tree. Pull requests and main run that gate plus the website-worker checks. Tend
-adds focused tests during review. A daily CI run exercises the complete suite in
-one job.
+tree. Pull requests run that gate plus the website-worker checks. Main runs the
+gate; when a push changes the site, `publish-site` runs the website checks before
+deploying it. Tend adds focused tests during review. A daily CI run exercises the
+complete suite in one job.
 
 That suite reads the Python adapter under `worker/`: `tests/test_website_server.py`
 loads `worker/server.py` and `worker/reply.py` and drives their route, and pre-commit's

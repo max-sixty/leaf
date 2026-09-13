@@ -9,15 +9,17 @@ from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import media as media_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_layout import (
+    ring_faults,
+    standing_ring,
+)
+from render_harness import (
     PAGE_FIXTURES,
     leaf_page,
     open_page,
     resized,
-    ring_faults,
     sending,
     stamp_page,
-    standing_ring,
     told,
 )
 
@@ -66,7 +68,6 @@ def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
     page.wait_for_function("node => node.scrollTop > 0", arg=host.element_handle())
     assert page.evaluate("document.scrollingElement.scrollTop") == document_start
     assert errors == []
-    page.close()
 
 
 def go_to(page, target, kind="Control"):

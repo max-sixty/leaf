@@ -55,8 +55,6 @@ from page_fixtures import package_selection_args, prepare_page, read_fixture
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
-pytestmark = pytest.mark.nightly
-
 ROOT = Path(__file__).parent.parent
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))

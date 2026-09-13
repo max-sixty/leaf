@@ -21,11 +21,46 @@ from render_cases_navigation import (
 )
 from render_harness import (
     LONG_PAGE,
+    clean_browser,
     compare_with,
+    consume_browser_errors,
     open_page,
     panel_settled,
     resized,
+    watched,
 )
+
+
+class _ProblemPage:
+    url = "https://leaf.test/example"
+
+    def add_init_script(self, **_):
+        pass
+
+    def on(self, *_):
+        pass
+
+
+def test_browser_health_rejects_an_unconsumed_problem():
+    """A forgotten per-test assertion cannot turn a browser fault green."""
+
+    with (
+        pytest.raises(
+            AssertionError, match="https://leaf.test/example: unexpected browser fault"
+        ),
+        clean_browser(),
+    ):
+        watched(_ProblemPage()).append("unexpected browser fault")
+
+
+def test_consuming_browser_problems_accounts_for_every_entry():
+    """Naming one expected fault cannot consume an unrelated one."""
+
+    with clean_browser():
+        page = _ProblemPage()
+        watched(page).extend(["expected fault", "unrelated fault"])
+        with pytest.raises(AssertionError, match="unrelated fault"):
+            consume_browser_errors(page, "expected fault")
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
@@ -37,7 +72,7 @@ def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, 
     """
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
-    page, errors = open_page(browser, url, color_scheme=scheme)
+    page = open_page(browser, url, color_scheme=scheme)
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     preview = page.locator(".lf-margin-preview")
@@ -65,8 +100,6 @@ def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, 
         assert surface["alpha"] == 255, (scheme, state, surface)
         expect(surround).to_have_css("background-color", surface["color"])
 
-    assert errors == []
-
 
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
@@ -86,7 +119,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
     try:
         url = serve(LONG_PAGE)
         panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
-        page, errors = open_page(browser, url, context=context)
+        page = open_page(browser, url, context=context)
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
@@ -180,7 +213,6 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
         assert grown["send"]["y"] > short["send"]["y"]
         assert grown["resolve"] == short["resolve"]
         assert grown["overflow"] == 0
-        assert errors == []
     finally:
         context.close()
 
@@ -197,7 +229,7 @@ def test_signoff_enabled_face_is_readable(browser, serve):
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     button = page.locator(".lf-signoff")
     expect(button).to_be_enabled()
     paint = button.evaluate(
@@ -208,7 +240,6 @@ def test_signoff_enabled_face_is_readable(browser, serve):
         "ink": token_colour(page, "--paper"),
         "fill": token_colour(page, "--accent"),
     }, f"the banner's primary action lost its readable face: {paint}"
-    assert errors == []
 
 
 def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
@@ -232,7 +263,7 @@ def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
     )
     url = serve(html)
     _publish(serve.page_dir, 2, html, "reworded the suggestion")
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
     chooser = page.locator(".lf-version")
     expect(chooser).to_be_enabled()
 
@@ -257,7 +288,6 @@ def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
     door = page.locator(".lf-banner-more")
     door.evaluate("el => el.toggleAttribute('data-lf-news', true)")
     expect(door).to_have_css("border-top-color", token_colour(page, "--accent"))
-    assert errors == []
 
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
@@ -282,7 +312,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     )
     url = serve(html)
     panel_comment(serve.page_dir, "Is this ready?", author="claude")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()
     expect(page.locator(".lf-signoff")).to_have_attribute(
@@ -330,12 +360,11 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     page.mouse.move(0, page.viewport_size["height"] - 1)
     expect(control).to_have_attribute("aria-expanded", "true")
     expect(control).to_have_css("background-color", token_colour(page, "--chip"))
-    assert errors == []
 
 
 def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
     """A notice keeps the page's right corner through panel and viewport changes."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     notice = page.locator(".lf-notice")
     for width, panel_open in [
         (1200, False),
@@ -382,4 +411,3 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             )
             == accent
         ), (width, panel_open, "the notice is covered by the panel or its scrim")
-    assert errors == []

@@ -25,7 +25,7 @@ TARGET_PAGE = leaf_page(
 
 
 def test_an_id_resolves_only_when_its_exact_case_is_unique(browser, serve):
-    page, errors = open_page(browser, serve(TARGET_PAGE))
+    page = open_page(browser, serve(TARGET_PAGE))
     reading = page.evaluate(
         """async () => {
           const {captureTargetReference, resolveTargetReference} =
@@ -56,12 +56,11 @@ def test_an_id_resolves_only_when_its_exact_case_is_unique(browser, serve):
         "repeated": "ambiguous",
         "repeatedHasElement": False,
     }
-    assert errors == []
     page.close()
 
 
 def test_anonymous_structure_never_moves_to_an_inserted_sibling(browser, serve):
-    page, errors = open_page(browser, serve(TARGET_PAGE))
+    page = open_page(browser, serve(TARGET_PAGE))
     reading = page.evaluate(
         """async () => {
           const {captureTargetReference, resolveTargetReference} =
@@ -91,12 +90,11 @@ def test_anonymous_structure_never_moves_to_an_inserted_sibling(browser, serve):
         "afterInsertion": "ambiguous",
         "insertionHasElement": False,
     }
-    assert errors == []
     page.close()
 
 
 def test_removing_an_anonymous_target_detaches_its_reference(browser, serve):
-    page, errors = open_page(browser, serve(TARGET_PAGE))
+    page = open_page(browser, serve(TARGET_PAGE))
     reading = page.evaluate(
         """async () => {
           const {captureTargetReference, resolveTargetReference} =
@@ -114,14 +112,13 @@ def test_removing_an_anonymous_target_detaches_its_reference(browser, serve):
     )
 
     assert reading == {"status": "detached", "hasElement": False}
-    assert errors == []
     page.close()
 
 
 def test_pointer_and_keyboard_targets_share_the_unbounded_candidate_walk(
     browser, serve
 ):
-    page, errors = open_page(browser, serve(TARGET_PAGE))
+    page = open_page(browser, serve(TARGET_PAGE))
     reading = page.evaluate(
         """async () => {
           const {targetCandidates} =
@@ -152,12 +149,11 @@ def test_pointer_and_keyboard_targets_share_the_unbounded_candidate_walk(
         "section",
         "hit-scope",
     ]
-    assert errors == []
     page.close()
 
 
 def test_a_frozen_fragment_boundary_survives_its_nodes_being_connected(browser, serve):
-    page, errors = open_page(browser, serve(TARGET_PAGE))
+    page = open_page(browser, serve(TARGET_PAGE))
     reading = page.evaluate(
         """async () => {
           const {
@@ -199,5 +195,4 @@ def test_a_frozen_fragment_boundary_survives_its_nodes_being_connected(browser, 
         "anchoredStatus": "resolved",
         "unanchoredStatus": "resolved",
     }
-    assert errors == []
     page.close()

@@ -71,6 +71,7 @@ from render_harness import (
     TOKEN,
     _traffic,
     compare_with,
+    consume_browser_errors,
     holding,
     leaf_page,
     nudge,
@@ -133,7 +134,7 @@ window.authoredModuleRan = true;
         ),
     )
     url = live_url(serve(source))
-    page, errors = open_page(
+    page = open_page(
         browser,
         url,
         init_script="""
@@ -193,29 +194,22 @@ window.authoredModuleRan = true;
         page.locator("#escape").evaluate("form => form.requestSubmit()")
         page.wait_for_function("() => window.__cspViolations.includes('form-action')")
         assert escaped == []
+        errors = consume_browser_errors(
+            page,
+            "Content Security Policy",
+            "Content-Security-Policy",
+            'MIME type of "application/json"',
+        )
         assert any("frame-ancestors 'none'" in error for error in errors), errors
         assert any('MIME type of "application/json"' in error for error in errors), (
             errors
         )
-        unexpected = [
-            error
-            for error in errors
-            if not (
-                "Content Security Policy" in error
-                or "Content-Security-Policy" in error
-                or (
-                    "Failed to load module script" in error
-                    and 'MIME type of "application/json"' in error
-                )
-            )
-        ]
-        assert unexpected == []
     finally:
         page.close()
 
 
 def test_a_website_example_names_its_limited_agent(browser, serve):
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             leaf_page("Website example", "<h1>Website example</h1>"),
@@ -233,10 +227,10 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
             "this private copy. Install Leaf"
         )
         expect(status.locator("a")).to_have_attribute("href", "/#install")
+        expect(status).to_have_attribute("title", status.text_content())
         expect(page.locator(".lf-banner .lf-dot")).to_have_class(
             re.compile(r"^lf-dot\s*$")
         )
-        assert errors == []
     finally:
         page.close()
 
@@ -257,7 +251,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
         permissions=["clipboard-read", "clipboard-write"],
     )
     page = context.new_page()
-    errors = watched(page)
+    watched(page)
 
     def identify(response_route):
         response = response_route.fetch()
@@ -273,7 +267,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     try:
         page.goto(url, wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator(".lf-banner .lf-status-text")).not_to_contain_text(
+        expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
             "239383829012"
         )
         reference = page.locator(".lf-session-reference")
@@ -289,7 +283,6 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
         reference.click()
         expect(page.locator(".lf-notice")).to_have_text("Copied session reference")
         assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
-        assert errors == []
     finally:
         context.close()
 
@@ -315,7 +308,9 @@ def test_a_website_session_reference_survives_a_failed_first_read(
     )
     try:
         page.goto(url, wait_until="load")
-        expect(page.locator(".lf-banner .lf-status-text")).to_contain_text(status_words)
+        expect(page.locator(".lf-banner .lf-status-detail")).to_contain_text(
+            status_words
+        )
         page.get_by_role("button", name="More page controls", exact=True).click()
         expect(page.locator(".lf-session-reference")).to_have_text(
             "Session 239383829012"
@@ -339,7 +334,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         permissions=["clipboard-read", "clipboard-write"],
     )
     try:
-        page, errors = open_page(
+        page = open_page(
             browser,
             serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
             context=context,
@@ -365,16 +360,14 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         assert "revision: 1" in diagnostics
         assert "event sequence: 1" in diagnostics
         assert "?t=" not in diagnostics
-        assert errors == []
         page.close()
 
-        ordinary, ordinary_errors = open_page(
+        ordinary = open_page(
             browser,
             serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
             context=context,
         )
         expect(ordinary.locator(".lf-preview")).to_have_count(0)
-        assert ordinary_errors == []
         ordinary.close()
     finally:
         context.close()
@@ -393,7 +386,7 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         viewport={"width": width, "height": 900}, has_touch=has_touch
     )
     page = context.new_page()
-    errors = watched(page)
+    watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
 
     try:
@@ -434,7 +427,6 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         assert page.locator("body").bounding_box()["height"] == pytest.approx(
             900, abs=1
         )
-        assert errors == []
     finally:
         for route in boot:
             route.continue_()
@@ -474,7 +466,7 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
 
     held = []
     page = context.new_page()
-    errors = watched(page)
+    watched(page)
     page.route("**/leaf.js", lambda route: held.append(route))
     try:
         with page.expect_request("**/leaf.js"):
@@ -497,7 +489,6 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         ), f"restoring {body_attribute} moved the shell"
-        assert errors == []
     finally:
         for route in held:
             route.continue_()
@@ -533,7 +524,7 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
         "capture the projected-link renderer",
     )
 
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     links = page.locator('#deployments a[href="https://example.com/status"]')
     expect(links).to_have_count(2)
     expect(links.first).to_have_attribute("target", "_blank")
@@ -590,7 +581,6 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
           mark: link.querySelector('.lf-external-mark'),
         })"""
     ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": None}
-    assert errors == []
 
 
 def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
@@ -664,7 +654,7 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
         )
     )
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     settled_link = page.locator("#settled-link")
     page.get_by_role("button", name="Show shadow link").click()
     shadow_link = page.locator("#shadow-link")
@@ -686,11 +676,10 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
     expect(page.locator("#settled-link")).to_have_accessible_description(
         "opens in a new tab"
     )
-    assert errors == []
 
 
 def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
-    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    page = open_page(browser, serve(SHORT_SUGGESTION))
     exports = page.evaluate(
         """async () => {
           const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -728,13 +717,12 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
             "watchDraft",
         ]
     }
-    assert errors == []
 
 
 def test_reading_regions_share_posture_allocation_and_transition_boundaries(
     browser, serve
 ):
-    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
         """async () => {
           const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -898,13 +886,12 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
         len(transition["ids"]) == len(set(transition["ids"]))
         for transition in readings["transitions"]
     )
-    assert errors == []
 
 
 def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
     browser, serve
 ):
-    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    page = open_page(browser, serve(SHORT_SUGGESTION))
     result = page.evaluate(
         """async () => {
           const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -999,7 +986,6 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
         "unchanged": True,
         "detachedMarkerCleared": True,
     }
-    assert errors == []
 
 
 def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serve):
@@ -1008,7 +994,7 @@ def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serv
     Warming the index must not make later generations inherit its declarations. Both
     channels contribute, while only recorded declarations contribute owner selectors.
     """
-    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    page = open_page(browser, serve(SHORT_SUGGESTION))
     indexed = page.evaluate(
         """async () => {
           const {
@@ -1054,7 +1040,6 @@ def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serv
         ],
         "recorded": ["lf-index-action", "lf-index-report"],
     }
-    assert errors == []
 
 
 def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
@@ -1063,7 +1048,7 @@ def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
     The stores' unavailable answer covers that outer browser boundary too, so a
     locked-down page loses only remembered view state and drafts, not the page.
     """
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(SHORT_SUGGESTION),
         init_script="""
@@ -1092,7 +1077,6 @@ def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
         "keys": [],
         "where": {"store": "session", "key": "refused"},
     }
-    assert errors == []
 
 
 def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
@@ -1150,7 +1134,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     )
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     posts = []
     page.on(
         "request",
@@ -1378,7 +1362,6 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             ".querySelector('#shadow-stale-popover').hidePopover()"
         )
         assert page.evaluate("() => window.__lfPresentation.releases") == 1
-        assert errors == []
     finally:
         page.close()
 
@@ -1388,7 +1371,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     url = serve(FEATURE_GALLERY)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.add_init_script(
         """
         document.addEventListener('lf-page-interface', event => {
@@ -1412,15 +1395,16 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         page.evaluate("releaseHeldPageInterface()")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         expect(controls).to_be_visible()
-        expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
+        expect(page.locator(".lf-status-detail")).to_have_text(
+            re.compile(r"^Connecting")
+        )
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(controls).to_be_visible()
-        expect(page.locator(".lf-status-text")).not_to_have_text(
+        expect(page.locator(".lf-status-detail")).not_to_have_text(
             re.compile(r"^Connecting")
         )
-        assert errors == []
     finally:
         page.close()
 
@@ -1431,7 +1415,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     url = serve(source)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         page.goto(url, wait_until="load")
@@ -1443,7 +1427,9 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
         expect(playground.locator(".lf-playground-actions")).to_be_visible()
         submit = playground.get_by_role("button", name="Create notification")
         expect(submit).to_be_disabled()
-        expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
+        expect(page.locator(".lf-status-detail")).to_have_text(
+            re.compile(r"^Connecting")
+        )
 
         playground.get_by_role("button", name="Needs attention").click()
         compact = playground.locator("input[aria-label='Compact spacing']")
@@ -1454,10 +1440,9 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
         page.wait_for_function(BOTH_STAMPS)
         expect(submit).to_be_enabled()
         expect(compact).to_be_checked()
-        expect(page.locator(".lf-status-text")).not_to_have_text(
+        expect(page.locator(".lf-status-detail")).not_to_have_text(
             re.compile(r"^Connecting")
         )
-        assert errors == []
     finally:
         page.close()
 
@@ -1478,7 +1463,7 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
 """,
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.add_init_script(
         """
         document.addEventListener('lf-page-interface', event => {
@@ -1492,6 +1477,9 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
         expect(
             page.get_by_role("heading", name="Still a readable page")
         ).to_be_visible()
+        errors = consume_browser_errors(
+            page, "interaction gallery failed to start", "optional sibling failed"
+        )
         matching = [
             error for error in errors if "interaction gallery failed to start" in error
         ]
@@ -1533,7 +1521,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
 
     held = []
     page = context.new_page()
-    errors = watched(page)
+    watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         page.goto(url, wait_until="load")
@@ -1563,7 +1551,6 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
         expect(page.locator(".lf-thread-panel")).to_be_visible()
         expect(page.locator("button.lf-asks-row")).to_have_count(0)
         expect(page.locator(".lf-answer-all")).to_be_hidden()
-        assert errors == []
     finally:
         context.close()
 
@@ -1582,7 +1569,7 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     )
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
     try:
         with page.expect_request("**/vendor/marked.esm.js"):
@@ -1599,7 +1586,6 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
         expect(page.locator(".lf-empty")).to_have_count(0)
         expect(page.locator(".lf-thread")).to_have_count(1)
         expect(page.locator(".lf-msg-body strong")).to_have_text("comment")
-        assert errors == []
     finally:
         page.close()
 
@@ -1611,7 +1597,7 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
     page is the authored one under an offline banner. It must be visible rather than
     stranded behind the replay boundary, and the one failed answer releases it once."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.add_init_script(FIRST_PRESENTATION)
     page.route("**/api/state*", refuse)
     try:
@@ -1621,12 +1607,11 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
             " && document.body.dataset.lfPresented === '1'"
         )
         expect(page.locator("main")).to_be_visible()
-        expect(page.locator(".lf-status-text")).to_have_text(
+        expect(page.locator(".lf-status-detail")).to_have_text(
             "Server offline — reconnecting. Keep this page open so pending changes can send."
         )
         assert page.locator("body").get_attribute("data-lf-applied") is None
         assert page.evaluate("() => window.__lfPresentation.releases") == 1
-        assert errors == []
     finally:
         page.close()
 
@@ -1657,7 +1642,7 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
             predicate=lambda message: "page failed to start" in message.text
         ):
             page.goto(url, wait_until="load")
-        expect(page.locator(".lf-status-text")).to_contain_text("reload")
+        expect(page.locator(".lf-status-detail")).to_contain_text("reload")
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
         assert (
@@ -1671,7 +1656,7 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
 def test_visual_actions_arrive_only_after_authoritative_presentation(browser, serve):
     """Visual response controls are a presented reading, never startup scaffolding."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     held = []
     page.add_init_script(VISUAL_ACTION_TIMING)
     page.route("**/api/state*", lambda route: held.append(route))
@@ -1691,7 +1676,6 @@ def test_visual_actions_arrive_only_after_authoritative_presentation(browser, se
         expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
         expect(page.locator(".lf-visual-actions")).to_have_count(5)
         assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
-        assert errors == []
     finally:
         page.close()
 
@@ -1720,7 +1704,9 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve
         assert held, "the first state read completed before the visual was malformed"
         held.pop(0).continue_()
 
-        expect(page.locator(".lf-status-text")).to_contain_text("reload", timeout=5000)
+        expect(page.locator(".lf-status-detail")).to_contain_text(
+            "reload", timeout=5000
+        )
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator(".lf-visual-actions")).to_have_count(0)
         assert page.evaluate("() => window.__lfVisualActionInsertions") == []
@@ -1759,7 +1745,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         ):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(page.locator(".lf-status-text")).to_have_text(
+        expect(page.locator(".lf-status-detail")).to_have_text(
             "Page couldn't apply current state — reload"
         )
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
@@ -1822,12 +1808,9 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
         lambda route: refuse(route) if next(polls) == 0 else route.continue_(),
     )
     try:
-        page, errors = open_page(
-            browser, url.replace("v1.html", "v2.html"), context=context
-        )
+        page = open_page(browser, url.replace("v1.html", "v2.html"), context=context)
         open_versions(page)
         expect(page.locator(".lf-version-menu")).to_be_visible()
-        assert errors == []
     finally:
         context.close()
 
@@ -1864,7 +1847,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
         "0041 needs the column; rewrote the draft",
     )
 
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
     body = page.locator("#draft-ops .lf-draft-body")
     expect(body).to_have_text(corrected)
     # And the user is told, rather than left to notice: their edit is gone, which
@@ -1884,7 +1867,6 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
         == "none"
     )
     assert "rewritten since your decision" in page.locator("#draft-ops").aria_snapshot()
-    assert errors == []
 
 
 def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
@@ -1915,9 +1897,8 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
     # saying it again would be claiming to undo a decision already undone.
     _publish(d, 3, _draft_says(JOURNEY_V2, corrected), "unrelated copy edits")
 
-    page, errors = open_page(browser, url.replace("v1.html", "v3.html"))
+    page = open_page(browser, url.replace("v1.html", "v3.html"))
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(corrected)
-    assert errors == []
     page.close()
 
     # And the careful author who carries the attribute forward anyway — the habit
@@ -1937,7 +1918,7 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     """Moves and edits retain their reader origin across unrelated revisions.
     Incorporating that state into source clears the override reading, and the
     diff stays quiet about the reader's own move."""
-    page, errors = open_page(browser, live_url(serve(JOURNEY_V1)))
+    page = open_page(browser, live_url(serve(JOURNEY_V1)))
 
     # A real drag — the pointer path, where the gesture gate and the poll meet.
     grip = page.locator("#card-x .lf-grip").bounding_box()
@@ -1978,7 +1959,7 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
     # A poll has run once the status text resolves, so the origin pass has too.
     page.wait_for_function(
-        "() => !document.querySelector('.lf-status-text').textContent.startsWith('Connecting')"
+        "() => !document.querySelector('.lf-status-detail').textContent.startsWith('Connecting')"
     )
     expect(page.locator("[data-lf-reader-override]")).to_have_count(0)
 
@@ -1991,14 +1972,13 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     assert not page.evaluate(
         "document.getElementById('card-x').classList.contains('lf-ins-block')"
     ), "the user's own honored drag marked as a change"
-    assert errors == []
 
 
 def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve):
     """A poll may finish while Sortable owns real page nodes. Reconciliation leaves
     the whole page alone until the pointer releases them, then paints the same logged
     edit on the next pass."""
-    page, errors = open_page(browser, serve(JOURNEY_V1))
+    page = open_page(browser, serve(JOURNEY_V1))
     grip = page.locator("#card-x .lf-grip").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
@@ -2025,7 +2005,6 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
         "Foreign words held behind the drag."
     )
-    assert errors == []
 
 
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
@@ -2044,7 +2023,7 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     _publish(
         d, 2, _card_done(JOURNEY_V1).replace(_CARD, noted), "moved the card to Done"
     )
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
     compare_with(page)
     page.wait_for_function(
         "() => document.getElementById('card-x').classList.contains('lf-ins-block')"
@@ -2052,7 +2031,6 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     assert not page.evaluate(
         "document.getElementById('card-x-note').classList.contains('lf-ins-block')"
     ), "the card's passenger marked as its own move"
-    assert errors == []
 
 
 def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve):
@@ -2074,7 +2052,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
         ),
     )
     d = serve.page_dir
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
@@ -2084,7 +2062,6 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     accept = next(e for e in events if e.get("kind") == "action")
     assert accept["action"] == "accept" and accept["detail"] == {"resolves": "c1"}
     assert not any(e.get("kind") == "resolve" for e in events)
-    assert errors == []
 
 
 def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
@@ -2114,7 +2091,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
         ),
     )
     d = serve.page_dir
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
@@ -2154,7 +2131,6 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
         for e in events_model.read_events(d)
         if e["kind"] in ("action", "undo", "resolve", "unresolve")
     ] == ["accept", "reject", "undo"]
-    assert errors == []
 
 
 def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
@@ -2192,7 +2168,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 </lf-milestones>
 <h2 id="notes">""",
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(html, anchored=[("intro", SENTENCE)]),
         init_script=gate_registry,
@@ -2264,7 +2240,6 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 
     expect(page.locator(".lf-thread")).to_have_count(3)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
-    assert errors == []
 
 
 def _asked(context):
@@ -2304,7 +2279,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     example = next(p for p in EXAMPLES if p.stem == "triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
-    page, errors = open_page(browser, serve(example), context=context)
+    page = open_page(browser, serve(example), context=context)
 
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
     assert modules == ["/widgets/lf-board.js"], modules
@@ -2325,27 +2300,25 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     )
     assert declared > len(modules) + 5, declared
     assert page.evaluate("() => !!customElements.get('lf-board')")
-    assert errors == []
 
 
 def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     """All six renderer paths share one lazy module import and one vendored file."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
-    page, errors = open_page(browser, serve(TYPED_PARTS_PAGE), context=context)
+    page = open_page(browser, serve(TYPED_PARTS_PAGE), context=context)
 
     expect(page.locator("lf-diagram svg")).to_have_count(6)
     assert [p for p in asked if "beautiful-mermaid" in p] == [
         "/vendor/beautiful-mermaid.esm.js"
     ]
-    assert errors == []
 
 
 def test_floating_ui_loads_only_when_a_reader_opens_a_response(browser, serve):
     """Pages that receive no response do not pay for its positioning engine."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
-    page, errors = open_page(browser, serve(FEATURE_GALLERY), context=context)
+    page = open_page(browser, serve(FEATURE_GALLERY), context=context)
 
     assert not [path for path in asked if "floating-ui" in path]
     page.locator("#bg-react-ok").click(modifiers=["Alt"])
@@ -2353,13 +2326,12 @@ def test_floating_ui_loads_only_when_a_reader_opens_a_response(browser, serve):
     assert [path for path in asked if "floating-ui" in path] == [
         "/vendor/floating-ui.esm.js"
     ]
-    assert errors == []
 
 
 def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
     """Comment entered from an already-selected passage keeps its focus request while
     the positioning dependency loads, rather than focusing a still-hidden textarea."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     held = []
     page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
     field = page.locator(".lf-fab-input")
@@ -2381,7 +2353,6 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         expect(field).to_be_visible()
         expect(field).to_be_focused()
         assert page.evaluate("() => getSelection().toString()") == ""
-        assert errors == []
     finally:
         for route in held:
             route.continue_()
@@ -2391,7 +2362,7 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
 
 def test_thread_focus_waits_for_the_lazy_placement_module(browser, serve):
     """A thread opened while its placement module loads keeps focus on the page."""
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]),
         context=browser.new_context(viewport={"width": 600, "height": 844}),
@@ -2419,7 +2390,6 @@ def test_thread_focus_waits_for_the_lazy_placement_module(browser, serve):
         page.unroute("**/vendor/floating-ui.esm.js")
         expect(preview).to_have_css("opacity", "1")
         expect(thread).to_be_focused()
-        assert errors == []
     finally:
         for route in held:
             route.continue_()
@@ -2431,7 +2401,7 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     """A failed lazy module cannot leave a hidden live composer holding focus."""
     url = serve(FEATURE_GALLERY)
     page = browser.new_page(viewport={"width": 1280, "height": 800})
-    errors = watched(page)
+    watched(page)
     page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
@@ -2441,6 +2411,9 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     assert "Failed to fetch dynamically imported module" in str(raised.value)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_hidden()
+    errors = consume_browser_errors(
+        page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
+    )
     assert any(
         "Failed to fetch dynamically imported module" in error for error in errors
     )
@@ -2450,7 +2423,7 @@ def test_an_unavailable_floating_ui_module_withdraws_the_thread_preview(browser,
     """A failed lazy module cannot leave a hidden thread card holding focus."""
     url = serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
     page = browser.new_page(viewport={"width": 600, "height": 844})
-    errors = watched(page)
+    watched(page)
     page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
@@ -2472,6 +2445,9 @@ def test_an_unavailable_floating_ui_module_withdraws_the_thread_preview(browser,
         }"""
     )
     assert not focus["inside"] and focus["visible"], focus
+    errors = consume_browser_errors(
+        page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
+    )
     assert any(
         "Failed to fetch dynamically imported module" in error for error in errors
     )
@@ -2498,7 +2474,7 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
         "review-patch",
         data_model.unified_diff_manifest(MULTI_HUNK_PATCH),
     )
-    page, errors = open_page(browser, url, context=context)
+    page = open_page(browser, url, context=context)
 
     assert "/widgets/lf-diff.js" in asked
     assert not [p for p in asked if "pierre-diffs" in p], (
@@ -2513,7 +2489,6 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
     expect(diff.locator("[data-line]").first).to_be_visible()
     assert [p for p in asked if "pierre-diffs" in p] == ["/vendor/pierre-diffs.esm.js"]
     assert diff.locator(".lf-error").count() == 0
-    assert errors == []
 
 
 def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
@@ -2529,7 +2504,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     example = next(p for p in EXAMPLES if p.stem == "triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
-    page, errors = open_page(browser, serve(example), context=context)
+    page = open_page(browser, serve(example), context=context)
     assert "/widgets/lf-options.js" not in asked
     assert page.evaluate("() => !customElements.get('lf-options')")
 
@@ -2577,14 +2552,13 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     expect(options).to_be_visible()
     # Its module's own work, not the markup's: the pick control each option is chosen by.
     expect(options.locator("lf-option [data-lf-offer='checkbox']")).to_have_count(2)
-    assert errors == []
 
 
 def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serve):
     """Sequence order is judged again after the lazy Markdown import. A newer POST
     response can enter that await before an older held poll; when the shared import
     finishes, the older continuation must not repaint the log backwards."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
 
@@ -2628,7 +2602,6 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 
     expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
     expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
-    assert errors == []
 
 
 def test_a_page_hears_news_without_asking_for_it(browser, serve):
@@ -2638,7 +2611,7 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     reaches it in the time the stream takes to look (fifty milliseconds, where the
     poll left it up to two seconds), which `told` below waits through. The quiet
     three seconds are the half of this no faster poll could pass."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     asked = _traffic(page).asked
@@ -2652,7 +2625,6 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     told(page)
     assert _traffic(page).asked == asked + 1
     expect(page.locator(".lf-thread", has_text="News.")).to_have_count(1)
-    assert errors == []
 
 
 def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, serve):
@@ -2661,7 +2633,7 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     one new stream, whose first word catches the page up. The overridden platform reading
     is the lifecycle input Chromium's headless shell cannot otherwise produce — all of
     its tabs report visible even when another is brought to the front."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     asked = _traffic(page).asked
 
     page.evaluate(
@@ -2703,7 +2675,6 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     assert _traffic(page).asked == asked + 1
     assert files_model.read_json(serve.page_dir / "viewed.json")["t"] > 1.0
     expect(page.locator(".lf-thread", has_text="While away.")).to_have_count(1)
-    assert errors == []
 
 
 def test_status_changes_coalesce_behind_one_state_read(browser, serve):
@@ -2712,9 +2683,9 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     The news stream may announce several new readings while the container is still
     answering one. They collapse into one trailing read, which takes the newest state.
     """
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
-    text = page.locator(".lf-status-text")
+    text = page.locator(".lf-status-detail")
 
     def declare(detail):
         files_model.write_json(
@@ -2748,7 +2719,6 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     trailing.fulfill(json=third)
     told(page)
     expect(text).to_have_text(re.compile(r"^Claude is working — third"))
-    assert errors == []
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -2773,14 +2743,13 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
       };
     """
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.add_init_script(delay_state_body_past_deadline)
     try:
         page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-        expect(page.locator(".lf-status-text")).to_contain_text(
+        expect(page.locator(".lf-status-detail")).to_contain_text(
             "Server offline — reconnecting"
         )
-        assert errors == []
     finally:
         page.close()
 
@@ -2816,7 +2785,7 @@ def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, s
       });
     """
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.add_init_script(record_read_bounds)
     # A read that brings nothing is what puts the page back on the clock: a page holding
     # an answer asks again only when its news moves, so refusing the reads is how a
@@ -2829,7 +2798,6 @@ def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, s
         bounds = page.evaluate("() => window.__leafReadBounds")
         assert bounds[0] == 120_000, bounds
         assert bounds[1] == 10_000, bounds
-        assert errors == []
     finally:
         page.close()
 
@@ -2861,14 +2829,14 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
       };
     """
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.add_init_script(shorten_the_first_long_wait)
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
         expect(page.locator("body[data-lf-presented]")).to_have_count(1)
-        expect(page.locator(".lf-status-text")).to_contain_text(
+        expect(page.locator(".lf-status-detail")).to_contain_text(
             "Server offline — reconnecting"
         )
         assert page.evaluate("() => window.__leafPresentationWait") >= 10_000
@@ -2883,17 +2851,16 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
 
         held[0].fulfill(json=held[0].fetch().json())
         told(page)
-        expect(page.locator(".lf-status-text")).not_to_contain_text(
+        expect(page.locator(".lf-status-detail")).not_to_contain_text(
             "Server offline — reconnecting"
         )
-        assert errors == []
     finally:
         page.close()
 
 
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     """The network slot ends with the read, not an unbounded package repaint."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
           const {clocked, clockValue} = await window.__lfRuntimeImport('/runtime/presence.js');
@@ -2910,7 +2877,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     )
     page.route("**/api/state*", lambda route: route.fulfill(status=503, body=""))
     nudge(serve.page_dir)
-    expect(page.locator(".lf-status-text")).to_contain_text(
+    expect(page.locator(".lf-status-detail")).to_contain_text(
         "Server offline — reconnecting"
     )
     page.wait_for_function("() => window.probePaints >= 2")
@@ -2919,10 +2886,10 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     with page.expect_request("**/api/state*", timeout=3000):
         nudge(serve.page_dir)
     told(page)
-    expect(page.locator(".lf-status-text")).not_to_contain_text(
+    expect(page.locator(".lf-status-detail")).not_to_contain_text(
         "Server offline — reconnecting"
     )
-    assert errors and all("503" in error for error in errors), errors
+    consume_browser_errors(page, "503")
 
 
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
@@ -2931,7 +2898,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     dropped request in the world — is asked again on the page's own tick, the
     spacing a failed exchange has always had. Without that a page would sit under
     an offline banner until something else happened to it."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     page.route("**/api/state*", refuse)
@@ -2942,16 +2909,15 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
         )
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
     page.unroute("**/api/state*")
     told(page)
     expect(page.locator(".lf-thread", has_text="Missed.")).to_have_count(1)
-    expect(page.locator(".lf-status-text")).not_to_have_text(
+    expect(page.locator(".lf-status-detail")).not_to_have_text(
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
-    assert errors == []
 
 
 def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
@@ -2961,10 +2927,10 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     gone while it is, and reads again when the stream comes back, because the last
     thing it knew about the server is from before the silence."""
     url = serve(LONG_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
-    status = page.locator(".lf-status-text")
+    status = page.locator(".lf-status-detail")
     port = serve.httpd.server_address[1]
     serve.httpd.shutdown()
     serve.httpd.server_close()
@@ -2987,7 +2953,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     )
     # The requests that failed while the server was down are the one thing the
     # console may hold; a page fault of the runtime's own would say something else.
-    assert all("net::ERR" in error for error in errors), errors
+    consume_browser_errors(page, "net::ERR")
 
 
 def test_the_help_overlay_answers_to_one_owner(browser, serve):
@@ -3005,7 +2971,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         "</main>",
         '<lf-draft id="draft-second"><pre>A second editable draft.</pre></lf-draft></main>',
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
           const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -3039,7 +3005,6 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.mouse.click(300, 600)
     expect(page.locator(".lf-command-reference")).to_be_hidden()
-    assert errors == []
 
 
 def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, dead_pid):
@@ -3050,11 +3015,12 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     And a page nothing is behind must read differently from either, without reading as
     a fault: a standing page spends the night that way, so the words are the plain
     computed fact and the dot is not the amber it wears for a session falling behind."""
-    page, _ = open_page(browser, serve(LONG_PAGE, comments=1))
+    page = open_page(browser, serve(LONG_PAGE, comments=1))
     d = serve.page_dir
     # The banner's own dot: the leaves panel mirrors this page as a row, so a
     # bare .lf-dot resolves to that row's copy too.
-    text, dot = page.locator(".lf-status-text"), page.locator(".lf-banner .lf-dot")
+    text, dot = page.locator(".lf-status-detail"), page.locator(".lf-banner .lf-dot")
+    summary = page.locator(".lf-status-text")
     UNHELD = (
         "No session holds this page. 1 update is saved."
         " It picks up again when a session does."
@@ -3102,6 +3068,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         told(page)
 
     declare("working", "revising the plan")
+    expect(summary).to_have_text("Claude working")
     expect(text).to_have_text(
         re.compile(r"^Claude is working — revising the plan \(.+\)$")
     )
@@ -3144,6 +3111,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         )
         expect(dot).to_have_class(re.compile(r"\blistening\b"))
 
+        expect(summary).to_have_text("Claude listening · 1 saved")
+
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into one. This read "Claude awaits — select text to
         # comment" once, which invited the reader to start something on a page already
@@ -3156,6 +3125,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             "Claude last checked in 20m ago: revising the plan. 1 update is saved."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
+
+        expect(summary).to_have_text("Claude last checked in 20m ago")
 
         # And with no detail it is the bare silence, which is the same sentence with
         # nothing to say after the colon rather than a second wording for it.
@@ -3175,6 +3146,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             " 1 update is saved."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
+
+        expect(summary).to_have_text("Claude’s turn ended 5m ago")
 
         # The agent's own last word about the work and the ending of the turn that
         # wrote it land in the same second, which is what an ordinary turn looks like:
@@ -3208,7 +3181,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             "1 update is saved. Claude is listening — pick a storage engine."
         )
-        expect(text).to_have_attribute(
+        expect(page.locator(".lf-status-button")).to_have_attribute(
             "title", "1 update is saved. Claude is listening — pick a storage engine."
         )
 
@@ -3218,6 +3191,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         "Claude isn't watching right now. 1 update is saved."
         " It picks them up next turn."
     )
+
+    expect(summary).to_have_text("Claude away · 1 saved")
 
     # With nobody listening the same ending carries the remedy, because the reader's
     # next word has nowhere to land until a session picks the page up again.
@@ -3237,6 +3212,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # claim it left has nothing behind it however lately it was written.
     declare("working", "running the migration", session_pid=dead_pid)
     expect(text).to_have_text(UNHELD)
+    expect(summary).to_have_text("No session · 1 saved")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's reading arrangement rather than something for the user to chase.
     expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
@@ -3269,9 +3245,9 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     It is the reader's clock that moves here, because that is the one of the two a page
     has to survive: the server writes the timestamps it later reads back and cannot
     disagree with itself, while the reader's machine is not the page's to correct."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
-    text = page.locator(".lf-status-text")
+    text = page.locator(".lf-status-detail")
     dot = page.locator(".lf-banner .lf-dot")
 
     def claim(detail):
@@ -3297,7 +3273,6 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
         re.compile(r"^Claude is working — waiting on the shard \(just now\)$")
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
-    assert errors == []
 
 
 def test_a_thread_says_what_the_agent_is_doing_about_it(
@@ -3317,7 +3292,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     Nothing deletes the line directly. The agent's next reply answers the claim;
     resolution hides it while the conversation is closed, and reopening reveals it
     again."""
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    page = open_page(browser, serve(LONG_PAGE, comments=2))
     d = serve.page_dir
     comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
@@ -3370,7 +3345,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(other_receipt).to_contain_text("✓ Sent")
-    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Claude is handling 1 update"
+    )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
         "Handling updates · 1 update waiting"
     )
@@ -3381,7 +3358,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
     expect(held_receipt).to_contain_text("✓ Picked up")
-    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Claude is handling 1 update"
+    )
 
     with service_model.PageTransaction(d) as transaction:
         transaction.close_turn("s")
@@ -3391,7 +3370,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up 1 update, but that turn ended. 2 updates are saved."
     )
     with service_model.PageTransaction(d) as transaction:
@@ -3456,7 +3435,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # A later claim about the page as a whole is not an answer to the thread, so the
     # line stands: the two seats are one claim, and only one of them has been rewritten.
     status("working", "drafting v2")
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — drafting v2")
     )
     expect(held_receipt).to_have_count(1)
@@ -3517,19 +3496,18 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(receipts).to_have_count(2)
     record_claim(d, id="s", pid=dead_pid)
     told(page)
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
     expect(claim_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
-    assert errors == []
 
 
 def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve):
     """The gallery's injected-chrome case exercises the external state it cannot
     author: exact delivery into a turn drives both the receipt and banner, and a
     later waiting declaration cannot split them."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     page_dir = serve.page_dir
     comment = events_model.append_event(
         page_dir,
@@ -3548,13 +3526,16 @@ def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve)
     page.keyboard.press("c")
     receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
     expect(receipt).to_contain_text("✓ Picked up")
-    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Claude is handling 1 update"
+    )
 
     session_model.cmd_status(page_dir, "waiting", "review the gallery")
     told(page)
     expect(receipt).to_contain_text("✓ Picked up")
-    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
-    assert errors == []
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Claude is handling 1 update"
+    )
 
 
 def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):
@@ -3574,7 +3555,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
             "ts": old,
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.keyboard.press("c")
     receipt = page.locator(
         f'.lf-thread[data-id="{comment["id"]}"] '
@@ -3585,7 +3566,6 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     assert receipt.locator(".lf-receipt-state").evaluate(
         "node => getComputedStyle(node).color"
     ) == token_colour(page, "--warn-ink")
-    assert errors == []
 
 
 def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
@@ -3605,7 +3585,7 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
             "text": "Did this reach anyone?",
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     receipt = thread.locator(
@@ -3662,7 +3642,6 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
     assert page.evaluate("() => window.__receiptMoves") == 0
     assert receipt.evaluate("node => node.getAnimations({ subtree: true }).length") == 0
-    assert errors == []
 
 
 def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
@@ -3679,9 +3658,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     past tense of the same state: a tint alone is silence to whoever is listening rather
     than looking. Message metadata keeps the message's one timestamp, so the state owns
     the elapsed time rather than adding another badge beside itself."""
-    page, errors = open_page(
-        browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
-    )
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]))
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
@@ -3737,7 +3714,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     claim(quiet_ts)
     # The page's own line is as fresh as it was, which is the whole case: this is two
     # delegates diverging, not a page that has gone quiet all over.
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
     expect(visible_work_line).to_have_text(
@@ -3774,7 +3751,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
             timespec="seconds"
         )
     )
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
     expect(visible_work_line).to_have_text(
@@ -3841,7 +3818,6 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(inline.locator(".lf-receipt-state")).to_have_css(
         "color", token_colour(page, "--muted")
     )
-    assert errors == []
 
 
 def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
@@ -3854,7 +3830,7 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
 
     What a copy does with all of it is the export section's
     (test_a_copy_wears_the_mark_and_claims_no_session)."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
 
     def tone(want, why):
@@ -3865,7 +3841,7 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
             # no tone on it, and the reason it refused is the only thing that says why.
             found = page.evaluate(TAB_AND_DOT, want)
             pytest.fail(
-                f"the tab never said {why} as the banner does: {found} {errors}"
+                f"the tab never said {why} as the banner does: {found} {page.lf_errors}"
             )
 
     def declare(state, **status):
@@ -3918,7 +3894,6 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     )
     drawn = page.evaluate("() => globalThis.__lfTabMarkWidth")
     assert drawn > 0, "the tab's mark is not an image the browser can decode"
-    assert errors == []
 
 
 def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
@@ -3932,7 +3907,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
     or the equal text onto a different fact.
     """
     url = data_projection_page(serve)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     readings = page.evaluate("""() => window.__lfRuntimeImport('/runtime/widget-api.js').then(leaf => {
       const lede = document.querySelector('#lede');
@@ -4007,7 +3982,6 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
     page.emulate_media(media="print")
     paper = render_checks_model.evaluate_probe(page, "paperWords")
     assert paper == screen, "paper dropped or rewrote projected data"
-    assert errors == []
 
 
 @pytest.mark.parametrize(
@@ -4092,7 +4066,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
 });
 """
     roots = [f"{index:032x}" for index in range(1, 4)]
-    page, errors = open_page(
+    page = open_page(
         browser,
         live_url(
             serve(
@@ -4147,7 +4121,6 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     strip = broken.locator(".lf-react-strip")
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
-    assert errors == []
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     if failure != "disconnect":
@@ -4231,21 +4204,19 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
-    if failure in {"detached", "hidden", "end-unregister"}:
-        assert errors == []
-    else:
+    if failure not in {"detached", "hidden", "end-unregister"}:
         expected_phase = "end" if failure in {"unregister", "disconnect"} else failure
         expected = (
             "returned an outlet outside its widget"
             if failure == "moved"
             else f"surface fixture: {expected_phase}"
         )
-        assert errors and all(expected in error for error in errors), errors
+        consume_browser_errors(page, expected)
 
 
 def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve):
     """Omitting provenance is an invalid projection, not an unversioned fallback."""
-    page, errors = open_page(browser, data_projection_page(serve))
+    page = open_page(browser, data_projection_page(serve))
     failure = page.evaluate(
         """async () => {
           const {projectData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -4263,7 +4234,6 @@ def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve
     assert failure == (
         "projectData(deployments) must receive the snapshot that supplied its records"
     )
-    assert errors == []
 
 
 def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
@@ -4305,7 +4275,7 @@ customElements.define('lf-derived', class extends HTMLElement {
   }
 });
 """
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             authored,
@@ -4337,7 +4307,6 @@ customElements.define('lf-derived', class extends HTMLElement {
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
-    assert errors == []
 
 
 def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
@@ -4374,7 +4343,7 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page()
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     rows = page.locator('#deployments > [data-lf-projection="deployments"]')
     expect(rows).to_have_count(2)
@@ -4384,7 +4353,6 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     assert page.locator("script").count() == 0, (
         "the snapshot still claims it can refresh"
     )
-    assert errors == []
 
 
 def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
@@ -4406,7 +4374,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         serve.page_dir, "leaf-skill", text_file, "1:3", long_label
     )
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("lf-text-document figcaption")).to_have_text(
         f"{long_label} · lines 1–3"
     )
@@ -4497,7 +4465,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     out = tmp_path / "source-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page()
-    copy_errors = watched(copy)
+    watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
     assert copy.locator('[data-lf-datum="document"]').evaluate(
         "node => JSON.parse(node.dataset.lfOrigin)"
@@ -4506,9 +4474,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         "# Leaf\n\nOriginal instructions.\n"
     )
     assert copy.locator("script").count() == 0
-    assert copy_errors == []
     copy.close()
-    assert errors == []
 
 
 def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
@@ -4534,7 +4500,7 @@ def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
         });
       };
     """
-    page, errors = open_page(
+    page = open_page(
         browser, data_projection_page(serve), init_script=delay_second_state
     )
     # The second read, which the script above holds: the page reads when told to.
@@ -4553,7 +4519,6 @@ def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
     page.wait_for_function("() => window.lfOldDataReleased === true")
     told(page)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
-    assert errors == []
 
 
 def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
@@ -4563,7 +4528,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     Dropping the whole response at the event gate would make live data depend on an
     unrelated comment arriving first.
     """
-    page, errors = open_page(browser, data_projection_page(serve))
+    page = open_page(browser, data_projection_page(serve))
     older = page.evaluate("async () => await (await fetch('/api/state')).json()")
     events_model.append_event(
         serve.page_dir,
@@ -4607,11 +4572,10 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     expect(
         page.locator(".lf-thread", has_text="This event must not disappear")
     ).to_have_count(1)
-    assert errors == []
 
 
 def test_conversation_timestamps_age_without_new_state(browser, serve):
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    page = open_page(browser, serve(LONG_PAGE, comments=1))
     page.keyboard.press("c")
     timestamp = page.locator(".lf-msg-head > time").first
     expect(timestamp).to_have_text("just now")
@@ -4620,7 +4584,6 @@ def test_conversation_timestamps_age_without_new_state(browser, serve):
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     ticked(page)
     expect(timestamp).to_have_text("3h ago")
-    assert errors == []
 
 
 def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
@@ -4635,7 +4598,7 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
             "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.keyboard.press("c")
     timestamp = page.locator(".lf-msg-head > time").first
     expect(timestamp).to_have_text("1h ago")
@@ -4650,7 +4613,6 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
         )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")
-    assert errors == []
 
 
 def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
@@ -4659,7 +4621,7 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
     Observe mutations over two actual timer ticks instead of imposing a machine-speed
     budget. Clock aging has its own rendered-word test in the projection suite.
     """
-    page, errors = open_page(browser, data_projection_page(serve))
+    page = open_page(browser, data_projection_page(serve))
     ticked(page)
     page.evaluate(
         """async () => {
@@ -4684,7 +4646,6 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
           return {mutations: window.idleMutations, deliveries: window.idleDeliveries};
         }"""
     ) == {"mutations": 0, "deliveries": 1}
-    assert errors == []
 
 
 def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
@@ -4695,7 +4656,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     A subscriber is also a package mount boundary: if its first render fails, later
     polls must not keep calling a listener whose widget never finished connecting.
     """
-    page, errors = open_page(browser, data_projection_page(serve))
+    page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
           const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -4746,7 +4707,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         "failedCalls": 1,
         "message": "mount failed",
     }
-    assert errors == []
 
 
 def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
@@ -4773,7 +4733,7 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
         authored.replace('id="frozen"', 'id="frozen" snapshot="1"'),
         "Keep the original source beside the live value",
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#live code")).to_have_text('route = "old"')
     expect(page.locator("#frozen code")).to_have_text('route = "old"')
     result = page.evaluate(
@@ -4837,7 +4797,6 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
         "live": new,
         "frozen": old,
     }
-    assert errors == []
 
 
 def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser, serve):
@@ -4847,7 +4806,7 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
     was accepted must not stamp that newer revision while its own delivery is still held;
     render checks and presentation use the stamp as proof that every subscriber is done.
     """
-    page, errors = open_page(browser, data_projection_page(serve))
+    page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
           const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -4898,13 +4857,12 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
     )
     assert result["afterOlder"] == result["before"], result
     assert result["afterNewer"] == str(result["newerRevision"]), result
-    assert errors == []
 
 
 def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     browser, serve
 ):
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
           const {clocked, clockValue} = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -4938,7 +4896,7 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     ticked(page)
     assert page.evaluate("window.healthyClock") == 2
     assert _traffic(page).asked == asked
-    assert all("clock paint failed:" in error for error in errors), errors
+    consume_browser_errors(page, "clock paint failed:")
     assert {e["text"] for e in sent_events(serve.page_dir) if e["kind"] == "error"} == {
         "clock paint failed: read broke",
         "clock paint failed: paint broke",
@@ -4953,7 +4911,7 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     that subscriber's boundary. Neither turns every subsequent poll into the same
     page-wide read failure or prevents the accepted revision becoming ready.
     """
-    page, errors = open_page(browser, data_projection_page(serve))
+    page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
           const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -5006,6 +4964,11 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     assert result["throwingDeliveries"] == 2, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == str(result["revision"]), result
+    errors = consume_browser_errors(
+        page,
+        "data subscriber failed: mount projection failed",
+        "data subscriber failed: update projection failed",
+    )
     assert (
         sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
     )
@@ -5021,7 +4984,7 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
 
 def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
     """Another state read cannot stamp data ready while its first render is held."""
-    page, errors = open_page(browser, data_projection_page(serve))
+    page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
           const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -5064,12 +5027,11 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
     assert result["selectedBeforeNotify"] == {"calls": 1, "pending": True}
     assert result["before"] == {"complete": False, "calls": 2, "ready": "1"}
     assert result["after"] == str(result["revision"])
-    assert errors == []
 
 
 def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, serve):
     """The data stamp waits for data subscribers, not every deferred page paint."""
-    page, errors = open_page(browser, data_projection_page(serve))
+    page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
           const {notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
@@ -5094,7 +5056,6 @@ def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, se
         }"""
     )
     assert result is True
-    assert errors == []
     page.close()
 
 
@@ -5125,7 +5086,7 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
       });
       dataObserver.observe(document, {subtree: true, childList: true, characterData: true});
     """
-    page, errors = open_page(
+    page = open_page(
         browser, live_url(data_projection_page(serve)), init_script=activation_probe
     )
     d = serve.page_dir
@@ -5157,7 +5118,6 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
     nudge(d)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
     expect(page.locator("#lede")).to_have_text("Live status follows now.")
-    assert errors == []
 
 
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
@@ -5182,9 +5142,8 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
         route.fulfill(content_type="text/javascript", body=boot)
 
     context.route("**/leaf-boot.js", boot_after_one_frame)
-    page, errors = open_page(browser, url, context=context)
+    page = open_page(browser, url, context=context)
     assert page.evaluate("window.apiImportedBeforeBoot") is True
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    assert errors == []

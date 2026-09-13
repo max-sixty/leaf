@@ -12,6 +12,7 @@ from render_harness import (
     panel_settled,
     round_trip,
     stamp_page,
+    take_browser_errors,
     told,
     wait_for_revision,
     watched,
@@ -144,7 +145,7 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
         '<h1 id="live-title">Live first</h1>'
         '<lf-local id="page-local" choice="idle"></lf-local>',
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         live_url(
             serve(
@@ -177,7 +178,6 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     expect(page.locator("#page-local")).to_have_attribute(
         "data-subscriber-choice", "chosen"
     )
-    assert errors == []
     page.close()
 
 
@@ -199,7 +199,7 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     )
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         page.goto(url, wait_until="load")
@@ -260,7 +260,6 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
         assert ready["epoch"] > waiting["epoch"]
         assert ready["presented"] == ready["epoch"]
         assert ready["pending"] == []
-        assert errors == []
     finally:
         page.close()
 
@@ -310,7 +309,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
             "helper.js": 'export const label = "first";',
         },
     )
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
     expect(page.locator("html")).to_have_attribute("data-page-module", "first:1")
     first_document = page.evaluate("performance.timeOrigin")
     page.evaluate("window.__pageModuleState.oldDocumentOnly = true")
@@ -379,11 +378,9 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     expect(page.locator(".lf-general textarea")).to_have_value(
         "Keep this recoverable draft in the page instance."
     )
-    assert errors == []
 
-    historical, historical_errors = open_page(browser, version_url, pin=True)
+    historical = open_page(browser, version_url, pin=True)
     expect(historical.locator("html")).to_have_attribute("data-page-module", "first:1")
-    assert historical_errors == []
     historical.close()
     page.close()
 
@@ -409,7 +406,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         },
     )
 
-    page, errors = open_page(browser, live_url(version_url))
+    page = open_page(browser, live_url(version_url))
 
     expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
     expect(page.locator("#package-options .lf-pick")).to_have_count(2)
@@ -604,7 +601,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     )
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     assert page.evaluate("legacyActionEvents") == 0
-    assert errors == []
     page.close()
 
 
@@ -617,7 +613,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
         '<h1 id="live-title">Live first</h1>'
         '<lf-local id="page-local" choice="idle"></lf-local>',
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         live_url(
             serve(
@@ -800,7 +796,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0", timeout=3000)
     assert page.evaluate("window.__failedLocalRenders") == 1
-    assert errors == [
+    assert take_browser_errors(page) == [
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
     ]
     page.close()
@@ -813,7 +809,7 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
         '<h1 id="live-title">Live first</h1>'
         '<lf-local id="page-local" choice="idle"></lf-local>',
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         live_url(
             serve(
@@ -955,7 +951,9 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    assert errors == ["leaf: Presentation failed: frozen descendant failure"]
+    assert take_browser_errors(page) == [
+        "leaf: Presentation failed: frozen descendant failure"
+    ]
     page.close()
 
 
@@ -972,7 +970,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
             "text": "Keep this draft and its exact card.",
         },
     )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     reply = page.locator('.lf-thread[data-id="standing-thread"] textarea')
@@ -1041,5 +1039,4 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
     held_events[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    assert errors == []
     page.close()

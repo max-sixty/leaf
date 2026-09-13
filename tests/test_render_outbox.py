@@ -39,6 +39,7 @@ from render_harness import (
     _traffic,
     _until,
     author_test_widget,
+    consume_browser_errors,
     holding,
     leaf_page,
     navigate,
@@ -50,6 +51,7 @@ from render_harness import (
     round_trip,
     sending,
     stamp_page,
+    take_browser_errors,
     told,
     undo,
     wait_for_revision,
@@ -65,7 +67,7 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     opening that, finding it, and pressing Reopen. What `z` writes is a withdrawal
     naming the resolve — not a second settlement, which would read as the reader
     deciding to reopen a thread they had only meant not to close."""
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
+    page = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     comments = [
@@ -102,13 +104,12 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     assert [e["kind"] for e in log if e["kind"] == "unresolve"] == []
     # The undo is not itself a gesture to take back, so the offer goes with it.
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
-    assert errors == []
 
 
 def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     """Resolve and reopen are undoable gestures too. While a second resolve is in
     the outbox, undo cannot name the older resolve still visible in the log."""
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
+    page = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     comment_ids = [
@@ -140,7 +141,6 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] in {"resolve", "undo"} and event["author"] == "user"
     ] == ["resolve", "resolve", "undo"]
-    assert errors == []
 
 
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
@@ -154,7 +154,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     The card is told where it goes rather than the board being rebuilt around it,
     because that state can be stated: the reader watches it travel back, and the
     grip they were standing on is still under their hands."""
-    page, errors = open_page(browser, live_url(serve(BOARD_PAGE)))
+    page = open_page(browser, live_url(serve(BOARD_PAGE)))
     grip = page.locator("#card-baffle .lf-grip")
     grip.focus()
     page.keyboard.press("Enter")
@@ -179,7 +179,6 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
         ("undo", moved["id"])
     ]
-    assert errors == []
 
 
 def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
@@ -189,7 +188,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     v1 is where the move put it, and a press offered there would paint nothing at
     all. The conversation is not scoped this way and must not be: a thread outlives
     the version it was opened on, which is why resolve carries no version."""
-    page, errors = open_page(browser, live_url(serve(BOARD_PAGE)))
+    page = open_page(browser, live_url(serve(BOARD_PAGE)))
     page.locator("#card-baffle .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
@@ -218,7 +217,6 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     # on the page.
     assert [e["kind"] for e in events_model.read_events(d) if e["kind"] == "undo"] == []
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    assert errors == []
 
 
 def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
@@ -228,7 +226,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     left where it was. A machine quick enough closes that window before the next
     press can land in it, so the send is stopped in the wire and the press made
     while it is still there."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     move = ["Enter", "ArrowRight", "Enter"]
     page.locator("#card-heater .lf-grip").focus()
     for key in move:
@@ -264,7 +262,6 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     # one still stands, where taking back the wrong gesture would have reversed it.
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
-    assert errors == []
 
 
 def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
@@ -273,7 +270,7 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     """The event response is state through the event it accepted. Even when every
     later GET is unavailable, the page can take undo immediately and the press names
     the newest gesture rather than the stale one before it."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     move = ["Enter", "ArrowRight", "Enter"]
     page.locator("#card-heater .lf-grip").focus()
     for key in move:
@@ -301,7 +298,6 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     page.wait_for_function("() => document.body.dataset.lfApplied === '3'")
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
-    assert errors == []
 
 
 def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
@@ -309,7 +305,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     first action is still in the outbox must refuse the second locally; accounting
     the first by token alone would otherwise resolve both callers with the first
     event and silently discard the second payload before it reached the server."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     outcome = page.evaluate(
         """async () => {
           const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -336,7 +332,6 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     ]
     assert _traffic(page).sends == 1
     expect(page.locator(".lf-notice")).to_contain_text("is already in use")
-    assert errors == []
 
 
 def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
@@ -345,7 +340,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     """Acceptance and presentation are separate outcomes. A malformed response view
     cannot be repaired by re-posting its accepted attempt, so semantic truth advances,
     while replay and undo remain held until a later response proves presentation."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
 
     def close_page():
         if page.is_closed():
@@ -481,13 +476,14 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     )
     expect(page.locator("#sug-in-card lf-old")).to_be_visible()
     assert "leaf: state in event response" in reported.value.text
-    assert reported.value.text in errors
     # This test transforms event responses with route.fetch(). A news-triggered POST
     # can enter that handler after the last assertion; closing its context then disposes
     # the APIResponse while the handler is still reading it, and Playwright reports that
     # callback's `Response has been disposed` from the next test's browser call. Remove
     # the routes and wait for any handler already running before their owning page goes.
     page.unroute_all(behavior="wait")
+    errors = take_browser_errors(page)
+    assert reported.value.text in errors
     presentation_errors = [
         error
         for error in errors
@@ -504,7 +500,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
     """A timer response publishes accepted events before presenting their views.
     If a required neighbour makes presentation fail, z still reads the accepted
     history instead of rolling semantic authority back to the older gesture."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     heater = page.locator("#card-heater .lf-grip")
     heater.focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
@@ -528,7 +524,9 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
     # asks at once, so a route registered after it is a route the read has passed.
     page.route("**/api/state*", malformed_state)
     with (
-        page.expect_console_message(lambda message: "read failed" in message.text),
+        page.expect_console_message(
+            lambda message: "read failed" in message.text
+        ) as reported,
         page.expect_request("**/api/state*"),
     ):
         second = append_command(
@@ -560,7 +558,12 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
     assert logged_undo["undoes"] != first["id"]
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
-    assert any("read failed" in error for error in errors)
+    assert take_browser_errors(page) == [
+        reported.value.text.replace(
+            "leaf: read failed:", "leaf: State presentation failed:", 1
+        ),
+        reported.value.text,
+    ]
 
 
 def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
@@ -568,7 +571,7 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
     send waits. Refusing the older action must preserve that outbox overlay, including
     while an accepted intermediate answer is older than the newest local gesture. The
     queued state is not a result, so it mints no page-map record before acceptance."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     page.locator("#card-heater .lf-grip").focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
@@ -667,7 +670,7 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-heater", "card-baffle"]
-    assert errors and all("400" in error for error in errors)
+    consume_browser_errors(page, "400")
 
 
 def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
@@ -676,7 +679,7 @@ def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
     """Rollback snapshots compose the wrong state: B captures optimistic A, so if
     both are refused, B's snapshot resurrects A. The runtime instead removes each
     action from one overlay and derives the widget from the log plus what survives."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     page.locator("#card-heater .lf-grip").focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
@@ -742,7 +745,7 @@ def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
     assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
-    assert errors and all("400" in error for error in errors)
+    consume_browser_errors(page, "400")
 
 
 def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
@@ -751,7 +754,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
     """A position unit shares an ordered container with its siblings. Restoring only
     the refused card's authored index can overwrite a different card's logged reorder;
     reconciliation must fold the board whole in action order."""
-    page, errors = open_page(browser, serve(BOARD_PAGE), init_script=HOLD_MOTION)
+    page = open_page(browser, serve(BOARD_PAGE), init_script=HOLD_MOTION)
     baffle = page.locator("#card-baffle .lf-grip")
     baffle.focus()
     for key in ["Enter", "ArrowUp", "Enter"]:
@@ -806,7 +809,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
         "reconstruction exposed synthetic authored/log placements as gestures: "
         f"{motions}"
     )
-    assert errors and all("400" in error for error in errors)
+    consume_browser_errors(page, "400")
 
 
 def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
@@ -830,7 +833,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
             "detail": {"card": "card-heater", "to": "col-todo", "index": 2},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     cards = "cards => cards.map(card => card.id)"
     assert page.eval_on_selector_all("#col-todo > lf-card", cards) == [
         "card-baffle",
@@ -877,7 +880,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
     assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
-    assert errors and all("400" in error for error in errors)
+    consume_browser_errors(page, "400")
 
 
 def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
@@ -952,9 +955,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
   </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
 </lf-outer-board>""",
     )
-    page, errors = open_page(
-        browser, serve(nested, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    page = open_page(browser, serve(nested, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
     page.route("**/api/state*", refuse)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -1006,7 +1007,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
     assert [
         (event["widget"], event["detail"]["card"]) for event in actions(serve.page_dir)
     ] == [("inner", "inner-card")]
-    assert errors and all("400" in error for error in errors)
+    consume_browser_errors(page, "400")
 
 
 def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
@@ -1015,7 +1016,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     """Acceptance may be known while a malformed state keeps the outbox hold. If
     later log events arrive before another refusal, the retained accepted attempt is
     replayed at its log sequence—not overlaid again as though it were newest."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
 
     def malformed_read_state(route):
         if lifted:
@@ -1116,7 +1117,13 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         "card-heater",
         "card-baffle",
     ]
-    assert errors
+    consume_browser_errors(
+        page,
+        "leaf: State presentation failed:",
+        "leaf: state in event response",
+        "read failed",
+        "400",
+    )
 
 
 def test_accounting_an_action_projects_newer_same_widget_news_before_release(
@@ -1125,7 +1132,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
     """A complete poll can account for held A while also carrying newer B. Replay
     skips the widget under A's outbox hold; releasing A must project A+B before that
     hold disappears, or the page offers its next gesture against stale optimistic A."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     heater = page.locator("#card-heater .lf-grip")
@@ -1170,7 +1177,6 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
         "card-heater",
         "card-baffle",
     ]
-    assert errors == []
 
 
 def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
@@ -1180,7 +1186,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     The outbox entry is no longer a hold against that same read: the withdrawal must
     restore authored state before accounting releases A, or the sender keeps showing a
     gesture the log and every fresh page have already taken back."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     heater = page.locator("#card-heater .lf-grip")
@@ -1210,7 +1216,6 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
-    assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.unroute("**/api/event")
 
@@ -1222,7 +1227,7 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     this page never saw."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
-    errors = watched(page)
+    watched(page)
     cut = CutOff().hold(page)
     page.goto(serve(BOARD_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
@@ -1257,7 +1262,6 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
-    assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.unroute("**/api/event")
 
@@ -1271,7 +1275,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     authoritative read has released it."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
-    errors = watched(page)
+    watched(page)
     cut = CutOff().hold(page)
     page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
@@ -1303,7 +1307,6 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     expect(page.locator("#sug-refill")).not_to_have_attribute("data-lf-state", "accept")
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
-    assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.wait_for_timeout(100)
     expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
@@ -1314,7 +1317,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     """A later record-less action on the same declared unit supersedes the first.
     When one complete read accounts the held accept and also replays another tab's
     reject, the older send continuation must not paint accept over that chronology."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -1349,7 +1352,6 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
         ("sug-refill", "accept"),
         ("sug-refill", "reject"),
     ]
-    assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.wait_for_timeout(100)
     expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
@@ -1360,7 +1362,7 @@ def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serv
     """A complete read containing an attempt is authoritative delivery evidence. Once
     it accounts for A, the ordered outbox may send queued B even if A's original browser
     response never finishes; the server append A was already observed before B starts."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -1405,14 +1407,13 @@ def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serv
     ]
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
-    assert errors == []
 
 
 def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, serve):
     """A board grab owns its captured origin until release. A refusal arriving under
     that grab must remain in the outbox, then reconcile after Escape, or the cancel can
     resurrect the move the server refused."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     page.route("**/api/state*", refuse)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -1445,13 +1446,13 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
     page.keyboard.press("Escape")
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     assert actions(serve.page_dir) == []
-    assert errors and all("400" in error for error in errors)
+    consume_browser_errors(page, "400")
 
 
 def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
     """The outbox retries an accepted gesture whose response was lost before it
     sends the next gesture. Both arrive once, in the order the reader made them."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page = open_page(browser, serve(BOARD_PAGE))
     requests = []
     accepted = []
 
@@ -1502,7 +1503,6 @@ def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
     undo(page)
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
-    assert errors == []
 
 
 def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
@@ -1511,7 +1511,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     """The centralized projector runs before a refused send resolves. A draft caller
     may reopen the unsent text, but must not restore its stale pre-send body over a newer
     remote edit the projector just applied and marked complete."""
-    page, errors = open_page(browser, serve(UNDO_PAGE))
+    page = open_page(browser, serve(UNDO_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
@@ -1560,7 +1560,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
         "Remote B"
     ]
-    assert errors and all("400" in error for error in errors)
+    consume_browser_errors(page, "400")
 
 
 def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve):
@@ -1571,7 +1571,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     has to wait one microtask, or replay paints the remote words over the new optimistic
     body before the outbox can install its local winner.
     """
-    page, errors = open_page(browser, serve(UNDO_PAGE))
+    page = open_page(browser, serve(UNDO_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
@@ -1604,7 +1604,6 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
         "Remote B",
         "Local C",
     ]
-    assert errors == []
 
 
 def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
@@ -1613,7 +1612,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     the facet a comparison reads is collapsed. That is what withdrawing buys over
     stating a counter-gesture: a second press would otherwise land on a statement
     the first press had just made and put the reader back where they started."""
-    page, errors = open_page(browser, serve(UNDO_PAGE))
+    page = open_page(browser, serve(UNDO_PAGE))
     body = page.locator("lf-draft .lf-draft-body")
     authored = body.inner_text()
     assert "\n\n" in authored
@@ -1648,7 +1647,6 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
         choose["id"],
         edit["id"],
     ]
-    assert errors == []
 
 
 def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serve):
@@ -1656,7 +1654,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serv
     value. A prior durable action therefore appears immediately and stays through the
     accepted undo response.
     """
-    page, errors = open_page(browser, serve(UNDO_PAGE))
+    page = open_page(browser, serve(UNDO_PAGE))
     page.locator("#opt-a").click()
     round_trip(page)
     page.locator("#opt-b").click()
@@ -1674,13 +1672,12 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serv
     round_trip(page)
 
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
-    assert errors == []
 
 
 def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     """Withdrawing an accept renders the null settlement facet. The same suggestion
     regains its old passage and decision controls without replacing its subtree."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     old = page.locator("#sug-refill lf-old")
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(old).to_be_visible()
@@ -1710,13 +1707,12 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "undo"
     ] == [accepted["id"]]
-    assert errors == []
 
 
 def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
     """Undo restores a suggestion's passages and their anchored comment marks, and returns focus to the available decision control."""
     url = serve(SUGGESTION_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     events_model.append_event(
         serve.page_dir,
         {
@@ -1748,12 +1744,11 @@ def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
     undo(page)
     page.wait_for_function(f"{marks} === 1")
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_be_focused()
-    assert errors == []
 
 
 def test_undo_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
     """Undo from elsewhere changes the decision without moving the reader's focus."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     page.evaluate("() => document.body.focus()")
@@ -1761,7 +1756,6 @@ def test_undo_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
-    assert errors == []
 
 
 def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve):
@@ -1774,8 +1768,8 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     the reader-origin reading cleared because the fold agrees the edit is gone. A reload
     would show the authored words; this tab never would again."""
     url = serve(UNDO_PAGE)
-    one, errors_one = open_page(browser, url)
-    two, errors_two = open_page(browser, url)
+    one = open_page(browser, url)
+    two = open_page(browser, url)
     body = "lf-draft .lf-draft-body"
     authored = one.locator(body).inner_text()
 
@@ -1807,7 +1801,6 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"
     )
-    assert errors_one == [] and errors_two == []
     one.close()
     two.close()
 
@@ -1829,8 +1822,8 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     log."""
     url = serve(BOARD_PAGE)
     order = "#col-todo > lf-card", "e => e.map(c => c.id)"
-    stale, errors_stale = open_page(browser, url)
-    mover, errors_mover = open_page(browser, url)
+    stale = open_page(browser, url)
+    mover = open_page(browser, url)
 
     stale.locator("#card-baffle .lf-grip").focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
@@ -1854,7 +1847,7 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
 
     # The tab the damage shows in: it reads the second move off the log rather than
     # making it, so replay has it marked applied and will not lay it down twice.
-    heard, errors_heard = open_page(browser, url)
+    heard = open_page(browser, url)
     assert heard.eval_on_selector_all(*order) == standing
 
     # Not undo(): the helper ends in round_trip, and this tab's polls are stopped, so
@@ -1873,14 +1866,12 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
         "a tab that heard the undo painted the state that stood before the move it "
         "named, over the move that still stands"
     )
-    fresh, errors_fresh = open_page(browser, url)
+    fresh = open_page(browser, url)
     assert fresh.eval_on_selector_all(*order) == standing, (
         "a tab reading the log fresh disagrees with the tab that heard the undo"
     )
     # The stale tab's own console too: `refuse` cancels rather than fails a
     # request, so stopping its polls leaves nothing for it to report.
-    assert errors_stale == [] and errors_mover == []
-    assert errors_heard == [] and errors_fresh == []
     stale.close()
     mover.close()
     heard.close()
@@ -1899,8 +1890,8 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     answer either way: a version written around the decision states the same placement,
     so the restore is a no-op, and one that was not, like this one, catches up."""
     url = serve(BOARD_PAGE)
-    pinned, errors_pinned = open_page(browser, url + "&pin")
-    moved_on, errors_moved_on = open_page(browser, live_url(url))
+    pinned = open_page(browser, url + "&pin")
+    moved_on = open_page(browser, live_url(url))
 
     pinned.locator("#card-baffle .lf-grip").focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
@@ -1922,7 +1913,6 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     told(moved_on)
     told(moved_on)
     expect(moved_on.locator("#col-todo #card-baffle")).to_have_count(1)
-    assert errors_pinned == [] and errors_moved_on == []
     pinned.close()
     moved_on.close()
 
@@ -1930,8 +1920,8 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
 def test_a_second_tab_takes_the_decision_back_too(browser, serve):
     """A second tab receives the withdrawal from the log, restores the pending suggestion, and lets the reader decide again."""
     url = serve(SUGGESTION_PAGE)
-    one, errors_one = open_page(browser, url)
-    two, errors_two = open_page(browser, url)
+    one = open_page(browser, url)
+    two = open_page(browser, url)
     marks = """(id) => Object.fromEntries(['lf-sug-del', 'lf-sug-ins'].map(name =>
         [name, [...(CSS.highlights.get(name) ?? [])]
             .filter(r => document.getElementById(id).contains(r.startContainer))
@@ -1965,14 +1955,13 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] in ("action", "undo")
     ] == ["accept", "undo", "reject"]
-    assert errors_one == [] and errors_two == []
     one.close()
     two.close()
 
 
 def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve):
     """Undoing an outer suggestion preserves the nested widget, its selected option, and the reader's independent decision."""
-    page, errors = open_page(browser, serve(NESTED_SUGGESTION))
+    page = open_page(browser, serve(NESTED_SUGGESTION))
     original = page.locator("#sug-thistle lf-options").element_handle()
     page.locator("#blend-mixed").click()
     round_trip(page)
@@ -1990,22 +1979,20 @@ def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve)
         "node => node === document.querySelector('#sug-thistle lf-options')"
     )
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
-    assert errors == []
 
 
 def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
     """A page loaded after an undo renders the same undecided state as a page that received the withdrawal live."""
     url = serve(SUGGESTION_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     undo(page)
     page.close()
 
-    again, errors = open_page(browser, url)
+    again = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
     expect(again.locator(".lf-asks")).to_have_text("Asks 0/3")
-    assert errors == []
     again.close()
 
 
@@ -2022,7 +2009,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
         f"<p id='f{i}'>Filler {i}. " + "Words. " * 20 + "</p>" for i in range(30)
     )
     url = serve(SETTLED_PAGE.replace("</main>", filler + "\n</main>"))
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     page.locator(".lf-settled").click()  # open the settled group, as a reader would
     page.wait_for_selector("#opt-strict:visible")
@@ -2051,12 +2038,11 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     assert not composer_quote(page)["shown"], (
         "the mark is showing and the composer prints the passage as well"
     )
-    assert errors == []
 
 
 def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
     """Floating UI's scroll observer keeps the field attached to its passage."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
     page.wait_for_selector(".lf-fab-input", state="visible")
@@ -2079,7 +2065,6 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
         }""",
         arg=before,
     )
-    assert errors == []
 
 
 def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serve):
@@ -2094,7 +2079,7 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
     runner. 1440 made the question exact rather than true: the margin fitted the box
     with nothing at all to spare where this was written, and fell 15px short where it
     ran, so a placement doing precisely what it should read as a bug."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1600, 900)
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
@@ -2122,7 +2107,6 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
     assert standing["touching"] == [], (
         f"the box stands on the page's own text: {standing['touching']}"
     )
-    assert errors == []
 
 
 def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
@@ -2131,7 +2115,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     """Opening the thread panel stands the compact field down, so its old absolute
     position cannot create sideways overflow after the page narrows. The words remain
     the passage's draft and return when the reader selects that passage again."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     # Start with enough room for the field beside the passage; opening the panel then
     # changes the body's available right edge around that standing float.
     resized(page, 1600, 900)
@@ -2156,7 +2140,6 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     expect(page.locator(".lf-fab-input")).to_have_value(
         "held open across the panel opening"
     )
-    assert errors == []
 
 
 def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):
@@ -2164,7 +2147,7 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     replacement removes its passage. With no detached composer card, the compact field
     stands down on the new page and the words return when the original passage does."""
     url = serve(INLINE_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab-input").click()
@@ -2197,7 +2180,7 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     # Through the page's own readiness rather than the paragraph's arrival in markup:
     # the restore of a standing draft is part of presenting the page, and a gesture made
     # before that is a gesture the reader could not have made.
-    navigate(page, errors, url)
+    navigate(page, url)
     page.locator("#p").click(click_count=3)
     expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
     expect(page.locator(".lf-fab-input")).to_have_value(
@@ -2207,7 +2190,6 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     quote = composer_quote(page)
     assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"
-    assert errors == []
 
 
 def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, serve):
@@ -2231,7 +2213,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
             "detail": {"card": "card-heater", "to": "col-done", "index": 0},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     grip = page.locator("#card-heater .lf-grip")
     grip.focus()
@@ -2270,7 +2252,6 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     )
     assert _traffic(page).sends == sent, "the drop that moved nothing sent a move"
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
-    assert errors == []
 
 
 def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
@@ -2278,7 +2259,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
 ):
     """A preparation await does not freeze the set of unresolved reader gestures."""
     url = _serve_preparing_thread(serve)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.route("**/api/state*", refuse)
@@ -2351,7 +2332,6 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
     for route in later_posts:
         route.continue_()
     round_trip(page)
-    assert errors == []
 
 
 def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
@@ -2391,7 +2371,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
     )
-    page, errors = open_page(browser, _serve_preparing_thread(serve, signoff_page))
+    page = open_page(browser, _serve_preparing_thread(serve, signoff_page))
     approval = page.locator(".lf-signoff")
     expect(approval).to_have_text("Approve version")
     before = page.locator("body").get_attribute("data-lf-reading")
@@ -2466,7 +2446,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
         route.continue_()
     nudge(serve.page_dir)
     expect(approval).to_have_text("✓ Version approved")
-    assert errors == [
+    assert take_browser_errors(page) == [
         "leaf: State presentation failed: injected approval commit fault",
         "leaf: read failed: injected approval commit fault",
     ]
@@ -2477,7 +2457,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
 ):
     """Undo waits during application, then reads accepted truth after a paint fault."""
     url = _serve_preparing_thread(serve)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     before = page.locator("body").get_attribute("data-lf-reading")
@@ -2576,7 +2556,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     page.unroute("**/api/state*")
     for route in held_states:
         route.continue_()
-    assert errors == [
+    assert take_browser_errors(page) == [
         "leaf: State presentation failed: injected candidate commit fault",
         "leaf: read failed: injected candidate commit fault",
     ]
@@ -2586,7 +2566,7 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     browser, serve
 ):
     """A local optimistic paint fault cannot turn an accepted send into a refusal."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     page.route("**/api/state*", refuse)
     page.evaluate(
         """() => {
@@ -2617,6 +2597,7 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     undo = page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
     expect(undo).to_have_attribute("aria-disabled", "false")
     assert [event["action"] for event in actions(serve.page_dir)] == ["accept"]
+    errors = take_browser_errors(page)
     expected = [
         error
         for error in errors
@@ -2634,7 +2615,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     after that candidate finishes. Otherwise the older action could leave the ledger
     before every visible consumer has committed one coherent semantic reading.
     """
-    page, errors = open_page(browser, _serve_preparing_thread(serve))
+    page = open_page(browser, _serve_preparing_thread(serve))
     prior_reading = page.locator("body").get_attribute("data-lf-reading")
     page.evaluate(
         """async () => {
@@ -2738,7 +2719,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     expect(
         page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
     ).to_have_attribute("aria-disabled", "false")
-    assert errors == [
+    assert take_browser_errors(page) == [
         "leaf: State presentation failed: injected wake candidate fault",
         "leaf: read failed: injected wake candidate fault",
     ]

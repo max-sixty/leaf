@@ -274,7 +274,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             )
 
         context.route(server.origin + "/**", public_files)
-        page, errors = open_page(
+        page = open_page(
             browser,
             server.origin + "/versions/v1.html",
             context=context,
@@ -296,4 +296,3 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         assert root + "/page/widgets/lf-options.js" in loaded
         assert root + "/page/nested/value.js" in loaded
         assert root + "/page/nested/theme.css" in loaded
-        assert errors == []

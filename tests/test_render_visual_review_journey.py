@@ -45,7 +45,7 @@ def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
         "put visual inspection in document flow",
     )
     url = url.rsplit("/versions/", 1)[0] + "/?" + url.partition("?")[2]
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     resized(page, 1000, 700)
     widget = page.locator("#visual-review-run")
     expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
@@ -67,7 +67,6 @@ def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
     page.mouse.wheel(0, 320)
     page.wait_for_function("node => node.scrollTop > 0", arg=host.element_handle())
     assert page.evaluate("document.scrollingElement.scrollTop") == document_start
-    assert errors == []
 
 
 def go_to(page, target, kind="Control"):
@@ -337,7 +336,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     }
     data_model.cmd_data_set(review_dir, "journey-run", record)
 
-    reader, errors = open_page(browser, review_url)
+    reader = open_page(browser, review_url)
     resized(reader, 1366, 768)
     response = reader.context.request.get(f"{target_base}v1.html")
     assert response.status == 403
@@ -548,5 +547,4 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert capture_key not in standalone
     assert capture_key not in data_text
     assert "?t=" not in data_text
-    assert errors == []
     reader.close()

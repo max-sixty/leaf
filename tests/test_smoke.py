@@ -16,7 +16,7 @@ def test_a_shipped_page_passes_the_real_browser_gate(browser, serve):
 
 def test_ship_review_asks_are_directly_answerable(browser, serve):
     example = ROOT / "examples" / "ship-review.html"
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
 
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/2")
     expect(page.locator("#off-workaround-review .lf-pick")).to_have_count(2)
@@ -33,5 +33,3 @@ def test_ship_review_asks_are_directly_answerable(browser, serve):
         page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
     ).not_to_have_count(0)
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
-
-    assert errors == []

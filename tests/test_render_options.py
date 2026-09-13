@@ -72,7 +72,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
     globally unique enough to leave a page's own animation alone. The page coins the
     old generic name on purpose; sampling its midpoint makes a collision deterministic
     rather than asking where a running animation happened to be when the test looked."""
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             leaf_page(
@@ -106,7 +106,6 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
     assert sampled["runtimeName"] and sampled["runtimeName"] != "lf-pulse", (
         f"the chrome lost its own private pulse animation: {sampled}"
     )
-    assert errors == []
 
 
 def test_substantial_options_stack_and_align_their_facts(browser, serve):
@@ -124,8 +123,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     pinned to two corners and reserved room for, and `chips` can be any length at
     all. So it goes in flow ahead of the title, where a card gives it the width it
     has and it wraps inside that rather than over the card's edge."""
-    page, errors = open_page(browser, serve(STACKED_OPTIONS_PAGE))
-    assert errors == []
+    page = open_page(browser, serve(STACKED_OPTIONS_PAGE))
 
     sd = page.locator("#st-sd").bounding_box()
     pi = page.locator("#st-pi").bounding_box()
@@ -253,8 +251,7 @@ def test_a_terse_variant_is_the_height_of_its_own_words(browser, serve):
     So the two are measured against each other, and each row's own tallest is asserted
     first: two cells of one height prove nothing about stretch unless something in their
     rows was taller."""
-    page, errors = open_page(browser, serve(STACKED_OPTIONS_PAGE))
-    assert errors == []
+    page = open_page(browser, serve(STACKED_OPTIONS_PAGE))
     boxes = {
         name: page.locator(f"#{name}").bounding_box()
         for name in ("cv-oak", "cv-ash", "cv-elm", "cv-yew", "cv-fir")
@@ -314,7 +311,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     url = serve(CARRIED_PAGE)
     assert render_gate_model.render_version(browser, url) == []
 
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     mark = page.locator("#c-lax .lf-pick")
     assert mark.get_attribute("role") == "img"
     assert mark.get_attribute("aria-label") == "selected: Lax cookie"
@@ -336,12 +333,11 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["c-bearer"], "the diff read the mark as text the base version lacked"
-    assert errors == []
 
 
 def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve):
     """A completed Ask keeps the same live-card state when reopened for review."""
-    page, errors = open_page(browser, live_url(serve(SETTLED_PAGE)))
+    page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     mark = page.locator("#opt-lax .lf-pick")
     assert mark.get_attribute("aria-checked") == "true"
@@ -367,14 +363,13 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     page.keyboard.press(" ")
     expect(page.locator("#opt-bearer")).to_have_attribute("chosen", "")
     round_trip(page)
-    assert errors == []
 
 
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     browser, serve
 ):
     """A choice presents through its child Lit control and retains authored nodes."""
-    page, errors = open_page(browser, live_url(serve(SETTLED_PAGE)))
+    page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     group = page.locator("#transport")
     strict = page.locator("#opt-strict")
@@ -463,7 +458,6 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     )
     page.wait_for_function("reconnectedOptionsReady")
     assert page.evaluate("optionIdentityHeld()") is True
-    assert errors == []
     page.close()
 
 
@@ -476,7 +470,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     the next numbered route into its shared text box rather than an Enter alias on a mark.
     """
     url = serve(ASK_WITH_CONTEXT_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     page.keyboard.press("a")
     mark = page.locator("#storage-evict .lf-pick")
@@ -497,10 +491,9 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.keyboard.press("3")
     expect(box).to_be_focused()
     expect(write_hint).to_be_hidden()
-    assert errors == []
     page.close()
 
-    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     page.keyboard.press("a")
     mark = page.locator("#storage-evict .lf-pick")
     box = page.locator("#storage-options > .lf-another textarea")
@@ -540,10 +533,9 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
     expect(added).to_have_css("white-space", "pre-wrap")
-    assert errors == []
     page.close()
 
-    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     page.keyboard.press("a")
     page.keyboard.press("Tab")
     mark = page.locator("#storage-evict .lf-pick")
@@ -557,7 +549,6 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(chosen).to_have_attribute("role", "checkbox")
     expect(chosen).to_have_attribute("aria-checked", "true")
     expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
-    assert errors == []
     page.close()
 
     # Native focus scrolling reads the fixed shortcut bar as part of the root scrollport's
@@ -569,7 +560,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # screen a Tab stop is already where the browser would put it, nothing scrolls, and the
     # reading goes green over the travel it is about; the assertion before the presses says
     # so rather than leaving it to the window's height to be right.
-    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     resized(page, 390, 640)
     clearance = """() => document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top
       - document.querySelector('#storage-options > .lf-another')
@@ -590,12 +581,11 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(box).to_be_focused()
     landed = page.evaluate(clearance)
     assert landed >= 20, f"the shortcut bar covers the add field by {-landed}px"
-    assert errors == []
 
 
 def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     """An Ask's key hints stay out of selected page words and off paper."""
-    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     page.keyboard.press("a")
     badges = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(badges).to_have_text(["1", "2"])
@@ -620,7 +610,6 @@ def test_ask_addresses_are_screen_only_apparatus(browser, serve):
 
     page.emulate_media(media="print")
     expect(badges.first).to_be_hidden()
-    assert errors == []
 
 
 def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
@@ -641,7 +630,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     wired up rather than as a fault. The header state is measured before and after the
     pick because an absolute badge without reserved room can cover authored chips, and a
     badge whose room appears only once chosen moves the argument under the pointer."""
-    page, errors = open_page(browser, serve(REPLAYED_PAGE))
+    page = open_page(browser, serve(REPLAYED_PAGE))
     edge = """el => { const s = getComputedStyle(el);
                       return s.borderTopStyle === 'none' ? 0 : parseFloat(s.borderTopWidth); }"""
     assert page.locator("#approach").evaluate(edge) > 0, (
@@ -753,13 +742,12 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
         )
         == '"✓"'
     )
-    assert errors == []
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme):
     """Every untaken option keeps a visible boundary before the reader aims at it."""
-    page, errors = open_page(browser, serve(ASK_PAGE), color_scheme=color_scheme)
+    page = open_page(browser, serve(ASK_PAGE), color_scheme=color_scheme)
     readings = page.locator(
         'lf-options[choose] > lf-option:not([chosen]) > .lf-pick[role="checkbox"]'
     ).evaluate_all(
@@ -794,7 +782,6 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
     )
     assert readings, "the fixture contains no open option controls"
     assert all(reading["contrast"] >= 3 for reading in readings), readings
-    assert errors == []
 
 
 @pytest.mark.parametrize(
@@ -807,7 +794,7 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
 )
 def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, question):
     """The question is document content above the answers, never generated group chrome."""
-    page, errors = open_page(browser, serve(ASK_SHAPES_PAGE))
+    page = open_page(browser, serve(ASK_SHAPES_PAGE))
     heading = page.locator(f"#{ask} > :is(h1, h2, h3, h4, h5, h6)")
     expect(heading).to_have_count(1)
     expect(heading).to_have_text(question)
@@ -817,7 +804,6 @@ def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, ques
     ).evaluate("el => el.getBoundingClientRect().top"), (
         "the answer control stands before its authored question"
     )
-    assert errors == []
 
 
 @pytest.mark.parametrize("group", ["cards", "rows"])
@@ -848,7 +834,7 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     authored options are the author's, the option the reader writes is the module's,
     the question and the Done press are the runtime's, and each arrived carrying the
     spacing it wears standing alone."""
-    page, errors = open_page(browser, serve(ASK_SHAPES_PAGE))
+    page = open_page(browser, serve(ASK_SHAPES_PAGE))
     cells = page.locator(f"#{group}").evaluate(
         r"""el => {
              const px = (v) => parseFloat(v) || 0;
@@ -918,7 +904,6 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
         f"unpicked option stands on {open_option}, so it reads as apparatus under the "
         "answers rather than as one of them"
     )
-    assert errors == []
 
 
 def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
@@ -943,8 +928,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
             "detail": {},
         },
     )
-    page, errors = open_page(browser, url)
-    assert errors == []
+    page = open_page(browser, url)
     assert page.locator(".lf-error").count() == 0
 
     # The exhibit rendered: the gutter's caption, and cards with real size. The label is
@@ -1118,7 +1102,7 @@ def test_one_band_says_where_the_reader_is_standing(browser, serve):
     The Ask retains its semantic location marker, but its exterior outline would
     look like a second group border and vanish as state changes. The active row carries
     keyboard location instead; the group's permanent frame does not change."""
-    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     mark = page.locator("#storage-evict .lf-pick")
     mark.focus()
     page.keyboard.press("Shift+Tab")
@@ -1138,7 +1122,6 @@ def test_one_band_says_where_the_reader_is_standing(browser, serve):
     assert (
         group.evaluate("el => parseFloat(getComputedStyle(el).borderTopWidth)") > 0
     ), "moving focus removed the group's permanent frame"
-    assert errors == []
 
 
 def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
@@ -1147,7 +1130,7 @@ def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
     The projection still carries `data-lf-reader-override`; the selected row's check and tint
     show the choice while the group's permanent frame stays visually unchanged.
     """
-    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    page = open_page(browser, serve(SPECIMEN_PAGE))
     group = page.locator("#live-group")
     frame = "el => [getComputedStyle(el).border, getComputedStyle(el).outlineStyle]"
     before = group.evaluate(frame)
@@ -1156,7 +1139,6 @@ def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
     expect(group).to_have_attribute("data-lf-reader-override", "1")
     expect(page.locator("#l-stage")).to_have_attribute("chosen", "")
     assert group.evaluate(frame) == before
-    assert errors == []
 
 
 def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serve):
@@ -1176,8 +1158,7 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     what the author wrote in it: the mark that lands inside the row once it is picked is
     the page speaking (`says`) and must stay out of the row's own name (`wrote`), or a
     question answered reads its answer back as part of what was asked."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
-    assert errors == []
+    page = open_page(browser, serve(ASK_PAGE))
 
     # One row per option in both forms: a single column with no template stated, so
     # the joined control below is a list whatever the options hold. The display is
@@ -1280,7 +1261,7 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
 
     And the shape is paint inside a box that does not change, so neither arity is a
     pixel wider than the other and every room already reserved still covers."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     corner = """el => { const s = getComputedStyle(el, '::before');
                         const r = s.borderTopLeftRadius;
                         return r.endsWith('%') ? parseFloat(r) / 100
@@ -1333,7 +1314,6 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
         page.locator("#tl-clamp .lf-pick").evaluate(named)
         == "choose any: Bar clamp — option 1 of 2"
     )
-    assert errors == []
 
 
 def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
@@ -1349,7 +1329,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
         f"<p>Technical argument {index}.</p></lf-option>"
         for index in range(1, 11)
     )
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             leaf_page(
@@ -1375,8 +1355,6 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
         "the unbound tenth action lost its visible checkbox to a sibling's binding badge"
     )
 
-    assert errors == []
-
 
 def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     """An option's content model is prose, so a question nests inside another question's
@@ -1389,7 +1367,7 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     So each group reaches only as far as the options it owns. This is what stops that
     being an argument: a descendant selector here would pass every other test on this
     page and fail only where two questions stand inside one another."""
-    page, errors = open_page(browser, serve(NESTED_ASK_PAGE))
+    page = open_page(browser, serve(NESTED_ASK_PAGE))
     corner = """el => { const s = getComputedStyle(el, '::before');
                         const r = s.borderTopLeftRadius;
                         return r.endsWith('%') ? parseFloat(r) / 100
@@ -1402,7 +1380,6 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     # its options: the mark on #out-drill is the outer question's, not the inner one's.
     assert page.locator("#out-drill > .lf-pick").evaluate(corner) < 0.5
     assert page.locator("#out-keys > .lf-pick").evaluate(corner) < 0.5
-    assert errors == []
 
 
 def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve):
@@ -1413,7 +1390,7 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
     command sets collide when the reader navigates there, and the inner question either
     breaks the shortcut bar or lends its answers to the wrong Ask.
     """
-    page, errors = open_page(browser, serve(NESTED_ASK_PAGE))
+    page = open_page(browser, serve(NESTED_ASK_PAGE))
     page.keyboard.press("a")
 
     expect(page.locator("#outer-decision")).to_be_focused()
@@ -1425,7 +1402,6 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
     page.keyboard.press("2")
     expect(page.locator("#out-keys")).to_have_attribute("chosen", "")
     expect(page.locator("#inner > lf-option[chosen]")).to_have_count(0)
-    assert errors == []
 
 
 def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve):
@@ -1448,12 +1424,11 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
         },
     )
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     expect(page.locator("#outer")).not_to_have_attribute("data-lf-reader-override", "1")
     expect(page.locator("#inner")).not_to_have_attribute("data-lf-reader-override", "1")
     expect(page.locator("#out-drill")).to_have_attribute("chosen", "")
     expect(page.locator("#in-now")).to_have_attribute("chosen", "")
-    assert errors == []
 
 
 def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
@@ -1469,7 +1444,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     both ways, the disclosure opens, the editor takes the draft's place, and only then is
     the question still open. The log is asked once at the end, since the failure that
     costs the most puts a decision there while leaving the page looking untouched."""
-    page, errors = open_page(browser, serve(INLINE_CASE_PAGE))
+    page = open_page(browser, serve(INLINE_CASE_PAGE))
     option = page.locator("#ro-column")
     picked = "el => el.hasAttribute('chosen')"
 
@@ -1537,7 +1512,6 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
         for e in sent_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [["ro-column"]]
-    assert errors == []
 
 
 def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
@@ -1565,7 +1539,7 @@ def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
     its neighbours and carries whatever stands beside it along. At the line's end that
     raggedness was the marks'; at the line's start it would be the labels', which is the
     edge the reader actually runs their eye down."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     # Where the ring is painted, and where the row's first authored word is, both against
     # the group. Read as a pair because either alone can be satisfied by the wrong thing:
     # a constant column proves nothing if it is past the words, and being left of the
@@ -1594,7 +1568,6 @@ def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
     assert all(mark < word for mark, word in seen), (
         f"a row's mark stands past the words it answers for: {seen}"
     )
-    assert errors == []
 
 
 def test_a_row_label_keeps_the_spacing_it_was_written_with(browser, serve):
@@ -1607,7 +1580,7 @@ def test_a_row_label_keeps_the_spacing_it_was_written_with(browser, serve):
     space away without giving it back. So the room between the last word and the code it
     runs into is read against the space itself: that the space is on the screen at all,
     and that nothing else is standing in for it."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     room = """() => {
                 const code = document.querySelector('#job-mounts code');
                 const text = code.previousSibling;   // "Replace the "
@@ -1625,7 +1598,6 @@ def test_a_row_label_keeps_the_spacing_it_was_written_with(browser, serve):
     assert abs(gap - space) < 0.5, (
         f"{gap}px of room where the label asked for {space}px"
     )
-    assert errors == []
 
 
 def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
@@ -1636,14 +1608,13 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
     box whose height was the word's, so a mark that gained one lifted its own dot 3.4px
     out from under the pointer that had just pressed it. Out of flow, over the row's own
     height, the dot stands where it stood."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     mark = page.locator("#job-heater .lf-pick")
     box = "el => JSON.stringify(el.getBoundingClientRect())"
     before = mark.evaluate(box)
     page.locator("#job-heater").click()
     expect(mark).to_have_text("selected")
     assert mark.evaluate(box) == before, "the press moved the mark it landed on"
-    assert errors == []
 
 
 def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):
@@ -1661,7 +1632,7 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
     The mark leads the row and the `for` reference ends it, so the words are what stands
     between them, and the chip is read against both edges rather than against whichever
     one the apparatus happened to be on."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     chip = page.locator("#job-heater > lf-chip")
     expect(chip).to_have_text("reversible")
     ref = page.locator("#job-heater .lf-ref").bounding_box()
@@ -1669,7 +1640,6 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
     assert mark["x"] < chip.bounding_box()["x"] < ref["x"], (
         "the chip stands outside the row's own words rather than among them"
     )
-    assert errors == []
 
 
 def test_one_chip_holds_every_short_fact(browser, serve):
@@ -1682,7 +1652,7 @@ def test_one_chip_holds_every_short_fact(browser, serve):
     everywhere else. One rule states the chip now and each wearer adds only where it
     sits, which is why this reads the rendered box rather than the declarations — a
     wearer is free to restate, and the box is what a reader compares."""
-    page, errors = open_page(browser, serve(CHIP_PAGE))
+    page = open_page(browser, serve(CHIP_PAGE))
     face = """el => { const s = getComputedStyle(el);
         return Object.fromEntries(["font-family", "font-size", "line-height",
             "padding", "border-radius", "background-color", "color"]
@@ -1708,7 +1678,6 @@ def test_one_chip_holds_every_short_fact(browser, serve):
             f"the chip {where} stands {other_box['height']}px against "
             f"{box['height']}px {first}"
         )
-    assert errors == []
 
 
 def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
@@ -1723,7 +1692,7 @@ def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
     one thing every screen reader announces in every mode — and therefore clipped to
     nothing, holding no room, and out of the selection, since a word the eye can't see
     is a word the clipboard has no business carrying."""
-    page, errors = open_page(browser, serve(PAINTED_PAGE))
+    page = open_page(browser, serve(PAINTED_PAGE))
     for sel, word in (
         ("#e-dark", "failure"),
         ("#t-baffles", "blocked"),
@@ -1749,7 +1718,6 @@ def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
              return getSelection().toString(); }"""
     )
     assert "went dark" in spoken and "failure" not in spoken, spoken
-    assert errors == []
 
 
 def test_a_pick_states_the_whole_set(browser, serve):
@@ -1758,7 +1726,7 @@ def test_a_pick_states_the_whole_set(browser, serve):
     idempotent and a second tab converges rather than drifting. Without `multiple` the
     set a click toggles from is empty, which is what makes a pick replace instead of
     join — one rule, not two code paths."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
 
     page.locator("#job-mounts").click()
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(1)
@@ -1796,7 +1764,6 @@ def test_a_pick_states_the_whole_set(browser, serve):
     expect(
         page.locator('[data-lf-margin-for="bracket-decision"] .lf-margin-marker')
     ).to_have_attribute("data-lf-kinds", "ask")
-    assert errors == []
 
 
 def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
@@ -1810,7 +1777,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     carries the chosen state itself.
     """
     url = serve(ASK_PAGE)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     d = serve.page_dir
 
     with sending(page, "the mounts choice"):
@@ -1874,7 +1841,6 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     wait_for_revision(page, 3)
     expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
     expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
-    assert errors == []
 
 
 def test_a_send_waits_for_the_send_before_it(browser, serve):
@@ -1899,7 +1865,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     does; the log's order after the release is the outcome the queue is for, and on its
     own it would be the same coin the runner tossed — a second send already appended
     beats the release, and one still in flight doesn't."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     held = []
 
     def hold(route):
@@ -1929,14 +1895,13 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
         for e in sent_events(serve.page_dir)
         if e.get("action") == "choose"
     ] == [["br-steel"], ["br-cedar"]]
-    assert errors == []
 
 
 def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve):
     """The first POST's state contains only the first pick, but it may arrive after a
     second local pick. Replay leaves the outbox's widget alone, so that older snapshot
     cannot erase the newer gesture or corrupt the absolute state it later sends."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     d = serve.page_dir
     held = []
     sent_behind = []
@@ -1987,7 +1952,6 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
         ["job-mounts", "job-camera"],
         ["job-mounts", "job-camera", "job-heater"],
     ]
-    assert errors == []
 
 
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
@@ -2009,7 +1973,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         '<lf-column id="work-done" label="Done"></lf-column></lf-board>',
     )
     url = serve(work_page)
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     d = serve.page_dir
 
     def claim(subject, detail):
@@ -2055,11 +2019,10 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     expect(card_button).to_have_attribute(
         "aria-label", re.compile("checking the fallback")
     )
-    pinned, pinned_errors = open_page(browser, url, pin=True)
+    pinned = open_page(browser, url, pin=True)
     expect(
         pinned.locator('[data-lf-margin-for="card-migration"] > .lf-margin-marker')
     ).to_have_count(0)
-    assert pinned_errors == []
     pinned.close()
 
     stamp_page(
@@ -2070,7 +2033,6 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     )
     wait_for_revision(page, 3)
     expect(page.locator(".lf-receipt")).to_have_count(0)
-    assert errors == []
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
@@ -2085,9 +2047,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-option": option}))
 
-    page, errors = open_page(
-        browser, serve(ASK_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    page = open_page(browser, serve(ASK_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -2120,7 +2080,6 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     ]
     assert picks == [("jobs", {"options": ["job-heater"]})], picks
     expect(page.locator("#job-mounts")).not_to_have_attribute("chosen", "")
-    assert errors == []
 
 
 def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
@@ -2136,7 +2095,7 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
         '</lf-column></lf-board>\n<lf-diff id="patch">',
     )
     url = serve(work_page)
-    page, errors = open_page(browser, url, pin=True)
+    page = open_page(browser, url, pin=True)
     d = serve.page_dir
 
     claimed = CliRunner().invoke(
@@ -2163,7 +2122,6 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     assert settled["version"] == 2
     told(page)
     expect(work_button).to_have_count(0)
-    assert errors == []
 
 
 def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, serve):
@@ -2177,7 +2135,7 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
         '</lf-column></lf-board>\n<lf-diff id="patch">',
     )
     url = serve(work_page)
-    page, errors = open_page(browser, url, pin=True)
+    page = open_page(browser, url, pin=True)
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -2201,7 +2159,6 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
     expect(work_button).to_have_css("display", "flex")
     expect(work_button).to_have_css("border-radius", "50%")
     expect(work_button).to_have_css("height", "32px")
-    assert errors == []
 
 
 def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
@@ -2221,8 +2178,7 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
     That is containment, and containment passes over a table box without a word — a
     question row states its layout as a table, so a settled group of them stayed on
     screen under a shut disclosure, reading as one that had never collapsed."""
-    page, errors = open_page(browser, serve(SETTLED_ASK_PAGE))
-    assert errors == []
+    page = open_page(browser, serve(SETTLED_ASK_PAGE))
 
     box = page.locator("#jobs .lf-another")
     rows = page.locator("#jobs > lf-option")
@@ -2290,8 +2246,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
 
     # The examples by path, so each is served with the data its markup selects; their
     # conversations are left off, since the bar is drawn around what the markup exhibits.
-    page, errors = open_page(browser, serve(source, seed_log=False))
-    assert errors == []
+    page = open_page(browser, serve(source, seed_log=False))
     scale = page.evaluate("() => devicePixelRatio")
     # Rendered, not merely present. A specimen inside a tab panel the page is not
     # showing sits in skipped content, which still reports its last laid-out rect — a
@@ -2428,8 +2383,7 @@ def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
     Read at a viewport narrow enough for the board to want more room than the
     column has; at the render sweep's own 1200px the board fits and nothing here
     can fail."""
-    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
-    assert errors == []
+    page = open_page(browser, serve(SPECIMEN_PAGE))
     page.evaluate(
         """() => document.addEventListener('lf-margin-layout', () => {
           window.lfMarginLayoutWidth = innerWidth;
@@ -2486,12 +2440,11 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
             "markup": SPECIMEN_MARKUP,
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     page.wait_for_selector(
         '#rp-live .lf-pick[role="checkbox"]'
     )  # the reply's widgets upgraded
-    assert errors == []
 
     # The gutter renders in the panel: the specimen rules aren't scoped to the
     # document's column, and neither is the label — which reaches the panel only
@@ -2581,7 +2534,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
             "text": TABLE_REPLY,
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     page.wait_for_selector(".lf-msg-body table")
 
@@ -2604,7 +2557,6 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
         )
         == 0
     )
-    assert errors == []
 
 
 def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
@@ -2618,7 +2570,7 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     by Done are two coordinates, each of which minted a receipt: "✓ Sent · just now"
     twice under one question. The newer move supersedes the older for what the reader
     is owed."""
-    page, errors = open_page(
+    page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
     page.locator(".lf-threads-toggle").click()
@@ -2649,4 +2601,3 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     receipts = message.locator(":scope > .lf-msg-head > .lf-receipt")
     expect(receipts).to_have_count(1)
     expect(receipts).to_contain_text("Sent")
-    assert errors == []

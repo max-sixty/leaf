@@ -92,6 +92,7 @@ from render_harness import (
     panel_settled,
     primed,
     resized,
+    take_browser_errors,
 )
 
 pytestmark = pytest.mark.nightly
@@ -442,7 +443,7 @@ RECURSIVE_ROWS_PAGE = leaf_page(
 
 
 def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, serve):
-    page, errors = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
+    page = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
     workspace = page.locator("#rows-workspace")
     expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
@@ -460,7 +461,6 @@ def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, s
     )
     assert rows["lower"]["top"] >= rows["upper"]["bottom"] - 1, rows
     assert rows["footer"]["bottom"] <= 700, rows
-    assert errors == []
 
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
@@ -539,7 +539,7 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
 
 def test_current_presentation_probe_reopens_and_ignores_superseded_work(browser, serve):
     """The arrival latch stays set while current mechanical readiness can reopen."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     assert render_checks_model.evaluate_probe(page, "initiallyPresented") is True
     assert render_checks_model.evaluate_probe(page, "currentPresented") is True
 
@@ -576,7 +576,6 @@ def test_current_presentation_probe_reopens_and_ignores_superseded_work(browser,
     )
     assert render_checks_model.evaluate_probe(page, "currentPresented") is True
     page.evaluate("() => probePresentation.disconnect()")
-    assert errors == []
     page.close()
 
 
@@ -694,9 +693,9 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     # The example itself, so the data its markup selects is laid in beside it; its
     # conversation is not, because the asks the cascade answers are the markup's.
     url = serve(corpus, seed_log=False)
-    # The console is not the subject here: a reload mid-post leaves Chrome's own
-    # "Failed to load resource" behind, which is the navigation working.
-    page, _ = open_page(browser, url)
+    # The interrupted request is absent from the new document's console: the navigation
+    # clears the old document and its in-flight trip together.
+    page = open_page(browser, url)
 
     def slow(route):
         if "/api/event" in route.request.url:
@@ -918,7 +917,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     in turn, so a fourth remembered surface is covered the day it starts remembering.
     """
     url = serve(CHANGE_SHAPES_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     resized(page, 1200, 900)
 
     cdp = page.context.new_cdp_session(page)
@@ -990,6 +989,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         )
     # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
     # one document; one seen here is the platform under load and says nothing.
+    errors = take_browser_errors(page)
     assert [e for e in errors if not render_gate_scheme.resize_observer_error(e)] == []
 
 
@@ -1113,10 +1113,10 @@ def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
         + """
     });"""
     )
-    page, errors = open_page(browser, serve(LONG_PAGE), init_script=first_load_only)
+    page = open_page(browser, serve(LONG_PAGE), init_script=first_load_only)
 
-    assert errors == []
     page.evaluate(RESIZE_LOOP_EVENT)
+    errors = take_browser_errors(page)
     assert errors == [
         "window error: ResizeObserver loop completed with undelivered notifications."
     ], "a notice after the classified navigation was hidden too"
@@ -1126,8 +1126,9 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     every_load = (
         "addEventListener('DOMContentLoaded', () => {" + RESIZE_LOOP_EVENT + "});"
     )
-    _page, errors = open_page(browser, serve(LONG_PAGE), init_script=every_load)
+    page = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
+    errors = take_browser_errors(page)
     assert errors == [render_gate_scheme.recurring_resize_observer_error("navigation")]
 
 
@@ -2133,7 +2134,7 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     table spilled, and at this viewport the window is wide enough that nothing
     scrolled to say so."""
     url = serve(WIDE_TABLE_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     measured = page.locator("#sessions").evaluate(
         """(t) => {
         const main = t.closest('main'), pad = parseFloat(getComputedStyle(main).paddingRight);
@@ -2149,7 +2150,6 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert measured["past"] <= 0
     assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
     assert measured["sideways"] == 0
-    assert errors == []
     page.close()
     assert render_gate_model.render_version(browser, url) == []
 
@@ -2164,7 +2164,7 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
     column gets, so a name that did not break is a name that fitted by luck rather
     than by the rule, and the test says so."""
     url = serve(IDENTIFIERS_IN_CODE_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     measured = page.locator("#held").evaluate(
         """(t) => {
         const range = document.createRange(), lines = (code) => {
@@ -2179,7 +2179,6 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
     assert measured["scrolls"] == 0, measured
     assert measured["broke"], "every name fitted whole, so the rule was never asked"
     assert measured["sideways"] == 0
-    assert errors == []
     for width in range(520, 601, 4):
         resized(page, width, 720)
         scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
@@ -2199,10 +2198,9 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     the test says so first: a fixture that fitted CI's fonts by ten pixels left the
     gate silent there, and the silence read as the reading's."""
     url = serve(BARE_IDENTIFIERS_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
     assert scrolls > 1, "the names fit the measure here, so the reading is never asked"
-    assert errors == []
     page.close()
     failures = render_gate_model.render_version(browser, url)
 
@@ -2250,9 +2248,7 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
         ),
         IDENTIFIERS_IN_CODE_PAGE,
     )
-    page, errors = open_page(
-        browser, serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    page = open_page(browser, serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
     resized(page, 540, 720)
     host = page.locator("lf-callout").first
     host.evaluate(
@@ -2265,7 +2261,6 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     assert host.evaluate("(el) => el.shadowRoot.lastChild.nodeType") == 3
     table = page.locator("#held")
     assert table.evaluate("(el) => el.scrollWidth - el.clientWidth") > 1
-    assert errors == []
 
     squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
 
@@ -2329,7 +2324,7 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
     escaped. Then the two things the place is for: the reader who takes the skip
     link, and the gate."""
     url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     note = page.locator(".lf-mark-note")
     expect(note).to_have_count(1)
     expect(note).to_have_text("1 comment")
@@ -2383,7 +2378,6 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
     }"""
     )
     assert reached == {"held": True, "said": "1 comment", "inTheWindow": True}
-    assert errors == []
     page.close()
     assert render_gate_model.render_version(browser, url) == []
 
@@ -2405,7 +2399,7 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     holds its own and takes no mark, and a diff's lines, which scroll in a declared
     shadow tree where a document rule does not go."""
     url = serve(LOOSE_SCROLLER_PAGE, anchored=[("far", "wider than the box")])
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     note = page.locator("#far > .lf-mark-note")
     expect(note).to_have_count(1)
     measured = note.evaluate(
@@ -2468,11 +2462,10 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     }"""
     )
     assert focused == {"mask": "none", "painted": True}, focused
-    assert errors == []
     page.close()
 
     example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
     # The lines a diff has drawn, which is not every diff on the page: the shipped patch
     # stands collapsed and fetches one file when it is asked for, so its shadow tree
     # holds nothing to mark until a reader opens one. The floor below is what keeps that
@@ -2489,7 +2482,6 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     assert all(
         d == {"scrolls": "auto", "marked": True, "position": "relative"} for d in diffed
     ), f"the mark did not reach the diff's lines: {diffed}"
-    assert errors == []
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
@@ -2528,7 +2520,7 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
 <div id="root-spill" style="width: 700px">This box leaves the page.</div>
 """,
     )
-    page, errors = open_page(browser, serve(source, packages=()))
+    page = open_page(browser, serve(source, packages=()))
     resized(page, 540, 720)
     measured = page.evaluate(
         """() => {
@@ -2554,7 +2546,6 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
         }"""
     )
     visible_chrome = render_checks_model.evaluate_probe(page, "misplacedBoxes")
-    assert errors == []
     page.close()
 
     assert measured["labelPast"] > 1, "the Leaf label stayed inside the column"
@@ -2660,7 +2651,7 @@ body { width: 400px; }
     )
 
     url = serve(source)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     overflow = page.evaluate(
         """() => ({
           body: document.body.scrollWidth - document.body.clientWidth,
@@ -2670,7 +2661,6 @@ body { width: 400px; }
     )
     assert overflow["body"] > 0, "the two candidate measurements do not diverge"
     assert overflow["root"] == 0, overflow
-    assert errors == []
     page.close()
 
     failures = render_gate_model.render_version(browser, url)
@@ -2732,7 +2722,7 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
     for nothing, and this one is one predicate away from exempting every control there
     is."""
     url = serve(NOTE_BESIDE_A_CHANGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator("#sug-level").scroll_into_view_if_needed()
     geometry = """() => {
         const note = document.getElementById('level-note').getBoundingClientRect();
@@ -2768,7 +2758,6 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
     assert docked["position"] == "static", (
         f"the row stayed out of the flow at a width that docks it: {docked}"
     )
-    assert errors == []
 
 
 def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve):
@@ -2787,7 +2776,7 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
         "<span role='button' id='over' style='position: relative;"
         " display: block; margin-top: -28px'>Covering words</span>\n</main>",
     )
-    page, errors = open_page(browser, serve(covering))
+    page = open_page(browser, serve(covering))
     page.locator("#over").evaluate(
         "element => element.setAttribute('data-lf-offer', '')"
     )
@@ -2797,7 +2786,6 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     assert [f for f in covered if "id=under" in f and "id=over" in f], (
         f"a control the page put in the flow covered a paragraph unreported: {covered}"
     )
-    assert errors == []
 
 
 def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
@@ -2814,7 +2802,7 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     a tab panel and a disclosure all pass a note through to the margin. So the gate
     names the one that doesn't, at handover, to the one party who can still move it."""
     url = serve(SIDENOTE_IN_A_WIDGET)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     # elementFromPoint answers about the viewport, so the question can only be put to a
     # note that is in it — LONG_PAGE puts this one four thousand pixels down. The group
     # is what gets scrolled to, never the note: `overflow: hidden` refuses a reader and
@@ -2842,7 +2830,6 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
         if "<aside id=boxed-note> is drawn" in f
         and "outside <lf-options id=where>" in f
     ], f"a note the reader never sees went out with the handover: {failures}"
-    assert errors == []
 
 
 def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
@@ -2940,7 +2927,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     to flow when space is tight, and stays in the margin when the wider box holds both."""
     example = FEATURE_GALLERY
     url = serve(example)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     reading = """() => {
         const note = document.querySelector('aside.sidenote');
         const main = document.querySelector('main'), s = getComputedStyle(main);
@@ -2974,7 +2961,6 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     assert wide["float"] == "right", (
         f"a window wide enough for both moved the notes anyway: {wide}"
     )
-    assert errors == []
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
@@ -2994,7 +2980,7 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     Then the same edge from the keyboard, because a reader who is not holding a pointer is
     still reading the same page, and then a reload, because a width set once and lost on
     the next version is a width they would have to set on every revision."""
-    page, errors = open_page(browser, serve(edge.html(), comments=edge.comments))
+    page = open_page(browser, serve(edge.html(), comments=edge.comments))
     edge.stand(page)
     edge_settled(page, edge)
     default = geometry(page, edge)
@@ -3039,7 +3025,6 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     assert returned["width"] == stepped["width"], (
         f"the width did not survive the reload a version switch makes: {returned}"
     )
-    assert errors == []
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
@@ -3056,7 +3041,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     they came back to, which is the failure this reading is here to catch — the third
     geometry below is the whole of it."""
     narrow, stands = edge.squeeze
-    page, errors = open_page(browser, serve(edge.html(), comments=edge.comments))
+    page = open_page(browser, serve(edge.html(), comments=edge.comments))
     edge.stand(page)
     edge_settled(page, edge)
     draw_edge(page, edge, 160)
@@ -3088,7 +3073,6 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     assert roomy["width"] == edge.wide + 160, (
         f"the width the reader chose did not come back with the room for it: {roomy}"
     )
-    assert errors == []
 
 
 def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_leaf):
@@ -3101,7 +3085,7 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
     The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
     tray of one — the page the reader is already on — is not worth a control, so without
     a neighbour `g L` is unavailable."""
-    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ASKS_PAGE))
     trays = EDGES[1]
     trays.stand(page)
     edge_settled(page, trays)
@@ -3121,13 +3105,12 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
     assert round(leaves) == trays.wide + 160, (
         f"the second tray came up at a width the reader had already moved: {leaves}"
     )
-    assert errors == []
 
 
 def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser, serve):
     """A tray narrows the shell that CSS margin queries see, and closing it restores the
     same sidenote posture without a JavaScript cramped-state mirror."""
-    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
     page.evaluate("""() => {
       const note = document.createElement('aside');
@@ -3154,7 +3137,6 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
         "the tray took 300px out of a 1200px page and the margins were granted anyway"
     )
     assert given_back == "right", "the page kept the note in flow after the tray closed"
-    assert errors == []
 
 
 def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_leaf):
@@ -3165,7 +3147,7 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
     shell is moving through transient widths and making its container queries repeatedly
     lay out the page.
     """
-    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
     page.evaluate(ROOM_EVERY_FRAME, 60)
     page.locator(".lf-asks").click()
@@ -3182,7 +3164,6 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
         "the workspace made the page visit intermediate shell widths instead of landing "
         f"its final responsive layout once: {steps}"
     )
-    assert errors == []
 
 
 def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
@@ -3202,13 +3183,12 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
     The clean page is asserted to carry the roles first, because a block the tokenizer
     found nothing in passes this gate while proving nothing about it — which is the
     vacuous half of every reading here."""
-    page, errors = open_page(browser, serve(COLORED_CODE_PAGE))
+    page = open_page(browser, serve(COLORED_CODE_PAGE))
     roles = page.evaluate(
         "() => [...new Set([...document.querySelectorAll('[data-lf-syn]')]"
         ".map(s => s.dataset.lfSyn))].sort()"
     )
     page.close()
-    assert errors == []
     assert "cm" in roles and len(roles) > 1, (
         f"this block came out {roles}, so it says nothing about a role going unread"
     )
@@ -3240,14 +3220,13 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
         f"block, so a gate stopping at its clean line says nothing at all: {tinted}"
     )
 
-    page, errors = open_page(browser, serve(SHADOW_CODE_PAGE))
+    page = open_page(browser, serve(SHADOW_CODE_PAGE))
     where = page.evaluate(
         "() => ({ doc: document.querySelectorAll('[data-lf-syn]').length,"
         " shadow: [...document.querySelectorAll('*')].filter(e => e.shadowRoot)"
         ".flatMap(e => [...e.shadowRoot.querySelectorAll('[data-lf-syn=cm]')]).length })"
     )
     page.close()
-    assert errors == []
     assert where["doc"] == 0 and where["shadow"] > 0, (
         "this page has to put its only comment inside a shadow root, or the gate "
         f"passing it says nothing about the boundary — {where}"
@@ -3295,7 +3274,7 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     )
 
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     widget = page.locator("#custom-note")
     expect(widget).to_have_attribute("data-lf-done", "1")
     expect(widget).to_have_attribute("data-helper", "project-owned helper")
@@ -3303,7 +3282,6 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
         "(el) => ({display: getComputedStyle(el).display, "
         "border: getComputedStyle(el).borderTopWidth})"
     ) == {"display": "block", "border": "1px"}
-    assert errors == []
 
 
 def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
@@ -3341,7 +3319,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         "no corpus source ships a log holding an anchored comment, so the panel would "
         "open on nothing"
     )
-    page, errors = open_page(browser, serve(seeded[0]))
+    page = open_page(browser, serve(seeded[0]))
     resized(page, 1280, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -3385,21 +3363,19 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         f"shows {t['drawn'] + t['margin']:g}px {t['edge']} its <{t['child']}>"
         for t in trapped
     )
-    assert errors == []
 
 
 def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):
     """A line note may be the framed pre's last child. Its bottom margin then belongs
     inside the code frame just as it does between lines; leaving the rendered pre
     unmarked made the page gate report the layer's own six-pixel reservation."""
-    page, errors = open_page(browser, serve(CODE_PAGE.replace('at="2"', 'at="4"')))
+    page = open_page(browser, serve(CODE_PAGE.replace('at="2"', 'at="4"')))
     trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
     assert not [
         finding
         for finding in trapped
         if finding["tag"] == "pre" and not finding["chrome"]
     ], trapped
-    assert errors == []
 
 
 def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, serve):
@@ -3476,7 +3452,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     )
     # The population first: the probe returns clean for an empty list, which is exactly
     # how a decision made in the panel went unread for as long as it did.
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     resized(page, 1280, 900)
     standing = page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/validation.js')).validationWidgetStates()"
@@ -3486,7 +3462,6 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
         f"the reader's decisions are not among what the runtime hands the gate: "
         f"{standing} — the replay below would be handed nothing and report clean"
     )
-    assert errors == []
     page.close()
 
     assert render_gate_model.render_version(browser, url) == []

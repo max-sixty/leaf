@@ -1011,6 +1011,33 @@ STORED_DRAFT_SETTLED = """ctx => {
 }"""
 
 
+_BROWSER_PROBLEM_LISTS = None
+
+
+@contextmanager
+def clean_browser():
+    """Reject every browser problem a test did not explicitly consume.
+
+    The function-scoped browser fixture owns this collector along with its contexts.
+    A worker runs one test at a time, so one process-local collector covers pages made
+    by `open_page`, render/export helpers, and tests that navigate a page themselves.
+    """
+    global _BROWSER_PROBLEM_LISTS
+    assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
+    captured = []
+    _BROWSER_PROBLEM_LISTS = captured
+    try:
+        yield
+    finally:
+        _BROWSER_PROBLEM_LISTS = None
+    problems = [
+        f"{getattr(page, 'url', '<browser page>')}: {problem}"
+        for page, problem_list in captured
+        for problem in problem_list
+    ]
+    assert problems == [], problems
+
+
 def watched(page):
     """Everything a page says went wrong, on every channel that carries it.
 
@@ -1030,7 +1057,12 @@ def watched(page):
     that drift in its quietest form.
 
     Must be called before the page navigates, the init script being what carries it."""
+    assert _BROWSER_PROBLEM_LISTS is not None, (
+        "watched pages need the function-scoped browser fixture"
+    )
     errors = []
+    _BROWSER_PROBLEM_LISTS.append((page, errors))
+    page.lf_errors = errors
 
     def console_message(message):
         if problem := render_gate_model.console_problem(message):
@@ -1040,15 +1072,17 @@ def watched(page):
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
     # Diagnostics join the document's captured module graph, not the mutable layer.
-    page.add_init_script("""window.__lfRuntimeImport = path => {
-      const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-      return import(new URL(path.replace(/^\\//, ''), new URL(entry, location.href)).href);
-    };""")
+    page.add_init_script(
+        script="""window.__lfRuntimeImport = path => {
+          const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+          return import(new URL(path.replace(/^\\//, ''), new URL(entry, location.href)).href);
+        };"""
+    )
     return errors
 
 
 @contextmanager
-def restarting(page, errors):
+def restarting(page):
     """Enclose a span in which the test stops and replaces the page's own server.
 
     A stopped server answers no fetch, and the words the failure arrives in depend on
@@ -1059,18 +1093,35 @@ def restarting(page, errors):
 
     The test controls the span rather than the wording, so it reads the span. Complaints
     inside a block belong to the restart by construction and are dropped; outside every
-    block the reading is `errors == []`. Assert any diagnostic the test means to produce
-    before leaving the block, because nothing said inside it survives.
+    block the browser fixture still rejects any problem. Assert any diagnostic the test
+    means to produce before leaving the block, because nothing said inside it survives.
 
     End the block on the assertion that proves the restart landed — the new heading, the
     new layer, the replacement server's answer — since that is what puts the interrupted
     fetches behind the discard. Current coordinator readiness waited for here is a settle
     rather than that proof: a page that never reloaded may still become ready again.
     """
-    mark = len(errors)
+    mark = len(page.lf_errors)
     yield
     page.wait_for_function(BOTH_STAMPS, timeout=30000)
-    del errors[mark:]
+    del page.lf_errors[mark:]
+
+
+def take_browser_errors(page):
+    """Return and consume problems a test intentionally caused on one page."""
+    errors = page.lf_errors[:]
+    page.lf_errors.clear()
+    return errors
+
+
+def consume_browser_errors(page, *expected):
+    """Assert and consume intentional problems, accounting for every entry."""
+    assert expected, "expected browser-error fragments cannot be empty"
+    errors = take_browser_errors(page)
+    assert errors and all(
+        any(fragment in error for fragment in expected) for error in errors
+    ), errors
+    return errors
 
 
 # Rendered turns, waited for with a deadline of their own.
@@ -1120,14 +1171,16 @@ ONE_FRAME = f"() => ({FRAMES})(1)"
 RENDERED = f"() => ({FRAMES})(2)"
 
 
-def navigate(page, errors, url, *, wait_until="load", ready=BOTH_STAMPS):
+def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
 
     A platform notice seen once under load is not a page fault; one repeated by the
-    confirming navigation is. Everything else remains in `errors` from the attempt
-    that reported it, and anything arriving after this helper returns remains strict.
+    confirming navigation is. Everything else remains on the page from the attempt that
+    reported it, and anything arriving after this helper returns remains strict.
     """
+
+    errors = page.lf_errors
 
     def complete_navigation():
         start = len(errors)
@@ -1240,7 +1293,6 @@ def open_page(
         url += ("&" if "?" in url else "?") + "pin"
     navigate(
         page,
-        errors,
         url,
         wait_until=wait_until,
         ready=(
@@ -1249,7 +1301,7 @@ def open_page(
             else "() => document.querySelector('.lf-banner') !== null"
         ),
     )
-    return page, errors
+    return page
 
 
 def opened_tab(page, destination, press, timeout=10_000):
@@ -1396,8 +1448,11 @@ def held_events(browser, request):
 
     Enabling interception on an already loaded page can let its first POST escape
     both the route and Playwright's request events. Tests release each held route
-    explicitly; teardown releases any left behind after a failed assertion.
+    explicitly; teardown releases any left behind after a failed assertion. Owning the
+    server fixture makes that release precede server shutdown, so a held request never
+    resumes into a closed socket during teardown.
     """
+    request.getfixturevalue("serve")
     held = []
 
     def prepare(page):

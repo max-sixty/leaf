@@ -50,9 +50,10 @@ ANSWER_ASK_INSTRUCTION = (
     "conversation with "
     "`response.kind: version` is answered by revising the page and resolving it; open a "
     "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
-    "needs an answer first. With one reply in the current opened delivery, answer "
-    "through the active host's reply interface; CLI hosts use `leaf reply <page> "
-    "--text ...`. When several are pending, select an event with `--for <event-id>`. "
+    "needs an answer first. Answer each reply through the active host's reply "
+    "interface. A host may bind the current response to its normal final message; "
+    "CLI hosts use `leaf reply <page> --text ...`, selecting an event with `--for "
+    "<event-id>` when several are pending. "
     "An explicit reply validates and activates a changed source, and leaves the "
     "conversation open for the reader."
 )

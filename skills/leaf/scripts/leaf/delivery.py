@@ -140,7 +140,13 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     }
 
 
-def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
+def batch_data(
+    page_dir: Path,
+    transaction,
+    batch: list[dict],
+    *,
+    as_of_seq: int | None = None,
+) -> dict:
     """Freeze one complete ordered page batch for every delivery carrier."""
     registry = _registry(page_dir)
     events = transaction.events
@@ -157,6 +163,7 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
     responses = current_responses(page_dir, events)
     by_id = {event["id"]: event for event in events}
     through_seq = max(event["seq"] for event in batch)
+    evidence_seq = through_seq if as_of_seq is None else as_of_seq
     captured = []
     for event in batch:
         conversations = memberships.get(event["id"], [])
@@ -168,7 +175,7 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
         response = responses.get(event["id"])
         if response is not None:
             entry["obligation"] = {
-                "as_of_seq": through_seq,
+                "as_of_seq": evidence_seq,
                 "response": response,
             }
         captured.append(entry)

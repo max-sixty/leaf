@@ -15,12 +15,11 @@ changes nothing. Then read
 messages, `references/conversation-threads.md`. Process every batch and every
 event. Each event's `obligation.response`, when present, names the Leaf operation
 it required when captured: a reply, a page revision closed with `leaf resolve`,
-or `leaf receipt`. Recheck current page or conversation state before writing
-because a later event may already have settled it. The Codex host contract uses a
-direct App Server turn's final message when its `leaf_delivery` has exactly one plain
-reply. A queued `leaf-delivery` pointer and every other response shape use the explicit
-Leaf command. Do not initialize or hand the page over again in response to an existing
-delivery.
+or `leaf receipt`. Recheck current page or conversation state before writing because a
+later event may already have settled it. The current host contract names whether it
+binds a plain reply to the turn's normal final message; otherwise use the explicit Leaf
+command. Version and request responses use their explicit Leaf commands. Do not
+initialize or hand the page over again in response to an existing delivery.
 
 Otherwise, present the session's subject as a live HTML page. The user comments
 on exact passages, acts through the page's widgets, and follows revisions in

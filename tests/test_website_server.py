@@ -1518,6 +1518,9 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         "open_app_server_delivery",
         lambda *args: "leaf-turn",
     )
+    monkeypatch.setattr(
+        website_server, "next_unaccepted_agent_event", lambda *args, **kwargs: None
+    )
     finished = []
     completed = threading.Event()
 

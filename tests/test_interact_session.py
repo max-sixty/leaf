@@ -43,6 +43,7 @@ from interact_support import (
     record_claim,
     serving,
     spawn_probe,
+    stage_fixture_source,
     stamp,
     start_through_the_launcher,
     state_json,
@@ -4043,8 +4044,9 @@ SETTLING_ACCEPT = {
 
 
 def _settling_page(page_dir):
-    events_model.append_event(page_dir, dict(SETTLING_DECISION))
     (page_dir / ".fixture-versions" / "v1.html").write_text(SETTLING_PAGE)
+    stage_fixture_source(page_dir, 1, reset_unstamped=True)
+    events_model.append_event(page_dir, dict(SETTLING_DECISION))
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     publish(page_dir)

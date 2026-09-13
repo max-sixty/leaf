@@ -791,8 +791,9 @@ animation can expose the behavior.
 ## Working on the runtime
 
 `scripts/browser/build.mjs` owns the compiled TypeScript foundation in
-`vendor/browser-runtime.js` and its adjacent manifest, licenses, and embedded-source
-map. The manifest names its inputs, exports, and output hashes; `scripts/CLAUDE.md`
+`vendor/browser-runtime.js`; contributor diagnostics (the manifest, licenses, and
+source map) live under `scripts/browser/generated/`. The manifest names its inputs,
+exports, and output hashes; `scripts/CLAUDE.md`
 owns the contributor build and check commands. The internal bundle contains Lit and
 Signals once, with no external imports or runtime compiler. Content modules import
 only `runtime/widget-api.js`. The publisher owns Leaf's pure semantic folds and exposes

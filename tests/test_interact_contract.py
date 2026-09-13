@@ -1265,6 +1265,39 @@ def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_d
     assert "lf-local" not in registry_storage.load_registry(page_dir)
 
 
+def test_thread_markup_must_render_in_every_pinned_revision(page_dir):
+    """A current conversation remains usable in every immutable document showing it."""
+    publish(page_dir)
+    authored = page_dir / "page"
+    (authored / "registry.json").write_text(
+        json.dumps({"lf-local": element_declaration("lf-local", upgrade=True)})
+    )
+    widgets = authored / "widgets"
+    widgets.mkdir(exist_ok=True)
+    (widgets / "lf-local.js").write_text(
+        "export function upgrade(element) { element.textContent = 'Loaded'; }\n"
+    )
+    fixture_version_path(page_dir, 2).write_text(PAGE)
+    publish(page_dir, version=2)
+
+    posted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "comment",
+            str(page_dir),
+            "--text",
+            "A later widget",
+            "--markup",
+            '<lf-local id="later-widget"></lf-local>',
+        ],
+    )
+
+    assert posted.exit_code == 1, posted.output
+    assert "pinned revision r1 cannot render this thread markup" in posted.output
+    assert "<lf-local>" in posted.output
+    assert not events_model.read_events(page_dir)[-1].get("markup")
+
+
 def test_page_registry_cache_follows_layer_and_widget_files(page_dir):
     first = registry_storage.read_page_registry(page_dir)
     assert registry_storage.read_page_registry(page_dir) is first

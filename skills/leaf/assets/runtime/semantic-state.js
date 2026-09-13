@@ -4,6 +4,7 @@
 import {
   createPresentationCoordinator,
   createSemanticApplication,
+  describeFailure,
 } from "../vendor/browser-runtime.js";
 
 const documentToken = Object.freeze({});
@@ -68,7 +69,7 @@ export function setPresentationFailureReporter(report) {
   if (typeof report !== "function")
     throw new TypeError("Presentation failure reporting needs a callback");
   reportPresentationFailure = (reason) =>
-    report(`Presentation failed: ${reason?.message ?? reason}`);
+    report(`Presentation failed: ${describeFailure(reason)}`);
 }
 export const watchSemantic = (callback) =>
   applicationState

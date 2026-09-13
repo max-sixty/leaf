@@ -4945,6 +4945,7 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
         page,
         "data subscriber failed: mount projection failed",
         "data subscriber failed: update projection failed",
+        "data subscriber failed: synchronous update projection failed",
     )
     assert (
         sum("data subscriber failed: mount projection failed" in e for e in errors) == 1

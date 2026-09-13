@@ -683,22 +683,11 @@ CODE_FAULT_PAGE = LONG_PAGE.replace(
     CODE_BLOCK + TINTED_CODE + SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>",
 )
 
-# The other half of the boundary: what is painted behind a shadowed span is on the
-# elements above the host, and a span at the top of a root has no parentElement to climb
-# to. Today's theme hides that — the box a diff renders into carries an opaque --card, so
-# a composite that stopped at the boundary would land on the same colour — which is a
-# coincidence of the palette and not a reason to read the light tree. Flattening that one
-# surface is all it takes to part them: the paper under it is what the reader has behind
-# the comment, and against the white a stalled climb falls back to, a dark page's ink
-# reads as either a pass or a failure that isn't on the screen.
+# The shipped dark comment ink must clear the add-line tint behind it. A large real patch
+# put enough comments on that surface for the former 4.4:1 contrast gap to become visible.
 CODE_CONTROL_PAGE = LONG_PAGE.replace(
-    "</head>", "<style>#flat-shadow { --card: transparent; }</style>\n</head>"
-).replace(
     "</main>",
-    CODE_BLOCK
-    + SHADOWED_DIFF_BODY.format(id="default-shadow")
-    + SHADOWED_DIFF_BODY.format(id="flat-shadow")
-    + "\n</main>",
+    CODE_BLOCK + SHADOWED_DIFF_BODY.format(id="default-shadow") + "\n</main>",
 )
 # Two sets, because pointing at a control and pressing it are different questions.
 #

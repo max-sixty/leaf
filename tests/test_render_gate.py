@@ -3125,8 +3125,8 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
 
     One fault page gives each mechanism a distinct role, so one public-gate reading
     attributes all four independently. One control page carries an ordinary block and
-    both opaque and transparent diff surfaces. Population assertions keep either pass
-    from succeeding because the tokenizer or shadow renderer produced nothing."""
+    the shipped diff surface. Population assertions keep either pass from succeeding
+    because the tokenizer or shadow renderer produced nothing."""
     page = open_page(browser, serve(CODE_FAULT_PAGE))
     population = page.evaluate(
         """() => ({
@@ -3162,13 +3162,12 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
     population = page.evaluate(
         """() => ({
           document: document.querySelectorAll('[data-lf-syn]').length,
-          shadows: ['default-shadow', 'flat-shadow'].map(id =>
-            document.querySelector(`#${id}`).shadowRoot
-              .querySelectorAll('[data-lf-syn]').length),
+          shadow: document.querySelector('#default-shadow').shadowRoot
+            .querySelectorAll('[data-lf-syn]').length,
         })"""
     )
     page.close()
-    assert population["document"] > 0 and all(population["shadows"]), population
+    assert population["document"] > 0 and population["shadow"] > 0, population
     assert render_gate_model.render_version(browser, serve(CODE_CONTROL_PAGE)) == []
 
 

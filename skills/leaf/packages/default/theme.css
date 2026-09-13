@@ -280,15 +280,9 @@ lf-chip, .lf-chips span {
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
-/* A card is a marking — a border, a fill — and what stands inside it is the page's own
- * words at the page's own size, so it states no size. lf-option, lf-variant and lf-card
- * each stated 15px instead, two of them with a 16px title over it: a pixel of hierarchy no
- * reader could see, over a body off the ladder entirely, which nothing here was ever
- * fitted or measured against. The
- * `.facts` rail is where that showed — apparatus at --t-5 is meant to read as subordinate
- * to the case beside it, and against a 15px case it was one pixel smaller than the prose
- * it stood next to. Unlike the voice above, this is not a judgement a layer restates:
- * there is one ladder and every layer reads the same tokens. */
+/* Titled alternatives carry an argument and keep the document's serif. Compact
+ * answer rows and movable board cards are working surfaces: the sans, a shorter
+ * line, and distinct title weight make them easier to compare in a group. */
 
 /* lf-options / lf-option: the theme is most of the widget — the module adds the
  * pick, the reference, and the option the reader writes, and without it these rules still
@@ -371,7 +365,11 @@ lf-chip, .lf-chips span {
    the wrong state partially active. A rule stays general only when its effect is true
    in every form. */
 lf-options { display: block; margin: 14px 0; --lf-joined: 0;
+             --lf-option-font: var(--t-4)/1.6 var(--serif);
              container-type: inline-size; }
+lf-options:not(:has(> lf-option > strong)) {
+             --lf-option-font: var(--t-5)/1.5 var(--sans);
+             font: var(--lf-option-font); }
 lf-option { display: block; position: relative; }
 /* The submitted draft keeps its line breaks when it becomes an option. Restrict this to
  * generated options: authored markup carries formatting whitespace around its prose. */
@@ -903,15 +901,15 @@ lf-options > .lf-done > .lf-key-badge { position: absolute;
   .lf-another > .lf-key-badge { position: absolute;
                               inset-inline-start: var(--lf-key-badge-start);
                               top: 0; bottom: 0; margin: auto 0; }
-  /* The field holds the option before it is recorded, so its words use the document's
-   * face just as they will after the module turns them into an lf-option. Its shared
+  /* The field holds the option before it is recorded, so it takes the group's
+   * answer face before and after becoming an lf-option. Its shared
    * submit action carries the full accessible name; hiding the empty state changes
    * paint rather than layout. */
   .lf-another > .lf-compose-field { position: static; }
   .lf-another textarea { flex: 1; min-width: 0; min-height: 0; padding: 0;
                      padding-inline-end: calc(var(--aim-floor) + var(--sp-4));
                      border: 0; outline: none; background: transparent; color: inherit;
-                     font: var(--t-4)/1.6 var(--serif); resize: none; }
+                     font: var(--lf-option-font); resize: none; }
   .lf-another .lf-compose-submit { inset-inline-end: var(--sp-1);
                                   inset-block-end: var(--sp-1); }
   .lf-another .lf-compose-submit[data-lf-empty] { visibility: hidden; }
@@ -1256,8 +1254,8 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  *
  * So the measure is the number chosen and the furniture is derived from the rules that
  * spend it, each inset named where it is set below rather than added up here a second
- * time. 136px is about seventeen characters of the page's serif — one ordinary word to
- * the line with room for the space after it. Long unbreakable runs (a path, a sha) still
+ * time. 136px gives the compact working face room for an ordinary word and its
+ * following space. Long unbreakable runs (a path, a sha) still
  * break where they must; that is the page-wide bargain and no width buys it back.
  *
  * The grip's column is in the floor for the same reason it is in the card's padding: it
@@ -1267,10 +1265,10 @@ lf-board { display: grid; grid-auto-flow: column;
            --lf-card-measure: 136px; --lf-reading-column-inset: 8px; --lf-card-inset: 10px;
            --lf-reading-column-floor: calc(var(--lf-card-measure)
              + 2 * var(--lf-reading-column-inset) + 2 * var(--lf-card-inset)
-             + var(--lf-grip-room, 0px) + 4px); /* 4px: the two 1px borders */
+             + var(--lf-grip-room, 0px) + 2px); /* the card's two 1px borders */
            grid-auto-columns: minmax(var(--lf-reading-column-floor), 1fr);
            gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto; }
-lf-column { display: block; background: var(--field); border: 1px solid var(--rule);
+lf-column { display: block; background: var(--field);
             border-radius: var(--r); padding: var(--lf-reading-column-inset); min-height: 64px;
             --lf-block-frame: 1; }
 .lf-board-destinations { display: none; }
@@ -1297,14 +1295,15 @@ lf-column { display: block; background: var(--field); border: 1px solid var(--ru
    where no script runs at all there is no name either, and the generated copy
    is the whole rendering, audible as well as visible. */
 lf-column::before,
-lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-6);
-            text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
-            padding: 2px 4px 8px; }
+lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-working-label);
+            font-weight: 600; line-height: 1.5; color: var(--ink-2);
+            padding: 2px var(--lf-card-inset) 10px; }
 lf-column::before { content: attr(label); }
 lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
+          font: var(--t-5)/1.5 var(--sans);
           border: 1px solid var(--rule); border-radius: var(--r);
-          padding: 8px var(--lf-card-inset); margin: 0 0 var(--sp-2); --lf-block-frame: 1; }
+          padding: 12px var(--lf-card-inset); margin: 0 0 var(--sp-2); --lf-block-frame: 1; }
 /* The column the grip hangs in, spent only where a grip hangs: the module measures its
    own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
    pick column already is, so the ladder moving or a platform substituting a different
@@ -1319,7 +1318,7 @@ lf-card { display: block; position: relative; background: var(--card);
  }
 }
 lf-card:last-child { margin-bottom: 0; }
-lf-card > strong { display: block; margin: 0 0 2px; }
+lf-card > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
 /* The grip is a press, so the keyboard reaches it: Enter grabs, arrows move. It says no
    size, because `offer` builds it wearing .lf-ui and the runtime's own rule sets that
    face's size once for every control in the layer — the 14px stated here was --t-5

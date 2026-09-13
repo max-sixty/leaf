@@ -1,27 +1,35 @@
 # Leaf website worker
 
 Cloudflare serves each product and example page's live shell and initial canonical
-projection from `.tmp/site-assets`, so the document paints and presents without waiting
-for a container. The HTML response issues a secure, HTTP-only identity cookie. When
-`AGENT_PREWARM` is `true`, a browser document navigation also starts that identity's
-container through `waitUntil`. Asset fetches, API clients, and release probes do not
-prewarm. Setting the variable to `false` keeps read-only visits at the edge. The first
-request that needs private, mutable state marks the identity active and reaches the
-canonical Python Leaf server in that Cloudflare Container. Its
-copied page directories and append-only logs are private to that reader and disappear
-when Cloudflare replaces the container; no website-only projection or conversation
-store exists. A returning tab detects a new server incarnation and reloads before it
-can apply that fresh container's lower event sequence over vanished state.
+projection from `.tmp/site-assets`, so a reader arrives at a document that paints and
+presents without waiting for a container. The HTML response issues a secure, HTTP-only
+identity cookie. When `AGENT_PREWARM` is `true`, a browser document navigation also
+starts that identity's container through `waitUntil`. Asset fetches, API clients, and
+release probes do not prewarm. Setting the variable to `false` keeps read-only visits at
+the edge. The first request that needs private, mutable state marks the identity active
+and reaches the canonical Python Leaf server in that Cloudflare Container. Its copied
+page directories and append-only logs are private to that reader and disappear when
+Cloudflare replaces the container; no website-only projection or conversation store
+exists. A returning tab detects a new server incarnation and reloads before it can apply
+that fresh container's lower event sequence over vanished state.
 
 The build gives every document, state response, and module graph one release digest.
 Runtime assets live behind release-addressed URLs with immutable cache headers, while
 the browser sends the document's release and layer identities to every API request. A
-mixed response reloads instead of letting one release interpret another release's
-state. The build-generated manifest is the routing authority shared by the Worker and
-the Python adapter, and carries each page's title, description, and card image, which
-both halves compose into the head a crawler and a link preview read. Published media, revisions, and version documents stay on the edge;
-when one of those paths is absent from the release, the Worker asks the reader's
-active container so a newly created private revision can become the live document.
+mixed response reloads instead of letting one release interpret another release's state.
+The build-generated manifest is the routing authority shared by the Worker and the
+Python adapter, and carries each page's title, description, and card image, which both
+halves compose into the head a crawler and a link preview read. Published media,
+revisions, and version documents stay on the edge; when one of those paths is absent
+from the release, the Worker asks the reader's active container. The live page document
+is the one address the edge answers for every reader, so an active identity reads it
+from its own container instead: a revision activates by reloading that address, and the
+build's answer would hand the reloading document the revision that reader's own session
+had just replaced. The container composes it against `/<page>/revisions/rN-<hash>/`,
+which is content-addressed over the document and its resources, so a release that moves
+the runtime changes the hash, misses at the edge and falls through to the same
+container; a document and its module graph never come from different releases. Those
+page-path assets revalidate rather than carrying the release tree's immutable year.
 
 The deployment admits up to 5,990 concurrent `basic` containers. A prewarmed container
 with no interaction sleeps after ten idle minutes. After a session is active, a visible

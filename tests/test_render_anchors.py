@@ -12,6 +12,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
@@ -84,15 +85,36 @@ from render_harness import (
     wait_for_revision,
 )
 
-PASSAGE_SOURCE_NAMES = {
-    "feature-gallery",
-    "pr-walkthrough",
-    "visual-review-gallery",
-}
-PASSAGE_SOURCES = tuple(
-    source for source in CORPUS_SOURCES if source.stem in PASSAGE_SOURCE_NAMES
-)
-assert {source.stem for source in PASSAGE_SOURCES} == PASSAGE_SOURCE_NAMES
+
+def passage_representatives(sources):
+    """Build a compact source set covering every widget and native passage tag."""
+    remaining = list(sources)
+    shapes = {}
+    for source in remaining:
+        document = structure_model.SourceDocument(source.read_text(encoding="utf-8"))
+        shapes[source] = {
+            *(f"widget:{element['tag']}" for element in document.lf_elements),
+            *(
+                f"block:{node['tag']}"
+                for node in document.nodes
+                if node["tag"] in passages_model.TEXT_BLOCK_TAGS
+            ),
+        }
+    uncovered = set().union(*shapes.values())
+    representatives = []
+    while uncovered:
+        source = max(
+            remaining, key=lambda candidate: len(shapes[candidate] & uncovered)
+        )
+        covered = shapes[source] & uncovered
+        assert covered, f"no source represents passage shapes {sorted(uncovered)}"
+        representatives.append(source)
+        remaining.remove(source)
+        uncovered -= covered
+    return tuple(representatives)
+
+
+PASSAGE_SOURCES = passage_representatives(CORPUS_SOURCES)
 
 pytestmark = pytest.mark.nightly
 
@@ -137,11 +159,11 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
 
 @pytest.mark.parametrize("source", PASSAGE_SOURCES, ids=lambda p: p.stem)
 def test_real_page_passage_shapes_can_be_quoted(browser, serve, source):
-    """Representative passages in each distinct real-page shape are quotable.
+    """Passages covering every authored widget and native block shape are quotable.
 
-    Feature gallery carries native, custom, transformed, and attribute-rendered words;
-    PR walkthrough adds tables, blockquotes, and diagram output; visual review is wholly
-    data-projected. Focused tests own settlements, tabs, shadow roots, and gestures."""
+    The collection-time set cover adds a source whenever its widget vocabulary is not
+    already represented. Focused tests own settlements, tabs, shadow roots, and gestures.
+    """
     page = open_page(browser, serve(source))
     result = page.evaluate("""async () => {
         const {TEXT_BLOCK} = await import('/runtime/passages.js');

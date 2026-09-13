@@ -696,10 +696,9 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     page = open_page(browser, url)
     answer_ready = threading.Event()
     release_answer = threading.Event()
-    reload_served = threading.Event()
+    reload_answered = threading.Event()
     document_path = urlsplit(url).path
     native_json = http_model.Handler._json
-    native_get = http_model.Handler.do_GET
 
     def hold_first_event_answer(handler, *args, **kwargs):
         if (
@@ -711,20 +710,22 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
             release_answer.wait()
         return native_json(handler, *args, **kwargs)
 
-    def release_after_reload(handler):
-        result = native_get(handler)
-        if answer_ready.is_set() and urlsplit(handler.path).path == document_path:
-            reload_served.set()
+    def release_at_reload_response(response):
+        if (
+            answer_ready.is_set()
+            and response.request.is_navigation_request()
+            and urlsplit(response.url).path == document_path
+        ):
+            reload_answered.set()
             release_answer.set()
-        return result
 
     monkeypatch.setattr(http_model.Handler, "_json", hold_first_event_answer)
-    monkeypatch.setattr(http_model.Handler, "do_GET", release_after_reload)
+    page.on("response", release_at_reload_response)
     try:
         page.locator(".lf-answer-all").first.click()
         assert answer_ready.wait(10), "the first event reached no server answer"
         page.goto(url, wait_until="load")
-        assert reload_served.is_set(), "the replacement document was not served"
+        assert reload_answered.is_set(), "the replacement document did not answer"
         page.wait_for_function(BOTH_STAMPS)
     finally:
         release_answer.set()

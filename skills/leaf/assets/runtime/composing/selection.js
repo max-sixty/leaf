@@ -652,7 +652,7 @@ export function createSelectionComposer({
         inlineReply?.lfRevealReply?.();
         reply = inlineReply ?? reply;
         if (!inlineReply && (shouldLand || panelIsOpen())) {
-          showThread(sent.id, { focus: shouldLand ? "reply" : false });
+          await showThread(sent.id, { focus: shouldLand ? "reply" : false });
           reply ??= threadsBox.querySelector(
             `.lf-thread[data-id="${sent.id}"] textarea`,
           );

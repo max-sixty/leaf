@@ -1041,7 +1041,7 @@ export function createAskView({
   //
   // The list comes with the ask, because the announcement names a place in it and the caller
   // is the one that knows which list it walked: the walk's own or the tray's.
-  function goToAsk(next, asks) {
+  async function goToAskNow(next, asks) {
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.
     if (inChrome(next) && !panelIsOpen()) setPanel(true);
@@ -1050,9 +1050,9 @@ export function createAskView({
     // before the reveal and focus land; otherwise the correct navigation happens
     // invisibly behind the very sheet that offered it.
     if (!inChrome(next) && trayIsOpen("asks") && trayCovers()) setOpenTray(null);
-    reveal(next); // a settled group or an inactive tab has no geometry until it opens
+    await reveal(next); // a settled group or an inactive tab has no geometry until it opens
     const source = askSource(next);
-    if (source !== next) reveal(source); // let the answering widget settle its own chrome
+    if (source !== next) await reveal(source); // let the answering widget settle its own chrome
     landed = next;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the reader is standing, rather than both saying the second.
@@ -1084,6 +1084,12 @@ export function createAskView({
     }
     const state = unansweredAsks().includes(next) ? "waiting on you" : "answered";
     announce(walkPositionLabel("Ask", asks.indexOf(next) + 1, asks.length, state));
+  }
+
+  function goToAsk(next, asks) {
+    const ready = goToAskNow(next, asks);
+    void ready.catch(() => {});
+    return ready;
   }
 
   function stepAsk(dir) {

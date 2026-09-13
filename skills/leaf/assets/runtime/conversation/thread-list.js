@@ -320,6 +320,22 @@ export function holdScrollPosition(mutate, panelIsOpen) {
 // of a list put back exactly where it was. Nodes surviving is what deleted all of it.
 let renderGeneration = 0;
 
+// A failed candidate may still leave one coherent list on screen. The list returns
+// that recovery to the outer conversation paint, which promotes it to this proof only
+// after every sibling surface has finished. Errors elsewhere remain pending.
+export class RetainedThreadListError extends Error {
+  constructor(reason, proof) {
+    super(reason?.message ?? String(reason), { cause: reason });
+    this.name = "RetainedThreadListError";
+    this.proof = proof;
+  }
+}
+
+export function retainedThreadListProof(reason) {
+  if (!(reason instanceof RetainedThreadListError)) throw reason;
+  return reason.proof;
+}
+
 const rowModel = (all, commands) => {
   // The conversations. A bare reaction is paint on the page and a chip on the page
   // row, and counts for nothing here: no card, no destination, no place in the walk.
@@ -483,6 +499,32 @@ async function retainCommitted(current, candidate) {
   }
 }
 
+// A renderer exception can be transient (for example, a custom element upgrading in
+// the same turn). Restore the committed list before one retry so a second render starts
+// from a coherent tree. Only a retry that fully paints the candidate can prove the
+// surrounding conversation reading; a second failure leaves the region pending.
+async function presentList(model, current) {
+  try {
+    if (!(await threadsBox.present(model)) || !current()) return null;
+    return { recovered: null };
+  } catch (error) {
+    if (!current()) return null;
+    await retainCommitted(current, model);
+    if (!current()) return null;
+    try {
+      if (!(await threadsBox.present(model)) || !current()) return null;
+    } catch (retrying) {
+      if (!current()) return null;
+      await retainCommitted(current, model);
+      throw new AggregateError(
+        [error, retrying],
+        "Thread list presentation retry failed",
+      );
+    }
+    return { recovered: error };
+  }
+}
+
 // The Lit update, its geometry-dependent paint, and newly connected frozen widgets are
 // one proof for the existing conversation presentation ticket. Only the newest call can
 // run post-paint work, capture authored values, or commit a fallback.
@@ -493,8 +535,11 @@ export async function renderThreads(all, commands) {
   configureList(commands);
   const hold = takeScrollHold(commands.panelIsOpen);
   let held = true;
+  let recovered = null;
   try {
-    if (!(await threadsBox.present(reading.model)) || !current()) return;
+    const candidate = await presentList(reading.model, current);
+    if (!candidate) return;
+    recovered = candidate.recovered;
     postPaint(reading, commands);
     // The keyed list and its count/narrowing/quote readings are one committed candidate.
     // Frozen descendants remain inside the conversation ticket below, but their own
@@ -505,18 +550,12 @@ export async function renderThreads(all, commands) {
     await prepareFrozenWidgets(current);
   } catch (error) {
     if (!current()) return;
-    try {
-      await threadsBox.retainCommitted(reading.model);
-    } catch (retaining) {
-      throw new AggregateError(
-        [error, retaining],
-        "Thread list presentation and retention failed",
-      );
-    }
+    await retainCommitted(current, reading.model);
     throw error;
   } finally {
     if (held) finishScrollHold(hold, commands.panelIsOpen);
   }
+  return { recovered, proof: threadsBox };
 }
 
 export async function renderThreadListUnavailable(text, commands) {
@@ -527,8 +566,11 @@ export async function renderThreadListUnavailable(text, commands) {
     rows: Object.freeze([Object.freeze({ kind: "empty", key: "unavailable", text })]),
   });
   const hold = takeScrollHold(commands.panelIsOpen);
+  let recovered = null;
   try {
-    if (!(await threadsBox.present(model)) || !current()) return;
+    const candidate = await presentList(model, current);
+    if (!candidate) return;
+    recovered = candidate.recovered;
     paintHeadRoom(commands.panelIsOpen);
     threadsBox.commit(model);
   } catch (error) {
@@ -537,4 +579,5 @@ export async function renderThreadListUnavailable(text, commands) {
   } finally {
     finishScrollHold(hold, commands.panelIsOpen);
   }
+  return { recovered, proof: threadsBox };
 }

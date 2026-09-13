@@ -10,6 +10,8 @@ import { conversationState } from "./state.js";
 import { renderConversations } from "./inline.js";
 import {
   holdScrollPosition,
+  RetainedThreadListError,
+  retainedThreadListProof,
   renderThreadListUnavailable,
   renderThreads,
 } from "./thread-list.js";
@@ -61,7 +63,7 @@ export function createConversationPresentation({
     const pending = { resolve };
     const prior = activePresentation;
     activePresentation = pending;
-    const ready = presentation().present(value, completion);
+    const ready = presentation().present(value, completion, retainedThreadListProof);
     prior?.resolve();
     let painted;
     try {
@@ -70,15 +72,22 @@ export function createConversationPresentation({
     } catch (error) {
       reject(error);
     }
-    return ready.finally(() => {
+    const clear = () => {
       if (activePresentation === pending) activePresentation = null;
-    });
+    };
+    void ready.then(clear, clear);
+    return ready;
   }
 
   const paintAcknowledgments = (...args) =>
     holdScrollPosition(() => paintAcknowledgmentsNow(...args), panelIsOpen);
 
-  function setUnavailable(phase) {
+  function finishListRecovery(candidate) {
+    if (candidate?.recovered)
+      throw new RetainedThreadListError(candidate.recovered, candidate.proof);
+  }
+
+  async function setUnavailable(phase) {
     paintCurrent.stop();
     const note =
       phase === "offline"
@@ -97,13 +106,14 @@ export function createConversationPresentation({
     renderSurfaces([], anchorPaint.placedAt, surfaceView);
     renderConversations([], inlineView);
     renderMargin();
+    const candidate = await prepared;
     paintAcknowledgments();
     onConversationChanged();
     pageGeometry.pageShifted();
-    return prepared;
+    finishListRecovery(candidate);
   }
 
-  function renderCurrent() {
+  async function renderCurrent() {
     const { all: threads, listed: conversations } = conversationState();
     renderHolds(threads);
     const painted = anchorPaint.paint({
@@ -117,9 +127,10 @@ export function createConversationPresentation({
     const prepared = renderThreads(threads, listView);
     renderConversations(conversations, inlineView);
     renderMargin();
+    const candidate = await prepared;
     paintAcknowledgments();
     pageGeometry.pageShifted();
-    return prepared;
+    finishListRecovery(candidate);
   }
 
   // Each clock tick reads the current semantic root, never a retained presentation
@@ -151,15 +162,18 @@ export function createConversationPresentation({
       if (!available) return;
       const threads = conversationState().all;
       const prepared = renderThreads(threads, listView);
-      paintAcknowledgments();
-      return prepared;
+      return Promise.resolve(prepared).then((candidate) => {
+        paintAcknowledgments();
+        finishListRecovery(candidate);
+      });
     });
   }
 
   function mount() {
     threadsBox.addEventListener("lf-reveal", (event) => {
       const hidden = event.detail?.target?.closest?.(".lf-thread[hidden]");
-      if (hidden) revealThread(hidden.dataset.id, refreshNarrowing);
+      if (hidden)
+        event.detail?.present?.(revealThread(hidden.dataset.id, refreshNarrowing));
     });
   }
 

@@ -170,13 +170,14 @@ export function mountApplication(dependencies) {
       return null;
     }
     let presentationError = null;
+    let conversationPresentation = Promise.resolve();
     try {
       pendingTraffic(readApplication().effective.delivery);
       projection.stageOptimistic(entry);
       // Desired state changes at enqueue even where the widget has already painted the
       // same value. Conversation gestures are folded in this call stack before transport.
       projection.present(readApplication());
-      backgroundConversation(
+      conversationPresentation = backgroundConversation(
         conversation.apply(readApplication()),
         "optimistic conversation preparation",
       );
@@ -200,10 +201,13 @@ export function mountApplication(dependencies) {
     // apparent refusal for callers that restore drafts or clear busy state from it.
     if (presentationError)
       console.error("leaf: optimistic presentation", presentationError);
-    return entry.answer;
+    return Object.freeze({
+      answer: entry.answer,
+      presentation: conversationPresentation,
+    });
   }
 
-  const post = (event) => startPost(event) ?? Promise.resolve(null);
+  const post = (event) => startPost(event)?.answer ?? Promise.resolve(null);
 
   function dispatchWidget(descriptor, command) {
     const reading = applicationState.selectWidget(descriptor).read();
@@ -231,13 +235,13 @@ export function mountApplication(dependencies) {
       if (acceptedPresentationPending) return null;
       runtime.undoing = true;
       paintKeys();
-      const answer = startPost({ kind: "undo", undoes: candidate.id });
-      if (!answer) {
+      const started = startPost({ kind: "undo", undoes: candidate.id });
+      if (!started) {
         runtime.undoing = false;
         paintKeys();
         return null;
       }
-      return answer
+      return started.answer
         .then((accepted) => {
           if (accepted) notice("Took back your last change — sent");
           return accepted;
@@ -254,17 +258,19 @@ export function mountApplication(dependencies) {
           ? reading.requests[command.verb]
           : null;
     if (!entry?.available) return null;
-    return startPost({
-      kind: command.kind,
-      revision: runtime.currentRevision,
-      widget: descriptor.id,
-      action: command.verb,
-      detail: structuredClone(command.detail ?? {}),
-      ...(command.references && {
-        references: structuredClone(command.references),
-      }),
-      ...(command.attempt && { attempt: command.attempt }),
-    });
+    return (
+      startPost({
+        kind: command.kind,
+        revision: runtime.currentRevision,
+        widget: descriptor.id,
+        action: command.verb,
+        detail: structuredClone(command.detail ?? {}),
+        ...(command.references && {
+          references: structuredClone(command.references),
+        }),
+        ...(command.attempt && { attempt: command.attempt }),
+      })?.answer ?? null
+    );
   }
 
   const projectionCommands = createProjectionCommands({
@@ -281,10 +287,10 @@ export function mountApplication(dependencies) {
   const createReply = (event) =>
     post({ kind: "reply", revision: runtime.currentRevision, ...event });
   const setResolved = (parent, resolved) =>
-    post({
+    startPost({
       kind: resolved ? "resolve" : "unresolve",
       parent,
-    });
+    }) ?? { answer: Promise.resolve(null), presentation: Promise.resolve() };
 
   const replyView = {
     createReply,

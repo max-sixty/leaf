@@ -1048,8 +1048,8 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     assert errors == []
 
 
-def test_a_failed_thread_list_update_retains_one_committed_reading(browser, serve):
-    """A Lit fault cannot mix a candidate card with its count or narrowing."""
+def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve):
+    """A transient Lit fault cannot mix a candidate card with old list readings."""
     url = serve(LONG_PAGE, comments=2)
     roots = [
         event["id"]
@@ -1107,32 +1107,37 @@ def test_a_failed_thread_list_update_retains_one_committed_reading(browser, serv
         timeout=5000,
     )
 
-    retained = page.locator(f'.lf-thread[data-id="{root}"]')
-    expect(retained).to_have_count(1)
-    expect(retained).to_be_hidden()
-    expect(retained.locator("textarea")).to_have_count(1)
-    assert page.evaluate(
+    recovered = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(recovered).to_have_count(1)
+    expect(recovered).to_be_visible()
+    expect(recovered.locator("textarea")).to_have_count(0)
+    assert not page.evaluate(
         'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
         "=== committedThread",
         root,
     )
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
-        "Showing 1 of 2"
+        "Showing 2 of 2"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert errors == ["leaf: Presentation failed: injected thread-list failure"]
+    page.evaluate(
+        "id => { window.recoveredThread = document.querySelector("
+        '`.lf-thread[data-id="${id}"]`); }',
+        root,
+    )
 
     page.evaluate("threadListApplication.refreshConversation()")
-    expect(retained).to_be_visible()
-    expect(retained).to_have_attribute("data-resolved", "true")
-    expect(retained.locator("textarea")).to_have_count(0)
+    expect(recovered).to_be_visible()
+    expect(recovered).to_have_attribute("data-resolved", "true")
+    expect(recovered.locator("textarea")).to_have_count(0)
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
         "Showing 2 of 2"
     )
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert page.evaluate(
         'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
-        "!== committedThread",
+        "=== recoveredThread",
         root,
     )
     assert errors == ["leaf: Presentation failed: injected thread-list failure"]
@@ -1140,6 +1145,117 @@ def test_a_failed_thread_list_update_retains_one_committed_reading(browser, serv
     page.unroute("**/api/event")
     round_trip(page)
     assert errors == ["leaf: Presentation failed: injected thread-list failure"]
+    page.close()
+
+
+def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, serve):
+    """A discarded filter repaint cannot turn its owned failure into pageerror."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('leaf-thread-list');
+          const render = list.render.bind(list);
+          let failures = 2;
+          list.render = () => {
+            if (failures-- > 0) throw new Error('deliberate narrowing failure');
+            return render();
+          };
+        }"""
+    )
+
+    page.get_by_role("searchbox", name="Find in threads").fill("comment")
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+    expected = ["leaf: Presentation failed: presentation and fail-soft failed"]
+    assert errors == expected
+
+    page.get_by_role("searchbox", name="Find in threads").fill("")
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return !readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+    assert errors == expected
+
+
+def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, serve):
+    """A follow-up presentation fault cannot reject the discarded click handler."""
+    browser, held = held_events
+    url = serve(LONG_PAGE, comments=1)
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": root},
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator('[data-filter-value="resolved"]').click()
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('leaf-thread-list');
+          const render = list.render.bind(list);
+          let failures = 2;
+          list.render = () => {
+            const row = list.model.rows.find(({kind}) => kind === 'thread');
+            if (row?.visible && failures-- > 0)
+              throw new Error('deliberate reveal failure');
+            return render();
+          };
+        }"""
+    )
+
+    page.get_by_role("button", name="Reopen", exact=True).click()
+    holding(page, held, 2, "the reopen and its presentation report")
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+    expected = ["leaf: Presentation failed: presentation and fail-soft failed"]
+    assert errors == expected
+
+    routes = {route.request.post_data_json["kind"]: route for route in held}
+    held.clear()
+    routes["error"].continue_()
+    route = routes["unresolve"]
+    route.fulfill(
+        json={
+            "ok": False,
+            "final": True,
+            "attempt": route.request.post_data_json["attempt"],
+            "error": "Please retry.",
+        }
+    )
+    round_trip(page)
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return !readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_be_visible()
+    expect(page.get_by_role("button", name="Reopen", exact=True)).to_be_visible()
+    assert errors == expected
     page.close()
 
 

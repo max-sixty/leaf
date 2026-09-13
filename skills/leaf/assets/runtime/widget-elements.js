@@ -53,13 +53,27 @@ import { iconElement } from "./icons.js";
 // target geometry before the scroll. Called before every scroll-to-content.
 export function reveal(el) {
   const chain = [];
+  const pending = [];
   for (let a = el; a; a = a.parentElement ?? a.getRootNode()?.host ?? null)
     chain.push(a);
   // Reveal outside-in so an inner widget has geometry when it handles the signal.
   for (const a of chain.reverse()) {
     if (a.tagName === "DETAILS" && !a.open) a.open = true;
-    a.dispatchEvent(new CustomEvent("lf-reveal", { detail: { target: el } }));
+    a.dispatchEvent(
+      new CustomEvent("lf-reveal", {
+        detail: {
+          target: el,
+          present: (ready) => ready?.then && pending.push(ready),
+        },
+      }),
+    );
   }
+  const ready = Promise.all(pending);
+  // Most reveal callers need only synchronous native/widget disclosure. A surface that
+  // registers asynchronous presentation is already its error owner; observe this joined
+  // promise so callers may ignore it without creating a duplicate page rejection.
+  void ready.catch(() => {});
+  return ready;
 }
 
 // The one way the layer makes an element: a tag, its classes, and the words it starts

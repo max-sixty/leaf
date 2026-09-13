@@ -172,8 +172,15 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
 
 function renarrow(refreshNarrowing) {
   if (runtime.statePhase !== "ready") return;
-  refreshNarrowing();
-  threadsBox.scrollTop = 0;
+  const ready = refreshNarrowing();
+  // Reset after the keyed list has committed. The coordinator owns rejection reporting;
+  // observe this continuation on both paths so an event listener that discards the
+  // returned ticket cannot create another page-level rejection.
+  void ready.then(
+    () => (threadsBox.scrollTop = 0),
+    () => {},
+  );
+  return ready;
 }
 
 const choose = (kind, value, refreshNarrowing) => {
@@ -232,12 +239,12 @@ export function retainNarrowing(refreshNarrowing) {
     // Restore only while the direct arrival's view still stands. Typing in the
     // optimistic reply box does not change this reading and must not strand a refused
     // Reopen under the Open filter; changing the search or facets deliberately does.
-    restore: (before = null) => {
+    restore: async (before = null) => {
       if (!same(reading(), replacement)) return false;
-      before?.();
+      await before?.();
       ({ finding, state, scope, subject, onlyGone } = retained);
       findInput.value = retained.words;
-      renarrow(refreshNarrowing);
+      await renarrow(refreshNarrowing);
       return true;
     },
   };
@@ -259,6 +266,5 @@ export function revealThread(id, refreshNarrowing) {
   );
   if (!thread) return false;
   clearNarrowing(thread.resolved ? "resolved" : "open");
-  renarrow(refreshNarrowing);
-  return true;
+  return renarrow(refreshNarrowing);
 }

@@ -295,15 +295,26 @@ const listNode = (id) => {
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls. Sending a reply stays with its
 // editor through revealConversation instead.
-function showThreadNow(id, focus, revealThread) {
+async function showThreadNow(id, focus, revealThread) {
+  // A direct arrival owns the target's one transition cue. Remove a retained arrival
+  // animation before an asynchronous reveal gives the browser a frame to start it.
+  threadsBox
+    .querySelector(
+      `.lf-thread[data-id="${CSS.escape(id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
+    )
+    ?.classList.remove("grow");
   let node = listNode(id);
   const going = node?.closest(".lf-going");
   if (going) {
     finishFold(going.dataset.id);
-    revealThread(id);
+    const revealed = revealThread(id);
+    if (!revealed) return;
+    await revealed;
     node = listNode(id);
   } else if (!node) {
-    revealThread(id);
+    const revealed = revealThread(id);
+    if (!revealed) return;
+    await revealed;
     node = listNode(id);
   }
   if (!node) return;
@@ -348,7 +359,14 @@ export function createConversationLanding({ setPanel, scrollToThread, revealThre
   const landInConversation = (box, route = null) => landIn({ box, route });
   const showThread = (id, { focus = "reply" } = {}) => {
     setPanel(true);
-    showThreadNow(id, focus, revealThread);
+    const ready = showThreadNow(id, focus, revealThread);
+    // Pointer and keyboard routes deliberately discard this ticket. The conversation
+    // coordinator reports its one failure; the landing result keeps that rejection out
+    // of both discarded event-handler promises and callers that continue a delivery.
+    return ready.then(
+      () => true,
+      () => false,
+    );
   };
   return { landIn, landInConversation, showThread };
 }

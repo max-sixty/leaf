@@ -853,14 +853,17 @@ def resolve_source_target_reference(
     return {"status": "resolved", "target": candidates[0]}
 
 
+def rel_tokens(attrs: dict) -> frozenset[str]:
+    """The case-insensitive token set carried by one parsed ``rel`` attribute."""
+    value = attrs.get("rel") or []
+    tokens = value.split() if isinstance(value, str) else value
+    return frozenset(token.lower() for token in tokens)
+
+
 def links_with_rel(links: list[dict], rel: str) -> list[dict]:
     """The indexed links declaring one relation. `rel` carries a space-separated
     token list, so a relation is a token in it rather than a substring of it."""
-    return [
-        link
-        for link in links
-        if rel in (link["attrs"].get("rel") or "").lower().split()
-    ]
+    return [link for link in links if rel.lower() in rel_tokens(link["attrs"])]
 
 
 _revisions = {}  # revision file -> (its stamp, the parsed source document)

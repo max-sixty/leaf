@@ -112,6 +112,11 @@ const publicRuntimeBoundary = {
           name: "/leaf.js",
           message: "Import Leaf capabilities from /runtime/widget-api.js.",
         },
+        {
+          name: "/vendor/browser-runtime.js",
+          message:
+            "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
+        },
       ],
       patterns: [
         {
@@ -126,6 +131,11 @@ const publicRuntimeBoundary = {
           regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
           message: "Do not create a relative edge to the entry or public facade.",
         },
+        {
+          regex: "^\\.{1,2}/(?:.*/)?vendor/browser-runtime\\.js$",
+          message:
+            "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
+        },
       ],
     },
   ],
@@ -134,6 +144,11 @@ const publicRuntimeBoundary = {
     {
       selector: 'ImportExpression[source.value="/leaf.js"]',
       message: "Import Leaf capabilities statically from /runtime/widget-api.js.",
+    },
+    {
+      selector: 'ImportExpression[source.value="/vendor/browser-runtime.js"]',
+      message:
+        "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
     },
     {
       selector:
@@ -148,6 +163,12 @@ const publicRuntimeBoundary = {
       selector:
         "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
       message: "Do not create a relative edge to the entry or public facade.",
+    },
+    {
+      selector:
+        "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?vendor\\/browser-runtime\\.js$/]",
+      message:
+        "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
     },
     {
       selector: 'ImportExpression:not([source.type="Literal"])',

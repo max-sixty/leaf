@@ -5,6 +5,7 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
+from leaf.exporting import inline_assets
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import deliver_document, deliver_resource
 from leaf.structure import SourceDocument
@@ -59,6 +60,25 @@ const lazy = () => import('/page/later.js');
         '<img src="data:image/svg+xml;base64,PHN2Zy8+" alt="Embedded">',
     ):
         assert unchanged in delivered
+
+
+def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
+    source = (
+        '<html><head><link rel="StyleSheet" href="/page/style.css"></head>'
+        "<body><main></main></body></html>"
+    )
+
+    delivered = SourceDocument(deliver_document(source, ROOT))
+    assert delivered.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
+
+    exported = inline_assets(
+        source,
+        "/index.html",
+        read_resource=lambda url: Resource(b"main { color: green; }", "text/css"),
+    )
+    assert "<link" not in exported
+    assert "<style>" in exported
+    assert "main { color: green; }" in exported
 
 
 def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():

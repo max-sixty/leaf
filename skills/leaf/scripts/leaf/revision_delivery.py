@@ -14,7 +14,7 @@ import turbohtml
 from tinycss2.serializer import serialize_string_value
 
 from .revision_artifact import Resource, resolve_dependency, rewrite_module
-from .structure import SourceDocument, rewrite_resource_attribute
+from .structure import SourceDocument, rel_tokens, rewrite_resource_attribute
 
 
 def _resource_url(value: str, logical_path: str, asset_root: str) -> str:
@@ -115,7 +115,7 @@ def deliver_document(source: str, asset_root: str) -> str:
         if element.tag == "script" and attrs.get("src"):
             target = resolve_dependency(attrs["src"], "/index.html", module=True)
             attribute(element, "src", asset_root.rstrip("/") + quote(target, safe="/"))
-        if element.tag == "link" and "stylesheet" in (attrs.get("rel") or []):
+        if element.tag == "link" and "stylesheet" in rel_tokens(attrs):
             attribute(
                 element, "href", _resource_url(attrs["href"], "/index.html", asset_root)
             )

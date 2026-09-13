@@ -47,7 +47,12 @@ from leaf.revision_artifact import (
 )
 from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.served_state.service import PageStateService
-from leaf.structure import UTF8_BOM, SourceDocument, rewrite_resource_attribute
+from leaf.structure import (
+    UTF8_BOM,
+    SourceDocument,
+    rel_tokens,
+    rewrite_resource_attribute,
+)
 
 ResourceReader = Callable[[str], Resource]
 
@@ -207,7 +212,7 @@ def inline_assets(
             if location is None:
                 continue
             attrs = element.attrs
-            if element.tag == "link" and "stylesheet" in attrs.get("rel", []):
+            if element.tag == "link" and "stylesheet" in rel_tokens(attrs):
                 url = urljoin(document_url, attrs["href"])
                 resource = assets.resource(url)
                 if resource.mime != "text/css":

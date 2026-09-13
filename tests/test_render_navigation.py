@@ -413,6 +413,45 @@ def test_a_pane_comment_uses_its_region_rail_and_returns_to_flow(browser, serve)
     expect(cluster).to_have_attribute("data-lf-margin-region", "left-reading")
 
 
+def test_a_nested_reading_region_does_not_inherit_its_panes_rail(browser, serve):
+    source = READING_REGIONS_PAGE.replace(
+        '<p id="left-landmark">',
+        '<section id="nested-reading"><p id="nested-target">Nested evidence has its '
+        'own reading region.</p></section><p id="left-landmark">',
+    )
+    page = open_page(
+        browser,
+        serve(source, anchored=[("nested-target", "Nested evidence")]),
+    )
+    nested = page.locator("#nested-reading")
+    cluster = page.locator('[data-lf-margin-for="nested-target"]')
+    expect(cluster).to_have_attribute("data-lf-margin-region", "left-reading")
+
+    page.evaluate(
+        """async () => {
+          const [{registerReadingRegion}, {layoutChanged}] = await Promise.all([
+            window.__lfRuntimeImport('/runtime/reading-regions.js'),
+            window.__lfRuntimeImport('/runtime/widget-elements.js'),
+          ]);
+          const body = document.querySelector('#nested-reading');
+          window.stopNestedReading = registerReadingRegion({
+            id: 'nested-reading', host: body, body,
+          });
+          layoutChanged(body);
+        }"""
+    )
+
+    expect(nested).to_have_attribute("data-lf-reading-region", "nested-reading")
+    expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
+    expect(cluster).not_to_have_attribute("data-lf-margin-region", re.compile(r".+"))
+    assert (
+        nested.evaluate(
+            "node => getComputedStyle(node).getPropertyValue('--lf-reading-region-rail')"
+        )
+        == "0px"
+    )
+
+
 def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
     url = serve(READING_REGIONS_PAGE)
     page = open_page(browser, live_url(url))

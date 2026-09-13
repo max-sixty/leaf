@@ -1860,20 +1860,20 @@ export function createMarginProjection({
     }
   }
 
-  function externalPerch(target, main, flow = panelWouldCover()) {
-    if (!main) return target;
-    // A hanging item must be a child of main's own positioning context. In flow it
+  function externalPerch(target, context, flow = panelWouldCover()) {
+    if (!context) return target;
+    // A hanging item must be a child of its positioning context. In flow it
     // belongs immediately after the rendered block that owns its target. A declared
     // shadow tree still contributes through its host, where document CSS can reach the
     // controls.
     let perch = flow ? (blockAt(target) ?? target) : target;
-    while (!main.contains(perch)) {
+    while (!context.contains(perch)) {
       const root = perch.getRootNode();
       if (!(root instanceof ShadowRoot)) return target;
       perch = root.host;
     }
     if (flow) return perch;
-    while (perch.parentElement !== main && main.contains(perch.parentElement))
+    while (perch.parentElement !== context && context.contains(perch.parentElement))
       perch = perch.parentElement;
     return perch;
   }
@@ -1883,35 +1883,17 @@ export function createMarginProjection({
     const target = host.lfEntry?.target;
     if (!main || !target || panelWouldCover()) return;
     const localRegion = !flow && marginRegionFor(target);
-    if (localRegion) {
-      host.dataset.lfMarginRegion = localRegion.id;
-      const ordered = pageInventory
-        .filter(
-          (entry) =>
-            entry.key !== host.lfEntry.key &&
-            containingReadingRegionFor(entry.target)?.id === localRegion.id,
-        )
-        .map((entry) => hosts.get(entry.key))
-        .filter((candidate) => candidate?.parentNode === localRegion.body);
-      const before = ordered.find((candidate) =>
-        comesBefore(host.lfEntry.target, candidate.lfEntry.target),
-      );
-      if (before) {
-        if (before.previousSibling !== host) moveHost(host, () => before.before(host));
-      } else if (host.parentNode !== localRegion.body || host.nextSibling) {
-        moveHost(host, () => localRegion.body.append(host));
-      }
-      return;
-    }
-    delete host.dataset.lfMarginRegion;
-    const perch = externalPerch(target, main, flow);
+    if (localRegion) host.dataset.lfMarginRegion = localRegion.id;
+    else delete host.dataset.lfMarginRegion;
+    const context = localRegion?.body ?? main;
+    const perch = externalPerch(target, context, flow);
     let after = perch;
     for (const entry of pageInventory) {
       const candidate = hosts.get(entry.key);
       if (candidate === host) break;
       if (
         candidate?.isConnected &&
-        externalPerch(entry.target, main, flow) === perch &&
+        externalPerch(entry.target, context, flow) === perch &&
         candidate.parentNode === perch.parentNode
       )
         after = candidate;

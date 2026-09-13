@@ -3088,6 +3088,62 @@ def test_composed_corpus_runs_authored_page_modules(browser, serve):
     page.close()
 
 
+def test_notification_playground_admits_only_its_exact_page_configuration(
+    browser, serve
+):
+    source = Path(__file__).parents[1] / "examples" / "notification-playground.html"
+    url = serve(source)
+    page, errors = open_page(browser, url)
+    playground = page.locator("#notification-playground")
+    values = playground.evaluate("root => root.values")
+    assert set(values) == {
+        "accent",
+        "compact",
+        "events",
+        "format",
+        "radius",
+        "show-owner",
+        "title",
+        "tone",
+    }
+
+    refused = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": 1,
+            "widget": "notification-playground",
+            "action": "choose",
+            "detail": {
+                "values": {**values, "unknown": "not part of this page"},
+                "instruction": "Build the notification.",
+            },
+        },
+    )
+    assert refused.status == 400
+    assert "unknown" in refused.json()["error"]
+    off_step = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": 1,
+            "widget": "notification-playground",
+            "action": "choose",
+            "detail": {
+                "values": {**values, "events": 2.5},
+                "instruction": "Build the notification.",
+            },
+        },
+    )
+    assert off_step.status == 400
+    assert "2.5" in off_step.json()["error"]
+    assert actions(serve.page_dir) == []
+    assert errors == []
+    page.close()
+
+
 def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     browser, serve
 ):

@@ -1,0 +1,58 @@
+{
+  "lf-playground": {
+    "description": "The deployment-notification playground with one exact scalar configuration.",
+    "type": "object",
+    "properties": {
+      "id": {"type": "string", "const": "notification-playground"},
+      "submit-label": {"type": "string", "const": "Create notification"},
+      "restated": {"type": "boolean"}
+    },
+    "required": ["id", "submit-label"],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-guidance": {
+      "author": "All notification controls, including event pressure, belong to one exact page-owned value schema and one Playground submission."
+    },
+    "x-upgrade": true,
+    "x-awaits": {"region": true, "answers": ["choose"]},
+    "x-state": {
+      "choose": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "object",
+              "properties": {
+                "events": {"type": "integer", "minimum": 1, "maximum": 4},
+                "radius": {"type": "integer", "minimum": 0, "maximum": 24},
+                "compact": {"type": "boolean"},
+                "format": {"enum": ["banner", "status strip"]},
+                "tone": {"enum": ["calm", "urgent"]},
+                "show-owner": {"type": "boolean"},
+                "accent": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+                "title": {"type": "string"}
+              },
+              "required": [
+                "events",
+                "radius",
+                "compact",
+                "format",
+                "tone",
+                "show-owner",
+                "accent",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "instruction": {"type": "string", "minLength": 1}
+          },
+          "required": ["values", "instruction"],
+          "additionalProperties": false
+        },
+        "facet": "configuration",
+        "unit": "widget"
+      }
+    },
+    "x-example": "<lf-ask id=\"notification-ask\"><h2>Which notification?</h2><lf-playground id=\"notification-playground\" submit-label=\"Create notification\"><lf-playground-control name=\"events\" label=\"Concurrent release events\" kind=\"range\" value=\"2\" min=\"1\" max=\"4\" step=\"1\"></lf-playground-control><lf-playground-preview><p>Notification preview</p></lf-playground-preview><lf-playground-output>Build the notification.</lf-playground-output></lf-playground></lf-ask>"
+  }
+}

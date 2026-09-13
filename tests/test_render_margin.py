@@ -5049,6 +5049,15 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry
 
+    words = thread.locator(".lf-conversation-body").first
+    words_box = words.bounding_box()
+    page.mouse.move(words_box["x"] + 1, words_box["y"] + 10)
+    page.mouse.down()
+    page.mouse.move(words_box["x"] + 180, words_box["y"] + 10, steps=10)
+    page.mouse.up()
+    selected = page.evaluate("getSelection().toString()")
+    assert len(selected) > 10 and selected in words.inner_text(), selected
+
     thread.get_by_role("button", name="Reply", exact=True).click()
     send = preview.get_by_role("button", name="Send")
     send.focus()
@@ -5064,13 +5073,28 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
         """card => {
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const box = card.getBoundingClientRect();
+          const list = card.querySelector('.lf-margin-preview-list');
           return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
-                  clientHeight: card.clientHeight, scrollHeight: card.scrollHeight};
+                  clientHeight: list.clientHeight, scrollHeight: list.scrollHeight};
         }"""
     )
     assert capped["top"] >= capped["bannerBottom"] + 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
+    # The conversation scrolls; its subject and settlement remain usable. A tall
+    # focused root must not scroll the title away just to fit its entire transcript.
+    title = preview.locator(".lf-margin-preview-title")
+    resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
+    title_box = title.bounding_box()
+    resolve_box = resolve.bounding_box()
+    preview.locator(".lf-margin-preview-list").hover()
+    page.mouse.wheel(0, -800)
+    ticked(page)
+    assert title.bounding_box() == pytest.approx(title_box, abs=0.5)
+    assert resolve.bounding_box() == pytest.approx(resolve_box, abs=0.5)
+    assert title_box["y"] >= capped["top"], title_box
+    assert resolve_box["y"] >= capped["top"], resolve_box
+    assert resolve_box["y"] + resolve_box["height"] <= capped["bottom"], resolve_box
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")
@@ -5135,6 +5159,30 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     marker.click()
     expect(preview).to_be_visible()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+    page.keyboard.press("Escape")
+    resized(page, 1280, 600)
+    marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
+    marker.click()
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("textarea")
+    draft = "\n".join(
+        f"Line {n}: " + "The reply keeps its complete editor visible. " * 2
+        for n in range(18)
+    )
+    editor.fill(draft)
+    for edge, caret in [("ArrowLeft", 0), ("ArrowRight", len(draft))]:
+        editor.press("ControlOrMeta+a")
+        editor.press(edge)
+        expect(editor).to_have_value(draft)
+        assert editor.evaluate("node => node.selectionStart") == caret
+        page.wait_for_function("""() => {
+          const list = document.querySelector('.lf-margin-preview-list').getBoundingClientRect();
+          const editor = document.querySelector('.lf-margin-preview textarea').getBoundingClientRect();
+          const send = document.querySelector('.lf-margin-preview .lf-compose-submit').getBoundingClientRect();
+          return editor.top >= list.top - 1 && editor.bottom <= list.bottom + 1
+            && send.top >= list.top && send.bottom <= list.bottom + 1;
+        }""")
 
     assert errors == []
 

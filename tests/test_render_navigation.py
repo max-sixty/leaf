@@ -332,10 +332,11 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     preview_geometry = preview.evaluate(
         """el => {
           const card = el.getBoundingClientRect();
+          const history = el.querySelector('.lf-margin-preview-list');
           const body = document.querySelector('#left-reading .lf-pane-body')
             .getBoundingClientRect();
           return {card: card.toJSON(), body: body.toJSON(),
-                  scrollHeight: el.scrollHeight, clientHeight: el.clientHeight};
+                  scrollHeight: history.scrollHeight, clientHeight: history.clientHeight};
         }"""
     )
     assert preview_geometry["card"]["top"] >= preview_geometry["body"]["top"], (
@@ -347,8 +348,9 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     assert preview_geometry["scrollHeight"] > preview_geometry["clientHeight"], (
         preview_geometry
     )
-    preview.evaluate("el => el.scrollTop = el.scrollHeight")
-    assert preview.evaluate("el => el.scrollTop") > 0
+    history = preview.locator(".lf-margin-preview-list")
+    history.evaluate("el => el.scrollTop = el.scrollHeight")
+    assert history.evaluate("el => el.scrollTop") > 0
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     page.keyboard.press("t")
@@ -757,6 +759,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator('[data-filter-value="resolved"]')).not_to_have_text("Resolved")
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     expect(
         page.locator('.lf-thread[data-resolved="true"]:not([hidden])')
@@ -5799,6 +5802,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     page.get_by_role("button", name="Resolve thread", exact=True).click()
     round_trip(page)
     resized(page, 390, 800)
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).not_to_have_class(re.compile(r"\bdetached\b"))
@@ -8296,6 +8300,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         expect(page.locator('[data-filter-value="resolved"]')).to_have_text(
             f"Resolved ({n})"
         )
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     expect(
         page.locator('.lf-thread[data-resolved="true"]:not([hidden])')
@@ -8364,6 +8369,7 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
     # The same key reopens a focused resolved thread.
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     resolved = page.locator(f'.lf-thread[data-id="{c1}"]:not([hidden])')
     resolved.focus()
@@ -8739,6 +8745,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     # than reaching for one that is not there. The panel's own row answers it, saying so in
     # the panel's words; what matters is that the thread is not named, which is the phase
     # above's answer and would be the wrong one here.
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     page.locator(f'.lf-thread[data-id="{gone}"]:not([hidden])').focus()
     expect(line).not_to_contain_text("comment on the thread")
@@ -9081,7 +9088,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     try:
         page.goto(serve(NOTED_PAGE), wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(page.locator(".lf-status-text")).to_have_text(
+        expect(page.locator(".lf-status-detail")).to_have_text(
             "Server offline — reconnecting. Keep this page open so pending changes can send."
         )
 

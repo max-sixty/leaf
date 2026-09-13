@@ -833,8 +833,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     pinned.close()
 
 
-def test_banner_status_is_one_line_with_full_hover_text(browser, serve, other_leaf):
-    """Long activity text ellipsizes without wrapping or compressing its controls."""
+def test_banner_status_is_compact_with_accessible_details(browser, serve, other_leaf):
+    """Compact status preserves full detail through keyboard and pointer disclosure."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -860,17 +860,38 @@ def test_banner_status_is_one_line_with_full_hover_text(browser, serve, other_le
     )
     session_model.cmd_status(serve.page_dir, "working", detail)
     told(page)
-    expect(page.locator(".lf-status-text")).to_contain_text(detail.strip())
+    expect(page.locator(".lf-status-detail")).to_contain_text(detail.strip())
     for width in (1280, 841, 390):
         resized(page, width, 900)
         read = page.evaluate(STATUS_FIT)
-        assert read["across"]["needed"] > read["across"]["shown"] > 0, read
+        assert read["across"]["shown"] > 0, read
         assert read["down"]["shown"] == pytest.approx(read["lineHeight"], abs=1), read
         assert read["down"]["shown"] == read["down"]["needed"], read
         assert read["ellipsis"] == "ellipsis", read
-        assert read["title"] == read["text"], read
+        assert read["text"] == "Claude working", read
         assert detail.strip() in read["title"], read
         assert read["actions"]["shown"] >= read["actions"]["needed"], read
+        door = page.locator(".lf-status-button")
+        explanation = page.locator(".lf-status-detail")
+        expect(door).to_have_attribute("aria-describedby", "lf-status-detail")
+        door.focus()
+        page.keyboard.press("Enter")
+        expect(explanation).to_be_visible()
+        expect(explanation).to_be_focused()
+        expect(explanation).to_contain_text(detail.strip())
+        expect(door).to_have_attribute("aria-expanded", "true")
+        box = explanation.bounding_box()
+        assert box["x"] >= 0 and box["x"] + box["width"] <= width, box
+        page.keyboard.press("Escape")
+        expect(explanation).to_be_hidden()
+        expect(door).to_be_focused()
+        page.keyboard.press("Space")
+        expect(explanation).to_be_visible()
+        page.keyboard.press("Escape")
+        door.click()
+        expect(explanation).to_be_visible()
+        page.mouse.click(100, 600)
+        expect(explanation).to_be_hidden()
     resized(page, 1280, 900)
 
     # Above the floor the sentence is the row's, not a share of it: a control folding
@@ -925,6 +946,7 @@ def test_banner_status_is_one_line_with_full_hover_text(browser, serve, other_le
     # transient menu, it closes before painting over the next keyboard destination.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
     open_versions(page)
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
@@ -1010,7 +1032,7 @@ STATUS_FIT = """() => {
   return {across: {shown: status.clientWidth, needed: status.scrollWidth},
           down: {shown: status.clientHeight, needed: status.scrollHeight},
           lineHeight: parseFloat(style.lineHeight), ellipsis: style.textOverflow,
-          title: status.title, text: status.textContent,
+          title: document.querySelector('.lf-status-button').title, text: status.textContent,
           actions: {shown: actions.clientWidth, needed: actions.scrollWidth}};
 }"""
 
@@ -1386,7 +1408,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
         # is the one the route refuses.
         nudge(serve.page_dir)
         expect(page.locator(".lf-banner .lf-dot.offline")).to_be_visible()
-        offline = page.locator(".lf-status-text").text_content()
+        offline = page.locator(".lf-status-detail").text_content()
         assert offline.startswith("Server offline"), (
             f"the banner's offline line has moved: {offline!r}"
         )
@@ -1687,10 +1709,10 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         ) == comments_edge.get_attribute("aria-valuemax")
         threads = page.locator(".lf-threads")
         threads.evaluate("box => { box.scrollTop = 0; }")
-        filters = page.locator(".lf-thread-filters").bounding_box()
-        assert filters["height"] <= 120, (
-            f"the filters took more than three compact rows at the 320px floor: {filters}"
+        expect(page.locator(".lf-thread-filter-toggle")).to_have_attribute(
+            "aria-expanded", "false"
         )
+        expect(page.locator(".lf-thread-filter-toggle")).to_be_visible()
         width_before = page.evaluate(
             "() => getComputedStyle(document.documentElement)"
             ".getPropertyValue('--lf-thread-panel-width')"
@@ -3069,6 +3091,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
             "() => document.querySelector('.lf-thread-panel').contains(document.activeElement)"
         ), "Tab reached a control behind the covering Threads panel"
 
+    page.locator(".lf-thread-filter-toggle").click()
     open_filter = page.locator('[data-filter-value="open"]')
     open_filter.focus()
     resized(page, 1000, 640)
@@ -5002,6 +5025,7 @@ RING_WALKS = (
     ("a reaction palette", (), ("ship-review",)),
     ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
+    ("page status", (), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
     # from the row below it. The walk is clamped, so a second press at the bottom moves
@@ -5068,6 +5092,7 @@ RING_SCOPE_SURFACE = {
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
+    "page status": (".lf-status-detail:popover-open", None),
     "design mode": ("body[data-lf-design-mode]", None),
     "a reaction palette": (".lf-react-strip.lf-react-open", None),
 }
@@ -5126,6 +5151,7 @@ RING_SCOPE_WIDTH = {
 # after reading it adds no evidence and can keep the page's moving margin perpetually
 # outside the settled probe.
 RING_SINGLE_STOPS = {
+    "page status",
     "a settled decision",
     "a settled option",
     "a swipe card",
@@ -5484,6 +5510,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 # after that reset so the page walk includes each closed thread's
                 # Reopen control; narrower scopes keep open threads available for their
                 # own conditional controls, such as a reply's reaction palette.
+                page.locator(".lf-thread-filter-toggle").click()
                 resolved = page.locator('[data-filter-value="resolved"]')
                 if (
                     resolved.is_enabled()
@@ -5494,6 +5521,12 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             if posture:
                 resized(page, posture, RING_WALK_VIEWPORT[1])
                 page_at_rest(page)
+            if scope == "page status":
+                # Native Enter opens the explanation and places focus on its scroller;
+                # it is deliberately outside sequential Tab order while closed.
+                page.locator(".lf-status-button").focus()
+                page.locator(".lf-status-button").press("Enter")
+                expect(page.locator(".lf-status-detail")).to_be_focused()
             if control := RING_SCOPE_CONTROL.get(scope):
                 opener, arrival = control
                 # The first, because a Page Map has one thread margin entry per commented
@@ -5879,6 +5912,7 @@ def _each_aim_surface(page, page_dir):
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     expect(page.locator(".lf-reopen")).to_have_count(1)
     yield

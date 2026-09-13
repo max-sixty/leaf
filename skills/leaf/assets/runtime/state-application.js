@@ -104,14 +104,20 @@ export function createStateApplication({
         await notifyChangedData();
         return;
       }
-      // Pending deferral is rechecked by activates. A reload never returns to install
-      // this candidate in the old realm; a patch returns the revision it installed, and
-      // adoption is where that revision becomes current, so the document and the state
-      // that speaks for it reach the page in one reading. Adoption also answers for the
-      // view: a state holding none for the revision shown is one this document cannot
-      // apply, whichever revision that is.
-      const installed = activation?.activates() ? await activation.install() : null;
-      if (!applicationState.adopt(state, installed)) {
+      // Pending deferral is rechecked by activates. An installation edits the reader's
+      // document and there is no putting it back, so the answer that would follow it is
+      // judged first, against the revision the install would leave showing. A candidate
+      // that could not be adopted is dropped here, with the page still whole.
+      const following = activation?.activates() ? activation.revision : null;
+      if (!applicationState.canAdopt(state, following)) {
+        await notifyChangedData();
+        return;
+      }
+      // A reload never returns to install this candidate in the old realm. A patch
+      // does, and adoption is where the revision it installed becomes current, so the
+      // document and the state that speaks for it reach the page in one reading.
+      if (following !== null) await activation.install();
+      if (!applicationState.adopt(state, following)) {
         await notifyChangedData();
         return;
       }

@@ -1,4 +1,5 @@
 /* Retained DOM child reconciliation. */
+import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 const detach = (node) => node.remove();
 
@@ -41,15 +42,43 @@ export function setChildren(parent, nodes, remove = detach) {
      what hands a widget's children to a controller, so whatever has to be read off the
      markup a widget was written as has to be read here. It is called for the nodes that
      arrive and for nothing else, because a node that stays has already been read.
+   - `retire(element)`: this live element is leaving the document, with every element
+     under it. Said as it happens rather than predicted from the two sources, because
+     what goes is decided here: a widget whose own markup nobody touched still leaves
+     when the wrapper around it is replaced.
 
-   Matching is by id first and by position second. A positional match needs the same node
-   type and the same tag, and refuses two elements that carry different ids: an element
-   the source names is the element of that name or is new, never whichever other named
-   element stands in its place. An id on one side only is that name being given or taken
-   away, which is a thing to do to an element rather than a reason to replace it. */
+   Matching runs in three passes, narrowest first, and each pass only sees what the one
+   before it left.
+
+   An id is a name the author gave, so it wins outright: an element the source names is
+   the element of that name, wherever either side has moved it to.
+
+   Then the unnamed siblings, which is where a list of paragraphs lives, and where
+   walking the two lists in step is wrong in the one way that costs a reader most. Insert
+   a paragraph above the one they are reading and every later paragraph pairs with its
+   neighbour: their own text node keeps its identity while its words are overwritten with
+   the next paragraph's, and the last paragraph is dropped for want of a partner. So the
+   siblings that did not change are found first, by an exact signature — node type, tag,
+   and the authored words under it, skipping whatever the runtime put there — and pinned
+   through `diffArrays`, which is the same vendored spine the text alignment runs on.
+   Those pins are the parts of the list that stand still.
+
+   Only the gaps between pins are then walked in step, by node type and tag alone, which
+   is what pairs a paragraph with its own rewrite. An element carrying an id is never
+   paired here with one carrying a different id; an id on one side only is that name
+   being given or taken away, which is a thing to do to an element rather than a reason
+   to replace it. */
 export function patchTree(live, source, rules) {
   patchAttributes(live, source, rules.share);
-  patchChildren(live, source, rules);
+  // A template's tree is its content fragment, not its children; `childNodes` is empty
+  // however much markup it holds. Authored pages are allowed one and the feature
+  // gallery ships one, so a patch that read the element alone would leave every
+  // template on a page frozen at the revision it arrived in.
+  const [liveTree, sourceTree] =
+    live.localName === "template" && source.localName === "template"
+      ? [live.content, source.content]
+      : [live, source];
+  patchChildren(liveTree, sourceTree, rules);
 }
 
 function patchAttributes(live, source, share) {
@@ -72,12 +101,24 @@ function patchAttributes(live, source, share) {
 
 const tokens = (value) => value.split(" ").filter(Boolean);
 
+// Everything leaving, told to the caller before it goes. The element itself and every
+// element under it: a widget inside a replaced wrapper is as gone as the wrapper.
+function retire(node, rules) {
+  if (node.nodeType !== Node.ELEMENT_NODE) return;
+  rules.retire(node);
+  for (const inner of node.querySelectorAll("*")) rules.retire(inner);
+}
+
 function patchChildren(live, source, rules) {
   const held = [...live.childNodes].filter((node) => !rules.generated(node));
   const wanted = [...source.childNodes];
-  const matches = matchNodes(held, wanted);
+  const matches = matchNodes(held, wanted, rules);
   const matched = new Set(matches.values());
-  for (const node of held) if (!matched.has(node)) node.remove();
+  for (const node of held)
+    if (!matched.has(node)) {
+      retire(node, rules);
+      node.remove();
+    }
   const placed = [];
   for (const node of wanted) {
     const match = matches.get(node);
@@ -98,6 +139,7 @@ function patchChildren(live, source, rules) {
     else {
       // A widget renders from its own authored markup, so a changed one cannot be
       // corrected from outside. It leaves, and its replacement arrives as a new element.
+      retire(match, rules);
       match.remove();
       rules.adopt(node);
       placed.push(node);
@@ -106,7 +148,7 @@ function patchChildren(live, source, rules) {
   place(live, placed, rules.generated);
 }
 
-function matchNodes(held, wanted) {
+function matchNodes(held, wanted, rules) {
   const matches = new Map();
   const matched = new Set();
   const byId = new Map();
@@ -120,16 +162,76 @@ function matchNodes(held, wanted) {
     matches.set(node, match);
     matched.add(match);
   }
-  const rest = held.filter((node) => !matched.has(node));
+  alignRest(
+    held.filter((node) => !matched.has(node)),
+    wanted.filter((node) => !matches.has(node)),
+    matches,
+    rules,
+  );
+  return matches;
+}
+
+// The words this node puts in front of a reader, as the page's rather than the layer's.
+// A declared widget has none to offer by the time this runs — its children belong to a
+// controller — so its tag stands for it and the recursion below sorts out the rest.
+function authoredText(node, rules) {
+  if (rules.generated(node)) return "";
+  if (node.nodeType !== Node.ELEMENT_NODE) return node.data ?? "";
+  if (rules.declared(node)) return "";
+  let text = "";
+  const children = node.localName === "template" ? node.content : node;
+  for (const child of children.childNodes) text += authoredText(child, rules);
+  return text;
+}
+
+const COLLAPSE = /\s+/g;
+
+// Exact enough that two of them being equal means the revision left this sibling alone,
+// and loose enough that reindenting the source does not unpin the whole list.
+const signature = (node, rules) => {
+  if (node.nodeType !== Node.ELEMENT_NODE) return `${node.nodeType}:${node.data}`;
+  if (node.id) return `1:${node.localName}#${node.id}`;
+  return `1:${node.localName}:${authoredText(node, rules).replace(COLLAPSE, " ").trim()}`;
+};
+
+function alignRest(held, wanted, matches, rules) {
+  let heldAt = 0;
+  let wantedAt = 0;
+  let gapHeld = [];
+  let gapWanted = [];
+  const closeGap = () => {
+    pairInOrder(gapHeld, gapWanted, matches);
+    gapHeld = [];
+    gapWanted = [];
+  };
+  for (const run of diffArrays(
+    held.map((node) => signature(node, rules)),
+    wanted.map((node) => signature(node, rules)),
+  )) {
+    const count = run.value.length;
+    if (run.added) gapWanted.push(...wanted.slice(wantedAt, (wantedAt += count)));
+    else if (run.removed) gapHeld.push(...held.slice(heldAt, (heldAt += count)));
+    else {
+      closeGap();
+      for (let at = 0; at < count; at++)
+        matches.set(wanted[wantedAt + at], held[heldAt + at]);
+      heldAt += count;
+      wantedAt += count;
+    }
+  }
+  closeGap();
+}
+
+// Inside one edited stretch, where walking in step is the right answer: these are the
+// siblings the revision rewrote, and a rewrite is still the element it rewrote.
+function pairInOrder(held, wanted, matches) {
   let cursor = 0;
   for (const node of wanted) {
-    if (matches.has(node)) continue;
-    while (cursor < rest.length && !interchangeable(rest[cursor], node)) cursor += 1;
-    if (cursor >= rest.length) break;
-    matches.set(node, rest[cursor]);
+    while (cursor < held.length && !interchangeable(held[cursor], node)) cursor += 1;
+    if (cursor >= held.length) break;
+    matches.set(node, held[cursor]);
     cursor += 1;
   }
-  return matches;
 }
 
 const interchangeable = (held, wanted) =>

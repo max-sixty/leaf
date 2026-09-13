@@ -522,6 +522,7 @@ export function mountApplication(dependencies) {
     refreshNarrowing: conversation.refreshNarrowing,
     registerThreadSurface,
     forgetAuthoredOwners: projection.forgetAuthoredOwners,
+    retireProjectionCoverage: projection.retireProjectionCoverage,
     setResolved,
     shallowSigs: projectionShallowSigs,
     startFeed: feed.startFeed,

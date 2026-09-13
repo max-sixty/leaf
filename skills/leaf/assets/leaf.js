@@ -317,6 +317,7 @@ const version = createVersionController({
   readableDestination: anchorTravel.readableDestination,
   scrollToElement: anchorTravel.scrollToElement,
   forgetAuthoredOwners: (...args) => app.forgetAuthoredOwners(...args),
+  retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
   captureRetainedStanding: () => app?.margin.captureStanding() ?? null,
   restoreRetainedStanding: (standing) => app?.margin.restoreStanding(standing) ?? false,

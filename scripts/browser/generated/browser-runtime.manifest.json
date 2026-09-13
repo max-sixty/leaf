@@ -54,12 +54,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 42573,
-      "sha256": "988b0843a72f7b71e54bbda9ef6391eb6b0063410f57838808b9b7bdf7ef60ab"
+      "bytes": 42658,
+      "sha256": "cae96433369cb2bd935b09b61901a7ea4173126bb909bbbdf7cbfbc0bcdd77e8"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 373057,
-      "sha256": "5b12d07368e470892ae56da378d67ca636327bcc11d2cb4526b886bffda6e081"
+      "bytes": 374185,
+      "sha256": "5fe9bc1db7db77638bbe6ca14fb214d3c48ce19737353937da7b8bd76e71ca32"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 7267,

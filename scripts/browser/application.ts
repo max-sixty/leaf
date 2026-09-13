@@ -545,6 +545,21 @@ export function createSemanticApplication({
     }
   }
 
+  // An answer this document can take on with `revision` showing: not overtaken by one
+  // already adopted, and holding a view of the revision that would be current.
+  const adoptable = (state: AuthoritativeState, revision: number | null) => {
+    const prior = publisher.read();
+    if (
+      prior.authoritative &&
+      (state.taken < prior.authoritative.taken ||
+        state.browser.basis.through_seq <
+          prior.authoritative.browser.basis.through_seq ||
+        state.active.revision < prior.authoritative.active.revision)
+    )
+      return false;
+    return Boolean(state.browser.views[String(revision ?? prior.document.revision)]);
+  };
+
   const entry = (attempt: string) =>
     publisher.read().unresolved.find((item) => item.event.attempt === attempt);
   const update = (attempt: string, change: (entry: Event) => Event) =>
@@ -651,6 +666,15 @@ export function createSemanticApplication({
       publish({ data: structuredClone(data) });
       return true;
     },
+    // Whether this answer could be adopted with `revision` showing, asked without
+    // adopting it. A live activation patches the document before it adopts, and a patch
+    // is not something to undo, so the candidate is judged before the reader's page is
+    // touched. One definition read from two places, because two would be one edit away
+    // from a document patched to a revision the answer it was patched for declines to
+    // speak for.
+    canAdopt(state: AuthoritativeState, revision: number | null = null) {
+      return adoptable(state, revision);
+    },
     // `revision` is the revision a live activation has just installed into this
     // document, and adopting the answer that named it is where it becomes current.
     // The two are one reading: published apart, every widget renders once against a
@@ -659,16 +683,8 @@ export function createSemanticApplication({
     // so the second publication changes nothing and never reaches them.
     adopt(state: AuthoritativeState, revision: number | null = null) {
       const prior = publisher.read();
-      if (
-        prior.authoritative &&
-        (state.taken < prior.authoritative.taken ||
-          state.browser.basis.through_seq <
-            prior.authoritative.browser.basis.through_seq ||
-          state.active.revision < prior.authoritative.active.revision)
-      )
-        return false;
+      if (!adoptable(state, revision)) return false;
       const shown = revision ?? prior.document.revision;
-      if (!state.browser.views[String(shown)]) return false;
       const basis = state.browser.views[String(shown)]!.basis;
       if (basis.revision !== shown || basis.through_seq !== state.browser.basis.through_seq)
         throw new TypeError("state browser has no matching revision view");

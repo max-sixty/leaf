@@ -178,6 +178,7 @@ import {
 import {
   importWidgets,
   installDocument,
+  reindexPassageOwners,
   rememberPassageParts,
 } from "./widget-loader.js";
 
@@ -205,7 +206,7 @@ servedStampMarker?.remove();
 // the module graph, and every inline module body. A revision whose digest matches can
 // be taken on by this document; one whose digest differs needs a fresh one, because a
 // live document cannot re-evaluate a module graph or redefine a custom element.
-const servedExecutable = document.querySelector(
+export const servedExecutable = document.querySelector(
   'meta[name="lf-executable"][data-lf-runtime]',
 )?.content;
 
@@ -286,7 +287,7 @@ export function createVersionController({
   readableDestination,
   scrollToElement,
   forgetAuthoredOwners,
-  invalidateDom,
+  retireProjectionCoverage,
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
@@ -1367,12 +1368,12 @@ export function createVersionController({
     element.outerHTML.replace(REVISION_ROOT, "/revisions/");
   const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
 
-  // The widgets an arriving revision rewrote or dropped, read from the two source
-  // documents because neither element's authored markup is in the page any more: a
-  // controller owns its children from the moment it upgrades. A widget the revision
-  // left word-for-word alone is the widget the reader is holding, so it stays; every
-  // other one leaves with its authored baseline, its descriptor, and its committed
-  // coordinates. Nesting travels with the outer element, so its widgets go too.
+  // Whether a widget's authored markup survived the revision word for word, read from
+  // the two source documents because neither element's authored markup is in the page
+  // any more: a controller owns its children from the moment it upgrades. This answers
+  // one question — may the patch keep this element — and nothing else. What actually
+  // left the document is the patch's to say, because structure decides it too: a widget
+  // nobody touched still goes when the wrapper around it is replaced.
   function rewrittenWidgets(before, after) {
     const rewritten = new Set();
     for (const element of before.querySelectorAll("[id]")) {
@@ -1405,8 +1406,7 @@ export function createVersionController({
     const live = document.querySelector("body > main");
     const source = doc.querySelector("body > main");
     const rewritten = rewrittenWidgets(authoredSource, source);
-    forgetAuthoredOwners(rewritten);
-    forgetWidgetDescriptors(rewritten);
+    retireProjectionCoverage();
     // Step 5 of the startup order, on an inert copy of the whole arriving revision. The
     // patch below moves these very nodes into the page, so what is read here is read
     // about the nodes that end up in it, and read while they are still the markup their
@@ -1438,12 +1438,33 @@ export function createVersionController({
           declared: upgraded,
           unchanged: (element) => Boolean(element.id) && !rewritten.has(element.id),
           share: authoredAttributes,
+          // What the patch takes out, as it takes it out. Predicting this from the two
+          // sources gets it wrong in the direction that leaves a lie behind: a widget
+          // whose own markup nobody touched still goes when the wrapper around it is
+          // replaced, and a baseline nothing forgot is a baseline the fresh capture
+          // then skips. Said per element rather than gathered, because the element's
+          // replacement is read immediately after and would lose what a later sweep
+          // dropped.
+          retire: (element) => {
+            if (!element.id || !upgraded(element)) return;
+            forgetAuthoredOwners(new Set([element.id]));
+            forgetWidgetDescriptors([element.id]);
+          },
           // Only what arrives. A widget the reader keeps keeps the descriptor taken
           // from the markup it was written as, and a second reading of the same id
           // would publish one this revision's number the controller's copy does not
           // carry — which is the widget's own actions going unavailable under it.
-          adopt: (element) => captureWidgetDescriptors(element, undefined, live),
+          adopt: (element) =>
+            captureWidgetDescriptors(
+              element,
+              { kind: "page", revision: target.revision },
+              live,
+            ),
         });
+        // After the patch, over the document the patch left: an owner's number is its
+        // place among the document's preserving owners, and an insertion moves the ones
+        // after it.
+        reindexPassageOwners(live);
         pruneScopedElements();
       },
     });
@@ -1462,12 +1483,6 @@ export function createVersionController({
     // Named from the descriptor rather than the current label, which still reads the
     // revision this document is a statement away from leaving.
     notice(`Updated to ${target.label}`, { background: true });
-    // The revision this document now shows, for state application to adopt with the
-    // answer that named it. The two are one reading: the document's revision published
-    // ahead of a state holding a view of it renders every widget once against no
-    // projection at all, which for many is their authored condition, so the adoption
-    // behind it changes nothing and never reaches them.
-    return target.revision;
   }
 
   // The move a state asks of the live root, prepared ahead of the commit that makes it.
@@ -1491,8 +1506,17 @@ export function createVersionController({
       !hasPending() &&
       (!midComposition() || forceActivation) &&
       !versionMenuIsOpen();
+    // The revision either install leaves this document showing. State application reads
+    // it to judge the answer before the install edits anything, and adopts the answer
+    // against it afterwards, so the document's revision and the state that speaks for it
+    // become current in one reading.
     if (!servedExecutable || target.executable !== servedExecutable)
-      return { stale: false, activates, install: reloadInto(target) };
+      return {
+        stale: false,
+        revision: target.revision,
+        activates,
+        install: reloadInto(target),
+      };
     let doc;
     try {
       doc = await revisionDocument(target);
@@ -1510,6 +1534,7 @@ export function createVersionController({
     await importWidgets(doc.querySelector("body > main"));
     return {
       stale: false,
+      revision: target.revision,
       activates,
       install: () => {
         forceActivation = false;

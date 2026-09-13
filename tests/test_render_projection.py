@@ -1921,6 +1921,72 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
 
 
+def test_a_paragraph_inserted_above_the_reader_does_not_shift_the_ones_below(
+    browser, serve
+):
+    """Unnamed siblings are matched by what they say, not by where they stand.
+
+    Walking the two child lists in step is right until something is inserted, and then
+    it is wrong in the way that costs a reader most: every later paragraph pairs with
+    its neighbour, so the one they are reading keeps its node while its words are
+    overwritten with the next paragraph's, and the last paragraph goes for want of a
+    partner. None of these paragraphs carries an id, which is the case a page of prose
+    is made of.
+    """
+    body = "\n".join(
+        f"<p>Paragraph {n}. " + "Settled words. " * 6 + "</p>" for n in range(1, 5)
+    )
+    first = leaf_page("Prose order first", f"<h1 id='po-title'>Order</h1>\n{body}")
+    second = first.replace("Prose order first", "Prose order second").replace(
+        "<p>Paragraph 1.",
+        "<p>Paragraph 0. A finding the revision put above everything else.</p>\n"
+        "<p>Paragraph 1.",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    held = page.evaluate(
+        """() => {
+          const second = [...document.querySelectorAll('main p')][1];
+          const node = second.firstChild;
+          const range = document.createRange();
+          range.setStart(node, 0);
+          range.setEnd(node, 11);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          window.__poNode = node;
+          window.__poParagraph = second;
+          return selection.toString();
+        }"""
+    )
+    assert held == "Paragraph 2", f"the selection did not land on paragraph 2: {held!r}"
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Prose order first")
+    page.evaluate("() => { window.__poFocus = document.activeElement; }")
+    page.locator(".lf-latest-chip").evaluate("el => el.click()")
+    expect(page).to_have_title("Prose order second")
+
+    standing = page.evaluate(
+        """() => {
+          const paragraphs = [...document.querySelectorAll('main p')];
+          return {
+            words: paragraphs.map((p) => p.textContent.trim().split('.')[0]),
+            selection: getSelection().toString(),
+            sameNode: getSelection().anchorNode === window.__poNode,
+            sameParagraph: window.__poParagraph === paragraphs[2],
+          };
+        }"""
+    )
+    assert standing == {
+        "words": ["Paragraph 0", "Paragraph 1", "Paragraph 2", "Paragraph 3"]
+        + ["Paragraph 4"],
+        "selection": "Paragraph 2",
+        "sameNode": True,
+        "sameParagraph": True,
+    }, f"the insertion shifted the paragraphs below it: {standing}"
+
+
 def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     browser, serve
 ):

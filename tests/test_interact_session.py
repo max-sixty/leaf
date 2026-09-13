@@ -2294,6 +2294,50 @@ def test_a_rejected_direct_turn_returns_to_the_queue_path():
     assert answer.get_nowait() == (None, None)
 
 
+def test_a_rejected_direct_turn_still_reads_the_turn_it_was_refused_for(monkeypatch):
+    """The notifications held back behind turn/start survive its refusal.
+
+    A refused turn/start is the provider saying its task is busy, and the turn that
+    made it busy announces itself in the notifications buffered behind the request.
+    Dropping them left this client believing the thread idle, so the page said nothing
+    about work Codex had already started."""
+    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    observer.thread_id = "codex-thread"
+    observer.events = codex_model.AppServerEvents("codex-thread")
+    observer.bindings = {}
+    observer.last_activity_update = 0.0
+    observer.request_id = 2
+    opened = []
+    activity = []
+    monkeypatch.setattr(
+        codex_model, "_open_stream_turn", lambda session, turn: opened.append(turn)
+    )
+    monkeypatch.setattr(
+        codex_model,
+        "_set_stream_activity",
+        lambda session, turn, detail: activity.append((turn, detail)),
+    )
+
+    def reject(socket, method, request_id, params, pending=None):
+        pending.append(
+            {
+                "method": "turn/started",
+                "params": {"turn": {"id": "desktop-turn", "items": []}},
+            }
+        )
+        raise RuntimeError("the active turn cannot be steered")
+
+    observer._send = reject
+    answer = queue.Queue()
+
+    observer._start_delivery(None, {"id": "delivery-1"}, answer)
+
+    assert answer.get_nowait() == (None, None)
+    assert observer.events.turn_id == "desktop-turn"
+    assert opened == ["desktop-turn"]
+    assert activity == [("desktop-turn", "Starting")]
+
+
 def test_codex_launch_owns_one_private_app_server(tmp_path, monkeypatch):
     program = tmp_path / "fake-codex"
     log = tmp_path / "fake-codex.jsonl"

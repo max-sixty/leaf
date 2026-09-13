@@ -1,7 +1,8 @@
 name: ci
 
-# Pull requests and main run the small landing gate. The scheduled and manual
-# paths run the complete browser and published-site surface on one runner.
+# Pull requests and main run the small landing gate. Pull requests also run the
+# website gate; relevant pushes to main run that gate in publish-site before deploy.
+# The scheduled and manual paths run the complete browser surface on one runner.
 on:
   push:
     branches: [main]
@@ -43,6 +44,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
 
       - uses: actions/setup-node@v7
+        if: github.event_name == 'pull_request'
         with:
           node-version: "22"
           cache: npm
@@ -57,13 +59,16 @@ jobs:
         run: uv run pytest tests -v --junitxml=.tmp/test-results/everyday.xml
 
       - name: Install website dependencies
+        if: github.event_name == 'pull_request'
         run: npm ci
         working-directory: worker
 
       - name: Build website
+        if: github.event_name == 'pull_request'
         run: uv run scripts/site.py
 
       - name: 🧪 Website worker tests
+        if: github.event_name == 'pull_request'
         run: |
           npm run typecheck
           npm test
@@ -71,6 +76,7 @@ jobs:
         working-directory: worker
 
       - name: Measure the bundled release in Chrome
+        if: github.event_name == 'pull_request'
         run: scripts/verify-site-local.sh
 
       - name: Upload pytest results

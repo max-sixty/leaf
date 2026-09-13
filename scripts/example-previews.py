@@ -4,8 +4,9 @@
 The public gallery shows a real first viewport for each example, but the site build
 deliberately needs no browser. These JPEGs live in max-sixty/leaf-assets so binary
 history does not ship with Leaf. This command captures them through the website's Leaf
-server, publishes the asset commit, updates Leaf's exact pin and catalog links, then
-rebuilds the site from the pinned bytes.
+server with an isolated state home, publishes the asset commit, updates Leaf's exact
+pin and catalog links, then rebuilds the site from the pinned bytes. Host pages are
+not part of the captured scene.
 
 Usage: wt refresh-previews
 """
@@ -14,6 +15,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -58,17 +60,29 @@ _server_spec.loader.exec_module(website_server)
 
 @contextmanager
 def serve_examples(site: Path) -> Iterator[str]:
-    """Host a built site's examples through the production route adapter."""
-    website_server.page_binding.cache_clear()
-    server = server_at("127.0.0.1", 0, website_server.handler_for(site))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_address[1]}"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
+    """Host the capture scene through the production route adapter in isolation."""
+    # As in the demo recorder, the host's open pages are not part of the scene.
+    # Isolate their discovery before serving so `All leaves` cannot change the
+    # captured banner or expose the host's page titles.
+    previous_state_home = os.environ.get("XDG_STATE_HOME")
+    with tempfile.TemporaryDirectory(prefix="leaf-preview-state-") as state_home:
+        os.environ["XDG_STATE_HOME"] = state_home
+        try:
+            website_server.page_binding.cache_clear()
+            server = server_at("127.0.0.1", 0, website_server.handler_for(site))
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                yield f"http://127.0.0.1:{server.server_address[1]}"
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join()
+        finally:
+            if previous_state_home is None:
+                os.environ.pop("XDG_STATE_HOME")
+            else:
+                os.environ["XDG_STATE_HOME"] = previous_state_home
 
 
 def require_capture_fonts(page: Page) -> None:

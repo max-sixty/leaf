@@ -13,7 +13,13 @@ from leaf.mcp_page import ProcessPageServer, page_state
 from leaf.revisioning import activate_source
 from leaf.structure import SourceDocument
 from playwright.sync_api import expect
-from render_support import leaf_page, live_url, open_page
+from render_cases_interaction import (
+    live_url,
+)
+from render_harness import (
+    leaf_page,
+    open_page,
+)
 
 HOST = """<!doctype html>
 <iframe id="app" style="width:100%;height:760px;border:0"></iframe>
@@ -1049,7 +1055,7 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
     finally:
         host.close()
 
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     try:
         expect(page.locator(".lf-thread")).to_have_count(3)
         expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
@@ -1085,7 +1091,6 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
             [1, 1],
             [1, 1],
         ], f"the marks did not land on the passages ({landed})"
-        assert errors == []
     finally:
         page.close()
 

@@ -6,15 +6,19 @@ import re
 import pytest
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ASK_PAGE,
     ASK_WITH_CONTEXT_PAGE,
-    EXAMPLE_MEDIA,
+    sent_events,
+)
+from render_cases_layout import (
     button_radius,
+)
+from render_harness import (
+    EXAMPLE_MEDIA,
     open_page,
     round_trip,
     sending,
-    sent_events,
     told,
     undo,
 )
@@ -25,8 +29,8 @@ pytestmark = pytest.mark.nightly
 def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader):
     """Moving the widget restores draft delivery without duplicating its form."""
     url = serve(ASK_PAGE)
-    first, first_errors = open_page(browser, url, context=one_reader)
-    second, second_errors = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_reader)
+    second = open_page(browser, url, context=one_reader)
 
     second.evaluate("""() => {
         const group = document.getElementById("jobs");
@@ -38,8 +42,6 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader)
 
     expect(second.locator("#jobs > .lf-another")).to_have_count(1)
     expect(second.locator("#jobs > .lf-another textarea")).to_have_value(text)
-    assert first_errors == []
-    assert second_errors == []
     first.close()
     second.close()
 
@@ -51,7 +53,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     corner rather than borrowing the selection mark's circle. It remains a full-sized
     pointer target aligned with the last line as the textarea grows.
     """
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     option = page.locator("#job-camera")
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
@@ -141,8 +143,6 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert form_box["height"] >= 44
     assert add_box["y"] >= form_box["y"]
     assert add_box["y"] + add_box["height"] <= form_box["y"] + form_box["height"]
-    assert errors == []
-    page.close()
 
 
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
@@ -161,7 +161,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
         },
     )
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     mark = page.locator("#storage-evict .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
@@ -181,8 +181,6 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
     page.keyboard.press("Escape")
     expect(mark).to_be_focused()
-    assert errors == []
-    page.close()
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
@@ -193,13 +191,13 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     option so a later ordinary pick and a reload retain the same set of alternatives.
     """
     url = serve(ASK_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     d = serve.page_dir
 
     expect(page.locator("#jobs > .lf-conversation")).to_have_count(0)
     added = page.locator("#jobs > .lf-another")
     assert added.count() == 1, (
-        f"the add-option cell was not rendered: {errors}; "
+        f"the add-option cell was not rendered: {page.lf_errors}; "
         f"group={page.locator('#jobs').inner_html()}"
     )
     field = added.get_by_role("textbox", name="Another option", exact=True)
@@ -212,7 +210,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")
     assert new_option.count() == 1, (
-        f"the added option did not stand: {errors}; events={sent_events(d)}; "
+        f"the added option did not stand: {page.lf_errors}; events={sent_events(d)}; "
         f"group={page.locator('#jobs').inner_html()}"
     )
     expect(new_option).to_contain_text("Insulate the camera battery")
@@ -254,8 +252,6 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
-    assert errors == []
-    page.close()
 
 
 PASTE_IMAGE = """(textarea, encoded) => {
@@ -279,7 +275,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     so a reader who pasted a screenshot sees exactly what a reader whose paste worked
     would see. The empty send in the same box already answers its own nothing out loud;
     this is the other way a box can go quiet on a gesture."""
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     uploads = []
     page.on(
         "request",
@@ -302,8 +298,6 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     assert not [
         event for event in sent_events(serve.page_dir) if event["kind"] == "action"
     ]
-    assert errors == []
-    page.close()
 
 
 def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
@@ -312,7 +306,7 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     The draft remains part of the decision and still becomes a real option. The thread
     stays separate: adding the option sends an action, not a second comment.
     """
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ASK_PAGE))
     d = serve.page_dir
     first = page.locator("#jobs > .lf-another textarea")
     draft = "Keep this answer even if another thread arrives first."
@@ -350,5 +344,3 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     assert action["generated"] == [added.get_attribute("id")]
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)
-    assert errors == []
-    page.close()

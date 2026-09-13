@@ -33,6 +33,12 @@ from leaf.structure import UTF8_BOM, SourceDocument
 
 _MEDIA_URL = re.compile(rf"url\((/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]})\)")
 
+# Export preparation is bulk work rather than an arriving signal: every fragmented
+# widget materializes the payloads it has been holding, and the page answers no probe
+# while that runs. The corpus's diff alone holds the page for most of a minute, so this
+# budget is what a large document is given to finish rather than the readiness patience.
+PREPARE_TIMEOUT_MS = 180_000
+
 
 def _inline_media(text: str, page_dir: Path, refs: set[str]) -> str:
     """Replace declared page-media references in one serialized payload."""
@@ -169,7 +175,7 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
             # DOM. A standalone copy has no fragment door after scripts are removed, so
             # let any renderer that owns such payloads materialize them before baking.
             evaluate_probe(page, "prepareExport")
-            wait_for_probe(page, "exportPrepared")
+            wait_for_probe(page, "exportPrepared", timeout_ms=PREPARE_TIMEOUT_MS)
             return UTF8_BOM + inline_assets(evaluate_probe(page, "bake"), page_dir)
         except PlaywrightTimeout:
             sys.exit(

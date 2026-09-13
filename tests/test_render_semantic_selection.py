@@ -6,15 +6,21 @@ import re
 import pytest
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_layout import (
     DRAFT_MARK,
+)
+from render_cases_navigation import (
+    TARGETS_PAGE,
+    pending_text,
+)
+from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
+)
+from render_harness import (
     RENDERED,
     ROOT,
-    TARGETS_PAGE,
     leaf_page,
     open_page,
-    pending_text,
     resized,
     sending,
 )
@@ -24,7 +30,7 @@ pytestmark = pytest.mark.nightly
 
 def test_short_inline_code_selection_offers_comment(browser, serve):
     """A complete code term is commentable even when it is one or two characters."""
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             leaf_page(
@@ -56,14 +62,11 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
         "suffix": ".",
     }
 
-    assert errors == []
-    page.close()
-
 
 def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     """The keyboard target is the same addressable element Alt-click would take. Choosing the
     paragraph focuses its in-place Comment field without making a native selection."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("s")
 
     hints = page.locator(".lf-target-chooser-hint")
@@ -138,15 +141,13 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     assert pending_text(page) == ""
     page.keyboard.press("Escape")
     expect(field).to_be_hidden()
-    assert errors == []
-    page.close()
 
 
 def test_a_chrome_reflow_repositions_target_hints_in_its_first_layout_frame(
     browser, serve
 ):
     """A line resize and its dependent target placement land in one visible frame."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("s")
     hints = page.locator(".lf-target-chooser-hint")
     expect(hints).to_have_count(3)
@@ -190,13 +191,11 @@ def test_a_chrome_reflow_repositions_target_hints_in_its_first_layout_frame(
     assert frame["overlaps"] == 0, (
         f"the first layout frame left target hints under the resized line: {frame}"
     )
-    assert errors == []
-    page.close()
 
 
 def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, serve):
     """Keyboard and pointer Comment gestures make the same explicit re-anchoring."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     field = page.locator(".lf-fab-input")
     draft = "Carry these deliberate words."
 
@@ -222,8 +221,6 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
     expect(field).to_be_focused()
     expect(field).to_have_value(draft)
     assert page.evaluate(DRAFT_MARK) == "prose"
-    assert errors == []
-    page.close()
 
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
@@ -232,7 +229,7 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
         (ROOT / "skills/leaf/packages/default/registry.json").read_text()
     )
     tokens = {name: None for name in registry["$reactions"]["tokens"]}
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(TARGETS_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
     )
@@ -258,8 +255,6 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
-    assert errors == []
-    page.close()
 
 
 def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser, serve):
@@ -269,7 +264,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
         (ROOT / "skills/leaf/packages/default/registry.json").read_text()
     )
     tokens = {name: None for name in registry["$reactions"]["tokens"]}
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(TARGETS_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
     )
@@ -288,8 +283,6 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     expect(responses).to_have_class(re.compile(r"\blf-response-open\b"))
     expect(responses.locator(".lf-fab-suggest")).to_be_focused()
     expect(responses.locator(".lf-react")).to_have_count(0)
-    assert errors == []
-    page.close()
 
 
 def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
@@ -312,7 +305,7 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
 </style>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.keyboard.press("s")
 
     hints = page.locator(".lf-target-chooser-hint")
@@ -348,8 +341,6 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
-    assert errors == []
-    page.close()
 
 
 def test_nested_target_hints_show_containment_without_covering_each_other(
@@ -362,7 +353,7 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
         '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
         head="<style>section { padding-bottom: 5rem; } section, p { margin: 0; }</style>",
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.keyboard.press("s")
 
     hints = page.locator(".lf-target-chooser-hint")
@@ -386,8 +377,6 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
         and boxes[0]["top"] < boxes[1]["bottom"]
         and boxes[1]["top"] < boxes[0]["bottom"]
     ), geometry
-    assert errors == []
-    page.close()
 
 
 def test_identical_nested_target_hints_choose_the_innermost_target(browser, serve):
@@ -399,7 +388,7 @@ def test_identical_nested_target_hints_choose_the_innermost_target(browser, serv
         '<section id="outer"><div id="inner">One visible box.</div></section>',
         head="<style>section, div { margin: 0; }</style>",
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     geometry = page.evaluate(
         """() => ['outer', 'inner'].map(id => {
           const { left, top, right, bottom } =
@@ -419,8 +408,6 @@ def test_identical_nested_target_hints_choose_the_innermost_target(browser, serv
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "inner"
-    assert errors == []
-    page.close()
 
 
 def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
@@ -445,7 +432,7 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
 </style>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
 
     page.keyboard.press("s")
     hints = page.locator(".lf-target-chooser-hint")
@@ -470,14 +457,11 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     page.locator("summary").click()
     expect(hints).to_have_count(0)
 
-    assert errors == []
-    page.close()
-
 
 def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve):
     """A declared picture part outranks its enclosing addressable element without changing what aim
     means. Choosing its hint focuses the part-anchored composer."""
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     page.keyboard.press("s")
     expect(page.locator(".lf-target-chooser-hint")).to_have_count(4)
 
@@ -504,15 +488,13 @@ def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     assert page.evaluate("() => getSelection().toString()") == ""
-    assert errors == []
-    page.close()
 
 
 def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     browser, serve
 ):
     """A covering panel removes the inert document from page-target chooser."""
-    page, errors = open_page(browser, serve(ROOT / "examples" / "corpus.html"))
+    page = open_page(browser, serve(ROOT / "examples" / "corpus.html"))
     resized(page, 700, 900)
     page.keyboard.press("s")
     expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
@@ -528,8 +510,6 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
         "page target selection crossed the covering auxiliary surface boundary"
         "page target chooser crossed the covering auxiliary surface boundary"
     )
-    assert errors == []
-    page.close()
 
 
 def test_slash_finds_page_text_without_a_target_kind(browser, serve):
@@ -537,7 +517,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     highlights one exact occurrence, and Enter hands that range to the same comment
     surface as a hint. No target chooser or paragraph/sentence/widget key is needed
     first."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
 
     # Selection is named on the resting line and whole-page search in the reference.
     # `to_contain_text` on the line would read hidden register rows as well.
@@ -606,8 +586,6 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 1")
     page.keyboard.press("n")
     expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
-    assert errors == []
-    page.close()
 
 
 def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, serve):
@@ -621,7 +599,7 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
 <p>Unified body.</p>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.keyboard.press("/")
     page.keyboard.type("Unified")
 
@@ -631,8 +609,6 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
     assert title is not None and match is not None
     assert title["x"] <= match["x"] < title["x"] + title["width"]
     assert title["y"] <= match["y"] < title["y"] + title["height"]
-    assert errors == []
-    page.close()
 
 
 def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
@@ -647,7 +623,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
 <p id="second">The second copper needle is here.</p>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.set_viewport_size({"width": 1200, "height": 900})
     page.keyboard.press("/")
     page.keyboard.type("needle")
@@ -725,8 +701,6 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         }"""
     )
     expect(position).to_be_hidden()
-    assert errors == []
-    page.close()
 
 
 def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serve):
@@ -739,7 +713,7 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
 <lf-draft id="draft"><pre>The drafted copper needle is here.</pre></lf-draft>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.set_viewport_size({"width": 1200, "height": 900})
 
     def response_bar_is_clear_of(target):
@@ -765,8 +739,6 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
     assert response_bar_is_clear_of("#draft"), (
         "the response bar covered the readable body of a widget-rendered passage"
     )
-    assert errors == []
-    page.close()
 
 
 def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
@@ -778,7 +750,7 @@ def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
         "scoped slash",
         '<label>Path <input id="path"></label><p>Searchable page words.</p>',
     )
-    page, errors = open_page(browser, serve(html, comments=2))
+    page = open_page(browser, serve(html, comments=2))
     path = page.locator("#path")
     path.focus()
     page.keyboard.type("/")
@@ -796,15 +768,13 @@ def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
     expect(page.locator(".lf-page-search")).to_be_hidden()
     page.keyboard.type("Comment 1")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
-    assert errors == []
-    page.close()
 
 
 def test_empty_thread_scope_keeps_slash_in_its_search(browser, serve):
     """An empty thread list still has a usable find box. Slash focuses that nearest
     search rather than opening page search behind the panel."""
     html = leaf_page("empty scoped slash", "<p>Searchable page words.</p>")
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -814,8 +784,6 @@ def test_empty_thread_scope_keeps_slash_in_its_search(browser, serve):
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Find in threads")).to_be_focused()
     expect(page.locator(".lf-page-search")).to_be_hidden()
-    assert errors == []
-    page.close()
 
 
 def test_selection_search_announces_context_across_inline_node_boundaries(
@@ -830,7 +798,7 @@ def test_selection_search_announces_context_across_inline_node_boundaries(
 <p>Before beta <strong>repeat</strong> after beta.</p>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.keyboard.press("s")
     page.keyboard.press("/")
     page.keyboard.type("repeat")
@@ -849,8 +817,6 @@ def test_selection_search_announces_context_across_inline_node_boundaries(
     second = live.inner_text()
     assert "repeat" in first and "repeat" in second
     assert {"alpha", "beta"} <= set(first.split() + second.split())
-    assert errors == []
-    page.close()
 
 
 def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
@@ -865,7 +831,7 @@ def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
 <p id="far">The distant phrase is the one this search should reveal.</p>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.keyboard.press("s")
     page.keyboard.press("/")
     page.keyboard.type("distant phrase")
@@ -884,15 +850,13 @@ def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert page.evaluate("() => getSelection().toString()") == "distant phrase"
     assert pending_text(page) == "distant phrase"
-    assert errors == []
-    page.close()
 
 
 def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser, serve):
     """Whole-page find travels to the exact range, not merely to the block containing
     it. A match near the foot of a multi-screen pre is visible before Enter selects it."""
     lines = "\n".join(["an ordinary line"] * 90 + ["the solitary copper needle"])
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(leaf_page("range search", f'<pre id="long">{lines}</pre>')),
     )
@@ -919,8 +883,6 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert page.evaluate("() => getSelection().toString()") == "copper needle"
     assert pending_text(page) == "copper needle"
-    assert errors == []
-    page.close()
 
 
 def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, serve):
@@ -935,7 +897,7 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
 <div style="height: 600px" aria-hidden="true"></div>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.keyboard.press("s")
     page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_contain_text("initially announced heading")
@@ -946,8 +908,6 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("select target")
     page.keyboard.press("Enter")
     assert page.evaluate("() => getSelection().toString()") == ""
-    assert errors == []
-    page.close()
 
 
 def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
@@ -967,7 +927,7 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
 <div style="height: 1200px" aria-hidden="true"></div>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.keyboard.press("s")
     expect(page.locator(".lf-target-chooser-hint")).to_have_count(3)
 
@@ -998,8 +958,6 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
 
     assert reads["rectReads"] < hidden_count, reads
     assert reads["visibilityReads"] < hidden_count * 3, reads
-    assert errors == []
-    page.close()
 
 
 def test_cancelling_page_search_restores_the_control_that_opened_it(browser, serve):
@@ -1009,7 +967,7 @@ def test_cancelling_page_search_restores_the_control_that_opened_it(browser, ser
         "selection focus",
         '<button id="opener">Starting control</button><p>A passage to select.</p>',
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     opener = page.locator("#opener")
     opener.focus()
 
@@ -1021,8 +979,6 @@ def test_cancelling_page_search_restores_the_control_that_opened_it(browser, ser
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("back to hints")
     page.keyboard.press("Escape")
     expect(opener).to_be_focused()
-    assert errors == []
-    page.close()
 
 
 def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serve):
@@ -1032,7 +988,7 @@ def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serv
         "shadow selection focus",
         '<div id="opener"></div><p>A passage to select.</p>',
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.evaluate(
         """() => {
           const root = document.querySelector('#opener').attachShadow({ mode: 'open' });
@@ -1053,8 +1009,6 @@ def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serv
         )
         == "inside"
     )
-    assert errors == []
-    page.close()
 
 
 def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, serve):
@@ -1068,7 +1022,7 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
 <div style="height: 1800px" aria-hidden="true"></div>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.evaluate(
         "() => { document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight; }"
     )
@@ -1087,8 +1041,6 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert page.evaluate("() => getSelection().toString()") == "phrase only appears"
     assert pending_text(page) == "phrase only appears"
-    assert errors == []
-    page.close()
 
 
 def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
@@ -1104,7 +1056,7 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
 <div style="height: 1200px" aria-hidden="true"></div>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.evaluate(
         """() => {
           const text = document.querySelector('#edge').firstChild;
@@ -1144,8 +1096,6 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
         })"""
     )
     assert geometry["hintBottom"] <= geometry["shortcutBarTop"], geometry
-    assert errors == []
-    page.close()
 
 
 def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser, serve):
@@ -1167,7 +1117,7 @@ def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser,
 </section>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     resized(page, 1200, 800)
     page.keyboard.press("s")
 
@@ -1220,8 +1170,6 @@ def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser,
         and mark["top"] < line["bottom"]
         and line["top"] < mark["bottom"]
     ), (mark, line)
-    assert errors == []
-    page.close()
 
 
 def test_a_partly_banner_clipped_atomic_element_keeps_its_hint_below_the_banner(
@@ -1238,7 +1186,7 @@ def test_a_partly_banner_clipped_atomic_element_keeps_its_hint_below_the_banner(
 <div style="height: 1200px" aria-hidden="true"></div>
 """,
     )
-    page, errors = open_page(browser, serve(html))
+    page = open_page(browser, serve(html))
     page.evaluate(
         """() => {
           const visual = document.querySelector('#edge-visual').getBoundingClientRect();
@@ -1256,5 +1204,3 @@ def test_a_partly_banner_clipped_atomic_element_keeps_its_hint_below_the_banner(
         })"""
     )
     assert geometry["hintTop"] >= geometry["bannerBottom"], geometry
-    assert errors == []
-    page.close()

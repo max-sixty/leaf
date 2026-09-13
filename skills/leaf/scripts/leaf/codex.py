@@ -764,8 +764,7 @@ class AppServerClient:
                 "turn/start", app_server_turn_start_params(self.thread_id, payload)
             )
         except AppServerRequestRejected:
-            for message in pending:
-                self._read(message)
+            self._read_pending(pending)
             if self.events.turn_id is None:
                 raise
             self.deferred = (payload, answer)
@@ -775,11 +774,20 @@ class AppServerClient:
             raise RuntimeError("Codex App Server returned no turn id")
         self.events.restore_turn(turn)
         self.deferred = (payload, answer)
-        observed_answer = None
-        for message in pending:
-            observed_answer = self._read(message, defer_answer=True) or observed_answer
+        observed_answer = self._read_pending(pending, defer_answer=True)
         if observed_answer is not None:
             observed_answer.put(({"phase": "opened", "turn": turn["id"]}, None))
+
+    def _read_pending(
+        self, pending: list[dict], *, defer_answer: bool = False
+    ) -> queue.Queue | None:
+        """Read notifications held behind one request, in arrival order."""
+        observed_answer = None
+        for message in pending:
+            observed_answer = (
+                self._read(message, defer_answer=defer_answer) or observed_answer
+            )
+        return observed_answer
 
     def _bind(self, turn_id: str, delivery_id: str, target: dict) -> None:
         self.bindings[turn_id] = AppServerReplyStream(

@@ -946,6 +946,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # transient menu, it closes before painting over the next keyboard destination.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
     open_versions(page)
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
@@ -3090,6 +3091,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
             "() => document.querySelector('.lf-thread-panel').contains(document.activeElement)"
         ), "Tab reached a control behind the covering Threads panel"
 
+    page.locator(".lf-thread-filter-toggle").click()
     open_filter = page.locator('[data-filter-value="open"]')
     open_filter.focus()
     resized(page, 1000, 640)
@@ -5508,6 +5510,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 # after that reset so the page walk includes each closed thread's
                 # Reopen control; narrower scopes keep open threads available for their
                 # own conditional controls, such as a reply's reaction palette.
+                page.locator(".lf-thread-filter-toggle").click()
                 resolved = page.locator('[data-filter-value="resolved"]')
                 if (
                     resolved.is_enabled()

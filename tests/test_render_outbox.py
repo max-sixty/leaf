@@ -104,7 +104,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    threads = page.locator(".lf-threads > .lf-thread")
+    threads = page.locator(".lf-threads > .lf-thread:not([hidden])")
     threads.nth(0).locator(".lf-resolve").click()
     round_trip(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")

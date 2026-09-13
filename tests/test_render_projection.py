@@ -1339,6 +1339,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "node => node.scrollWidth <= node.clientWidth"
     )
     resized(page, 560, 720)
+    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
@@ -1347,6 +1348,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     resized(page, 1366, 768)
+    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     shot_host.evaluate("node => node.style.height = '120px'")
@@ -1984,7 +1986,10 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
 <div style="height: 1000px"></div>
 """,
     )
-    page, errors = open_page(browser, live_url(serve(first)))
+    page, errors = open_page(
+        browser,
+        live_url(serve(first, packages=(*EXAMPLE_PACKAGES, "./.leaf"))),
+    )
     paragraph = page.locator("lf-shadow-reading").locator("p")
     paragraph.scroll_into_view_if_needed()
     page.evaluate(
@@ -2084,6 +2089,241 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
         "el => el.getBoundingClientRect().top"
     )
     assert abs(after - before) <= 4, (before, after)
+    assert errors == []
+    page.close()
+
+
+def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser, serve):
+    """An empty flow region does not displace the page reading that contains it."""
+    content = """
+<h1 id="reading-title">The page landmark surrounding these controls remains stable.</h1>
+<lf-pane id="controls-pane" label="Controls">
+  <button id="standing-control">Change setting</button>
+</lf-pane>
+<div style="height: 1000px"></div>
+    """
+    first = leaf_page("Empty active region continuity", content)
+    page, errors = open_page(browser, live_url(serve(first)))
+    page.locator("#standing-control").focus()
+    before = page.locator("#reading-title").evaluate(
+        "heading => heading.getBoundingClientRect().top"
+    )
+
+    revised = leaf_page(
+        "Empty active region continuity",
+        f"""
+<p>The arriving revision adds a result above the prior content.</p>
+<details id="prior-controls">
+  <summary>Prior controls</summary>
+  {content}
+</details>
+""",
+    )
+    stamp_page(serve.page_dir, revised, "wrap the prior controls")
+    wait_for_revision(page, 2)
+
+    expect(page.locator("#prior-controls")).to_have_attribute("open", "")
+    expect(page.locator("#standing-control")).to_be_focused()
+    after = page.locator("#reading-title").evaluate(
+        "heading => heading.getBoundingClientRect().top"
+    )
+    assert abs(after - before) <= 4, (before, after)
+    assert errors == []
+    page.close()
+
+
+def test_revision_reveals_an_active_region_without_any_reading_landmark(browser, serve):
+    """A surviving active region remains reachable even when no passage names it."""
+    content = """
+<lf-pane id="controls-pane" label="Controls">
+  <button id="standing-control">Change setting</button>
+</lf-pane>
+<div style="height: 1000px"></div>
+    """
+    first = leaf_page("Textless active region continuity", content)
+    page, errors = open_page(browser, live_url(serve(first)))
+    page.locator("#standing-control").focus()
+
+    revised = leaf_page(
+        "Textless active region continuity",
+        f"""
+<details id="prior-controls">
+  <summary>Prior controls</summary>
+  {content}
+</details>
+""",
+    )
+    stamp_page(serve.page_dir, revised, "wrap the textless active region")
+    wait_for_revision(page, 2)
+
+    expect(page.locator("#prior-controls")).to_have_attribute("open", "")
+    expect(page.locator("#standing-control")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):
+    """A raw offset belongs to the scrollport that supplied it."""
+
+    def pane(name, *, standing=False):
+        control = (
+            '<button id="standing-control">Change setting</button>' if standing else ""
+        )
+        return f"""
+<lf-pane id="{name}-pane" label="{name.title()}">
+  {control}<div style="height: 700px"></div>
+</lf-pane>
+"""
+
+    first = leaf_page(
+        "Changing offset ownership",
+        f"""
+<lf-workspace id="reading-workspace">
+  <lf-partition id="all-panes" direction="columns">
+    <lf-partition id="first-pair" direction="columns">
+      {pane("active", standing=True)}
+      {pane("second")}
+    </lf-partition>
+    <lf-partition id="second-pair" direction="columns">
+      {pane("third")}
+      {pane("fourth")}
+    </lf-partition>
+  </lf-partition>
+</lf-workspace>
+""",
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    resized(page, 900, 760)
+    workspace = page.locator("#reading-workspace")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    page.locator("#standing-control").evaluate(
+        "control => control.focus({preventScroll: true})"
+    )
+    page.evaluate("document.scrollingElement.scrollTop = 300")
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    assert before == 300
+
+    revised = leaf_page(
+        "Changing offset ownership",
+        f"""
+<lf-workspace id="reading-workspace">
+  <lf-partition id="remaining-panes" direction="columns">
+    {pane("active", standing=True)}
+    {pane("second")}
+  </lf-partition>
+</lf-workspace>
+""",
+    )
+    stamp_page(serve.page_dir, revised, "remove two reading regions")
+    wait_for_revision(page, 2)
+
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    assert (
+        page.locator("#active-pane .lf-pane-body").evaluate("pane => pane.scrollTop")
+        == 0
+    )
+    assert errors == []
+    page.close()
+
+
+def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser, serve):
+    """A nested flow region cannot carry one parent's offset into another parent."""
+    entry = {
+        "description": "A test-owned reading scroller.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "posture": {"enum": ["flow", "bounded"]},
+        },
+        "required": ["id", "posture"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-upgrade": True,
+        "x-example": (
+            '<lf-owned-scroll id="example" posture="flow">'
+            "<div data-scroll-body><button>Control</button></div>"
+            "</lf-owned-scroll>"
+        ),
+    }
+    module = """
+import {registerReadingArrangement} from '/runtime/widget-api.js';
+customElements.define('lf-owned-scroll', class extends HTMLElement {
+  #reading = null;
+  connectedCallback() {
+    const body = this.querySelector(':scope > [data-scroll-body]');
+    this.#reading = registerReadingArrangement({
+      owner: this,
+      content: body,
+      regions: [{id: this.id, host: this, body}],
+    });
+    void this.#reading.setReadingPosture(this.getAttribute('posture'));
+  }
+  disconnectedCallback() {
+    this.#reading?.cleanup();
+    this.#reading = null;
+  }
+});
+"""
+    active = """
+<div style="height: 250px"></div>
+<lf-owned-scroll id="active-region" posture="flow">
+  <div data-scroll-body>
+    <section id="removed-landmark">
+      <p>The nested region landmark disappears in the arriving revision.</p>
+    </section>
+    <button id="standing-control">Change setting</button>
+  </div>
+</lf-owned-scroll>
+"""
+    active_without_landmark = active.replace(
+        """    <section id="removed-landmark">
+      <p>The nested region landmark disappears in the arriving revision.</p>
+    </section>
+""",
+        "",
+    )
+
+    def parent(name, content=""):
+        return f"""
+<lf-owned-scroll id="{name}-region" posture="bounded">
+  <div data-scroll-body style="height: 240px; overflow: auto">
+    {content}<div style="height: 700px"></div>
+  </div>
+</lf-owned-scroll>
+"""
+
+    first = leaf_page(
+        "Nested offset ownership",
+        parent("left", active) + parent("right"),
+    )
+    page, errors = open_page(
+        browser,
+        live_url(
+            serve(
+                first,
+                layer_registry={"lf-owned-scroll": entry},
+                layer_widgets={"lf-owned-scroll.js": module},
+            )
+        ),
+    )
+    left = page.locator("#left-region > [data-scroll-body]")
+    right = page.locator("#right-region > [data-scroll-body]")
+    left.evaluate("scroller => scroller.scrollTop = 150")
+    page.locator("#standing-control").evaluate(
+        "control => control.focus({preventScroll: true})"
+    )
+    assert left.evaluate("scroller => scroller.scrollTop") == 150
+    assert right.evaluate("scroller => scroller.scrollTop") == 0
+
+    revised = leaf_page(
+        "Nested offset ownership",
+        parent("left") + parent("right", active_without_landmark),
+    )
+    stamp_page(serve.page_dir, revised, "move the active region")
+    wait_for_revision(page, 2)
+
+    assert right.evaluate("scroller => scroller.scrollTop") == 0
+    expect(page.locator("#standing-control")).to_be_focused()
     assert errors == []
     page.close()
 

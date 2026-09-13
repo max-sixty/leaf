@@ -183,8 +183,8 @@ def presence_with_activity(
 
     The public reading says what a seat showing this page may know: the agent's
     claim, everything the directory holds that can answer for it, and where that
-    agent is working. Keeping the stream out of that dictionary makes it
-    unavailable to every browser-facing consumer by construction.
+    agent is working. Keeping private activity records out of that dictionary makes
+    them unavailable to every browser-facing consumer by construction.
 
     One gatherer for every such seat — `full_state` spreads it into the page's own
     state answer, and `other_leaves` attaches it to each entry — so the runtime's one
@@ -196,7 +196,7 @@ def presence_with_activity(
     status = {
         key: value
         for key, value in stored_status.items()
-        if key not in {"work", "stream"}
+        if key not in {"handling", "work", "stream"}
     }
     status.setdefault("after", 0)
     claim = page_claim(page_dir)

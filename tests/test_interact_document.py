@@ -4202,6 +4202,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         {
             "id": opened["id"],
             "anchor": {"section": "s-1", "quote": "Ship dark"},
+            "detached_from": None,
             "resolved": None,
         }
     ]

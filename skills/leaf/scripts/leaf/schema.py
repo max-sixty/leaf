@@ -59,7 +59,9 @@ ANSWER_ASK_INSTRUCTION = (
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "A wait result prints one immutable Leaf delivery envelope containing one page's "
     "complete ordered batch, conversation context, and capture-time response "
-    "requirements. The same envelope is available with `leaf delivery read <id>`."
+    "requirements. First run `leaf delivery claim <id>` so the page shows the exact "
+    "outstanding move as Active; the same envelope remains available with `leaf "
+    "delivery read <id>`."
 )
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
@@ -485,7 +487,7 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-wide": {"enum": ["box", "drawing"]},
+        "x-space": {"enum": ["wide", "available"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-work": WORK_SCHEMA,

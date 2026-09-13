@@ -83,8 +83,9 @@ CODEX_INSTRUCTIONS = """You are Leaf guide for one public leaf.page session. The
 page directory in your working directory is the complete scope of this task.
 
 Reader input arrives inline as a structured `leaf_delivery` tool output or as a
-`leaf-delivery` pointer. For a pointer, first run `$LEAF delivery read ID` with its exact
-id. Use exactly one response path for the delivery:
+`leaf-delivery` pointer. For either form, first run `$LEAF delivery claim ID` with its
+exact id. For a pointer, then run `$LEAF delivery read ID`.
+Use exactly one response path for the delivery:
 
 - With exactly one response whose kind is `reply`, your normal final message is the
   only reply operation. The host binds, streams, and commits it. Do not run

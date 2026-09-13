@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record docs/demo.gif, the landing page's two session stills, and the site's card, by
+"""Record docs/demo.gif, the README's two session stills, and the site's card, by
 driving the shipped runtime through one round.
 
 The stills used to be shot by hand, which meant nothing regenerated them and nothing
@@ -32,7 +32,7 @@ LEAF = ROOT / "bin" / "leaf"
 RECORD_DEMO_BROWSER = Path(__file__).with_name("record-demo-browser.js")
 DEFAULT_OUTPUT = ROOT / "docs" / "demo.gif"
 GIF_SIZE = (1120, 700)
-# The viewport used for the landing page's representative stills.
+# The viewport used for the README's representative stills.
 STILL_SIZE = (1280, 953)
 # The card a shared link unfurls into. Every unfurler that draws one draws it at
 # 1.91:1, so the scene is shot at that shape rather than shot tall and cropped to it:
@@ -40,7 +40,7 @@ STILL_SIZE = (1280, 953)
 # where the banner and the thread's last line are. Shot at the size it is displayed,
 # so its words are rendered rather than resampled.
 CARD_SIZE = (1200, 630)
-# What one staged scene is photographed as: the landing page's light and dark stills,
+# What one staged scene is photographed as: the README's light and dark stills,
 # and the card. Each is a fresh context because a viewport and a color scheme are
 # context-level settings.
 STILLS = (

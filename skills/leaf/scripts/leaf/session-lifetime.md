@@ -10,6 +10,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
+| exact delivery handling: event, target, detail, event floor | `handling` in `status.json` | `leaf delivery claim`, derived from an immutable delivery and current page state | when the move settles, another delivered move replaces it, the claim expires, or the claimant's lifetime ends |
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live Codex reply: session, turn, exact response address, item, text, and completion state | optional `stream.reply` in `status.json` | the App Server connection bound to a delivery with one plain reply | the completed message becomes a durable reply, another operation settles it, or the stream fails or disconnects |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
@@ -36,16 +37,22 @@ already standing when the move arrives cannot answer it.
 
 The activity fold defines precedence once. An unsettled opened interaction outranks
 a `waiting` declaration, so a receipt cannot say **Picked up** while the banner says
-the agent awaits the reader. A fresh `working` declaration is considered only when
-its recorded event floor reaches the obligations it could describe. Turn identity,
-not elapsed time, decides whether opened delivery belongs to the turn now running.
+the agent awaits the reader. A fresh `working` declaration whose recorded event floor
+reaches the standing obligations is current work. If newer interactions are only
+**Queued**, an otherwise current declaration or live Codex activity remains visible
+alongside them and the banner names both facts; the older event floor does not claim
+that work has started on the queued input. Turn identity, not elapsed time, decides
+whether opened delivery belongs to the turn now running.
 Fresh activity from the claimed Codex task's App Server outranks that declaration
 while its watcher is live. It is an observation bound to one turn and event floor,
 not a second work declaration; the declaration remains underneath and becomes current
 again when the turn or observer ends.
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
-or widget the work is about. A thread claim also records the current unanswered message,
+or widget the work is about. `leaf delivery claim` instead records one event from an
+immutable delivery after checking under the page lock that the exact move remains
+outstanding; it never transfers a claim to newer input on the same subject. A thread
+claim also records the current unanswered message,
 so one check-in keeps **Active** beside the words that prompted the work even when the
 reader adds another comment. Widget work appears on the Target margin entry. These
 readings stand until the agent's next word in that thread. Nothing in a session touches `status.json`

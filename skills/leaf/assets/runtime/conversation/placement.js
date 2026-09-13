@@ -120,7 +120,7 @@ function headingFor(place, outline) {
 export function groupFor(t, outline, placedAt) {
   const place = threadPlace(t, placedAt);
   if (!place)
-    return t.anchor
+    return t.detached_from || t.anchor
       ? { key: "gone", label: "No longer in this version" }
       : { key: "page", label: "About the page as a whole" };
   if (inChrome(place))

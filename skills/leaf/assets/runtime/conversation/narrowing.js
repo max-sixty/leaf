@@ -39,7 +39,7 @@ export const narrowed = () =>
 
 const threadWords = (thread, group) =>
   [
-    anchorLabel(thread.anchor, thread.root.about),
+    anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about),
     group.label,
     ...thread.msgs.map((message) => message.text ?? message.token),
   ]
@@ -58,7 +58,10 @@ const matchesState = (thread, value = state) =>
           ? awaitsAgent(thread)
           : true);
 const matchesScope = (thread, value = scope) =>
-  !value || (value === "page" ? !thread.anchor : Boolean(thread.anchor));
+  !value ||
+  (value === "page"
+    ? !thread.anchor && !thread.detached_from
+    : Boolean(thread.anchor) || Boolean(thread.detached_from));
 const matchesSubject = (thread, value = subject) =>
   !value || (value === "layer") === (thread.root.about === "layer");
 const matchesGone = (_thread, group, value = onlyGone) =>

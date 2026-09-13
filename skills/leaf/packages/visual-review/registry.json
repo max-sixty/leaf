@@ -275,7 +275,7 @@
     },
     "x-thread-surface": true,
     "x-upgrade": true,
-    "x-wide": "box",
+    "x-space": "available",
     "x-example": "<lf-visual-review id=\"docs-review\" source=\"docs-visual-run\" snapshot=\"3\"></lf-visual-review>"
   }
 }

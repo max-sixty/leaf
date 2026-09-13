@@ -19,10 +19,12 @@
    the selection or use its native context menu, then enter the field with Comment. The
    field grows in place and never transfers text into a second composer card. A
    one-line note uses the shared action corner. A longer one widens up to a readable
-   80ch and then wraps, grows toward the available viewport edge, and finally scrolls.
+   80ch and then wraps. Without a horizontal rail, a quoted passage chooses the
+   vertical side with more reachable room. The field keeps that side and moves the
+   reading region only enough to keep the passage and field visible together; it
+   finally scrolls internally. Other targets grow toward the available viewport edge.
    The target chooses a placement from the field's minimum footprint once. Later
-   content and margin controls cannot re-seat it; Floating UI shifts and sizes that
-   placement inside the reading region as either one changes. A region too small for
+   content and margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the reader keeps their response.
    When the target fills the viewport, the viewport still caps the field. When a
    covering panel leaves no usable band for the response bar, placement withdraws it
@@ -43,8 +45,9 @@
    A quoted passage keeps its resolved block clear when choosing the initial side, while
    the exact words supply its vertical attachment. The reading region and fixed Leaf
    chrome are the only collision boundary: page and margin content may be overlaid.
-   Floating UI owns coordinate conversion, overflow, fallback side, and reflow updates;
-   CSS owns content sizing within the width and height its middleware supplies.
+   Leaf chooses the stable side from the block and its reachable reading room. Floating
+   UI owns coordinate conversion, overflow, and reflow updates; CSS owns content sizing
+   within the width and height its middleware supplies.
 
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
@@ -85,7 +88,12 @@ import { anchorLabel } from "../conversation/messages.js";
 import { reactionsAt } from "../conversation/model.js";
 import { allThreads } from "../conversation/state.js";
 
-import { containingReadingRegionFor, shownRegionBounds } from "../reading-regions.js";
+import {
+  containingReadingRegionFor,
+  effectiveScroller,
+  shownRegionBounds,
+} from "../reading-regions.js";
+import { moveScrollerBy } from "../scrolling.js";
 
 export const BANNER_CLEAR = 48;
 let floatingUiModule = null;
@@ -176,6 +184,7 @@ export function createResponseSurface({
   let fabPositionFrame = 0;
   let fabPositionCleanup = null;
   let fabPositionTarget = null;
+  let fabContentHeight = null;
   let fabPositionWaiters = [];
   const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
 
@@ -221,6 +230,7 @@ export function createResponseSurface({
     fabPositionCleanup?.();
     fabPositionCleanup = null;
     fabPositionTarget = null;
+    fabContentHeight = null;
     if (!reset) return;
     answerFabPosition(false);
     fabPlacement = null;
@@ -424,29 +434,61 @@ export function createResponseSurface({
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     const clips = new Map();
     const parts = block ? shownParts(block) : [];
+    // Room is a reading of the whole block; clipping changes as the reader scrolls.
+    // Attachment uses the visible part so the field still meets what is on screen.
+    const roomRect =
+      union(parts.map((part) => shownBox(part)).filter(Boolean)) || target;
     const keepClear =
-      union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
-      // Scrolled clear of the viewport, the block keeps its column and loses its shown
-      // rect, so the clipped reading has nothing left to say about where the field may
-      // stand. Its unclipped bounds answer the question the clipped one was asked. The
-      // fall through to the passage did the one thing the rule above forbids: beside a
-      // short selection the field took the words after it, left the free margin, and
-      // came to rest on the sentences the reader had scrolled to.
-      union(parts.map((part) => shownBox(part))) ||
-      target;
-    // The chosen side is a pure reading of the minimum footprint against external
-    // geometry. Cache its answer while those inputs are unchanged so content growth
-    // cannot re-seat the response; invalidate it when either the reading boundary or the
-    // reference moves enough to alter the available rails.
+      union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) || roomRect;
+    const scroller = effectiveScroller(readingRegion ?? owner);
+    const visibleVerticalRoom = (side) =>
+      side === "top"
+        ? roomRect.top - boundary.top - 6
+        : boundary.bottom - roomRect.bottom - 6;
+    const verticalRoom = (side) => {
+      const travel =
+        side === "top"
+          ? scroller.scrollTop
+          : Math.max(
+              0,
+              scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+            );
+      return Math.max(
+        0,
+        Math.min(
+          boundary.height - roomRect.height - 6,
+          visibleVerticalRoom(side) + travel,
+        ),
+      );
+    };
+    const sideRoom = (side) =>
+      side === "right"
+        ? boundary.right - keepClear.right - 6
+        : keepClear.left - boundary.left - 6;
+    const initialPlacement = () => {
+      if (!block) return "right-start";
+      const minimum = minimumFabWidth();
+      if (Math.ceil(sideRoom("right")) >= Math.ceil(minimum)) return "right-start";
+      if (Math.ceil(sideRoom("left")) >= Math.ceil(minimum)) return "left-start";
+      const below = verticalRoom("bottom");
+      const above = verticalRoom("top");
+      return below > above ||
+        (below === above && visibleVerticalRoom("bottom") > visibleVerticalRoom("top"))
+        ? "bottom-end"
+        : "top-end";
+    };
+    // Choose once for the target's horizontal geometry within a reading boundary. Its
+    // vertical position moves whenever the reader scrolls, but its reachable room does
+    // not: visible room and remaining travel trade one-for-one. Keeping that movement
+    // out of the cache key prevents scrolling and content growth from re-seating the
+    // response while still reconsidering a resized pane or a changed margin rail.
     const placementInput = [
       boundary.left,
       boundary.top,
       boundary.right,
       boundary.bottom,
       keepClear.left,
-      keepClear.top,
       keepClear.right,
-      keepClear.bottom,
     ];
     if (
       fabPlacementInput &&
@@ -456,6 +498,7 @@ export function createResponseSurface({
     ) {
       fabPlacement = null;
       fabInlineConnection = null;
+      fabContentHeight = null;
     }
 
     // Width before coordinates: Floating UI chooses a side from the compact surface,
@@ -481,13 +524,58 @@ export function createResponseSurface({
       const extra = Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight);
       fabBar.style.setProperty("--lf-float-h", `${Math.max(0, available - extra)}px`);
     };
+    const requestedPlacement = fabPlacement ?? initialPlacement();
+    const requestedSide = requestedPlacement.split("-", 1)[0];
+    const quotedVertical = block && /^(top|bottom)$/.test(requestedSide);
+    const fallbackPlacements = {
+      "right-start": ["left-start", "top-end", "bottom-end"],
+      "left-start": ["right-start", "top-end", "bottom-end"],
+      "top-end": ["bottom-end", "right-start", "left-start"],
+      "bottom-end": ["top-end", "right-start", "left-start"],
+    }[requestedPlacement];
     if (fabPlacement === null) setWidth(boundary.width);
-    setHeight(boundary.height);
+    const room = quotedVertical ? verticalRoom(requestedSide) : boundary.height;
+    setHeight(quotedVertical && room >= minimumFabHeight() ? room : boundary.height);
     // The choices deliberately wrap inside the response surface, so their intrinsic
     // scroll width is not a fit requirement. Only the compact control's minimum is: a
     // covering panel may genuinely leave less than that, while an ordinary narrow page
     // still has a usable surface once the choices reflow below the field.
     if (boundary.height < minimumFabHeight() || !fabFits(regionBounds)) return false;
+
+    // A vertical passage comment belongs beyond the passage, not shifted back across it.
+    // When its intrinsic content height changes, use the reading region's remaining
+    // travel before asking the field to scroll. The placed height also changes when the
+    // passage clips at a boundary; keying this to the content keeps that wheel gesture as
+    // navigation rather than undoing it on the next frame.
+    const height = fabBar.offsetHeight;
+    const contentHeight = composerOpen
+      ? fabInput.scrollHeight + Math.max(0, height - fabInput.offsetHeight)
+      : fabBar.scrollHeight;
+    const contentChanged =
+      fabContentHeight === null || Math.abs(contentHeight - fabContentHeight) > 0.5;
+    fabContentHeight = contentHeight;
+    if (quotedVertical && contentChanged) {
+      const overflow =
+        requestedSide === "top"
+          ? boundary.top - (keepClear.top - 6 - height)
+          : keepClear.bottom + 6 + height - boundary.bottom;
+      const available =
+        requestedSide === "top"
+          ? scroller.scrollTop
+          : Math.max(
+              0,
+              scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+            );
+      const movement = Math.max(0, Math.min(overflow, available));
+      if (movement > 0.5) {
+        const before = scroller.scrollTop;
+        moveScrollerBy(scroller, requestedSide === "top" ? -movement : movement);
+        if (Math.abs(scroller.scrollTop - before) > 0.5) {
+          fabPlacementInput = null;
+          return placeFab();
+        }
+      }
+    }
 
     const reference = {
       contextElement: owner ?? document.documentElement,
@@ -502,7 +590,7 @@ export function createResponseSurface({
         if (!stillCurrent()) return null;
         watchFabPosition(owner ?? document.documentElement, autoUpdate);
         return computePosition(reference, fabBar, {
-          placement: fabPlacement ?? "right-start",
+          placement: requestedPlacement,
           strategy: "fixed",
           middleware: [
             offset(({ placement, rects }) => {
@@ -540,19 +628,20 @@ export function createResponseSurface({
                 // relative connection preserves the field's inline start as its content
                 // grows while allowing target reflow to carry that start with it.
                 setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
-                // Placement keeps the compact field clear of the target. Its text may
-                // then use the whole visible band: shift moves a growing bar back into
-                // that band, even when doing so eventually overlays page content. A
-                // target beginning at the band edge must not turn the field's limit
-                // into zero and leave the draft inside a one-line scroller.
-                setHeight(boundary.height);
+                const vertical = block && /^(top|bottom)$/.test(side);
+                const available = vertical ? verticalRoom(side) : boundary.height;
+                setHeight(
+                  vertical && available >= minimumFabHeight()
+                    ? available
+                    : boundary.height,
+                );
               },
             }),
             initial &&
               flip({
                 ...overflow,
                 crossAxis: false,
-                fallbackPlacements: ["left-start", "top-end", "bottom-end"],
+                fallbackPlacements,
                 fallbackStrategy: "bestFit",
               }),
             shift({ ...overflow, mainAxis: true, crossAxis: true }),

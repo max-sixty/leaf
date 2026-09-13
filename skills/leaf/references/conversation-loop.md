@@ -39,10 +39,30 @@ Stamping accepts only widget ids with standing work. `status --on` refuses a
 widget with neither an unsettled action receipt nor an active `x-work` seat; use
 the page-wide detail when neither admits a local claim.
 
-Delivery already advances each included reader move to **Picked up** and the page
-to **handling** when it enters this turn. A `working` declaration adds useful
-page-wide detail; `--on` strengthens one receipt to **Active**. Do not write
-`waiting` merely to end the delivery step. Write it after replies, revisions, or
+An inline delivery advances each included reader move to **Picked up** and the page
+to **handling** when it enters this turn. A queued Codex pointer remains **Queued**;
+reading its envelope does not prove an App Server turn opened it.
+
+UI feedback is the first operation for every delivery:
+
+```bash
+leaf delivery claim <delivery-id>
+```
+
+The command atomically selects the first delivered reader move that is still
+outstanding, writes `working` with “Reading your feedback,” and strengthens that exact
+move's receipt to **Active**. It changes nothing when a retry contains no outstanding
+reader move. For a queued pointer, run `delivery read` only after this claim. An inline
+delivery already carries the envelope and needs no read.
+
+After reading the feedback, a more specific claim can name the exact delivered event:
+
+```bash
+leaf delivery claim <delivery-id> --event <event-id> --detail "checking the rollout"
+```
+
+Use `status --on` for proactive subject work that did not begin with a delivery. Do not
+write `waiting` merely to end the delivery step. Write it after replies, revisions, or
 receipts have settled what this turn took in; until then the canonical activity
 fold continues to report the stronger exact handling evidence.
 

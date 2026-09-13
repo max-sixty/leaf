@@ -98,6 +98,7 @@ def _claim_updates(claims: list, threads: dict, events: list) -> list[dict]:
             ),
         }
         for claim in claims
+        if claim.get("scope") != "interaction"
     ]
 
 
@@ -236,10 +237,11 @@ def protected_ids(
 ) -> set:
     """Ids the next version must retain.
 
-    Unresolved threads keep their anchor target. Effective standing state keeps
-    its owner and fold unit, plus every page id its canonical liveness reading
-    rests on. An older report hidden by a reader action remains in the log, but
-    the action is the state the page must preserve.
+    Anchored unresolved threads keep their current target; an explicit detachment
+    releases it while retaining the thread. Effective standing state keeps its owner
+    and fold unit, plus every page id its canonical liveness reading rests on. An older
+    report hidden by a reader action remains in the log, but the action is the state the
+    page must preserve.
 
     Declared retirement remains the explicit route for removing decision
     markup. Its holder and slots stay protected until ``retirable_ids`` licenses

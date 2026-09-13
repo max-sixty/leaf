@@ -156,7 +156,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 
     Answer effects survive retirement of their source widget. An unrelated action
     on another facet cannot supersede one, while an explicit answer with null
-    effect replaces a closing answer without itself closing a thread.
+    effect replaces a closing answer without itself closing a thread. ``anchor`` is
+    the current page location, while ``detached_from`` retains the last real anchor
+    only when an explicit null replacement leaves the thread detached.
     """
     floors = retractions(events)
     if withdrawn is None:
@@ -185,6 +187,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             thread = {
                 "root": message,
                 "anchor": message.get("anchor"),
+                "detached_from": None,
                 "msgs": [message],
                 "resolved": None,
             }
@@ -221,6 +224,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread = {
                     "root": e,
                     "anchor": e.get("anchor"),
+                    "detached_from": None,
                     "msgs": [],
                     "resolved": None,
                 }
@@ -230,6 +234,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             messages[e["id"]] = message
             thread["msgs"].append(message)
             if "anchor" in e:
+                thread["detached_from"] = (
+                    thread["anchor"] if e["anchor"] is None else None
+                )
                 thread["anchor"] = e["anchor"]
             thread_for[e["id"]] = thread
         # A resolve names a message rather than opening one, so a conversation the log

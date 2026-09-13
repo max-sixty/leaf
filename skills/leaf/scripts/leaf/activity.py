@@ -200,6 +200,14 @@ def canonical_activity(
         and status.get("after", 0) >= newest_position
     )
     current_work = stream_work or declared_work
+    status_written = _moment(status.get("ts"))
+    turn_closed = _moment(present.get("turn_closed"))
+    status_in_current_turn = turn_closed is None or bool(
+        status_written and status_written > turn_closed
+    )
+    concurrent_work = stream_current or (
+        status["state"] == "working" and not status_quiet and status_in_current_turn
+    )
     opened = [item for item in outstanding if item["phase"] == "picked_up"]
     handling = [
         item
@@ -229,9 +237,12 @@ def canonical_activity(
         kind, quiet, dropped = "closed", False, False
     elif unheld:
         kind = "unheld"
-    elif current_work:
+    elif current_work or (queued and concurrent_work):
         kind = "working"
-        if stream_work:
+        # A newer queued interaction does not erase fresh evidence that the agent is
+        # already working, nor does that older work floor claim the queued input. The
+        # canonical counts keep the two facts separate for every consumer.
+        if stream_work or (stream_current and queued):
             detail, ts, quiet, dropped = (
                 stream.get("detail", ""),
                 stream.get("ts"),

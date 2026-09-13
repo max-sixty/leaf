@@ -1,5 +1,6 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -547,7 +548,9 @@ def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir)
     stream = website_server.PageTransaction(page_dir).status["stream"]["activity"]
     assert (stream["turn"], stream["detail"]) == (opened["turn"], "Still working")
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
-    assert activity["kind"] == "handling"
+    assert activity["kind"] == "working"
+    assert activity["counts"]["handling"] == 1
+    assert activity["counts"]["queued"] == 1
     assert [obligation["event"] for obligation in activity["obligations"]] == [
         first["id"],
         second["id"],
@@ -885,6 +888,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     ]
     assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
     assert "structured `leaf_delivery` tool output" in website_server.CODEX_INSTRUCTIONS
+    assert "$LEAF delivery claim ID" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF delivery read ID" in website_server.CODEX_INSTRUCTIONS
     assert '$LEAF_REPLY EVENT_ID "..."' in website_server.CODEX_INSTRUCTIONS
     assert "your normal final message is the\n  only reply operation" in (
@@ -2396,6 +2400,37 @@ def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypa
     with example_previews.serve_examples(site) as root:
         state = json.loads(get(f"{root}/examples/ideas-to-implement/api/state")[0])
     assert state["publication"]["kind"] == "example"
+
+
+def test_the_preview_generator_updates_every_linked_example_image(
+    tmp_path, monkeypatch
+):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    preview = tmp_path / "example-decision.jpg"
+    preview.write_bytes(b"new decision preview")
+    old = "/media/0123456789abcdef.jpg"
+    expected = hashlib.sha256(preview.read_bytes()).hexdigest()[:16]
+    (docs / "examples.html").write_text(
+        f'<a class="example-link" href="/examples/decision/">\n'
+        f'  <span><img src="{old}"></span>\n'
+        "</a>\n",
+        encoding="utf-8",
+    )
+    (docs / "index.html").write_text(
+        f'<a href="/examples/decision/"><img src="{old}" loading="lazy"></a>\n'
+        f'<img src="{old}" alt="unlinked">\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(example_previews, "DOCS", docs)
+
+    example_previews.update_catalog({preview})
+
+    replacement = f"/media/{expected}.jpg"
+    assert replacement in (docs / "examples.html").read_text()
+    home = (docs / "index.html").read_text()
+    assert replacement in home
+    assert f'<img src="{old}" alt="unlinked">' in home
 
 
 def test_a_failed_verifier_page_reports_its_browser_errors(browser):

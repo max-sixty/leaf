@@ -82,10 +82,13 @@ A page directory holds:
                          needs from the reader while waiting;
                          "work" holds typed, sequence-bounded claims on comment
                          threads or page widgets; a thread claim records the
-                         unanswered source event when there is one. At the state
-                         boundary these private records become canonical claim updates, which
-                         their local receipts show beside the page-wide banner
-                         (`leaf status … --on`). An optional `stream` record holds two
+                         unanswered source event when there is one. "handling"
+                         holds one exact event selected from an immutable delivery
+                         and admitted only while that reader move remains outstanding.
+                         At the state boundary, work records become canonical claim
+                         updates, while the interaction fold applies handling only to
+                         its exact receipt. Both appear beside the page-wide banner.
+                         An optional `stream` record holds two
                          live Codex App Server readings. `activity` is session-, turn-,
                          and event-floor-bound; it overlays the declaration in canonical
                          activity without replacing it and is cleared when the turn or

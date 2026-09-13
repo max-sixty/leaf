@@ -184,7 +184,7 @@ export function createResponseSurface({
   let fabPositionFrame = 0;
   let fabPositionCleanup = null;
   let fabPositionTarget = null;
-  let fabPositionHeight = null;
+  let fabContentHeight = null;
   let fabPositionWaiters = [];
   const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
 
@@ -230,7 +230,7 @@ export function createResponseSurface({
     fabPositionCleanup?.();
     fabPositionCleanup = null;
     fabPositionTarget = null;
-    fabPositionHeight = null;
+    fabContentHeight = null;
     if (!reset) return;
     answerFabPosition(false);
     fabPlacement = null;
@@ -502,7 +502,7 @@ export function createResponseSurface({
     ) {
       fabPlacement = null;
       fabInlineConnection = null;
-      fabPositionHeight = null;
+      fabContentHeight = null;
     }
 
     // Width before coordinates: Floating UI chooses a side from the compact surface,
@@ -547,15 +547,18 @@ export function createResponseSurface({
     if (boundary.height < minimumFabHeight() || !fabFits(regionBounds)) return false;
 
     // A vertical passage comment belongs beyond the passage, not shifted back across it.
-    // When its committed height changes, use the reading region's remaining travel
-    // before asking the field to scroll. autoUpdate also calls placeFab for the reader's
-    // own scroll; the stable height keeps that gesture as navigation rather than undoing
-    // it on the next frame.
+    // When its intrinsic content height changes, use the reading region's remaining
+    // travel before asking the field to scroll. The placed height also changes when the
+    // passage clips at a boundary; keying this to the content keeps that wheel gesture as
+    // navigation rather than undoing it on the next frame.
     const height = fabBar.offsetHeight;
-    const heightChanged =
-      fabPositionHeight === null || Math.abs(height - fabPositionHeight) > 0.5;
-    fabPositionHeight = height;
-    if (quotedVertical && heightChanged) {
+    const contentHeight = composerOpen
+      ? fabInput.scrollHeight + Math.max(0, height - fabInput.offsetHeight)
+      : fabBar.scrollHeight;
+    const contentChanged =
+      fabContentHeight === null || Math.abs(contentHeight - fabContentHeight) > 0.5;
+    fabContentHeight = contentHeight;
+    if (quotedVertical && contentChanged) {
       const overflow =
         requestedSide === "top"
           ? boundary.top - (keepClear.top - 6 - height)

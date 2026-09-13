@@ -503,7 +503,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     field.fill(
         "\n".join(
             f"Line {line}: the whole comment remains above its passage."
-            for line in range(20)
+            for line in range(40)
         )
     )
     page.evaluate(RENDERED)
@@ -517,13 +517,18 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         }"""
     )
     assert boxes["barBottom"] <= boxes["passageTop"], boxes
-    revealed_scroll = page.evaluate("scrollY")
+    last_scroll = page.evaluate("scrollY")
+    maximum_scroll = page.evaluate(
+        "document.scrollingElement.scrollHeight - innerHeight"
+    )
     page.mouse.move(8, 450)
-    page.mouse.wheel(0, 200)
-    page.wait_for_function("before => scrollY > before", arg=revealed_scroll)
-    first_scroll = page.evaluate("scrollY")
-    page.mouse.wheel(0, 200)
-    page.wait_for_function("before => scrollY > before", arg=first_scroll)
+    for _ in range(math.ceil((maximum_scroll - last_scroll) / 150)):
+        page.mouse.wheel(0, 150)
+        page.wait_for_function("before => scrollY > before", arg=last_scroll)
+        page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+        moved = page.evaluate("scrollY")
+        assert moved > last_scroll
+        last_scroll = moved
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
     assert errors == []
     page.close()

@@ -452,6 +452,45 @@ def test_a_nested_reading_region_does_not_inherit_its_panes_rail(browser, serve)
     )
 
 
+def test_a_bounded_pane_loaded_at_covering_width_keeps_its_inline_comment(
+    browser, serve
+):
+    source = leaf_page(
+        "one bounded reading region",
+        """
+<lf-workspace id="single-workspace">
+  <header><h1>Single reading workspace</h1></header>
+  <lf-pane id="single-reading" label="Reading">
+    <header><h2>Evidence</h2></header>
+    <p id="single-target">The bounded reading keeps its comment reachable.</p>
+    <div style="height: 900px"></div>
+  </lf-pane>
+</lf-workspace>
+""",
+    )
+    context = browser.new_context(viewport={"width": 800, "height": 900})
+    try:
+        page = open_page(
+            browser,
+            serve(source, anchored=[("single-target", "keeps its comment reachable")]),
+            context=context,
+        )
+        workspace = page.locator("#single-workspace")
+        cluster = page.locator('[data-lf-margin-for="single-target"]')
+
+        expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+        expect(cluster).to_have_count(1)
+        expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
+        expect(cluster).not_to_have_attribute(
+            "data-lf-margin-region", re.compile(r".+")
+        )
+        assert page.locator("#single-reading .lf-pane-body").evaluate(
+            "body => body.contains(document.querySelector('[data-lf-margin-for]'))"
+        )
+    finally:
+        context.close()
+
+
 def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
     url = serve(READING_REGIONS_PAGE)
     page = open_page(browser, live_url(url))

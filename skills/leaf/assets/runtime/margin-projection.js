@@ -1374,6 +1374,9 @@ export function createMarginProjection({
   }
 
   const marginRegionFor = (target) => {
+    // At widths where a thread panel would cover the content frame, the margin uses
+    // compact placement even while a reading arrangement remains bounded.
+    if (panelWouldCover()) return null;
     const region = containingReadingRegionFor(target);
     if (!region || readingPosture(region) !== "bounded") return null;
     const rail = parseFloat(

@@ -447,6 +447,13 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
         )
     if placement == "bottom-end":
         assert page.evaluate("scrollY") > before_scroll
+        revealed_scroll = page.evaluate("scrollY")
+        page.mouse.move(8, 450)
+        page.mouse.wheel(0, -200)
+        page.wait_for_function("before => scrollY < before", arg=revealed_scroll)
+        expect(page.locator(".lf-fab-bar")).to_have_attribute(
+            "data-lf-placement", placement
+        )
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
     page.wait_for_function("() => scrollY >= 300")
@@ -510,6 +517,14 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         }"""
     )
     assert boxes["barBottom"] <= boxes["passageTop"], boxes
+    revealed_scroll = page.evaluate("scrollY")
+    page.mouse.move(8, 450)
+    page.mouse.wheel(0, 200)
+    page.wait_for_function("before => scrollY > before", arg=revealed_scroll)
+    first_scroll = page.evaluate("scrollY")
+    page.mouse.wheel(0, 200)
+    page.wait_for_function("before => scrollY > before", arg=first_scroll)
+    expect(bar).to_have_attribute("data-lf-placement", "top-end")
     assert errors == []
     page.close()
 

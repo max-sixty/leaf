@@ -45,8 +45,9 @@
    A quoted passage keeps its resolved block clear when choosing the initial side, while
    the exact words supply its vertical attachment. The reading region and fixed Leaf
    chrome are the only collision boundary: page and margin content may be overlaid.
-   Floating UI owns coordinate conversion, overflow, fallback side, and reflow updates;
-   CSS owns content sizing within the width and height its middleware supplies.
+   Leaf chooses the stable side from the block and its reachable reading room. Floating
+   UI owns coordinate conversion, overflow, and reflow updates; CSS owns content sizing
+   within the width and height its middleware supplies.
 
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
@@ -183,6 +184,7 @@ export function createResponseSurface({
   let fabPositionFrame = 0;
   let fabPositionCleanup = null;
   let fabPositionTarget = null;
+  let fabPositionHeight = null;
   let fabPositionWaiters = [];
   const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
 
@@ -228,6 +230,7 @@ export function createResponseSurface({
     fabPositionCleanup?.();
     fabPositionCleanup = null;
     fabPositionTarget = null;
+    fabPositionHeight = null;
     if (!reset) return;
     answerFabPosition(false);
     fabPlacement = null;
@@ -478,19 +481,18 @@ export function createResponseSurface({
         ? "bottom-end"
         : "top-end";
     };
-    // The chosen side is a pure reading of the minimum footprint against external
-    // geometry. Cache its answer while those inputs are unchanged so content growth
-    // cannot re-seat the response; invalidate it when either the reading boundary or the
-    // reference moves enough to alter the available rails.
+    // Choose once for the target's horizontal geometry within a reading boundary. Its
+    // vertical position moves whenever the reader scrolls, but its reachable room does
+    // not: visible room and remaining travel trade one-for-one. Keeping that movement
+    // out of the cache key prevents scrolling and content growth from re-seating the
+    // response while still reconsidering a resized pane or a changed margin rail.
     const placementInput = [
       boundary.left,
       boundary.top,
       boundary.right,
       boundary.bottom,
       keepClear.left,
-      keepClear.top,
       keepClear.right,
-      keepClear.bottom,
     ];
     if (
       fabPlacementInput &&
@@ -500,6 +502,7 @@ export function createResponseSurface({
     ) {
       fabPlacement = null;
       fabInlineConnection = null;
+      fabPositionHeight = null;
     }
 
     // Width before coordinates: Floating UI chooses a side from the compact surface,
@@ -544,11 +547,15 @@ export function createResponseSurface({
     if (boundary.height < minimumFabHeight() || !fabFits(regionBounds)) return false;
 
     // A vertical passage comment belongs beyond the passage, not shifted back across it.
-    // Use the reading region's remaining travel before asking the field to scroll. The
-    // side was chosen from the compact field and remains fixed, so this movement cannot
-    // alternate above and below while the reader types.
-    if (quotedVertical) {
-      const height = fabBar.offsetHeight;
+    // When its committed height changes, use the reading region's remaining travel
+    // before asking the field to scroll. autoUpdate also calls placeFab for the reader's
+    // own scroll; the stable height keeps that gesture as navigation rather than undoing
+    // it on the next frame.
+    const height = fabBar.offsetHeight;
+    const heightChanged =
+      fabPositionHeight === null || Math.abs(height - fabPositionHeight) > 0.5;
+    fabPositionHeight = height;
+    if (quotedVertical && heightChanged) {
       const overflow =
         requestedSide === "top"
           ? boundary.top - (keepClear.top - 6 - height)
@@ -638,13 +645,7 @@ export function createResponseSurface({
                 fallbackPlacements,
                 fallbackStrategy: "bestFit",
               }),
-            shift(({ placement }) => ({
-              ...overflow,
-              // A vertical quoted passage uses scrolling to expose its chosen side.
-              // Shifting on that axis would put the field back over the passage.
-              mainAxis: !(block && /^(top|bottom)/.test(placement)),
-              crossAxis: true,
-            })),
+            shift({ ...overflow, mainAxis: true, crossAxis: true }),
           ],
         });
       })

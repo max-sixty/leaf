@@ -85,20 +85,32 @@ from render_harness import (
     wait_for_revision,
 )
 
+PASSAGE_WIDGET_TAGS = frozenset(
+    {"lf-metric", "lf-milestone", "lf-option", "lf-variant"}
+)
+
+
+def passage_text(node):
+    """Return the authored words a passage-shaped source node contains."""
+    return "".join(
+        part if isinstance(part, str) else passage_text(part)
+        for part in node["content"]
+    )
+
 
 def passage_representatives(sources):
-    """Build compact cases that name what each selected source adds to the sweep."""
+    """Build compact cases covering every source shape this sweep can exercise."""
     remaining = list(sources)
     shapes = {}
     for source in remaining:
         document = structure_model.SourceDocument(source.read_text(encoding="utf-8"))
         shapes[source] = {
-            *(f"widget:{element['tag']}" for element in document.lf_elements),
-            *(
-                f"block:{node['tag']}"
-                for node in document.nodes
-                if node["tag"] in passages_model.TEXT_BLOCK_TAGS
-            ),
+            f"{'widget' if node['tag'] in PASSAGE_WIDGET_TAGS else 'block'}:{node['tag']}"
+            for node in document.nodes
+            if (
+                node["tag"] in passages_model.TEXT_BLOCK_TAGS | PASSAGE_WIDGET_TAGS
+                and len(" ".join(passage_text(node).split())) > 12
+            )
         }
     uncovered = set().union(*shapes.values())
     representatives = []
@@ -165,14 +177,15 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
 def test_real_page_passage_shapes_can_be_quoted(
     browser, serve, source, expected_shapes
 ):
-    """Passages covering every authored widget and native block shape are quotable.
+    """Every selectable native and direct-text composite shape is quotable.
 
-    The collection-time set cover adds a source whenever its widget vocabulary is not
+    The collection-time set cover adds a source whenever its passage vocabulary is not
     already represented. Focused tests own settlements, tabs, shadow roots, and gestures.
     """
     page = open_page(browser, serve(source))
-    result = page.evaluate("""async () => {
-        const {TEXT_BLOCK} = await import('/runtime/passages.js');
+    result = page.evaluate(
+        """async compositeTags => {
+        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
         const fab = document.querySelector('.lf-fab-input');
@@ -187,10 +200,17 @@ def test_real_page_passage_shapes_can_be_quoted(
         // Native passage blocks come from the runtime. The four composite roots are
         // representative widgets whose direct prose otherwise has no native block;
         // data-lf-said is the runtime's marker for generated words the page still says.
-        const blocks = [...document.querySelectorAll(`${TEXT_BLOCK},lf-option,`
-            + 'lf-variant,lf-milestone,lf-metric,[data-lf-said]')]
+        const compositeSelector = compositeTags.join(',');
+        const blocks = [...document.querySelectorAll(
+            `${TEXT_BLOCK},${compositeSelector},[data-lf-said]`)]
           .filter(b => speaks(b) && b.checkVisibility()
                     && b.textContent.trim().length > 12);
+        const shapes = new Set();
+        for (const block of blocks) {
+            if (block.matches(TEXT_BLOCK)) shapes.add(`block:${block.localName}`);
+            if (compositeTags.includes(block.localName))
+                shapes.add(`widget:${block.localName}`);
+        }
         const missed = [], skipped = [], astray = [];
         for (let i = 0; i < blocks.length; i++) {
             // Each block alone, then reaching into the next one — a drag rarely stops
@@ -240,11 +260,14 @@ def test_real_page_passage_shapes_can_be_quoted(
                 sel.removeAllRanges();
             }
         }
-        return {missed, skipped, astray, count: blocks.length};
-    }""")
-    assert result["count"] > 0, (
-        f"{source.stem} is the sole representative for {sorted(expected_shapes)}, "
-        "but none of its passages reached the sweep"
+        return {missed, skipped, astray, shapes: [...shapes]};
+    }""",
+        sorted(PASSAGE_WIDGET_TAGS),
+    )
+    missing_shapes = expected_shapes - set(result["shapes"])
+    assert not missing_shapes, (
+        f"{source.stem} represents {sorted(missing_shapes)} in the source, but none "
+        "of those shapes reached the browser sweep"
     )
     assert result["missed"] == [], (
         f"{len(result['missed'])} passages in {source.stem} quote text the page "

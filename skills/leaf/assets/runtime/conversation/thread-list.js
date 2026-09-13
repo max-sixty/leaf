@@ -487,13 +487,13 @@ async function prepareFrozenWidgets(current) {
   reachScrollers(threadsBox);
 }
 
-async function retainCommitted(current, candidate) {
+async function retainCommitted(current, candidate, reason) {
   if (!current()) return;
   try {
     await threadsBox.retainCommitted(candidate);
   } catch (retaining) {
     throw new AggregateError(
-      [retaining],
+      [reason, retaining],
       "Thread list presentation and retention failed",
     );
   }
@@ -509,17 +509,18 @@ async function presentList(model, current) {
     return { recovered: null };
   } catch (error) {
     if (!current()) return null;
-    await retainCommitted(current, model);
+    await retainCommitted(current, model, error);
     if (!current()) return null;
     try {
       if (!(await threadsBox.present(model)) || !current()) return null;
     } catch (retrying) {
       if (!current()) return null;
-      await retainCommitted(current, model);
-      throw new AggregateError(
+      const failure = new AggregateError(
         [error, retrying],
         "Thread list presentation retry failed",
       );
+      await retainCommitted(current, model, failure);
+      throw failure;
     }
     return { recovered: error };
   }
@@ -550,7 +551,7 @@ export async function renderThreads(all, commands) {
     await prepareFrozenWidgets(current);
   } catch (error) {
     if (!current()) return;
-    await retainCommitted(current, reading.model);
+    await retainCommitted(current, reading.model, error);
     throw error;
   } finally {
     if (held) finishScrollHold(hold, commands.panelIsOpen);
@@ -574,7 +575,7 @@ export async function renderThreadListUnavailable(text, commands) {
     paintHeadRoom(commands.panelIsOpen);
     threadsBox.commit(model);
   } catch (error) {
-    await retainCommitted(current, model);
+    await retainCommitted(current, model, error);
     throw error;
   } finally {
     finishScrollHold(hold, commands.panelIsOpen);

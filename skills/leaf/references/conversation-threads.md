@@ -19,9 +19,12 @@ one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment.
 
 Use `--markup` for a small question: an `lf-ask` containing one heading and
-its `lf-options` group. Thread markup is frozen in the log; versions neither
-carry nor revise it. Use a page widget instead when the question and its answer
-belong in the final record.
+its `lf-options` group. Thread markup is frozen in the log and has no revision
+boundary: every immutable historical document shows the same markup. It must
+therefore validate against every pinned revision's captured registry, not only
+the active registry. Use only widget vocabulary shared by those registries. If
+no shared widget fits, ask in prose with `--text` (and `--awaits` on a reply), or
+use a page widget when the question and its answer belong in the final record.
 
 The thread panel is a narrow column beside the page. Replies should feel light
 and conversational, answer the local thread, and keep the page as the main

@@ -26,9 +26,6 @@ The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer. The
 ordinary and nightly suites run directly on the host. Docker is needed only for
 the complete website boundary.
 
-A container without IPv6 cannot run the two tests that bind the stated-host
-wildcard `::`; run those from a workstation.
-
 The everyday suite needs no network after setup. It runs one shipped page through the
 browser gate and the shared chrome contracts whose regressions must block a pull request:
 
@@ -80,24 +77,14 @@ the repo root, which is also the payload project: `uv sync` installs `leaf`
 from this checkout editable, dev group included, so a test importing `leaf`
 gets the checkout directly.
 
-A test that runs leaf as a process has two addresses that answer different
-questions. `LEAF_COMMAND` in `conftest.py` is `python -m leaf` under this
-environment's interpreter, which is what the product's own children run; use it
-for a command's behavior. `PLUGIN_ROOT / "bin" / "leaf"` is the launcher a host
-runs, with uv, `--no-dev`, and the payload environment it syncs; use it where
-what a host actually runs is the subject. `shipped_payload()` and
-`install_payload()` read what `git ls-files --cached --others
---exclude-standard` reports rather than walking the filesystem, so unstaged
-additions count and ignored build caches do not.
+Subprocess tests use `LEAF_COMMAND` from `conftest.py`. A test invokes `bin/leaf` only
+where the launcher itself is the subject: the installed payload's copy, and the shim's
+own uv dispatch. `install_payload()` copies tracked and unignored candidate files,
+including unstaged additions.
 
-That listing is why the run's temporary tree stays out of the checkout. A
-`--basetemp` inside it and not ignored makes every fixture the run writes a
-candidate payload, and the install boundary then fails about a tree full of
-temporary pages rather than about the flag, so `pytest_configure` in
-`interact_support.py` refuses one up front. Leave the flag off: pytest already
-puts the basetemp under `$TMPDIR`, and a concurrent sibling run cannot rotate it
-away, because pytest locks the numbered directory it is using and skips a locked
-one when it prunes.
+Because candidate payloads include untracked files, `interact_support.py` refuses
+a nonignored `--basetemp` inside the checkout. Pytest's default under `$TMPDIR` is
+already isolated across concurrent runs.
 
 ## Put each assertion at the boundary that owns it
 

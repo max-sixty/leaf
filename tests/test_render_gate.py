@@ -88,6 +88,7 @@ from render_harness import (
     panel_settled,
     primed,
     resized,
+    running_http_server,
     take_browser_errors,
 )
 
@@ -167,7 +168,7 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
     page = browser.new_page()
     page.route(
         "**/theme.css",
-        lambda route: (time.sleep(0.1), route.fulfill(body="main { display: none; }")),
+        lambda route: route.fulfill(body="main { display: none; }"),
     )
     try:
         findings = render_gate_scheme.start_with_pre_upgrade_proof(
@@ -259,19 +260,19 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     name, so the release has to hand the entry back to the page."""
     served = serve(leaf_page("dropped entry", "<h1>Dropped</h1>"), packages=())
     asked = threading.Event()
+    release = threading.Event()
 
     class Drops(http_model.handler_for(serve.page_dir, TOKEN)):
         """Answers everything but the Leaf entry, which it accepts and drops."""
 
         def do_GET(self):
-            if self.path.startswith("/leaf.js"):
+            if urlsplit(self.path).path.endswith("/leaf.js"):
                 asked.set()
-                time.sleep(300)  # longer than any patience the gate could have
+                release.wait()
                 return
             super().do_GET()
 
     httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Drops)
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
     dropped = (
         urlsplit(served)
         ._replace(netloc=f"127.0.0.1:{httpd.server_address[1]}")
@@ -279,16 +280,20 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     )
     page = browser.new_page()
     page.set_default_timeout(5_000)
-    try:
-        with pytest.raises(RuntimeError) as stopped:
-            render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
-    finally:
-        page.close()
-        httpd.shutdown()
+    with running_http_server(httpd):
+        try:
+            with pytest.raises(RuntimeError) as stopped:
+                render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
+            entry_path = urlsplit(
+                page.locator('script[src$="/leaf.js"]').get_attribute("src")
+            ).path
+        finally:
+            release.set()
+            page.close()
 
     assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
     assert str(stopped.value) == (
-        "the document never reached load; still requesting /leaf.js"
+        f"the document never reached load; still requesting {entry_path}"
     )
 
 
@@ -673,7 +678,7 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
     assert all("within 3000ms" in failure for failure in failures)
 
 
-def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
+def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch):
     """A navigation ends a trip the browser reports for neither kind, and the ledger
     must not carry it into the next document or every later wait there runs its
     timeout out.
@@ -681,38 +686,52 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     Accept-all is how a real sweep gets here: it answers its asks one awaited
     trip at a time, so a reload after the press lands mid-cascade and kills an
     /api/event POST that then produces no `response` and no `requestfailed`.
-    The route's delay holds a post in the air so the navigation reliably lands
-    on one. The ledger is the document's, so what can still go wrong is the new
+    The held answer puts the navigation on that exact edge. The ledger is the
+    document's, so what can still go wrong is the new
     document's own first trip: the same press again has to be counted there, and the
     attempt it puts in the outbox has to leave it with an outcome."""
-    corpus = next(p for p in EXAMPLES if p.stem == "corpus")
-    # The example itself, so the data its markup selects is laid in beside it; its
-    # conversation is not, because the asks the cascade answers are the markup's.
-    url = serve(corpus, seed_log=False)
+    url = serve(CHANGE_SHAPES_PAGE)
     # The interrupted request is absent from the new document's console: the navigation
     # clears the old document and its in-flight trip together.
     page = open_page(browser, url)
+    answer_ready = threading.Event()
+    release_answer = threading.Event()
+    reload_committed = threading.Event()
+    document_path = urlsplit(url).path
+    native_json = http_model.Handler._json
 
-    def slow(route):
-        if "/api/event" in route.request.url:
-            time.sleep(0.5)
-        route.continue_()
+    def hold_first_event_answer(handler, *args, **kwargs):
+        if (
+            handler.command == "POST"
+            and urlsplit(handler.path).path == "/api/event"
+            and not answer_ready.is_set()
+        ):
+            answer_ready.set()
+            release_answer.wait()
+        return native_json(handler, *args, **kwargs)
 
-    page.route("**/api/event", slow)
-    # Armed around the press rather than after it. The post goes out from the click's
-    # own handler, so the request is issued while `click` is still in flight — under any
-    # load at all it is announced before a wait registered afterwards can hear it, and
-    # the wait then spends its whole timeout on a trip that already left.
-    with page.expect_request(lambda r: "/api/event" in r.url):
+    def release_after_reload(frame):
+        if (
+            answer_ready.is_set()
+            and frame == page.main_frame
+            and urlsplit(frame.url).path == document_path
+        ):
+            reload_committed.set()
+            release_answer.set()
+
+    monkeypatch.setattr(http_model.Handler, "_json", hold_first_event_answer)
+    page.on("framenavigated", release_after_reload)
+    try:
         page.locator(".lf-answer-all").first.click()
-    page.unroute("**/api/event")
-    page.goto(url, wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+        assert answer_ready.wait(10), "the first event reached no server answer"
+        page.goto(url, wait_until="load")
+        assert reload_committed.is_set(), "the replacement document did not commit"
+        page.wait_for_function(BOTH_STAMPS)
+    finally:
+        release_answer.set()
     # The first trip of the new document's own cascade, which is the whole of what a
     # ledger carried across the navigation can get wrong. Waiting the answer-all out
-    # instead ties this reading to how many asks the page happens to carry: the corpus
-    # gained one, and under the suite's own load the cascade then outgrew a single
-    # wait's budget with the fact under test already settled on its first trip.
+    # instead ties this reading to how many asks the page happens to carry.
     #
     # The trip is over when that first attempt leaves `pending`, which is the outbox's
     # own list of attempts with no outcome — a failed post keeps its attempt there and

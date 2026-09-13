@@ -98,9 +98,21 @@ def check_markup(
     # failed `page init` for good, with a message about replay that had nothing to do
     # with what was wrong. Here they are asked of what is arriving, at the one moment
     # anything can still be done about it.
+    pinned_errors = pinned_thread_markup_errors(page_dir, frag)
     errs = (
         thread_markup_contract_errors(frag, registry)
-        + pinned_thread_markup_errors(page_dir, frag)
+        + pinned_errors
+        + (
+            [
+                (
+                    "thread markup must use vocabulary shared by the active registry "
+                    "and every pinned revision; otherwise ask with --text (and "
+                    "--awaits for a reply)"
+                )
+            ]
+            if pinned_errors
+            else []
+        )
         + fragment_style_errors(frag)
         + media_errors(frag, page_dir)
         + data_binding_errors(

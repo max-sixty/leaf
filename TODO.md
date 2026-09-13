@@ -77,16 +77,18 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 - **Finish the Lit rendering cutover for Leaf-owned generated UI.** Move the remaining
   imperative chrome, inline-conversation, margin, and retained suggestion-control paint
-  onto Lit elements or templates fed by read-only application projections. Preserve
-  authored child nodes and local focus, selection, disclosure, drag, and animation state;
-  delete each reconciliation adapter when its last caller moves. Plain-JavaScript
-  package modules remain supported through the same public widget API.
+  one surface at a time onto Lit elements or templates fed only by read-only application
+  projections. For each surface, preserve authored child nodes and local focus,
+  selection, disclosure, drag, and animation state, then delete its imperative renderer
+  and reconciliation adapter before moving to the next. Plain-JavaScript package modules
+  remain supported through the same public widget API.
 
-- **Remove the remaining semantic compatibility readings.** Derive the Ask inventory
-  and suggestion settlement entirely from the immutable application snapshot, then
-  remove DOM and `data-lf-state` as input stores. Keep DOM attributes only as rendered
-  output and extend the import/ownership gate so a new semantic store outside the
-  publisher fails before it lands.
+- **Complete the authority cutover after the Lit migrations.** Once the affected
+  surfaces consume application projections, derive the Ask inventory and suggestion
+  settlement entirely from the immutable application snapshot. Remove DOM and
+  `data-lf-state` as input stores, keep DOM attributes only as rendered output, and
+  extend the import/ownership gate so a new semantic store outside the publisher fails
+  before it lands.
 
 - **Share immutable revision resources by digest.** Two minimal default-layer
   revisions currently store 3,200,741 and 3,200,749 bytes, with 179 identical

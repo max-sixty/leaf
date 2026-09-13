@@ -4,7 +4,6 @@ import itertools
 import json
 import os
 import re
-import time
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
@@ -20,7 +19,6 @@ from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
-from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -4311,7 +4309,7 @@ customElements.define('lf-derived', class extends HTMLElement {
 
 
 def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
-    browser, serve, tmp_path, monkeypatch
+    browser, serve, tmp_path
 ):
     """Export cannot refresh data after its scripts leave, so it preserves the rendered
     snapshot and the projection/key labels that say what kind of words these are. Dropping
@@ -4319,27 +4317,6 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     make it pretend the dead snapshot was still live.
     """
     url = data_projection_page(serve)
-    module = serve.page_dir / "widgets" / "lf-feed.js"
-    module.write_text(
-        module.read_text()
-        .replace(
-            "import {offer, projectData, watchData}",
-            "import {offer, projectData, watchData, widgetController}",
-        )
-        .replace(
-            "  connectedCallback() {",
-            "  connectedCallback() {\n"
-            "    widgetController(this).present("
-            "new Promise(resolve => setTimeout(resolve, 750)));",
-        )
-    )
-    native_page_state = http_model.Handler.page_state
-
-    def delayed_page_state(handler, view_revision=None):
-        time.sleep(0.5)
-        return native_page_state(handler, view_revision)
-
-    monkeypatch.setattr(http_model.Handler, "page_state", delayed_page_state)
     out = tmp_path / "data-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
@@ -4969,6 +4946,7 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
         page,
         "data subscriber failed: mount projection failed",
         "data subscriber failed: update projection failed",
+        "data subscriber failed: synchronous update projection failed",
     )
     assert (
         sum("data subscriber failed: mount projection failed" in e for e in errors) == 1

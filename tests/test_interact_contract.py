@@ -1295,6 +1295,10 @@ def test_thread_markup_must_render_in_every_pinned_revision(page_dir):
     assert posted.exit_code == 1, posted.output
     assert "pinned revision r1 cannot render this thread markup" in posted.output
     assert "<lf-local>" in posted.output
+    assert (
+        "use vocabulary shared by the active registry and every pinned revision; "
+        "otherwise ask with --text" in posted.output
+    )
     assert not events_model.read_events(page_dir)[-1].get("markup")
 
 

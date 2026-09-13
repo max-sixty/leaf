@@ -3,7 +3,6 @@
 import json
 import re
 import threading
-import time
 from datetime import datetime, timedelta
 
 import pytest
@@ -101,6 +100,7 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
+    running_http_server,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -3937,6 +3937,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
         stamp_version_file(d, n, "t")
 
     asked = threading.Event()
+    release = threading.Event()
 
     class Stalls(http_model.handler_for(d, TOKEN)):
         """Answers everything but the earlier version, which it accepts and drops."""
@@ -3944,19 +3945,19 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
         def do_GET(self):
             if self.path.startswith("/versions/v1.html"):
                 asked.set()
-                time.sleep(300)  # longer than any patience the gate could have
+                release.wait()
                 return
             super().do_GET()
 
     httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Stalls)
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    try:
-        failures = render_gate_model.render_version(
-            browser,
-            f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
-        )
-    finally:
-        httpd.shutdown()
+    with running_http_server(httpd):
+        try:
+            failures = render_gate_model.render_version(
+                browser,
+                f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
+            )
+        finally:
+            release.set()
 
     assert asked.is_set(), "nothing ever asked for the stalled file, so nothing stalled"
     assert failures and all("the server stopped answering" in f for f in failures), (
@@ -4881,12 +4882,9 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
                 arrived.set()
 
     httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    try:
+    with running_http_server(httpd):
         late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
         failures = render_gate_model.render_version(browser, late)
-    finally:
-        httpd.shutdown()
     # The window first, because the gate's verdict on a window that never opened says
     # nothing: an empty log is a page with nothing to replay and nothing to report.
     assert landed and "/versions/v1.html" in landed[0], (

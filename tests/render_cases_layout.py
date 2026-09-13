@@ -5,8 +5,8 @@ import hashlib
 import io
 import math
 import struct
-import threading
 import zlib
+from contextlib import ExitStack
 from types import SimpleNamespace
 
 import pytest
@@ -33,6 +33,7 @@ from render_harness import (
     RENDERED,
     TOKEN,
     leaf_page,
+    running_http_server,
     stamp_version_file,
 )
 
@@ -1159,7 +1160,7 @@ def live_leaf(tmp_path, monkeypatch):
     working, freshly, so its row has a judged state to show. A factory rather than one
     fixture, because a tray is a list and a walk down it needs somewhere to walk to."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    servers = []
+    servers = ExitStack()
     held = []
 
     def go(name, title):
@@ -1190,8 +1191,7 @@ def live_leaf(tmp_path, monkeypatch):
         httpd = hosting_model.LeafHTTPServer(
             ("127.0.0.1", 0), http_model.handler_for(d, TOKEN)
         )
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        servers.append(httpd)
+        servers.enter_context(running_http_server(httpd))
         port = httpd.server_address[1]
         # Desired address and a held, contentless lease are the two facts a real
         # server exposes to neighbouring pages.
@@ -1211,8 +1211,7 @@ def live_leaf(tmp_path, monkeypatch):
         return f"http://127.0.0.1:{port}", d
 
     yield go
-    for httpd in servers:
-        httpd.shutdown()
+    servers.close()
     for lease in held:
         lease.close()
 

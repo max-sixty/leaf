@@ -12,6 +12,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
@@ -84,6 +85,52 @@ from render_harness import (
     wait_for_revision,
 )
 
+REPRESENTATIVE_WIDGET_TAGS = frozenset(
+    {"lf-metric", "lf-milestone", "lf-option", "lf-variant"}
+)
+
+
+def passage_text(node):
+    """Return the authored words a passage-shaped source node contains."""
+    return "".join(
+        part if isinstance(part, str) else passage_text(part)
+        for part in node["content"]
+    )
+
+
+def passage_representatives(sources):
+    """Build compact cases covering every source shape this sweep can exercise."""
+    remaining = list(sources)
+    shapes = {}
+    for source in remaining:
+        document = structure_model.SourceDocument(source.read_text(encoding="utf-8"))
+        shapes[source] = {
+            f"{'widget' if node['tag'] in REPRESENTATIVE_WIDGET_TAGS else 'block'}:{node['tag']}"
+            for node in document.nodes
+            if (
+                node["tag"]
+                in passages_model.TEXT_BLOCK_TAGS | REPRESENTATIVE_WIDGET_TAGS
+                and len(" ".join(passage_text(node).split())) > 12
+            )
+        }
+        if not shapes[source] and source.with_suffix(".data.json").exists():
+            shapes[source] = {"said"}
+    uncovered = set().union(*shapes.values())
+    representatives = []
+    while uncovered:
+        source = max(
+            remaining, key=lambda candidate: len(shapes[candidate] & uncovered)
+        )
+        covered = shapes[source] & uncovered
+        assert covered, f"no source represents passage shapes {sorted(uncovered)}"
+        representatives.append((source, frozenset(covered)))
+        remaining.remove(source)
+        uncovered -= covered
+    return tuple(representatives)
+
+
+PASSAGE_CASES = passage_representatives(CORPUS_SOURCES)
+
 pytestmark = pytest.mark.nightly
 
 
@@ -125,28 +172,23 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
     )
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
-    """Anchoring has to work on the pages people actually write, not on a fixture built
-    to suit it. Every failure here has been a place where what the reader selects and
-    what the search reads come apart — an uppercased header, a widget's own chrome, the
-    stylesheet a rendered diagram carries — and a hand-built page has none of them. So
-    this drags across every pair of adjacent blocks in every source page, which is
-    the shape a real selection takes, and asks for the highlight the composer promises.
+@pytest.mark.parametrize(
+    ("source", "expected_shapes"),
+    PASSAGE_CASES,
+    ids=[source.stem for source, _shapes in PASSAGE_CASES],
+)
+def test_real_page_passage_shapes_can_be_quoted(
+    browser, serve, source, expected_shapes
+):
+    """Every selected native, representative-widget, and projected shape is quotable.
 
-    The generated corpus is not another authored input: scripts/corpus.py derives a
-    tab from each source `<main>` and a separate test rejects any drift. Repeating every
-    source passage inside that composition used to be most of this sweep's runtime. Tab
-    labels and hidden-panel navigation have focused gesture tests, so the source corpus
-    retains the content variations while those tests retain the corpus's mechanism.
-
-    "Every" includes the words a widget renders into a control, which is why the filter
-    below is the runtime's own rule rather than a test for the chrome class: while it was
-    the class, the sweep that proves every passage is quotable structurally could not see
-    the passages that weren't. Across the source corpus it reaches attribute-rendered
-    headings, settled summaries, and the tab names in live-progress."""
+    The collection-time set cover adds a source whenever its passage vocabulary is not
+    already represented. Focused tests own settlements, tabs, shadow roots, and gestures.
+    """
     page = open_page(browser, serve(source))
-    result = page.evaluate("""async () => {
+    result = page.evaluate(
+        """async representativeTags => {
+        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
         const fab = document.querySelector('.lf-fab-input');
@@ -154,17 +196,25 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
         // the other tab — so everything is in scope, not just what the page opens on.
         document.querySelectorAll('details').forEach(d => (d.open = true));
         document.querySelectorAll('[hidden]').forEach(e => e.removeAttribute('hidden'));
-        // Declared labels are in scope, and the filter is the runtime's own rule rather
-        // than the class: a tab's name and a settled row's title are words the page says
-        // from inside chrome, which is exactly the shape a filter on .lf-ui cannot see.
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
         };
-        const blocks = [...document.querySelectorAll('p,li,h1,h2,h3,td,th,blockquote,'
-            + 'figcaption,summary,lf-option,lf-variant,lf-milestone,lf-metric,[data-lf-said]')]
+        // Native passage blocks come from the runtime. The four composite roots are
+        // representative widgets whose direct prose otherwise has no native block;
+        // data-lf-said is the runtime's marker for generated words the page still says.
+        const compositeSelector = representativeTags.join(',');
+        const blocks = [...document.querySelectorAll(
+            `${TEXT_BLOCK},${compositeSelector},[data-lf-said]`)]
           .filter(b => speaks(b) && b.checkVisibility()
                     && b.textContent.trim().length > 12);
+        const shapes = new Set();
+        for (const block of blocks) {
+            if (block.matches(TEXT_BLOCK)) shapes.add(`block:${block.localName}`);
+            if (representativeTags.includes(block.localName))
+                shapes.add(`widget:${block.localName}`);
+            if (block.matches('[data-lf-said]')) shapes.add('said');
+        }
         const missed = [], skipped = [], astray = [];
         for (let i = 0; i < blocks.length; i++) {
             // Each block alone, then reaching into the next one — a drag rarely stops
@@ -214,8 +264,15 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
                 sel.removeAllRanges();
             }
         }
-        return {missed, skipped, astray};
-    }""")
+        return {missed, skipped, astray, shapes: [...shapes]};
+    }""",
+        sorted(REPRESENTATIVE_WIDGET_TAGS),
+    )
+    missing_shapes = expected_shapes - set(result["shapes"])
+    assert not missing_shapes, (
+        f"{source.stem} represents {sorted(missing_shapes)} in the source, but none "
+        "of those shapes reached the browser sweep"
+    )
     assert result["missed"] == [], (
         f"{len(result['missed'])} passages in {source.stem} quote text the page "
         f"can't find: {result['missed']}"

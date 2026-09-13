@@ -219,7 +219,7 @@ const widgetDigests = (doc) => {
   const stated = doc.querySelector('meta[name="lf-widgets"][data-lf-runtime]')?.content;
   return stated ? JSON.parse(stated) : {};
 };
-const servedWidgets = widgetDigests(document);
+export const servedWidgets = widgetDigests(document);
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
@@ -1424,11 +1424,18 @@ export function createVersionController({
           // sources gets it wrong in the direction that leaves a lie behind: a widget
           // whose own markup nobody touched still goes when the wrapper around it is
           // replaced, and a baseline nothing forgot is a baseline the fresh capture
-          // then skips. Said per element rather than gathered, because the element's
-          // replacement is read immediately after and would lose what a later sweep
-          // dropped.
+          // then skips.
+          //
+          // An element going is not the same as its name going, and the name is what
+          // these readings are kept under. A widget the revision moved under an earlier
+          // parent is inserted and read there before this parent's removal reaches the
+          // element it left behind, so forgetting on the element alone would drop the
+          // descriptor its arrival had just captured. Ask the page instead: a name
+          // something still answers to is a name nothing may retire.
           retire: (element) => {
             if (!element.id || !upgraded(element)) return;
+            for (const claimant of live.querySelectorAll(`#${CSS.escape(element.id)}`))
+              if (claimant !== element) return;
             forgetAuthoredOwners(new Set([element.id]));
             forgetWidgetDescriptors([element.id]);
           },

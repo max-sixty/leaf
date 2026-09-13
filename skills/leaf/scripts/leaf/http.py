@@ -36,7 +36,7 @@ from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_medi
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import RevisionArtifact, read_artifact
-from .revision_delivery import deliver_document, deliver_resource
+from .revision_delivery import deliver_document, deliver_resource, delivery_identity
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
@@ -260,38 +260,9 @@ def head_open_end_offset(document: SourceDocument) -> int:
 def _delivery_prelude(
     revision: int, version: int | None, executable: str, widgets: dict
 ) -> str:
-    """Declare the delivery's encoding and immutable Leaf identity first.
-
-    A later revision reaches an open document as a state reading. That document
-    compares the new revision's executable digest with the one stamped here to
-    decide whether it can take the revision on or needs a fresh document, so the
-    digest travels in the head where the answer costs no request.
-
-    The widget digests answer the next question in the same breath: which widgets
-    the reader may keep. A patch needs two of these maps, its own document's and
-    the arriving revision's, and both arrive without asking — this one at boot,
-    and the other inside the revision document a patch already fetches. Serving
-    them anywhere else buys nothing: a resource of their own would be a request
-    on the activation path, and `/api/state` would repeat them on every read of a
-    page most of whose readers never see a revision at all. Measured against that,
-    the bytes are noise: the largest public example declares 49 widgets, and the
-    map replaces a clone of the whole authored page that the browser was holding
-    for the document's lifetime.
-    """
-    identity = (
-        f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
-        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
-        f'<meta name="lf-widgets" data-lf-runtime '
-        f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
-    )
-    return (
-        DELIVERY_ENCODING_META
-        + identity
-        + (
-            f'<meta name="lf-version" data-lf-runtime content="{version}">'
-            if version is not None
-            else ""
-        )
+    """Declare the delivery's encoding, then the immutable Leaf identity behind it."""
+    return DELIVERY_ENCODING_META + delivery_identity(
+        revision, version, executable, widgets
     )
 
 
@@ -313,15 +284,15 @@ def runtime_document(
     source: str,
     revision: int,
     executable: str,
+    widgets: dict,
     version: int | None = None,
-    widgets: dict | None = None,
 ) -> bytes:
     """Give a clean authored document its runtime head and immutable identity."""
     document = SourceDocument(source)
     offset = head_open_end_offset(document)
     theme_head, entry_head = _runtime_assets()
     runtime = (
-        _delivery_prelude(revision, version, executable, widgets or {})
+        _delivery_prelude(revision, version, executable, widgets)
         + theme_head
         + entry_head
     )

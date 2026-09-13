@@ -7,6 +7,7 @@ document therefore works at the live, stamped-version, and immutable-revision UR
 """
 
 import html
+import json
 from urllib.parse import quote, urlsplit
 
 import tinycss2
@@ -86,6 +87,37 @@ def deliver_resource(resource: Resource, logical_path: str, asset_root: str) -> 
             resource.data.decode("utf-8"), logical_path, asset_root
         ).encode("utf-8")
     return resource.data
+
+
+def delivery_identity(
+    revision: int, version: int | None, executable: str, widgets: dict
+) -> str:
+    """State which revision a delivered document is, and what it is made of.
+
+    A later revision reaches an open document as a state reading, and two questions
+    decide what the reader gets. The executable digest says whether this document can
+    take that revision on at all: a running document evaluates a module graph once and
+    defines an element once, so new bytes behind either need a fresh one. The widget
+    digests then say which widgets the reader keeps, one per declared id, over the
+    markup its author wrote. Both travel in the head, where a document knows its own
+    answer without asking, and where the revision document a patch already fetches
+    carries the other one for free.
+
+    Every delivery writes this, whoever is delivering: the HTTP boundary, the static
+    live shell, the MCP app's document, and a standalone export. A document that says
+    part of it is a document the next reader of the contract has to guess about.
+    """
+    return (
+        f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
+        f'<meta name="lf-widgets" data-lf-runtime '
+        f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
+        + (
+            f'<meta name="lf-version" data-lf-runtime content="{version}">'
+            if version is not None
+            else ""
+        )
+    )
 
 
 def deliver_document(source: str, asset_root: str) -> str:

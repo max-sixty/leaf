@@ -45,6 +45,7 @@ from leaf.revision_artifact import (
     rewrite_captured_module,
     rewrite_module,
 )
+from leaf.revision_delivery import delivery_identity
 from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.served_state.service import PageStateService
 from leaf.structure import (
@@ -387,10 +388,8 @@ def interactive_export_page(
     )
     escaped_theme = re.sub(r"</style", r"<\/style", theme, flags=re.IGNORECASE)
     runtime_head = (
-        f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
-        f'<meta name="lf-executable" data-lf-runtime content="{artifact.executable}">'
-        f'<meta name="lf-version" data-lf-runtime content="{version}">'
-        f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">'
+        delivery_identity(revision, version, artifact.executable, artifact.widgets)
+        + f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">'
         f'<script type="importmap">{import_map}</script>'
         '<script type="application/json" data-lf-runtime data-lf-offline '
         'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'

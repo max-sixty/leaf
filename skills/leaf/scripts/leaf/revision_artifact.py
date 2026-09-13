@@ -112,7 +112,7 @@ class RevisionArtifact:
     @cached_property
     def widgets(self) -> dict:
         """What each declared widget in this revision's page was written as."""
-        return json.loads(self.manifest).get("widgets", {})
+        return json.loads(self.manifest)["widgets"]
 
 
 def manifest_executable(manifest: dict) -> str:
@@ -513,11 +513,9 @@ def _capture_artifact(
     # What each declared widget in the authored page was written as, one digest per id.
     # A reader's open document keeps the widgets a revision did not rewrite, and only
     # the capture still holds the markup to say which those are: after upgrade a
-    # controller owns every widget's children, so the page cannot answer for itself and
-    # the browser had been keeping a clone of the whole authored `main` for the
-    # document's lifetime to have something to compare. Digested from the parsed tree
-    # before delivery rewrites resource URLs, so two revisions of one widget differ only
-    # where its author changed it.
+    # controller owns every widget's children, so the page cannot answer for itself.
+    # Digested from the parsed tree before delivery rewrites resource URLs, so two
+    # revisions of one widget differ only where its author changed it.
     main = document.tree.select_one("main")
     widgets = {
         element.attrs["id"]: _digest(element.html.encode("utf-8"))

@@ -9,7 +9,7 @@
 
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { runtime } from "./context.js";
-import { servedExecutable } from "./version.js";
+import { servedExecutable, servedWidgets } from "./version.js";
 import { offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}
@@ -109,11 +109,13 @@ async function loadFrameDocument(frame) {
     viewport,
     meta("lf-location", "about:srcdoc"),
     meta("lf-revision", String(runtime.currentRevision)),
-    // The whole prelude, including the identity this document has as running code. The
-    // contained page never follows a revision — it takes one state reading and opens no
-    // feed — but a prelude that says what a document is has to say all of it wherever
-    // one is written, or the next reader of the contract finds two answers.
+    // The whole prelude, from what this document was served: the identity it has as
+    // running code, and what each of its declared widgets was written as. The contained
+    // page never follows a revision — it takes one state reading and opens no feed — but
+    // a prelude that says what a document is says all of it wherever one is written, or
+    // the next reader of the contract finds two answers to one question.
     meta("lf-executable", servedExecutable ?? ""),
+    meta("lf-widgets", JSON.stringify(servedWidgets)),
     meta("lf-version", String(runtime.currentStamp)),
     stylesheet,
     style,

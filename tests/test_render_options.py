@@ -1766,15 +1766,16 @@ def test_a_pick_states_the_whole_set(browser, serve):
     ).to_have_attribute("data-lf-kinds", "ask")
 
 
-def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
+def test_a_widget_move_keeps_one_target_seat_across_revisions_until_honored(
     browser, serve
 ):
     """A widget needs no x-work declaration to acknowledge the reader's move.
 
-    The owner's existing page-edge margin entry keeps its DOM identity while durable transport
-    acceptance advances Sent to Picked up and a real claim makes it Working. Once authored
-    markup records the choice and completes the claim, the margin entry disappears; the widget
-    carries the chosen state itself.
+    Within one authored document, the owner's page-edge margin entry keeps its DOM
+    identity while durable transport acceptance advances Sent to Picked up and a real
+    claim makes it Working. A fresh revision reprojects that semantic target into its
+    new document. Once authored markup records the choice and completes the claim, the
+    margin entry disappears; the widget carries the chosen state itself.
     """
     url = serve(ASK_PAGE)
     page = open_page(browser, live_url(url))
@@ -1820,9 +1821,11 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
-    # The receipt admitted this claim without an x-work declaration. Its page-edge
-    # target margin entry is still a local seat, so an unrelated revision cannot wedge the
-    # authoring loop merely because the widget has no content or conversation seat.
+    # The receipt admitted this claim without an x-work declaration. Its semantic
+    # page-edge target remains a local seat in the fresh document, so an unrelated
+    # revision cannot wedge the authoring loop merely because the widget has no content
+    # or conversation seat. DOM identity belongs only to the authored document it came
+    # from.
     unrelated = ASK_PAGE.replace(
         '<h1 id="h">Three jobs</h1>', '<h1 id="h">Three jobs, checked</h1>'
     )
@@ -1832,7 +1835,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
         "data-lf-icon", "activity"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
-    expect(receipt).to_have_attribute("data-identity-probe", "kept")
+    assert receipt.get_attribute("data-identity-probe") is None
 
     honored = ASK_PAGE.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'

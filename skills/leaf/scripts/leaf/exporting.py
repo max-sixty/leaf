@@ -51,6 +51,12 @@ from leaf.structure import UTF8_BOM, SourceDocument, rewrite_resource_attribute
 
 ResourceReader = Callable[[str], Resource]
 
+# Export preparation is bulk work rather than an arriving signal: every fragmented
+# widget materializes the payloads it has been holding, and the page answers no probe
+# while that runs. The corpus's diff alone holds the page for most of a minute, so this
+# budget is what a large document is given to finish rather than the readiness patience.
+PREPARE_TIMEOUT_MS = 180_000
+
 
 def _file_reader(page_dir: Path) -> ResourceReader:
     def read(url: str) -> Resource:
@@ -490,7 +496,7 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
             # DOM. A standalone copy has no fragment door after scripts are removed, so
             # let any renderer that owns such payloads materialize them before baking.
             evaluate_probe(page, "prepareExport")
-            wait_for_probe(page, "exportPrepared")
+            wait_for_probe(page, "exportPrepared", timeout_ms=PREPARE_TIMEOUT_MS)
             # Materializing a live fragment can mount required descendants or overlap a
             # newer semantic publication. Re-read the coordinator immediately before
             # baking rather than treating the initial arrival latch as permanent.

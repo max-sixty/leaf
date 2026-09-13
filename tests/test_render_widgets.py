@@ -3199,6 +3199,11 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         "filter-2",
     ]
     expect(instruction).to_contain_text("region is europe, then risk above 40")
+    rows.nth(1).get_by_role("button", name="Remove filter 2").click()
+    rows.first.get_by_role("button", name="Remove filter 1").click()
+    expect(rows).to_have_count(0)
+    expect(instruction).to_contain_text("Apply no filters")
+    playground.get_by_role("button", name="Reset").click()
     rows.first.get_by_label("Value").fill("asia")
     expect(instruction).to_contain_text("region is asia, then risk above 40")
 

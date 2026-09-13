@@ -539,7 +539,10 @@
               const conditions = rows
                 .map((row) => `${row.field} ${row.operator} ${row.value}`)
                 .join(", then ");
-              return `Implement the release query in release-report.sql. Apply ${conditions}, return at most ${values.limit} releases in that order, and show the query plus its result-table test.`;
+              const filterTask = conditions
+                ? `Apply ${conditions}`
+                : "Apply no filters";
+              return `Implement the release query in release-report.sql. ${filterTask}, return at most ${values.limit} releases in that order, and show the query plus its result-table test.`;
             });
           }
 

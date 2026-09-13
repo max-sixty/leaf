@@ -9,6 +9,7 @@
 
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { runtime } from "./context.js";
+import { servedExecutable } from "./version.js";
 import { offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}
@@ -108,6 +109,11 @@ async function loadFrameDocument(frame) {
     viewport,
     meta("lf-location", "about:srcdoc"),
     meta("lf-revision", String(runtime.currentRevision)),
+    // The whole prelude, including the identity this document has as running code. The
+    // contained page never follows a revision — it takes one state reading and opens no
+    // feed — but a prelude that says what a document is has to say all of it wherever
+    // one is written, or the next reader of the contract finds two answers.
+    meta("lf-executable", servedExecutable ?? ""),
     meta("lf-version", String(runtime.currentStamp)),
     stylesheet,
     style,

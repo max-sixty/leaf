@@ -58,27 +58,40 @@ export function rememberPassageParts(scope = document, source = ["page", null]) 
       opaquePassageRoots.add(root);
       for (const child of root.children) opaquePassageParts.add(child);
     }
-  const preserving = [...scope.querySelectorAll("*")].filter(
-    (root) => registry[root.localName]?.["x-verbatim"],
-  );
-  for (const [ownerIndex, root] of preserving.entries()) {
+  for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
     if (rememberedPassageRoots.has(root)) continue;
     rememberedPassageRoots.add(root);
-    const owner = [...source, ownerIndex];
-    verbatimOwnerIdentity.set(root, owner);
-    let boundaryIndex = 0;
-    const visit = (parent) => {
-      for (const child of parent.children) {
-        if (registry[child.localName]?.["x-upgrade"]) {
-          verbatimBoundaryIdentity.set(child, {
-            owner,
-            index: boundaryIndex++,
-          });
-        } else visit(child);
-      }
-    };
-    visit(root);
+    identifyPreserving(root, [...source, ownerIndex]);
   }
+}
+
+const preservingOwners = (scope) =>
+  [...scope.querySelectorAll("*")].filter(
+    (root) => registry[root.localName]?.["x-verbatim"],
+  );
+
+function identifyPreserving(root, owner) {
+  verbatimOwnerIdentity.set(root, owner);
+  let boundaryIndex = 0;
+  const visit = (parent) => {
+    for (const child of parent.children) {
+      if (registry[child.localName]?.["x-upgrade"])
+        verbatimBoundaryIdentity.set(child, { owner, index: boundaryIndex++ });
+      else visit(child);
+    }
+  };
+  visit(root);
+}
+
+// A preserving owner with no id is identified by where it stands among the document's
+// other preserving owners, which is a fact about all of them rather than about any one.
+// A live revision that inserts or drops one therefore renumbers the rest, and leaving
+// the standing owners on the numbers they arrived with would have two of them answering
+// to the same name. Read from the document rather than from what the patch brought in,
+// for the same reason: the order is the whole document's.
+export function reindexPassageOwners(scope = document, source = ["page", null]) {
+  for (const [ownerIndex, root] of preservingOwners(scope).entries())
+    identifyPreserving(root, [...source, ownerIndex]);
 }
 
 // The one import-on-demand door: a page loads the modules its own markup uses and no

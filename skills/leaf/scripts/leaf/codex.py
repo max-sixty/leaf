@@ -769,6 +769,12 @@ class AppServerClient:
                 pending,
             )
         except RuntimeError:
+            # A refused turn/start is the provider saying the task is busy, and the
+            # notifications buffered behind the request are how that turn — someone
+            # else's — reaches the page at all. Reading them is what tells this client
+            # a turn is open, so dropping them left `events.turn_id` unset and the
+            # page's activity silent for work Codex was already doing.
+            self._read_pending(pending)
             answer.put((None, None))
             return
         self.request_id += 1
@@ -777,16 +783,19 @@ class AppServerClient:
         if not turn_id:
             raise RuntimeError("Codex App Server returned no turn id")
         if any(item.get("type") == "userMessage" for item in turn.get("items", [])):
-            for message in pending:
-                self._read(message)
+            self._read_pending(pending)
             answer.put((None, None))
             return
         accept_codex_delivery(self.thread_id, turn=turn_id)
         if target := stream_reply_target(payload):
             self._bind(turn_id, target)
+        self._read_pending(pending)
+        answer.put(({"turn": turn_id}, None))
+
+    def _read_pending(self, pending: list[dict]) -> None:
+        """Read the notifications a turn/start request held back, in arrival order."""
         for message in pending:
             self._read(message)
-        answer.put(({"turn": turn_id}, None))
 
     def _bind(self, turn_id: str, target: dict) -> None:
         self.bindings[turn_id] = AppServerReplyStream(self.thread_id, turn_id, target)

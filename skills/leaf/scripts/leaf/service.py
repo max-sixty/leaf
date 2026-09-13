@@ -37,10 +37,10 @@ from leaf.schema import (
 STREAM_ACTIVITY_RENEWAL = timedelta(minutes=5)
 
 
-def stream_reply_attempt(turn_id: str) -> str:
-    """Return the stable idempotency key for one App Server reply."""
-    digest = hashlib.sha256(turn_id.encode()).hexdigest()[:32]
-    return f"codex-{digest}"
+def delivery_reply_attempt(delivery_id: str) -> str:
+    """Return the stable idempotency key for one delivery-bound reply."""
+    digest = hashlib.sha256(delivery_id.encode()).hexdigest()[:32]
+    return f"leaf-delivery-{digest}"
 
 
 def claim_path(page_dir: Path) -> Path:
@@ -386,13 +386,14 @@ class PageTransaction:
         turn_id: str,
         reply_to: str,
         responds: str,
+        attempt: str,
         item_id: str | None,
         text: str,
         state: str,
         *,
         settles: bool = False,
     ) -> None:
-        """Replace the provisional reply owned by one App Server turn."""
+        """Replace the provisional reply owned by one delivered response."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
         standing = stream.get("reply") or {}
@@ -405,7 +406,7 @@ class PageTransaction:
         reply = {
             "session": session_id,
             "turn": turn_id,
-            "attempt": stream_reply_attempt(turn_id),
+            "attempt": attempt,
             "reply_to": reply_to,
             "responds": responds,
             "item": item_id,
@@ -416,10 +417,104 @@ class PageTransaction:
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
         }
-        if standing == reply:
+        bindings = dict(stream.get("reply_bindings") or {})
+        binding = {"session": session_id, "attempt": attempt}
+        if (
+            (standing_binding := bindings.get(responds))
+            and standing_binding.get("session") == session_id
+            and standing_binding != binding
+        ):
+            raise RuntimeError(
+                f"response {responds!r} is already bound to another delivery"
+            )
+        if standing == reply and bindings.get(responds) == binding:
             return
         stream["reply"] = reply
+        bindings[responds] = binding
+        stream["reply_bindings"] = bindings
         status["stream"] = stream
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def bind_delivery_reply(
+        self,
+        session_id: str,
+        responds: str,
+        attempt: str,
+    ) -> None:
+        """Reserve one response address before its provider can produce output."""
+        status = dict(self.status)
+        stream = dict(status.get("stream") or {})
+        bindings = dict(stream.get("reply_bindings") or {})
+        binding = {"session": session_id, "attempt": attempt}
+        if (
+            (standing := bindings.get(responds))
+            and standing.get("session") == session_id
+            and standing != binding
+        ):
+            raise RuntimeError(
+                f"response {responds!r} is already bound to another delivery"
+            )
+        if bindings.get(responds) == binding:
+            return
+        bindings[responds] = binding
+        stream["reply_bindings"] = bindings
+        status["stream"] = stream
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def set_stream_reply_state(
+        self,
+        session_id: str,
+        turn_id: str,
+        attempt: str,
+        text: str,
+        state: str,
+    ) -> bool:
+        """Finish the matching displayed draft without changing its binding."""
+        status = dict(self.status)
+        stream = dict(status.get("stream") or {})
+        reply = stream.get("reply") or {}
+        if (
+            reply.get("session") != session_id
+            or reply.get("turn") != turn_id
+            or reply.get("attempt") != attempt
+        ):
+            return False
+        finished = {
+            **reply,
+            "item": None,
+            "text": text,
+            "state": state,
+            "settles": False,
+            "updated_at": now_iso(),
+        }
+        if finished == reply:
+            return True
+        stream["reply"] = finished
+        status["stream"] = stream
+        write_json(self.page_dir / STATUS_FILE, status)
+        return True
+
+    def clear_delivery_reply_binding(
+        self,
+        session_id: str,
+        responds: str,
+        attempt: str,
+    ) -> None:
+        """Release one response address without changing its visible draft."""
+        status = dict(self.status)
+        stream = dict(status.get("stream") or {})
+        bindings = dict(stream.get("reply_bindings") or {})
+        if bindings.get(responds) != {"session": session_id, "attempt": attempt}:
+            return
+        bindings.pop(responds)
+        if bindings:
+            stream["reply_bindings"] = bindings
+        else:
+            stream.pop("reply_bindings", None)
+        if stream:
+            status["stream"] = stream
+        else:
+            status.pop("stream", None)
         write_json(self.page_dir / STATUS_FILE, status)
 
     def clear_stream_reply(self, session_id: str, turn_id: str | None = None) -> None:
@@ -432,6 +527,14 @@ class PageTransaction:
         if turn_id is not None and reply.get("turn") != turn_id:
             return
         stream.pop("reply")
+        bindings = dict(stream.get("reply_bindings") or {})
+        binding = bindings.get(reply["responds"])
+        if binding == {"session": session_id, "attempt": reply["attempt"]}:
+            bindings.pop(reply["responds"])
+        if bindings:
+            stream["reply_bindings"] = bindings
+        else:
+            stream.pop("reply_bindings", None)
         if stream:
             status["stream"] = stream
         else:

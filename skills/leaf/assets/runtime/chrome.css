@@ -1740,7 +1740,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     scroll-padding-block: var(--here-ring-room); }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
-  .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
+  /* The conversation's first message opens directly under the subject it belongs to.
+     A thread carrying its settlement action puts a `.lf-thread-head` in the first
+     child slot, so the opening message is addressed by type rather than position. */
+  .lf-margin-thread .lf-conversation-msg:first-of-type { margin-top: 0; }
   /* The reply surround shares the conversation's opaque surface, including its focus
      tint, so pinning the reply cannot introduce a separate background band. */
   :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }

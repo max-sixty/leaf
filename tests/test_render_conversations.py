@@ -78,7 +78,7 @@ def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, re
     )
     assert lease
     request.addfinalizer(lease.close)
-    attempt = service_model.stream_reply_attempt("leaf-turn")
+    attempt = service_model.delivery_reply_attempt("delivery-1")
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.set_status("waiting", "Reader feedback")
         transaction.set_stream_reply(
@@ -86,6 +86,7 @@ def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, re
             "leaf-turn",
             root,
             root,
+            attempt,
             None,
             "",
             "active",
@@ -441,6 +442,7 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     round_trip(page)
     expect(second_reply).to_be_focused()
 
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     page.locator(".lf-find-box").fill("first thread")
     first_card.focus()

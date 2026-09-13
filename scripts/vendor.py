@@ -52,14 +52,14 @@ def package_vendor(package: str) -> Path:
 # payload, so it moves when a bundle needs it rather than on every release.
 PINS = {
     "highlight.js": "11.12.0",
-    "marked": "18.0.11",
+    "marked": "18.0.13",
     "diff": "9.0.0",
     "beautiful-mermaid": "1.1.3",
     "elkjs": "0.11.1",
     "entities": "7.0.1",
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
-    "@pierre/diffs": "1.4.1",
+    "@pierre/diffs": "1.4.2",
     "@modelcontextprotocol/ext-apps": "2.0.0",
     "@floating-ui/dom": "1.8.0",
     "@floating-ui/core": "1.8.0",

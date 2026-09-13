@@ -96,6 +96,8 @@ A page directory holds:
                          rendered in its conversation while text arrives. A failed or
                          disconnected draft remains visible in that state; a successful
                          commit clears it after the canonical reply event is appended.
+                         `reply_bindings` keeps each response's session and attempt
+                         independent of that one display slot until it commits or fails.
                          Delivery pickup
                          never writes this file; its queued/opened phase, session,
                          and turn are page-owned evidence in events.jsonl

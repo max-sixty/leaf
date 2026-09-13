@@ -1498,7 +1498,8 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert state_result.exit_code == 0, state_result.output
     state = json.loads(state_result.output)
     assert all(
-        set(thread) == {"id", "anchor", "resolved"} for thread in state["conversations"]
+        set(thread) == {"id", "anchor", "detached_from", "resolved"}
+        for thread in state["conversations"]
     )
     expected = {
         root["id"]: [root["id"], revisions[0]["id"], revisions[1]["id"]],

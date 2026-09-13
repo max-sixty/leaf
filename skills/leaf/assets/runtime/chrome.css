@@ -1598,11 +1598,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar .lf-composer-media { display: flex; gap: 6px; flex: none;
     max-width: 148px; padding: 0; overflow-x: auto; }
   .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
-  .lf-suggest-label { font-size: var(--t-6); letter-spacing: .05em; text-transform: uppercase; color: var(--ok-ink); margin: 4px 0 2px; }
+  .lf-suggest-label { color: var(--muted-2); }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
-  .lf-msg-body.lf-suggest-body { background: var(--add-tint); padding: 4px 8px;
-    border-radius: 6px; white-space: pre-wrap; }
+  .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
   .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .lf-command-reference { position: fixed; z-index: 9300; top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: min(520px, calc(100vw - 32px - var(--lf-safe-left) - var(--lf-safe-right)));
@@ -1698,10 +1697,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
     line-height: 1.35; }
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-title {
+    padding-inline-end: 0; }
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(.lf-margin-preview-nav[hidden])
+      .lf-margin-preview-title {
     padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px); }
   .lf-margin-preview-close { flex: none; }
-  .lf-margin-preview-nav { display: flex; align-items: center; justify-content: flex-end;
-    gap: 4px; margin-top: 5px; color: var(--muted-2); font-size: var(--t-6); }
+  .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
+    gap: 4px; margin-inline-end: calc(max(28px, var(--aim-floor)) + 4px);
+    color: var(--muted-2); font-size: var(--t-6); }
   .lf-margin-preview-nav[hidden] { display: none; }
   .lf-margin-preview-position { margin-inline-end: 2px; }
   .lf-margin-preview-step { --lf-icon-action-hit: 28px; border: 0;

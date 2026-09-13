@@ -201,7 +201,7 @@ same completed text through the canonical reply writer, even if its turn closes 
 next turn opens first. Each reply in a multi-response delivery uses the private
 capability-authenticated `$LEAF_REPLY` adapter already running in the container. Both
 routes retain source validation and publication; `$LEAF` remains the interface for
-delivery reads, resolves, and receipts.
+delivery claims and reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 The bound final-answer message, an explicit `leaf reply`, a page revision closed with
 `leaf resolve`, or a `leaf receipt` settles accepted input.

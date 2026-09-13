@@ -189,6 +189,7 @@ def _base_state(
             {
                 "id": root,
                 "anchor": thread["anchor"],
+                "detached_from": thread["detached_from"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
             for root, thread in threads.items()

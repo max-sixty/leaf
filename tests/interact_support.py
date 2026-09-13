@@ -294,13 +294,16 @@ def stage_fixture_source(d, version, *, reset_unstamped=False):
     """
     events = events_model.read_events(d)
     revisions = files_model.list_revisions(d)
+    referenced = {event["revision"] for event in events if "revision" in event}
     unstamped = not any(event["kind"] == "note" for event in events)
     if unstamped and reset_unstamped:
         for revision in revisions:
-            files_model.revision_path(d, revision).unlink()
+            if revision not in referenced:
+                files_model.revision_path(d, revision).unlink()
     elif (
         unstamped
         and revisions == [1]
+        and 1 not in referenced
         and files_model.revision_path(d, 1).read_bytes() == PAGE.encode()
     ):
         files_model.revision_path(d, 1).unlink()

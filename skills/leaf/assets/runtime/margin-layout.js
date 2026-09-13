@@ -16,6 +16,11 @@
    while its rendered descendants remain usable, and a collapsed target has no rendered
    part to offer.
 
+   Rows may name a lane. Collision packing is independent within each lane, so two
+   side-by-side reading regions align annotations with their own passages instead of
+   displacing one another; the unnamed lane remains the page rail and alone negotiates
+   with wide page content.
+
    Every live page may grow a page-edge margin entry — an anchored comment can arrive on one
    made entirely of prose — so the margin projection reserves the rail as it is built and
    never gives it back. The runtime states that reservation as `data-lf-rail` on the root,
@@ -350,10 +355,16 @@ export function layoutMarginRows() {
       row,
       rect: row.getBoundingClientRect(),
       priority: rows.get(row)?.priority ?? 0,
+      lane:
+        typeof rows.get(row)?.lane === "function"
+          ? rows.get(row).lane(row)
+          : (rows.get(row)?.lane ?? null),
     }))
     .sort((a, b) => a.priority - b.priority || a.rect.top - b.rect.top);
-  const bands = [];
-  for (const { row, rect } of placed) {
+  const bandsByLane = new Map();
+  for (const { row, rect, lane } of placed) {
+    const bands = bandsByLane.get(lane) ?? [];
+    bandsByLane.set(lane, bands);
     let top = rect.top;
     for (const band of [...bands].sort((a, b) => a.top - b.top))
       if (top < band.bottom + GAP && top + rect.height > band.top - GAP)
@@ -363,6 +374,7 @@ export function layoutMarginRows() {
     bands.push({ top, bottom: top + rect.height });
   }
 
+  const bands = bandsByLane.get(null) ?? [];
   const wide = [...document.querySelectorAll("[data-lf-space]")].map((el) => {
     const box = el.getBoundingClientRect();
     return {

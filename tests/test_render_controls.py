@@ -3155,7 +3155,12 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
         }"""
     )
     assert take_browser_errors(page) == [
-        "leaf: Presentation failed: presentation and fail-soft failed"
+        (
+            "leaf: Presentation failed: presentation and fail-soft failed: "
+            "Leaves presentation and retention failed: deliberate leaves failure; "
+            "deliberate leaves failure; Leaves presentation and retention failed: "
+            "deliberate leaves failure; deliberate leaves failure"
+        )
     ]
 
     # A later complete reading replaces the failed ticket and opens readiness again.

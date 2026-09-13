@@ -329,6 +329,36 @@ test("a failed presentation reports once, installs fail-soft proof, and settles"
   });
 });
 
+test("a failed presentation and fail-soft report both failures", async () => {
+  const { coordinator, failures } = setup();
+  const document = {};
+  const publication = coordinator.begin(document, 0);
+  const handle = coordinator.attach("widget", {});
+  const rendering = new AggregateError(
+    [new Error("widget named its failure")],
+    "widget presentation failed",
+  );
+  const retaining = new Error("committed view could not be restored");
+  const presentation = handle.present("value", Promise.reject(rendering), () => {
+    throw retaining;
+  });
+  coordinator.seal(publication);
+  await assert.rejects(presentation, (error) => {
+    assert.equal(error, failures[0]);
+    return true;
+  });
+
+  assert.equal(failures.length, 1);
+  assert(failures[0] instanceof AggregateError);
+  assert.deepEqual(failures[0].errors, [rendering, retaining]);
+  assert.equal(
+    failures[0].message,
+    "presentation and fail-soft failed: widget presentation failed: " +
+      "widget named its failure; committed view could not be restored",
+  );
+  assert.deepEqual(coordinator.read().pending, ["widget"]);
+});
+
 test("an unhandled presentation failure keeps its region pending", async () => {
   const { coordinator, failures } = setup();
   const document = {};

@@ -1262,7 +1262,14 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
           return readApplicationPresentation().pending.includes('conversation');
         }"""
     )
-    expected = ["leaf: Presentation failed: presentation and fail-soft failed"]
+    expected = [
+        (
+            "leaf: Presentation failed: presentation and fail-soft failed: "
+            "Thread list presentation and retention failed: "
+            "deliberate narrowing failure; Thread list presentation and retention "
+            "failed: deliberate narrowing failure"
+        )
+    ]
     assert take_browser_errors(page) == expected
 
     page.get_by_role("searchbox", name="Find in threads").fill("")
@@ -1316,7 +1323,14 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
           return readApplicationPresentation().pending.includes('conversation');
         }"""
     )
-    expected = ["leaf: Presentation failed: presentation and fail-soft failed"]
+    expected = [
+        (
+            "leaf: Presentation failed: presentation and fail-soft failed: "
+            "Thread list presentation retry failed: deliberate reveal failure; "
+            "deliberate reveal failure; Thread list presentation retry failed: "
+            "deliberate reveal failure; deliberate reveal failure"
+        )
+    ]
     assert take_browser_errors(page) == expected
 
     routes = {route.request.post_data_json["kind"]: route for route in held}

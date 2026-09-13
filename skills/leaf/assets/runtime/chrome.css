@@ -797,11 +797,30 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     cursor: pointer; }
   .lf-preview:hover { color: var(--ink); }
   .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  /* One stable line at every width; the title exposes the complete sentence. */
-  .lf-status-text { color: var(--ink-2); min-width: 0; overflow: hidden;
+  /* The quiet summary is a native disclosure; complete activity wording remains
+     reachable by keyboard and touch without consuming the reading row. */
+  .lf-status-button { display: flex; align-items: center; gap: var(--lf-banner-gap);
+    min-width: 0; width: 100%; max-width: 100%; min-height: var(--aim-floor); padding: 2px 0;
+    border: 0; border-radius: 4px; background: none; color: var(--ink-2);
+    font: inherit; text-align: left; cursor: pointer; anchor-name: --lf-status; }
+  .lf-status-button[hidden] { display: none; }
+  .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
+    border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
+    transform: rotate(45deg); margin: -3px 3px 0 0; }
+  .lf-status-button:hover { color: var(--ink); }
+  .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+    outline-offset: 2px; --lf-here-ring: status; }
+  .lf-status-text { color: inherit; min-width: 0; overflow: hidden;
     display: block; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
-  .lf-status-text .lf-age { color: var(--muted); }
-  /* The website invitation truncates its copy while its install action stays reachable. */
+  .lf-status-detail { position: fixed; position-anchor: --lf-status;
+    top: calc(anchor(bottom) + 8px); left: calc(14px + var(--lf-safe-left));
+    right: auto; bottom: auto; margin: 0; width: min(420px, calc(100vw - 28px));
+    max-height: calc(100dvh - var(--lf-banner-h) - 24px); overflow: auto;
+    padding: 14px 16px; border: 1px solid var(--border-2); border-radius: var(--r);
+    background: var(--card); color: var(--ink-2); box-shadow: 0 8px 24px var(--shade);
+    white-space: normal; overflow-wrap: anywhere; }
+  .lf-status-detail:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+    outline-offset: 2px; --lf-here-ring: status-detail; }
   .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.3em; }
   .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-publication-install { flex: none; }
@@ -1099,7 +1118,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      drag that follows it. */
   .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
   .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
-  .lf-thread-panel-head, .lf-tray-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+  .lf-thread-panel-head, .lf-tray-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-weight: 600; }
   /* The words in here, against the apparatus the root has already answered for: a reply
      and the passage it is about. A quote is the page's own words and a message is
      somebody's, so a reader copying either is copying what was said rather than the
@@ -1123,27 +1142,29 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      property bounds the accident and cannot answer for the deliberate drag; a range
      whose focus has left the document is a question for whatever reads the selection
      into a quote, not for what the layer paints. */
-  :is(.lf-quote, .lf-msg-body) { user-select: text; -webkit-user-select: text; }
-  /* The narrowing row, under the head and above the list it narrows. Standing rather
-     than raised by a key or a count, for the reason every other control here stands:
-     a row that arrives at the eighth thread moves the list under the reader at the
-     moment they are reading it, and a reader who cannot see the box cannot know the
-     list in front of them is the whole of it. What it says while a narrowing stands
-     is the head's line ("Showing 3 of 24"), which is the one place a count belongs. */
-  .lf-find { display: flex; gap: 6px; align-items: center; padding: 8px 14px;
-    border-bottom: 1px solid var(--rule); }
+  :is(.lf-quote, .lf-msg-body, .lf-conversation-body) { user-select: text; -webkit-user-select: text; }
+  /* Search and filter disclosure share one toolbar. A nondefault view keeps its
+     criteria and result count visible even while the filter choices are folded. */
+  .lf-find { display: flex; gap: 8px; align-items: center; padding: 12px 16px; }
   /* type=search, so the platform's own clear control does that work: an ✕ of the
      runtime's own would be a second way to say the same thing, drawn worse. */
-  .lf-find-box { flex: 1; min-width: 0; font: inherit; font-size: var(--t-6);
-    padding: 3px 8px; border: 1px solid var(--border-2); border-radius: var(--r);
+  .lf-find-box { flex: 1; min-width: 0; font: inherit; font-size: 13px;
+    padding: 5px 8px; border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--paper); color: var(--ink); }
+  .lf-thread-filter-toggle { flex: none; color: var(--muted); font-size: 13px; }
+  .lf-thread-filter-toggle[aria-expanded="true"] { color: var(--ink); background: var(--chip); }
+  .lf-thread-view { display: flex; align-items: baseline; gap: 8px;
+    padding: 0 16px 8px; color: var(--muted); font-size: var(--t-6); }
+  .lf-thread-view-summary { flex: 1; min-width: 0; }
+  .lf-thread-filter-reset { flex: none; font-size: var(--t-6); }
   .lf-find-box:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: find-box; outline-offset: 1px; }
-  /* Lifecycle is the standing view; the optional refinements sit on the row below it.
+  /* Lifecycle and optional refinements remain grouped in the disclosed controls.
      Groups wrap as units when the conditional placement filter appears, so the panel
      never introduces a horizontal scroller. A facet with no pressed button means all
      of that facet. */
+  .lf-thread-filters[hidden], .lf-thread-view[hidden] { display: none; }
   .lf-thread-filters { display: flex; flex: none; flex-direction: column;
-    align-items: flex-start; gap: 6px; padding: 7px 14px;
+    align-items: flex-start; gap: 8px; padding: 0 16px 12px;
     border-bottom: 1px solid var(--rule); }
   .lf-thread-filter-facets { display: flex; flex-wrap: wrap; align-items: center;
     gap: 6px 10px; max-width: 100%; }
@@ -1186,7 +1207,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-threads-frame { flex: 1; min-height: 0; display: grid; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
-    --lf-list-inset: 10px; padding: var(--lf-list-inset) 14px; --lf-block-frame: 1;
+    --lf-list-inset: 4px; padding: var(--lf-list-inset) 8px; --lf-block-frame: 1;
     scroll-padding: calc(var(--lf-head-room, 0px) + var(--here-ring-room)) 0
       var(--here-ring-room); }
   /* An Escape rung lands on the list (general box → list). The list's pinned headings
@@ -1219,7 +1240,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      heading. It is the question renderThreads asks to know how much of the top is
      covered, so one class states both the mechanics and the measurement boundary. */
   .lf-pinned { position: sticky; top: calc(-1 * var(--lf-list-inset)); z-index: 2;
-    margin: 0; padding: 14px 0 7px; background: var(--card); }
+    margin: 0; padding: 12px 8px 8px; background: var(--card); }
   .lf-group { display: block; width: 100%; box-sizing: border-box; border: none;
     font: inherit; font-size: var(--t-6); font-weight: 600;
     text-align: left; color: var(--muted);
@@ -1242,7 +1263,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* One baseline separates conversations without putting boxes back around them. */
   .lf-thread, .lf-going { --lf-thread-pad: 8px; position: relative;
     border: 1px solid transparent; border-block-end-color: var(--rule);
-    padding: var(--lf-thread-pad); margin-bottom: 8px;
+    padding: var(--lf-thread-pad); margin-bottom: 16px;
     --lf-block-frame: 1; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
@@ -1278,13 +1299,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline: none;
     background: var(--here-surface);
   }
-  .lf-quote { margin: 0 0 8px; padding: 2px 8px 2px 12px;
-    border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
-    font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
+  .lf-quote { margin: 0 0 12px; padding: 2px 8px 2px 10px;
+    border-inline-start: 1px solid var(--border-2); color: var(--muted);
+    font-size: 13px; font-style: normal; cursor: pointer; overflow-wrap: anywhere; }
   /* The thread header owns its quoted target and settlement action. Its columns keep their
      complete hit boxes disjoint. */
   .lf-thread-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 8px; align-items: stretch; margin-bottom: 8px; }
+    column-gap: 12px; align-items: stretch; margin-bottom: 12px; }
   .lf-thread-head > .lf-quote { margin: 0; }
   .lf-thread-head > .lf-resolve { grid-column: 2; }
   /* The run heading already names a comment made on the heading itself, so that card
@@ -1312,14 +1333,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Out of the picture, still in the accessibility tree — see the composer's quote in
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
-  .lf-msg { margin: 8px 0; }
+  .lf-msg { margin: 16px 0; }
   .lf-msg.claude { position: relative; }
-  /* Who and when, on one line above the words: apparatus, so the row states the
-     apparatus rung once and the two differ by weight and ink rather than by size. They
-     carried 12.5px and 11.5px, a pixel apart for no reason either could give, and the
-     11.5 was --t-6 written out. */
-  .lf-msg-head { display: flex; gap: 6px; align-items: baseline; font-size: var(--t-6); }
-  .lf-msg.claude .lf-msg-head b { color: var(--accent); }
+  /* A speaker belongs to the reading hierarchy; time and delivery are supporting
+     metadata. The same sizes and rhythm dress inline conversation in theme.css. */
+  .lf-msg-head { display: flex; gap: 8px; align-items: baseline; font-size: var(--t-6); }
+  .lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
   .lf-msg time { color: var(--muted-2); }
   .lf-msg-head .lf-edited { color: var(--muted-2); }
   /* A message body is rendered Markdown, which is why this dresses a box and not a
@@ -1327,7 +1346,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      reply's lists, code, quotes and tables already read as the page's do; what is left
      is the panel's narrower column — tighter blocks, headings that don't shout at
      360px, and no margin where the body meets its own head. */
-  .lf-msg-body { margin: 2px 0 0; overflow-wrap: anywhere; }
+  .lf-msg-body { margin: 4px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
   .lf-msg-text { display: contents; }
   .lf-msg-text > :first-child { margin-top: 0; }
   .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }
@@ -1348,7 +1367,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      undressed its underline and a style alone would paint nothing there.
      paintAnchors is the one writer. */
   .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
-  .lf-compose { display: block; margin-top: 8px; }
+  .lf-compose { display: block; margin-top: 16px; }
   .lf-compose textarea { display: block; width: 100%; min-width: 0; }
   /* The foot is a column of its own so the composer and the page's reaction strip keep
      the flex-item margins they had as the panel's own children, and so the one box the
@@ -1367,7 +1386,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     --lf-here-ring: thread-action; outline-offset: 2px; }
   .lf-resolved-by { color: var(--muted); }
-  .lf-general { padding: 10px 14px; border-top: 1px solid var(--rule); }
+  .lf-general { padding: 12px 16px; border-top: 1px solid var(--rule); }
   .lf-system { color: var(--ok); margin: 8px 0; }
   /* The two floats that point at the page live in the document's coordinate space
      (absolute against the initial containing block), because what they point at does:
@@ -1688,16 +1707,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-thread] { inset: 0 auto auto 0;
     width: min(var(--lf-thread-width, var(--thread-card)), calc(100vw - 16px));
     max-height: var(--lf-thread-max-height,
-      calc(100vh - var(--lf-banner-h) - 16px)); margin: 0; }
+      calc(100vh - var(--lf-banner-h) - 16px)); margin: 0;
+    overflow: hidden; }
+  .lf-margin-preview[data-lf-thread]:popover-open { display: flex; flex-direction: column; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-head {
-    align-items: flex-start; }
+    align-items: flex-start; flex: none; }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
     line-height: 1.35; }
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-title {
-    padding-inline-end: 0; }
+    padding-inline-start: 4px; padding-inline-end: 0; }
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(.lf-margin-preview-nav[hidden])
       .lf-margin-preview-title {
     padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px); }
@@ -1711,15 +1732,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: transparent; color: var(--muted); }
   .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
     color: var(--ink); }
-  .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
+  .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 16px; }
+  /* The subject and its actions stay outside the conversation's scrollport. The
+     retained settlement action is positioned against the card, alongside Dismiss. */
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-list {
+    min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    scroll-padding-block: var(--here-ring-room); }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
   /* The reply surround shares the conversation's opaque surface, including its focus
      tint, so pinning the reply cannot introduce a separate background band. */
   :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }
-  .lf-margin-thread .lf-say { align-items: stretch; background: inherit; }
-  .lf-margin-thread .lf-say textarea { min-width: 0; }
+  .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
+    padding-top: 12px; background: inherit; }
+  .lf-margin-thread .lf-say textarea { min-width: 0;
+    max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
     position: static; }
   .lf-margin-preview[data-lf-thread] .lf-conversation-thread > .lf-thread-head {

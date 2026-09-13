@@ -796,13 +796,21 @@ export function createMarginProjection({
   function keepThreadPreviewFocusVisible() {
     const active = document.activeElement;
     if (!(active instanceof HTMLElement) || !preview.contains(active)) return;
-    const card = preview.getBoundingClientRect();
+    // A conversation root is a reading destination, not a control that must fit
+    // whole. Its header stays outside this scrollport, as does settlement.
+    if (
+      active.matches(".lf-conversation-thread") ||
+      active.closest(".lf-thread-head") ||
+      !previewList.contains(active)
+    )
+      return;
+    const card = previewList.getBoundingClientRect();
     const activeBox = active.getBoundingClientRect();
     const inset = 12;
     if (activeBox.bottom > card.bottom - inset)
-      preview.scrollTop += activeBox.bottom - card.bottom + inset;
+      previewList.scrollTop += activeBox.bottom - card.bottom + inset;
     else if (activeBox.top < card.top + inset)
-      preview.scrollTop -= card.top + inset - activeBox.top;
+      previewList.scrollTop -= card.top + inset - activeBox.top;
   }
   function deferThreadPreviewFocus(positioned, focus) {
     const pending = { key: previewEntry?.key, holding: document.activeElement };
@@ -946,6 +954,21 @@ export function createMarginProjection({
                   "--lf-thread-max-height",
                   `${Math.max(0, beside ? boundary.height : availableHeight)}px`,
                 );
+                // The reply scrolls internally once it fills the conversation's
+                // remaining room. A viewport-only cap can put its first line and
+                // Send on opposite sides of the transcript's clipping boundary.
+                for (const input of previewList.querySelectorAll(".lf-say textarea")) {
+                  const row = input.closest(".lf-say");
+                  const thread = row.closest(".lf-conversation-thread");
+                  const style = getComputedStyle(thread);
+                  const furniture = row.offsetHeight - input.offsetHeight;
+                  const inset =
+                    parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+                  input.style.setProperty(
+                    "--lf-thread-editor-room",
+                    `${Math.max(40, previewList.clientHeight - furniture - inset)}px`,
+                  );
+                }
               },
             }),
             shift({
@@ -2475,6 +2498,7 @@ export function createMarginProjection({
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
+    if (previewThreadItem !== (selected?.id ?? null)) previewList.scrollTop = 0;
     previewThreadItem = selected?.id ?? null;
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
     // A target with a heading is named by it. One without — an aside, a paragraph —

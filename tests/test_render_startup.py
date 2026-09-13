@@ -225,6 +225,7 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
             "this private copy. Install Leaf"
         )
         expect(status.locator("a")).to_have_attribute("href", "/#install")
+        expect(status).to_have_attribute("title", status.text_content())
         expect(page.locator(".lf-banner .lf-dot")).to_have_class(
             re.compile(r"^lf-dot\s*$")
         )
@@ -265,7 +266,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     try:
         page.goto(url, wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator(".lf-banner .lf-status-text")).not_to_contain_text(
+        expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
             "239383829012"
         )
         reference = page.locator(".lf-session-reference")
@@ -307,7 +308,9 @@ def test_a_website_session_reference_survives_a_failed_first_read(
     )
     try:
         page.goto(url, wait_until="load")
-        expect(page.locator(".lf-banner .lf-status-text")).to_contain_text(status_words)
+        expect(page.locator(".lf-banner .lf-status-detail")).to_contain_text(
+            status_words
+        )
         page.get_by_role("button", name="More page controls", exact=True).click()
         expect(page.locator(".lf-session-reference")).to_have_text(
             "Session 239383829012"
@@ -1382,12 +1385,14 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         controls = gallery.locator(".interaction-controls")
         expect(controls).to_have_count(1)
         expect(controls).to_be_visible()
-        expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
+        expect(page.locator(".lf-status-detail")).to_have_text(
+            re.compile(r"^Connecting")
+        )
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(controls).to_be_visible()
-        expect(page.locator(".lf-status-text")).not_to_have_text(
+        expect(page.locator(".lf-status-detail")).not_to_have_text(
             re.compile(r"^Connecting")
         )
         assert errors == []
@@ -1413,7 +1418,9 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
         expect(playground.locator(".lf-playground-actions")).to_be_visible()
         submit = playground.get_by_role("button", name="Create notification")
         expect(submit).to_be_disabled()
-        expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
+        expect(page.locator(".lf-status-detail")).to_have_text(
+            re.compile(r"^Connecting")
+        )
 
         playground.get_by_role("button", name="Needs attention").click()
         compact = playground.locator("input[aria-label='Compact spacing']")
@@ -1424,7 +1431,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
         page.wait_for_function(BOTH_STAMPS)
         expect(submit).to_be_enabled()
         expect(compact).to_be_checked()
-        expect(page.locator(".lf-status-text")).not_to_have_text(
+        expect(page.locator(".lf-status-detail")).not_to_have_text(
             re.compile(r"^Connecting")
         )
         assert errors == []
@@ -1591,7 +1598,7 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
             " && document.body.dataset.lfPresented === '1'"
         )
         expect(page.locator("main")).to_be_visible()
-        expect(page.locator(".lf-status-text")).to_have_text(
+        expect(page.locator(".lf-status-detail")).to_have_text(
             "Server offline — reconnecting. Keep this page open so pending changes can send."
         )
         assert page.locator("body").get_attribute("data-lf-applied") is None
@@ -1627,7 +1634,7 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
             predicate=lambda message: "page failed to start" in message.text
         ):
             page.goto(url, wait_until="load")
-        expect(page.locator(".lf-status-text")).to_contain_text("reload")
+        expect(page.locator(".lf-status-detail")).to_contain_text("reload")
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
         assert (
@@ -1690,7 +1697,9 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve
         assert held, "the first state read completed before the visual was malformed"
         held.pop(0).continue_()
 
-        expect(page.locator(".lf-status-text")).to_contain_text("reload", timeout=5000)
+        expect(page.locator(".lf-status-detail")).to_contain_text(
+            "reload", timeout=5000
+        )
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator(".lf-visual-actions")).to_have_count(0)
         assert page.evaluate("() => window.__lfVisualActionInsertions") == []
@@ -1729,7 +1738,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         ):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(page.locator(".lf-status-text")).to_have_text(
+        expect(page.locator(".lf-status-detail")).to_have_text(
             "Page couldn't apply current state — reload"
         )
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
@@ -1948,7 +1957,7 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
     # A poll has run once the status text resolves, so the origin pass has too.
     page.wait_for_function(
-        "() => !document.querySelector('.lf-status-text').textContent.startsWith('Connecting')"
+        "() => !document.querySelector('.lf-status-detail').textContent.startsWith('Connecting')"
     )
     expect(page.locator("[data-lf-reader-override]")).to_have_count(0)
 
@@ -2678,7 +2687,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     """
     page, errors = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
-    text = page.locator(".lf-status-text")
+    text = page.locator(".lf-status-detail")
 
     def declare(detail):
         files_model.write_json(
@@ -2741,7 +2750,7 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
     page.add_init_script(delay_state_body_past_deadline)
     try:
         page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-        expect(page.locator(".lf-status-text")).to_contain_text(
+        expect(page.locator(".lf-status-detail")).to_contain_text(
             "Server offline — reconnecting"
         )
         assert errors == []
@@ -2832,7 +2841,7 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
     try:
         page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
         expect(page.locator("body[data-lf-presented]")).to_have_count(1)
-        expect(page.locator(".lf-status-text")).to_contain_text(
+        expect(page.locator(".lf-status-detail")).to_contain_text(
             "Server offline — reconnecting"
         )
         assert page.evaluate("() => window.__leafPresentationWait") >= 10_000
@@ -2847,7 +2856,7 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
 
         held[0].fulfill(json=held[0].fetch().json())
         told(page)
-        expect(page.locator(".lf-status-text")).not_to_contain_text(
+        expect(page.locator(".lf-status-detail")).not_to_contain_text(
             "Server offline — reconnecting"
         )
         assert errors == []
@@ -2874,7 +2883,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     )
     page.route("**/api/state*", lambda route: route.fulfill(status=503, body=""))
     nudge(serve.page_dir)
-    expect(page.locator(".lf-status-text")).to_contain_text(
+    expect(page.locator(".lf-status-detail")).to_contain_text(
         "Server offline — reconnecting"
     )
     page.wait_for_function("() => window.probePaints >= 2")
@@ -2883,7 +2892,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     with page.expect_request("**/api/state*", timeout=3000):
         nudge(serve.page_dir)
     told(page)
-    expect(page.locator(".lf-status-text")).not_to_contain_text(
+    expect(page.locator(".lf-status-detail")).not_to_contain_text(
         "Server offline — reconnecting"
     )
     assert errors and all("503" in error for error in errors), errors
@@ -2906,13 +2915,13 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
         )
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
     page.unroute("**/api/state*")
     told(page)
     expect(page.locator(".lf-thread", has_text="Missed.")).to_have_count(1)
-    expect(page.locator(".lf-status-text")).not_to_have_text(
+    expect(page.locator(".lf-status-detail")).not_to_have_text(
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
     assert errors == []
@@ -2928,7 +2937,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
-    status = page.locator(".lf-status-text")
+    status = page.locator(".lf-status-detail")
     port = serve.httpd.server_address[1]
     serve.httpd.shutdown()
     serve.httpd.server_close()
@@ -3018,7 +3027,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     d = serve.page_dir
     # The banner's own dot: the leaves panel mirrors this page as a row, so a
     # bare .lf-dot resolves to that row's copy too.
-    text, dot = page.locator(".lf-status-text"), page.locator(".lf-banner .lf-dot")
+    text, dot = page.locator(".lf-status-detail"), page.locator(".lf-banner .lf-dot")
+    summary = page.locator(".lf-status-text")
     UNHELD = (
         "No session holds this page. 1 update is saved."
         " It picks up again when a session does."
@@ -3066,6 +3076,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         told(page)
 
     declare("working", "revising the plan")
+    expect(summary).to_have_text("Claude working")
     expect(text).to_have_text(
         re.compile(r"^Claude is working — revising the plan \(.+\)$")
     )
@@ -3108,6 +3119,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         )
         expect(dot).to_have_class(re.compile(r"\blistening\b"))
 
+        expect(summary).to_have_text("Claude listening · 1 saved")
+
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into one. This read "Claude awaits — select text to
         # comment" once, which invited the reader to start something on a page already
@@ -3120,6 +3133,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             "Claude last checked in 20m ago: revising the plan. 1 update is saved."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
+
+        expect(summary).to_have_text("Claude last checked in 20m ago")
 
         # And with no detail it is the bare silence, which is the same sentence with
         # nothing to say after the colon rather than a second wording for it.
@@ -3139,6 +3154,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             " 1 update is saved."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
+
+        expect(summary).to_have_text("Claude’s turn ended 5m ago")
 
         # The agent's own last word about the work and the ending of the turn that
         # wrote it land in the same second, which is what an ordinary turn looks like:
@@ -3172,7 +3189,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             "1 update is saved. Claude is listening — pick a storage engine."
         )
-        expect(text).to_have_attribute(
+        expect(page.locator(".lf-status-button")).to_have_attribute(
             "title", "1 update is saved. Claude is listening — pick a storage engine."
         )
 
@@ -3182,6 +3199,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         "Claude isn't watching right now. 1 update is saved."
         " It picks them up next turn."
     )
+
+    expect(summary).to_have_text("Claude away · 1 saved")
 
     # With nobody listening the same ending carries the remedy, because the reader's
     # next word has nowhere to land until a session picks the page up again.
@@ -3201,6 +3220,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # claim it left has nothing behind it however lately it was written.
     declare("working", "running the migration", session_pid=dead_pid)
     expect(text).to_have_text(UNHELD)
+    expect(summary).to_have_text("No session · 1 saved")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's reading arrangement rather than something for the user to chase.
     expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
@@ -3235,7 +3255,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     disagree with itself, while the reader's machine is not the page's to correct."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
-    text = page.locator(".lf-status-text")
+    text = page.locator(".lf-status-detail")
     dot = page.locator(".lf-banner .lf-dot")
 
     def claim(detail):
@@ -3334,7 +3354,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(other_receipt).to_contain_text("✓ Sent")
-    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Claude is handling 1 update"
+    )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
         "Handling updates · 1 update waiting"
     )
@@ -3345,7 +3367,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
     expect(held_receipt).to_contain_text("✓ Picked up")
-    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Claude is handling 1 update"
+    )
 
     with service_model.PageTransaction(d) as transaction:
         transaction.close_turn("s")
@@ -3355,7 +3379,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up 1 update, but that turn ended. 2 updates are saved."
     )
     with service_model.PageTransaction(d) as transaction:
@@ -3420,7 +3444,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # A later claim about the page as a whole is not an answer to the thread, so the
     # line stands: the two seats are one claim, and only one of them has been rewritten.
     status("working", "drafting v2")
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — drafting v2")
     )
     expect(held_receipt).to_have_count(1)
@@ -3481,7 +3505,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(receipts).to_have_count(2)
     record_claim(d, id="s", pid=dead_pid)
     told(page)
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
     expect(claim_receipt).to_have_count(0)
@@ -3512,12 +3536,16 @@ def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve)
     page.keyboard.press("c")
     receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
     expect(receipt).to_contain_text("✓ Picked up")
-    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Claude is handling 1 update"
+    )
 
     session_model.cmd_status(page_dir, "waiting", "review the gallery")
     told(page)
     expect(receipt).to_contain_text("✓ Picked up")
-    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Claude is handling 1 update"
+    )
     assert errors == []
 
 
@@ -3701,7 +3729,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     claim(quiet_ts)
     # The page's own line is as fresh as it was, which is the whole case: this is two
     # delegates diverging, not a page that has gone quiet all over.
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
     expect(visible_work_line).to_have_text(
@@ -3738,7 +3766,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
             timespec="seconds"
         )
     )
-    expect(page.locator(".lf-status-text")).to_have_text(
+    expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
     expect(visible_work_line).to_have_text(

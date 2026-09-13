@@ -5,6 +5,10 @@
    combination "waiting on you and resolved". The conditional placement chip appears
    only when this page has a detached anchored thread to find.
 
+   The panel title stays fixed. The search row discloses the controls; a narrowed
+   view states its result and active facets even while those controls are closed.
+   Reset clears every facet and the search together.
+
    These are the panel's own view. The page's marks, inline conversation seats and
    banner counts keep reading the whole log. No narrowing is stored: returning to a
    page should not silently hide conversation. Cards remain in the document while
@@ -17,7 +21,10 @@ import {
   filterControls,
   findInput,
   goneBtn,
-  panelTitle,
+  filterToggle,
+  resetFilters,
+  viewSummary,
+  viewRow,
   scopeButtons,
   stateButtons,
   subjectButtons,
@@ -106,12 +113,23 @@ const setButton = (button, selected, amount) => {
 // on "Page" would promise threads the selected Open/Resolved state then hid.
 export function paintNarrowing(threads, shown, groups = new Map()) {
   const rows = entries(threads, groups);
-  const baseline =
-    state === "resolved"
-      ? threads.length
-      : threads.filter((thread) => !thread.resolved).length;
-  panelTitle.textContent =
-    narrowed() && baseline ? `Showing ${shown.length} of ${baseline}` : "Threads";
+  const baseline = threads.filter((thread) =>
+    state === "resolved" ? thread.resolved : !thread.resolved,
+  ).length;
+  const lifecycle = state === "resolved" ? "resolved" : "open";
+  const amount =
+    shown.length === baseline ? `${shown.length}` : `${shown.length} of ${baseline}`;
+  const facets = [
+    `${amount} ${lifecycle} ${baseline === 1 ? "thread" : "threads"}`,
+    state === "reader" || state === "agent"
+      ? stateButtons[state].dataset.filterLabel
+      : null,
+    scope ? scopeButtons[scope].dataset.filterLabel : null,
+    subject ? subjectButtons[subject].dataset.filterLabel : null,
+    onlyGone ? goneBtn.dataset.filterLabel : null,
+  ].filter(Boolean);
+  viewSummary.textContent = facets.join(" · ");
+  viewRow.hidden = !narrowed();
 
   for (const [value, button] of Object.entries(stateButtons)) {
     const amount = count(
@@ -189,6 +207,15 @@ const choose = (kind, value, refreshNarrowing) => {
 };
 
 export function wireNarrowing(refreshNarrowing) {
+  filterToggle.onclick = () => {
+    filterControls.hidden = !filterControls.hidden;
+    filterToggle.setAttribute("aria-expanded", String(!filterControls.hidden));
+  };
+  resetFilters.onclick = () => {
+    // Reset retires its own control; keep the reader at the surviving disclosure.
+    if (document.activeElement === resetFilters) filterToggle.focus();
+    widen(refreshNarrowing);
+  };
   findInput.addEventListener("input", () => {
     finding = findInput.value.trim().toLowerCase();
     renarrow(refreshNarrowing);

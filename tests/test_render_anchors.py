@@ -5023,10 +5023,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
         ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) > .lf-receipt")
-        expect(active).to_contain_text("● Active — checking the inline placement")
+        expect(active).to_contain_text("● Working — checking the inline placement")
         expect(sent).to_contain_text("✓ Sent")
         expect(view.locator(":scope > .lf-receipt")).to_have_count(0)
-        expect(view).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+        expect(view).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
         assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     strip = thread.locator(

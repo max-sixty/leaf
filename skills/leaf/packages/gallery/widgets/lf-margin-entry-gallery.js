@@ -1,5 +1,5 @@
 /* A developer exhibit of the complete margin-entry face and its projection.
- * It uses the public marginEntry, count, selection, ownership, and contribution helpers
+ * It uses the public marginEntry, count, selection, agent-workflow, and contribution helpers
  * rather than reproducing anatomy or paint. The package owns only the comparison grid,
  * the words naming each cell, and one local disclosure that makes the compact margin
  * control and its full Page Map row directly exercisable. */
@@ -9,7 +9,7 @@ import {
   offer,
   registerMarginContribution,
   relabel,
-  syncMarginAgentPhase,
+  syncMarginAgentWorkflow,
   syncMarginEntryCount,
   syncMarginEntrySelection,
 } from "/runtime/widget-api.js";
@@ -17,7 +17,7 @@ import {
 const GROUPS = [
   {
     heading: "Rank and behavior",
-    summary: "Every rank · action, disclosure, status · every tone",
+    summary: "Every action and disclosure rank · every tone",
     specimens: [
       {
         name: "Save",
@@ -67,13 +67,70 @@ const GROUPS = [
         tone: "neutral",
         rank: "overflow",
       },
+    ],
+  },
+  {
+    heading: "Agent workflow",
+    summary: "Awaiting agent · picked up · working · awaiting continuation",
+    specimens: [
       {
         name: "Sent",
-        detail: "reading · neutral status",
+        detail: "recorded · awaiting agent",
         icon: "sent",
         behavior: "status",
-        tone: "neutral",
         rank: "reading",
+      },
+      {
+        name: "Waiting for pickup",
+        detail: "unaccepted after the grace period",
+        icon: "waiting",
+        behavior: "status",
+        rank: "reading",
+      },
+      {
+        name: "Queued",
+        detail: "accepted for a later turn",
+        icon: "pickup",
+        behavior: "status",
+        rank: "reading",
+      },
+      {
+        name: "Picked up",
+        detail: "Thread · agent turn opened",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        workflowStage: "picked_up",
+      },
+      {
+        name: "Working",
+        detail: "Thread · agent preparing it",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        workflowStage: "working",
+      },
+      {
+        name: "Was working",
+        detail: "claim quiet · awaiting continuation",
+        icon: "activity",
+        behavior: "disclosure",
+        rank: "reading",
+      },
+      {
+        name: "Picked up · turn ended",
+        detail: "unsettled · awaiting continuation",
+        icon: "waiting",
+        behavior: "status",
+        rank: "reading",
+      },
+      {
+        name: "Working · fallback",
+        detail: "no target control available",
+        icon: "activity",
+        behavior: "disclosure",
+        rank: "reading",
+        workflowStage: "working",
       },
     ],
   },
@@ -106,43 +163,6 @@ const GROUPS = [
         interactive: true,
         reveals: "Patch context revealed.",
         showLabel: true,
-      },
-    ],
-  },
-  {
-    heading: "Agent ownership",
-    summary: "Not held, picked up, working · whether the agent has the item",
-    specimens: [
-      {
-        name: "Not held",
-        detail: "Thread · neutral ring",
-        icon: "comment",
-        behavior: "disclosure",
-        rank: "reading",
-      },
-      {
-        name: "Picked up",
-        detail: "Thread · green icon",
-        icon: "comment",
-        behavior: "disclosure",
-        rank: "reading",
-        agentPhase: "picked_up",
-      },
-      {
-        name: "Working",
-        detail: "Thread · green icon and interior",
-        icon: "comment",
-        behavior: "disclosure",
-        rank: "reading",
-        agentPhase: "active",
-      },
-      {
-        name: "Activity fallback",
-        detail: "Working · no target control available",
-        icon: "activity",
-        behavior: "disclosure",
-        rank: "reading",
-        agentPhase: "active",
       },
     ],
   },
@@ -215,11 +235,11 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
       state: specimen.state ?? "idle",
     },
   );
-  if (specimen.agentPhase)
-    syncMarginAgentPhase(control, {
+  if (specimen.workflowStage)
+    syncMarginAgentWorkflow(control, {
       id: key,
       target: { kind: "widget", id: key },
-      phase: specimen.agentPhase,
+      phase: specimen.workflowStage === "working" ? "active" : specimen.workflowStage,
     });
   syncMarginEntrySelection(control, specimen.selected ?? false);
   syncMarginEntryCount(control, specimen.count ?? 1);

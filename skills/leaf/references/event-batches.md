@@ -58,7 +58,7 @@ one.
 ## Delivery and acknowledgement
 
 Run `leaf delivery claim <delivery-id>` before processing the envelope. It marks the
-first exact delivered move that remains outstanding as Active and changes nothing for
+first exact delivered move that remains outstanding as Working and changes nothing for
 a settled retry.
 
 Printing is not receipt. The wait owner acknowledges only after the complete
@@ -66,7 +66,7 @@ batch reaches its next durable consumer. In the direct loop that consumer is
 model context: direct delivery records the included events as opened in this turn.
 Start `leaf ack <page> <through_seq>` as the next background task for the page the
 batch names, and address every event while ack waits for the next batch. Use
-`delivery claim --event ... --detail ...` to move the Active receipt to another
+`delivery claim --event ... --detail ...` to move the Working receipt to another
 delivered event or make its detail more specific. If wait output is truncated or lost,
 acknowledge nothing and rerun with enough output capacity for the whole batch;
 a scalar cursor cannot represent a missing event in the middle. Acknowledgement

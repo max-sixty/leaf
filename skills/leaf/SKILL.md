@@ -9,7 +9,7 @@ allowed-tools:
 If the input is a named `leaf_delivery` tool output or a `leaf-delivery` element,
 first run `leaf delivery claim <id>`. A pointer then needs `leaf delivery read <id>`;
 the named tool output already carries the same envelope. The claim immediately marks
-the first delivered reader move that still needs work as Active; a stale delivery
+the first delivered reader move that still needs work as Working; a stale delivery
 changes nothing. Then read
 `references/event-batches.md`, the current host contract, and, for reader
 messages, `references/conversation-threads.md`. Process every batch and every

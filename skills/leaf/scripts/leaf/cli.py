@@ -264,7 +264,7 @@ def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
 
 
-@delivery.command("claim", short_help="Mark delivered reader input as Active.")
+@delivery.command("claim", short_help="Mark delivered reader input as Working.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 @click.option(
     "--event",
@@ -281,7 +281,7 @@ def delivery_claim(delivery_id: str, event_id: str | None, detail: str | None) -
     """Claim one still-outstanding reader move from DELIVERY_ID.
 
     The page and subject come from the immutable delivery. Current page state is
-    checked in the same transaction that writes the Active receipt, so a stale
+    checked in the same transaction that writes the Working receipt, so a stale
     delivery is a successful no-op rather than a claim on newer input.
     """
     from leaf.session import DELIVERY_CLAIM_DETAIL, cmd_delivery_claim

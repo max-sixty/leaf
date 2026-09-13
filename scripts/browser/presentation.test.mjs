@@ -329,6 +329,23 @@ test("a failed presentation reports once, installs fail-soft proof, and settles"
   });
 });
 
+test("an unhandled presentation failure keeps its region pending", async () => {
+  const { coordinator, failures } = setup();
+  const document = {};
+  const publication = coordinator.begin(document, 0);
+  const renderer = {};
+  const handle = coordinator.attach("document", renderer);
+  const error = new Error("document rendering failed");
+  const presentation = handle.present("value", Promise.reject(error));
+  coordinator.seal(publication);
+  await presentation;
+
+  assert.deepEqual(failures, [error]);
+  assert.equal(coordinator.read().presentedEpoch, -1);
+  assert.deepEqual(coordinator.read().pending, ["document"]);
+  assert.equal(coordinator.committed("document", renderer, "value"), null);
+});
+
 test("current readiness follows a publication opened before its continuation", async () => {
   const document = {};
   const coordinator = createPresentationCoordinator({ reportFailure: assert.fail });

@@ -349,19 +349,23 @@ export function createPresentationCoordinator<
         if (!currentTicket(ticket)) return;
         let proof: Proof | undefined;
         let reported = reason;
-        try {
-          proof = failSoft?.(reason);
-        } catch (fallbackError) {
-          reported = new AggregateError(
-            [reason, fallbackError],
-            "presentation and fail-soft failed",
-          );
+        let recovered = false;
+        if (failSoft) {
+          try {
+            proof = failSoft(reason);
+            recovered = true;
+          } catch (fallbackError) {
+            reported = new AggregateError(
+              [reason, fallbackError],
+              "presentation and fail-soft failed",
+            );
+          }
         }
-        try {
-          reportFailure(reported);
-        } finally {
-          finish(ticket, "failed", proof);
-        }
+        reportFailure(reported);
+        // A renderer that supplies fallback proof has presented an explicit failure
+        // state. Without that proof the region remains pending: declaring the page
+        // presented would expose the partial rendering that just failed.
+        if (recovered) finish(ticket, "failed", proof);
       }
     };
 

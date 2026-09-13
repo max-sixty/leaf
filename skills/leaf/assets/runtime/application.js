@@ -406,6 +406,7 @@ export function mountApplication(dependencies) {
     stateSignoff: dependencies.state.stateSignoff,
     renderOthers: dependencies.state.renderOthers,
     applyConversation,
+    renderAsks: dependencies.renderAsks,
     prepareProjection,
     presentProjection,
     accountPending,

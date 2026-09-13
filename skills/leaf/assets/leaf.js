@@ -321,6 +321,7 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   conversationAvailable: !offlineInteractive,
+  renderAsks: () => asks.syncAsks(),
   reportPageError,
   createEngagement,
   targetChooserOpen: () => targets.targetChooserOpen(),
@@ -874,7 +875,11 @@ async function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   setAnchoringReady(true);
   try {
-    app.refreshConversation();
+    await app.refreshConversation();
+    // Anchoring changes where conversation chrome is painted. That final paint is part
+    // of initial presentation too: opening interaction before it commits can expose a
+    // malformed page that the unanchored provisional pass could not yet inspect.
+    await whenApplicationPresented();
   } catch (error) {
     setAnchoringReady(false);
     throw error;

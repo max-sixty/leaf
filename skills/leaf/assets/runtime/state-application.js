@@ -27,6 +27,7 @@ export function createStateApplication({
   stateSignoff,
   renderOthers,
   applyConversation,
+  renderAsks,
   prepareProjection,
   presentProjection,
   accountPending,
@@ -132,6 +133,10 @@ export function createStateApplication({
         await applyConversation();
         presentProjection(preparedProjection);
         await applyConversation();
+        // Frozen thread markup can introduce a new Ask only after conversation
+        // presentation has mounted and captured its widgets. Present that derived
+        // inventory before recording this accepted reading on the document.
+        await renderAsks();
         await notifyDataSubscribers();
         if (runtime.reading !== null)
           document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);

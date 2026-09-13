@@ -32,10 +32,11 @@
    they do not choose another action for the reader.
 
    The thread card stays attached to its owning cluster. Leaf prefers the right then left
-   page lane before overlaying the document; Floating UI fits the card within that lane or
-   reading region. The card closes after its cluster leaves the region. It contains the
-   complete inline conversation view; the Threads panel remains the complete index and
-   takes over when already open.
+   page lane before overlaying the document; a bounded reading region may declare its
+   own local rail, and Floating UI fits the card within that region. The same cluster
+   returns to its target's flow when the region does. The card closes after its cluster
+   leaves the region. It contains the complete inline conversation view; the Threads
+   panel remains the complete index and takes over when already open.
 
    Cluster reconciliation preserves each surviving control, proxy, and count badge so a
    state refresh cannot cancel a held pointer or move focus. A print-media render is
@@ -70,15 +71,16 @@ import {
   watchMarginContributions,
 } from "./margin-entries.js";
 import { mapButton } from "./page-map-dialog.js";
-import { documentPoint, shownBox, shownParts } from "./geometry.js";
+import { documentPoint, shownBox, shownParts, shownRect } from "./geometry.js";
 import { focusDestination } from "./focus.js";
-import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { el, keeps, keepsHidden, LAYOUT, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
 import {
   containingReadingRegionFor,
+  readingPosture,
   readingRegionFor,
   shownRegionBounds,
 } from "./reading-regions.js";
@@ -827,9 +829,23 @@ export function createMarginProjection({
       return Promise.resolve(false);
     const controls =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
-    const target = controls.getBoundingClientRect();
     const readingRegion = containingReadingRegionFor(previewEntry?.target);
     const regionBounds = readingRegion && shownRegionBounds(readingRegion);
+    const controlBox = controls.getBoundingClientRect();
+    const sourceBox = readingRegion && shownRect(previewEntry.target, new Map());
+    // A local card shares horizontal room with its source. Give Floating UI the union
+    // of that source and its marker so bottom/top placement cannot cover the passage
+    // merely because the compact marker is shorter than the words it represents.
+    const target = sourceBox
+      ? new DOMRect(
+          Math.min(controlBox.left, sourceBox.left),
+          Math.min(controlBox.top, sourceBox.top),
+          Math.max(controlBox.right, sourceBox.right) -
+            Math.min(controlBox.left, sourceBox.left),
+          Math.max(controlBox.bottom, sourceBox.bottom) -
+            Math.min(controlBox.top, sourceBox.top),
+        )
+      : controlBox;
     const main = readingRegion
       ? null
       : document.querySelector("main")?.getBoundingClientRect();
@@ -1333,9 +1349,20 @@ export function createMarginProjection({
     notice(account);
   }
 
+  const marginRegionFor = (target) => {
+    const region = containingReadingRegionFor(target);
+    if (!region || readingPosture(region) !== "bounded") return null;
+    const rail = parseFloat(
+      getComputedStyle(region.body).getPropertyValue("--lf-reading-region-rail"),
+    );
+    return rail > 0 ? region : null;
+  };
+
   function markerOptions(row) {
+    const localRegion = () => marginRegionFor(row.lfEntry?.target);
     return {
       anchor: () => row.lfEntry?.target,
+      lane: () => localRegion()?.body ?? null,
       ...(row.lfEntry?.offers.length || readingRegionFor(row.lfEntry?.target)
         ? {}
         : { fallback: "hide" }),
@@ -1385,10 +1412,11 @@ export function createMarginProjection({
       },
       shown: (target) =>
         Boolean(target && shownParts(target).some((part) => part.checkVisibility())),
-      // The compact margin projection has no page rail. Dock every contributed entry even when a
-      // positioned widget happens to leave enough local room for the absolute
-      // prototype; that accident must not give one nested target a desktop posture.
-      hangs: () => !readingRegionFor(row.lfEntry?.target) && !panelWouldCover(),
+      // A bounded reading region may declare a stable local rail. In flow posture the
+      // same cluster returns beside its target, which is also the compact page behavior.
+      hangs: () =>
+        Boolean(localRegion() || !readingRegionFor(row.lfEntry?.target)) &&
+        !panelWouldCover(),
       // A wide row is hoisted into main's positioning context. If its live width no
       // longer fits the rail, move the same node beside its target before static flow
       // takes over; restore the hoist before measuring whether it fits again.
@@ -1404,7 +1432,15 @@ export function createMarginProjection({
         const target = item.lfEntry?.target;
         if (!target || item.classList.contains("lf-docked")) return;
         const place = nav.contains(item) ? measureMargin(column) : null;
-        const top = Math.max(0, shownBox(target).top - column.top);
+        const region = localRegion();
+        const owner = region?.body;
+        const ownerBox = owner?.getBoundingClientRect();
+        const top = Math.max(
+          0,
+          shownBox(target).top -
+            (ownerBox?.top ?? column.top) +
+            (owner?.scrollTop ?? 0),
+        );
         return () => {
           place?.();
           // Compare measured coordinates before CSS serialization rounds them. A
@@ -1822,6 +1858,28 @@ export function createMarginProjection({
     const main = document.querySelector("main");
     const target = host.lfEntry?.target;
     if (!main || !target || panelWouldCover()) return;
+    const localRegion = !flow && marginRegionFor(target);
+    if (localRegion) {
+      host.dataset.lfMarginRegion = localRegion.id;
+      const ordered = pageInventory
+        .filter(
+          (entry) =>
+            entry.key !== host.lfEntry.key &&
+            containingReadingRegionFor(entry.target)?.id === localRegion.id,
+        )
+        .map((entry) => hosts.get(entry.key))
+        .filter((candidate) => candidate?.parentNode === localRegion.body);
+      const before = ordered.find((candidate) =>
+        comesBefore(host.lfEntry.target, candidate.lfEntry.target),
+      );
+      if (before) {
+        if (before.previousSibling !== host) moveHost(host, () => before.before(host));
+      } else if (host.parentNode !== localRegion.body || host.nextSibling) {
+        moveHost(host, () => localRegion.body.append(host));
+      }
+      return;
+    }
+    delete host.dataset.lfMarginRegion;
     const perch = externalPerch(target, main, flow);
     let after = perch;
     for (const entry of pageInventory) {
@@ -2385,10 +2443,16 @@ export function createMarginProjection({
       const primary = syncControls(host, marker, more, options, entry);
       if (entry.offers.length || readingRegionFor(entry.target)) {
         keeps(host, "data-lf-external", "1");
-        const perch = externalPerch(entry.target, main);
-        const dock = externalDocks.get(perch) ?? perch;
-        if (dock.nextSibling !== host) moveHost(host, () => dock.after(host));
-        externalDocks.set(perch, host);
+        const readingRegion = marginRegionFor(entry.target);
+        if (readingRegion) {
+          moveExternalHost(host, false);
+        } else {
+          delete host.dataset.lfMarginRegion;
+          const perch = externalPerch(entry.target, main);
+          const dock = externalDocks.get(perch) ?? perch;
+          if (dock.nextSibling !== host) moveHost(host, () => dock.after(host));
+          externalDocks.set(perch, host);
+        }
       } else {
         delete host.dataset.lfExternal;
         if (toolbar.children[corePosition] !== host)
@@ -2945,6 +3009,7 @@ export function createMarginProjection({
       { capture: true },
     );
     watchMarginContributions(renderMargin);
+    document.addEventListener(LAYOUT, schedulePostureRender);
     document.addEventListener(
       "scroll",
       (event) => {

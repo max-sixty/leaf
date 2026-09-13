@@ -33,7 +33,6 @@ from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
-from leaf import http as http_model
 from leaf import layer as layer_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
@@ -129,17 +128,7 @@ def spawn_probe(spawn, page_dir, body, **environment):
 
 
 def pytest_configure(config):
-    """Refuse a `--basetemp` that `shipped_payload` below would sweep up.
-
-    The candidate payload is whatever git reports untracked and unignored as well
-    as what it tracks, which is the point: a file a change has written but not yet
-    added is payload a host would copy. So a basetemp inside the checkout makes
-    every fixture the run writes payload too, and the install boundary then fails
-    about a tree full of temporary pages rather than about the flag that put them
-    there. Only the flag is checked because only the flag is typed: pytest's own
-    default is a numbered directory under `$TMPDIR`. An ignored path is allowed,
-    since git's answer rather than the path's depth is what decides.
-    """
+    """Keep a nonignored basetemp out of the candidate plugin payload."""
     given = config.option.basetemp
     if given is None:
         return
@@ -160,14 +149,7 @@ def pytest_configure(config):
 
 
 def shipped_payload():
-    """Every candidate payload path in the working tree.
-
-    Git is the source of truth rather than a filesystem walk with an exclusion list:
-    cached and not-ignored untracked paths are the tree a completed change would ship,
-    while a cached path deleted by that change no longer exists. This lets an install
-    boundary test exercise additions and removals before the change is staged, without
-    sweeping in `.venv`, `__pycache__`, or another ignored build cache.
-    """
+    """Tracked and unignored candidate files a completed change would ship."""
     listed = subprocess.run(
         [
             "git",
@@ -1112,17 +1094,6 @@ def neighbour_page(directory, title=None, dead=False, published=True):
     return server_model.page_url("127.0.0.1", 59999, server_model.host_key())
 
 
-@pytest.fixture
-def wildcard_server(page_dir):
-    """The stated-host bind: a real server on "::", the network-facing socket."""
-    httpd = hosting_model.DualStackHTTPServer(
-        ("::", 0), http_model.handler_for(page_dir, TOKEN)
-    )
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{httpd.server_address[1]}"
-    httpd.shutdown()
-
-
 def _status(page_dir, *args):
     return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), *args])
 
@@ -1191,7 +1162,7 @@ def codex_program(tmp_path_factory):
 def under_codex(spawn, codex_program):
     """A command run the way Codex runs one: a session process that stays for the
     thread, and between it and the command a shell of the moment — which is what
-    a pipeline leaves there, and what the launcher's `$PPID` used to record.
+    a pipeline leaves there, and what Leaf once mistook for the session.
 
     `; exit` is what puts that shell there: a lone command is exec'd in place by
     the shell wrapping it, which is why some command shapes recorded the right
@@ -1222,21 +1193,20 @@ def under_codex(spawn, codex_program):
 @pytest.fixture
 def codex_claimed_page(tmp_path, under_codex, codex_env):
     page = tmp_path / "codex-page"
-    launcher = PLUGIN_ROOT / "bin" / "leaf"
     env = codex_env | {"CODEX_THREAD_ID": "codex-thread"}
 
     # Uncaptured, so `check=True` reports something: a CalledProcessError over
     # captured streams names the command and the exit status and takes leaf's
     # own message down with it, and nothing here reads either stream. Left to
     # pytest, the message is in the failure it belongs to.
-    subprocess.run([launcher, "page", "init", page], env=env, check=True)
+    subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
     # Under the fake codex so the service child's claim walk finds it. The chain
     # from that claim up to the codex program is therefore intact.
     # Captured because the URL is read back; the status is asserted here with
     # both streams in the message, rather than left to a CalledProcessError
     # that would take leaf's own account down with it.
     started = under_codex(
-        shlex.join([str(launcher), "server", "start", str(page)]),
+        shlex.join([*LEAF_COMMAND, "server", "start", str(page)]),
         env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -1302,9 +1272,8 @@ def managed_server(spawn):
     return start
 
 
-def start_through_the_launcher(page_dir, *flags, session_id="starter"):
-    """`server start` the way an agent runs it: from a host session, as a command
-    that returns."""
+def start_server_command(page_dir, *flags, session_id="starter"):
+    """Run `server start` from a host session and wait for the command to return."""
     return subprocess.run(
         [
             *LEAF_COMMAND,

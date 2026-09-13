@@ -222,10 +222,7 @@ def startup_note(page_dir: Path) -> str:
 
 
 class DualStackHTTPServer(LeafHTTPServer):
-    """For a bind with ":" in it. The stated-host wildcard is "::" with V6ONLY
-    off, which answers IPv4 too (as ::ffff:...), so the URL is reachable
-    whichever family the stated name resolves to; a derived IPv6 address just
-    needs the family at all."""
+    """An IPv6 server whose wildcard also accepts IPv4 connections."""
 
     address_family = socket.AF_INET6
 
@@ -235,21 +232,11 @@ class DualStackHTTPServer(LeafHTTPServer):
 
 
 def server_at(bind: str, port: int, handler) -> LeafHTTPServer:
-    """A recorded bind, opened in a family this kernel actually has.
+    """Open the recorded bind, using IPv4 for `::` when IPv6 is unavailable.
 
-    A kernel with IPv6 switched off refuses AF_INET6 at the socket constructor,
-    and the bind that asks for it is the stated-host wildcard — so `--host`, the
-    one remedy the skill offers a reader who cannot reach the derived address,
-    failed exactly where it is wanted: a headless box is where that address is
-    loopback and no browser is local. `0.0.0.0` says what `::` says, every
-    interface, in the family that is left, so the wildcard is restated rather
-    than refused. Only the wildcard is: a literal v6 address has no reading in
-    the other family, and answering it with every interface would widen the
-    exposure the recorded address chose.
-
-    The record keeps `::` either way. What a restart has to reproduce is the URL
-    an open tab is polling, and that states the host and the port; which family
-    carried it is this kernel's answer, asked again on the next serve."""
+    A literal IPv6 address still fails rather than widening to every interface.
+    The record keeps `::`; each serve chooses the family the current kernel has.
+    """
     if ":" not in bind:
         return LeafHTTPServer((bind, port), handler)
     try:

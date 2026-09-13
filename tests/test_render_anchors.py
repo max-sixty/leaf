@@ -84,6 +84,16 @@ from render_harness import (
     wait_for_revision,
 )
 
+PASSAGE_SOURCE_NAMES = {
+    "feature-gallery",
+    "pr-walkthrough",
+    "visual-review-gallery",
+}
+PASSAGE_SOURCES = tuple(
+    source for source in CORPUS_SOURCES if source.stem in PASSAGE_SOURCE_NAMES
+)
+assert {source.stem for source in PASSAGE_SOURCES} == PASSAGE_SOURCE_NAMES
+
 pytestmark = pytest.mark.nightly
 
 
@@ -125,28 +135,16 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
     )
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
-    """Anchoring has to work on the pages people actually write, not on a fixture built
-    to suit it. Every failure here has been a place where what the reader selects and
-    what the search reads come apart — an uppercased header, a widget's own chrome, the
-    stylesheet a rendered diagram carries — and a hand-built page has none of them. So
-    this drags across every pair of adjacent blocks in every source page, which is
-    the shape a real selection takes, and asks for the highlight the composer promises.
+@pytest.mark.parametrize("source", PASSAGE_SOURCES, ids=lambda p: p.stem)
+def test_real_page_passage_shapes_can_be_quoted(browser, serve, source):
+    """Representative passages in each distinct real-page shape are quotable.
 
-    The generated corpus is not another authored input: scripts/corpus.py derives a
-    tab from each source `<main>` and a separate test rejects any drift. Repeating every
-    source passage inside that composition used to be most of this sweep's runtime. Tab
-    labels and hidden-panel navigation have focused gesture tests, so the source corpus
-    retains the content variations while those tests retain the corpus's mechanism.
-
-    "Every" includes the words a widget renders into a control, which is why the filter
-    below is the runtime's own rule rather than a test for the chrome class: while it was
-    the class, the sweep that proves every passage is quotable structurally could not see
-    the passages that weren't. Across the source corpus it reaches attribute-rendered
-    headings, settled summaries, and the tab names in live-progress."""
+    Feature gallery carries native, custom, transformed, and attribute-rendered words;
+    PR walkthrough adds tables, blockquotes, and diagram output; visual review is wholly
+    data-projected. Focused tests own settlements, tabs, shadow roots, and gestures."""
     page = open_page(browser, serve(source))
     result = page.evaluate("""async () => {
+        const {TEXT_BLOCK} = await import('/runtime/passages.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
         const fab = document.querySelector('.lf-fab-input');
@@ -154,15 +152,15 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
         // the other tab — so everything is in scope, not just what the page opens on.
         document.querySelectorAll('details').forEach(d => (d.open = true));
         document.querySelectorAll('[hidden]').forEach(e => e.removeAttribute('hidden'));
-        // Declared labels are in scope, and the filter is the runtime's own rule rather
-        // than the class: a tab's name and a settled row's title are words the page says
-        // from inside chrome, which is exactly the shape a filter on .lf-ui cannot see.
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
         };
-        const blocks = [...document.querySelectorAll('p,li,h1,h2,h3,td,th,blockquote,'
-            + 'figcaption,summary,lf-option,lf-variant,lf-milestone,lf-metric,[data-lf-said]')]
+        // Native passage blocks come from the runtime. The four composite roots are
+        // representative widgets whose direct prose otherwise has no native block;
+        // data-lf-said is the runtime's marker for generated words the page still says.
+        const blocks = [...document.querySelectorAll(`${TEXT_BLOCK},lf-option,`
+            + 'lf-variant,lf-milestone,lf-metric,[data-lf-said]')]
           .filter(b => speaks(b) && b.checkVisibility()
                     && b.textContent.trim().length > 12);
         const missed = [], skipped = [], astray = [];

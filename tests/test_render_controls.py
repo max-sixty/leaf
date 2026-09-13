@@ -98,6 +98,7 @@ from render_harness import (
     select,
     sending,
     stamp_version_file,
+    take_browser_errors,
     told,
     undo,
     watched,
@@ -463,9 +464,10 @@ def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, se
         "title", "Approve this work; the page stays open for follow-up"
     )
     kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
-    assert kinds[-2:] == ["done", "undo"], (
-        f"the withdrawal is not in the log as its own event: {kinds}"
-    )
+    assert kinds[-2:] == [
+        "done",
+        "undo",
+    ], f"the withdrawal is not in the log as its own event: {kinds}"
 
     # And the press is available again, which is what makes this a correction rather than
     # a page the reader has spent.
@@ -1361,6 +1363,33 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
     expect(more).to_have_attribute("aria-expanded", "false")
 
 
+def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
+    browser, serve, other_leaf
+):
+    """The shelf moves each Lit-faced native control and hands folded focus to its door."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    answer_all = page.locator(".lf-answer-all")
+    expect(answer_all).to_be_visible()
+    page.evaluate(
+        "button => { window.__lfBulkControl = button; }", answer_all.element_handle()
+    )
+    answer_all.focus()
+
+    resized(page, 390, 900)
+    expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
+    expect(page.locator(".lf-banner-more")).to_be_focused()
+    assert answer_all.evaluate("button => button === window.__lfBulkControl")
+    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
+    page.close()
+
+
 def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, serve):
     """The dot going red is not an announcement.
 
@@ -1431,7 +1460,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     """The JS motion contract follows a live media preference, like the CSS does."""
     page = open_page(browser, serve(LONG_PAGE))
-    reading = """() => import('/runtime/motion.js').then(
+    reading = """() => window.__lfRuntimeImport('/runtime/motion.js').then(
       motion => ({reduced: motion.reducedMotion(), scroll: motion.scrollBehavior()}))"""
     assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
@@ -2060,6 +2089,31 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     expect(page.locator("#pick-a")).to_have_attribute("chosen", "")
     assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
 
+    held = []
+
+    def hold_undo(route):
+        if route.request.post_data_json["kind"] == "undo":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold_undo)
+    try:
+        page.keyboard.press("z")
+        holding(page, held, 1, "the undo that reopens the choice")
+        expect(page.locator("#pick-a")).not_to_have_attribute("chosen", "")
+        page.get_by_role("checkbox", name=re.compile(r"^choose one: B")).click()
+        expect(page.locator("#pick-b")).to_have_attribute("chosen", "")
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute("**/api/event", hold_undo)
+    round_trip(page)
+    assert [event["action"] for event in actions(serve.page_dir)] == [
+        "choose",
+        "choose",
+    ]
+
 
 def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     """The reader's own remark must not lock the control it is a remark about.
@@ -2068,11 +2122,11 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     list — the banner stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
     reader meets first: the POST door only sees a hand-posted event, while here
-    `actionAvailable` paints the control and `sendAction` guards the press, and the
-    module has already painted the answer by the time either runs. Reading the reader's
-    list at this door therefore does not refuse the press so much as swallow it — the
-    widget flips, nothing is logged, no notice fires, and the next poll puts it back with
-    nothing anywhere saying why.
+    the controller reading paints the control and its dispatcher guards the press, and
+    the module has already painted the answer by the time either runs. Reading the
+    reader's list at this door therefore does not refuse the press so much as swallow
+    it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
+    back with nothing anywhere saying why.
 
     The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
     of the default package, because the pair the split needs — a visible ask and a seat
@@ -2463,13 +2517,17 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     before, widest = page.evaluate(
         """() => { const b = document.querySelector('.lf-others');
                    const before = b.offsetWidth;
+                   const face = [...b.childNodes];
                    b.textContent = 'All leaves (999)';
-                   return [before, b.offsetWidth]; }"""
+                   const widest = b.offsetWidth;
+                   b.replaceChildren(...face);
+                   return [before, widest]; }"""
     )
     assert widest == before, (
         f"'All leaves (999)' grew the button {before}px -> {widest}px: its "
-        "reserve list no longer names the widest label renderOthers writes"
+        "reserve list no longer names the widest Leaves presentation label"
     )
+    expect(btn).to_have_text("All leaves (2)")
 
 
 def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
@@ -2719,6 +2777,111 @@ def test_a_panel_row_follows_its_pages_status_live(
     expect(row.locator(".lf-dot")).not_to_have_class(re.compile(r"\bworking\b"))
 
 
+def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
+    browser, serve, other_leaf, live_leaf
+):
+    """One held Leaves face keeps its complete prior view behind current readiness."""
+    _, other_dir = other_leaf
+    _, closing_dir = live_leaf("closing", "The closing leaf")
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    btn = page.locator(".lf-others")
+    rows = page.locator("a.lf-others-row")
+    row = rows.filter(has_text="The other leaf")
+    expect(btn).to_have_text("All leaves (3)")
+    expect(rows).to_have_count(2)
+    row.focus()
+    before = page.evaluate(
+        """async () => {
+          const face = document.querySelector('lf-leaves-banner-face');
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const schedule = face.scheduleUpdate.bind(face);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          face.scheduleUpdate = () => {
+            if (!armed) return schedule();
+            armed = false;
+            return held.then(schedule);
+          };
+          window.releaseLeavesPaint = release;
+          window.leavesRowBefore = document.activeElement;
+          window.leavesButtonBefore = document.querySelector('.lf-others');
+          window.leavesPresentation = presentation;
+          const reading = presentation.readApplicationPresentation();
+          return {
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+          };
+        }"""
+    )
+    files_model.write_json(
+        other_dir / "status.json",
+        {
+            "state": "working",
+            "detail": "recording the demo",
+            "ts": events_model.now_iso(),
+        },
+    )
+    files_model.write_json(
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    held = page.evaluate(
+        """() => {
+          window.leavesReady = false;
+          leavesPresentation.whenApplicationPresented().then(() => {
+            window.leavesReady = true;
+          });
+          const reading = leavesPresentation.readApplicationPresentation();
+          return {
+            pending: reading.pending,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+            ready: leavesReady,
+            label: leavesButtonBefore.textContent,
+            rows: document.querySelectorAll('a.lf-others-row').length,
+          };
+        }"""
+    )
+    assert held == {
+        "pending": ["leaves"],
+        "semanticEpoch": before["semanticEpoch"],
+        "presentedEpoch": before["presentedEpoch"],
+        "ready": False,
+        "label": "All leaves (3)",
+        "rows": 2,
+    }
+    page.evaluate("releaseLeavesPaint()")
+    page.wait_for_function("window.leavesReady")
+    expect(btn).to_have_text("All leaves (2)")
+    expect(rows).to_have_count(1)
+    expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
+    assert page.evaluate(
+        """() => {
+          const reading = leavesPresentation.readApplicationPresentation();
+          return {
+            sameButton: leavesButtonBefore === document.querySelector('.lf-others'),
+            sameRow: leavesRowBefore === document.querySelector('a.lf-others-row'),
+            focused: document.activeElement === leavesRowBefore,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+          };
+        }"""
+    ) == {
+        "sameButton": True,
+        "sameRow": True,
+        "focused": True,
+        "semanticEpoch": before["semanticEpoch"],
+        "presentedEpoch": before["presentedEpoch"],
+    }
+    page.close()
+
+
 def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     """A closed leaf leaves the tray on the poll that says so. Its server stays
     up — a standing one for good — so the row would otherwise stand forever and the
@@ -2734,6 +2897,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
+    rows.first.focus()
     files_model.write_json(
         other_dir / "status.json",
         {"state": "idle", "detail": "", "ts": events_model.now_iso()},
@@ -2742,6 +2906,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     expect(rows).to_have_count(0)
     expect(btn).to_have_text("All leaves (1)")
     expect(page.locator(".lf-others-self .lf-others-title")).to_have_text("long")
+    expect(page.locator(".lf-others-panel")).to_be_focused()
     # The open panel remains the modal destination after its last link leaves. Its own
     # nav is the fallback landing, and its global destination remains the same toggle as the
     # banner door even though that inert door is unavailable to a pointer.
@@ -2753,6 +2918,257 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     # stands down with it, which is the count's other half.
     told(page)
     expect(btn).not_to_be_visible()
+
+
+def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
+    browser, serve, live_leaf, one_reader
+):
+    """Keyed rows preserve a surviving link and hand a removed link to its neighbour."""
+    second_url, _ = live_leaf("second", "Middle leaf")
+    _, other_dir = live_leaf("other", "The other leaf")
+    page = open_page(browser, serve(LONG_PAGE), context=one_reader)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    rows = page.locator("a.lf-others-row")
+    expect(rows).to_have_count(2)
+    rows.nth(1).focus()
+    page.evaluate("window.focusedLeaf = document.activeElement")
+
+    live_leaf("first", "A first leaf")
+    told(page)
+    expect(rows).to_have_count(3)
+    expect(rows.nth(2).locator(".lf-others-title")).to_have_text("The other leaf")
+    assert page.evaluate(
+        "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
+    )
+
+    files_model.write_json(
+        other_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    expect(rows).to_have_count(2)
+    expect(rows.nth(1).locator(".lf-others-title")).to_have_text("Middle leaf")
+    expect(rows.nth(1)).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(1)).to_be_focused()
+    destination = rows.nth(1).get_attribute("href")
+    assert destination is not None and destination.startswith(f"{second_url}/?t=")
+    tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
+    tab.close()
+    page.close()
+
+
+def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
+    browser, serve, other_leaf
+):
+    """A time-only Leaves repaint repairs presentation at the current epoch."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    before = page.evaluate(
+        """async () => {
+          const context = await window.__lfRuntimeImport('/runtime/context.js');
+          const leaves = await window.__lfRuntimeImport('/runtime/live-leaves.js');
+          const presence = await window.__lfRuntimeImport('/runtime/presence.js');
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const state = structuredClone(context.runtime.state);
+          state.others[0].activity.kind = 'away';
+          state.others[0].activity.quiet = true;
+          state.others[0].activity.dropped = false;
+          state.others[0].activity.ts = new Date().toISOString();
+          presence.observeServerNow(new Date().toISOString());
+          await leaves.renderOthers(state);
+          const list = document.querySelector('lf-leaves-list');
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          list.scheduleUpdate = () => {
+            if (!armed) return schedule();
+            armed = false;
+            return held.then(schedule);
+          };
+          window.releaseLeavesClock = release;
+          window.leavesPresentation = presentation;
+          window.leavesPresence = presence;
+          const reading = presentation.readApplicationPresentation();
+          return {
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+          };
+        }"""
+    )
+    expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
+        "Quiet (just now)"
+    )
+    held = page.evaluate(
+        """() => {
+          leavesPresence.observeServerNow(
+            new Date(Date.now() + 60_000).toISOString()
+          );
+          window.leavesClockTick = leavesPresence.tickClock(() => {});
+          window.leavesReady = false;
+          leavesPresentation.whenApplicationPresented().then(() => {
+            window.leavesReady = true;
+          });
+          const reading = leavesPresentation.readApplicationPresentation();
+          return {
+            pending: reading.pending,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+            ready: leavesReady,
+          };
+        }"""
+    )
+    assert held == {
+        "pending": ["leaves"],
+        "semanticEpoch": before["semanticEpoch"],
+        "presentedEpoch": before["presentedEpoch"],
+        "ready": False,
+    }
+    page.evaluate("releaseLeavesClock()")
+    page.wait_for_function("window.leavesReady")
+    page.evaluate("leavesClockTick")
+    expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
+        "Quiet (1m ago)"
+    )
+    assert page.evaluate(
+        """() => {
+          const reading = leavesPresentation.readApplicationPresentation();
+          return [reading.semanticEpoch, reading.presentedEpoch];
+        }"""
+    ) == [before["semanticEpoch"], before["presentedEpoch"]]
+    page.close()
+
+
+def test_a_failed_leaves_update_keeps_the_committed_list_and_settles(
+    browser, serve, other_leaf, live_leaf
+):
+    """A failed Leaves paint reports once, restores its whole prior view, and recovers."""
+    _, other_dir = other_leaf
+    _, closing_dir = live_leaf("closing", "The closing leaf")
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    btn = page.locator(".lf-others")
+    rows = page.locator("a.lf-others-row")
+    line = rows.filter(has_text="The other leaf").locator(".lf-others-line")
+    expect(btn).to_have_text("All leaves (3)")
+    expect(rows).to_have_count(2)
+    expect(line).to_have_text("Working — running the suite")
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('lf-leaves-list');
+          const render = list.render.bind(list);
+          window.leavesButtonBefore = document.querySelector('.lf-others');
+          window.leavesRowsBefore = [...document.querySelectorAll('a.lf-others-row')];
+          list.render = () => {
+            list.render = render;
+            window.leavesLabelAtFailure = leavesButtonBefore.textContent;
+            window.leavesPaintFailed = true;
+            throw new Error('deliberate leaves failure');
+          };
+        }"""
+    )
+    files_model.write_json(
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    page.wait_for_function("window.leavesPaintFailed")
+    page.wait_for_function(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return presentation.readApplicationPresentation().pending.length === 0;
+        }"""
+    )
+    expect(btn).to_have_text("All leaves (3)")
+    expect(rows).to_have_count(2)
+    expect(line).to_have_text("Working — running the suite")
+    assert page.evaluate(
+        """() => ({
+          changedBeforeFailure: leavesLabelAtFailure,
+          sameButton: leavesButtonBefore === document.querySelector('.lf-others'),
+          sameRows: leavesRowsBefore.every(
+            (row, index) => row === document.querySelectorAll('a.lf-others-row')[index]
+          ),
+        })"""
+    ) == {
+        "changedBeforeFailure": "All leaves (2)",
+        "sameButton": True,
+        "sameRows": True,
+    }
+    assert take_browser_errors(page) == [
+        "leaf: Presentation failed: deliberate leaves failure"
+    ]
+
+    files_model.write_json(
+        other_dir / "status.json",
+        {
+            "state": "working",
+            "detail": "the next paint lands",
+            "ts": events_model.now_iso(),
+        },
+    )
+    told(page)
+    expect(btn).to_have_text("All leaves (2)")
+    expect(rows).to_have_count(1)
+    expect(line).to_have_text("Working — the next paint lands")
+    page.close()
+
+
+def test_a_failed_leaves_restore_keeps_application_presentation_pending(
+    browser, serve, other_leaf, live_leaf
+):
+    """A list that cannot paint either a candidate or its fallback is not presented."""
+    _, closing_dir = live_leaf("closing", "The closing leaf")
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('lf-leaves-list');
+          const render = list.render.bind(list);
+          let failures = 2;
+          list.render = () => {
+            if (failures-- > 0) throw new Error('deliberate leaves failure');
+            return render();
+          };
+        }"""
+    )
+    files_model.write_json(
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    page.wait_for_function(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return presentation.readApplicationPresentation().pending.includes('leaves');
+        }"""
+    )
+    assert take_browser_errors(page) == [
+        "leaf: Presentation failed: presentation and fail-soft failed"
+    ]
+
+    # A later complete reading replaces the failed ticket and opens readiness again.
+    told(page)
+    page.wait_for_function(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return !presentation.readApplicationPresentation().pending.includes('leaves');
+        }"""
+    )
+    page.close()
 
 
 def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reader):
@@ -4116,34 +4532,42 @@ def test_a_stale_package_widget_uses_recursive_parent_eligibility(
     )
     (overlay / "widgets" / "lf-quota.js").write_text(
         """\
-import { actionAvailable, offer, once, sendAction } from "/runtime/widget-api.js";
+import { offer, once, widgetController } from "/runtime/widget-api.js";
 
 const detail = (quota, delta) => ({
   slots: String(Number(quota.getAttribute("slots")) + delta),
 });
 
 const paint = quota => {
+  const reading = quota.controller.read();
   for (const [name, delta] of [["decrease", -1], ["increase", 1]])
     quota.querySelector(`[data-lf-quota="${name}"]`)?.setAttribute(
       "aria-disabled",
-      String(!actionAvailable(quota, name)),
+      String(!reading.actions[name].available),
     );
 };
 
 async function change(quota, delta) {
   const action = delta > 0 ? "increase" : "decrease";
   const next = detail(quota, delta);
-  if (!actionAvailable(quota, action)) return;
+  if (!quota.controller.read().actions[action].available) return;
   const previous = quota.getAttribute("slots");
   quota.setAttribute("slots", next.slots);
   paint(quota);
-  if (!await sendAction(quota, action, next)) quota.setAttribute("slots", previous);
+  const sent = quota.controller.dispatch({
+    kind: "action", verb: action, detail: next,
+  });
+  if (!sent || !await sent.delivery) quota.setAttribute("slots", previous);
   paint(quota);
 }
 
 customElements.define("lf-quota", class extends HTMLElement {
   connectedCallback() {
-    if (!once(this)) return;
+    this.controller ??= widgetController(this);
+    if (!once(this)) {
+      this.stopReading ??= this.controller.subscribe(() => paint(this));
+      return;
+    }
     const decrease = offer("button", "lf-btn", "Decrease");
     decrease.dataset.lfQuota = "decrease";
     decrease.addEventListener("click", () => void change(this, -1));
@@ -4151,9 +4575,12 @@ customElements.define("lf-quota", class extends HTMLElement {
     increase.dataset.lfQuota = "increase";
     increase.addEventListener("click", () => void change(this, 1));
     this.append(decrease, increase);
-    document.addEventListener("lf-actions", () => paint(this));
-    paint(this);
+    this.stopReading ??= this.controller.subscribe(() => paint(this));
     document.getElementById("destination")?.append(this);
+  }
+  disconnectedCallback() {
+    this.stopReading?.();
+    this.stopReading = null;
   }
   renderState(state) {
     const { to, index } = state.placement.detail;
@@ -4891,29 +5318,53 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     )
 
 
-# Where a here ring can be drawn, and the keys the register already declares for
-# reaching each. Scopes rather than rooms because this layer spends "room" on space —
-# `--here-ring-room` is the band a scroller reserves — and these are places the reader
-# stands. A tray, the versions menu and the reference hold controls that do not exist
-# until their entry control opens them, so the Tab order alone never reaches one: twelve of the
-# layer's ring rules stood in that position when this was written.
-RING_WALKS = (
+# One causal specimen for every named ring the layer draws. Each case names its surface,
+# the real keys that open it, and the element whose focus state paints the ring. A null
+# selector means the opening keys themselves leave the required non-focusable carrier lit.
+RING_CASES = (
     (
         "the page",
         (),
-        (
-            "corpus",
-            "feature-gallery",
-            "heat-loss",
-            "pr-walkthrough",
-            "release-notes",
-            "triage-board",
-            "ship-review",
-        ),
+        {
+            "corpus": (
+                (".lf-skip", "skip"),
+                (".lf-tab-btn", "tab-btn"),
+                (".lf-grip", "card-grip"),
+                (".lf-status-button", "status"),
+                (".lf-others", "btn"),
+                (".lf-edge:visible", "edge"),
+                (".lf-find-box", "find-box"),
+                (".lf-thread-panel textarea", "text-box"),
+                (".lf-shortcut-more", "key-more"),
+            ),
+            "feature-gallery": (
+                ("lf-option > .lf-pick", "options-row"),
+                (".lf-sug-accept:visible", ("ask", "margin-entry")),
+                (".lf-draft-edit", "draft-editor"),
+                (".lf-mark-note", "pressable"),
+            ),
+            "heat-loss": ((".lf-visual-action", "visual-target"),),
+            "pr-walkthrough": (
+                ("lf-gloss:visible > .lf-gloss-mark", "gloss-mark"),
+                (".lf-diff-search", "diff-tools"),
+                ("lf-diff summary", "code-summary"),
+                ("lf-diff code", "code-pre-shadow"),
+                ("lf-code pre", "code-pre-light"),
+            ),
+            "release-notes": (
+                ("main p.lf-mark-el", "passage-focus"),
+                ("lf-shot > input.lf-shotflip", "shot"),
+            ),
+            "ship-review": ((".lf-reopen", "thread-action"),),
+        },
     ),
-    ("an inline response", (), ("pr-walkthrough",)),
-    ("the thread list", ("g", "Shift+t"), ("corpus",)),
-    ("passage search", ("/",), ("corpus",)),
+    (
+        "an inline response",
+        (),
+        {"pr-walkthrough": (("textarea.lf-fab-input", "inline-response"),)},
+    ),
+    ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
+    ("passage search", ("/",), {"corpus": ((".lf-page-search-box", "target-search"),)}),
     # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
     # item the window is showing whatever a page's count is: the browse wraps, so one step
@@ -4922,59 +5373,110 @@ RING_WALKS = (
     # the least room to hang a bar under one.
     #
     # The Tab in front of both sequences is a stop, not a gesture in the mode: target hints
-    # claim Tab for browsing themselves, so the walk below moves nothing once the mode is
-    # open, and with the document under it the walk would stand on nothing and read no
+    # claim Tab for browsing themselves, so the specimen below moves nothing once the mode
+    # is open, and with the document under it the specimen would stand on nothing and read no
     # page at all. Standing on a control first leaves the hint the keyboard is browsing on
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
     # can focus, so the reader's place in that mode is not a stop.
-    ("target hints", ("Tab", "s", "Shift+Tab", "Tab"), ("corpus", "ship-review")),
+    (
+        "target hints",
+        ("Tab", "s", "Shift+Tab", "Tab"),
+        {"corpus": ((None, "target-hint"),)},
+    ),
     # Enter opens Comment on the item the keyboard is browsing and focuses its field.
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        ("corpus", "ship-review"),
+        {"corpus": ((".lf-fab-input", "response-control"),)},
     ),
     # These controls live behind exact page-owned view states. Give each one a focused
-    # stop rather than changing the active panel for the whole page walk: selecting a
+    # stop rather than changing the active panel for the whole page: selecting a
     # late outer corpus tab would make its preceding until-found panels part of that
-    # sequential walk.
-    ("a settled decision", (), ("corpus",)),
-    ("a settled option", (), ("corpus",)),
-    ("a swipe card", (), ("swipe-gallery",)),
-    ("a contents link", (), ("feature-gallery",)),
-    ("the comments", ("c",), ("ship-review",)),
+    # sequential order.
+    (
+        "a settled decision",
+        (),
+        {"corpus": (("#comparison-policy > .lf-settled", "options-settled"),)},
+    ),
+    (
+        "a settled option",
+        (),
+        {"corpus": (("#comparison-policy > lf-option > .lf-pick", "options-pick"),)},
+    ),
+    ("a swipe card", (), {"swipe-gallery": (("#swipe-keyboard-card", "swipe-card"),)}),
+    ("a contents link", (), {"feature-gallery": (("#bg-contents li a", "toc-link"),)}),
+    (
+        "the comments",
+        ("c",),
+        {"ship-review": ((".lf-threads > button.lf-group", "run-heading"),)},
+    ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
     # shows a token nobody has pressed only while it is open, so a walk of the panel
     # that never opens one stands on the trigger and nothing under it.
-    ("a reaction palette", (), ("ship-review",)),
-    ("the Asks tray", (), ("ship-review",)),
-    ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
-    ("page status", (), ("corpus",)),
-    # The menu's own walk after the key that opens it: an open lands on the version being
+    ("a reaction palette", (), {"ship-review": ((".lf-react", "chip"),)}),
+    ("the Asks tray", (), {"ship-review": ((".lf-asks-row", "asks-row"),)}),
+    ("the leaves tray", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
+    ("page status", (), {"corpus": ((None, "status-detail"),)}),
+    # The menu's own route after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
     # from the row below it. The walk is clamped, so a second press at the bottom moves
-    # nothing and the pair covers a menu of any length this corpus can hold.
-    ("the versions menu", ("g", "Shift+v", "ArrowDown", "ArrowDown"), ("corpus",)),
-    ("the command reference", ("?", "?"), ("corpus",)),
-    ("design mode", ("l",), ("corpus",)),
+    # nothing and the pair reaches a menu of any length this corpus can hold.
+    (
+        "the versions menu",
+        ("g", "Shift+v", "ArrowDown", "ArrowDown"),
+        {
+            "corpus": (
+                (".lf-version-row", "version-row"),
+                (".lf-version-diff:visible:not(:disabled)", "version-diff"),
+            )
+        },
+    ),
+    (
+        "the command reference",
+        ("?", "?"),
+        {
+            "corpus": (
+                (".lf-command-reference-search", "help-search"),
+                (".lf-command-reference-command", "help-command"),
+            )
+        },
+    ),
     # A Thread card and the compact Page Map dialog are the two layers a Tab walk of the
     # page cannot open for itself. The card is a press on a thread margin entry; the sheet is a
-    # press on a Page Map control the wide posture does not draw at all, so its walk asks for
+    # press on a Page Map control the wide posture does not draw at all, so its specimen asks for
     # the narrow window the control lives in.
-    ("a thread card", (), ("ship-review",)),
-    ("message media", (), ("feature-gallery",)),
-    ("the Page Map dialog", (), ("corpus",)),
+    (
+        "a thread card",
+        (),
+        {"ship-review": ((".lf-margin-preview .lf-resolve", "conversation"),)},
+    ),
+    ("message media", (), {"feature-gallery": ((".lf-message-media", "media"),)}),
+    (
+        "the Page Map dialog",
+        (),
+        {
+            "corpus": (
+                (".lf-page-map-action:visible", "page-map-action"),
+                (".lf-page-map-search:visible", "page-map-search"),
+            )
+        },
+    ),
 )
-# The corpus is the open-ended page and design-mode anchor. The authored pages now
-# give each interaction family a focused page, so the page walk names those owners:
-# The gallery contributes option shapes, Heat a visual target, PR source
-# and code, Release drafts and a shot, Triage a card grip, Ship the log-hosted widgets
-# and element mark, and the developer gallery its message media. Chrome with no
-# page-owned contents is walked on the corpus.
-RING_WALK_EXAMPLES = tuple(
-    dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
+# The selected pages jointly load the core and optional package stylesheets.
+RING_EXAMPLES = tuple(
+    dict.fromkeys(name for _scope, _keys, cases in RING_CASES for name in cases)
 )
+RING_EXAMPLE_FILES = {
+    example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY, SWIPE_GALLERY)
+}
+# Rings whose carrier is semantic state elsewhere in the page rather than the focused
+# control or one of its ancestors. Mark the exact carrier before reading the composed
+# paint so an unrelated ring with the same name cannot credit the specimen.
+RING_REMOTE_CARRIER = {
+    "ask": None,
+    "target-hint": ".lf-target-chooser-hint.lf-current",
+}
 
 
 # Whether the page is offering a banner control at all, which is not the same question as
@@ -4989,15 +5491,8 @@ def offered(page, selector):
     )
 
 
-# What each scope has to have opened before its walk means anything, and what the page
-# shows while its entry is available. A control with nothing to show is absent by
-# declaration — Asks on a page waiting on nobody, `L` where the machine has one leaf — so
-# the surface is asked for only where the page is offering it, and the corpus answers for
-# the rest. Without this a key that stops working leaves the walk re-walking the page and
-# contributing nothing, which the coverage floor catches only where that scope is a
-# rule's sole home: one guard over seven setup steps. The page and the comments raise no
-# surface of their own; `g T` lands on the Threads list, which the walk's own first stop
-# reads, while page `c` enters its comment box and is exercised separately.
+# A surface must open before its specimen can count. Conditional banner controls are
+# checked only on a page that offers them.
 RING_SCOPE_SURFACE = {
     "an inline response": (
         'lf-diff .lf-fab-bar[data-lf-presentation="inline"] .lf-composer[data-lf-open]',
@@ -5018,46 +5513,23 @@ RING_SCOPE_SURFACE = {
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
     "page status": (".lf-status-detail:popover-open", None),
-    "design mode": ("body[data-lf-design-mode]", None),
     "a reaction palette": (".lf-react-strip.lf-react-open", None),
 }
-RING_SCOPE_CONTROL = {
-    "an inline response": (
-        "#pr-exact-patch .lf-diff-file-comment",
-        '#pr-exact-patch .lf-fab-bar[data-lf-presentation="inline"] textarea.lf-fab-input',
-    ),
-    "the Asks tray": (".lf-asks", ".lf-asks-row"),
-    "a thread card": (
-        '.lf-margin-marker[data-lf-kinds~="comment"]',
-        ".lf-margin-preview",
-    ),
-    "message media": (None, ".lf-message-media"),
-    "the Page Map dialog": (".lf-page-map-toggle", ".lf-page-map-action"),
-    # The trigger presses itself away, so the arrival is read from the open strip
-    # rather than from the palette a shut one still holds.
-    "a reaction palette": (
-        ".lf-react-strip > .lf-react-trigger",
-        ".lf-react-strip.lf-react-open > .lf-react-palette > .lf-react",
-    ),
-    "a settled decision": (
-        None,
-        "#comparison-policy[settled] > .lf-settled",
-    ),
-    "a settled option": (
-        None,
-        "#comparison-policy[settled] > lf-option > .lf-pick",
-    ),
-    "a swipe card": (None, "#swipe-keyboard-card"),
-    "a contents link": (None, "#bg-contents li a"),
+RING_SCOPE_OPENER = {
+    "an inline response": "#pr-exact-patch .lf-diff-file-comment",
+    "the Asks tray": ".lf-asks",
+    "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
+    "the Page Map dialog": ".lf-page-map-toggle",
+    "a reaction palette": ".lf-react-strip > .lf-react-trigger",
 }
-# The window a scope's own surface stands in, where that is not the walk's own. These
+# The window a scope's own surface stands in, where that is not the page's own. These
 # entries are floors the layer states rather than preferences: the Page Map control is drawn
 # under the margin's breakpoint and nowhere else, while the contents-link and thread-card
-# walks use a wide window where their page-margin surfaces can stand beside the source.
+# specimens use a wide window where their page-margin surfaces can stand beside the source.
 # Every other scope is read at the width the page opened at.
-RING_WALK_VIEWPORT = (1200, 900)
+RING_VIEWPORT = (1200, 900)
 # Scopes whose own route starts with Threads shut. A thread card and the narrow map need
-# page-margin surfaces the panel replaces; the thread-list walk's own `g T` is the door
+# page-margin surfaces the panel replaces; the thread-list specimen's `g T` is the door
 # under test, and now correctly toggles an already-open panel closed.
 RING_SCOPES_STARTING_WITHOUT_PANEL = {
     "an inline response",
@@ -5071,41 +5543,21 @@ RING_SCOPE_WIDTH = {
     "a thread card": 1600,
     "the Page Map dialog": 760,
 }
-# Message media exists only in the developer gallery's seeded conversation. Its direct
-# control setup is the causal ring specimen; walking all 250+ unrelated gallery stops
-# after reading it adds no evidence and can keep the page's moving margin perpetually
-# outside the settled probe.
-RING_SINGLE_STOPS = {
-    "page status",
-    "a settled decision",
-    "a settled option",
-    "a swipe card",
-    "a contents link",
-    "message media",
-}
-# Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
-# leaves the sequential focus navigation starting point where the blurred control stood,
-# so the next Tab carries on from the chrome, runs off the end of the order and never
-# enters the page. Twelve stops instead of thirty-three, with every ring the page's own
-# widgets draw unread and the walk reporting itself complete.
-RING_WALK_START = "() => document.body.focus()"
-# What the walk is standing on, read on a rendered frame: a stop it has not stood on, one
-# it has, or nothing at all. Held by identity, since two buttons in a row can say the same
-# words at the same scroll and are still two stops. The three answers are one reading
-# rather than two, because only the middle one ends a walk and a boolean spelt the other
-# two the same way.
-RING_NEW_STOP = f"""async () => {{
-  await ({RENDERED})();
+# Focus put back at the document's start. A blur retains the previous sequential
+# navigation position, which would make the opening key sequences depend on the last case.
+RING_FOCUS_START = "() => document.body.focus()"
+# A keyboard stop this sweep has not reached, one it has, or the document boundary.
+# This deliberately waits for no settled geometry: focus paint is synchronous, and the
+# separate specimen floor below owns ring geometry. Avoiding a layout-settlement probe at
+# every Tab is what makes a complete native-stop sweep cheap.
+RING_NEW_STOP = f"""() => {{
   const e = ({DEEP_FOCUS})();
   if (!e || e === document.body || e === document.documentElement) return "empty";
   if (window.__lfSeen.has(e)) return "seen";
   window.__lfSeen.add(e);
   return "new";
 }}"""
-
-
-# A stop the reader cannot find, or null when they can. The walk stands on every control
-# a page has; this asks, at each one, whether anything on screen says so.
+# A focused specimen the reader cannot find, or null when they can.
 #
 # Three answers count, because the layer leaves "here" drawn in three ways and every one of
 # them is the reader seeing the same thing.
@@ -5127,7 +5579,7 @@ RING_NEW_STOP = f"""async () => {{
 # accent shadow. That is a fifth way of drawing "here" and this reading has no honest
 # test for it: accepting a background would pass every stop on a tinted page. No corpus
 # example reaches the state — none carries `restated`, the one shipped log carries no
-# report, and the walk makes no gesture — so nothing here is being excused today. A
+# report, and the specimens make no gesture — so nothing here is being excused today. A
 # reading of the wash has to come with the corpus case that shows it.
 #
 # A marked element answers the keyboard with the same named accent ring as any other
@@ -5194,23 +5646,15 @@ SEEN_STOP = f"""() => {{
 
 
 def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serve):
-    """The reach half of the stop reading, which the corpus walk cannot supply.
+    """The stop reading distinguishes a real ring from a missing one.
 
-    The walk asserts that no stop goes unseen, and a reading that had gone blind returns
-    exactly what a clean corpus returns. Every other reading in that test says how far it
-    reaches — the ring population is asserted before it is divided by, the scopes are
-    asserted opened and walked, and the fault reading has two plants of its own — and
-    this one arrived with none. The direction that goes quiet is `shown` answering true
-    too often: one future rule putting `outline-style: auto` on a chrome wrapper would
-    answer for every stop beneath it, and the walk would stay green reporting a clean
-    corpus.
-
-    So: a real control, reached by a real Tab, with its indication taken away. The
-    control case first and in the same run, because a reading that named every button
-    would name the planted one without seeing it."""
+    Reach a control by Tab, verify its real indication, then remove that indication. The
+    thread-list pseudo-element supplies the distinct case where another box carries the
+    focused stop's ring.
+    """
     url = serve(LONG_PAGE, comments=2)
     page = open_page(browser, url)
-    page.evaluate(RING_WALK_START)
+    page.evaluate(RING_FOCUS_START)
     for _ in range(60):
         page.keyboard.press("Tab")
         if page.evaluate(
@@ -5223,7 +5667,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
 
     assert page.evaluate(SEEN_STOP) is None, (
         "a banner button wearing the layer's own ring reads as a stop nothing draws, so "
-        "the walk's whole assertion is about a reading that answers for every control"
+        "the specimen floor cannot trust this reading"
     )
 
     page.evaluate("""() => {
@@ -5238,7 +5682,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     lost = page.evaluate(SEEN_STOP)
     assert lost and "lf-threads-toggle" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
-        f"({lost}), so the walk cannot report a stop the reader cannot find"
+        f"({lost}), so the specimen floor cannot report a missing indication"
     )
 
     # The thread list's ring is a later-painted pseudo-element because its scrolling
@@ -5265,129 +5709,93 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     page.close()
 
 
+def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve):
+    """Every stop in each selected page's ordinary Tab order shows keyboard focus."""
+    failures = []
+    for example in (RING_EXAMPLE_FILES[name] for name in RING_EXAMPLES):
+        page = open_page(browser, serve(example, comments=2))
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        page.evaluate(
+            "() => { window.__lfSeen = new WeakSet(); document.body.focus(); }"
+        )
+        empty = 0
+        for _ in range(400):
+            page.keyboard.press("Tab")
+            stop = page.evaluate(RING_NEW_STOP)
+            if stop == "seen":
+                break
+            if stop == "empty":
+                empty += 1
+                assert empty <= 2, f"Tab never entered {example.stem}"
+                continue
+            empty = 0
+            if lost := page.evaluate(SEEN_STOP):
+                failures.append(f"{example.stem}: {lost}")
+        else:
+            raise AssertionError(f"Tab order never came round in {example.stem}")
+        page.close()
+    assert not failures, "keyboard stops with no visible indication: " + "; ".join(
+        failures
+    )
+
+
 def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     browser, serve, live_leaf
 ):
-    """The invariant asked of the whole layer and its causal corpus at once. Neither
-    half is evidence without the other: a clean walk says nothing about a rule it never
-    met, and a rule the walk met says nothing if the reading excused every side of it.
+    """Every declared ring has a causal specimen whose whole band is visible.
 
-    The population is the rings the layer declares (`RING_NAMES`), read out of the
-    page's own composed stylesheets rather than kept in a list beside them, for the
-    reason the runtime reads the merged registry: a twelfth widget must not need a
-    handwritten list updated, and the list that was here in prose was already wrong.
-    What is credited is the name the cascade handed the box, so a ring is lit by the
-    rule the reader is looking at rather than by every rule whose selector reached it.
-
-    Two halves guard the naming itself, because neither can see what the other does. The
-    scan reaches a rule the corpus never paints and cannot tell a ring drawn some other
-    way from no ring at all; the sweep is the reverse of both, and says when a box paints
-    a ring nothing named. And the population is asserted before it is divided by, since
-    an empty one makes every line above vacuous while reporting what a clean corpus does.
-
-    Both halves read both of the band's carriers. Most of the layer's rules draw it as
-    an outline; two cast it as a shadow, for boxes that cannot spend an outline on it,
-    and the scan asks each carrier the same question — does the value name the layer's
-    token — while the sweep measures a shadow ring's spread the way it measures an
-    outline's width and offset. Read only as an outline, the response bar's own controls
-    credited `pressable`, the name of the floor rule whose outline the bar takes away,
-    and the geometry of both shadow-drawn rings went unmeasured everywhere.
-
-    Tab, because that is the walk every page has and it reaches the page's own controls
-    and the runtime's chrome in one order. The scopes are what Tab alone cannot reach. A
-    settled group is opened for the same reason — its options are behind a disclosure,
-    and the pick's own ring is the one the joined group form takes away, so it is only
-    ever drawn in a group that has been settled.
-
-    Two things this walk cannot take from an example, each set up the way the product
-    makes it: a second version, so the versions menu has a comparison to offer, and a
-    neighbouring leaf, so the leaves tray has a row. Neither can live in the corpus — an
-    example's markup is v1 and nothing revises it, and a live leaf is state under the
-    state home rather than page content.
+    `RING_NAMES` derives the population from the composed stylesheets. `RING_CASES`
+    names one rendered specimen for each member, including surfaces that must first be
+    opened. Comparing the two sides catches both an unexercised declaration and painted
+    ring with no declaration. A second version and neighbouring leaf provide the two
+    runtime states authored examples cannot carry themselves.
     """
     live_leaf("other", "The other leaf")
-    # The reader's default motion. No ring in this layer moves under either setting —
-    # the reduced-motion guard removes transitions rather than shortening them
-    # (theme.css), which is what `test_a_reader_who_asked_for_no_motion_gets_a_ring_
-    # that_does_not_arrive` holds — so a walk that reads two frames after a press reads
-    # the ring the rule states.
+    # No ring moves under the default motion setting, so a settled specimen reads the
+    # value its rule declares. The reduced-motion case has a focused test above.
     rings, lit, faults, seen_faults = {}, set(), [], set()
     unseen = set()
     unnamed = set()
-    opened, walked_in = set(), set()
+    opened = set()
     stops = 0
-    examples = {
-        example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY, SWIPE_GALLERY)
-    }
-    assert not (missing := set(RING_WALK_EXAMPLES) - set(examples)), (
-        "the ring walk names examples that no longer exist: "
+    assert not (missing := set(RING_EXAMPLES) - set(RING_EXAMPLE_FILES)), (
+        "the ring cases name examples that no longer exist: "
         + ", ".join(sorted(missing))
     )
-    for name in RING_WALK_EXAMPLES:
-        example = examples[name]
-        # The path, not the markup: the fixture lays in the log the example ships, and a
-        # thread and the widgets a message carries are controls this walk has to stand
-        # on. One of those threads is anchored to an element rather than a passage,
-        # which is the only way a ring is painted on the page for a focus held in the
-        # panel.
+    for name in RING_EXAMPLES:
+        example = RING_EXAMPLE_FILES[name]
+        # Serving the path lays in the example's shipped log and message widgets.
         url = serve(example, comments=2)
-        # Sent media is a conditional control rather than authored markup. Give one
-        # synthetic thread the screenshot Release notes already ships, so the page walk
-        # reaches the media ring without making the omnibus developer gallery its corpus.
-        if name == "release-notes":
-            root = next(
-                event
-                for event in reversed(events_model.read_events(serve.page_dir))
-                if event["kind"] == "comment" and event["text"].startswith("Comment ")
-            )
-            events_model.append_event(
+        if name == "corpus":
+            current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
+            next_version = current_version + 1
+            _publish(
                 serve.page_dir,
-                {
-                    "kind": "reply",
-                    "author": "claude",
-                    "agent": "Codex",
-                    "parent": root["id"],
-                    "text": "![Pasted image](/media/051bee487bfb5d13.png)",
-                },
+                next_version,
+                example.read_text(),
+                "Same page, said twice.",
             )
-        # A version to compare against, published the way a page gets one. Serving that
-        # next version rather than letting the open page follow keeps the walk out of an
-        # activation.
-        current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
-        next_version = current_version + 1
-        _publish(
-            serve.page_dir,
-            next_version,
-            example.read_text(),
-            "Same page, said twice.",
-        )
-        page = open_page(
-            browser,
-            url.replace(f"/v{current_version}.html", f"/v{next_version}.html"),
-        )
+            url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
+        page = open_page(browser, url)
         if name == "release-notes":
-            # Ordinary element marks use a quiet contour at rest and an accent ring only
-            # when the marked element itself receives keyboard focus. Give that
-            # conditional state a real stop in the causal walk.
+            # Ordinary element marks need a focusable specimen for their conditional ring.
             page.locator("main p").first.evaluate(
                 "node => { node.classList.add('lf-mark-el'); node.tabIndex = 0; }"
             )
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        # Opened, not pressed for a decision: a settled group's disclosure is this
-        # reader's view state and no version carries it. One in an exhibit is quoted,
-        # so its marks are spans with nothing to focus, and one in a shut panel has no
-        # box — neither is a place a ring can be drawn, and neither can be clicked.
+        # Settled choices are reader view state, so expose their focusable controls.
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
                 row.click()
         page_at_rest(page)
 
-        for scope, keys, corpus in RING_WALKS:
-            if name not in corpus:
+        for scope, keys, cases in RING_CASES:
+            if (specimens := cases.get(name)) is None:
                 continue
             # The posture the scope's own surface stands in, read after the panel below
-            # has settled and put back afterwards, so the next scope walks the page this
+            # has settled and put back afterwards, so the next scope reads the page this
             # one was handed. Before the panel, the room a floor is measured against is
             # the room the panel was still taking.
             posture = RING_SCOPE_WIDTH.get(scope)
@@ -5416,7 +5824,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 for source in page.locator("details:has(lf-text-document)").all():
                     if source.is_visible() and not source.get_attribute("open"):
                         source.locator(":scope > summary").click()
-            page.evaluate(RING_WALK_START)
+            page.evaluate(RING_FOCUS_START)
             # Threads and a target's own Thread card are one surface offered two ways:
             # with the panel standing, a thread margin entry sends the reader there instead of
             # building the card. The scopes listed above need the panel shut either to expose
@@ -5425,13 +5833,13 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 if page.locator(".lf-thread-panel.open").count():
                     page.get_by_role("button", name="Close threads").click()
                     panel_settled(page, open=False)
-                    page.evaluate(RING_WALK_START)
+                    page.evaluate(RING_FOCUS_START)
             elif not page.locator(".lf-thread-panel.open").count():
                 page.locator(".lf-threads-toggle").click()
                 panel_settled(page)
             if scope == "the page":
                 # Escape restores the panel's default lifecycle view. Select Resolved
-                # after that reset so the page walk includes each closed thread's
+                # after that reset so the page cases include each closed thread's
                 # Reopen control; narrower scopes keep open threads available for their
                 # own conditional controls, such as a reply's reaction palette.
                 page.locator(".lf-thread-filter-toggle").click()
@@ -5441,9 +5849,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     and resolved.get_attribute("aria-pressed") != "true"
                 ):
                     resolved.click()
-                page.evaluate(RING_WALK_START)
+                page.evaluate(RING_FOCUS_START)
             if posture:
-                resized(page, posture, RING_WALK_VIEWPORT[1])
+                resized(page, posture, RING_VIEWPORT[1])
                 page_at_rest(page)
             if scope == "page status":
                 # Native Enter opens the explanation and places focus on its scroller;
@@ -5451,138 +5859,81 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.locator(".lf-status-button").focus()
                 page.locator(".lf-status-button").press("Enter")
                 expect(page.locator(".lf-status-detail")).to_be_focused()
-            if control := RING_SCOPE_CONTROL.get(scope):
-                opener, arrival = control
-                # The first, because a Page Map has one thread margin entry per commented
-                # target and the walk wants a card rather than a particular one.
-                if opener:
-                    page.locator(opener).first.click()
-                target = page.locator(arrival).first
-                expect(target).to_be_visible()
-                target.focus()
-                # A press opened the scope and a script placed the reader in it, and
-                # neither is the keyboard: `:focus-visible` answers the input device, so
-                # a control arrived at that way wears no ring and reads exactly like one
-                # whose rule is missing. Step out and back so the walk's first stop is a
-                # keyboard stop like every stop after it.
-                #
-                # These two are read on a rendered frame rather than on the settled page
-                # the walk below presses against, and they carry the same exposure: the
-                # scroll the opening click caused may still be being answered when the
-                # Shift+Tab lands, so it can be answered in a stale order. What that
-                # costs is bounded, which is why the weaker wait is left here — the
-                # `page_at_rest` below runs before the first stop is read, and the walk
-                # runs until the order comes round, so a stale step out and back moves
-                # where the walk starts rather than what it covers.
-                page.keyboard.press("Tab")
+            if opener := RING_SCOPE_OPENER.get(scope):
+                page.locator(opener).first.click()
+            for key in keys:
+                page.keyboard.press(key)
                 page.evaluate(RENDERED)
-                page.keyboard.press("Shift+Tab")
-            else:
-                # Each press read on a rendered frame, rather than on the settled page
-                # every Tab below it is pressed against: what the next key of the
-                # sequence needs is the focus the last press left, and the scope's own
-                # arrival is waited for once below before the first stop is read. A
-                # key that opens a layer hands the reader their place in it from the
-                # platform's own event rather than from the press — a popover lands focus
-                # on a row from `toggle`, which is queued — so the next key of the
-                # sequence arrives at whatever the press left focus on, and the scope's
-                # own keys, bound inside the layer, never see it.
-                for key in keys:
-                    page.keyboard.press(key)
-                    page.evaluate(RENDERED)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or offered(page, offers)):
                 assert page.locator(surface).count() == 1, (
-                    f"{RING_SCOPE_CONTROL.get(scope, (' '.join(keys),))[0]} did not open "
+                    f"{RING_SCOPE_OPENER.get(scope, ' '.join(keys))} did not open "
                     f"{scope} on {example.stem}, which "
-                    "offers it, so this walk is the page's over again"
+                    "offers it"
                 )
                 opened.add(scope)
 
-            # The tab order comes back round, so the walk ends when it reaches a control
-            # it has already stood on. The cap is a backstop against a page whose order
-            # never repeats.
-            page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
             where = f"in {scope} of {example.stem}"
-            walked, empty, came_round = 0, 0, False
-            for _ in range(400):
-                if walked or empty:
-                    # On the settled page, not merely on a rendered frame. Standing on a
-                    # control scrolls the page to it, and the margin projection answers that
-                    # scroll by re-placing its clusters — which moves the page's own
-                    # margin entries, since a widget's margin entry is contributed to a cluster rather
-                    # than left where the widget built it. A Tab pressed while that is in
-                    # flight is answered in the order the previous frame had, so the
-                    # walk's next stop is read off one arrangement and its next press
-                    # made against another: measured under the suite's own load, the
-                    # order stepped over the whole of lf-shot — its transparent flip and
-                    # the keyboard proxy beside it — and the walk stood on the shot's
-                    # margin entry instead, leaving the `shot` ring painted nowhere the corpus
-                    # could be walked to while every control involved was focusable
-                    # before the press and after it.
-                    page_at_rest(page)
+            for selector, expected in specimens:
+                expected = {expected} if isinstance(expected, str) else set(expected)
+                if selector:
+                    target = page.locator(selector).first
                     page.keyboard.press("Tab")
-                stop = page.evaluate(RING_NEW_STOP)
-                if stop == "seen":
-                    came_round = True
-                    break
-                if stop == "empty":
-                    # Nothing to stand on, which is two different things and neither of
-                    # them the end of the walk. The key that opened the scope may have
-                    # landed focus on nothing; and the tab order runs off the end of the
-                    # document and comes back in through it, so a scope the walk joins
-                    # part-way down its own order — the Page Map dialog, which it enters at
-                    # the list — keeps the stops above its starting point on the far side
-                    # of that crossing. Walking through it is how they are reached at all;
-                    # the order still ends where it comes round to a stop already stood
-                    # on. Two in a row is the cap, not four hundred: a walk that never
-                    # starts should say so rather than read as a slow test.
-                    empty += 1
-                    if empty > 2:
-                        came_round = True
-                        break
-                    continue
-                empty = 0
-                walked, stops = walked + 1, stops + 1
-                if (lost := page.evaluate(SEEN_STOP)) is not None:
-                    unseen.add(f"{where}: {lost}")
+                    target.focus(timeout=5_000)
+                    assert target.evaluate("node => node.tabIndex >= 0"), (
+                        f"{selector} {where} is not in sequential keyboard navigation"
+                    )
+                    expect(target).to_be_focused()
+                    assert target.evaluate("node => node.matches(':focus-visible')"), (
+                        f"{selector} {where} did not inherit keyboard-visible focus"
+                    )
+                    page_at_rest(page)
+                    if (lost := page.evaluate(SEEN_STOP)) is not None:
+                        unseen.add(f"{where}: {lost}")
+                for ring_name in expected & RING_REMOTE_CARRIER.keys():
+                    carrier_selector = RING_REMOTE_CARRIER[ring_name]
+                    if ring_name == "ask":
+                        ask_id = target.evaluate(
+                            "node => node.closest('[data-lf-for]')?."
+                            "getAttribute('data-lf-for')"
+                        )
+                        assert ask_id, f"{selector} {where} names no ask carrier"
+                        carrier_selector = f'[id="{ask_id}"]'
+                    page.locator(carrier_selector).evaluate(
+                        "node => node.setAttribute('data-lf-ring-specimen', '')"
+                    )
                 drawn = rings_drawn(page)
+                page.locator("[data-lf-ring-specimen]").evaluate_all(
+                    "nodes => nodes.forEach(node => "
+                    "node.removeAttribute('data-lf-ring-specimen'))"
+                )
+                found = set()
                 for ring in drawn:
                     if not ring["here"]:
                         continue
                     if ring["ring"]:
-                        lit.add(ring["ring"])
+                        if ring["ring"] in expected and ring["specimen"]:
+                            found.add(ring["ring"])
                     else:
                         unnamed.add(ring["who"])
                 # One standing defect is one finding, not one per stop: a ring worn by
-                # something the walk is not moving — a decision's mark, a thread's element
+                # something the specimen is not moving — a decision's mark, a thread's element
                 # mark — is read again at every stop it survives.
                 for fault in ring_faults(drawn, where):
                     if fault not in seen_faults:
                         seen_faults.add(fault)
                         faults.append(fault)
-                if scope in RING_SINGLE_STOPS:
-                    came_round = True
-                    break
-            # A control the runtime replaces on repaint is a new element at every Tab, so
-            # the walk never meets a repeat and runs the cap out: sixteen times the work
-            # and no message, which reads as a hang rather than as the fault it is.
-            assert came_round, (
-                f"the walk {where} never came back round to a control it had already "
-                f"stood on, so it ran its cap out at {walked} stops"
-            )
-            if walked:
-                walked_in.add(scope)
-            elif surface and scope in opened:
-                raise AssertionError(
-                    f"{scope} opened on {example.stem} and the walk stood on nothing "
-                    "in it"
+                stops += 1
+                assert found == expected, (
+                    f"{selector or scope} {where} did not exhibit "
+                    + ", ".join(sorted(expected - found))
                 )
+                lit.update(found)
             if posture:
                 for _ in range(3):
                     page.keyboard.press("Escape")
-                resized(page, *RING_WALK_VIEWPORT)
+                resized(page, *RING_VIEWPORT)
                 page_at_rest(page)
             if scope in {"a settled decision", "a settled option"}:
                 page.get_by_role("tab", name="Triage", exact=True).click()
@@ -5596,21 +5947,20 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         page.close()
 
     assert not unseen, (
-        "the walk stood on a control and nothing on screen said where the keyboard was, "
+        "a specimen stood on a control and nothing on screen said where the keyboard was, "
         "so a reader arriving by Tab has no way to tell: "
         f"{sorted(unseen)}"
     )
-    # Across the causal walk, because a scope can be dead on a page with nothing to put
-    # in it. What cannot happen is a scope no selected example ever opens or walks: then its
+    # Across the causal cases, because a scope can be dead on a page with nothing to put
+    # in it. What cannot happen is a scope no selected example ever opens or exercises: then its
     # keys are unread and everything below is silent about the controls behind them.
-    missing = [s for s in RING_SCOPE_SURFACE if s not in opened] + [
-        f"{s} (walked nothing)"
-        for s, _keys, _corpus in RING_WALKS
-        if s not in walked_in
-    ]
+    expected_surfaces = {
+        scope for scope, _keys, _cases in RING_CASES if scope in RING_SCOPE_SURFACE
+    }
+    missing = expected_surfaces - opened
     assert not missing, "no selected example reached " + ", ".join(sorted(missing))
     assert not faults, "\n  ".join(
-        [f"{len(faults)} faults over {stops} stops:"] + faults
+        [f"{len(faults)} faults over {stops} specimens:"] + faults
     )
     # A ring nobody named, said from either side. The scan reaches a rule the corpus
     # never paints and cannot tell a ring drawn some other way from no ring at all; the
@@ -5633,7 +5983,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     # the layer's token, so a rule that draws the ring some other way and still names it
     # paints a credit for a name no population holds.
     assert rings, (
-        "the layer declares no rings, so this floor divided by nothing and the walk "
+        "the layer declares no rings, so this floor divided by nothing and the specimens "
         "above is evidence about no rule at all"
     )
     assert not lit - set(rings), (
@@ -5647,7 +5997,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     ]
     assert not unlit, (
         f"{len(unlit)} of the layer's {len(rings)} rings are painted nowhere the "
-        f"corpus can be walked to, so nothing above is evidence about them:\n  "
+        f"corpus specimens exhibit, so nothing above is evidence about them:\n  "
         + "\n  ".join(unlit)
     )
 

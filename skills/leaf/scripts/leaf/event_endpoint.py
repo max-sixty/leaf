@@ -15,7 +15,7 @@ from .event_contracts import (
 )
 from .event_log import AttemptConflict
 from .events import build_threads, undo_error
-from .files import list_revisions, version_revisions
+from .files import latest_revision, list_revisions, version_revisions
 from .passages import active_enclosing
 from .projection import (
     generated_children,
@@ -27,6 +27,7 @@ from .registry.contract import RegistryError
 from .registry.reactions import reaction_tokens
 from .registry.storage import load_registry
 from .requests import request_contract_error
+from .revision_artifact import read_artifact
 from .schema import MESSAGE_KINDS
 from .served_state.conversation import browser_conversation
 from .service import PageTransaction
@@ -34,6 +35,17 @@ from .structure import parse_revision, revision_review_mode
 
 EventAnswer = tuple[int, dict]
 StateReader = Callable[[], dict]
+
+
+def _event_registry(page_dir: Path, event: dict) -> dict | None:
+    """The captured vocabulary of the document that produced an event."""
+    revision = event.get("revision")
+    revisions = set(list_revisions(page_dir))
+    if type(revision) is not int or revision not in revisions:
+        revision = latest_revision(page_dir)
+    if revision is not None:
+        return read_artifact(page_dir, revision).registry
+    return load_registry(page_dir)
 
 
 def event_rejection(event: dict, error: str, status: int = 400) -> EventAnswer:
@@ -291,7 +303,7 @@ def accept_event(
 ) -> EventAnswer:
     """Validate and append one browser record, then return its current state."""
     try:
-        registry = load_registry(page_dir)
+        registry = _event_registry(page_dir, event)
     except RegistryError as error:
         return event_rejection(event, str(error))
     if registry is None:
@@ -346,7 +358,7 @@ def _execute_event(
         if not accepted:
             events = page.events
             try:
-                registry = load_registry(page_dir)
+                registry = _event_registry(page_dir, event)
             except RegistryError as error:
                 return event_rejection(event, str(error))
             if registry is None:

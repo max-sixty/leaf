@@ -36,6 +36,8 @@ import {
   once,
   quietSince,
   saidAt,
+  updateSequence,
+  widgetController,
   watchUpdates,
 } from "/runtime/widget-api.js";
 import { directCommandRole } from "/widgets/command-model.js";
@@ -210,10 +212,15 @@ function render(el) {
 customElements.define(
   "lf-agent",
   class extends HTMLElement {
+    #controller = widgetController(this);
+    #stopState = null;
     #stop = null;
 
     connectedCallback() {
       if (once(this)) render(this);
+      this.#stopState ??= this.#controller.subscribe(() =>
+        heard(this, updateSequence(this)),
+      );
       // The shared clock refreshes this when its displayed age changes and touches
       // one text node when it does, rather than rebuilding a row the reader may have
       // their pointer in.
@@ -221,6 +228,8 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      this.#stopState?.();
+      this.#stopState = null;
       this.#stop?.();
       this.#stop = null;
     }
@@ -230,7 +239,8 @@ customElements.define(
       if (value === this.getAttribute("state")) return;
       if (value === null) this.removeAttribute("state");
       else this.setAttribute("state", value);
-      render(this);
+      stateWord(this);
+      measure(this, () => gutter(this));
     }
   },
 );

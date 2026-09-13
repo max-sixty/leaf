@@ -56,8 +56,8 @@
    `rollup` instance is an aggregate-only owner: it awaits when any nearest local ask
    or child roll-up awaits, but it never enters the visible list. The standing projection
    keeps every open local member; an enclosing `x-ask-surface` replaces that member only on
-   the visible/navigation surface. `actionAvailable` still queries whether the source or
-   an ancestor's aggregate is open. A module reading `openAsks()` calls
+   the visible/navigation surface. A controller command entry still queries whether the
+   source or an ancestor's aggregate is open. A module reading `openAsks()` calls
    `askSource()` when it needs the actionable widget rather than the reader-facing
    region. A pending gesture re-folds its owner's declared answer and completion
    predicate locally; refusal removes that overlay and restores the authoritative Ask. */
@@ -218,9 +218,8 @@ function context(answered = false) {
   return reading;
 }
 
-export const answeredContext = () => context(true);
-export const isAwaiting = (el, reading) => Boolean(reading.awaiting[el.id]);
-export const projectedParent = (el, reading) =>
+const answeredContext = () => context(true);
+const projectedParent = (el, reading) =>
   (el.id && reading.positionedParents.get(el.id)) ??
   authoredParentOf(el) ??
   el.parentElement;

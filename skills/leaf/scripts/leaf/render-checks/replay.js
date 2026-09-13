@@ -1,4 +1,5 @@
-import { inChrome, shallowSigs, standingState } from "/runtime/widget-api.js";
+import { inChrome, shallowSigs } from "/runtime/widget-api.js";
+import { validationWidgetStates } from "/runtime/validation.js";
 
 // Measure the state painted by surviving decisions made before this revision.
 // A decision made on this markup cannot contradict its authoring, even when the
@@ -9,7 +10,9 @@ import { inChrome, shallowSigs, standingState } from "/runtime/widget-api.js";
 export function replayOverrides({ curHtml, prevHtml, carriedActions }) {
   if (!carriedActions.length) return [];
   const pageStates = (ids) =>
-    standingState(ids).filter((s) => s.widget?.renderState && !inChrome(s.widget));
+    validationWidgetStates(ids).filter(
+      (s) => s.widget?.renderState && !inChrome(s.widget),
+    );
   const current = pageStates(null);
   const render = (states) => {
     for (const { widget, state } of states) widget.renderState(state);
@@ -71,7 +74,7 @@ export function replayOverrides({ curHtml, prevHtml, carriedActions }) {
 // Compare both id-bearing structure and body facets: text is absent from shallowSigs.
 export function relativeReplays() {
   const at = (el) => `<${el.localName}${el.id ? " id=" + el.id : ""}>`;
-  const standing = standingState().filter((s) => s.widget?.renderState);
+  const standing = validationWidgetStates().filter((s) => s.widget?.renderState);
   if (!standing.length) return [];
   const found = [];
   const before = shallowSigs(document.body);

@@ -19,7 +19,7 @@ from .host import state_home
 from .passages import active_enclosing
 from .registry.contract import RegistryError, handling
 from .registry.reactions import described
-from .registry.storage import load_registry
+from .registry.storage import active_registry
 from .served_state.page import full_state
 from .thread_context import (
     batch_threads,
@@ -52,7 +52,7 @@ def delivery_path(delivery_id: str) -> Path:
 
 def _registry(page_dir: Path):
     try:
-        return load_registry(page_dir)
+        return active_registry(page_dir)
     except RegistryError:
         return None
 

@@ -487,14 +487,20 @@ def stamp(dir: str, text: str, completes: tuple[str, ...], as_json: bool) -> Non
     metavar="N",
     help="stamped version to export (default: latest)",
 )
-def export(dir: str, out: Path, version: int) -> None:
+@click.option(
+    "--interactive",
+    is_flag=True,
+    help="keep captured local behavior; disable Leaf host commands",
+)
+def export(dir: str, out: Path, version: int, interactive: bool) -> None:
     """Export a stamped version to one HTML file.
 
-    Renders the version in the host's browser, then writes a standalone copy.
+    The default is a rendered, script-free record. --interactive keeps the captured
+    local behavior and opens offline without a Leaf server.
     """
     from leaf.exporting import cmd_export
 
-    sys.exit(cmd_export(resolve_dir(dir), out, version))
+    sys.exit(cmd_export(resolve_dir(dir), out, version, interactive=interactive))
 
 
 @cli.group(short_help="Start, run, or stop the local server.")
@@ -838,7 +844,14 @@ def resolve(dir: str, to: str) -> None:
 @click.argument("widget", metavar="WIDGET")
 @click.argument("verb", metavar="VERB")
 @click.argument("fields", metavar="[NAME=VALUE]...", nargs=-1)
-def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
+@click.option(
+    "--references",
+    metavar="JSON",
+    help="role-to-stable-target-reference object declared by the report verb",
+)
+def report(
+    dir: str, widget: str, verb: str, fields: tuple, references: str | None
+) -> None:
     """Report a state change onto a page widget, as a worker.
 
     The verb and its fields are the widget's own x-report declaration —
@@ -848,7 +861,7 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
     """
     from leaf.conversation import cmd_report
 
-    cmd_report(resolve_dir(dir), widget, verb, fields)
+    cmd_report(resolve_dir(dir), widget, verb, fields, references=references)
 
 
 @cli.command(short_help="Record the terminal outcome of a reader request.")

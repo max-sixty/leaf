@@ -26,7 +26,7 @@ import {
   layerFact,
   measure,
   once,
-  settle,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 /* A calendar day or month, which is the whole of what an x column may say about time. A
@@ -512,7 +512,7 @@ customElements.define(
       // view restore and the first anchor pass until the drawing is in and the page's
       // geometry is final. In a shut panel there is no box at all and measure holds the
       // draw instead of the page.
-      measure(this, () => settle(this.draw()));
+      measure(this, () => widgetController(this).present(this.draw()));
     }
 
     disconnectedCallback() {

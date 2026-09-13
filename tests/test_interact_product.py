@@ -63,7 +63,9 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     first = revisioning_model.activate_source(page_dir, [])
     assert first.error is None and first.created and first.revision == 2
     revision = files_model.revision_path(page_dir, 2)
-    assert revision.name == files_model.revision_name(2, changed.encode())
+    from leaf.revision_artifact import artifact_name
+
+    assert revision.name == artifact_name(2, first.check.artifact) + ".html"
     assert revision.read_text() == changed
 
     unchanged = revisioning_model.activate_source(page_dir, [])
@@ -415,6 +417,9 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     for example in examples:
         d = tmp_path / example.stem
         initialized_page("examples", d, initialize)
+        page_files = example.with_suffix(".page")
+        if page_files.is_dir():
+            shutil.copytree(page_files, d / "page", dirs_exist_ok=True)
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         # The data door validates a source against the page's markup, and the current
         # version is the one that has to bind it; the loop below then walks every
@@ -1559,8 +1564,10 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert events_model.read_events(page_dir) == before_unidentified_edit
 
 
-def test_edit_refuses_a_page_vendored_before_its_event_contract(page_dir, monkeypatch):
-    """A contract-bearing writer speaks only the vocabulary vendored into the page."""
+def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
+    page_dir, monkeypatch
+):
+    """An edit uses the active revision's contract, not a broken candidate."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     message = events_model.append_event(
         page_dir,
@@ -1583,9 +1590,9 @@ def test_edit_refuses_a_page_vendored_before_its_event_contract(page_dir, monkey
         ["edit", str(page_dir), "--to", message["id"], "--text", "Revised."],
     )
 
-    assert result.exit_code != 0
-    assert "$events.kinds must equal Leaf's fixed transport contract" in result.output
-    assert events_model.read_events(page_dir) == before
+    assert result.exit_code == 0, result.output
+    assert events_model.read_events(page_dir)[:-1] == before
+    assert events_model.read_events(page_dir)[-1]["text"] == "Revised."
 
 
 def test_markup_enters_only_through_the_cli_gate(server, page_dir):
@@ -1738,7 +1745,9 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "…" in head and len(head) < len(long_quote) / 2, head
 
 
-def test_markup_needs_the_registry_and_text_does_not(page_dir):
+def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear(
+    page_dir,
+):
     """Text renders with every raw tag escaped, so a plain reply has nothing to
     validate and posts without the registry; markup is checked against it, so without
     one the gate refuses rather than guessing."""
@@ -1774,8 +1783,7 @@ def test_markup_needs_the_registry_and_text_does_not(page_dir):
             '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],
     )
-    assert with_markup.exit_code != 0
-    assert "no registry.json" in with_markup.output
+    assert with_markup.exit_code == 0, with_markup.output
 
 
 def test_comment_requires_the_registry_its_runtime_reads(page_dir):

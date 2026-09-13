@@ -19,43 +19,6 @@
         container-type: inline-size;
       }
 
-      notification-simulator .notification-demo-pressure {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: var(--sp-1) var(--sp-3);
-        align-items: center;
-        margin: var(--sp-3) 0;
-        padding: var(--sp-3);
-        border-block: 1px solid var(--border-2);
-      }
-
-      notification-simulator .notification-demo-pressure-label {
-        color: var(--ink-2);
-        font: 600 var(--t-5) / 1.3 var(--sans);
-      }
-
-      notification-simulator .notification-demo-pressure-reading {
-        min-width: 4.5rem;
-        color: var(--ink);
-        font: 650 var(--t-5) / 1.3 var(--sans);
-        text-align: end;
-      }
-
-      notification-simulator .notification-demo-pressure-input {
-        grid-column: 1 / -1;
-        width: 100%;
-        margin: 0;
-        accent-color: var(--notification-accent);
-      }
-
-      notification-simulator .notification-demo-pressure-scale {
-        display: flex;
-        grid-column: 1 / -1;
-        justify-content: space-between;
-        color: var(--ink-3);
-        font: var(--t-6) / 1.2 var(--sans);
-      }
-
       notification-simulator .notification-demo-candidates {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -199,25 +162,9 @@
           grid-template-columns: minmax(0, 1fr);
         }
       }
-
-      .lf-copy notification-simulator .notification-demo-pressure {
-        display: none;
-      }
-
-      @media print {
-        notification-simulator .notification-demo-pressure {
-          display: none;
-        }
-      }
     </style>
     <script type="module">
-      import {
-        keeps,
-        layoutChanged,
-        once,
-        offer,
-        quoted,
-      } from "/runtime/widget-api.js";
+      import { keeps, layoutChanged, once } from "/runtime/widget-api.js";
 
       const EVENTS = [
         {
@@ -326,9 +273,6 @@
       customElements.define(
         "notification-simulator",
         class extends HTMLElement {
-          #count = 2;
-          #slider = null;
-          #reading = null;
           #banner = null;
           #strip = null;
           #playground = null;
@@ -346,41 +290,11 @@
           }
 
           #build() {
-            const pressure = offer("section", "notification-demo-pressure");
-            const label = offer(
-              "label",
-              "notification-demo-pressure-label",
-              "Concurrent release events",
-            );
-            label.htmlFor = `${this.id}-pressure`;
-            this.#slider = offer(
-              "input",
-              "notification-demo-pressure-input",
-              undefined,
-              "range",
-            );
-            this.#slider.id = label.htmlFor;
-            this.#slider.min = "1";
-            this.#slider.max = String(EVENTS.length);
-            this.#slider.step = "1";
-            this.#slider.value = String(this.#count);
-            this.#slider.disabled = quoted(this);
-            this.#reading = offer("output", "notification-demo-pressure-reading");
-            this.#reading.htmlFor = this.#slider.id;
-            const scale = offer("div", "notification-demo-pressure-scale");
-            scale.append(offer("span", "", "Routine"), offer("span", "", "Burst"));
-            pressure.append(label, this.#slider, this.#reading, scale);
-
             this.#banner = candidate("A · Banner stack", "banner");
             this.#strip = candidate("B · Status stream", "status strip");
             const candidates = element("div", "notification-demo-candidates");
             candidates.append(this.#banner.figure, this.#strip.figure);
-            this.append(pressure, candidates);
-
-            this.#slider.addEventListener("input", () => {
-              this.#count = Number(this.#slider.value);
-              this.#render();
-            });
+            this.append(candidates);
           }
 
           async #connect() {
@@ -401,14 +315,11 @@
 
           #render() {
             if (!this.#values) return;
-            const events = EVENTS.slice(0, this.#count);
+            const events = EVENTS.slice(0, this.#values.events);
             keeps(this, "data-tone", this.#values.tone);
             keeps(this, "data-compact", this.#values.compact);
             this.style.setProperty("--notification-accent", this.#values.accent);
             this.style.setProperty("--notification-radius", `${this.#values.radius}px`);
-            this.#reading.value = `${this.#count} ${
-              this.#count === 1 ? "event" : "events"
-            }`;
             this.#banner.figure.toggleAttribute(
               "data-selected",
               this.#values.format === "banner",
@@ -427,8 +338,8 @@
                 notification(event, "status strip", index, this.#values),
               ),
             );
-            this.#banner.metric.textContent = `${this.#count} cards · full detail`;
-            this.#strip.metric.textContent = `${this.#count} rows · compact summary`;
+            this.#banner.metric.textContent = `${this.#values.events} cards · full detail`;
+            this.#strip.metric.textContent = `${this.#values.events} rows · compact summary`;
             layoutChanged(this);
           }
         },
@@ -444,6 +355,15 @@
             id="notification-playground"
             submit-label="Create notification"
           >
+            <lf-playground-control
+              name="events"
+              label="Concurrent release events"
+              kind="range"
+              value="2"
+              min="1"
+              max="4"
+              step="1"
+            ></lf-playground-control>
             <lf-playground-control
               name="radius"
               label="Corner radius"
@@ -503,6 +423,7 @@
             ></lf-playground-control>
 
             <lf-playground-preset label="Routine release">
+              <lf-playground-setting for="events" value="2"></lf-playground-setting>
               <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
               <lf-playground-setting
                 for="compact"
@@ -518,6 +439,7 @@
               ></lf-playground-setting>
             </lf-playground-preset>
             <lf-playground-preset label="Needs attention">
+              <lf-playground-setting for="events" value="4"></lf-playground-setting>
               <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
               <lf-playground-setting for="compact" value="true"></lf-playground-setting>
               <lf-playground-setting
@@ -559,9 +481,10 @@
               spacing set to <lf-playground-value for="compact"></lf-playground-value>,
               owner visibility set to
               <lf-playground-value for="show-owner"></lf-playground-value>, and title it
-              <lf-playground-value for="title"></lf-playground-value>. Preserve the
-              shared event-pressure scenario in its browser test, then show me the
-              generated source here for review.
+              <lf-playground-value for="title"></lf-playground-value>. Exercise
+              <lf-playground-value for="events"></lf-playground-value> concurrent
+              release events in its browser test, then show me the generated source here
+              for review.
             </lf-playground-output>
           </lf-playground>
         </lf-ask>

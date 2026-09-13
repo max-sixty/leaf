@@ -55,7 +55,9 @@ export async function bundleLayer(layerRoot, assetRoot, outputRoot = layerRoot) 
       builder.onResolve({ filter: /^\// }, ({ kind, path }) => {
         if (kind === "entry-point") return null;
         const local = layerPath(path, assetRoot);
-        return local && !local.startsWith("vendor/")
+        // Authored modules also import these URLs directly. Bundling a page
+        // dependency into a widget would create a second instance of its state.
+        return local && !local.startsWith("vendor/") && !local.startsWith("page/")
           ? { path: join(layerRoot, local) }
           : { external: true, path };
       });
@@ -107,8 +109,15 @@ export async function bundleSite(assets) {
     await readFile(join(assets, "_leaf", "site.json"), "utf8"),
   );
   for (const [route, page] of Object.entries(manifest.pages)) {
-    const layerRoot = route === "/" ? assets : join(assets, route.slice(1));
-    await bundleLayer(layerRoot, page.assets);
+    const pageRoot = route === "/" ? assets : join(assets, route.slice(1));
+    const revisions = join(pageRoot, "revisions");
+    for (const revision of await readdir(revisions, { withFileTypes: true })) {
+      if (!revision.isDirectory()) continue;
+      await bundleLayer(
+        join(revisions, revision.name),
+        `${page.assets}/revisions/${revision.name}`,
+      );
+    }
   }
 }
 

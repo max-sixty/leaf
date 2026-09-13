@@ -98,25 +98,21 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {
-  actionAvailable,
-  actionStands,
+  LitElement,
   beginWalk,
   conversationInput,
   focused,
+  html,
   inChrome,
   commands,
   landInConversation,
   listWalkPosition,
   offer,
-  once,
   quoted,
   reachedForWords,
-  relabel,
-  selectableOffer,
-  sendAction,
   notice,
-  watchActions,
   walkRows,
+  widgetController,
   worksInside,
   wrote,
 } from "/runtime/widget-api.js";
@@ -137,47 +133,202 @@ const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
 const SECTION = "In a question's options";
+const MARK_TAG = "lf-option-control";
+const DONE_TAG = "lf-options-done";
+
+class OptionControl extends LitElement {
+  static properties = {
+    available: { attribute: false },
+    label: { attribute: false },
+    position: { attribute: false },
+    pressable: { attribute: false },
+    selected: { attribute: false },
+    total: { attribute: false },
+    word: { attribute: false },
+  };
+
+  constructor() {
+    super();
+    this.available = false;
+    this.label = "";
+    this.position = 0;
+    this.pressable = false;
+    this.selected = false;
+    this.total = 0;
+    this.word = "";
+  }
+
+  createRenderRoot() {
+    return this;
+  }
+
+  willUpdate() {
+    this.classList.toggle("lf-ui", this.pressable);
+    this.dataset.lfGen = "1";
+    this.toggleAttribute("data-lf-said", false);
+    this.toggleAttribute("data-lf-echo", false);
+    if (!this.pressable) {
+      this.setAttribute("role", "img");
+      this.setAttribute("aria-label", `${SELECTED}: ${this.label}`);
+      this.removeAttribute("aria-checked");
+      this.removeAttribute("aria-disabled");
+      this.removeAttribute("data-lf-offer");
+      this.removeAttribute("data-lf-selectable-offer");
+      this.removeAttribute("tabindex");
+      return;
+    }
+    this.setAttribute("role", "checkbox");
+    this.setAttribute(
+      "aria-label",
+      `${this.word}: ${this.label} — option ${this.position} of ${this.total}`,
+    );
+    this.setAttribute("aria-checked", String(this.selected));
+    this.setAttribute("aria-disabled", String(!this.available));
+    this.dataset.lfOffer = "checkbox";
+    this.dataset.lfSelectableOffer = "";
+    this.tabIndex = this.available ? 0 : -1;
+  }
+
+  render() {
+    return html`${this.word}`;
+  }
+}
+
+class DoneControl extends LitElement {
+  static properties = {
+    activate: { attribute: false },
+    answered: { attribute: false },
+    available: { attribute: false },
+    busy: { attribute: false },
+  };
+
+  constructor() {
+    super();
+    this.activate = null;
+    this.answered = false;
+    this.available = false;
+    this.busy = false;
+  }
+
+  createRenderRoot() {
+    return this;
+  }
+
+  get control() {
+    return this.querySelector(":scope > .lf-done");
+  }
+
+  get bindingBadge() {
+    return this.control?.querySelector(":scope > .lf-key-badge") ?? null;
+  }
+
+  updated() {
+    if (this.busy) this.control?.setAttribute("aria-busy", "true");
+    else this.control?.removeAttribute("aria-busy");
+  }
+
+  render() {
+    return html`<button
+      type="button"
+      class="lf-btn lf-done lf-ui"
+      data-lf-gen="1"
+      data-lf-offer="button"
+      aria-label="Done: my picks here are complete"
+      aria-pressed=${String(this.answered)}
+      aria-disabled=${String(!this.available)}
+      tabindex=${this.available ? 0 : -1}
+      @click=${this.activate}
+    >
+      <span
+        class="lf-key-badge lf-ui"
+        data-lf-gen="1"
+        data-lf-offer=""
+        aria-hidden="true"
+      ></span
+      >Done
+    </button>`;
+  }
+}
+
+if (!customElements.get(MARK_TAG)) customElements.define(MARK_TAG, OptionControl);
+if (!customElements.get(DONE_TAG)) customElements.define(DONE_TAG, DoneControl);
 
 customElements.define(
   "lf-options",
-  class extends HTMLElement {
+  class extends LitElement {
+    static properties = {
+      reading: { attribute: false },
+    };
+
+    #addition = null;
+    #answering = null;
+    #choosable = false;
+    #controller = null;
+    #controls = new Map();
+    #done = null;
+    #keysDirty = false;
+    #settled = null;
+    #stateKey = null;
+    #stop = null;
+    #wired = false;
+
+    constructor() {
+      super();
+      this.reading = null;
+    }
+
+    // This holder has no generated region of its own. A detached render root lets Lit
+    // schedule its presentation lifecycle without inserting a false option-group cell;
+    // each generated child control owns its own light-DOM template below.
+    createRenderRoot() {
+      return document.createDocumentFragment();
+    }
+
     connectedCallback() {
-      this.#stop ??= watchActions(this, null, this.#paintAvailability);
-      if (!once(this)) {
-        this.#addition?.connect();
-        this.#settled?.connect();
-        this.#paintAvailability();
-        return;
+      // An exhibited or purely structural group has no semantic identity: it renders
+      // the authored alternatives, but owns no selection and therefore has no captured
+      // widget descriptor. Only a live or settled decision enters the controller path.
+      const exhibited = quoted(this);
+      super.connectedCallback();
+      if (!this.#wired) this.#wire(exhibited);
+      this.#addition?.connect();
+      this.#settled?.connect();
+      if (!exhibited && (this.hasAttribute("choose") || this.hasAttribute("settled"))) {
+        this.#controller ??= widgetController(this);
+        this.#stop ??= this.#controller.subscribe(this.#present);
+      } else {
+        this.#presentAuthored();
       }
+    }
+
+    #wire(exhibited) {
+      this.#wired = true;
       // Quoted material is exhibited, not offered, so a specimen renders exactly like a
       // group that was never choosable: it shows what a decision looks like without
       // taking one.
-      const choosable = this.hasAttribute("choose") && !quoted(this);
+      this.#choosable = this.hasAttribute("choose") && !exhibited;
       for (const option of this.#options()) this.#reference(option);
       // Without `choose` there is nothing to press: the mark still reports the
       // document's state, as a span.
       for (const option of this.#options())
-        if (choosable || option.hasAttribute("chosen")) this.#mark(option, choosable);
+        if (this.#choosable || option.hasAttribute("chosen"))
+          this.#control(option, this.#choosable);
       this.#addition = new OptionAddition(this, {
-        offered: choosable && !inChrome(this),
-        available: () => actionAvailable(this, "choose"),
+        offered: this.#choosable && !inChrome(this),
+        available: () => this.#available("choose"),
         commit: (detail, attempt) => {
-          if (!actionAvailable(this, "choose")) return null;
-          this.#applyChoice(detail);
-          return sendAction(this, "choose", detail, { attempt });
+          if (!this.#available("choose")) return null;
+          return this.#dispatch("choose", detail, attempt)?.delivery ?? null;
         },
       });
-      this.#addition.connect();
-      if (choosable) {
+      if (this.#choosable) {
         if (this.hasAttribute("multiple") && inChrome(this)) this.#doneRow();
-        this.#keys();
+        this.#keysDirty = true;
       }
       if (this.hasAttribute("settled")) {
         this.#settled = new SettledOptions(this, { label });
-        this.#settled.connect();
       }
-      this.#paintAvailability();
-      if (!choosable) return;
+      if (!this.#choosable) return;
       this.addEventListener("click", (e) => {
         // A click ending a drag-select belongs to the selection rather than the option.
         const option = e.target.closest?.("lf-option");
@@ -191,7 +342,7 @@ customElements.define(
         // the column beside it, so a press on either is aimed at this option after all.
         const inner = worksInside(e.target, option);
         if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
-        if (!actionAvailable(this, "choose")) return;
+        if (!this.#available("choose")) return;
         const was = this.#picked();
         // Toggling is one gesture both ways, so a reader who picked by mistake needn't
         // pick something else to get out of it. Without `multiple` the set the toggle
@@ -199,7 +350,6 @@ customElements.define(
         const next = new Set(this.hasAttribute("multiple") ? was : []);
         if (was.has(option)) next.delete(option);
         else next.add(option);
-        this.#pick(next);
         this.#addition.remember(next);
         const name = label(option) || option.id;
         const said = !next.size
@@ -207,30 +357,44 @@ customElements.define(
           : next.has(option)
             ? `Chose “${name}”`
             : `Dropped “${name}”`;
-        sendAction(this, "choose", this.#addition.detailFor(next)).then((ok) => {
-          if (ok) notice(`${said} — sent`);
-        });
+        this.#dispatch("choose", this.#addition.detailFor(next))?.delivery.then(
+          (ok) => {
+            if (ok) notice(`${said} — sent`);
+          },
+        );
       });
     }
 
-    #addition = null;
-    #settled = null;
-    #done = null; // the thread multi-question's submit; null everywhere else
-    #answering = null; // the answer in flight, so a second press joins it
-    #stop = null;
+    #available(verb) {
+      return Boolean(this.reading?.actions[verb]?.available);
+    }
+
+    #dispatch(verb, detail, attempt) {
+      const sent = this.#controller?.dispatch({
+        kind: "action",
+        verb,
+        detail,
+        ...(attempt && { attempt }),
+      });
+      if (sent) this.#present(sent.reading);
+      return sent;
+    }
 
     #options() {
       return this.querySelectorAll(":scope > lf-option");
     }
 
     #picked() {
-      return new Set([...this.#options()].filter((o) => o.hasAttribute("chosen")));
+      const ids = new Set(
+        this.reading?.state.selection?.detail.options ?? this.#authoredChoice().options,
+      );
+      return new Set([...this.#options()].filter((option) => ids.has(option.id)));
     }
 
     #marks() {
-      return [
-        ...this.querySelectorAll(':scope > lf-option > .lf-pick[role="checkbox"]'),
-      ];
+      return [...this.#options()]
+        .map((option) => this.#controls.get(option))
+        .filter((view) => view?.pressable && view.isConnected);
     }
 
     // A page question owns the ordinary add form below its options. A question already
@@ -245,15 +409,8 @@ customElements.define(
     // is nothing to take back — and the answer is paint rather than a fold, so
     // the pressed control's own line holds still.
     #doneRow() {
-      this.#done = offer("button", "lf-btn lf-done", "Done");
-      // The Ask binding badge's own slot, as each option row has one. Without it the projection
-      // hung the chip at the button's corner, half outside the group's frame.
-      const bindingBadge = offer("span", "lf-key-badge");
-      bindingBadge.setAttribute("aria-hidden", "true");
-      this.#done.prepend(bindingBadge);
-      this.#done.setAttribute("aria-label", "Done: my picks here are complete");
-      this.#done.setAttribute("aria-pressed", "false");
-      this.#done.onclick = () => this.#answer();
+      this.#done = offer(DONE_TAG, "lf-options-done");
+      this.#done.activate = () => void this.#answer();
       this.append(this.#done);
     }
 
@@ -263,53 +420,43 @@ customElements.define(
     // while the first is in the wire.
     #answer() {
       if (this.#answering) return this.#answering;
-      if (!actionAvailable(this, "answer")) return Promise.resolve(false);
-      this.#answered(true);
-      const sent = sendAction(this, "answer", {}).then((accepted) => {
-        this.#sending(null);
+      if (!this.#available("answer")) return Promise.resolve(false);
+      const dispatched = this.#dispatch("answer", {});
+      if (!dispatched) return Promise.resolve(false);
+      const sent = dispatched.delivery.then((accepted) => {
         if (!accepted) return false; // reconciliation restored the prior state
         // Usually replay has painted the accepted answer already. Repeat the absolute
         // paint for a partial render, but never over a same-read undo of this action.
-        if (actionStands(accepted)) this.#answered(true);
+        this.#present(this.#controller.read());
         notice("Marked answered — sent");
         return true;
       });
-      this.#sending(sent);
+      this.#answering = sent;
+      this.#syncDone();
+      this.requestUpdate();
+      const clear = () => {
+        if (this.#answering !== sent) return;
+        this.#answering = null;
+        this.#syncDone();
+        this.requestUpdate();
+      };
+      sent.then(clear, clear);
       return sent;
     }
 
-    // One fact said twice, and said here so the two cannot come apart: the field
-    // refuses the second press, and the attribute is what the layer paints and a
-    // screen reader holds its announcements through. On the button rather than the
-    // group, because the button's own state is the one in flight — the options are
-    // still the reader's to work.
-    #sending(answer) {
-      this.#answering = answer;
-      if (answer) this.#done.setAttribute("aria-busy", "true");
-      else this.#done.removeAttribute("aria-busy");
+    #syncDone() {
+      if (!this.#done) return;
+      this.#done.available = this.#available("answer");
+      this.#done.answered = this.reading?.state.completion?.value === "answer";
+      this.#done.busy = Boolean(this.#answering);
     }
 
-    // Absolute: answered is the whole statement, so replaying this tab's own press
-    // is the same call again. Replay paints it when the log takes the answer: the log
-    // holds it, and the pressed state is what the page shows for it (see the header).
-    #answered(on) {
-      this.#done?.setAttribute("aria-pressed", String(on));
-      document.dispatchEvent(new CustomEvent("lf-answered"));
-    }
-
-    #paintAvailability = () => {
-      const available = actionAvailable(this, "choose");
-      for (const mark of this.#marks()) {
-        mark.setAttribute("aria-disabled", String(!available));
-        mark.tabIndex = available ? 0 : -1;
-      }
+    #refreshAvailability() {
+      const available = this.#available("choose");
+      for (const mark of this.#marks()) mark.available = available;
       this.#addition?.refresh();
-      if (this.#done) {
-        const answerAvailable = actionAvailable(this, "answer");
-        this.#done.setAttribute("aria-disabled", String(!answerAvailable));
-        this.#done.tabIndex = answerAvailable ? 0 : -1;
-      }
-    };
+      this.#syncDone();
+    }
 
     // From a mark, ↑/↓ walk the options and Space toggles. The mark's own scope
     // declares only those local mechanics (plus the thread's existing reply route).
@@ -389,7 +536,7 @@ customElements.define(
               const picked = [...this.#options()].map((option) =>
                 option.hasAttribute("chosen"),
               );
-              const answered = this.#done?.getAttribute("aria-pressed");
+              const answered = this.#done?.control?.getAttribute("aria-pressed");
               beginWalk("option", "Option", () => {
                 const options = [...this.#options()];
                 if (
@@ -397,7 +544,7 @@ customElements.define(
                   options.some(
                     (option, index) => option.hasAttribute("chosen") !== picked[index],
                   ) ||
-                  this.#done?.getAttribute("aria-pressed") !== answered
+                  this.#done?.control?.getAttribute("aria-pressed") !== answered
                 )
                   return null;
                 return listWalkPosition(this.#marks(), focused());
@@ -435,12 +582,12 @@ customElements.define(
         answerRows.push({
           id: "option.done",
           keys: [],
-          control: this.#done,
+          control: this.#done.control,
           decision: "Done",
-          bindingBadge: this.#done.querySelector(":scope > .lf-key-badge"),
+          bindingBadge: this.#done.bindingBadge,
           does: "Finish choosing options",
           line: "done",
-          run: () => this.#done.click(),
+          run: () => this.#done.control.click(),
         });
       commands(this, SECTION, answerRows, {
         answer: () =>
@@ -460,23 +607,14 @@ customElements.define(
       option.append(ref);
     }
 
-    // The keyboard affordance and the state marker, one element — a checkbox whose click
-    // bubbles into the group's pick handler where there's a pick to make, and the same
-    // mark as a span where there isn't.
-    #mark(option, pressable) {
-      // A press wears the chrome face and .lf-ui reaches exactly as far as the control
-      // does; the other shape holds no control at all, so it needs neither. What each one
-      // *says* is a separate question both shapes answer the same way (#label), and the
-      // answer is what decides whether a comment can land on it. data-lf-gen either way,
-      // since the diff parses the base version unupgraded and would read any mark as text
-      // that version lacked.
-      const mark = pressable
-        ? selectableOffer("checkbox", "lf-pick")
-        : document.createElement("span");
-      if (!pressable) {
-        mark.className = "lf-pick";
-        mark.dataset.lfGen = "1";
-      }
+    // Each generated mark owns its Lit rendering while the authored option remains the
+    // direct child whose identity, words, anchors, and nested evidence stay untouched.
+    #control(option, pressable) {
+      let mark = this.#controls.get(option);
+      if (mark) return mark;
+      mark = offer(MARK_TAG, "lf-pick");
+      mark.pressable = pressable;
+      this.#controls.set(option, mark);
       // First, so the row form's table puts it in the cell before the words. A card
       // places its mark out of flow in the header and cannot see this, so one insertion
       // serves both forms and the theme states each form's placement as it already did.
@@ -485,51 +623,83 @@ customElements.define(
       // in a full-width group, and a group that took several answers drew its boxes
       // there while a single-pick card drew none at all.
       option.prepend(mark);
-      this.#label(option);
+      this.#keysDirty ||= pressable;
+      return mark;
     }
 
-    // An absolute placement: `picked` is the whole answer, so every option is stated,
-    // not just the ones that changed.
-    #pick(picked) {
-      for (const option of this.#options()) {
-        option.toggleAttribute("chosen", picked.has(option));
-        this.#label(option);
+    #syncChoice(detail) {
+      const options = [...this.#options()];
+      const picked = new Set(detail.options);
+      for (const [option] of this.#controls)
+        if (option.parentElement !== this) this.#controls.delete(option);
+      for (const [index, option] of options.entries()) {
+        const selected = picked.has(option.id);
+        option.toggleAttribute("chosen", selected);
+        if (!this.#choosable && !this.#controls.has(option) && !selected) continue;
+        const mark = this.#control(option, this.#choosable);
+        const word = selected
+          ? SELECTED
+          : OPEN[this.hasAttribute("multiple") ? "any" : "one"];
+        mark.available = this.#choosable && this.#available("choose");
+        mark.label = label(option) || option.id;
+        mark.position = index + 1;
+        mark.pressable = this.#choosable;
+        mark.selected = selected;
+        mark.total = options.length;
+        mark.word = word;
       }
       this.#settled?.sync();
-      // A pick is an answer to what this group was asking. The banner's count and the
-      // page's marks both follow from the same one signal, here rather than at the
-      // sender, so a pick this tab rewound and one another tab made both reach them.
-      document.dispatchEvent(new CustomEvent("lf-answered"));
     }
 
-    // The mark's text is first an accessible label. The theme may expose the selected
-    // word as a titled card's compact header state; rows and inert document marks keep
-    // it visually silent. aria-checked carries the fact on every live control, and an
-    // authored inert mark becomes an image with the same plain name.
-    #label(option) {
-      const mark = option.querySelector(":scope > .lf-pick");
-      if (!mark) return;
-      const chosen = option.hasAttribute("chosen");
-      const word = chosen
-        ? SELECTED
-        : OPEN[this.hasAttribute("multiple") ? "any" : "one"];
-      relabel(mark, word, { says: false });
-      if (!mark.matches('[role="checkbox"]')) {
-        mark.setAttribute("role", "img");
-        mark.setAttribute("aria-label", `${SELECTED}: ${label(option) || option.id}`);
-        return;
+    #presentAuthored() {
+      this.#syncChoice(this.#authoredChoice());
+      this.requestUpdate();
+    }
+
+    #authoredChoice() {
+      return {
+        options: [...this.#options()]
+          .filter((option) => option.hasAttribute("chosen"))
+          .map((option) => option.id),
+      };
+    }
+
+    #present = (reading) => {
+      this.reading = reading;
+      this.#refreshAvailability();
+      const state = reading.state;
+      const stateKey = JSON.stringify([
+        state.selection?.detail ?? null,
+        state.completion?.value ?? null,
+      ]);
+      if ((state.selection || state.completion) && stateKey !== this.#stateKey) {
+        this.#stateKey = stateKey;
+        document.dispatchEvent(new CustomEvent("lf-answered"));
       }
-      // "option i of n" the way a native radio group announces position: the arity
-      // word says how many the group takes, this says how many there are to take
-      // from — the fact a listening reader otherwise has to walk the list to learn.
-      const options = [...this.#options()];
-      mark.setAttribute(
-        "aria-label",
-        `${word}: ${label(option) || option.id} — option ${
-          options.indexOf(option) + 1
-        } of ${options.length}`,
-      );
-      mark.setAttribute("aria-checked", String(chosen));
+    };
+
+    renderState(state) {
+      // Authored facets are captured after upgrade because widgets may arrange their
+      // source nodes while connecting. Until that typed facet publishes, state has no
+      // selection at all; preserve the authored initial condition. A reading that does
+      // carry a selection is always authoritative, including accepted replay.
+      const detail = state.selection?.detail ?? this.#authoredChoice();
+      for (const option of this.#addition.reconcile(detail.additions ?? {}, this.#done))
+        this.#control(option, this.#choosable);
+      this.#syncChoice(detail);
+    }
+
+    async getUpdateComplete() {
+      const complete = await super.getUpdateComplete();
+      await Promise.all([
+        ...[...this.#controls.values()].map((control) => control.updateComplete),
+        ...(this.#done ? [this.#done.updateComplete] : []),
+      ]);
+      if (this.#keysDirty) {
+        this.#keysDirty = false;
+        this.#keys();
+      }
+      return complete;
     }
 
     disconnectedCallback() {
@@ -537,27 +707,11 @@ customElements.define(
       this.#stop = null;
       this.#addition?.disconnect();
       this.#settled?.disconnect();
+      super.disconnectedCallback();
     }
 
-    #applyChoice(detail) {
-      for (const option of this.#addition.reconcile(detail.additions ?? {}, this.#done))
-        this.#mark(option, true);
-      this.#keys();
-      this.#pick(
-        new Set(
-          detail.options
-            .map((id) => document.getElementById(id))
-            .filter(
-              (option) => option?.matches("lf-option") && option.parentElement === this,
-            ),
-        ),
-      );
-    }
-
-    renderState(state) {
-      if (!this.#addition) return;
-      this.#applyChoice(state.selection.detail);
-      this.#answered(state.completion.value === "answer");
+    render() {
+      return html``;
     }
 
     lfWord() {

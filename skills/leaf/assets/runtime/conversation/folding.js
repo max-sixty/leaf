@@ -63,19 +63,41 @@ export function settlementControl(
     sync();
   };
   document.addEventListener(news, update);
-  button.onclick = async () => {
+  const settle = async () => {
     if (pendingSettlement(pendingEntries(), id())) return;
     const landing = prepareLanding?.();
-    const sent = setResolved(id(), !reopen);
-    landing?.optimistic?.();
+    const { answer: sent, presentation } = setResolved(id(), !reopen);
     tell(id());
     paintKeys();
     try {
-      if (!(await sent)) landing?.refused?.();
+      await presentation;
+      const land = async (step) => {
+        try {
+          return Boolean(await step?.());
+        } catch {
+          // The presentation owner reports this failure. Settlement still has to await
+          // the durable answer and restore or retain the state that answer selected.
+          return false;
+        }
+      };
+      let landed = false;
+      if (pendingSettlement(pendingEntries(), id())) {
+        landed = await land(landing?.optimistic);
+      }
+      const accepted = await sent;
+      if (!accepted) await land(landing?.refused);
+      else if (!landed) await land(landing?.optimistic);
     } finally {
       tell(id());
       paintKeys();
     }
+  };
+  button.onclick = () => {
+    const ready = settle();
+    // The conversation coordinator reports presentation failures. This event-handler
+    // continuation still owns awaiting the durable answer, and the browser must never
+    // receive a second rejection from the promise it discards.
+    void ready.catch(() => {});
   };
   keys(button, `On a thread's ${word} button`, [
     {

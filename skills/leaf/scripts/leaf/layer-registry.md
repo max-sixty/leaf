@@ -18,10 +18,16 @@ transition covers start, stop, init, contract-bearing CLI writes, and preview
 reads. Stop retains it through the server's release, so no operation can cross
 the old process's contract.
 
-The registry is shared by the JS runtime, the POST and re-vendor action gates,
-`leaf version check` and thread-markup validation, the passage reader
-`leaf comment` anchors through, and the selective queries the agent runs. Each
-successful init records two deliberately different identities under `$layer`:
+The effective registry is shared by the JS runtime, the POST and candidate-version
+gates, thread-markup validation, the passage reader `leaf comment` anchors through,
+and the selective queries the agent runs. A candidate must retain every page action or
+report whose sender it retains, including superseded predecessors that a later undo can
+expose. It must also retain all frozen thread markup and the actions and requests sent
+from it, because that document has no revision boundary. Page events whose senders the
+candidate removes are historical-only and remain interpretable through the registry
+captured with their immutable revisions. Re-vendoring composes page-owned declarations
+over the prospective layer before running this same candidate check. Each successful
+init records two deliberately different identities under `$layer`:
 
 - `generation` is a fresh epoch embedded in both `runtime/layer-client.js` and the
   registry. State reports it and event requests carry it; the server repeats it on
@@ -44,10 +50,13 @@ interrupted load. Source files and standalone exports carry no startup superviso
 its explanations; this contract does not mirror that inventory.
 
 The append transaction records state coordinates and direct dependencies in an
-action or report's `meaning`. Identity-bearing fields come from the declared fold
-unit and attribute-set or position record. Additional string or string-array
-fields must be named in `references`; arbitrary detail strings carry no identity.
-The current document still supplies containment when reading those dependencies.
+action or report's `meaning`. Identity-bearing detail fields come from the declared
+fold unit and attribute-set or position record. A verb's optional `references` map
+declares package- or page-named roles using the same `{}` or `{via, where}` target
+contract as `x-refers`; the event carries the matching role-to-stable-target-record map
+beside `detail`. The append door resolves every role in the command's immutable source
+document. Id records and structural anchors join direct dependencies; arbitrary detail
+strings carry no identity.
 
 A state verb that creates authored children declares `creates: {field, child}`.
 The optional detail field is the canonical map from generated element ids to their

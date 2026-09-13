@@ -143,26 +143,34 @@ or comparison rather than shrinking its source solely to fit the prose column.
 
 ## Page behavior
 
-Write page-specific behavior in one or more `<script type="module">` blocks. Leaf
-stores the code in the same immutable revision as the markup it controls and hashes
-its exact contents into the served policy. Standard browser APIs are available; code
-that integrates with Leaf may import the public `/runtime/widget-api.js` module and
-listen to public widget events such as `lf-playground-change`.
+Write page-specific behavior in an inline `<script type="module">` or in browser-ready
+modules below `page/`, referenced through `/page/…`. Page stylesheets and their local
+dependencies may live there too. Relative imports stay within `page/`; code that
+integrates with Leaf may import the public `/runtime/widget-api.js` module. Leaf captures
+the complete local dependency graph, effective registry, and selected layer bytes in the
+same immutable revision as the markup they control.
 
-Content-only revisions activate within the open document so reading position and Leaf
-chrome stay in place. When the authored module source changes, the live page reloads:
-arbitrary page code has no teardown contract, and new markup must never run against a
-previous revision's behavior.
+Every live revision activates by reloading the stable live address into a fresh browser
+document, including a content-only change. Leaf waits while a reader is composing,
+dragging, or has an unresolved delivery. Reading position, recoverable drafts,
+comparison, and a still-valid authored standing are restored explicitly; element
+instances and arbitrary module state do not cross the boundary.
 
 Page modules follow the behavior-module contract in `references/packages.md`. In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection, thread quoting, and export.
 
+`page/registry.json` may contribute declarations using the package registry language.
+Its element entry replaces the selected layer's complete entry; shared `$` declarations
+compose at their declared grain. Declaration and implementation ownership are separate:
+a page declaration keeps the package widget unless `page/widgets/<tag>.js` exists, and a
+page widget may replace the package implementation without restating its declaration.
+Both choices are fixed in the revision manifest.
+
 Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
-explorer or playground keeps its code in the page. Import any vendored dependencies
-from an inline module. Leaf refuses external and classic scripts, external
-stylesheets, event-handler attributes, and `javascript:` URLs so every authored
-executable source remains an explicit module block.
+explorer or playground keeps its code in `page/`. Leaf admits only literal local module
+and stylesheet dependencies it can capture, and refuses network or unresolved imports,
+filesystem escapes, classic scripts, event-handler attributes, and `javascript:` URLs.
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
 do not turn their contents into source code or markup.

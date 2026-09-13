@@ -161,10 +161,7 @@ export function mountApplication(dependencies) {
   };
   const presentConversation = () => conversation.apply(readApplication());
   const refreshConversation = () =>
-    backgroundConversation(
-      presentConversation(),
-      "conversation preparation",
-    );
+    backgroundConversation(presentConversation(), "conversation preparation");
 
   function startPost(event) {
     const entry = ledger.enqueue(event);

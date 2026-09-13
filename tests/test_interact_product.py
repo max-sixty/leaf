@@ -417,6 +417,9 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     for example in examples:
         d = tmp_path / example.stem
         initialized_page("examples", d, initialize)
+        page_files = example.with_suffix(".page")
+        if page_files.is_dir():
+            shutil.copytree(page_files, d / "page", dirs_exist_ok=True)
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         # The data door validates a source against the page's markup, and the current
         # version is the one that has to bind it; the loop below then walks every

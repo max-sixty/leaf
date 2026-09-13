@@ -65,9 +65,10 @@ machine needs the same package installed there.
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
 and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
-technical backlog deck; `playground` adds declarative controls, presets, CSS-bound
-previews, and one typed configuration action; `targeting` lets readers select preview
-elements and submit structured, reversible change proposals; `command-hub` adds multi-agent
+technical backlog deck; `playground` coordinates declarative controls and page-owned
+structured contributors through one reset, restore, preview, output, and typed
+configuration action; `targeting` lets readers select preview elements and submit
+structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
 adds a release workspace with current state, checks, a run log, and a bound rollback

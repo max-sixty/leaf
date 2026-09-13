@@ -6,9 +6,11 @@
  * the final recordless action. Intermediate changes never enter Leaf's event log.
  *
  * The host element is the extension boundary. Its `values` getter returns a fresh
- * snapshot, and every working-state change dispatches `lf-playground-change` with the
- * same snapshot at `event.detail.values`. Simple previews need neither: they read the
- * reflected `--playground-NAME` properties and `data-playground-NAME` attributes.
+ * snapshot. Page modules register structured contributors through one read/apply pair
+ * and call the returned notifier after a gesture. Every working-state change then
+ * dispatches `lf-playground-change` with the same aggregate snapshot at
+ * `event.detail.values`. Simple previews need neither: they read the reflected
+ * `--playground-NAME` properties and `data-playground-NAME` attributes.
  *
  * Projection is deliberately separate from working state. A repeated projection must
  * not erase local edits, while a newly chosen action or its undo must replace them.
@@ -39,11 +41,40 @@ const NAME = /^[a-z][a-z0-9-]*$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
 const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
 const CHANGE = "lf-playground-change";
+const OFFLINE = document.querySelector(
+  'script[type="application/json"][data-lf-runtime][data-lf-offline]',
+);
 
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
 
 const sameKeys = (left, right) =>
   left.length === right.length && left.every((key, index) => key === right[index]);
+
+function jsonSnapshot(value, path = "configuration") {
+  if (value === null || typeof value === "string" || typeof value === "boolean")
+    return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error(`${path} needs finite numbers`);
+    return value;
+  }
+  if (Array.isArray(value))
+    return Object.freeze(
+      Array.from(value, (item, index) => jsonSnapshot(item, `${path}[${index}]`)),
+    );
+  if (
+    typeof value !== "object" ||
+    ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+  )
+    throw new Error(`${path} must be JSON-safe`);
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        jsonSnapshot(item, `${path}.${key}`),
+      ]),
+    ),
+  );
+}
 
 customElements.define(
   "lf-playground",
@@ -51,10 +82,13 @@ customElements.define(
     #controller = widgetController(this);
     #controls = [];
     #controlByName = new Map();
+    #contributors = new Map();
     #presetSettings = new Map();
     #presetButtons = new Map();
     #defaults = Object.freeze({});
     #values = Object.freeze({});
+    #storedCandidate = null;
+    #instructionProvider = null;
     #output = null;
     #submit = null;
     #copy = null;
@@ -94,6 +128,52 @@ customElements.define(
 
     get values() {
       return structuredClone(this.#values);
+    }
+
+    registerContributor(name, defaultSnapshot, operations) {
+      if (!this.#ready) throw new Error("playground is not ready");
+      if (!NAME.test(name ?? "")) throw new Error(`invalid contributor name ${name}`);
+      if (this.#controlByName.has(name))
+        throw new Error(`contributor ${name} collides with a control`);
+      if (this.#contributors.has(name)) throw new Error(`repeats contributor ${name}`);
+      if (
+        !operations ||
+        typeof operations.read !== "function" ||
+        typeof operations.apply !== "function"
+      )
+        throw new Error(`contributor ${name} needs read and apply operations`);
+
+      const initial = jsonSnapshot(defaultSnapshot, `contributor ${name}`);
+      this.#contributors.set(name, { ...operations, defaultSnapshot: initial });
+      this.#defaults = Object.freeze({ ...this.#defaults, [name]: initial });
+      const restored = Object.hasOwn(this.#storedCandidate ?? {}, name)
+        ? this.#storedCandidate[name]
+        : initial;
+      try {
+        this.#apply({ ...this.#values, [name]: restored }, { remember: false });
+      } catch (error) {
+        this.#contributors.delete(name);
+        const { [name]: _discarded, ...defaults } = this.#defaults;
+        this.#defaults = Object.freeze(defaults);
+        throw error;
+      }
+
+      return () => {
+        const contributor = this.#contributors.get(name);
+        if (!contributor) return;
+        const snapshot = jsonSnapshot(contributor.read(), `contributor ${name}`);
+        this.#apply({ ...this.#values, [name]: snapshot });
+      };
+    }
+
+    registerInstructionProvider(provider) {
+      if (!this.#ready) throw new Error("playground is not ready");
+      if (typeof provider !== "function")
+        throw new Error("instruction provider must be a function");
+      if (this.#instructionProvider)
+        throw new Error("playground already has an instruction provider");
+      this.#instructionProvider = provider;
+      this.#renderOutput();
     }
 
     #build() {
@@ -148,8 +228,24 @@ customElements.define(
         this.#buildLayout({ panel, presetBar, preview: previews[0], actions });
       }
 
-      const stored = this.#storedValues();
-      this.#apply(stored ?? this.#defaults, { remember: false });
+      this.#storedCandidate = this.#readStoredCandidate();
+      const restored = this.#storedCandidate
+        ? Object.fromEntries(
+            [...this.#controlByName].map(([name]) => [
+              name,
+              Object.hasOwn(this.#storedCandidate, name)
+                ? this.#storedCandidate[name]
+                : this.#defaults[name],
+            ]),
+          )
+        : this.#defaults;
+      try {
+        this.#apply(restored, { remember: false });
+      } catch {
+        this.#storedCandidate = null;
+        tabStore.set(this.#storeKey(), null);
+        this.#apply(this.#defaults, { remember: false });
+      }
       if (this.#interactive) this.#commands();
       this.#paintAvailability();
     }
@@ -227,17 +323,21 @@ customElements.define(
     #normalize(candidate) {
       if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
         throw new Error("configuration values must be an object");
-      const names = [...this.#controlByName.keys()].sort();
+      const names = [
+        ...this.#controlByName.keys(),
+        ...this.#contributors.keys(),
+      ].sort();
       const keys = Object.keys(candidate).sort();
       if (!sameKeys(names, keys))
         throw new Error(
-          `configuration needs exactly these controls: ${names.join(", ")}`,
+          `configuration needs exactly these fields: ${names.join(", ")}`,
         );
       return Object.freeze(
         Object.fromEntries(
           names.map((name) => {
             const control = this.#controlByName.get(name);
             const value = candidate[name];
+            if (!control) return [name, jsonSnapshot(value, `contributor ${name}`)];
             const kind = control.getAttribute("kind");
             if (kind === "range" && typeof value !== "number")
               throw new Error(`control ${name} needs a number`);
@@ -367,6 +467,13 @@ customElements.define(
       this.#copy.addEventListener("click", () => this.#copyInstruction());
       this.#submit.addEventListener("click", () => this.#choose());
       actions.append(this.#reset, this.#copy, this.#submit);
+      if (OFFLINE) {
+        const unavailable = document.createElement("span");
+        unavailable.className = "lf-playground-unavailable";
+        unavailable.textContent =
+          "Submission unavailable: no agent or server is available.";
+        actions.append(unavailable);
+      }
       measure(this.#copy, () => reserve(this.#copy, ["Copy instruction", "Copied"]));
       return actions;
     }
@@ -507,12 +614,15 @@ customElements.define(
     }
 
     #takeInputs() {
-      const next = Object.fromEntries(
-        this.#controls.map((control) => [
-          control.getAttribute("name"),
-          this.#parse(control, String(this.#readInput(control))),
-        ]),
-      );
+      const next = {
+        ...this.#values,
+        ...Object.fromEntries(
+          this.#controls.map((control) => [
+            control.getAttribute("name"),
+            this.#parse(control, String(this.#readInput(control))),
+          ]),
+        ),
+      };
       this.#apply(next);
     }
 
@@ -549,14 +659,17 @@ customElements.define(
 
     #apply(candidate, { remember = true } = {}) {
       const values = this.#normalize(candidate);
+      for (const [name, contributor] of this.#contributors)
+        contributor.apply(structuredClone(values[name]));
       this.#values = values;
       for (const [name, value] of Object.entries(values)) {
         const control = this.#controlByName.get(name);
+        if (!control) continue;
         this.#setInput(control, value);
         this.style.setProperty(`--playground-${name}`, this.#cssValue(control, value));
         keeps(this, `data-playground-${name}`, value);
       }
-      this.#output.renderValues(values, this.#controlByName);
+      this.#renderOutput();
       this.#resetCopyFeedback();
       this.#paintPresets();
       if (remember) tabStore.set(this.#storeKey(), JSON.stringify(values));
@@ -575,15 +688,29 @@ customElements.define(
       return `lf-playground:${this.id}`;
     }
 
-    #storedValues() {
+    #readStoredCandidate() {
       const stored = tabStore.get(this.#storeKey());
       if (stored === null) return null;
       try {
-        return this.#normalize(JSON.parse(stored));
+        const candidate = JSON.parse(stored);
+        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
+          throw new Error("configuration values must be an object");
+        return candidate;
       } catch {
         tabStore.set(this.#storeKey(), null);
         return null;
       }
+    }
+
+    #renderOutput() {
+      if (!this.#instructionProvider) {
+        this.#output.renderValues(this.#values, this.#controlByName);
+        return;
+      }
+      const instruction = this.#instructionProvider(this.values);
+      if (typeof instruction !== "string" || !instruction.trim())
+        throw new Error("instruction provider must return non-empty text");
+      this.#output.renderInstruction(instruction.trim());
     }
 
     #instruction() {

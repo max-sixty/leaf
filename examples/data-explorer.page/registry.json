@@ -1,0 +1,67 @@
+{
+  "lf-playground": {
+    "description": "The release query playground with one page-owned aggregate configuration.",
+    "type": "object",
+    "properties": {
+      "id": {"type": "string", "const": "release-query-playground"},
+      "submit-label": {"type": "string", "const": "Build query"},
+      "restated": {"type": "boolean"}
+    },
+    "required": ["id", "submit-label"],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-guidance": {
+      "author": "The page module owns ordered filter rows; the Playground package owns their aggregate reset, restore, copy, and submission path."
+    },
+    "x-upgrade": true,
+    "x-awaits": {"region": true, "answers": ["choose"]},
+    "x-state": {
+      "choose": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "object",
+              "properties": {
+                "limit": {"type": "number", "minimum": 1, "maximum": 6},
+                "filters": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {"type": "string", "pattern": "^filter-[1-9][0-9]*$"},
+                          "field": {"enum": ["region", "risk", "owner"]},
+                          "operator": {"enum": ["is", "above", "contains"]},
+                          "value": {"type": "string"}
+                        },
+                        "required": ["id", "field", "operator", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "order": {
+                      "type": "array",
+                      "items": {"type": "string", "pattern": "^filter-[1-9][0-9]*$"}
+                    }
+                  },
+                  "required": ["rows", "order"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["limit", "filters"],
+              "additionalProperties": false
+            },
+            "instruction": {"type": "string", "minLength": 1}
+          },
+          "required": ["values", "instruction"],
+          "additionalProperties": false
+        },
+        "facet": "configuration",
+        "unit": "widget"
+      }
+    },
+    "x-example": "<lf-ask id=\"query-ask\"><h2>Which query?</h2><lf-playground id=\"release-query-playground\" submit-label=\"Build query\"><lf-playground-control name=\"limit\" label=\"Maximum results\" kind=\"range\" value=\"4\" min=\"1\" max=\"6\" step=\"1\"></lf-playground-control><lf-playground-preview><p>Query preview</p></lf-playground-preview><lf-playground-output>Build the query.</lf-playground-output></lf-playground></lf-ask>"
+  }
+}

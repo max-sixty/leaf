@@ -30,6 +30,8 @@ PUBLIC_TABS = [
     ("ship-review", "Ship review"),
     ("heat-loss", "Heat"),
     ("notification-playground", "Notification"),
+    ("data-explorer", "Data explorer"),
+    ("code-comparison", "Code comparison"),
     ("live-progress", "Live"),
     ("pr-walkthrough", "PR"),
     ("security-boundary", "Security"),

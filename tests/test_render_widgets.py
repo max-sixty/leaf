@@ -2966,7 +2966,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     assert presets.bounding_box()["y"] == pytest.approx(presets_top, abs=1)
     expect(playground.get_by_role("button", name="Routine release")).to_be_visible()
     expect(playground.get_by_role("button", name="Needs attention")).to_be_visible()
-    pressure = page.locator("#notification-simulator-pressure")
+    pressure = playground.locator('lf-playground-control[name="events"] input')
     expect(pressure).to_have_value("2")
     expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
@@ -2983,8 +2983,8 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     expect(page.locator(".notification-demo-candidate").last).to_contain_text(
         "4 rows · compact summary"
     )
-    pressure.fill("2")
     playground.get_by_role("button", name="Needs attention").click()
+    expect(pressure).to_have_value("4")
     expect(page.locator("#notification-simulator")).to_have_attribute(
         "data-compact", "true"
     )
@@ -2995,6 +2995,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         regular_strip_padding.removesuffix("px")
     )
     playground.get_by_role("button", name="Routine release").click()
+    expect(pressure).to_have_value("2")
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
@@ -3075,10 +3076,322 @@ def test_composed_corpus_runs_authored_page_modules(browser, serve):
     corpus = Path(__file__).parent.parent / "examples" / "corpus.html"
     page, errors = open_page(browser, serve(corpus))
 
-    expect(page.locator("#notification-simulator-pressure")).to_have_value("2")
+    expect(
+        page.locator(
+            '#notification-playground lf-playground-control[name="events"] input'
+        )
+    ).to_have_value("2")
     expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
 
+    assert errors == []
+    page.close()
+
+
+def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
+    browser, serve
+):
+    source = Path(__file__).parents[1] / "examples" / "data-explorer.html"
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page, errors = open_page(browser, serve(source), context=context)
+    playground = page.locator("#release-query-playground")
+    rows = page.locator(".query-row")
+
+    expect(rows).to_have_count(2)
+    assert playground.evaluate("root => root.values") == {
+        "filters": {
+            "order": ["filter-1", "filter-2"],
+            "rows": [
+                {
+                    "field": "region",
+                    "id": "filter-1",
+                    "operator": "is",
+                    "value": "europe",
+                },
+                {
+                    "field": "risk",
+                    "id": "filter-2",
+                    "operator": "above",
+                    "value": "40",
+                },
+            ],
+        },
+        "limit": 4,
+    }
+    assert (
+        playground.evaluate(
+            """root => {
+          const returned = root.values;
+          returned.filters.rows[0].value = 'tampered';
+          return root.values.filters.rows[0].value;
+        }"""
+        )
+        == "europe"
+    )
+    assert playground.evaluate(
+        """root => {
+          const errors = [];
+          for (const [name, value] of [
+            ['limit', {}],
+            ['filters', {}],
+            ['bad-date', new Date()],
+          ]) {
+            try {
+              root.registerContributor(name, value, {read: () => value, apply: () => {}});
+            } catch (error) {
+              errors.push(error.message);
+            }
+          }
+          try {
+            root.registerInstructionProvider(() => 'A second provider');
+          } catch (error) {
+            errors.push(error.message);
+          }
+          return errors;
+        }"""
+    ) == [
+        "contributor limit collides with a control",
+        "repeats contributor filters",
+        "contributor bad-date must be JSON-safe",
+        "playground already has an instruction provider",
+    ]
+    expect(page.locator(".query-result-count")).to_have_text("2 matching releases")
+
+    rows.nth(1).get_by_label("Value").fill("80")
+    expect(page.locator(".query-result-count")).to_have_text("1 matching release")
+    rows.nth(1).get_by_role("button", name="Move filter 2 up").click()
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-2",
+        "filter-1",
+    ]
+    page.get_by_role("button", name="Add filter").click()
+    expect(rows).to_have_count(3)
+    expect(rows.nth(2).get_by_label("Value")).to_be_focused()
+    rows.nth(2).get_by_label("Value").fill("risk")
+    expect(page.locator(".query-result-count")).to_have_text("1 matching release")
+    rows.nth(2).get_by_role("button", name="Remove filter 3").click()
+    expect(rows).to_have_count(2)
+
+    playground.get_by_role("button", name="Broad query").click()
+    expect(
+        playground.locator('lf-playground-control[name="limit"] input')
+    ).to_have_value("6")
+    playground.get_by_role("button", name="Focused query").click()
+    expect(
+        playground.locator('lf-playground-control[name="limit"] input')
+    ).to_have_value("4")
+    instruction = page.locator("#release-query-instruction")
+    expect(instruction).to_contain_text("risk above 80, then region is europe")
+    playground.get_by_role("button", name="Copy instruction").click()
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert copied == instruction.inner_text()
+
+    page.reload()
+    expect(rows).to_have_count(2)
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-2",
+        "filter-1",
+    ]
+    expect(instruction).to_contain_text("risk above 80, then region is europe")
+    playground.get_by_role("button", name="Reset").click()
+    assert playground.evaluate("root => root.values.filters.order") == [
+        "filter-1",
+        "filter-2",
+    ]
+    expect(instruction).to_contain_text("region is europe, then risk above 40")
+    rows.first.get_by_label("Value").fill("asia")
+    expect(instruction).to_contain_text("region is asia, then risk above 40")
+
+    with sending(page, "the release query"):
+        playground.get_by_role("button", name="Build query").click()
+    action = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event.get("widget") == "release-query-playground"
+    )
+    assert action["detail"] == {
+        "instruction": instruction.inner_text(),
+        "values": playground.evaluate("root => root.values"),
+    }
+    page.reload()
+    expect(rows.first.get_by_label("Value")).to_have_value("asia")
+    expect(instruction).to_contain_text("region is asia, then risk above 40")
+    undo(page)
+    expect(rows.first.get_by_label("Value")).to_have_value("europe")
+    expect(instruction).to_contain_text("region is europe, then risk above 40")
+    resized(page, 480, 760)
+    assert page.evaluate("document.documentElement.scrollWidth") == 480
+    resized(page, 1100, 320)
+    expect(page.locator("#release-query-ask")).to_be_visible()
+    assert errors == []
+    page.close()
+    context.close()
+
+
+def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
+    browser, serve
+):
+    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page, errors = open_page(browser, serve(source), context=context)
+    playground = page.locator("#code-comparison-playground")
+    candidate_a = page.locator('[data-candidate="A"]')
+    candidate_b = page.locator('[data-candidate="B"]')
+
+    expect(page.locator("lf-code.lf-rendered")).to_have_count(3)
+    assert playground.evaluate("root => root.values") == {
+        "chosen": "A",
+        "comparison": {
+            "candidateA": {"density": "compact", "wrap": False},
+            "candidateB": {"density": "comfortable", "wrap": True},
+        },
+        "width": 420,
+    }
+    expect(candidate_a).to_have_attribute("style", re.compile(r"width: 420px"))
+    expect(candidate_b).to_have_attribute("style", re.compile(r"width: 420px"))
+    before_a = candidate_a.locator(".code-measurement").inner_text()
+    before_b = candidate_b.locator(".code-measurement").inner_text()
+    assert before_a != before_b
+
+    playground.locator('lf-playground-control[name="width"] input').fill("320")
+    expect(candidate_a).to_have_attribute("style", re.compile(r"width: 320px"))
+    expect(candidate_b).to_have_attribute("style", re.compile(r"width: 320px"))
+    assert playground.evaluate("root => root.values.width") == 320
+
+    page.get_by_role("button", name="Toggle A density").click()
+    assert playground.evaluate("root => root.values.comparison") == {
+        "candidateA": {"density": "comfortable", "wrap": False},
+        "candidateB": {"density": "comfortable", "wrap": True},
+    }
+    page.get_by_role("button", name="Toggle B density").click()
+    assert playground.evaluate("root => root.values.comparison.candidateB.density") == (
+        "compact"
+    )
+    page.get_by_role("button", name="Copy A to B").click()
+    assert playground.evaluate("root => root.values.comparison") == {
+        "candidateA": {"density": "comfortable", "wrap": False},
+        "candidateB": {"density": "comfortable", "wrap": False},
+    }
+    expect(candidate_a.locator(".code-candidate-title")).to_have_text(
+        "A · comfortable · scroll"
+    )
+    expect(candidate_b.locator(".code-candidate-title")).to_have_text(
+        "B · comfortable · scroll"
+    )
+    assert playground.evaluate("root => root.values.comparison.candidateA") == {
+        "density": "comfortable",
+        "wrap": False,
+    }
+    page.get_by_role("button", name="Toggle B density").click()
+    page.get_by_role("button", name="Copy B to A").click()
+    assert playground.evaluate("root => root.values.comparison") == {
+        "candidateA": {"density": "compact", "wrap": False},
+        "candidateB": {"density": "compact", "wrap": False},
+    }
+
+    playground.get_by_role("button", name="Wrapped reader").click()
+    expect(
+        playground.locator('lf-playground-control[name="width"] input')
+    ).to_have_value("320")
+    expect(playground.locator('lf-playground-choice[value="B"] input')).to_be_checked()
+    playground.get_by_role("button", name="Compact reader").click()
+    expect(
+        playground.locator('lf-playground-control[name="width"] input')
+    ).to_have_value("420")
+    playground.get_by_role("button", name="Reset").click()
+    assert playground.evaluate("root => root.values.comparison") == {
+        "candidateA": {"density": "compact", "wrap": False},
+        "candidateB": {"density": "comfortable", "wrap": True},
+    }
+
+    page.locator('lf-playground-choice[value="B"]').click()
+    instruction = page.locator("#code-comparison-instruction")
+    expect(instruction).to_contain_text("comfortable reading density")
+    expect(instruction).to_contain_text("wrap long lines")
+    playground.get_by_role("button", name="Copy instruction").click()
+    assert page.evaluate("navigator.clipboard.readText()") == instruction.inner_text()
+    with sending(page, "the code reader treatment"):
+        playground.get_by_role("button", name="Apply treatment").click()
+    action = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event.get("widget") == "code-comparison-playground"
+    )
+    assert action["detail"] == {
+        "instruction": instruction.inner_text(),
+        "values": playground.evaluate("root => root.values"),
+    }
+
+    targeting = page.locator("#code-comparison-targeting")
+    targeting.get_by_role("button", name="Select element").click()
+    page.locator(".reader-treatment-title").focus()
+    page.keyboard.press("Enter")
+    targeting.locator(".lf-targeting-candidate-choice").first.click()
+    target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
+    target.locator(".lf-targeting-name").fill("Reader treatment heading")
+    target.locator(".lf-targeting-name").press("Tab")
+    assert targeting.evaluate("root => root.currentDraft().resolutions") == {
+        "target-1": "resolved"
+    }
+
+    resized(page, 480, 760)
+    assert page.evaluate("document.documentElement.scrollWidth") == 480
+    expect(page.locator(".code-comparison-grid")).to_have_css(
+        "grid-template-columns", re.compile(r"\d+(?:\.\d+)?px")
+    )
+    resized(page, 1100, 320)
+    expect(page.locator("#code-comparison-ask")).to_be_visible()
+    assert errors == []
+    page.close()
+    context.close()
+
+
+def test_playground_composed_structural_target_resolves_in_the_next_revision(
+    browser, serve
+):
+    source_path = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    source = source_path.read_text(encoding="utf-8")
+    page, errors = open_page(browser, live_url(serve(source_path)))
+    targeting = page.locator("#code-comparison-targeting")
+
+    targeting.get_by_role("button", name="Select element").click()
+    page.locator(".reader-treatment-title").focus()
+    page.keyboard.press("Enter")
+    targeting.locator(".lf-targeting-candidate-choice").first.click()
+    target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
+    target.locator(".lf-targeting-name").fill("Reader treatment heading")
+    target.locator(".lf-targeting-name").press("Tab")
+    targeting.locator('[name="code-comparison-targeting-instruction"]').fill(
+        "Keep this heading aligned with the selected reader treatment."
+    )
+    targeting.get_by_role("button", name="Add instruction").click()
+    with sending(page, "the structural reader target"):
+        targeting.get_by_role("button", name="Propose exact edit").click()
+
+    action = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event.get("widget") == "code-comparison-targeting"
+    )
+    assert action["detail"]["targets"][0]["reference"] == {
+        "anchor": "target-reader-artifact",
+        "kind": "structure",
+        "path": [{"tag": "h3", "tree": "light"}],
+    }
+
+    revised = source.replace(
+        "One width gesture\n          reaches both",
+        "One shared width gesture\n          reaches both",
+    )
+    stamp = stamp_page(serve.page_dir, revised, "Clarify the comparison gesture")
+    wait_for_revision(page, stamp["revision"])
+    target = page.locator(
+        '#code-comparison-targeting .lf-targeting-target[data-target-key="target-1"]'
+    )
+    expect(target).to_have_attribute("data-lf-target-status", "resolved")
+    expect(page.locator(".reader-treatment-title")).to_have_text(
+        "Built reader treatment"
+    )
     assert errors == []
     page.close()
 
@@ -3125,6 +3438,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     assert action["detail"]["values"] == {
         "accent": "#b6533c",
         "compact": True,
+        "events": 4,
         "format": "status strip",
         "radius": 10,
         "show-owner": True,
@@ -3134,9 +3448,9 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     assert action["detail"]["instruction"] == (
         "Build the status strip deployment notification as deployment-notification.html. "
         "Use urgent styling, 10px corners, #b6533c accents, compact spacing set to true, "
-        "owner visibility set to true, and title it Checkout needs attention. Preserve the "
-        "shared event-pressure scenario in its browser test, then show me the generated "
-        "source here for review."
+        "owner visibility set to true, and title it Checkout needs attention. Exercise 4 "
+        "concurrent release events in its browser test, then show me the generated source "
+        "here for review."
     )
 
     logged_action = next(
@@ -3431,10 +3745,10 @@ def test_a_playground_rejects_restored_values_that_do_not_match_its_controls(
 
     page, errors = open_page(browser, url)
     expect(page.locator("#card-playground .lf-error")).to_contain_text(
-        "configuration needs exactly these controls"
+        "configuration needs exactly these fields"
     )
     assert any(
-        "configuration needs exactly these controls" in error for error in errors
+        "configuration needs exactly these fields" in error for error in errors
     ), errors
     page.close()
 
@@ -3505,6 +3819,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
                 "values": {
                     "accent": "#b6533c",
                     "compact": True,
+                    "events": 4,
                     "format": "status strip",
                     "radius": 10,
                     "show-owner": True,
@@ -3525,7 +3840,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     copy.goto(out.as_uri(), wait_until="load")
     playground = copy.locator("#notification-playground")
     expect(playground.locator(".lf-playground-actions")).to_be_hidden()
-    expect(playground.locator(".notification-demo-pressure")).to_be_hidden()
+    expect(playground.locator("lf-playground-control:visible")).to_have_count(0)
     expect(playground.locator("#notification-instruction")).to_contain_text(
         "deployment-notification.html"
     )

@@ -6,12 +6,6 @@ remain in git history.
 
 ## Now
 
-- **Make Leaf a complete playground builder.** Use the completed page and runtime
-  boundary to follow the [playground capability plan](notes/playground-capability-plan.md):
-  unify custom state with controls and output, restore discovery and task-shaped recipes,
-  compose Targeting into representative website examples, and verify both standalone
-  export modes.
-
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use

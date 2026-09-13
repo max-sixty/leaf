@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Shape a release query</title>
+    <meta
+      name="description"
+      content="Build, order, and test structured release filters, then send the resulting query as one complete task."
+    />
+    <style>
+      release-query-explorer {
+        display: grid;
+        gap: var(--sp-3);
+        min-width: 0;
+      }
+
+      .query-toolbar,
+      .query-row,
+      .query-row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        align-items: center;
+      }
+
+      .query-toolbar {
+        justify-content: space-between;
+      }
+
+      .query-row {
+        --lf-block-frame: 1;
+        padding: var(--sp-2);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r-sm);
+        background: var(--card);
+      }
+
+      .query-row > label {
+        display: grid;
+        gap: var(--sp-1);
+        min-width: 8rem;
+        color: var(--ink-2);
+        font: 600 var(--t-6) / 1.2 var(--sans);
+      }
+
+      .query-row input,
+      .query-row select {
+        min-height: var(--control-h);
+        color: var(--ink);
+        font: var(--t-5) / 1.25 var(--sans);
+      }
+
+      .query-row-actions {
+        margin-inline-start: auto;
+      }
+
+      .query-result-count {
+        margin: 0;
+        color: var(--ink-2);
+        font: 650 var(--t-5) / 1.3 var(--sans);
+      }
+
+      .query-results {
+        min-width: 34rem;
+      }
+
+      .query-table-frame {
+        min-width: 0;
+        overflow-x: auto;
+      }
+
+      @media (max-width: 42rem) {
+        .query-row > label,
+        .query-row-actions {
+          flex: 1 1 100%;
+          margin-inline-start: 0;
+        }
+      }
+    </style>
+    <script type="module">
+      import { layoutChanged, offer, once } from "/runtime/widget-api.js";
+
+      const RELEASES = [
+        { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
+        { service: "Catalog", region: "europe", risk: 31, owner: "discovery" },
+        { service: "Ledger", region: "americas", risk: 84, owner: "payments" },
+        { service: "Search", region: "asia", risk: 46, owner: "discovery" },
+        { service: "Fraud", region: "europe", risk: 91, owner: "risk" },
+        { service: "Identity", region: "americas", risk: 38, owner: "platform" },
+      ];
+      const DEFAULT_FILTERS = {
+        rows: [
+          { id: "filter-1", field: "region", operator: "is", value: "europe" },
+          { id: "filter-2", field: "risk", operator: "above", value: "40" },
+        ],
+        order: ["filter-1", "filter-2"],
+      };
+
+      const clone = (value) => structuredClone(value);
+
+      function matches(release, row) {
+        const actual = release[row.field];
+        if (row.operator === "above") return Number(actual) > Number(row.value);
+        if (row.operator === "contains")
+          return String(actual).toLowerCase().includes(row.value.toLowerCase());
+        return String(actual).toLowerCase() === row.value.toLowerCase();
+      }
+
+      function labelledSelect(label, values, selected, changed) {
+        const wrapper = document.createElement("label");
+        wrapper.append(document.createTextNode(label));
+        const select = offer("select", "");
+        for (const [value, words] of values) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = words;
+          option.selected = value === selected;
+          select.append(option);
+        }
+        select.addEventListener("change", () => changed(select.value));
+        wrapper.append(select);
+        return wrapper;
+      }
+
+      customElements.define(
+        "release-query-explorer",
+        class extends HTMLElement {
+          #playground = null;
+          #state = clone(DEFAULT_FILTERS);
+          #notify = null;
+          #rows = null;
+          #results = null;
+          #count = null;
+          #next = 3;
+
+          connectedCallback() {
+            if (once(this)) this.#build();
+            this.#connect();
+          }
+
+          #build() {
+            const toolbar = offer("div", "query-toolbar");
+            toolbar.append(document.createTextNode("Filters run from top to bottom."));
+            const add = offer("button", "lf-btn", "Add filter");
+            add.addEventListener("click", () => {
+              const id = `filter-${this.#next++}`;
+              this.#state.rows.push({
+                id,
+                field: "owner",
+                operator: "is",
+                value: "platform",
+              });
+              this.#state.order.push(id);
+              this.#changed();
+              queueMicrotask(() =>
+                this.querySelector(`[data-filter-id="${id}"] input`)?.focus(),
+              );
+            });
+            toolbar.append(add);
+            this.#rows = document.createElement("div");
+            this.#rows.className = "query-rows";
+            this.#count = document.createElement("p");
+            this.#count.className = "query-result-count";
+            this.#count.setAttribute("aria-live", "polite");
+            this.#results = document.createElement("tbody");
+            const table = document.createElement("table");
+            table.className = "query-results";
+            table.innerHTML =
+              "<thead><tr><th>Service</th><th>Region</th><th>Risk</th><th>Owner</th></tr></thead>";
+            table.append(this.#results);
+            const tableFrame = document.createElement("div");
+            tableFrame.className = "query-table-frame";
+            tableFrame.append(table);
+            this.append(toolbar, this.#rows, this.#count, tableFrame);
+          }
+
+          async #connect() {
+            await customElements.whenDefined("lf-playground");
+            if (!this.isConnected || this.#notify) return;
+            this.#playground = this.closest("lf-playground");
+            this.#notify = this.#playground.registerContributor(
+              "filters",
+              DEFAULT_FILTERS,
+              {
+                read: () => clone(this.#state),
+                apply: (state) => {
+                  this.#state = clone(state);
+                  this.#next =
+                    Math.max(
+                      0,
+                      ...this.#state.rows.map((row) =>
+                        Number(row.id.split("-").at(-1)),
+                      ),
+                    ) + 1;
+                  this.#render();
+                },
+              },
+            );
+            this.#playground.registerInstructionProvider((values) => {
+              const rows = values.filters.order.map((id) =>
+                values.filters.rows.find((row) => row.id === id),
+              );
+              const conditions = rows
+                .map((row) => `${row.field} ${row.operator} ${row.value}`)
+                .join(", then ");
+              return `Implement the release query in release-report.sql. Apply ${conditions}, return at most ${values.limit} releases in that order, and show the query plus its result-table test.`;
+            });
+          }
+
+          #changed() {
+            this.#notify();
+          }
+
+          #update(id, field, value) {
+            this.#state.rows.find((row) => row.id === id)[field] = value;
+            this.#changed();
+          }
+
+          #move(id, offset) {
+            const from = this.#state.order.indexOf(id);
+            const to = from + offset;
+            if (to < 0 || to >= this.#state.order.length) return;
+            [this.#state.order[from], this.#state.order[to]] = [
+              this.#state.order[to],
+              this.#state.order[from],
+            ];
+            this.#changed();
+          }
+
+          #remove(id) {
+            const index = this.#state.order.indexOf(id);
+            this.#state.rows = this.#state.rows.filter((row) => row.id !== id);
+            this.#state.order = this.#state.order.filter((rowId) => rowId !== id);
+            this.#changed();
+            queueMicrotask(() => {
+              const rows = this.querySelectorAll(".query-row");
+              rows[Math.min(index, rows.length - 1)]?.querySelector("input")?.focus();
+            });
+          }
+
+          #render() {
+            if (!this.#rows) return;
+            const byId = new Map(this.#state.rows.map((row) => [row.id, row]));
+            this.#rows.replaceChildren(
+              ...this.#state.order.map((id, index) => {
+                const row = byId.get(id);
+                const element = document.createElement("div");
+                element.className = "query-row";
+                element.dataset.filterId = id;
+                element.append(
+                  labelledSelect(
+                    "Field",
+                    [
+                      ["region", "Region"],
+                      ["risk", "Risk"],
+                      ["owner", "Owner"],
+                    ],
+                    row.field,
+                    (value) => this.#update(id, "field", value),
+                  ),
+                  labelledSelect(
+                    "Operator",
+                    [
+                      ["is", "is"],
+                      ["above", "is above"],
+                      ["contains", "contains"],
+                    ],
+                    row.operator,
+                    (value) => this.#update(id, "operator", value),
+                  ),
+                );
+                const valueLabel = document.createElement("label");
+                valueLabel.append(document.createTextNode("Value"));
+                const input = offer("input", "", undefined, "text");
+                input.value = row.value;
+                input.addEventListener("input", () =>
+                  this.#update(id, "value", input.value),
+                );
+                valueLabel.append(input);
+                const actions = document.createElement("div");
+                actions.className = "query-row-actions";
+                const up = offer(
+                  "button",
+                  "lf-btn small",
+                  `Move filter ${index + 1} up`,
+                );
+                const down = offer(
+                  "button",
+                  "lf-btn small",
+                  `Move filter ${index + 1} down`,
+                );
+                const remove = offer(
+                  "button",
+                  "lf-btn small",
+                  `Remove filter ${index + 1}`,
+                );
+                up.disabled = index === 0;
+                down.disabled = index === this.#state.order.length - 1;
+                up.addEventListener("click", () => this.#move(id, -1));
+                down.addEventListener("click", () => this.#move(id, 1));
+                remove.addEventListener("click", () => this.#remove(id));
+                actions.append(up, down, remove);
+                element.append(valueLabel, actions);
+                return element;
+              }),
+            );
+            const values = this.#playground?.values;
+            const filtered = RELEASES.filter((release) =>
+              this.#state.order.every((id) => matches(release, byId.get(id))),
+            ).slice(0, values?.limit ?? 4);
+            this.#results.replaceChildren(
+              ...filtered.map((release) => {
+                const row = document.createElement("tr");
+                for (const value of Object.values(release)) {
+                  const cell = document.createElement("td");
+                  cell.textContent = value;
+                  row.append(cell);
+                }
+                return row;
+              }),
+            );
+            this.#count.textContent = `${filtered.length} matching ${filtered.length === 1 ? "release" : "releases"}`;
+            layoutChanged(this);
+          }
+        },
+      );
+    </script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">structured data explorer</p>
+      <lf-ask id="release-query-ask">
+        <h1>Which release query should the agent build?</h1>
+        <p class="lede">
+          Compose ordered filters against a captured release set. The table and final
+          instruction derive from the same structured configuration.
+        </p>
+        <lf-playground id="release-query-playground" submit-label="Build query">
+          <lf-playground-control
+            name="limit"
+            label="Maximum results"
+            kind="range"
+            value="4"
+            min="1"
+            max="6"
+            step="1"
+          ></lf-playground-control>
+          <lf-playground-preset label="Focused query">
+            <lf-playground-setting for="limit" value="4"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Broad query">
+            <lf-playground-setting for="limit" value="6"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preview id="release-query-preview">
+            <release-query-explorer
+              id="release-query-explorer"
+            ></release-query-explorer>
+          </lf-playground-preview>
+          <lf-playground-output id="release-query-instruction">
+            Implement the default release query in <code>release-report.sql</code> and
+            show the query plus its result-table test.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
+    </main>
+  </body>
+</html>

@@ -1199,7 +1199,7 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
     browser, serve, tmp_path
 ):
     """Offline mode omits conversation chrome without leaving its ticket pending."""
-    url = serve(ROOT / "examples" / "notification-playground.html")
+    serve(ROOT / "examples" / "notification-playground.html")
     interactive = tmp_path / "interactive-with-ask.html"
     result = CliRunner().invoke(
         cli_model.cli,
@@ -1332,6 +1332,110 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert external == []
     assert errors == []
     page.close()
+
+
+@pytest.mark.parametrize(
+    "stem",
+    ["notification-playground", "data-explorer", "code-comparison"],
+)
+def test_playground_examples_keep_their_record_and_offline_interaction_modes(
+    browser, serve, tmp_path, stem
+):
+    source = ROOT / "examples" / f"{stem}.html"
+    url = serve(source)
+    live, live_errors = open_page(browser, url)
+    playground = live.locator("lf-playground")
+
+    if stem == "notification-playground":
+        playground.get_by_role("button", name="Needs attention").click()
+        submit = playground.get_by_role("button", name="Create notification")
+    elif stem == "data-explorer":
+        live.locator('.query-row[data-filter-id="filter-2"] input').fill("80")
+        submit = playground.get_by_role("button", name="Build query")
+    else:
+        playground.get_by_role("button", name="Wrapped reader").click()
+        submit = playground.get_by_role("button", name="Apply treatment")
+    with sending(live, f"the {stem} configuration"):
+        submit.click()
+
+    static_path = tmp_path / f"{stem}-record.html"
+    static_path.write_text(
+        exporting_model.export_page(browser, url, serve.page_dir, "v1.html"),
+        encoding="utf-8",
+    )
+    assert live_errors == []
+    live.close()
+
+    record = browser.new_page(viewport={"width": 480, "height": 700})
+    record.goto(static_path.as_uri(), wait_until="load")
+    expect(record.locator("script")).to_have_count(0)
+    expect(record.locator("lf-playground").get_by_role("button")).to_have_count(0)
+    expect(record.locator("lf-playground-output")).not_to_be_empty()
+    if stem == "notification-playground":
+        expect(record.locator(".notification-demo-card-banner")).to_have_count(4)
+    elif stem == "data-explorer":
+        expect(record.locator(".query-result-count")).to_have_text("1 matching release")
+    else:
+        expect(record.locator("lf-code.lf-rendered")).to_have_count(3)
+        expect(record.locator("#code-comparison-instruction")).to_contain_text(
+            "comfortable reading density"
+        )
+    assert record.evaluate("document.documentElement.scrollWidth") == 480
+    record.emulate_media(media="print")
+    expect(record.locator("lf-playground-output")).to_be_visible()
+    record.close()
+
+    interactive_path = tmp_path / f"{stem}-interactive.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive_path),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+
+    offline = browser.new_page(viewport={"width": 900, "height": 700})
+    errors = watched(offline)
+    external = []
+    document_url = interactive_path.as_uri()
+    offline.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if request.url != document_url and not request.url.startswith("data:")
+            else None
+        ),
+    )
+    offline.goto(document_url, wait_until="load")
+    expect(offline.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(offline.locator(".lf-chrome")).to_have_count(0)
+    expect(offline.locator(".lf-playground-submit")).to_be_disabled()
+    expect(offline.locator(".lf-playground-unavailable")).to_have_text(
+        "Submission unavailable: no agent or server is available."
+    )
+    if stem == "notification-playground":
+        offline.locator('lf-playground-control[name="events"] input').fill("2")
+        expect(offline.locator(".notification-demo-card-banner")).to_have_count(2)
+    elif stem == "data-explorer":
+        offline.get_by_role("button", name="Add filter").click()
+        expect(offline.locator(".query-row")).to_have_count(3)
+    else:
+        offline.locator('lf-playground-control[name="width"] input').fill("420")
+        expect(offline.locator('[data-candidate="A"]')).to_have_attribute(
+            "style", re.compile(r"width: 420px")
+        )
+        expect(offline.locator('[data-candidate="B"]')).to_have_attribute(
+            "style", re.compile(r"width: 420px")
+        )
+    assert external == []
+    assert errors == []
+    offline.close()
 
 
 def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(

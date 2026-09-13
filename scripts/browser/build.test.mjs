@@ -33,7 +33,7 @@ test("locked source reproduces the complete committed output", async () => {
   assert.ok(!outputs.has(`${outputRoot}/browser-runtime.js.map`));
   assert.ok(!outputs.has(`${outputRoot}/browser-runtime.manifest.json`));
   const map = JSON.parse(outputs.get(`${diagnosticsRoot}/browser-runtime.js.map`));
-  assert.ok(map.sources.some((name) => name.endsWith("scripts/browser/snapshot.ts")));
+  assert.ok(map.sources.includes("../snapshot.ts"));
   assert.equal(map.sources.length, map.sourcesContent.length);
   assert.ok(map.sources.every((name) => !path.isAbsolute(name)));
 });

@@ -101,8 +101,19 @@ export async function buildOutputs() {
   const outputs = new Map(
     result.outputFiles.map((file) => [relative(file.path), Buffer.from(file.contents)]),
   );
-  outputs.set(sourceMapPath, outputs.get(`${modulePath}.map`));
-  outputs.delete(`${modulePath}.map`);
+  const generatedMapPath = `${modulePath}.map`;
+  const sourceMap = JSON.parse(outputs.get(generatedMapPath));
+  sourceMap.sources = sourceMap.sources.map((source) =>
+    path
+      .relative(
+        path.join(root, path.dirname(sourceMapPath)),
+        path.resolve(root, path.dirname(generatedMapPath), source),
+      )
+      .split(path.sep)
+      .join("/"),
+  );
+  outputs.set(sourceMapPath, Buffer.from(JSON.stringify(sourceMap)));
+  outputs.delete(generatedMapPath);
   checkModule(outputs.get(modulePath).toString());
 
   const packagePaths = [

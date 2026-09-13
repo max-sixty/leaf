@@ -8,7 +8,6 @@ from tinycss2 import parse_stylesheet, serialize
 
 from .event_endpoint import accept_event
 from .exporting import inline_assets, inline_css_assets
-from .files import revision_path
 from .http import runtime_document
 from .mcp_page import (
     PAGE_APP_RESOURCE,
@@ -18,6 +17,7 @@ from .mcp_page import (
 )
 from .passages import TEXT_BLOCK_TAGS
 from .registry.contract import RegistryError
+from .revision_artifact import Resource, read_artifact
 from .served_state.service import PageStateService
 from .structure import SourceDocument
 
@@ -57,13 +57,37 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         detail = state["source_error"] or "the page registry cannot be projected"
         raise unpresentable_layer_error(page_dir, detail)
     revision = active["revision"]
-    source = revision_path(page_dir, revision).read_text(encoding="utf-8")
+    artifact = read_artifact(page_dir, revision)
+    source = artifact.html.decode("utf-8")
     parsed = SourceDocument(source)
-    document = inline_assets(runtime_document(source, revision).decode(), page_dir)
+
+    def read_resource(path: str) -> Resource:
+        resource = artifact.resources[path]
+        # Imported CSS is embedded before the app receives it. Apply the app's
+        # root-to-shadow-host mapping before encoding those nested stylesheets too.
+        if resource.mime == "text/css":
+            return Resource(
+                resource.data.decode("utf-8").replace(":root", ":host").encode(),
+                resource.mime,
+            )
+        return resource
+
+    document = inline_assets(
+        runtime_document(source, revision).decode(), read_resource=read_resource
+    )
     title = parsed.title.strip() or page_dir.name
     theme, dark_theme = split_theme(
-        (page_dir / "theme.css").read_text(encoding="utf-8")
+        inline_css_assets(
+            artifact.resources["/theme.css"].data.decode("utf-8"),
+            read_resource=read_resource,
+            document_url="/theme.css",
+        )
     )
+    styles = [
+        {"css": style.text, "media": style.attrs.get("media", "")}
+        for style in SourceDocument(document).tree.find_all("style")
+        if "data-lf-runtime" not in style.attrs
+    ]
     server = state.get("server") or {}
     summary = {
         "format": SNAPSHOT_FORMAT,
@@ -74,11 +98,12 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         "eventSeq": state["browser"]["basis"]["through_seq"],
         "pending": state.get("pending", 0),
         "url": server.get("url"),
+        "source_error": state["source_error"],
     }
     private = {
         **summary,
         "document": document,
-        "authoredCss": inline_css_assets(parsed.css, page_dir),
+        "authoredStyles": styles,
         "theme": theme,
         "darkTheme": dark_theme,
         # The app reads a selection out of the document it renders, and one space goes

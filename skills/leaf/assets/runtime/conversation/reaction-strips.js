@@ -6,9 +6,13 @@ import { isAddressable, isReaction } from "./model.js";
 
 // A reaction list owns the keyboard until it closes. Conversation reconciliation can
 // remove its surface without a local gesture, so disarm it before detaching that tree.
-export function removeConversationNode(node, closeReactionMode) {
+export function retireConversationNode(node, closeReactionMode) {
   if (node.matches?.(".lf-react-open") || node.querySelector?.(".lf-react-open"))
     closeReactionMode();
+}
+
+export function removeConversationNode(node, closeReactionMode) {
+  retireConversationNode(node, closeReactionMode);
   node.remove();
 }
 

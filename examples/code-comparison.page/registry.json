@@ -1,0 +1,68 @@
+{
+  "lf-playground": {
+    "description": "The built code-reader comparison with explicit candidate configurations.",
+    "type": "object",
+    "properties": {
+      "id": {"type": "string", "const": "code-comparison-playground"},
+      "submit-label": {"type": "string", "const": "Apply treatment"},
+      "restated": {"type": "boolean"}
+    },
+    "required": ["id", "submit-label"],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-guidance": {
+      "author": "Both candidates are built lf-code widgets. Shared controls drive both, while the page-owned contributor keeps and copies explicit candidate settings."
+    },
+    "x-upgrade": true,
+    "x-awaits": {"region": true, "answers": ["choose"]},
+    "x-state": {
+      "choose": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "object",
+              "properties": {
+                "width": {"type": "number", "minimum": 280, "maximum": 520},
+                "chosen": {"enum": ["A", "B"]},
+                "comparison": {
+                  "type": "object",
+                  "properties": {
+                    "candidateA": {
+                      "type": "object",
+                      "properties": {
+                        "density": {"enum": ["compact", "comfortable"]},
+                        "wrap": {"type": "boolean"}
+                      },
+                      "required": ["density", "wrap"],
+                      "additionalProperties": false
+                    },
+                    "candidateB": {
+                      "type": "object",
+                      "properties": {
+                        "density": {"enum": ["compact", "comfortable"]},
+                        "wrap": {"type": "boolean"}
+                      },
+                      "required": ["density", "wrap"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["candidateA", "candidateB"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["width", "chosen", "comparison"],
+              "additionalProperties": false
+            },
+            "instruction": {"type": "string", "minLength": 1}
+          },
+          "required": ["values", "instruction"],
+          "additionalProperties": false
+        },
+        "facet": "configuration",
+        "unit": "widget"
+      }
+    },
+    "x-example": "<lf-ask id=\"comparison-ask\"><h2>Which treatment?</h2><lf-playground id=\"code-comparison-playground\" submit-label=\"Apply treatment\"><lf-playground-control name=\"width\" label=\"Comparison viewport\" kind=\"range\" value=\"420\" min=\"280\" max=\"520\" step=\"20\"></lf-playground-control><lf-playground-control name=\"chosen\" label=\"Treatment\" kind=\"choice\" value=\"A\"><lf-playground-choice value=\"A\" label=\"A\"></lf-playground-choice><lf-playground-choice value=\"B\" label=\"B\"></lf-playground-choice></lf-playground-control><lf-playground-preview><p>Built comparison</p></lf-playground-preview><lf-playground-output>Apply the selected treatment.</lf-playground-output></lf-playground></lf-ask>"
+  }
+}

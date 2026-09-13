@@ -5,14 +5,14 @@ Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
 
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
-| `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "layer"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
+| `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | | approval of the declared sign-off; a page that asks nothing gets no terminal control |
-| `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` and, for a verb declaring `creates`, `generated` | the reader edited the document through the widget |
-| `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report` | provisional state that stands until a stamped revision answers it |
+| `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, optional declared-role `references`; server-stamped `meaning` and, for a verb declaring `creates`, `generated` | the reader edited the document through the widget |
+| `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report`; `--references` supplies its declared role map | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, validated by the holder's `x-request` and its direct-child offers | a durable, non-undoable one-shot instruction to the host |
 | `receipt` | agent | `leaf receipt` | `request`, `succeeded` or `failed`, `text` | exactly one terminal outcome per accepted request |
 | `pickup` | page | the delivery carrier | `events`, `phase` (`queued` or `opened`), `session`, `turn` | the named reader events reached the durable Codex queue or entered an exact agent turn; idempotent per event, phase, session, and turn; never a work claim |
@@ -87,7 +87,10 @@ same coordinate supersedes its prior answer, while an independent facet leaves i
 standing.
 
 Dependency identities come from the fold unit, attribute-set and position record
-fields, and optional `references` detail-field declarations. Literal strings do
+fields, plus id or anchor identities in the verb's declared event `references` roles.
+Each role carries an id or structural target record beside `detail`; admission resolves
+it uniquely inside the sending page revision's authored `<main>` or the sender's one
+frozen-markup fragment and checks any `{via, where}` relation. Literal detail strings do
 not become dependencies by matching HTML ids. The log does not freeze ancestry:
 retraction tests use the current document's containment of those identities.
 Generated children retain the durable ownership established by `creates`, whose

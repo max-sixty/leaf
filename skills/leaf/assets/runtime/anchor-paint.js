@@ -329,6 +329,7 @@ export function createAnchorPaint({
     // not change, then update the shared visual projection once.
     if (hovering || hoverThread || hoverParts.length) paintHover(hovering, false);
     paintVisualStates();
+    refreshHover();
 
     return {
       notes,

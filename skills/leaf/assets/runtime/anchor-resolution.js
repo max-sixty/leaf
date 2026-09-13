@@ -45,7 +45,7 @@ export function setAnchoringReady(ready) {
 export const sectionOf = (anchor) =>
   anchor?.section ? elementById(anchor.section) : null;
 
-export function currentDatums(source, key) {
+function currentDatums(source, key) {
   if (!source?.id) return [];
   return pageQueryAll(DATUM).filter(
     (datum) =>
@@ -84,12 +84,12 @@ export function referencedProjection(owner, attribute) {
 
 // A generated visual part keeps an authored semantic token. Generated ids never escape
 // into the event log; the provider declaration bounds the inventory core will trust.
-export const visualPartAttribute = (visual) => {
+const visualPartAttribute = (visual) => {
   const declaration = registry[visual?.localName]?.["x-visual"];
   return declaration && typeof declaration === "object" ? declaration.parts : null;
 };
 
-export const wholeVisualSurface = (element) =>
+const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
 export const declaredVisualParts = (visual) => {
@@ -111,7 +111,7 @@ export function visualPartAt(visual, target) {
 export const visualPartLabel = (visual, part) =>
   visualPart(visual, part)?.label ?? null;
 
-export const declaredVisualSelector = () =>
+const declaredVisualSelector = () =>
   [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
 
 const genericVisualSelector = "svg, img, figure";

@@ -1,10 +1,12 @@
 /* One lifetime-bound subscription to a complete browser projection.
 
-   `lf-actions` is the runtime's broad invalidation signal, not a package contract.
-   Semantic APIs supply `read`: actions, updates, requests, and Asks all share
-   this lifecycle without exposing the event or copying its cleanup rules. Clock
+   The application publisher is the one semantic invalidation source. Semantic APIs
+   supply `read`: updates, history, and Asks share this lifetime without copying its
+   cleanup rules. Clock
    readings made by the callback also refresh when their displayed value changes. */
 import { clocked } from "./presence.js";
+import { watchSemantic } from "./semantic-state.js";
+import { PRESENTATION } from "./presentation.js";
 
 export function watchProjection(owner, read) {
   if (!(owner instanceof Element))
@@ -12,18 +14,27 @@ export function watchProjection(owner, read) {
   if (typeof read !== "function")
     throw new TypeError("A projection watcher needs a reading function");
   const paint = clocked(owner, read);
+  let queued = false;
   const update = () => {
     if (!owner.isConnected) {
-      document.removeEventListener("lf-actions", update);
       paint.stop();
       return;
     }
-    paint();
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      if (owner.isConnected) paint();
+    });
   };
-  document.addEventListener("lf-actions", update);
-  update();
+  const stop = watchSemantic(update);
+  // The publisher can have its complete first reading before the page is drawable.
+  // Presentation is only that mechanical readiness edge; later semantic changes come
+  // exclusively from the publisher subscription above.
+  document.addEventListener(PRESENTATION, update);
   return () => {
-    document.removeEventListener("lf-actions", update);
+    stop();
+    document.removeEventListener(PRESENTATION, update);
     paint.stop();
   };
 }

@@ -620,7 +620,7 @@ replay does paint, and `PRESENTATION` replaces it.
 
 An action awaiting confirmation dims its existing control after the shared delay; it
 does not gain another mark or change geometry. Durable workflow state uses the control's
-semantic label or agent-ownership treatment. Reserve space before a generated control
+semantic label or agent-workflow treatment. Reserve space before a generated control
 appears. Transient feedback may repaint a control or
 briefly replace its label, but neither may change its geometry; `reserve` measures all
 enumerable labels in the control's current font and sets a minimum width. Re-measure
@@ -633,13 +633,13 @@ underline or ring on the same selected control; the second edge reads as a stray
 In a segmented group, keep one-pixel shared seams and let fill, ink, or one outline make
 the selection distinct without adding another line inside it.
 
-Agent ownership decorates the existing semantic margin control: pickup uses a green icon,
-moving any positive or negative tone to the existing contour; working keeps the green
-icon, colors the interior green, and pulses once on arrival. A separate Activity control
-appears only when no semantic carrier exists. Conversation receipts carry the local claim
-beside its triggering message; thread cards do not repeat that ownership as a colored
-edge. Quiet or ended claims release ownership. Reduced motion suppresses arrival, and
-repainting or replacing a carrier cannot replay it.
+Agent workflow stays on the existing semantic margin control whenever one survives:
+pickup uses a green icon, moving any positive or negative tone to the existing contour;
+working keeps the green icon, colors the interior green, and pulses once on arrival. A
+generated status carries the same workflow when no semantic control exists. Conversation
+receipts carry it beside the triggering message; thread cards do not repeat it as a
+colored edge. Quiet or ended work releases the control. Reduced motion suppresses
+arrival, and repainting or replacing a carrier cannot replay it.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for

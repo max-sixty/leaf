@@ -5,7 +5,7 @@
    claim belongs to the root message that identifies the thread, while an event-backed
    widget frozen into conversation chrome uses the metadata row of the message that owns
    it. Inline page conversations and page widgets use their target's existing margin
-   cluster instead; an explicit page-widget claim is the cluster's **Active** reading.
+   cluster instead; an explicit page-widget claim is the cluster's **Working** reading.
    Every receipt wears `lf-ui` and `data-lf-gen`: it is an account of the conversation,
    not authored words, so selection and diff readings skip it. Reconcile widget state
    first and paint receipts afterward, so each receipt describes the state the widget
@@ -19,15 +19,15 @@
 import { ago } from "../presence.js";
 import { el } from "../widget-elements.js";
 import { runtime } from "../context.js";
-import { agentWorkPhase } from "../updates.js";
+import { agentWorkflowStage } from "../updates.js";
 import { elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "./state.js";
 
 const phaseText = (receipt, includeAge = true) => {
   if (receipt.phase === "active") {
     const phase = receipt.quiet
-      ? `● Was active${includeAge ? ` ${ago(receipt.ts)}` : ""}`
-      : "● Active";
+      ? `● Was working${includeAge ? ` ${ago(receipt.ts)}` : ""}`
+      : "● Working";
     return receipt.detail ? `${phase} — ${receipt.detail}` : phase;
   }
   if (receipt.phase === "queued") return "✓ Queued";
@@ -72,9 +72,9 @@ function paintReceipt(host, receipt, wanted) {
   const live = line.querySelector(":scope > .lf-receipt-live");
   const announced = phaseText(receipt, false);
   if (live.textContent !== announced) live.textContent = announced;
-  const workPhase = agentWorkPhase(receipt);
-  line.classList.toggle("is-active", workPhase === "active");
-  line.classList.toggle("is-picked-up", workPhase === "picked_up");
+  const workflowStage = agentWorkflowStage(receipt);
+  line.classList.toggle("is-working", workflowStage === "working");
+  line.classList.toggle("is-picked-up", workflowStage === "picked_up");
   line.dataset.lfPhase = receipt.phase;
   line.toggleAttribute("data-lf-dropped", Boolean(receipt.dropped));
 }

@@ -51,7 +51,7 @@ leaf delivery claim <delivery-id>
 
 The command atomically selects the first delivered reader move that is still
 outstanding, writes `working` with “Reading your feedback,” and strengthens that exact
-move's receipt to **Active**. It changes nothing when a retry contains no outstanding
+move's receipt to **Working**. It changes nothing when a retry contains no outstanding
 reader move. For a queued pointer, run `delivery read` only after this claim. An inline
 delivery already carries the envelope and needs no read.
 

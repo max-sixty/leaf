@@ -47,7 +47,7 @@ def check_local_claim(state: str, detail: str) -> None:
     if state != "working":
         sys.exit("--on says what you are working on; use it with `working`")
     if not detail:
-        sys.exit("--on needs a detail; an Active receipt with no words says nothing")
+        sys.exit("--on needs a detail; a Working receipt with no words says nothing")
 
 
 def cmd_status(

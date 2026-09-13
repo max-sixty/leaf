@@ -3729,11 +3729,15 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <strong>One inventory, using the production controls.</strong> A margin entry
           is runtime-owned chrome whose shared code name is
           <code>lf-margin-entry</code>, rather than an authored element type. Rank and
-          behavior cover every action, disclosure, status, tone, and ordering rank. Face
-          anatomy shows the icon-or-glyph choice, a related-reading count, and the
-          transient label with its quieter context. Agent ownership compares not held,
-          picked up, working, and the Activity fallback; working keeps the green icon
-          and adds a green interior. Reader interaction compares rest, hover or keyboard
+          behavior cover every action, disclosure, status, tone, and ordering rank.
+          Agent workflow follows one reader move: Sent becomes Waiting when no agent
+          accepts it, Queued when an agent accepts it for a later turn, Picked up when a
+          turn opens, and Working while the agent prepares the result. Was working and
+          Picked up · turn ended keep unsettled work visible while it awaits
+          continuation. Pickup and work decorate the existing semantic control; a status
+          face carries the same workflow when no control survives. Face anatomy shows
+          the icon-or-glyph choice, a related-reading count, and the transient label
+          with its quieter context. Reader interaction compares rest, hover or keyboard
           focus, an open disclosure, and a selected page reading. Hover and Tab onto the
           live specimens to exercise their real feedback. The projection specimen stands
           at this exhibit's margin; open Page Map to see that same contributed control
@@ -3753,7 +3757,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           The content changes immediately, and Undo dims while the event travels. A
           refused send restores the suggestion and puts Failed in words beside Retry and
           Cancel. Success leaves the changed content and an Undo control alone in the
-          cluster. Sent remains as a status until an agent picks the decision up.
+          cluster. The same Agent workflow reports the decision until the result settles
+          it.
         </p>
         <p id="bg-margin-control-workflow-line">
           The practice route uses
@@ -3773,9 +3778,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-status-guide">
           <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
           Save and Cancel controls; Save dims while it sends. The saved draft arrives
-          with a Waiting for pickup status. Its icon turns green when picked up; its
-          interior turns green, with one arrival pulse, while the agent works on it.
-          Hover for the control's action and current work description.
+          with a Waiting for pickup status. The same workflow moves onto the draft's
+          semantic control when picked up; its icon turns green, then its interior turns
+          green with one arrival pulse while the agent works. Hover for the control's
+          action and current work description.
         </p>
         <p id="bg-buttons-line">
           <strong>Combine roles.</strong> Use the
@@ -4441,12 +4447,12 @@ switch --readers checkout-api,orders-api</code></pre>
         <p class="eyebrow bg-feature-elements">lf-board · lf-column · lf-card</p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong
-          ><span class="bg-feature-detail">: work and handoff state</span>
+          ><span class="bg-feature-detail">: work and workflow state</span>
         </h2>
         <p id="bg-delivery-guide">
           Drag the card to Tried, use its grip with Enter and the arrows, or tap a
-          destination on a phone. Sent, Picked up, and Active report agent handoff. A
-          refused send offers Retry and Cancel.
+          destination on a phone. Sent, Picked up, and Working report the agent
+          workflow. A refused send offers Retry and Cancel.
         </p>
         <p id="bg-cut-guide">
           This board carries more columns than the page has room for, so it scrolls
@@ -4460,8 +4466,8 @@ switch --readers checkout-api,orders-api</code></pre>
           <lf-column id="bg-work-ready" label="Ready">
             <lf-card id="bg-work"
               ><strong>Check the sample route</strong>
-              A live work claim puts an Active indicator here because this card has no
-              other margin control to carry its activity dot.
+              A live work claim puts a Working indicator here because this card has no
+              other margin control to carry its workflow state.
             </lf-card>
           </lf-column>
           <lf-column id="bg-work-tried" label="Tried"></lf-column>

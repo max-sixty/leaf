@@ -47,7 +47,7 @@ PAINTED = """() => ({
     .map(el => el.id || el.dataset.id),
 })"""
 
-# Interaction state never adds a second mark to a margin entry; durable agent ownership
+# Interaction state never adds a second mark to a margin entry; durable agent workflow
 # paints the whole control instead.
 PAINTS_STATE_MARK = """el => {
   const mark = getComputedStyle(el, '::after');

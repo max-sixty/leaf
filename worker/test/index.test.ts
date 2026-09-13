@@ -469,6 +469,48 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
   });
 
+  it.each(["/examples/triage-board/", "/"])(
+    "serves %s from the active reader's own container",
+    async (pathname) => {
+      // A revision activates by reloading this address. The edge answers it with the
+      // built document, which is a revision behind any the reader's own session has
+      // published — reading that back tells the runtime to activate again, and the
+      // reader reloads forever without reaching the page their agent just wrote.
+      const sessionId = "19".repeat(16);
+      const assetFetch = vi.fn(
+        async () =>
+          new Response("<!doctype html><title>Built</title>", {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          }),
+      );
+      const containerFetch = vi.fn(
+        async () =>
+          new Response("<!doctype html><title>Published revision</title>", {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          }),
+      );
+      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      const env = environment({
+        ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+      });
+
+      const response = await worker.fetch(
+        new Request(`https://leaf.page${pathname}`, {
+          headers: {
+            Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+          },
+        }),
+        env,
+      );
+
+      expect(assetFetch).not.toHaveBeenCalled();
+      expect(getContainer).toHaveBeenCalledWith(env.PAGES, sessionId);
+      expect(containerFetch).toHaveBeenCalledOnce();
+      expect(await response.text()).toContain("Published revision");
+      expect(response.headers.get("Leaf-Session")).toBe("active");
+    },
+  );
+
   it.each([
     "/examples/triage-board/media/private.png",
     "/examples/triage-board/revisions/r3-aabbccdd.html",

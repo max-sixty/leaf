@@ -454,7 +454,7 @@ customElements.define(
     // winner and reconciles the authored state before this continuation paints the repair
     // controls, so the reader returns to a pending suggestion with Failed, Retry, Cancel.
     #decide(outcome) {
-      if (this.dataset.lfState) return Promise.resolve(true);
+      if (this.#controller.read().state.settlement.value) return Promise.resolve(true);
       if (!this.#controller.read().actions[outcome]?.available)
         return Promise.resolve(false);
       if (this.#staging || this.#deciding)
@@ -480,7 +480,6 @@ customElements.define(
       // It is present for focus continuity but unavailable until the log gives the
       // gesture the durable id Undo must name.
       this.#staging = true;
-      this.#settle(outcome);
       const sent = (
         this.#controller.dispatch({
           kind: "action",
@@ -565,7 +564,7 @@ customElements.define(
     }
 
     async #undoOutcome() {
-      const outcome = this.dataset.lfState;
+      const outcome = this.#controller.read().state.settlement.value;
       if (!outcome || this.#undoing) return;
       if (this.#staging || this.#deciding) {
         notice("Wait for the current change to finish before undoing");
@@ -598,6 +597,8 @@ customElements.define(
     }
 
     #settle(outcome) {
+      // TODO(2026-09-13): Move the retained controls and fold animation into one
+      // controller-driven rendering; data-lf-state remains only the painted outcome.
       // A settle that changes nothing does nothing, which is what makes the poll's
       // replay of this tab's own decision the no-op an absolute action promises to be.
       // The attribute was idempotent on its own and the fold is not: replayed, it

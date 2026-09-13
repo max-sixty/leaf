@@ -71,6 +71,36 @@ const quotedBy = (element) => {
   return false;
 };
 
+const conditionMatches = (element, when = {}) =>
+  Object.entries(when).every(([attribute, values]) =>
+    values.some((value) =>
+      typeof value === "boolean"
+        ? element.hasAttribute(attribute) === value
+        : element.getAttribute(attribute) === value,
+    ),
+  );
+
+function askDescriptor(element, declaration, documentContext) {
+  const ask = declaration["x-awaits"];
+  if (!ask || ask.rollup || !conditionMatches(element, ask.when)) return null;
+  const until = documentContext.kind === "thread" && ask.until;
+  const answers =
+    until && conditionMatches(element, until.when) ? [until.verb] : ask.answers;
+  return {
+    answers,
+    empty: Object.fromEntries(
+      answers.flatMap((verb) => {
+        const empty = declaration["x-state"][verb].completion?.empty;
+        if (!empty) return [];
+        const containers = [...element.querySelectorAll(empty.within)].filter(
+          (container) => conditionMatches(container, empty.when),
+        );
+        return [[verb, containers.length === 1 ? containers[0].id : null]];
+      }),
+    ),
+  };
+}
+
 export function captureWidgetDescriptors(
   root = document,
   documentContext = { kind: "page", revision: runtime.currentRevision },
@@ -94,6 +124,7 @@ export function captureWidgetDescriptors(
       parent: ancestors[0] ?? null,
       ancestors,
       quoted: quotedBy(element),
+      ask: askDescriptor(element, declaration, documentContext),
       bindings: requestBindings(element, declaration),
       offers: requestOffers(element, declaration),
     };

@@ -45,8 +45,10 @@
  * or retained runtime control the reader held. The new document restores a control only
  * when its owner and meaning survive. Otherwise it restores the surviving authored
  * owner or leaves focus on the page. Explicit historical travel carries neither focus
- * nor a selection. Native selections, armed keyboard sequences, and arbitrary module
- * state never cross documents. Durable drafts and stored chrome arrangement use their
+ * nor a selection. Native selections and arbitrary module state never cross documents.
+ * TODO(2026-09-13): Carry an armed Go-to sequence through the activation handoff,
+ * preserving its filter and partial hint only when each remaining route revalidates.
+ * Durable drafts and stored chrome arrangement use their
  * existing stores; transient retained chrome revalidates its own semantic handoff.
  *
  * The handoff is scoped to this page and consumed once, even when a newer revision
@@ -131,6 +133,7 @@ import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { focusDestination } from "./focus.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButCommandReference } from "./keyboard/register.js";
+import { pointerAt, restorePointer } from "./pointer.js";
 
 import { sameDelivery } from "./layer-client.js";
 import { projectView } from "./semantic-state.js";
@@ -150,14 +153,15 @@ const servedRevision = document.querySelector(
 const servedStampMarker = document.querySelector(
   'meta[name="lf-version"][data-lf-runtime]',
 );
-applicationState.identify(servedRevision ? parseInt(servedRevision, 10) : null);
-runtime.currentStamp = servedStampMarker
-  ? parseInt(servedStampMarker.content, 10)
-  : VERSION_MATCH
-    ? parseInt(VERSION_MATCH[1], 10)
-    : null;
-runtime.currentLabel =
-  runtime.currentStamp === null ? null : `v${runtime.currentStamp}`;
+applicationState.identify(
+  servedRevision ? parseInt(servedRevision, 10) : null,
+  servedStampMarker
+    ? parseInt(servedStampMarker.content, 10)
+    : VERSION_MATCH
+      ? parseInt(VERSION_MATCH[1], 10)
+      : null,
+  LIVE_ROOT,
+);
 servedStampMarker?.remove();
 
 /* Passive version destinations shared with banner and layout. */
@@ -197,7 +201,7 @@ export function createVersionController({
   const HEADING = "h1, h2, h3, h4, h5, h6";
 
   // ---------- the version chooser ----------
-  // `runtime.versions` is spliced in place, never reassigned: context's readers hold it.
+  // Version facts are selectors of the accepted application reading.
   const stamped = (version) =>
     runtime.versions.find((candidate) => candidate.version === version);
   // The version chooser: a press that says which version this is, and a menu that says
@@ -630,19 +634,8 @@ export function createVersionController({
   }
 
   // `null` is the page before its first accepted state. Version controls read the
-  // immutable document revision and the accepted root; labels are presentation state.
+  // immutable document revision and the accepted root.
   function renderVersions(state) {
-    runtime.versions.splice(0, runtime.versions.length, ...(state?.versions ?? []));
-    if (
-      LIVE_ROOT &&
-      runtime.active !== null &&
-      runtime.currentRevision === runtime.active.revision
-    ) {
-      runtime.currentStamp = runtime.active.version;
-      runtime.currentLabel = runtime.active.label;
-    } else if (runtime.currentStamp !== null) {
-      runtime.currentLabel = `v${runtime.currentStamp}`;
-    }
     // Nothing to open until the log says what versions there are, and a control that
     // answers nothing is a way in painted where there is no layer behind it — the same
     // reason the page's own approve button waits for the page. `versionsOffered` is what
@@ -1241,6 +1234,7 @@ export function createVersionController({
             standing: captureStanding(),
             retainedStanding: captureRetainedStanding(),
             comparison: selectedBase(),
+            pointer: pointerAt(),
           }),
         );
         location.reload();
@@ -1649,6 +1643,7 @@ export function createVersionController({
     });
     function landArrival() {
       if (handoff) {
+        restorePointer(handoff.pointer);
         restoreView(handoff.view);
         if (!restoreRetainedStanding(handoff.retainedStanding))
           restoreStanding(handoff.standing);

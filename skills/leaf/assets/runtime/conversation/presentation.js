@@ -18,7 +18,11 @@ import {
 import { threadsBox } from "./panel-elements.js";
 import { paintAcknowledgmentsNow } from "./acknowledgments.js";
 import { paintNarrowing, revealThread } from "./narrowing.js";
-import { attachApplicationPresentation, readApplication } from "../semantic-state.js";
+import {
+  applicationState,
+  attachApplicationPresentation,
+  readApplication,
+} from "../semantic-state.js";
 
 function renderHolds(threads) {
   for (const node of document.querySelectorAll("[data-lf-held]"))
@@ -53,6 +57,27 @@ export function createConversationPresentation({
     presentationHandle ??= attachApplicationPresentation("conversation", document);
     return presentationHandle;
   };
+
+  // Accepted and optimistic conversation changes owe a fresh imperative rendering.
+  // Register that obligation before publication seals; apply() may run later behind
+  // a serialized state application. Unchanged values can retain their prior proof.
+  applicationState
+    .select((snapshot) =>
+      snapshot.phase === "waiting"
+        ? null
+        : JSON.stringify([snapshot.phase, snapshot.effective.conversation]),
+    )
+    .subscribe((value) => {
+      if (value === null) return;
+      let resolve;
+      const completion = new Promise((done) => {
+        resolve = done;
+      });
+      const prior = activePresentation;
+      activePresentation = { resolve };
+      void presentation().present(readApplication().effective.conversation, completion);
+      prior?.resolve();
+    });
 
   function present(value, paint) {
     let resolve, reject;

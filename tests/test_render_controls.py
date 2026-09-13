@@ -2089,6 +2089,31 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     expect(page.locator("#pick-a")).to_have_attribute("chosen", "")
     assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
 
+    held = []
+
+    def hold_undo(route):
+        if route.request.post_data_json["kind"] == "undo":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold_undo)
+    try:
+        page.keyboard.press("z")
+        holding(page, held, 1, "the undo that reopens the choice")
+        expect(page.locator("#pick-a")).not_to_have_attribute("chosen", "")
+        page.get_by_role("checkbox", name=re.compile(r"^choose one: B")).click()
+        expect(page.locator("#pick-b")).to_have_attribute("chosen", "")
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute("**/api/event", hold_undo)
+    round_trip(page)
+    assert [event["action"] for event in actions(serve.page_dir)] == [
+        "choose",
+        "choose",
+    ]
+
 
 def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     """The reader's own remark must not lock the control it is a remark about.

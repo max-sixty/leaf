@@ -61,6 +61,47 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
+    serve, held_events
+):
+    """The rejection publication owes new chrome, even without any widget renderer."""
+    browser, held = held_events
+    page = open_page(browser, serve(INLINE_PAGE))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    field = page.locator(".lf-general textarea")
+    field.fill("A message the server will refuse")
+    field.press("ControlOrMeta+Enter")
+    holding(page, held, 1, "the optimistic message")
+    expect(page.locator(".lf-thread")).to_contain_text(
+        "A message the server will refuse"
+    )
+    # Observe the instant after the immutable rejection publishes and seals, before
+    # its queued imperative application. A later settled read cannot see an overclaim.
+    page.evaluate("""async () => {
+      const {applicationState, readApplicationPresentation} =
+        await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      let previous = applicationState.read().effective.conversation.all.length;
+      applicationState.select(root => root.effective.conversation.all.length)
+        .subscribe(count => {
+          if (previous > 0 && count === 0) queueMicrotask(() => {
+            const {semanticEpoch, presentedEpoch, pending} = readApplicationPresentation();
+            window.rejectionPresentation = {semanticEpoch, presentedEpoch, pending};
+          });
+          previous = count;
+        });
+    }""")
+    held.pop().fulfill(
+        status=200, json={"ok": False, "final": True, "error": "refused"}
+    )
+    round_trip(page)
+    page.wait_for_function("window.rejectionPresentation !== undefined")
+    reading = page.evaluate("window.rejectionPresentation")
+    assert reading["presentedEpoch"] < reading["semanticEpoch"], reading
+    assert "conversation" in reading["pending"], reading
+    expect(page.locator(".lf-thread")).to_have_count(0)
+
+
 def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     """The gesture with no reverse in front of the reader: a resolved thread folds
     into the disclosure at the foot of the list, so putting it back by hand means

@@ -61,6 +61,22 @@ export function createProjectionPresentation({ onDeferredReady }) {
     return presentationHandle;
   };
 
+  // A semantic publication precedes the imperative adapter that paints it. Claim
+  // changed projection work inside the publisher's synchronous subscription phase,
+  // before it seals presentation membership. Delivery rejection may queue that
+  // adapter behind another application, so inheriting its prior commit is unsound.
+  applicationState
+    .select((snapshot) =>
+      snapshot.authoritative === null
+        ? null
+        : JSON.stringify(snapshot.effective.projection, (_key, value) =>
+            value instanceof Map ? [...value] : value,
+          ),
+    )
+    .subscribe((value) => {
+      if (value !== null) prepare(applicationState.read());
+    });
+
   // State application sometimes has to prepare frozen widget markup before it can
   // project it. Claim this epoch synchronously after semantic adoption so an inherited
   // chrome commit cannot acknowledge the new reading during that preparation.

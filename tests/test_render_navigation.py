@@ -2876,7 +2876,7 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
 
 
 def test_a_hovered_thread_rebinds_after_fresh_revision_activation(browser, serve):
-    """A fresh revision drops heap-local hover, then resolves it against its own text."""
+    """A parked pointer resolves the replacement document without another gesture."""
     url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
@@ -2891,9 +2891,6 @@ def test_a_hovered_thread_rebinds_after_fresh_revision_activation(browser, serve
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
     page.wait_for_selector('[data-v2="true"]')
-    wait_hovered(page, "")
-    page.mouse.move(0, 0)
-    page.mouse.move(*card_body(page, "About this bit."))
     wait_hovered(page, "bold text")
     state = page.evaluate("""() => {
         const range = [...CSS.highlights.get('lf-mark-hover')][0];

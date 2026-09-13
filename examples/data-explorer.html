@@ -142,7 +142,8 @@
           }
 
           #build() {
-            const toolbar = offer("div", "query-toolbar");
+            const toolbar = document.createElement("div");
+            toolbar.className = "query-toolbar";
             toolbar.append(document.createTextNode("Filters run from top to bottom."));
             const add = offer("button", "lf-btn", "Add filter");
             add.addEventListener("click", () => {

@@ -659,9 +659,11 @@ customElements.define(
 
     #apply(candidate, { remember = true } = {}) {
       const values = this.#normalize(candidate);
+      // Contributors may read sibling controls through the public aggregate while
+      // applying their own slice. Publish the complete input before invoking them.
+      this.#values = values;
       for (const [name, contributor] of this.#contributors)
         contributor.apply(structuredClone(values[name]));
-      this.#values = values;
       for (const [name, value] of Object.entries(values)) {
         const control = this.#controlByName.get(name);
         if (!control) continue;

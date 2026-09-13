@@ -441,26 +441,6 @@ export function createPresentationCoordinator<
     });
   }
 
-  function whenRegionsPresented(
-    targetDocument: DocumentToken,
-    targetSemanticEpoch: number,
-    regions: readonly Region[],
-  ): Promise<PresentationOutcome> {
-    validEpoch(targetSemanticEpoch);
-    const wanted = new Set(regions);
-    return new Promise((resolve) => {
-      const waiter = {
-        document: targetDocument,
-        semanticEpoch: targetSemanticEpoch,
-        regions: wanted,
-        resolve,
-      };
-      const outcome = regionOutcome(waiter);
-      if (outcome) resolve(outcome);
-      else regionWaiters.push(waiter);
-    });
-  }
-
   async function whenCurrentPresented(
     current: () => PresentationPublication<DocumentToken>,
   ): Promise<PresentationOutcome> {

@@ -230,8 +230,11 @@ const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
   pointer: pointerAt,
   focusedAnchorThreadId,
-  hoveredPanelThreadId: () =>
-    threadsBox.querySelector(":scope > .lf-thread:hover")?.dataset.id ?? null,
+  hoveredPanelThreadId: () => {
+    const { x, y } = pointerAt();
+    const thread = document.elementFromPoint(x, y)?.closest(".lf-thread");
+    return thread?.parentElement === threadsBox ? thread.dataset.id : null;
+  },
   panelThreadForId: (id) =>
     id
       ? threadsBox.querySelector(`:scope > .lf-thread[data-id="${CSS.escape(id)}"]`)

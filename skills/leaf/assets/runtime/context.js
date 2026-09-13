@@ -47,11 +47,23 @@ export const runtime = {
   get browser() {
     return readApplication().authoritative?.browser ?? null;
   },
-  currentLabel: null,
+  get currentLabel() {
+    return readApplication().document.live &&
+      runtime.currentRevision === runtime.active?.revision
+      ? runtime.active.label
+      : runtime.currentStamp === null
+        ? null
+        : `v${runtime.currentStamp}`;
+  },
   get currentRevision() {
     return readApplication().document.revision;
   },
-  currentStamp: null,
+  get currentStamp() {
+    return readApplication().document.live &&
+      runtime.currentRevision === runtime.active?.revision
+      ? runtime.active.version
+      : (readApplication().document.stamp ?? null);
+  },
   get data() {
     return readApplication().data;
   },
@@ -79,7 +91,9 @@ export const runtime = {
     return readApplication().phase;
   },
   undoing: false,
-  versions: [],
+  get versions() {
+    return readApplication().authoritative?.versions ?? [];
+  },
   get view() {
     return runtime.browser?.views[String(runtime.currentRevision)] ?? null;
   },

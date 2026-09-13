@@ -56,6 +56,8 @@ interface WireProjection {
 
 export interface SemanticDocument {
   revision: number | null;
+  stamp?: number | null;
+  live?: boolean;
   registry: Record<
     string,
     {
@@ -76,6 +78,7 @@ export interface WidgetDescriptor {
   parent: { id: string; tag: string } | null;
   ancestors: readonly { id: string; tag: string }[];
   quoted: boolean;
+  ask?: { answers: readonly string[]; empty: Readonly<Record<string, string | null>> } | null;
   bindings: Readonly<Record<string, string | null>>;
   offers: readonly { tag: string; attribute: string; verb: string }[];
 }
@@ -83,7 +86,8 @@ export interface WidgetDescriptor {
 export interface AuthoritativeState {
   taken: number;
   layer: { generation: string };
-  active: { revision: number };
+  active: { revision: number; version?: number | null; label?: string | null };
+  versions?: { revision: number; version: number; label: string }[];
   events: Event[];
   browser: {
     basis: { through_seq: number };
@@ -168,7 +172,59 @@ const appliesTo = (descriptor: WidgetDescriptor, event: Event) =>
 function awaitingValue(
   root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,
   descriptor: WidgetDescriptor,
-) {
+): boolean {
+  const projection = root.effective.projection;
+  const descriptors = root.document.descriptors;
+  const position = (id: string) =>
+    [...projection.desired.values()].find(
+      ({ unit, spec }) => unit === id && spec.record?.kind === "position",
+    );
+  const parent = (child: WidgetDescriptor) => {
+    const moved = position(child.id);
+    return moved ? moved.e.detail[moved.spec.record.value] : child.parent?.id;
+  };
+  const ask = descriptor.ask;
+  if (ask) {
+    const changed =
+      [...projection.pendingWithdrawals.values()].some(
+        ({ e }) => e.widget === descriptor.id,
+      ) ||
+      [...projection.actions.values()].some(
+        ({ e }) => e.widget === descriptor.id && String(e.id).startsWith(PENDING),
+      );
+    if (changed) {
+      return !ask.answers.some((verb) => {
+        const spec = (descriptor.declaration["x-state"] as Record<string, ActionSpec>)[verb]!;
+        const held = [...projection.actions.values()].some(
+          ({ e }) => e.widget === descriptor.id && e.action === verb,
+        );
+        if (spec.unit === "widget" && ["attribute", "value"].includes(spec.record?.kind ?? "")) {
+          const value = root.effective.widgets.get(descriptor.id)?.state[spec.facet]?.value;
+          return Array.isArray(value) ? value.length > 0 : value !== null && value !== undefined && value !== "";
+        }
+        if (!held) return false;
+        if (!(verb in ask.empty)) return true;
+        const container = ask.empty[verb];
+        return container !== null && ![...descriptors.values()].some(
+          (child) => parent(child) === container,
+        );
+      });
+    }
+  }
+  if ((descriptor.declaration["x-awaits"] as { rollup?: boolean } | undefined)?.rollup) {
+    const children = [...descriptors.values()].filter((child) => {
+      if (!child.declaration["x-awaits"]) return false;
+      let holder = descriptors.get(parent(child));
+      const seen = new Set([child.id]);
+      while (holder && !seen.has(holder.id)) {
+        if (holder.declaration["x-awaits"]) return holder.id === descriptor.id;
+        seen.add(holder.id);
+        holder = descriptors.get(parent(holder));
+      }
+      return false;
+    });
+    return children.some((child) => awaitingValue(root, child));
+  }
   const page = root.effective.lifecycle.page;
   const conversation = root.effective.lifecycle.conversation;
   return Boolean(
@@ -546,8 +602,8 @@ export function createSemanticApplication({
       });
     },
     entry,
-    identify(revision: number | null) {
-      return publish({ document: { ...publisher.read().document, revision } });
+    identify(revision: number | null, stamp: number | null = null, live = false) {
+      return publish({ document: { ...publisher.read().document, revision, stamp, live } });
     },
     setHostAvailable(hostAvailable: boolean) {
       return publish({ hostAvailable });

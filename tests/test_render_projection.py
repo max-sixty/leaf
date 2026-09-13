@@ -11,6 +11,7 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     SHIPPED_PACKAGES,
     append_command,
+    running_http_server,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -99,7 +100,6 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
-    running_http_server,
     sending,
     shortcut_bar_text,
     stamp_page,

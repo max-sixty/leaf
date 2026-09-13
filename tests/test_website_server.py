@@ -17,6 +17,7 @@ from types import SimpleNamespace
 import pytest
 import verify_site
 from click.testing import CliRunner
+from interact_support import running_http_server
 from leaf.codex import _queues as codex_queues
 from leaf.codex import accept_codex_delivery
 from leaf.codex import delivery_pointer_prompt as delivery_prompt
@@ -2333,10 +2334,8 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         0,
         website_server.handler_for(site, agent_host),
     )
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
-    try:
+    with running_http_server(httpd):
         assert get(f"{root}/health")[0] == b"ok\n"
 
         document, headers = get(f"{root}/examples/decision/")
@@ -2485,10 +2484,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         with pytest.raises(urllib.error.HTTPError) as stopped:
             urllib.request.urlopen(f"{root}/examples/missing/")
         assert stopped.value.code == 404
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join(timeout=2)
 
 
 def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
@@ -2508,10 +2503,8 @@ def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, FakeCodexHost()))
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
-    try:
+    with running_http_server(httpd):
         state = json.loads(get(f"{root}/examples/decision/api/state")[0])
         before = read_events(published)
         answer, headers = post(
@@ -2528,10 +2521,6 @@ def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
         assert answer == {"layer": generation}
         assert headers["Leaf-Layer"] == generation
         assert read_events(published) == before
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join(timeout=2)
 
 
 @pytest.mark.parametrize(
@@ -2549,10 +2538,8 @@ def test_a_product_route_uses_the_same_real_page_server(
 
     agent_host = FakeCodexHost()
     httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, agent_host))
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
-    try:
+    with running_http_server(httpd):
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
         artifact = revision_path(published, 1).stem
@@ -2589,10 +2576,6 @@ def test_a_product_route_uses_the_same_real_page_server(
         )
         assert started == {"status": "started", "thread": "codex-thread"}
         assert agent_host.attached == [published]
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join(timeout=2)
 
 
 def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
@@ -2618,10 +2601,8 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
     accept_codex_delivery("already-started-thread")
     agent_host = FakeCodexHost()
     httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, agent_host))
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
-    try:
+    with running_http_server(httpd):
         answer, _ = post(
             f"{root}/examples/decision/_leaf/agent/start",
             {"event": comment["id"]},
@@ -2629,10 +2610,6 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
 
         assert answer == {"status": "started", "thread": "already-started-thread"}
         assert agent_host.attached == []
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join(timeout=2)
 
 
 def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
@@ -2645,10 +2622,8 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
     (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = server_at("127.0.0.1", 0, website_server.handler_for(site))
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
-    try:
+    with running_http_server(httpd):
         state = json.loads(get(f"{root}/api/state")[0])
         headers = {"Leaf-Layer": state["layer"]["generation"]}
         post(
@@ -2681,10 +2656,6 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
 
         assert answer == {"status": "settled"}
         assert all(event.get("text") != "Now stale" for event in read_events(published))
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join(timeout=2)
 
 
 def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):

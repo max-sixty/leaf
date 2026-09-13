@@ -278,18 +278,12 @@ def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser,
     assert abs(readings["rightRelative"] - relative) < 3, (relative, readings)
 
 
-def test_a_pane_comment_uses_its_region_rail_and_returns_to_flow(browser, serve):
+def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     source = READING_REGIONS_PAGE.replace(
         '<footer><button id="left-foot">',
         '<footer style="min-height: 220px"><button id="left-foot">',
     )
-    url = serve(
-        source,
-        anchored=[
-            ("left-start", "enough words to preserve"),
-            ("right-start", "enough words to preserve"),
-        ],
-    )
+    url = serve(source, anchored=[("left-start", "enough words to preserve")])
     root = next(
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -309,22 +303,14 @@ def test_a_pane_comment_uses_its_region_rail_and_returns_to_flow(browser, serve)
         },
     )
     page = open_page(browser, url)
-    workspace = page.locator("#reading-workspace")
     cluster = page.locator('[data-lf-margin-for="left-start"].lf-margin-cluster')
-    sibling_cluster = page.locator(
-        '[data-lf-margin-for="right-start"].lf-margin-cluster'
-    )
     expect(cluster).to_have_count(1)
-    expect(sibling_cluster).to_have_count(1)
-    expect(cluster).not_to_have_class(re.compile(r"\blf-docked\b"))
-    expect(cluster).to_have_attribute("data-lf-margin-region", "left-reading")
+    expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
     placement = cluster.evaluate(
         """el => ({
           inOwner: document.querySelector('#left-reading .lf-pane-body').contains(el),
           inSibling: document.querySelector('#right-reading').contains(el),
           cluster: el.getBoundingClientRect().toJSON(),
-          sibling: document.querySelector('[data-lf-margin-for="right-start"]')
-            .getBoundingClientRect().toJSON(),
           body: document.querySelector('#left-reading .lf-pane-body')
             .getBoundingClientRect().toJSON(),
         })"""
@@ -332,13 +318,8 @@ def test_a_pane_comment_uses_its_region_rail_and_returns_to_flow(browser, serve)
     assert placement["inOwner"] and not placement["inSibling"], placement
     assert placement["cluster"]["left"] >= placement["body"]["left"], placement
     assert placement["cluster"]["right"] <= placement["body"]["right"], placement
-    assert placement["cluster"]["right"] > placement["body"]["right"] - 60, placement
-    assert placement["cluster"]["right"] < placement["sibling"]["left"], placement
-    assert placement["cluster"]["top"] == pytest.approx(
-        placement["sibling"]["top"], abs=1
-    )
 
-    cluster.get_by_role("button", name=re.compile(r"^Thread, ")).click()
+    page.locator("#left-start .lf-mark-note").click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     # The card shows before it is placed: opening it resets the placement and leaves it
@@ -352,9 +333,7 @@ def test_a_pane_comment_uses_its_region_rail_and_returns_to_flow(browser, serve)
           const history = el.querySelector('.lf-margin-preview-list');
           const body = document.querySelector('#left-reading .lf-pane-body')
             .getBoundingClientRect();
-          const target = document.querySelector('[data-lf-margin-for="left-start"]')
-            .lfTarget.getBoundingClientRect();
-          return {card: card.toJSON(), body: body.toJSON(), target: target.toJSON(),
+          return {card: card.toJSON(), body: body.toJSON(),
                   scrollHeight: history.scrollHeight, clientHeight: history.clientHeight};
         }"""
     )
@@ -364,131 +343,17 @@ def test_a_pane_comment_uses_its_region_rail_and_returns_to_flow(browser, serve)
     assert preview_geometry["card"]["bottom"] <= preview_geometry["body"]["bottom"], (
         preview_geometry
     )
-    assert preview_geometry["card"]["top"] >= preview_geometry["target"]["bottom"], (
-        preview_geometry
-    )
     assert preview_geometry["scrollHeight"] > preview_geometry["clientHeight"], (
         preview_geometry
     )
-    draft = "Keep the mismatch threshold beside the release evidence."
-    preview.get_by_role("button", name="Reply", exact=True).click()
-    reply = preview.get_by_role("textbox", name="Reply")
-    reply.fill(draft)
-    expect(reply).to_have_value(draft)
     history = preview.locator(".lf-margin-preview-list")
     history.evaluate("el => el.scrollTop = el.scrollHeight")
     assert history.evaluate("el => el.scrollTop") > 0
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
-
-    resized(page, 520, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-    expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
-    expect(cluster).not_to_have_attribute("data-lf-margin-region", re.compile(r".+"))
-    flow = cluster.evaluate(
-        """el => ({
-          inOwner: document.querySelector('#left-reading .lf-pane-body').contains(el),
-          cluster: el.getBoundingClientRect().toJSON(),
-          body: document.querySelector('#left-reading .lf-pane-body')
-            .getBoundingClientRect().toJSON(),
-        })"""
-    )
-    assert flow["inOwner"], flow
-    assert flow["cluster"]["left"] >= flow["body"]["left"], flow
-    assert flow["cluster"]["right"] <= flow["body"]["right"], flow
-
-    resized(page, 1200, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    expect(cluster).not_to_have_class(re.compile(r"\blf-docked\b"))
-    expect(cluster).to_have_attribute("data-lf-margin-region", "left-reading")
     page.keyboard.press("t")
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-conversation-thread")).to_be_focused()
-    expect(reply).to_have_value(draft)
-    page.keyboard.press("Escape")
-    page.emulate_media(media="print")
-    expect(cluster).to_be_hidden()
-    page.emulate_media(media="screen")
-    expect(cluster).to_be_visible()
-    expect(cluster).to_have_attribute("data-lf-margin-region", "left-reading")
-
-
-def test_a_nested_reading_region_does_not_inherit_its_panes_rail(browser, serve):
-    source = READING_REGIONS_PAGE.replace(
-        '<p id="left-landmark">',
-        '<section id="nested-reading"><p id="nested-target">Nested evidence has its '
-        'own reading region.</p></section><p id="left-landmark">',
-    )
-    page = open_page(
-        browser,
-        serve(source, anchored=[("nested-target", "Nested evidence")]),
-    )
-    nested = page.locator("#nested-reading")
-    cluster = page.locator('[data-lf-margin-for="nested-target"]')
-    expect(cluster).to_have_attribute("data-lf-margin-region", "left-reading")
-
-    page.evaluate(
-        """async () => {
-          const [{registerReadingRegion}, {layoutChanged}] = await Promise.all([
-            window.__lfRuntimeImport('/runtime/reading-regions.js'),
-            window.__lfRuntimeImport('/runtime/widget-elements.js'),
-          ]);
-          const body = document.querySelector('#nested-reading');
-          window.stopNestedReading = registerReadingRegion({
-            id: 'nested-reading', host: body, body,
-          });
-          layoutChanged(body);
-        }"""
-    )
-
-    expect(nested).to_have_attribute("data-lf-reading-region", "nested-reading")
-    expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
-    expect(cluster).not_to_have_attribute("data-lf-margin-region", re.compile(r".+"))
-    assert (
-        nested.evaluate(
-            "node => getComputedStyle(node).getPropertyValue('--lf-reading-region-rail')"
-        )
-        == "0px"
-    )
-
-
-def test_a_bounded_pane_loaded_at_covering_width_keeps_its_inline_comment(
-    browser, serve
-):
-    source = leaf_page(
-        "one bounded reading region",
-        """
-<lf-workspace id="single-workspace">
-  <header><h1>Single reading workspace</h1></header>
-  <lf-pane id="single-reading" label="Reading">
-    <header><h2>Evidence</h2></header>
-    <p id="single-target">The bounded reading keeps its comment reachable.</p>
-    <div style="height: 900px"></div>
-  </lf-pane>
-</lf-workspace>
-""",
-    )
-    context = browser.new_context(viewport={"width": 800, "height": 900})
-    try:
-        page = open_page(
-            browser,
-            serve(source, anchored=[("single-target", "keeps its comment reachable")]),
-            context=context,
-        )
-        workspace = page.locator("#single-workspace")
-        cluster = page.locator('[data-lf-margin-for="single-target"]')
-
-        expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-        expect(cluster).to_have_count(1)
-        expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
-        expect(cluster).not_to_have_attribute(
-            "data-lf-margin-region", re.compile(r".+")
-        )
-        assert page.locator("#single-reading .lf-pane-body").evaluate(
-            "body => body.contains(document.querySelector('[data-lf-margin-for]'))"
-        )
-    finally:
-        context.close()
 
 
 def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):

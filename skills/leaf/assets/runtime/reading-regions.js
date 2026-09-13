@@ -5,8 +5,6 @@
    bounded posture. `registerReadingArrangement` groups regions under one allocation owner;
    nested and compound owners inherit posture through DOM containment and read their
    assigned content box on demand. CSS still owns how that box is divided.
-   A registered body carries `data-lf-reading-region`, allowing a package to reserve
-   local annotation room without teaching core about the package's element names.
 
    A posture transition notifies watchers before mutation, when old geometry is intact,
    and after the next animation frame, when new geometry can be read. Superseded after
@@ -75,8 +73,6 @@ const regionRecord = (region) => ({
   body: region.body,
 });
 
-const REGION_ATTRIBUTE = "data-lf-reading-region";
-
 export function compoundReadingRegionId(owner, localName) {
   if (!owner?.id || !/^[a-z][a-z0-9-]*$/.test(localName ?? ""))
     throw new Error("leaf: a compound reading region needs an owner id and local name");
@@ -100,12 +96,9 @@ const admitRegions = (declared) => {
     const { id, host, body } = declaration;
     const region = { id, host, body };
     const stopReaching = reachReadingScroller(body);
-    body.setAttribute(REGION_ATTRIBUTE, id);
     regions.set(id, region);
     return () => {
       if (regions.get(id) === region) regions.delete(id);
-      if (body.getAttribute(REGION_ATTRIBUTE) === id)
-        body.removeAttribute(REGION_ATTRIBUTE);
       stopReaching();
     };
   });

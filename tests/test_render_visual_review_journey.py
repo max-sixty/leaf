@@ -52,12 +52,6 @@ def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
     expect(widget.get_by_role("button", name="Expand inspection")).to_have_count(0)
     widget.scroll_into_view_if_needed()
     host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
-    assert (
-        host.evaluate(
-            "node => getComputedStyle(node).getPropertyValue('--lf-reading-region-rail')"
-        )
-        == "0px"
-    )
     widget.get_by_role("button", name="Full frame").click()
     widget.get_by_role("button", name="100%").click()
     page.wait_for_function(

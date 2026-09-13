@@ -1812,16 +1812,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-cluster { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
-/* Declared by the region body that reserves the room, and read back off that same
- * element by the margin projection. It must not inherit: a nested registered region
- * would otherwise claim its ancestor's rail without reserving matching room. */
-@property --lf-reading-region-rail {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-.lf-margin-cluster[data-lf-margin-region] {
-    left: auto; right: 8px; margin-left: 0; }
 /* What a hovered or focused item says about the target it acts on is said on the target:
  * `highlight` (margin-projection.js) hands every item to target paint, which traces the
  * region's own shape. The item draws no leader out to it.

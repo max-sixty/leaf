@@ -78,9 +78,14 @@ ended, and the pending ledger's unresolved attempts — painted on the root elem
 reading, document-bound target-reference capture, declared-role dispatch validation,
 subscription lifetime, total state rendering before auxiliary subscribers, generic
 settlement paint, and the widget presentation ticket through `updateComplete`;
+`runtime/widget-descriptors.js` captures each revision-bound widget's declaration,
+authored ancestry, request offers, and stable target boundary before content modules
+upgrade or move its node;
 `runtime/target-references.js` owns stable id and structural target records, exact
 resolution, immutable page and frozen-fragment boundaries, and the shared pointer and
 keyboard candidate walk;
+`runtime/reader-intent.js` owns the gesture generation a delayed navigation must still
+match before it may move focus or scroll the reader;
 `runtime/application.js` owns typed action, undo, and one-shot request transport;
 `runtime/request-elements.js` owns the controller-backed request-control adapter while
 each package supplies its words and bound detail;
@@ -154,6 +159,8 @@ event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, application serialization,
 accepted-state publication, projection, notification, presentation-failure reporting,
 and pending accounting after presentation proof;
+`runtime/semantic-state.js` owns the single application publisher, its read-only
+semantic selectors, and the document-wide presentation coordinator;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a
 status kind that has changed;
 `runtime/banner-shelf.js` owns news-control reservation and focus continuity, and
@@ -185,6 +192,8 @@ authored-root replacement, the persisted semantic reading landmarks carried acro
 replacement, and the page-block reading directional walks start from;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
+`runtime/validation.js` is the private adapter through which render checks inspect
+publisher state and current presentation readiness;
 `runtime/widget-elements.js` owns widget-element construction, the response control's
 anatomy (`responseAction`), labels, gesture guards, deferred measurement, layout-change signalling, and control sizing;
 `runtime/registry.js` owns vocabulary queries;

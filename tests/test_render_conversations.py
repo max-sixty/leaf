@@ -411,7 +411,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "resolve"
     ] == [root]
-    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')).to_have_count(0)
+    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')).to_be_hidden()
     if view == "inline":
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")

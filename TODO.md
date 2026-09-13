@@ -28,10 +28,22 @@ remain in git history.
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use
   their failures to choose any new reading interface.
 
-- **Prototype short conversations in the margin projection.** Compare a pinned marker card
-  with a sparse left-comment layout on wide pages. Keep complete history and search in
-  Threads, use the existing Page Map dialog on narrow pages, and never leave both margin
-  presentations visible at once.
+- **Give conversations a clear, stable reading hierarchy.** Retain the current thread
+  context while scrolling, disclose search and filters together with the active query,
+  keep agent activity beside the comment it belongs to, and preserve selection and reply
+  editing. Verify populated short and long threads in light and dark at wide and narrow
+  widths. Keep document prose calm and the working chrome compact rather than decorative.
+
+- **Prototype region-aware annotation placement.** Compare a pinned marker card with a
+  sparse left-comment layout across one ordinary document and one workspace. Keep complete
+  history and search in Threads, use the existing Page Map dialog on narrow pages, and
+  never leave both margin presentations visible at once.
+
+- **Audit visual coherence across complete reader journeys.** Compare an ordinary
+  document, a workspace, a dense table or board, and a populated conversation against the
+  intended editorial and technical aesthetic. Fix repeated system-level gaps in type,
+  spacing, framing, control hierarchy, and responsive behavior; avoid playful consumer-app
+  ornament.
 
 ## General reader continuity
 

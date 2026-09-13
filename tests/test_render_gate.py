@@ -2180,14 +2180,10 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
     assert measured["broke"], "every name fitted whole, so the rule was never asked"
     assert measured["sideways"] == 0
     assert errors == []
-    compact = []
     for width in range(520, 601, 4):
         resized(page, width, 720)
         scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
-        if scrolls > 1:
-            compact.append((width, scrolls))
-            assert render_checks_model.evaluate_probe(page, "squeezedTables") == []
-    assert compact, "no compact width exposed the inline-box scroll artifact"
+        assert scrolls == 0, (width, scrolls)
     page.close()
     assert render_gate_model.render_version(browser, url) == []
 

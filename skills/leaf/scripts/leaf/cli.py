@@ -264,7 +264,7 @@ def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
 
 
-@delivery.command("claim", short_help="Mark delivered reader input as Active.")
+@delivery.command("claim", short_help="Mark delivered reader input as Working.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 @click.option(
     "--event",

@@ -80,7 +80,7 @@ def cmd_delivery_claim(
     detail: str = DELIVERY_CLAIM_DETAIL,
     event_id: str | None = None,
 ) -> str:
-    """Mark one exact, still-outstanding move from a delivery as Active.
+    """Mark one exact, still-outstanding move from a delivery as Working.
 
     The immutable delivery supplies the page and candidate event identities. The
     page transaction re-derives its unsettled interactions and writes the claim

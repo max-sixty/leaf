@@ -24,16 +24,18 @@ import { elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "./state.js";
 
 const phaseText = (receipt, includeAge = true) => {
-  if (receipt.phase === "active") {
-    const phase = receipt.quiet
-      ? `● Was working${includeAge ? ` ${ago(receipt.ts)}` : ""}`
-      : "● Working";
+  const workflowStage = agentWorkflowStage(receipt);
+  if (["working", "was_working"].includes(workflowStage)) {
+    const phase =
+      workflowStage === "was_working"
+        ? `● Was working${includeAge ? ` ${ago(receipt.ts)}` : ""}`
+        : "● Working";
     return receipt.detail ? `${phase} — ${receipt.detail}` : phase;
   }
-  if (receipt.phase === "queued") return "✓ Queued";
-  if (receipt.phase === "picked_up")
-    return receipt.dropped ? "○ Picked up · turn ended" : "✓ Picked up";
-  if (receipt.phase === "waiting") return "○ Waiting for pickup";
+  if (workflowStage === "queued") return "✓ Queued";
+  if (workflowStage === "picked_up") return "✓ Picked up";
+  if (workflowStage === "picked_up_ended") return "○ Picked up · turn ended";
+  if (workflowStage === "waiting") return "○ Waiting for pickup";
   return "✓ Sent";
 };
 

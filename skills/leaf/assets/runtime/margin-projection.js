@@ -1050,15 +1050,16 @@ export function createMarginProjection({
           .join(" · "),
       };
     }
-    if (receipt.phase === "queued")
+    if (workflowStage === "queued")
       return { kind: "pickup", text: "Queued", context: age };
-    if (receipt.phase === "picked_up")
+    if (["picked_up", "picked_up_ended"].includes(workflowStage))
       return {
-        kind: receipt.dropped ? "waiting" : "pickup",
-        text: receipt.dropped ? "Picked up · turn ended" : "Picked up",
+        kind: workflowStage === "picked_up_ended" ? "waiting" : "pickup",
+        text:
+          workflowStage === "picked_up_ended" ? "Picked up · turn ended" : "Picked up",
         context: age,
       };
-    if (receipt.phase === "waiting")
+    if (workflowStage === "waiting")
       return {
         kind: "waiting",
         text: "Waiting for pickup",

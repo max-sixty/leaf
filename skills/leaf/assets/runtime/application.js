@@ -521,7 +521,7 @@ export function mountApplication(dependencies) {
     presentConversation,
     refreshNarrowing: conversation.refreshNarrowing,
     registerThreadSurface,
-    resetAuthoredPage: projection.resetAuthoredPage,
+    forgetAuthoredOwners: projection.forgetAuthoredOwners,
     setResolved,
     shallowSigs: projectionShallowSigs,
     startFeed: feed.startFeed,

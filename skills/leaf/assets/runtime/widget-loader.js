@@ -129,7 +129,11 @@ export async function importWidgets(scope) {
   );
 }
 
-async function installDocument(
+// The one upgrade lifecycle for markup that is about to stand in this document, run by
+// startup over the whole body and by a live revision activation over the authored page
+// it has just patched. `mount` is where the caller's own document work belongs, between
+// the pre-upgrade readings and the dressing passes that depend on it.
+export async function installDocument(
   scope,
   { source = ["page", null], mount = () => {}, watchLinks = false } = {},
 ) {

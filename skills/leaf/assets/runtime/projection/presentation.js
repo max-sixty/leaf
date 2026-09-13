@@ -8,7 +8,6 @@ import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
 import { projectionDeferred, setProjectionDeferred } from "./state.js";
 import { applicationState, attachApplicationPresentation } from "../semantic-state.js";
-import { stateSpecs } from "../registry.js";
 import { runtime } from "../context.js";
 import { authored, elementById, inChrome, pageQueryAll } from "../passages.js";
 import {
@@ -152,19 +151,16 @@ export function createProjectionPresentation({ onDeferredReady }) {
     return covered;
   }
 
-  function resetAuthoredPage() {
-    const pageOwners = new Set();
-    for (const { tag } of stateSpecs())
-      for (const widget of pageQueryAll(tag))
-        if (widget.id && !inChrome(widget)) pageOwners.add(widget.id);
-    const dropCoordinates = (records) => {
-      for (const coordinate of records.keys()) {
-        const [owner] = JSON.parse(coordinate);
-        if (pageOwners.has(owner)) records.delete(coordinate);
-      }
-    };
-    dropCoordinates(committedProjection);
-    applicationState.forgetAuthored(pageOwners);
+  // A live revision arriving in this document. `owners` are the page widgets whose
+  // authored markup it rewrote or dropped: their baselines describe markup the document
+  // no longer carries and their coordinate commits describe elements it no longer holds,
+  // so both retire with the revision that wrote them, and the widgets the revision left
+  // alone keep theirs. The coverage stamp comes off either way, because no projection of
+  // the arriving revision has been painted yet.
+  function forgetAuthoredOwners(owners) {
+    for (const coordinate of [...committedProjection.keys()])
+      if (owners.has(JSON.parse(coordinate)[0])) committedProjection.delete(coordinate);
+    applicationState.forgetAuthored(owners);
     document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
   }
 
@@ -277,7 +273,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
     prepare,
     present,
     stageOptimistic,
-    resetAuthoredPage,
+    forgetAuthoredOwners,
     coordinateProjectionCommitted,
   };
 }

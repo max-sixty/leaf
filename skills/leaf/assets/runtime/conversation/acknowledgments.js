@@ -1,15 +1,15 @@
 /* Server-projected interaction receipts and explicit work claims.
 
-   `paintAcknowledgmentsNow` is the one writer of `.lf-receipt`. A thread interaction
-   carries its receipt in the source message's existing metadata row. An eventless thread
-   claim belongs to the root message that identifies the thread, while an event-backed
-   widget frozen into conversation chrome uses the metadata row of the message that owns
-   it. Inline page conversations and page widgets use their target's existing margin
-   cluster instead; an explicit page-widget claim is the cluster's **Working** reading.
-   Every receipt wears `lf-ui` and `data-lf-gen`: it is an account of the conversation,
-   not authored words, so selection and diff readings skip it. Reconcile widget state
-   first and paint receipts afterward, so each receipt describes the state the widget
-   now displays. Keep surviving nodes across state
+   Each retained Lit receipt owns its generated words and semantic paint, while
+   `paintAcknowledgmentsNow` routes that element to the source message's existing
+   metadata row. An eventless thread claim belongs to the root message that identifies
+   the thread, while an event-backed widget frozen into conversation chrome uses the
+   metadata row of the message that owns it. Inline page conversations and page widgets
+   use their target's existing margin cluster instead; an explicit page-widget claim is
+   the cluster's **Working** reading. Every receipt wears `lf-ui` and `data-lf-gen`: it is
+   an account of the conversation, not authored words, so selection and diff readings
+   skip it. Reconcile widget state first and paint receipts afterward, so each receipt
+   describes the state the widget now displays. Keep surviving nodes across state
    applications, and in their place, so an unchanged phase is not re-announced: a node
    taken out of the document and put back replays every animation it wears and
    re-announces its live region. A phase change updates words and semantic color with no
@@ -17,11 +17,11 @@
    omits that clock and changes only with semantic phase or detail. A newly constructed
    margin card uses the same writer on its detached subtree before display. */
 import { ago } from "../presence.js";
-import { el } from "../widget-elements.js";
 import { runtime } from "../context.js";
 import { agentWorkflowStage } from "../updates.js";
 import { elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "./state.js";
+import { LitElement, html } from "../../vendor/browser-runtime.js";
 
 const phaseText = (receipt, includeAge = true) => {
   const workflowStage = agentWorkflowStage(receipt);
@@ -39,6 +39,50 @@ const phaseText = (receipt, includeAge = true) => {
   return "✓ Sent";
 };
 
+const RECEIPT_TAG = "leaf-interaction-receipt";
+
+class InteractionReceipt extends LitElement {
+  static properties = {
+    model: { attribute: false },
+  };
+
+  constructor() {
+    super();
+    this.model = null;
+  }
+
+  createRenderRoot() {
+    return this;
+  }
+
+  present(model) {
+    this.model = model;
+    this.performUpdate();
+  }
+
+  updated() {
+    this.classList.toggle("is-working", this.model.workflowStage === "working");
+    this.classList.toggle("is-picked-up", this.model.workflowStage === "picked_up");
+    this.dataset.lfPhase = this.model.phase;
+    this.toggleAttribute("data-lf-dropped", this.model.dropped);
+  }
+
+  render() {
+    if (!this.model) return null;
+    return html`
+      <span class="lf-receipt-state" aria-hidden="true" title=${this.model.semantic}
+        >${this.model.semantic}</span
+      >
+      <span class="lf-receipt-live" role="status" aria-live="polite" aria-atomic="true"
+        >${this.model.announced}</span
+      >
+    `;
+  }
+}
+
+if (!customElements.get(RECEIPT_TAG))
+  customElements.define(RECEIPT_TAG, InteractionReceipt);
+
 // One retained node follows one reader move through every semantic phase. Only a
 // phase or detail change touches its live region, so the heartbeat does not make a
 // screen reader repeat an unchanged state as the visible rounded age advances. A semantic
@@ -51,34 +95,28 @@ function paintReceipt(host, receipt, wanted) {
     (child) => child.matches(".lf-receipt") && child.dataset.receiptId === receipt.id,
   );
   if (!line) {
-    line = el("span", "lf-receipt lf-ui lf-message-receipt");
+    line = document.createElement(RECEIPT_TAG);
+    line.className = "lf-receipt lf-ui lf-message-receipt";
     line.dataset.lfGen = "1";
     line.dataset.receiptId = receipt.id;
-    const state = el("span", "lf-receipt-state");
-    state.setAttribute("aria-hidden", "true");
-    const live = el("span", "lf-receipt-live");
-    live.setAttribute("role", "status");
-    live.setAttribute("aria-live", "polite");
-    live.setAttribute("aria-atomic", "true");
-    line.append(state, live);
   }
   // Leave a receipt already at the end of its metadata row where it stands. Removing
   // and reinserting it would restart any animation and re-announce its live region.
   if (line.parentElement !== host || line.nextSibling !== null) host.append(line);
   wanted.add(line);
 
-  const state = line.querySelector(":scope > .lf-receipt-state");
   const semantic = phaseText(receipt);
-  if (state.textContent !== semantic) state.textContent = semantic;
-  if (state.title !== semantic) state.title = semantic;
-  const live = line.querySelector(":scope > .lf-receipt-live");
   const announced = phaseText(receipt, false);
-  if (live.textContent !== announced) live.textContent = announced;
   const workflowStage = agentWorkflowStage(receipt);
-  line.classList.toggle("is-working", workflowStage === "working");
-  line.classList.toggle("is-picked-up", workflowStage === "picked_up");
-  line.dataset.lfPhase = receipt.phase;
-  line.toggleAttribute("data-lf-dropped", Boolean(receipt.dropped));
+  line.present(
+    Object.freeze({
+      announced,
+      dropped: Boolean(receipt.dropped),
+      phase: receipt.phase,
+      semantic,
+      workflowStage,
+    }),
+  );
 }
 
 export function paintAcknowledgmentsNow(root = document) {

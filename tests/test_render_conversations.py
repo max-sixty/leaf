@@ -449,7 +449,31 @@ def test_a_card_repaint_keeps_the_reader_on_the_control_they_reached(browser, se
     )
     root = events_model.read_events(serve.page_dir)[0]["id"]
     resized(page, 1440, 900)
+    page.evaluate(
+        """() => {
+          const insertBefore = Node.prototype.insertBefore;
+          Node.prototype.insertBefore = function(node, before) {
+            if (
+              this.matches?.('.lf-margin-preview-list') &&
+              node.matches?.('.lf-margin-thread')
+            ) {
+              const receipt = node.querySelector('.lf-receipt');
+              window.__lfDetachedReceipt = receipt && {
+                phase: receipt.dataset.lfPhase,
+                state: receipt.querySelector(':scope > .lf-receipt-state')?.textContent,
+                live: receipt.querySelector(':scope > .lf-receipt-live')?.textContent,
+              };
+            }
+            return insertBefore.call(this, node, before);
+          };
+        }"""
+    )
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    assert page.evaluate("() => window.__lfDetachedReceipt") == {
+        "phase": "sent",
+        "state": "✓ Sent",
+        "live": "✓ Sent",
+    }, "the detached margin card reached display before its receipt rendered"
     resolve = page.locator(".lf-margin-thread").get_by_role(
         "button", name="Resolve thread", exact=True
     )

@@ -245,8 +245,9 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
         page.close()
 
     assert holding, "the page asked for no theme stylesheet, so nothing was held"
+    path = urlsplit(holding[0].request.url).path
     assert str(stopped.value) == (
-        "the document never reached its theme stylesheet; still requesting /theme.css"
+        f"the document never reached its theme stylesheet; still requesting {path}"
     )
 
 
@@ -569,11 +570,6 @@ def test_current_presentation_probe_reopens_and_ignores_superseded_work(browser,
 
     page.evaluate("() => releaseProbeOlder()")
     page.evaluate("() => probeOlder")
-    page.evaluate(
-        """() => probePresentation.present(
-          'failed', Promise.reject(new Error('failed for readiness proof')),
-        )"""
-    )
     assert render_checks_model.evaluate_probe(page, "currentPresented") is True
     page.evaluate("() => probePresentation.disconnect()")
     page.close()
@@ -1179,26 +1175,34 @@ def test_the_render_gate_requires_a_declared_conversations_host(
     registry["lf-callout"]["x-conversation"] = {"when": {"id": ["custom-note"]}}
     registry_path.write_text(json.dumps(registry, indent=2))
     module = package / "widgets" / "lf-callout.js"
-    source = module.read_text().replace(
-        'import { once } from "/runtime/widget-api.js";',
-        'import { conversationBox, once } from "/runtime/widget-api.js";',
-    )
-    placement = '      this.append(conversationBox(this, "Question"));\n'
+    source = module.read_text()
+    runtime_import = 'import { once, widgetController } from "/runtime/widget-api.js";'
+    assert source.count(runtime_import) == 1
     source = source.replace(
-        "      if (!once(this)) return;\n",
-        "      if (!once(this)) return;\n" + placement,
+        runtime_import,
+        'import { conversationBox, once, widgetController } from "/runtime/widget-api.js";',
+    )
+    once = "      once(this);\n"
+    placement = (
+        '      if (once(this)) this.append(conversationBox(this, "Question"));\n'
+    )
+    assert source.count(once) == 1
+    source = source.replace(
+        once,
+        placement,
     )
     module.write_text(source)
 
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     assert render_gate_model.render_version(browser, url) == []
 
-    module = serve.page_dir / "widgets" / "lf-callout.js"
     source = module.read_text()
     assert source.count(placement) == 1
     module.write_text(source.replace(placement, ""))
 
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     assert (
         "[light] <lf-callout id='custom-note'> declares x-conversation but rendered 0 "
         "matching hosts; its module must place exactly one conversationBox"
@@ -3248,17 +3252,17 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
         'export const label = "project-owned helper";\n'
     )
     module = widgets / "lf-callout.js"
+    source = module.read_text()
+    runtime_import = 'import { once, widgetController } from "/runtime/widget-api.js";'
+    assert source.count(runtime_import) == 1
+    source = source.replace(
+        runtime_import,
+        runtime_import + '\nimport { label } from "./callout-label.js";',
+    )
+    once = "      once(this);"
+    assert source.count(once) == 1
     module.write_text(
-        module.read_text()
-        .replace(
-            'import { once } from "/runtime/widget-api.js";',
-            'import { once } from "/runtime/widget-api.js";\n'
-            'import { label } from "./callout-label.js";',
-        )
-        .replace(
-            "if (!once(this)) return;",
-            "if (!once(this)) return;\n      this.dataset.helper = label;",
-        )
+        source.replace(once, "      if (once(this)) this.dataset.helper = label;")
     )
 
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))

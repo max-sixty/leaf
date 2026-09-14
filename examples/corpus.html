@@ -402,6 +402,7 @@
       .query-table-frame {
         min-width: 0;
         overflow-x: auto;
+        --lf-block-frame: 1;
       }
 
       @media (max-width: 42rem) {
@@ -442,10 +443,11 @@
         return String(actual).toLowerCase() === row.value.toLowerCase();
       }
 
-      function labelledSelect(label, values, selected, changed) {
+      function labelledSelect(name, label, values, selected, changed) {
         const wrapper = document.createElement("label");
         wrapper.append(document.createTextNode(label));
         const select = offer("select", "");
+        select.name = name;
         for (const [value, words] of values) {
           const option = document.createElement("option");
           option.value = value;
@@ -589,6 +591,7 @@
                 element.dataset.filterId = id;
                 element.append(
                   labelledSelect(
+                    `${id}-field`,
                     "Field",
                     [
                       ["region", "Region"],
@@ -599,6 +602,7 @@
                     (value) => this.#update(id, "field", value),
                   ),
                   labelledSelect(
+                    `${id}-operator`,
                     "Operator",
                     [
                       ["is", "is"],
@@ -612,6 +616,7 @@
                 const valueLabel = document.createElement("label");
                 valueLabel.append(document.createTextNode("Value"));
                 const input = offer("input", "", undefined, "text");
+                input.name = `${id}-value`;
                 input.value = row.value;
                 input.addEventListener("input", () =>
                   this.#update(id, "value", input.value),

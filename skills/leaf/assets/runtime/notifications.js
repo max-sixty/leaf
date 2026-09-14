@@ -7,13 +7,17 @@
    when the notice fades; the live region hears the same words. It is text rather than a
    control: what a notice names, the banner's own buttons reach. There is no second
    surface for news, so nothing floats in a corner to become a stale pointer target. */
+import { nothing, render } from "../vendor/browser-runtime.js";
+
 import { el } from "./widget-elements.js";
 
 // The notice this module writes; the bottom status line seats it.
 export const noticeEl = el("span", "lf-ui lf-notice");
+render(nothing, noticeEl);
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
+render(nothing, liveEl);
 
 // How long a notice holds the status line before the line's own words come back: long
 // enough to read a recorded acknowledgement, short enough that the state behind it is
@@ -25,10 +29,26 @@ let showingBackground = false;
 let waitingBackground = null;
 let readerContext = false;
 let readerHoldTimer = 0;
+let noticeMessage = "";
+let noticeIsVisible = false;
+
+export const noticeVisible = () => noticeIsVisible;
+
+const setNoticeVisible = (visible) => {
+  noticeIsVisible = visible;
+  noticeEl.classList.toggle("show", visible);
+};
 
 export function announce(msg) {
-  liveEl.textContent = "";
-  setTimeout(() => (liveEl.textContent = msg), 30);
+  // Removing and restoring the text node makes repeated identical announcements a
+  // fresh live-region change rather than a value Lit can correctly leave untouched.
+  render(nothing, liveEl);
+  setTimeout(() => {
+    // Each arrival owns a fresh insertion, including two equal announcements whose
+    // delays overlap. Lit would otherwise correctly reuse the first callback's text.
+    render(nothing, liveEl);
+    render(msg, liveEl);
+  }, 30);
 }
 
 // The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated
@@ -36,8 +56,9 @@ export function announce(msg) {
 // foot. A sentence that is also a button for four seconds is a target
 // the reader cannot learn.
 function showNotice(msg, background) {
-  noticeEl.textContent = msg;
-  noticeEl.classList.add("show");
+  noticeMessage = msg;
+  render(msg, noticeEl);
+  setNoticeVisible(true);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
@@ -46,7 +67,7 @@ function showNotice(msg, background) {
       waitingBackground = null;
       return showNotice(waiting, true);
     }
-    noticeEl.classList.remove("show");
+    setNoticeVisible(false);
     showingBackground = false;
   }, NOTICE_MS);
 }
@@ -60,14 +81,12 @@ export function notice(msg, { background = false } = {}) {
   announce(msg);
   if (
     background &&
-    (readerContext ||
-      readerHoldTimer ||
-      (noticeEl.classList.contains("show") && !showingBackground))
+    (readerContext || readerHoldTimer || (noticeIsVisible && !showingBackground))
   ) {
     waitingBackground = msg;
     return;
   }
-  if (!background && showingBackground) waitingBackground = noticeEl.textContent;
+  if (!background && showingBackground) waitingBackground = noticeMessage;
   showNotice(msg, background);
 }
 
@@ -75,18 +94,17 @@ export function notice(msg, { background = false } = {}) {
 // ordinal rather than a timed notice. Hold arriving news for one boundary interval;
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
 export function holdStatus(ms) {
-  if (noticeEl.classList.contains("show")) {
-    if (showingBackground) waitingBackground = noticeEl.textContent;
+  if (noticeIsVisible) {
+    if (showingBackground) waitingBackground = noticeMessage;
     clearTimeout(noticeTimer);
     noticeTimer = 0;
-    noticeEl.classList.remove("show");
+    setNoticeVisible(false);
     showingBackground = false;
   }
   clearTimeout(readerHoldTimer);
   readerHoldTimer = setTimeout(() => {
     readerHoldTimer = 0;
-    if (readerContext || noticeEl.classList.contains("show") || !waitingBackground)
-      return;
+    if (readerContext || noticeIsVisible || !waitingBackground) return;
     const waiting = waitingBackground;
     waitingBackground = null;
     showNotice(waiting, true);
@@ -98,17 +116,12 @@ export function holdStatus(ms) {
 export function setNoticeContext(active) {
   readerContext = active;
   if (active && showingBackground) {
-    waitingBackground = noticeEl.textContent;
+    waitingBackground = noticeMessage;
     clearTimeout(noticeTimer);
     noticeTimer = 0;
-    noticeEl.classList.remove("show");
+    setNoticeVisible(false);
     showingBackground = false;
-  } else if (
-    !active &&
-    !readerHoldTimer &&
-    waitingBackground &&
-    !noticeEl.classList.contains("show")
-  ) {
+  } else if (!active && !readerHoldTimer && waitingBackground && !noticeIsVisible) {
     const waiting = waitingBackground;
     waitingBackground = null;
     showNotice(waiting, true);

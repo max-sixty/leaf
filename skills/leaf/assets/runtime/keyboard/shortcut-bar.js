@@ -70,7 +70,12 @@ import { el } from "../widget-elements.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 
 import { commandReferenceOpen, openCommandReference } from "./command-reference.js";
-import { announce, noticeEl, setNoticeContext } from "../notifications.js";
+import {
+  announce,
+  noticeEl,
+  noticeVisible,
+  setNoticeContext,
+} from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 
@@ -111,8 +116,7 @@ export const standingStatusBoxes = () => {
     standingStatusBox = null;
     return [];
   }
-  if (!noticeEl.classList.contains("show"))
-    [standingStatusBox = null] = boxesOf([bottomStatusEl]);
+  if (!noticeVisible()) [standingStatusBox = null] = boxesOf([bottomStatusEl]);
   return standingStatusBox ? [standingStatusBox] : [];
 };
 export const bottomChromeBoxes = () => [

@@ -6,12 +6,15 @@
    Send reads the draft. Sent-message images open one native modal viewer. The document
    declares its public page root because a website module may live under an immutable
    release URL; ordinary and MCP pages fall back to the module route. All three resolve
-   the same canonical `/media/…` text without rewriting durable content. */
+   the same canonical `/media/…` text without rewriting durable content. The viewer's
+   native dialog remains a direct chrome child while its light-DOM Lit face owns the
+   generated title, control, and image. */
 
 // Joined rather than written whole: the MCP boundary's route scoper rewrites a quoted
 // media root in served JS (http.py's _ROOTED_PAGE_ROUTE), and this constant has to keep
 // speaking the canonical text that drafts and events carry. MEDIA_PATH's escaped form
 // below dodges the same rewrite; neither may be spelled the obvious way.
+import { LitElement, html } from "../vendor/browser-runtime.js";
 import { offlineInteractive, runtimeResource } from "./context.js";
 
 const CANONICAL_MEDIA_ROOT = "/" + "media/";
@@ -61,38 +64,69 @@ export function writePastedMedia(text, paths) {
   return text + separator + images;
 }
 
+const VIEWER_FACE_TAG = "leaf-media-viewer-face";
+
+class MediaViewerFace extends LitElement {
+  static properties = {
+    model: { attribute: false },
+  };
+
+  constructor() {
+    super();
+    this.model = null;
+    this.closeViewer = null;
+  }
+
+  createRenderRoot() {
+    return this;
+  }
+
+  present(model) {
+    this.model = model;
+    if (this.isConnected) this.performUpdate();
+  }
+
+  focusClose() {
+    this.querySelector(".lf-media-viewer-head > button").focus({
+      preventScroll: true,
+    });
+  }
+
+  render() {
+    return html`
+      <div class="lf-media-viewer-head">
+        <strong id="lf-media-viewer-title">Image preview</strong>
+        <button class="lf-btn" type="button" @click=${this.closeViewer}>Close</button>
+      </div>
+      <div class="lf-media-viewer-stage">
+        ${this.model ? html`<img src=${this.model.url} alt=${this.model.alt} />` : null}
+      </div>
+    `;
+  }
+}
+
+if (!customElements.get(VIEWER_FACE_TAG))
+  customElements.define(VIEWER_FACE_TAG, MediaViewerFace);
+
 export const mediaViewer = document.createElement("dialog");
 mediaViewer.id = "lf-media-viewer";
 mediaViewer.className = "lf-ui lf-media-viewer";
 mediaViewer.setAttribute("aria-modal", "true");
 mediaViewer.setAttribute("aria-labelledby", "lf-media-viewer-title");
-const head = document.createElement("div");
-head.className = "lf-media-viewer-head";
-const title = document.createElement("strong");
-title.textContent = "Image preview";
-title.id = "lf-media-viewer-title";
-const close = document.createElement("button");
-close.className = "lf-btn";
-close.textContent = "Close";
-close.type = "button";
-close.onclick = () => mediaViewer.close();
-head.append(title, close);
-const stage = document.createElement("div");
-stage.className = "lf-media-viewer-stage";
-const image = document.createElement("img");
-stage.append(image);
-mediaViewer.append(head, stage);
+const viewerFace = document.createElement(VIEWER_FACE_TAG);
+viewerFace.style.display = "contents";
+viewerFace.closeViewer = () => mediaViewer.close();
+mediaViewer.append(viewerFace);
 
 let origin = null;
 const open = (url, alt, from) => {
   origin = from;
-  image.src = url;
-  image.alt = alt;
+  viewerFace.present(Object.freeze({ url, alt }));
   if (!mediaViewer.open) mediaViewer.showModal();
-  close.focus({ preventScroll: true });
+  viewerFace.focusClose();
 };
 mediaViewer.addEventListener("close", () => {
-  image.removeAttribute("src");
+  viewerFace.present(null);
   if (origin?.isConnected) origin.focus({ preventScroll: true });
   origin = null;
 });

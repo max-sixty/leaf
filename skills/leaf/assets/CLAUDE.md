@@ -275,8 +275,9 @@ threads they claim from the margin-projection fallback;
 `runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
 state, and their reply, resolve, and reopen controls;
 `runtime/conversation/thread-list.js` owns retained panel list reconciliation;
-`runtime/conversation/acknowledgments.js` paints the server-projected interaction
-receipts in conversation seats; and
+`runtime/conversation/acknowledgments.js` routes server-projected interaction receipts
+to conversation seats, while each retained Lit receipt owns its words and semantic paint;
+and
 `runtime/conversation/presentation.js` composes retained conversation rendering;
 `runtime/conversation/panel.js` owns the panel composer, and `panel-elements.js` owns the
 passive panel elements and geometry readings;

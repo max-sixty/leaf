@@ -48,7 +48,7 @@ class PagePool:
 
     What a test leaves behind is small: a served page differs from the shape it
     was made from in `index.html`, `events.jsonl`, `status.json`, `viewed.json`,
-    the revision it stamped and its `.fixture-versions`. `reset` reads the
+    the revision it stamped. `reset` reads the
     difference off the filesystem rather than a list — every file whose identity,
     size or modification time moved is put back from the shape, every file and
     directory the test added is removed — so a page a test changed in some way

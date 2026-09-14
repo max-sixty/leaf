@@ -54,11 +54,11 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
+    CORPUS_SOURCES,
     EXAMPLES,
     FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
-    PAGE_FIXTURES,
     RENDERED,
     ROOT,
     TOKEN,
@@ -77,7 +77,6 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
-    stamp_version_file,
     take_browser_errors,
     told,
     wait_for_revision,
@@ -406,7 +405,7 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
 def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
     browser, serve
 ):
-    example = next(e for e in PAGE_FIXTURES if e.stem == "review-queue")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
     page = open_page(browser, serve(example))
     resized(page, 1100, 520)
     queue = page.locator("#review-queue .lf-pane-body")
@@ -435,7 +434,7 @@ def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
 
 
 def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
-    example = next(e for e in PAGE_FIXTURES if e.stem == "review-queue")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
     page = open_page(
         browser,
         serve(
@@ -470,7 +469,7 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
 def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
     browser, serve
 ):
-    example = next(e for e in PAGE_FIXTURES if e.stem == "review-queue")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -542,7 +541,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     browser, serve
 ):
     """The comparison is simultaneous when room permits and sequential when it does not."""
-    example = next(e for e in PAGE_FIXTURES if e.stem == "current-proposed-comparison")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
     page = open_page(browser, serve(example))
     workspace = page.locator("#comparison-workspace")
     current = page.locator("#comparison-current")
@@ -575,7 +574,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
 
 def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve):
     """Each policy owns a separate anchor and pane-local return route."""
-    example = next(e for e in PAGE_FIXTURES if e.stem == "current-proposed-comparison")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
     page = open_page(
         browser,
         serve(
@@ -631,7 +630,7 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
 
 def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
     """One v1 choice remains authoritative in the v2 policy and rollout."""
-    example = next(e for e in PAGE_FIXTURES if e.stem == "current-proposed-comparison")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -5916,8 +5915,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     without_passage = re.sub(r'<p id="p1">.*?</p>', "", noted_page, flags=re.DOTALL)
-    (d / ".fixture-versions" / "v2.html").write_text(without_passage)
-    stamp_version_file(d, 2, "remove the quoted passage")
+    stamp_page(d, without_passage, "remove the quoted passage")
     wait_for_revision(page, 2)
     # Narrowing is interaction-local heap state, and nothing executable changed, so the
     # reader keeps this document and the Resolved narrowing they chose stands in it.
@@ -8325,8 +8323,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
 
     # A v2 lands and the live page follows it; on v2 the menu's own keys are
     # live, having a list to walk and a base to walk onto.
-    (d / ".fixture-versions" / "v2.html").write_text(NOTED_PAGE)
-    stamp_version_file(d, 2, "two")
+    stamp_page(d, NOTED_PAGE, "two")
     wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     expect(page.locator(".lf-version-menu")).to_have_attribute(

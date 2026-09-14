@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from interact_support import record_claim
+from interact_support import record_claim, running_http_server
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -33,8 +33,7 @@ from render_harness import (
     RENDERED,
     TOKEN,
     leaf_page,
-    running_http_server,
-    stamp_version_file,
+    stamp_page,
 )
 
 CUSTOM_WIDGET_PAGE = leaf_page(
@@ -1167,11 +1166,11 @@ def live_leaf(tmp_path, monkeypatch):
         d = host_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
-        (d / ".fixture-versions").mkdir()
-        (d / ".fixture-versions" / "v1.html").write_text(
-            LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>")
+        stamp_page(
+            d,
+            LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
+            "t",
         )
-        stamp_version_file(d, 1, "t")
         files_model.write_json(
             d / "status.json",
             {

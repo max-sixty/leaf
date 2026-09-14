@@ -710,7 +710,7 @@ Projected data is a fourth question with a different answer: a copy keeps the cu
 module that could refresh it. It is therefore a labelled snapshot, not a live
 projection.
 
-`test_an_exported_page_fixture_stands_on_its_own` strips scripts, opens the copy, and
+`test_the_exported_corpus_stands_on_its_own` strips scripts, opens the copy, and
 asks what still looks actionable. Keep that end-to-end test general rather than
 asserting one widget's exported implementation.
 

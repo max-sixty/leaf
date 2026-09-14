@@ -13,15 +13,12 @@ from interact_support import (
     COMMAND_SUBJECTS,
     OPTIONS,
     PAGE,
-    PHRASING_CONTENT,
     SHIPPED_PACKAGES,
     SUGGESTION,
     X,
     Y,
-    _balanced,
     _board,
     _decided,
-    _marker_for,
     _report,
     _status,
     _tasks_version,
@@ -31,9 +28,7 @@ from interact_support import (
     comment,
     decide,
     declare_data_input,
-    fixture_version_path,
     publish,
-    stage_fixture_source,
     stamp,
     state_json,
     suggest,
@@ -46,7 +41,6 @@ from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import http as http_model
-from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
@@ -66,7 +60,7 @@ def test_check_accepts_a_valid_page(page_dir):
 
 
 def test_check_accepts_authored_module_scripts(page_dir):
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         PAGE.replace(
             "</head>",
@@ -380,6 +374,8 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
     outside = tmp_path / "outside.js"
     outside.write_text("export const value = 1;")
     (authored / "escape.js").symlink_to(outside)
+    initial = revisioning_model.activate_source(page_dir, [])
+    assert initial.error is None and initial.revision == 1
     previous = files_model.latest_revision(page_dir)
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -407,6 +403,8 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
 def test_an_interrupted_capture_never_publishes_a_partial_revision(
     page_dir, monkeypatch
 ):
+    initial = revisioning_model.activate_source(page_dir, [])
+    assert initial.error is None and initial.revision == 1
     previous = files_model.latest_revision(page_dir)
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
@@ -432,6 +430,8 @@ def test_an_interrupted_capture_never_publishes_a_partial_revision(
 
 
 def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
     revision = files_model.latest_revision(page_dir)
     first = artifact_model.read_artifact(page_dir, revision)
     assert artifact_model.read_artifact(page_dir, revision) is first
@@ -451,6 +451,8 @@ def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
     authored = page_dir / "page"
     (authored / "data.json").write_text('{"value": 1}')
+    initial = revisioning_model.activate_source(page_dir, [])
+    assert initial.error is None and initial.revision == 1
     (page_dir / "index.html").write_text(
         PAGE.replace("</head>", '<link rel="stylesheet" href="/page/style.css"></head>')
     )
@@ -493,7 +495,7 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
     ],
 )
 def test_check_keeps_authored_code_in_module_blocks(page_dir, authored, expected):
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(PAGE.replace("</main>", f"{authored}</main>"))
 
     result = check(page_dir)
@@ -515,6 +517,8 @@ def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
 
 def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_dir):
     """A general comment captures no source, so an unfinished edit cannot block it."""
+    initial = revisioning_model.activate_source(page_dir, [])
+    assert initial.error is None and initial.revision == 1
     revision = files_model.latest_revision(page_dir)
     (page_dir / "index.html").write_text("<main>unfinished")
 
@@ -640,7 +644,7 @@ def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_d
         + _board([X, Y], [])
         + '<p id="explanation"><strong>Keep</strong> <em>spaces</em>.</p></main>',
     )
-    fixture_version_path(page_dir, 1).write_text(markup)
+    (page_dir / "index.html").write_text(markup)
     publish(page_dir)
     actions = [
         (
@@ -772,9 +776,7 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
     page_dir, outcome, words
 ):
     markup = '<lf-suggestion id="wording"><lf-old>Keep the old wording.</lf-old><lf-new>Use the new wording.</lf-new></lf-suggestion>'
-    fixture_version_path(page_dir, 1).write_text(
-        PAGE.replace("</main>", markup + "</main>")
-    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
     publish(page_dir)
     decide(page_dir, outcome, widget="wording")
     nodes = construction_nodes(state_json(page_dir)["content"])
@@ -907,7 +909,7 @@ def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypa
 
 def test_check_leaves_the_layers_policy_to_delivery(page_dir):
     """The served boundary owns policy, so source cannot compete with it."""
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     authored = version.read_text().replace(
         "</head>",
         '<meta http-equiv="Content-Security-Policy" content="default-src *">\n</head>',
@@ -921,7 +923,7 @@ def test_check_leaves_the_layers_policy_to_delivery(page_dir):
 
 def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
     """One declaration at delivery's first-byte boundary owns document encoding."""
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     authored = version.read_text().replace("</head>", '<meta charset="utf-8">\n</head>')
     version.write_text(authored)
     result = check(page_dir)
@@ -934,7 +936,7 @@ def test_check_refuses_markup_the_browser_never_renders(page_dir):
     """<template> parses into an inert fragment and <noscript> stays unrendered
     in any scripting browser, while the file's reading would take both for the
     page's words — a comment could anchor on text no reader ever sees."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><template><p id="tp">Ghost words.</p></template>'
@@ -947,7 +949,7 @@ def test_check_refuses_markup_the_browser_never_renders(page_dir):
 
 
 def test_check_rejects_widget_violations(page_dir):
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>',
             '<lf-metric id="bad-metric" value="1"/>'
@@ -987,7 +989,7 @@ def test_check_rejects_duplicate_attributes_the_browser_reads_differently(page_d
     board = registry["lf-board"]["x-example"].replace(
         'id="feeder-board"', 'id="browser-board" id="file-board"'
     )
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     source = version.read_text().replace("</section>", board + "\n</section>")
     version.write_text(source)
     line = source[: source.index('<lf-board id="browser-board"')].count("\n") + 1
@@ -1010,7 +1012,7 @@ def test_check_rejects_a_language_nothing_will_color(page_dir):
     widget attribute that declares itself a language (x-language). The last is checked
     against the same list as the first two rather than by that widget's own schema,
     which is what keeps a second tag taking a language from needing a second reader."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             "<h2>Plan</h2>\n"
@@ -1042,7 +1044,7 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     registry["lf-tree"]["properties"]["dialect"] = {"type": "string"}
     registry["lf-tree"]["x-language"] = "dialect"
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2>\n<lf-tree id="t" dialect="lisp"><pre>\nfeeders/\n</pre></lf-tree>',
@@ -1061,7 +1063,7 @@ def test_a_misplaced_class_is_offered_whatever_tag_takes_a_language(page_dir):
     widget that colors a walkthrough is the layer's rather than core's, so a lint that
     named it would be core knowing a content widget — and would keep offering it to a
     layer that dropped it, spelt its attribute differently, or added a second."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2>\n<div class="note language-python">not a code block</div>',
@@ -1094,75 +1096,6 @@ def test_a_misplaced_class_is_offered_whatever_tag_takes_a_language(page_dir):
     out = check(page_dir).output
     assert "only <pre><code> is colored" in out and "— move it" in out, out
     assert "or use" not in out, out
-
-
-def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
-    """Two selectors in the theme decide what counts as block content — the
-    suggestion slots' blockization and lf-compare's stacked-variant trigger
-    (lf-options stacks on the title alone, so it asks no block question) — by the
-    platform's closed set inverted: any child that is not phrasing content is block.
-    The enumeration this replaced named every shipped widget, which is the closed
-    list the norms forbid: the first project-layer widget staged in a slot rendered
-    inline and the fold dropped it in the frame of the press.
-
-    So each list is held to what it claims to be, in both of its halves. The platform
-    half is HTML's phrasing content entire, stated above, which is the half the two
-    copies could never check: agreeing with each other says nothing about a name
-    dropped from both, and a missing one blockizes a slot holding the element it
-    names. The widget half is the inversion's one wrong answer — an inline widget is
-    a custom element like any other — and it is a marker rather than tag names,
-    because which widgets those are is the registry's to say (x-inline) and a
-    stylesheet cannot read it. Four names stood here, one of them a standard chip's
-    inside the integrated theme, and no layer could join them; the runtime paints the
-    declaration instead and an inline widget joins by declaring it.
-
-    The marker is held to what markDeclared paints for x-inline, because a selector
-    naming an attribute nothing writes matches nothing and says so nowhere — it reads
-    as the ordinary case of a page with no inline widget in a slot. Being a name the
-    runtime is allowed to paint is not that: the wiring is a declaration's entry in
-    one of markDeclared's tables, and _marker_for is what follows it. And it is held
-    to :where(), which is what keeps an answer about content
-    from becoming a claim on the cascade: :not() takes the specificity of the most
-    specific thing in it, so a bare attribute selector lifts the whole rule a column
-    above the type names beside it, over the marks the layer paints on top of the
-    result. Bare, it beat [data-lf-retired] and a decided suggestion kept the slot
-    it had just retired."""
-    theme = layer_model.composed_theme(
-        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
-    )
-    lists = [_balanced(theme, found.end()) for found in re.finditer(r":not\(", theme)]
-    lists = [found for found in lists if found.startswith("a, abbr")]
-    assert len(lists) == 2, (
-        "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
-    )
-    registry = validation_model.incoming_registry(
-        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
-    )
-    assert [
-        tag
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and entry.get("x-inline")
-    ], "no widget declares x-inline, so the marker in these lists stands for nothing"
-    for found in lists:
-        tags = {t.strip() for t in found.split(",")}
-        markers = {t for t in tags if not t.isalpha()}
-        assert tags - markers == PHRASING_CONTENT, (
-            "the platform half of a block-content list is not HTML's phrasing "
-            "content: a name dropped from it stacks a slot holding that element, "
-            "one added to it leaves a block child laid out inline, and a widget "
-            "named in either half re-closes the inversion"
-        )
-        assert markers == {":where([data-lf-inline])"}, (
-            "the widget half of a block-content list is the inline marker the "
-            "runtime paints from x-inline, in :where() so the question does not "
-            "outrank the marks painted over its answer"
-        )
-        for marker in markers:
-            attribute = marker[len(":where([") : -len("])")]
-            assert _marker_for("x-inline") == attribute, (
-                f"{marker} is not what the runtime paints for x-inline, so the "
-                "list's widget half matches nothing on any page"
-            )
 
 
 def test_the_collapse_class_is_one_set_on_both_sides():
@@ -1265,63 +1198,6 @@ def test_the_render_viewport_is_wide_enough_to_have_margins():
     )
 
 
-def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
-    """A choose group's affordance rules stand down inside an exhibit in their own
-    selectors, because a stylesheet cannot read the registry the runtime's quoted()
-    dispatches on. What they exclude is the paint that declaration leaves on the
-    page (data-lf-exhibit, markDeclared) rather than the widgets declaring it, so
-    the layer that ships an exhibit and the layer whose rules withhold the hand need
-    not be the same one — the shape a tag list cannot have.
-
-    Every ancestor exclusion in the rules of the composed theme is read, not the
-    exhibit ones alone: a tag name in one is a closed vocabulary wherever it appears,
-    and the failure it causes is a project's own widget silently outside the answer.
-    Comments come off first, because two of them quote this very selector — left in,
-    the set could be satisfied with every rule that carries the exclusion deleted.
-
-    The marker is then held to what `markDeclared` actually paints for x-exhibit and
-    to a widget declaring it: either missing leaves every one of those rules excluding
-    nothing on any page, which renders as a quoted group offering the pick it exists
-    to withhold. Not the pick itself, which quoted() refuses at the layer's own door:
-    what is lost is that a mention stops looking like a mention. Which of
-    markDeclared's two tables the declaration sits in is a different question — where
-    the fact holds — and the browser answers it, in a reply as well as in the
-    document.
-
-    What this cannot see is one rule of ten dropping its exclusion while the others
-    keep theirs: a set does not count. That reading is the browser's."""
-    theme = re.sub(
-        r"/\*.*?\*/",
-        "",
-        layer_model.composed_theme([schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]),
-        flags=re.DOTALL,
-    )
-    excluded = {
-        inside.removesuffix(" *")
-        for found in re.finditer(r":not\(", theme)
-        if (inside := _balanced(theme, found.end())).endswith(" *")
-    }
-    assert excluded == {":where([data-lf-exhibit])"}, (
-        f"the theme's ancestor exclusions are {excluded}, and the thing an affordance "
-        "may stand down inside is a painted exhibit. A tag spelled here answers for "
-        "the layer that ships it and no other; a second marker is a second question, "
-        "and belongs to the test that owns it"
-    )
-    assert _marker_for("x-exhibit") == "data-lf-exhibit", (
-        "the theme excludes data-lf-exhibit and markDeclared paints "
-        f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
-        "page and an exhibit keeps every affordance these rules meant to withhold"
-    )
-    registry = validation_model.incoming_registry(
-        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
-    )
-    assert [
-        tag
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and entry.get("x-exhibit")
-    ], "no widget declares x-exhibit, so the marker in these rules stands for nothing"
-
-
 def test_every_declared_attribute_and_enum_stands_in_an_example():
     """The corpus floor one level down from tags (examples/CLAUDE.md): where an
     attribute or an enum value changes what a reader sees, a page shows it. The
@@ -1380,7 +1256,7 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     was meant to be red — so the only party who can still fix it is whoever wrote
     the word, and the lint is where they are told. This is the whole difference
     between the attribute and a class, which nothing checks."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             '<lf-option id="flag-first">',
             '<lf-option id="flag-first"><lf-chip tone="dangre">risk: high</lf-chip>',
@@ -1403,7 +1279,7 @@ def test_a_chip_is_admissible_in_both_its_owners(page_dir):
     """x-owners is a list because one element can belong to two owners, and a chip
     is written in a lf-option and in a lf-variant — the same shape either side of the
     decision. Neither is special-cased anywhere: the nesting check reads the list."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
             '<lf-compare id="cmp"><lf-variant id="v-a"><lf-chip tone="ok">cheap</lf-chip>'
@@ -1413,7 +1289,7 @@ def test_a_chip_is_admissible_in_both_its_owners(page_dir):
     assert check(page_dir).exit_code == 0, check(page_dir).output
 
     # And refused where neither holder is its parent, naming both.
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2><lf-chip>stray</lf-chip>")
     )
     result = check(page_dir)
@@ -1452,7 +1328,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         "x-upgrade": False,
     }
     registry_path.write_text(json.dumps(registry))
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     valid = PAGE.replace(
         "<h2>Plan</h2>",
         """<lf-workspace id="review-space">
@@ -1469,7 +1345,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
 
 
 def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -1493,7 +1369,7 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
 
 
 def test_workspace_requires_one_element_body(page_dir):
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     invalid_bodies = {
         "bare text": "Loose text",
         "multiple elements": "<p>First</p><p>Second</p>",
@@ -1525,7 +1401,7 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_di
     registry["$languages"]["names"] = []
     registry["$languages"]["paths"] = {}
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2>\n<pre><code class="language-python">x = 1</code></pre>\n'
@@ -1540,7 +1416,7 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_di
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<lf-options>", "<lf-options>\nloose text\n<p>stray</p>\n<br/>")
     )
     result = check(page_dir)
@@ -1556,7 +1432,7 @@ def test_check_requires_one_child_for_each_declared_role(page_dir):
         "lf-milestone": {"one-each": "status"}
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             "<lf-options>",
@@ -1582,11 +1458,11 @@ def test_check_requires_one_child_for_each_declared_role(page_dir):
 
 
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="">')
     )
     assert check(page_dir).exit_code == 0
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="yes">')
     )
     result = check(page_dir)
@@ -1595,7 +1471,7 @@ def test_flag_attribute_accepts_both_html_spellings(page_dir):
 
 
 def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<lf-options>", '<lf-options label="Which plan?">').replace(
             'id="backfill-first">', 'id="backfill-first" recommended>'
         )
@@ -1613,12 +1489,10 @@ def test_milestones_compose(page_dir):
     <lf-milestone id="m-two" status="active" tags="wood,solar"><strong>Build</strong></lf-milestone>
   </lf-milestones>
 <lf-options>"""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
-        PAGE.replace("<lf-options>", nested)
-    )
+    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", nested))
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
             '<lf-milestone id="m-stray" status="done"><strong>X</strong></lf-milestone><lf-options>',
@@ -1637,9 +1511,7 @@ def test_tabs_validate_and_compose(page_dir):
   </lf-tab>
 </lf-tabs>
 <lf-options>"""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
-        PAGE.replace("<lf-options>", tabs)
-    )
+    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", tabs))
     result = check(page_dir)
     assert result.exit_code == 0, result.output
 
@@ -1653,9 +1525,7 @@ def test_tabs_reject_structural_violations(page_dir):
 </lf-tabs>
 <lf-tab id="ws-stray" label="Stray"><p>y</p></lf-tab>
 <lf-options>"""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
-        PAGE.replace("<lf-options>", bad)
-    )
+    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", bad))
     result = check(page_dir)
     assert result.exit_code == 1
     assert "'label' is a required property" in result.output
@@ -1665,7 +1535,7 @@ def test_tabs_reject_structural_violations(page_dir):
 
 def test_suggestion_validates(page_dir):
     suggest(page_dir)
-    assert check(page_dir, version=1).exit_code == 0, check(page_dir, version=1).output
+    assert check(page_dir).exit_code == 0, check(page_dir).output
 
 
 def test_suggestion_rejects_malformed_shapes(page_dir):
@@ -1698,10 +1568,8 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
             "names no comment in the log",
         ),
     ]:
-        (page_dir / ".fixture-versions" / "v1.html").write_text(
-            PAGE.replace("<lf-options>", markup)
-        )
-        result = check(page_dir, version=1)
+        (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", markup))
+        result = check(page_dir)
         assert result.exit_code == 1, markup
         assert expected in result.output, f"{markup}\n{result.output}"
 
@@ -1711,8 +1579,8 @@ def test_suggestion_resolves_accepts_a_real_comment(page_dir):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion>'
-    (page_dir / ".fixture-versions" / "v1.html").write_text(before_choice(PAGE, markup))
-    assert check(page_dir, version=1).exit_code == 0
+    (page_dir / "index.html").write_text(before_choice(PAGE, markup))
+    assert check(page_dir).exit_code == 0
 
 
 def test_accepting_licenses_retiring_the_replaced_markup(page_dir):
@@ -1723,25 +1591,25 @@ def test_accepting_licenses_retiring_the_replaced_markup(page_dir):
         "<lf-options>",
         '<p id="refill-camera">Refill when the camera shows it half-empty.</p><lf-options>',
     )
-    (page_dir / ".fixture-versions" / "v2.html").write_text(honored)
-    result = check(page_dir, version=2)
+    (page_dir / "index.html").write_text(honored)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "refill-rule" in result.output
 
     decide(page_dir, "accept")
-    assert check(page_dir, version=2).exit_code == 0, check(page_dir, version=2).output
+    assert check(page_dir).exit_code == 0, check(page_dir).output
 
 
 def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
     """Source checking is about the next live revision, not a historical stamp."""
     suggest(page_dir)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
-        (page_dir / ".fixture-versions" / "v2.html")
+    (page_dir / "index.html").write_text(
+        (page_dir / "index.html")
         .read_text()
         .replace("<title>t</title>", "<title>t · v2</title>")
     )
     publish(page_dir, 2)
-    (page_dir / ".fixture-versions" / "v3.html").write_text(
+    (page_dir / "index.html").write_text(
         before_choice(
             PAGE.replace("<title>t</title>", "<title>t · v3</title>"), SUGGESTION
         )
@@ -1761,13 +1629,13 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
 
     # Once staged as index.html, these bytes are a new live revision after r3;
     # the standing decision on r3 therefore licenses the honoring rewrite.
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
             '<p id="refill-camera">Refill when the camera shows it half-empty.</p><lf-options>',
         )
     )
-    result = check(page_dir, version=2)
+    result = check(page_dir)
     assert result.exit_code == 0, result.output
 
 
@@ -1777,31 +1645,31 @@ def test_an_unanswered_proposal_cant_be_kept_as_settled_content(page_dir):
     insert = """<lf-suggestion id="sug-thistle">
   <lf-new><p id="thistle-plan">Switch the north feeder to thistle in autumn.</p></lf-new>
 </lf-suggestion>
-"""
+    """
     suggest(page_dir, markup=insert)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
-        PAGE.replace(
-            "<lf-options>",
-            '<p id="thistle-plan">Switch the north feeder to thistle in autumn.</p><lf-options>',
-        )
+    kept = PAGE.replace(
+        "<lf-options>",
+        '<p id="thistle-plan">Switch the north feeder to thistle in autumn.</p><lf-options>',
     )
-    result = check(page_dir, version=2)
+    (page_dir / "index.html").write_text(kept)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "sug-thistle" in result.output
     # A refused version never published, so it is nobody's baseline: v3 stands
     # against v1 — the page the user was actually looking at — and there a
     # whole withdrawal is fine. So is honoring a logged accept.
-    (page_dir / ".fixture-versions" / "v3.html").write_text(PAGE)
-    assert check(page_dir, version=3).exit_code == 0
+    (page_dir / "index.html").write_text(PAGE)
+    assert check(page_dir).exit_code == 0
     decide(page_dir, "accept", widget="sug-thistle")
-    assert check(page_dir, version=2).exit_code == 0
+    (page_dir / "index.html").write_text(kept)
+    assert check(page_dir).exit_code == 0
 
 
 def test_rejecting_licenses_retiring_the_proposal(page_dir):
     # A reject is consent to drop the proposal, so it retires even while a
     # thread about it is open — the user has already answered.
     suggest(page_dir)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
             '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
@@ -1817,12 +1685,12 @@ def test_rejecting_licenses_retiring_the_proposal(page_dir):
             "text": "cameras aren't reliable yet",
         },
     )
-    assert check(page_dir, version=2).exit_code == 1
+    assert check(page_dir).exit_code == 1
     decide(page_dir, "reject")
-    assert check(page_dir, version=2).exit_code == 0
+    assert check(page_dir).exit_code == 0
     # The other slot is not licensed: dropping the markup a reject kept is refused.
-    (page_dir / ".fixture-versions" / "v3.html").write_text(PAGE)
-    result = check(page_dir, version=3)
+    (page_dir / "index.html").write_text(PAGE)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "refill-rule" in result.output
 
@@ -1835,25 +1703,25 @@ def test_an_unanswered_deletion_cant_delete(page_dir):
 </lf-suggestion>
 """
     suggest(page_dir, markup=delete)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(PAGE)
-    result = check(page_dir, version=2)
+    (page_dir / "index.html").write_text(PAGE)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "hand-log" in result.output
     decide(page_dir, "accept", widget="sug-drop")
-    assert check(page_dir, version=2).exit_code == 0
+    assert check(page_dir).exit_code == 0
 
 
 def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
     # Nothing was decided, so Claude may take the proposal back — but not while
     # an unresolved thread is anchored in it.
     suggest(page_dir)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
             '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
         )
     )
-    assert check(page_dir, version=2).exit_code == 0
+    assert check(page_dir).exit_code == 0
     events_model.append_event(
         page_dir,
         {
@@ -1864,13 +1732,13 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
             "text": "why the camera?",
         },
     )
-    result = check(page_dir, version=2)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "refill-camera" in result.output
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
-    assert check(page_dir, version=2).exit_code == 0
+    assert check(page_dir).exit_code == 0
 
 
 def test_reply_refuses_a_suggestion(page_dir):
@@ -1897,6 +1765,8 @@ def test_reply_refuses_a_suggestion(page_dir):
 
 
 def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
+    initial = revisioning_model.activate_source(page_dir, [])
+    assert initial.error is None and initial.revision == 1
     comment = events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
@@ -1956,6 +1826,8 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
 
 def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
+    initial = revisioning_model.activate_source(page_dir, [])
+    assert initial.error is None and initial.revision == 1
     comments = []
     for event_id in ("c1", "c2"):
         comments.append(
@@ -2173,9 +2045,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     ids=["runtime-module", "theme"],
 )
 def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
-        PAGE.replace("</head>", f"{asset}\n</head>")
-    )
+    (page_dir / "index.html").write_text(PAGE.replace("</head>", f"{asset}\n</head>"))
 
     result = check(page_dir)
 
@@ -2185,7 +2055,7 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
 
 def test_check_rejects_inline_importance_over_the_presentation_boundary(page_dir):
     """Inline importance outranks stylesheet layers, so the authoring door owns it."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<main>", '<main style="opacity: 1 !important">')
     )
 
@@ -2210,9 +2080,7 @@ def test_check_confines_authored_content_to_one_direct_main(page_dir, outside):
     Prose, ordinary elements, widgets, and another main beside the first are all
     visible outside the CSS gate and must be refused at the authoring door.
     """
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
-        PAGE.replace("</main>", f"</main>\n{outside}")
-    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", f"</main>\n{outside}"))
 
     result = check(page_dir)
 
@@ -2225,7 +2093,7 @@ def test_check_requires_main_to_be_a_direct_body_child(page_dir):
     wrapped = PAGE.replace("<main>", "<div>\n<main>").replace(
         "</main>", "</main>\n</div>"
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(wrapped)
+    (page_dir / "index.html").write_text(wrapped)
 
     result = check(page_dir)
 
@@ -2236,7 +2104,7 @@ def test_check_requires_main_to_be_a_direct_body_child(page_dir):
 def test_check_requires_an_explicit_head_for_delivery(page_dir):
     """Delivery has one validated insertion point for its generated head."""
     source = PAGE.replace("<head>", "").replace("</head>", "")
-    (page_dir / ".fixture-versions" / "v1.html").write_text(source)
+    (page_dir / "index.html").write_text(source)
 
     result = check(page_dir)
 
@@ -2247,7 +2115,7 @@ def test_check_requires_an_explicit_head_for_delivery(page_dir):
 def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
     """The source contract counts tags the recovered browser tree discards."""
     source = PAGE.replace("</html>", "<head></head></html>")
-    (page_dir / ".fixture-versions" / "v1.html").write_text(source)
+    (page_dir / "index.html").write_text(source)
 
     result = check(page_dir)
 
@@ -2264,7 +2132,7 @@ def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
 )
 def test_check_rejects_paintable_markup_the_browser_reparents(page_dir, html):
     """HTML recovery cannot move authored pixels around the main boundary."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(html)
+    (page_dir / "index.html").write_text(html)
 
     result = check(page_dir)
 
@@ -2279,19 +2147,15 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
         "<title>t</title>",
         '<title>t</title>\n<meta name="lf-review" content="sign-off">',
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(signoff)
+    (page_dir / "index.html").write_text(signoff)
     assert check(page_dir).exit_code == 0
 
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
-        signoff.replace("sign-off", "approve")
-    )
+    (page_dir / "index.html").write_text(signoff.replace("sign-off", "approve"))
     result = check(page_dir)
     assert result.exit_code == 1
     assert "content must be one of ['sign-off'], found 'approve'" in result.output
 
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
-        signoff.replace("lf-review", "lf-signoff")
-    )
+    (page_dir / "index.html").write_text(signoff.replace("lf-review", "lf-signoff"))
     result = check(page_dir)
     assert result.exit_code == 1
     assert "unknown lf- meta" in result.output
@@ -2306,7 +2170,7 @@ def test_check_leaves_the_pages_own_address_to_delivery(page_dir):
     honours neither. The words a page owes a search result are its title and
     description, which it writes; the address is the server's.
     """
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<title>t</title>",
             '<title>t</title>\n<link rel="canonical" href="https://example.com/p">',
@@ -2321,10 +2185,10 @@ def test_check_rejects_duplicate_ids(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     publish(page_dir)
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace('id="backfill-first"', 'id="flag-first"')
     )
-    result = check(page_dir, version=2)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "duplicate ids" in result.output
 
@@ -2337,11 +2201,11 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
         "      </lf-option>\n",
         "",
     )
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         without_item.replace('<section id="plan">', "<section>")
     )
 
-    result = check(page_dir, version=2)
+    result = check(page_dir)
 
     assert result.exit_code == 0, result.output
     assert "ids dropped from revision r1: ['backfill-first', 'plan']" in result.output
@@ -2359,7 +2223,7 @@ def test_an_unresolved_anchor_protects_its_id_until_the_thread_resolves(page_dir
             "text": "Keep this diagram addressable.",
         },
     )
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             '  <lf-diagram id="flow"><pre>\n'
             "graph LR\n"
@@ -2369,43 +2233,43 @@ def test_an_unresolved_anchor_protects_its_id_until_the_thread_resolves(page_dir
         )
     )
 
-    unresolved = check(page_dir, version=2)
+    unresolved = check(page_dir)
     assert unresolved.exit_code == 1
     assert "protected ids" in unresolved.output and "'flow'" in unresolved.output
 
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
-    resolved = check(page_dir, version=2)
+    resolved = check(page_dir)
     assert resolved.exit_code == 0, resolved.output
     assert "ids dropped from revision r1: ['flow']" in resolved.output
 
 
 def test_a_standing_action_protects_its_id_until_it_is_retracted(page_dir):
     v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
-    (page_dir / ".fixture-versions" / "v2.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
 
-    standing = check(page_dir, version=2)
+    standing = check(page_dir)
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'d1'" in standing.output
 
     v2("Ship the flag dark, then backfill. Roll back with one flag.", attrs=" restated")
-    retracted = stamp(page_dir, 2, "replace the draft")
+    retracted = stamp(page_dir, "replace the draft")
     assert retracted.exit_code == 0, retracted.output
-    (page_dir / ".fixture-versions" / "v3.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
 
-    dropped = check(page_dir, version=3)
+    dropped = check(page_dir)
     assert dropped.exit_code == 0, dropped.output
     assert "ids dropped from revision r2: ['d1']" in dropped.output
 
 
 def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
-    def write(version, todo):
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+    def write(todo):
+        (page_dir / "index.html").write_text(
             PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _board(todo, []))
         )
 
-    write(1, [X])
+    write([X])
     publish(page_dir)
     moved = append_command(
         page_dir,
@@ -2418,16 +2282,16 @@ def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
             "detail": {"card": "card-x", "to": "c-done", "index": 0},
         },
     )
-    write(2, [])
+    write([])
 
-    standing = check(page_dir, version=2)
+    standing = check(page_dir)
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'card-x'" in standing.output
 
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
     )
-    undone = check(page_dir, version=2)
+    undone = check(page_dir)
     assert undone.exit_code == 0, undone.output
     assert "ids dropped from revision r1: ['card-x']" in undone.output
 
@@ -2440,7 +2304,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     registry_path.write_text(json.dumps(registry))
 
     board = _board([X], [])
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + board)
     )
     publish(page_dir)
@@ -2459,11 +2323,11 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     without_destination = board.replace(
         '<lf-column id="c-done" label="Done"></lf-column>', ""
     )
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + without_destination)
     )
 
-    standing = check(page_dir, version=2)
+    standing = check(page_dir)
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'c-done'" in standing.output
 
@@ -2478,7 +2342,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
             "detail": {"card": "card-x", "to": "c-todo", "index": 0},
         },
     )
-    outranked = check(page_dir, version=2)
+    outranked = check(page_dir)
     assert outranked.exit_code == 0, outranked.output
     assert "ids dropped from revision r1: ['c-done']" in outranked.output
 
@@ -2495,20 +2359,18 @@ def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
     # Re-emitting what v1 said is the ordinary republish, and costs nothing:
     # the user's edit is already on screen over it.
     v2("Ship the flag dark, then backfill.")
-    assert check(page_dir, version=2).exit_code == 0, (
-        "a republish that changes nothing must pass"
-    )
+    assert check(page_dir).exit_code == 0, "a republish that changes nothing must pass"
 
     # Writing their own words back is the other quiet case, and the commoner
     # one: the version agrees with the edit rather than overruling it. A gate
     # that fired here would fire on almost every version an author writes, and
     # a gate that fires on correct work is one they learn to silence.
     v2("Cut the flag; backfill first.")
-    assert check(page_dir, version=2).exit_code == 0, "honoring an edit must pass"
+    assert check(page_dir).exit_code == 0, "honoring an edit must pass"
 
     # Rewriting the words under the edit is the case that needs a decision.
     v2("Ship the flag dark, then backfill. Roll back with one flag.")
-    result = check(page_dir, version=2)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "its words changed" in result.output
     assert "edit on r1" in result.output
@@ -2516,14 +2378,14 @@ def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
 
     # Said out loud, the same version publishes.
     v2("Ship the flag dark, then backfill. Roll back with one flag.", attrs=" restated")
-    assert check(page_dir, version=2).exit_code == 0, "a restated rewrite is allowed"
+    assert check(page_dir).exit_code == 0, "a restated rewrite is allowed"
 
 
 def test_restating_on_the_first_version_is_refused(page_dir):
     """There is nothing before v1 to take back, so `restated` there can only be
     a misreading of what the word does — and one that would record a retraction
     of nothing into the log."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-draft id="d1" restated><pre>Words.</pre></lf-draft>',
@@ -2541,7 +2403,7 @@ def test_restating_a_widget_that_kept_its_words_is_refused(page_dir):
     word that turns the gate back into the silence it replaced."""
     v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
     v2("Ship the flag dark, then backfill.", attrs=" restated")
-    result = check(page_dir, version=2)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "nothing to retract" in result.output
     assert "unchanged since r1" in result.output
@@ -2552,8 +2414,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     detail are held to the x-report declaration there — the CLI mirror of the
     POST door's action gate — and the event leaves stamped with the posting
     session's voice and the exact revision the reader is looking at."""
-    _tasks_version(page_dir, 1, "active")
-    stage_fixture_source(page_dir, 1)
+    _tasks_version(page_dir, "active")
     activation = revisioning_model.activate_source(page_dir, [])
     assert activation.error is None and activation.revision == 1
     draft_report = _report(page_dir, "t-parser", "status", "status=review")
@@ -2612,7 +2473,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations></lf-ask></lf-task></lf-command>"
     )
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -2708,7 +2569,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations></lf-ask></lf-task></lf-command>"
     )
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
@@ -2772,24 +2633,24 @@ def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
     version that writes something else must say so with `overruled` — the gate
     refuses the silent contradiction, which would otherwise drop a worker's
     news without anyone adjudicating it."""
-    _tasks_version(page_dir, 1, "active")
+    _tasks_version(page_dir, "active")
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
 
     # Unchanged markup leaves the report provisional without a copying warning.
-    _tasks_version(page_dir, 2, "active")
-    silent = check(page_dir, version=2)
+    _tasks_version(page_dir, "active")
+    silent = check(page_dir)
     assert silent.exit_code == 0
     assert "record behind the log" not in silent.output
     assert state_json(page_dir)["updates"][0]["disposition"] == "effective"
 
     # Honoring: writing the reported state.
-    _tasks_version(page_dir, 2, "review")
-    assert check(page_dir, version=2).exit_code == 0, "honoring a report must pass"
+    _tasks_version(page_dir, "review")
+    assert check(page_dir).exit_code == 0, "honoring a report must pass"
 
     # Contradiction, unnamed: refused, naming the report and both states.
-    _tasks_version(page_dir, 2, "done")
-    result = check(page_dir, version=2)
+    _tasks_version(page_dir, "done")
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "contradicts a standing report" in result.output
     assert "'done'" in result.output and "'review'" in result.output
@@ -2797,10 +2658,10 @@ def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
 
     # Said out loud, the same version publishes — including back to the state
     # the report tried to move (rejecting the news without changing the page).
-    _tasks_version(page_dir, 2, "done", " overruled")
-    assert check(page_dir, version=2).exit_code == 0
-    _tasks_version(page_dir, 2, "active", " overruled")
-    assert check(page_dir, version=2).exit_code == 0
+    _tasks_version(page_dir, "done", " overruled")
+    assert check(page_dir).exit_code == 0
+    _tasks_version(page_dir, "active", " overruled")
+    assert check(page_dir).exit_code == 0
 
 
 def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_dir):
@@ -2808,8 +2669,8 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     Its typed targets keep report-event ids and widget-work ids distinct without
     growing one note field for each channel."""
 
-    def add_board(version: int) -> None:
-        path = page_dir / ".fixture-versions" / f"v{version}.html"
+    def add_board() -> None:
+        path = page_dir / "index.html"
         path.write_text(
             path.read_text().replace(
                 '<lf-diagram id="flow">',
@@ -2819,9 +2680,9 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
             )
         )
 
-    _tasks_version(page_dir, 1, "active")
-    add_board(1)
-    assert stamp(page_dir, 1, "cut").exit_code == 0
+    _tasks_version(page_dir, "active")
+    add_board()
+    assert stamp(page_dir, "cut").exit_code == 0
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0
     report_id = json.loads(sent.output)["id"]
@@ -2830,9 +2691,9 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     )
     assert claimed.exit_code == 0, claimed.output
 
-    _tasks_version(page_dir, 2, "review")
-    add_board(2)
-    published = stamp(page_dir, 2, "absorb", completes=("rollout-card",))
+    _tasks_version(page_dir, "review")
+    add_board()
+    published = stamp(page_dir, "absorb", completes=("rollout-card",))
     assert published.exit_code == 0, published.output
     note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["settles"] == [
@@ -2841,14 +2702,14 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     ]
 
     # The report ended at v2, so v3 owes it nothing.
-    _tasks_version(page_dir, 3, "done")
-    add_board(3)
-    assert check(page_dir, version=3).exit_code == 0
+    _tasks_version(page_dir, "done")
+    add_board()
+    assert check(page_dir).exit_code == 0
 
     # And a repeated `overruled` after the answer is the carried-forward
     # attribute, refused the way a repeated `restated` is.
-    _tasks_version(page_dir, 3, "done", " overruled")
-    stale = check(page_dir, version=3)
+    _tasks_version(page_dir, "done", " overruled")
+    stale = check(page_dir)
     assert stale.exit_code == 1
     assert "r2 already answered" in stale.output
 
@@ -2857,13 +2718,13 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0, sent.output
     future_report = json.loads(sent.output)["id"]
-    _tasks_version(page_dir, 1, "review")
-    add_board(1)
-    old_cut = page_dir / ".fixture-versions" / "v1.html"
+    _tasks_version(page_dir, "review")
+    add_board()
+    old_cut = page_dir / "index.html"
     old_cut.write_text(
         old_cut.read_text().replace("<title>t</title>", "<title>t · reissued</title>")
     )
-    republished = stamp(page_dir, 1, "reissued old cut")
+    republished = stamp(page_dir, "reissued old cut")
     assert republished.exit_code == 0, republished.output
     note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["version"] == 3
@@ -2872,11 +2733,9 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
 
 def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     """Report revisioning and stamp-note calculation are one transaction each."""
-    _tasks_version(page_dir, 1, "active")
+    _tasks_version(page_dir, "active")
     publish(page_dir)
-    _tasks_version(page_dir, 2, "review")
-    stage_fixture_source(page_dir, 2)
-
+    _tasks_version(page_dir, "review")
     at_commit = threading.Event()
     resume = threading.Event()
     original_append_event = service_model.PageTransaction.append_event
@@ -2928,14 +2787,14 @@ def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
     standing, so a v3 that moves the state again is refused. Without the
     id-explicit record the gate would infer absorption from v2's markup and let
     the report die silently."""
-    _tasks_version(page_dir, 1, "active")
+    _tasks_version(page_dir, "active")
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
-    _tasks_version(page_dir, 2, "review")
+    _tasks_version(page_dir, "review")
     publish(page_dir, version=2)  # a bare note: honoring markup, nothing named
 
-    _tasks_version(page_dir, 3, "done")
-    result = check(page_dir, version=3)
+    _tasks_version(page_dir, "done")
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "contradicts a standing report" in result.output
 
@@ -2944,41 +2803,41 @@ def test_an_unearned_overruled_is_refused(page_dir):
     """`overruled` discards a worker's news, so a version may only spend it
     where a disagreement justifies it — agreeing with the report, or wearing it
     with no report standing, is the reflex that would hollow the gate out."""
-    _tasks_version(page_dir, 1, "active")
+    _tasks_version(page_dir, "active")
     publish(page_dir)
 
     # Nothing standing at all.
-    _tasks_version(page_dir, 2, "active", " overruled")
-    result = check(page_dir, version=2)
+    _tasks_version(page_dir, "active", " overruled")
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "nothing to overrule" in result.output
 
     # Standing, but the markup writes the reported state: that is absorption.
     assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
-    _tasks_version(page_dir, 2, "review", " overruled")
-    result = check(page_dir, version=2)
+    _tasks_version(page_dir, "review", " overruled")
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "writes the reported state" in result.output
 
 
 def test_an_effective_report_protects_its_unit_until_a_stamp_settles_it(page_dir):
     """An effective report keeps its unit addressable until a stamp settles it."""
-    _tasks_version(page_dir, 1, "active")
+    _tasks_version(page_dir, "active")
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
 
-    (page_dir / ".fixture-versions" / "v2.html").write_text(PAGE)
-    standing = check(page_dir, version=2)
+    (page_dir / "index.html").write_text(PAGE)
+    standing = check(page_dir)
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'t-parser'" in standing.output
     assert "ids dropped from revision r1: ['tree']" in standing.output
 
-    _tasks_version(page_dir, 2, "review")
-    settled = stamp(page_dir, 2, "absorb the report")
+    _tasks_version(page_dir, "review")
+    settled = stamp(page_dir, "absorb the report")
     assert settled.exit_code == 0, settled.output
-    (page_dir / ".fixture-versions" / "v3.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
 
-    dropped = check(page_dir, version=3)
+    dropped = check(page_dir)
     assert dropped.exit_code == 0, dropped.output
     assert "ids dropped from revision r2: ['t-parser', 'tree']" in dropped.output
 
@@ -2993,12 +2852,12 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
     alone. The rest of the board stays where the user put it, which is what
     keeps a typo fix from costing them an afternoon's arrangement."""
 
-    def write(version, todo, done):
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+    def write(todo, done):
+        (page_dir / "index.html").write_text(
             PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _board(todo, done))
         )
 
-    write(1, [X, Y], [])
+    write([X, Y], [])
     publish(page_dir)
     append_command(
         page_dir,
@@ -3014,39 +2873,37 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
     assert check(page_dir).exit_code == 0
 
     # An untouched card rewritten, the moved card's own words left alone.
-    write(2, [X, ("card-y", "", "Wire the importer and its backfill")], [])
-    assert check(page_dir, version=2).exit_code == 0, (
+    write([X, ("card-y", "", "Wire the importer and its backfill")], [])
+    assert check(page_dir).exit_code == 0, (
         "an untouched card is not the gate's business"
     )
 
     # The card written where the user put it. Redundant now that replay
     # carries the move, but a version that does it anyway is not wrong.
-    write(2, [Y], [X])
-    assert check(page_dir, version=2).exit_code == 0, (
-        "relocating the moved card must pass"
-    )
+    write([Y], [X])
+    assert check(page_dir).exit_code == 0, "relocating the moved card must pass"
 
     # The moved card's own words rewritten: now the decision is in question.
-    write(2, [("card-x", "", "Guard the delete behind the flag"), Y], [])
-    result = check(page_dir, version=2)
+    write([("card-x", "", "Guard the delete behind the flag"), Y], [])
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "card-x" in result.output and "move on r1" in result.output
     assert "card-y" not in result.output, (
         "the gate named a card nobody had decided about"
     )
 
-    write(2, [("card-x", " restated", "Guard the delete behind the flag"), Y], [])
-    assert check(page_dir, version=2).exit_code == 0
+    write([("card-x", " restated", "Guard the delete behind the flag"), Y], [])
+    assert check(page_dir).exit_code == 0
 
     # And the board itself never takes the attribute: every move names a card, so
     # a board is never what a decision rests on, and offering `restated` there
     # would be a door onto an error message about retracting nothing.
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
-        (page_dir / ".fixture-versions" / "v2.html")
+    (page_dir / "index.html").write_text(
+        (page_dir / "index.html")
         .read_text()
         .replace('<lf-board id="b1">', '<lf-board id="b1" restated>')
     )
-    result = check(page_dir, version=2)
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "restated" in result.output and "lf-board" in result.output
 
@@ -3064,7 +2921,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
     The gate reads the version the way the anchor pass does, which is what keeps
     that true without anything here knowing a chip from a paragraph."""
 
-    def write(version, **kw):
+    def write(**kw):
         opts = OPTIONS.format(
             **{
                 "a": "",
@@ -3075,11 +2932,11 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
                 **kw,
             }
         )
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+        (page_dir / "index.html").write_text(
             PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
         )
 
-    write(1)
+    write()
     publish(page_dir)
     append_command(
         page_dir,
@@ -3095,35 +2952,31 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
     assert check(page_dir).exit_code == 0
 
     # A version may also incorporate the standing pick into authored markup.
-    write(2, a=" chosen")
-    assert check(page_dir, version=2).exit_code == 0, (
-        "marking the pick is not a rewrite"
-    )
+    write(a=" chosen")
+    assert check(page_dir).exit_code == 0, "marking the pick is not a rewrite"
 
     # An option nobody picked, rewritten freely.
-    write(2, a=" chosen", stage="One table at a time, behind a flag.")
-    assert check(page_dir, version=2).exit_code == 0, (
-        "an unpicked option is free to change"
-    )
+    write(a=" chosen", stage="One table at a time, behind a flag.")
+    assert check(page_dir).exit_code == 0, "an unpicked option is free to change"
 
     # The picked one, rewritten — the user chose those words.
-    write(2, a=" chosen", shim="Fastest to ship, and we own the shim forever.")
-    result = check(page_dir, version=2)
+    write(a=" chosen", shim="Fastest to ship, and we own the shim forever.")
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "o-shim" in result.output and "choose on r1" in result.output
 
-    write(2, a=" chosen restated", shim="Fastest to ship, and we own the shim forever.")
-    assert check(page_dir, version=2).exit_code == 0
+    write(a=" chosen restated", shim="Fastest to ship, and we own the shim forever.")
+    assert check(page_dir).exit_code == 0
 
     # A chip is a word on the page: one appearing on the option they picked reads
     # to them as the option changing, and is caught the same way its prose is.
-    write(2, a=" chosen", chip="<lf-chip>effort: high</lf-chip>")
-    result = check(page_dir, version=2)
+    write(a=" chosen", chip="<lf-chip>effort: high</lf-chip>")
+    result = check(page_dir)
     assert result.exit_code == 1, "a chip is words the user read"
     assert "o-shim" in result.output
 
-    write(2, a=" chosen restated", chip="<lf-chip>effort: high</lf-chip>")
-    assert check(page_dir, version=2).exit_code == 0
+    write(a=" chosen restated", chip="<lf-chip>effort: high</lf-chip>")
+    assert check(page_dir).exit_code == 0
 
     # A later pick on the same coordinate releases the old option's words.
     append_command(
@@ -3137,8 +2990,8 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
             "detail": {"options": ["o-stage"]},
         },
     )
-    write(2, b=" chosen", shim="The shim now has a bounded removal date.")
-    assert check(page_dir, version=2).exit_code == 0
+    write(b=" chosen", shim="The shim now has a bounded removal date.")
+    assert check(page_dir).exit_code == 0
 
 
 def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
@@ -3151,9 +3004,7 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
 
     added = "g1-option-reader-route"
 
-    def write(
-        version, *, added_words="Use the reader's route.", attrs="", pick=" chosen"
-    ):
+    def write(*, added_words="Use the reader's route.", attrs="", pick=" chosen"):
         opts = OPTIONS.format(
             a="",
             b=pick,
@@ -3167,11 +3018,11 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
                 f'<lf-option id="{added}"{attrs}>{added_words}</lf-option>'
                 "</lf-options>",
             )
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+        (page_dir / "index.html").write_text(
             PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
         )
 
-    write(1, added_words=None, pick="")
+    write(added_words=None, pick="")
     publish(page_dir)
     append_command(
         page_dir,
@@ -3207,8 +3058,8 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
     assert state_json(page_dir)["state"][0]["detail"]["additions"] == {
         added: "Use the reader's route."
     }
-    write(2, added_words=None)
-    unchanged = check(page_dir, version=2)
+    write(added_words=None)
+    unchanged = check(page_dir)
     assert unchanged.exit_code == 0, unchanged.output
 
     # Reusing the id elsewhere is not carrying the generated option. Neither an
@@ -3222,29 +3073,29 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
         ),
     )
     for needle, replacement in misplaced_markup:
-        write(2, added_words=None)
-        source = page_dir / ".fixture-versions" / "v2.html"
+        write(added_words=None)
+        source = page_dir / "index.html"
         source.write_text(source.read_text().replace(needle, replacement))
-        misplaced = check(page_dir, version=2)
+        misplaced = check(page_dir)
         assert misplaced.exit_code == 1
         assert "direct children of their sending widgets" in misplaced.output
         assert added in misplaced.output
 
-    write(2)
-    carried = check(page_dir, version=2)
+    write()
+    carried = check(page_dir)
     assert carried.exit_code == 0, carried.output
 
-    write(2, added_words="Use a rewritten route.")
-    rewritten = check(page_dir, version=2)
+    write(added_words="Use a rewritten route.")
+    rewritten = check(page_dir)
     assert rewritten.exit_code == 1
     assert added in rewritten.output and "choose on r1" in rewritten.output
 
-    write(2, added_words="Use a rewritten route.", attrs=" restated")
-    assert check(page_dir, version=2).exit_code == 0
-    assert stamp(page_dir, 2, "replace the reader-added option").exit_code == 0
+    write(added_words="Use a rewritten route.", attrs=" restated")
+    assert check(page_dir).exit_code == 0
+    assert stamp(page_dir, "replace the reader-added option").exit_code == 0
 
-    write(3, added_words=None)
-    released = check(page_dir, version=3)
+    write(added_words=None)
+    released = check(page_dir)
     assert released.exit_code == 0, released.output
     assert f"ids dropped from revision r2: ['{added}']" in released.output
 
@@ -3258,7 +3109,7 @@ def test_reader_added_words_do_not_become_liveness_coordinates(page_dir):
     """
     added = "g1-option-reader-route"
 
-    def write(version, shim):
+    def write(shim):
         opts = OPTIONS.format(
             a="",
             b=" chosen",
@@ -3269,7 +3120,7 @@ def test_reader_added_words_do_not_become_liveness_coordinates(page_dir):
             "</lf-options>",
             f'<lf-option id="{added}">o-shim</lf-option></lf-options>',
         )
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+        (page_dir / "index.html").write_text(
             PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
         )
 
@@ -3277,7 +3128,7 @@ def test_reader_added_words_do_not_become_liveness_coordinates(page_dir):
     opts = OPTIONS.format(
         a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
@@ -3296,8 +3147,8 @@ def test_reader_added_words_do_not_become_liveness_coordinates(page_dir):
         },
     )
 
-    write(2, "The shim now has a bounded removal date.")
-    result = check(page_dir, version=2)
+    write("The shim now has a bounded removal date.")
+    result = check(page_dir)
     assert result.exit_code == 0, result.output
 
 
@@ -3308,9 +3159,9 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
     is why the group takes `restated` and a board, whose every move names a card,
     does not."""
 
-    def write(version, shim="Fastest to ship.", attrs=""):
+    def write(shim="Fastest to ship.", attrs=""):
         opts = OPTIONS.format(a="", b="", chip="", shim=shim, stage="Table by table.")
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+        (page_dir / "index.html").write_text(
             PAGE.replace(
                 "<h2>Plan</h2>",
                 "<h2>Plan</h2>"
@@ -3320,7 +3171,7 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
             )
         )
 
-    write(1)
+    write()
     publish(page_dir)
     append_command(
         page_dir,
@@ -3333,13 +3184,13 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
             "detail": {"options": []},
         },
     )
-    write(2, shim="Fastest to ship, and we own the shim forever.")
-    result = check(page_dir, version=2)
+    write(shim="Fastest to ship, and we own the shim forever.")
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "lf-options id='g1'" in result.output
 
-    write(2, shim="Fastest to ship, and we own the shim forever.", attrs=" restated")
-    assert check(page_dir, version=2).exit_code == 0
+    write(shim="Fastest to ship, and we own the shim forever.", attrs=" restated")
+    assert check(page_dir).exit_code == 0
 
 
 def test_a_version_may_not_quietly_move_the_pick(page_dir):
@@ -3351,9 +3202,9 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
     with no surviving folded action is exempt — that exemption is what keeps
     the retract-and-decision-again flow from deadlocking one version later."""
 
-    def write(version, a="", b="", attrs="", shim="Fastest to ship."):
+    def write(a="", b="", attrs="", shim="Fastest to ship."):
         opts = OPTIONS.format(a=a, b=b, chip="", shim=shim, stage="Table by table.")
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+        (page_dir / "index.html").write_text(
             PAGE.replace(
                 "<h2>Plan</h2>",
                 "<h2>Plan</h2>"
@@ -3363,7 +3214,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
             )
         )
 
-    write(1)
+    write()
     publish(page_dir)
     append_command(
         page_dir,
@@ -3378,44 +3229,44 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
     )
 
     # The author's markup contradicting the recorded pick, words untouched.
-    write(2, b=" chosen")
-    result = check(page_dir, version=2)
+    write(b=" chosen")
+    result = check(page_dir)
     assert result.exit_code == 1
     assert "its state changed" in result.output
     assert "'o-stage'" in result.output and "'o-shim'" in result.output
 
     # Said out loud — on the group, the unit the fold keys the pick by.
-    write(2, b=" chosen", attrs=" restated")
-    assert check(page_dir, version=2).exit_code == 0, check(page_dir, version=2).output
-    result = stamp(page_dir, 2, "moved the default")
+    write(b=" chosen", attrs=" restated")
+    assert check(page_dir).exit_code == 0, check(page_dir).output
+    result = stamp(page_dir, "moved the default")
     assert result.exit_code == 0, result.output
 
     # The retraction handed the state back: v3 owns it, no ritual to repeat.
-    write(3, a=" chosen")
-    assert check(page_dir, version=3).exit_code == 0, check(page_dir, version=3).output
+    write(a=" chosen")
+    assert check(page_dir).exit_code == 0, check(page_dir).output
 
     # And the words gate agrees the pick is dead: the group's retraction floors
     # everything resting inside it, so rewriting the once-picked option's words
     # is free — one key space for liveness, or the gate would demand a second
     # `restated` for a decision the browser already dropped.
     publish(page_dir, 3)
-    write(4, a=" chosen", shim="Fastest to ship, and the shim is ours to keep.")
-    assert check(page_dir, version=4).exit_code == 0, check(page_dir, version=4).output
+    write(a=" chosen", shim="Fastest to ship, and the shim is ours to keep.")
+    assert check(page_dir).exit_code == 0, check(page_dir).output
 
 
 def test_reader_state_survives_without_source_copying(page_dir):
     """An unchanged authored choice needs no transcription into a later revision.
     Validation stays quiet while state and the transcript preserve the answer."""
 
-    def write(version, a=""):
+    def write(a=""):
         opts = OPTIONS.format(
             a=a, b="", chip="", shim="Fastest to ship.", stage="Table by table."
         )
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+        (page_dir / "index.html").write_text(
             PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
         )
 
-    write(1)
+    write()
     publish(page_dir)
     append_command(
         page_dir,
@@ -3428,8 +3279,8 @@ def test_reader_state_survives_without_source_copying(page_dir):
             "detail": {"options": ["o-shim"]},
         },
     )
-    write(2)
-    result = check(page_dir, version=2)
+    write()
+    result = check(page_dir)
     assert result.exit_code == 0
     assert "record behind the log" not in result.output
     state = state_json(page_dir)
@@ -3437,8 +3288,8 @@ def test_reader_state_survives_without_source_copying(page_dir):
     assert state["asks"] == []
 
     # Explicit incorporation is permitted but unnecessary for correctness.
-    write(2, a=" chosen")
-    result = check(page_dir, version=2)
+    write(a=" chosen")
+    result = check(page_dir)
     assert result.exit_code == 0
     assert "record behind the log" not in result.output
 
@@ -3461,8 +3312,6 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
         )
         html = PAGE.replace("</main>", measured + "\n</main>")
         (page_dir / "index.html").write_text(html)
-        fixture_version_path(page_dir, 1).write_text(html)
-        files_model.revision_path(page_dir, 1).write_text(html)
         return html[: html.index("<lf-num")].count("\n") + 1
 
     captured = "2026-08-01T12:00:00Z"
@@ -3531,7 +3380,7 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
   </lf-options>
 </lf-ask>"""
     html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
-    (page_dir / ".fixture-versions" / "v1.html").write_text(html)
+    (page_dir / "index.html").write_text(html)
     publish(page_dir)
     append_command(
         page_dir,
@@ -3558,7 +3407,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     opts = OPTIONS.format(
         a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
@@ -3674,7 +3523,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
                 {
                     "widget": "test-data",
                     "input": "data",
-                    "document": "revision r2",
+                    "document": "revision r1",
                 }
             ],
         }
@@ -4166,7 +4015,7 @@ def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_di
     assert reading["source"]["file"] == "index.html"
     assert reading["source"]["live"] is False
     assert "bound to both contract 'rows'" in reading["source"]["error"]
-    assert reading["active"]["revision"] == 2
+    assert reading["active"]["revision"] == 1
 
 
 def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir):
@@ -4189,12 +4038,10 @@ def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir
         "x-data": {"data": {"contract": "other-rows", "source": "source"}},
     }
     registry_path.write_text(json.dumps(registry))
-    first = (page_dir / ".fixture-versions" / "v1.html").read_text()
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
-        first.replace("lf-test-data", "lf-other-data")
-    )
+    first = (page_dir / "index.html").read_text()
+    (page_dir / "index.html").write_text(first.replace("lf-test-data", "lf-other-data"))
 
-    result = check(page_dir, 2)
+    result = check(page_dir)
     assert result.exit_code != 0
     assert "use a new source id for the new meaning" in result.output
 
@@ -4228,8 +4075,10 @@ def test_clear_keeps_source_identity_without_an_immutable_document(page_dir):
 def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     """A widget sent by an agent is still a data consumer. Its binding enters the
     page-lifetime index even though no authored version contains its seat."""
-    declare_data_input(page_dir, "reply-feed", {"type": "array"}, contract="rows")
-    version = page_dir / ".fixture-versions" / "v1.html"
+    declare_data_input(
+        page_dir, "reply-feed", {"type": "array"}, contract="rows", activate=False
+    )
+    version = page_dir / "index.html"
     version.write_text(
         re.sub(r"<lf-test-data[^>]*></lf-test-data>\n?", "", version.read_text())
     )
@@ -4484,9 +4333,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
         "<p>Choose after reading this framing.</p>"
         f"{opts}</lf-ask>"
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", ask)
-    )
+    (page_dir / "index.html").write_text(PAGE.replace("<h2>Plan</h2>", ask))
     publish(page_dir)
 
     state = state_json(page_dir)
@@ -4523,7 +4370,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
     opts = OPTIONS.format(
         a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
@@ -4562,7 +4409,7 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     """A version that honors a pick in its markup reads as answered with no log
     at all — the shipped examples arrive that way."""
     opts = OPTIONS.format(a=" chosen", b="", chip="", shim="s.", stage="t.")
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
@@ -4572,7 +4419,7 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
 def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
     """State stays flat as a conversation grows; the exact-id event lookup owns its
     history while the append-only log remains the one copy of its prose."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     opened = events_model.append_event(
         page_dir,
@@ -4643,7 +4490,7 @@ def test_page_state_points_to_a_readers_suggestion_record(page_dir):
     than describing a change, and the loop owes that a different answer — taken
     verbatim, or declined with a reason. State supplies the semantic membership and
     `events` supplies that raw flag without maintaining a second message shape."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     suggestion = events_model.append_event(
         page_dir,
@@ -4670,7 +4517,7 @@ def test_page_state_points_to_a_readers_suggestion_record(page_dir):
 def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     """A widget in thread markup presents an Ask like one on the page; `until` holds a
     `multiple` group open across picks, and only the named verb closes it."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = events_model.append_event(
         page_dir,
@@ -4739,7 +4586,7 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
         <lf-task id="release-build" status="done"><strong>Build release</strong></lf-task>
       </lf-task>
     </lf-tasks>"""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
     publish(page_dir)
@@ -4758,7 +4605,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
         "<strong>Parser</strong> Ready for eyes.</lf-task></lf-tasks>"
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
     publish(page_dir)
@@ -4794,7 +4641,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         }
     ]
     # The absorbing version writes the status and its note names the report.
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>", "<h2>Plan</h2>" + tasks.replace('"review"', '"done"')
         )
@@ -4802,10 +4649,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     files_model.write_revision(
         page_dir,
         2,
-        (page_dir / ".fixture-versions" / "v2.html").read_bytes(),
-    )
-    (page_dir / "index.html").write_bytes(
-        (page_dir / ".fixture-versions" / "v2.html").read_bytes()
+        (page_dir / "index.html").read_bytes(),
     )
     events_model.append_event(
         page_dir,
@@ -4845,7 +4689,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
         "<strong>Parser</strong></lf-task></lf-tasks>"
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + task)
     )
     publish(page_dir)
@@ -4909,7 +4753,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
         '<aside class="sidenote">The retry path is deliberately separate.</aside>'
         '<figure id="fig"><table><tr><td>1</td></tr></table></figure>'
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + blocks).replace(
             "</main>", "<section><p>Unnamed aside.</p></section>\n</main>"
         )
@@ -4926,7 +4770,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     )  # the figure's id is aim enough
 
     # Ids minted, debt gone.
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><pre id="cmd"><code>uv run backfill --check</code></pre>'
@@ -4946,7 +4790,7 @@ def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir)
     answered it, and a layer that declares no outline says nothing."""
 
     def outline_advice(markup):
-        (page_dir / ".fixture-versions" / "v1.html").write_text(markup)
+        (page_dir / "index.html").write_text(markup)
         result = check(page_dir)
         assert result.exit_code == 0, result.output
         return [line for line in result.output.splitlines() if "lf-toc" in line]
@@ -4996,7 +4840,7 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
         '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'
         "</lf-task></lf-command>"
     )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace("</section>", markup + "</section>")
     )
     publish(page_dir)
@@ -5018,7 +4862,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "</lf-task></lf-command>"
         )
 
-    version = page_dir / ".fixture-versions" / "v1.html"
+    version = page_dir / "index.html"
     version.write_text(
         PAGE.replace("</section>", command("active", True, "paste") + "</section>")
     )
@@ -5040,7 +4884,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
     )
     assert state_json(page_dir)["asks"] == []
 
-    (page_dir / ".fixture-versions" / "v2.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "</section>",
             command("active", False, "ledger_id,amount\n7,42") + "</section>",

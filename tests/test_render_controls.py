@@ -71,11 +71,11 @@ from render_cases_widgets import (
 from render_harness import (
     BOARD_PAGE,
     BOTH_STAMPS,
+    CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    PAGE_FIXTURES,
     RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
@@ -97,7 +97,7 @@ from render_harness import (
     round_trip,
     select,
     sending,
-    stamp_version_file,
+    stamp_page,
     take_browser_errors,
     told,
     undo,
@@ -106,12 +106,12 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
-SWIPE_GALLERY = next(path for path in PAGE_FIXTURES if path.stem == "swipe-gallery")
+SWIPE_GALLERY = next(path for path in CORPUS_SOURCES if path.stem == "swipe-gallery")
 TARGETING_GALLERY = next(
-    path for path in PAGE_FIXTURES if path.stem == "targeting-gallery"
+    path for path in CORPUS_SOURCES if path.stem == "targeting-gallery"
 )
 VISUAL_REVIEW_GALLERY = next(
-    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
 
 
@@ -792,8 +792,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     expect(pinned.locator(".lf-banner-more")).not_to_have_attribute(
         "data-lf-news", re.compile(r".*")
     )
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
-    stamp_version_file(serve.page_dir, 2, "two")
+    stamp_page(serve.page_dir, html, "two")
     expect(pinned.locator(".lf-latest-chip")).to_have_class(
         re.compile(r"lf-news-shown")
     )
@@ -836,8 +835,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
-    stamp_version_file(serve.page_dir, 2, "two")
+    stamp_page(serve.page_dir, html, "two")
     panel_comment(serve.page_dir, "Is this ready?", author="claude")
     page = open_page(browser, url)
     resized(page, 1280, 900)
@@ -965,8 +963,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # the reader to the next standing control instead of silently dropping them on body.
     page = open_page(browser, url.replace("/v1.html", "/v2.html"), pin=True)
     resized(page, 1200, 900)
-    (serve.page_dir / ".fixture-versions" / "v3.html").write_text(html)
-    stamp_version_file(serve.page_dir, 3, "three")
+    stamp_page(serve.page_dir, html, "three")
     expect(page.locator(".lf-latest-chip")).to_have_class(re.compile(r"lf-news-shown"))
     answer_all = page.locator(".lf-answer-all")
     # The blanket answer decides its decisions one at a time, so the press owes one round
@@ -2304,8 +2301,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     page_at_rest(page)
 
     def publish_v2():
-        (d / ".fixture-versions" / "v2.html").write_text(html)
-        stamp_version_file(d, 2, "two")
+        stamp_page(d, html, "two")
 
     # The same events a second tab's presses would have posted, which is the only way one
     # user's browser hears about another's decisions.
@@ -2545,8 +2541,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         '<title>long</title><meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
-    stamp_version_file(serve.page_dir, 2, "two")
+    stamp_page(serve.page_dir, html, "two")
     page = open_page(browser, url)
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     expect(page.locator(".lf-signoff")).to_be_visible()
@@ -3557,8 +3552,7 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     revised = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', '<h1 id="t">Long after replacement</h1>'
     )
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(revised)
-    stamp_version_file(serve.page_dir, 2, "replace the document")
+    stamp_page(serve.page_dir, revised, "replace the document")
     told(page)
     expect(page.locator("#t")).to_have_text("Long after replacement")
 
@@ -4037,21 +4031,21 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     assert scrolls > 0, "this diff fits the panel, so it proves nothing"
 
 
-@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
-def test_page_fixtures_have_no_serious_wcag_a_or_aa_violations(
-    browser, serve, page_fixture
-):
+def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, serve):
     """Axe covers semantic failures the render gate cannot see: an unnamed control,
     an invalid role relationship, or a contrast failure can occupy a perfectly good
     box and still shut a user out. Keep the scope to WCAG A/AA and actionable
     serious/critical findings; layout and accessibility-tree snapshots belong to
-    specific regressions, not a corpus baseline that changes with every restyle.
+    specific regressions, not a baseline that changes with every restyle. The feature
+    gallery is the authored page with the broadest real UI. The specialist package
+    pages get one 420px Axe reading in the exported corpus; focused tests own the live
+    chrome surfaces this page does not open.
 
     A phone's width because what a box does there is a different question and not a
     smaller one: the column is 372px, so a block that had room at a desk starts
     scrolling, and a scrolling box with no way into it from the keyboard is a user
     reading half of every line of code. Nothing at 1200 says a word about it."""
-    url = serve(page_fixture)
+    url = serve(FEATURE_GALLERY)
     findings = []
     for color_scheme in ("light", "dark"):
         page = open_page(browser, url, color_scheme=color_scheme)
@@ -4070,15 +4064,14 @@ def test_page_fixtures_have_no_serious_wcag_a_or_aa_violations(
 def test_the_chrome_a_key_opens_has_no_serious_violations(
     browser, serve, other_leaf, color_scheme, width
 ):
-    """The corpus sweep above reads every example, and reads all of them with the chrome
-    shut: it never presses a key, so the thread panel, its box, the trays, the versions
-    menu, the command reference and the sequence's chips are surfaces forty readings pass
+    """The feature-gallery sweep above reads broad authored UI with the chrome shut: it
+    never presses a key, so the thread panel, its box, the trays, the versions
+    menu, the command reference and the sequence's chips are surfaces four readings pass
     straight over. A `role="list"` whose children are run headings and threads shipped
     through it, green every time.
 
-    One page rather than the corpus, because the chrome is the same on all of them: what
-    varies between examples is the document, which the sweep above already reads. What
-    varies here is which of the chrome's own surfaces is standing — and the scheme and the
+    One page because the chrome is the same on every document. What varies here is which
+    of the chrome's own surfaces is standing — and the scheme and the
     width, which are the two axes that sweep carries and this one has to carry too. Dropped,
     they cost this test the dark palette entirely: the token these very sweeps caught was
     left failing on the dark half, because nothing here ever rendered it.
@@ -4087,8 +4080,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     each is proved standing before axe reads it — a sweep over a surface that never opened
     is a green that means nothing, which is the shape `tests/CLAUDE.md` names."""
     url = serve(ADDRESSED_PAGE, comments=1)
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(ADDRESSED_PAGE)
-    stamp_version_file(serve.page_dir, 2, "two")
+    stamp_page(serve.page_dir, ADDRESSED_PAGE, "two")
     page = open_page(browser, url)
     resized(page, width, 900)
     page.emulate_media(color_scheme=color_scheme)
@@ -4677,8 +4669,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         )
         .replace('id="quota-ready" chosen', 'id="quota-ready"')
     )
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(quota_v2)
-    stamp_version_file(serve.page_dir, 2, "same plan")
+    stamp_page(serve.page_dir, quota_v2, "same plan")
     told(current)
     expect(current.locator(".lf-version")).to_contain_text("v2")
     expect(current.locator("#task")).not_to_have_attribute("data-lf-reported", "1")

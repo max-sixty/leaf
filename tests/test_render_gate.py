@@ -11,6 +11,7 @@ import pytest
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     append_command,
+    running_http_server,
 )
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
@@ -76,7 +77,6 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    PAGE_FIXTURES,
     REPLY_HOST_PAGE,
     TOKEN,
     Traffic,
@@ -88,7 +88,6 @@ from render_harness import (
     panel_settled,
     primed,
     resized,
-    running_http_server,
     take_browser_errors,
 )
 
@@ -2080,8 +2079,8 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
-@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
-def test_page_fixture_renders(browser, serve, page_fixture):
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_page_fixture_renders(browser, serve, source):
     """Every shipped example and the developer gallery lay out in both color schemes: no
     fail-soft error box, no console warning or error, every visible widget occupies real
     space, no sideways scroll, no words on screen a selection can't reach. A
@@ -2089,7 +2088,7 @@ def test_page_fixture_renders(browser, serve, page_fixture):
     is the shape of failure a static lint cannot see. The invariants live in
     render_gate.version.render_version — the pass `version check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through."""
-    assert render_gate_model.render_version(browser, serve(page_fixture)) == []
+    assert render_gate_model.render_version(browser, serve(source)) == []
 
 
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
@@ -2451,9 +2450,10 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
         f"the word is laid out against {measured['against']}, not the box scrolling it"
     )
     assert measured["loose"] == {"marked": True, "position": "relative"}, measured
-    assert measured["held"] == {"marked": False, "position": "relative"}, (
-        f"a box the page positioned holds its own and takes no mark: {measured}"
-    )
+    assert measured["held"] == {
+        "marked": False,
+        "position": "relative",
+    }, f"a box the page positioned holds its own and takes no mark: {measured}"
     assert (
         measured["rest"]["sideways"] == 0 and measured["scrolled"]["sideways"] == 0
     ), f"the page grew sideways reaching for the word: {measured}"

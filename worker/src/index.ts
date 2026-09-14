@@ -28,6 +28,7 @@ import {
   clearContainerCookie,
   containerCookie,
   containerFromCookie,
+  isLivePageDocumentRequest,
   isPageApiRequest,
   isPageSessionFileRequest,
   isPrivatePageRequest,
@@ -708,10 +709,20 @@ export default {
     ) {
       return staticState(request, env, manifest, route, reference);
     }
+    // The edge holds the built page, which is this reader's page only until their own
+    // session publishes a revision over it. A live revision activates by reloading the
+    // stable page address, so serving that address out of the build would hand the
+    // reloading document the revision it was leaving: the runtime reads the same older
+    // revision back, asks for the newer one again, and the reader reloads forever
+    // without ever reaching the page their agent just published. Session files already
+    // fall through below because the edge answers them 404; the live document is the
+    // one the edge answers with a stale 200, so an active session takes it from the
+    // container that owns its `index.html`.
     if (
       (request.method === "GET" || request.method === "HEAD") &&
       !isPageApiRequest(route) &&
-      !containerOnly
+      !containerOnly &&
+      !(active && existing !== null && isLivePageDocumentRequest(route))
     ) {
       const response = stampedStaticResponse(
         await env.ASSETS.fetch(request),

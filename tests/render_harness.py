@@ -33,7 +33,6 @@ import math
 import os
 import re
 import shutil
-import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -71,11 +70,25 @@ assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
     "expected exactly one generated corpus beside the public examples"
 )
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
-PAGE_FIXTURES = (*EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
+CORPUS_PAGE = ROOT / "examples" / "corpus.html"
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
 EXAMPLE_MEDIA = ROOT / "examples" / "media"
+
+PASSAGE_SOURCES = (
+    FEATURE_GALLERY,
+    ROOT / "examples" / "pr-walkthrough.html",
+    ROOT / "examples" / "ship-review.html",
+    ROOT / "examples" / "developer" / "visual-review-gallery.html",
+)
+
+ANCHOR_SOURCES = (
+    FEATURE_GALLERY,
+    ROOT / "examples" / "pr-walkthrough.html",
+    ROOT / "examples" / "ship-review.html",
+    ROOT / "examples" / "developer" / "swipe-gallery.html",
+)
 
 
 def leaf_page(title: str, body: str, *, head: str = "") -> str:
@@ -109,16 +122,6 @@ def stamp_page(
     )
     assert result.exit_code == 0, result.output
     return json.loads(result.output)
-
-
-def stamp_version_file(page_dir: Path, version: int, text: str) -> dict:
-    """Move a fixture-authored candidate through the real stamp boundary."""
-    path = page_dir / ".fixture-versions" / f"v{version}.html"
-    html = path.read_text(encoding="utf-8")
-    path.unlink()
-    note = stamp_page(page_dir, html, text)
-    assert note["version"] == version
-    return note
 
 
 def wait_for_revision(page, revision: int) -> None:
@@ -392,20 +395,6 @@ REPLAYED_PAGE = leaf_page(
 TOKEN = "test-page-key"
 
 
-@contextmanager
-def running_http_server(httpd):
-    """Serve an HTTP fixture and close every thread and socket it creates."""
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield httpd
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join(timeout=5)
-        assert not thread.is_alive(), "the fixture HTTP server did not stop"
-
-
 @pytest.fixture
 def serve(tmp_path, monkeypatch, initialized_page):
     """Publish HTML as the newest version of a fresh page directory and serve it,
@@ -526,12 +515,10 @@ def serve(tmp_path, monkeypatch, initialized_page):
         for event in events:
             events_model.append_event(d, event)
         if fixture is None:
-            (d / ".fixture-versions").mkdir(exist_ok=True)
             activated = revisioning_model.activate_source(
                 d, events_model.read_events(d)
             )
             assert activated.error is None and activated.revision == 1, activated.error
-            (d / ".fixture-versions" / "v1.html").write_text(source)
             events_model.append_event(
                 d,
                 {

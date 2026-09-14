@@ -11,7 +11,6 @@ import http.client
 import http.cookiejar
 import json
 import os
-import re
 import shlex
 import shutil
 import socket
@@ -22,6 +21,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 import anyio
@@ -127,6 +127,32 @@ def spawn_probe(spawn, page_dir, body, **environment):
     )
 
 
+def wait_for(read, accepts, *, failure: str, timeout: float = 10):
+    """Return the first accepted reading, or fail with the last one observed."""
+    deadline = time.monotonic() + timeout
+    while True:
+        reading = read()
+        if accepts(reading):
+            return reading
+        if time.monotonic() >= deadline:
+            pytest.fail(f"{failure}; last reading was {reading!r}")
+        time.sleep(0.05)
+
+
+@contextmanager
+def running_http_server(httpd):
+    """Serve an HTTP fixture and close every thread and socket it creates."""
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield httpd
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive(), "the fixture HTTP server did not stop"
+
+
 def pytest_configure(config):
     """Keep a nonignored basetemp out of the candidate plugin payload."""
     given = config.option.basetemp
@@ -220,30 +246,11 @@ graph LR
 # names the packages those three now travel in. The template cache is keyed by this
 # same list, so a page built for one selection is never handed to another.
 PAGE_PACKAGES = ("command-hub", "diagram", "diff")
-FIXTURE_VERSIONS = ".fixture-versions"
-
-
-def fixture_version_path(page_dir, version):
-    """A candidate document authored by a test, outside Leaf's storage model."""
-    directory = page_dir / FIXTURE_VERSIONS
-    directory.mkdir(exist_ok=True)
-    return directory / f"v{version}.html"
-
-
-def list_fixture_versions(page_dir):
-    directory = page_dir / FIXTURE_VERSIONS
-    if not directory.exists():
-        return []
-    return sorted(
-        int(match.group(1))
-        for path in directory.glob("v*.html")
-        if (match := re.fullmatch(r"v([1-9][0-9]*)\.html", path.name))
-    )
 
 
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch, initialized_page):
-    """A page with the default, Command Hub, diagram and diff vocabularies and a v1."""
+    """A mutable page with the default, Command Hub, diagram and diff vocabularies."""
     monkeypatch.chdir(tmp_path)  # resolve fixture package paths
     d = tmp_path / "page"
 
@@ -259,44 +266,12 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
         )
         assert result.exit_code == 0, result.output
         (template / "index.html").write_text(PAGE)
-        activated = revisioning_model.activate_source(template, [])
-        assert activated.error is None and activated.revision == 1
-        fixture_version_path(template, 1).write_text(PAGE)
 
     initialized_page("-".join(PAGE_PACKAGES), d, initialize)
     return d
 
 
-def stage_fixture_source(d, version, *, reset_unstamped=False):
-    """Make an unstamped fixture version the page's initial working source.
-
-    The shared page fixture starts with a live baseline for server tests. Tests
-    that author their own first document are describing a fresh page instead,
-    so discard only that unstamped fixture revision before staging their bytes.
-    """
-    events = events_model.read_events(d)
-    revisions = files_model.list_revisions(d)
-    referenced = {event["revision"] for event in events if "revision" in event}
-    unstamped = not any(event["kind"] == "note" for event in events)
-    if unstamped and reset_unstamped:
-        for revision in revisions:
-            if revision not in referenced:
-                files_model.revision_path(d, revision).unlink()
-    elif (
-        unstamped
-        and revisions == [1]
-        and 1 not in referenced
-        and files_model.revision_path(d, 1).read_bytes() == PAGE.encode()
-    ):
-        files_model.revision_path(d, 1).unlink()
-    (d / "index.html").write_bytes(fixture_version_path(d, version).read_bytes())
-
-
-def check(d, version=None):
-    versions = list_fixture_versions(d)
-    target = version if version is not None else (versions[-1] if versions else None)
-    if target is not None:
-        stage_fixture_source(d, target)
+def check(d):
     return CliRunner().invoke(cli_model.cli, ["version", "check", str(d)])
 
 
@@ -312,7 +287,7 @@ def declare_data_input(
     snapshot=False,
     activate=True,
 ):
-    """Add one typed widget input and bind it in the latest fixture version."""
+    """Add one typed widget input and bind it in the mutable source."""
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     declaration = {"description": "Test data contract.", "schema": schema}
@@ -352,10 +327,6 @@ def declare_data_input(
             f'<{tag} id="test-data" source="{source}"></{tag}>\n</main>',
         )
     )
-    if versions := list_fixture_versions(page_dir):
-        fixture_version_path(page_dir, versions[-1]).write_bytes(
-            source_path.read_bytes()
-        )
     if activate:
         activated = revisioning_model.activate_source(
             page_dir, events_model.read_events(page_dir)
@@ -367,7 +338,6 @@ def publish(d, version=1):
     """Append the note event that makes a version the user-seen baseline:
     `version check` compares against the last *published* version, and an action
     can only ever be made against one the server exposed."""
-    stage_fixture_source(d, version, reset_unstamped=True)
     activated = revisioning_model.activate_source(
         d, events_model.read_events(d), allow_transition=True
     )
@@ -384,9 +354,8 @@ def publish(d, version=1):
     )
 
 
-def stamp(d, version, text="stamped", completes=()):
-    """Stage one fixture-authored candidate and stamp its bytes through the CLI."""
-    stage_fixture_source(d, version, reset_unstamped=True)
+def stamp(d, text="stamped", completes=()):
+    """Stamp the fixture's canonical authored source through the CLI."""
     return CliRunner().invoke(
         cli_model.cli,
         [
@@ -448,134 +417,6 @@ def case_alias(path):
     return alias
 
 
-# HTML's phrasing content, quoted whole from the standard's own list. The theme
-# inverts it to decide what makes a slot a block, and this is the only place the set
-# is stated rather than derived: `link` and `meta` are in it because the standard has
-# them there, not because a slot will ever hold one. A set edited down to what looked
-# worth keeping could only be checked against another copy of itself.
-PHRASING_CONTENT = frozenset(
-    [
-        "a",
-        "abbr",
-        "area",
-        "audio",
-        "b",
-        "bdi",
-        "bdo",
-        "br",
-        "button",
-        "canvas",
-        "cite",
-        "code",
-        "data",
-        "datalist",
-        "del",
-        "dfn",
-        "em",
-        "embed",
-        "i",
-        "iframe",
-        "img",
-        "input",
-        "ins",
-        "kbd",
-        "label",
-        "link",
-        "map",
-        "mark",
-        "math",
-        "meta",
-        "meter",
-        "noscript",
-        "object",
-        "output",
-        "picture",
-        "progress",
-        "q",
-        "ruby",
-        "s",
-        "samp",
-        "script",
-        "select",
-        "slot",
-        "small",
-        "span",
-        "strong",
-        "sub",
-        "sup",
-        "svg",
-        "template",
-        "textarea",
-        "time",
-        "u",
-        "var",
-        "video",
-        "wbr",
-    ]
-)
-
-
-def _balanced(text, start):
-    """What is inside a bracket already open at `start`, nesting included.
-
-    A selector list carrying a :where() no longer ends at the first `)`, and reading
-    it with one is how a marker arrives here missing its last bracket and passes for
-    a name the list never held. The bracket is whichever one opens it, so a function
-    body is read the same way a selector list is: `(?:.|\n)*?` from a function's name
-    to the token being looked for runs straight past the closing brace, and a writer
-    somewhere else in the file then answers for a line that function no longer has."""
-    closing = {"(": ")", "{": "}", "[": "]"}[opening := text[start - 1]]
-    depth, at = 1, start
-    while depth:
-        depth += {opening: 1, closing: -1}.get(text[at], 0)
-        at += 1
-    return text[start : at - 1]
-
-
-def _paint_names():
-    """PAGE_PAINT_ATTRIBUTE: the spelling every writer in the runtime shares, and the
-    set of names no authored document may assert. A name in it says only that the runtime
-    is allowed to paint that attribute; which writer does, and on what, is the
-    caller's question."""
-    js = (schema_model.ASSETS / "runtime" / "presentation.js").read_text()
-    table = re.search(
-        r"const PAGE_PAINT_ATTRIBUTE = Object\.freeze\(\{(.*?)\}\);", js, re.DOTALL
-    )
-    assert table, "presentation.js lost the list of attributes the runtime may paint"
-    names = dict(re.findall(r'(\w+): "(data-lf-[a-z-]+)",', table.group(1)))
-    assert names, "that list holds no data-lf-* name"
-    return names
-
-
-def _marker_for(declaration):
-    """The attribute presentation.js paints for an `x-` declaration, or None.
-
-    Two facts, and the second is the one a stylesheet's exclusion rests on. Being
-    allowed to paint a name is _paint_names; what actually puts a mark on a page is a
-    element declaration in one of markDeclared's tables, and a selector naming an
-    attribute with no such declaration excludes nothing anywhere. Both tables are read,
-    because which of the two a declaration sits in is a question about where the fact
-    holds, and the browser is what answers that."""
-    js = (schema_model.ASSETS / "runtime" / "presentation.js").read_text()
-    names = _paint_names()
-    tables = re.findall(
-        r"const MARKED_(?:ANYWHERE|IN_PAGE) = Object\.freeze\(\{(.*?)\}\);",
-        js,
-        re.DOTALL,
-    )
-    assert len(tables) == 2, "presentation.js lost one of markDeclared's tables"
-    for key in re.findall(
-        rf'"{re.escape(declaration)}": PAGE_PAINT_ATTRIBUTE\.(\w+)', "".join(tables)
-    ):
-        assert key in names, (
-            f"markDeclared paints {declaration} as PAGE_PAINT_ATTRIBUTE.{key}, which "
-            "that table has no member for — the runtime writes an attribute with no "
-            "name and every selector reading it matches nothing"
-        )
-        return names[key]
-    return None
-
-
 SUGGESTION = """<lf-suggestion id="sug-refill">
   <lf-old><p id="refill-rule">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="refill-camera">Refill when the camera shows it half-empty.</p></lf-new>
@@ -589,14 +430,10 @@ def before_choice(page, markup):
     return page.replace(start, markup + start)
 
 
-def suggest(page_dir, version=2, markup=SUGGESTION):
-    """Write and publish v1 carrying a suggestion, and an unchanged v2 to
-    check against."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(before_choice(PAGE, markup))
+def suggest(page_dir, markup=SUGGESTION):
+    """Write and publish v1 carrying a suggestion to check against."""
+    (page_dir / "index.html").write_text(before_choice(PAGE, markup))
     publish(page_dir)
-    (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
-        before_choice(PAGE, markup)
-    )
 
 
 def decide(page_dir, outcome, widget="sug-refill"):
@@ -616,7 +453,7 @@ def decide(page_dir, outcome, widget="sug-refill"):
 def _decided(page_dir, words):
     """v1 carrying a draft the user has since rewritten, and the log that
     says so. Whatever v2 does about it, `version check` is what has to notice."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             f'<h2>Plan</h2><lf-draft id="d1"><pre>{words}</pre></lf-draft>',
@@ -634,9 +471,7 @@ def _decided(page_dir, words):
             "detail": {"text": "Cut the flag; backfill first."},
         },
     )
-    return lambda words, attrs="": (
-        page_dir / ".fixture-versions" / "v2.html"
-    ).write_text(
+    return lambda words, attrs="": (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             f'<h2>Plan</h2><lf-draft id="d1"{attrs}><pre>{words}</pre></lf-draft>',
@@ -653,8 +488,8 @@ def _tasks(status, extra=""):
     )
 
 
-def _tasks_version(page_dir, version, status, extra=""):
-    (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
+def _tasks_version(page_dir, status, extra=""):
+    (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _tasks(status, extra))
     )
 
@@ -726,6 +561,8 @@ def logged(page_dir, *events):
     """Append these events, then read the threads back the way the CLI does — off
     the whole log and the page the decisions were folded over. Copied in, because
     `append_event` stamps an id onto what it is handed and these are constants."""
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
     for event in events:
         event = dict(event)
         if event["kind"] == "action":
@@ -932,10 +769,8 @@ def trial_page(tmp_path, monkeypatch):
         ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
     )
     assert initialized.exit_code == 0, initialized.output
-    fixture_version_path(page, 1).write_text(
-        trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE)
-    )
-    assert check(page, version=1).exit_code == 0, check(page, version=1).output
+    (page / "index.html").write_text(trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE))
+    assert check(page).exit_code == 0, check(page).output
     publish(page)
     return page
 
@@ -1057,14 +892,14 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
 
 def neighbour_page(directory, title=None, dead=False, published=True):
     """A page with desired service state and, unless dead, a live lease."""
-    (directory / ".fixture-versions").mkdir(parents=True)
+    directory.mkdir(parents=True)
     (directory / "revisions").mkdir()
     head = f"<title>{title}</title>" if title else ""
     html = (
         f"<!doctype html><html><head>{head}</head>"
         "<body><main><p>words</p></main></body></html>"
     )
-    (directory / ".fixture-versions" / "v1.html").write_text(html)
+    (directory / "index.html").write_text(html)
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
     files_model.write_revision(directory, 1, html.encode())
@@ -1331,7 +1166,7 @@ def standing_server(spawn, sessionless):
 
 
 def published(page_dir):
-    result = stamp(page_dir, 1, "first")
+    result = stamp(page_dir, "first")
     assert result.exit_code == 0, result.output
     return page_dir
 
@@ -1348,7 +1183,6 @@ DRAFTED = PAGE.replace(
 
 def drafted(page_dir):
     """A published v1 carrying the note draft, its body still Claude's."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(DRAFTED)
     (page_dir / "index.html").write_text(DRAFTED)
     return published(page_dir)
 
@@ -1376,7 +1210,7 @@ SUGGESTED = before_choice(PAGE, SUGGESTION)
 
 def suggested(page_dir):
     """A published v1 carrying the sug-refill suggestion, both slots pending."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(SUGGESTED)
+    (page_dir / "index.html").write_text(SUGGESTED)
     return published(page_dir)
 
 

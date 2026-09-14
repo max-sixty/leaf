@@ -104,6 +104,15 @@ with the shipped vocabulary and command surface: a shown command the click tree
 has not got, an `x-` key the guide omits, a table that has drifted from the
 registry it was generated from.
 
+The authored-source render gate runs every public example, regression page, and
+developer gallery independently. The broad Axe baseline uses the feature gallery at
+both widths and color schemes. The exported corpus's 420px Axe pass reads the specialist
+package pages in their non-live form; focused tests read live chrome surfaces. Standalone
+export runs once on generated `examples/corpus.html`, revealing its outer tabs before
+inspecting the whole payload composition. File-to-browser anchor parity uses four unlike
+authored pages that contain file passages. A source gets its own case only when its
+content is the cause under test.
+
 That comparison is the whole of what a test over prose can prove. An assertion
 that some sentence stands in a file a model reads fails only when somebody
 rewrites that sentence, so it catches an edit, and whether the edit was right is
@@ -269,6 +278,9 @@ remembered to register. A page server is spawned into its own process session,
 so a local `Popen` handle is not a general substitute for `leaf server stop`.
 The synthetic session claim is the final owner when a worker itself is killed
 and fixture teardown cannot run.
+
+In-process HTTP fixtures use `interact_support.running_http_server`, which owns
+the serving thread, socket close, and bounded join.
 
 A standing server is the explicit exception. It declines session ownership by
 definition, and tests of standing lifetime must stop it themselves. Keep that
@@ -539,6 +551,8 @@ When a wait times out, its message must say what evidence was missing. `_until`
 includes the starting and final `Traffic` readings. Its deadline is fixed when
 the wait begins, so a page that repaints its ledger forever cannot extend it. New causal helpers
 need the same useful failure output and bounded-progress property.
+Pure Python state polls use `interact_support.wait_for`; keep a local loop when
+process exit, cancellation, or a deadline shared across transitions is the contract.
 
 ## State races are arrangements, not probabilities
 

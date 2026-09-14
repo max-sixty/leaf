@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from interact_support import install_payload
+from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -40,8 +40,9 @@ from render_cases_widgets import (
     CUT_BOXES_PAGE,
 )
 from render_harness import (
+    CORPUS_PAGE,
+    CORPUS_SOURCES,
     LONG_PAGE,
-    PAGE_FIXTURES,
     REPLAYED_PAGE,
     leaf_page,
     open_page,
@@ -667,10 +668,12 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
         | {"CODEX_THREAD_ID": "preview-codex", "PYTHONHOME": sys.base_prefix},
         stdin=subprocess.PIPE,
     )
-    deadline = time.monotonic() + 90
-    while not ready.exists():
-        assert time.monotonic() < deadline
-        time.sleep(0.05)
+    wait_for(
+        ready.exists,
+        bool,
+        failure="the detached preview command did not report its result",
+        timeout=90,
+    )
     result = json.loads(ready.read_text())
     assert result[0] == 0, result
     claim = service_model.page_claim(directory)
@@ -679,34 +682,39 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
         revised = source.read_text().replace("Rollout", "Detached revision")
         source.write_text(revised)
         log = directory.with_name(f"{directory.name}.preview.log")
-        deadline = time.monotonic() + 30
-        while "Reloaded detached" not in log.read_text():
-            assert time.monotonic() < deadline, log.read_text()
-            time.sleep(0.05)
+        wait_for(
+            log.read_text,
+            lambda output: "Reloaded detached" in output,
+            failure="the detached preview did not reload its source",
+            timeout=30,
+        )
         assert server_model.running_server(directory)
         assert service_model.page_claim(directory) == claim
 
         # SessionEnd can win while recompose waits for the page transaction.
         with service_model.PageTransaction(directory) as transaction:
             source.write_text(revised.replace("Detached revision", "Released revision"))
-            deadline = time.monotonic() + 30
-            while server_model.running_server(directory):
-                assert time.monotonic() < deadline, "refresh did not stop the service"
-                time.sleep(0.05)
+            wait_for(
+                lambda: server_model.running_server(directory),
+                lambda running: not running,
+                failure="the refresh did not stop the service",
+                timeout=30,
+            )
             transaction.release_claim()
-        deadline = time.monotonic() + 30
-        while "no longer owns" not in log.read_text():
-            assert time.monotonic() < deadline, log.read_text()
-            time.sleep(0.05)
+        wait_for(
+            log.read_text,
+            lambda output: "no longer owns" in output,
+            failure="the detached preview did not report its lost claim",
+            timeout=30,
+        )
         assert server_model.running_server(directory) is None
         assert service_model.page_claim(directory)["released"] is not None
         lease = directory.with_name(f"{directory.name}.preview.lock")
-        deadline = time.monotonic() + 10
-        while leases_model.lock_is_held(lease):
-            assert time.monotonic() < deadline, (
-                "released session left its watcher alive"
-            )
-            time.sleep(0.05)
+        wait_for(
+            lambda: leases_model.lock_is_held(lease),
+            lambda held: not held,
+            failure="the released session left its watcher alive",
+        )
         metadata = directory.with_name(f"{directory.name}.preview.json")
         assert json.loads(metadata.read_text())["enabled"] is False
     finally:
@@ -758,10 +766,12 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     with restarting(page):
         source.write_text("<p>invalid source</p>", encoding="utf-8")
         log_path = directory.with_name(f"{directory.name}.preview.log")
-        deadline = time.monotonic() + 30
-        while "Preview update refused" not in log_path.read_text():
-            assert time.monotonic() < deadline, log_path.read_text()
-            page.wait_for_timeout(50)
+        wait_for(
+            log_path.read_text,
+            lambda output: "Preview update refused" in output,
+            failure="the invalid preview update was not refused",
+            timeout=30,
+        )
         refused_generation = json.loads((directory / "registry.json").read_text())[
             "$layer"
         ]["generation"]
@@ -1014,29 +1024,33 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
         "</main>", f'<img src="/media/{image.name}" alt="Preview proof"></main>'
     )
     source.write_text(revised)
-    deadline = time.monotonic() + 30
-    while (directory / "index.html").read_text() != revised:
-        assert time.monotonic() < deadline, (
-            "source referencing new media was not stamped"
-        )
-        time.sleep(0.05)
+    wait_for(
+        lambda: (directory / "index.html").read_text(),
+        lambda source: source == revised,
+        failure="the source referencing new media was not stamped",
+        timeout=30,
+    )
     assert (directory / "media" / image.name).read_bytes() == expected
 
     image.write_bytes(b"changed bytes")
     log = directory.with_name(f"{directory.name}.preview.log")
-    deadline = time.monotonic() + 30
-    while "use a new filename" not in log.read_text():
-        assert time.monotonic() < deadline, log.read_text()
-        time.sleep(0.05)
+    wait_for(
+        log.read_text,
+        lambda output: "use a new filename" in output,
+        failure="the changed media bytes were not refused",
+        timeout=30,
+    )
     assert (directory / "media" / image.name).read_bytes() == expected
 
     image.unlink()
     second = media / "a99a1b63048502d0.png"
     second.write_bytes((ROOT / "examples" / "media" / second.name).read_bytes())
-    deadline = time.monotonic() + 30
-    while not (directory / "media" / second.name).exists():
-        assert time.monotonic() < deadline, "new media did not reach the preview"
-        time.sleep(0.05)
+    wait_for(
+        lambda: (directory / "media" / second.name).exists(),
+        bool,
+        failure="the new media did not reach the preview",
+        timeout=30,
+    )
     assert (directory / "media" / image.name).read_bytes() == expected
 
 
@@ -2335,14 +2349,11 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
         page.close()
 
 
-@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
-def test_an_exported_page_fixture_stands_on_its_own(
-    page_fixture, browser, serve, tmp_path
-):
-    """Every shipped example and the developer gallery is copied to a file and opened
-    from disk. No server answers, so anything still reaching for one is a hole, and the
-    console is where a hole says so. Every page fixture runs because what a copy loses
-    is per-widget — the corpus alone would pass while a widget it lacks was broken.
+def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
+    """The composed page corpus is copied to a file and opened from disk. No server
+    answers, so anything still reaching for one is a hole, and the console is where a
+    hole says so. The generated corpus contains every authored fixture and widget; its
+    outer tabs are revealed before the complete standalone document is read.
 
     A copy over-promising is the other half of that, and it went unread for as long as
     there was nothing here asking. Tab into an exported decision page landed on a pick
@@ -2353,7 +2364,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
     holding a tab stop or a role, a control standing there with nothing left behind it,
     and a hand or a grab under the pointer — and every question is put to the markers
     rather than to any widget."""
-    url = serve(page_fixture)
+    url = serve(CORPUS_PAGE)
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
@@ -2362,6 +2373,14 @@ def test_an_exported_page_fixture_stands_on_its_own(
     page.on("requestfailed", lambda r: page.lf_errors.append(f"unfetched {r.url}"))
     render_checks_model.prepare_standalone_probes(page)
     page.goto(out.as_uri(), wait_until="load")
+    outer_tabs = page.locator("#corpus > lf-tab")
+    assert outer_tabs.count() == len(CORPUS_SOURCES), (
+        "the generated corpus does not contain every authored source"
+    )
+    assert outer_tabs.evaluate_all(
+        "tabs => { tabs.forEach(tab => tab.hidden = false); "
+        "return tabs.every(tab => tab.checkVisibility()); }"
+    ), "the complete exported corpus is not visible to the inspection"
     state = page.evaluate("""() => ({
         live: document.documentElement.hasAttribute('data-lf-live'),
         scripts: document.querySelectorAll('script').length,
@@ -2390,9 +2409,8 @@ def test_an_exported_page_fixture_stands_on_its_own(
         // And it is put to the residents that make the claim rather than to everything
         // under main. A widget asking for width is drawn past the column by design and
         // lands in the band beside it while claiming nothing, so a reading satisfied by
-        // any overlap at all answered for a board or a diagram on three of the five
-        // copies that hold a strip: the strip could have been held open for nothing and
-        // the band still read as occupied. The claimants are the ones the cascade names
+        // any overlap at all can answer for a board or a diagram while the strip is held
+        // open for nothing. The claimants are the ones the cascade names
         // — aside.sidebar writes --strip-l, while aside.sidenote and the living
         // margin's items write --claim-note and --claim-rail. A copy
         // carries no .lf-chrome, read above, and a project layer's own --lf-claim-right
@@ -2430,8 +2448,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
                           // playground declares its artifact binding before the agent
                           // captures one, so the live page shows that slot no more than
                           // the copy does and the copy withholds nothing. Read against
-                          // the corpus, this exempts that slot and nothing else — every
-                          // other fixture's reading is already empty.
+                          // the corpus, this exempts that slot and nothing else.
                           && !el.closest('details, [data-lf-offer], [data-lf-retired], '
                                          + '[hidden], .lf-ui, style, script')
                           && getComputedStyle(el).display !== 'contents')
@@ -2484,7 +2501,6 @@ def test_an_exported_page_fixture_stands_on_its_own(
     # rules no other medium runs, and the last two ways one went out wrong were both a
     # widget's words landing on the page's.
     covered = render_checks_model.evaluate_probe(page, "coveredWords")
-    assert render_checks_model.evaluate_probe(page, "coveredWords") == covered
     # The other direction of every question above: not what the copy still offers,
     # but what it under-delivers. BAKE is a remover, and until this ran the only
     # gates on it asked whether it removed enough — a wide diagram lost its scroll
@@ -2674,7 +2690,7 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
     is a session that does not exist behind a file, which is the same lie the chrome is
     dropped for. Nothing else on the tab is worth losing over it: the mark still says
     which product wrote the file, and it is inlined, so it survives the copy leaving the
-    machine that served it (test_an_exported_page_fixture_stands_on_its_own is what says no
+    machine that served it (test_the_exported_corpus_stands_on_its_own is what says no
     link here still points at a server)."""
     url = serve(LONG_PAGE)
     out = tmp_path / "standalone.html"

@@ -345,6 +345,20 @@ test("the selected revision keeps carried action history from earlier revisions"
   );
 });
 
+test("an adopted live revision retains its stamp while a newer revision waits", () => {
+  const app = createSemanticApplication();
+  app.identify(1, 1, true);
+  const read = state(2);
+  read.active = { revision: 2, version: 2 };
+  read.browser.views[2] = read.browser.views[1];
+  read.browser.views[2].basis.revision = 2;
+  delete read.browser.views[1];
+
+  assert.equal(app.adopt(read, 2), true);
+  assert.equal(app.read().document.revision, 2);
+  assert.equal(app.read().document.stamp, 2);
+});
+
 test("accepted reading order includes non-event activity and independent source revisions", () => {
   const app = setup();
   const newer = { ...state(3), activity: { phase: "agent", held: true } };

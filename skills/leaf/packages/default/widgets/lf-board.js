@@ -30,6 +30,7 @@ import {
   announce,
   commands,
   labelOf,
+  layoutChanged,
   measure,
   saying,
   widgetController,
@@ -597,17 +598,23 @@ customElements.define(
       }
       if (focus?.isConnected && document.activeElement !== focus)
         focus.focus({ preventScroll: true });
+      const movements = [];
       for (const card of cards) {
         const last = card.getBoundingClientRect();
         const dx = first.get(card).left - last.left;
         const dy = first.get(card).top - last.top;
-        if (dx || dy)
-          motion(
+        if (dx || dy) {
+          const played = motion(
             card,
             [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
             150,
           );
+          if (played) movements.push(played.finished);
+        }
       }
+      layoutChanged(this);
+      if (movements.length)
+        void Promise.allSettled(movements).then(() => layoutChanged(this));
     }
   },
 );

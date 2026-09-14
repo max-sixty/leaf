@@ -2723,7 +2723,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page = open_page(browser, url)
     spot = page.locator("#card-importer").evaluate(
         "el => { const r = el.getBoundingClientRect();"
-        " return [r.left + r.width / 2, r.top + 8]; }"
+        " return [r.right - 8, r.top + 8]; }"
     )
     page.mouse.move(*spot)
     page.keyboard.down("Alt")
@@ -2736,7 +2736,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
             "revision": 1,
             "widget": "work",
             "action": "move",
-            "detail": {"card": "card-importer", "to": "col-done", "index": 0},
+            "detail": {"card": "card-importer", "to": "col-done", "index": 1},
         },
     )
     told(page)

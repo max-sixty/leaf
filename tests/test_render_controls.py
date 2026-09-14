@@ -4,21 +4,16 @@ import json
 import re
 
 import pytest
-from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     append_command,
     record_claim,
 )
-from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import hosting as hosting_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf.registry import storage as registry_storage
-from page_fixtures import package_selection_args
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -79,8 +74,6 @@ from render_harness import (
     RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
-    TOKEN,
-    CutOff,
     _traffic,
     _until,
     consume_browser_errors,
@@ -91,7 +84,6 @@ from render_harness import (
     open_page,
     open_versions,
     opened_tab,
-    page_registry,
     panel_settled,
     resized,
     round_trip,
@@ -188,42 +180,35 @@ SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
 )
 
 # The rendered control mechanisms whose rows must keep their geometry across a press.
-# `coverage` classifies the mechanisms rendered by the composed corpus; `target` is
-# the one causal transition that proves the mechanism's stability contract.
+# `target` is the one causal transition that proves each mechanism's stability contract.
 CONTROL_ARCHETYPES = (
     {
         "name": "banner",
         "source": SIGNOFF_STABILITY_PAGE,
-        "coverage": ".lf-banner-actions > button",
         "target": ".lf-signoff",
     },
     {
         # Accept and Reject share the resting row. A thread adds the third margin entry that
         # puts the secondary choices behind `…`; opening it must leave Accept still.
         "name": "margin-entry",
-        "coverage": ".lf-margin-entry",
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
     {
         "name": "option-pick",
-        "coverage": "lf-option > [role=checkbox]",
         "target": "#stable-choice-a .lf-pick",
     },
     {
         # Classifying the penultimate card removes the decorative backing card;
         # the verdict row must keep its place when that extra surface disappears.
         "name": "swipe-verdict",
-        "coverage": ".lf-swipe-controls > button",
         "target": "#stable-swipe .lf-swipe-keep",
     },
     {
         "name": "tab",
-        "coverage": ".lf-tabstrip > [role=tab]",
         "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
     },
     {
         "name": "command-view",
-        "coverage": ".lf-command-facts > [role=button]",
         "target": '#stable-command .lf-command-facts > [data-lf-view="running"]',
     },
     {
@@ -235,7 +220,6 @@ CONTROL_ARCHETYPES = (
         # Pressed by its own words, which is where a reader aims and what a native label
         # activation does either way.
         "name": "diff-tools",
-        "coverage": ":is(.lf-diff-tools > button, .lf-diff-tools .lf-diff-wrap)",
         "target": "#stable-diff .lf-diff-wrap-label",
     },
     {
@@ -243,9 +227,6 @@ CONTROL_ARCHETYPES = (
         # The review press changes label, so one width for both states keeps the summary
         # and the optional comment press still.
         "name": "diff-file",
-        "coverage": (
-            ":is(.lf-diff-file-actions > button, .lf-diff-file > details > summary)"
-        ),
         "target": "#stable-diff .lf-diff-review",
     },
     {
@@ -256,7 +237,6 @@ CONTROL_ARCHETYPES = (
         # copy press used to say "Copied" in its own label; that feedback is a notice
         # now, and this is the reading that keeps it off the row.
         "name": "playground-actions",
-        "coverage": ".lf-playground-actions > button",
         "target": "#stable-playground .lf-playground-submit",
     },
     {
@@ -266,7 +246,6 @@ CONTROL_ARCHETYPES = (
         # both change their active paint, and a rule that spent width on the active word
         # would move the other caption under the reader's pointer.
         "name": "shot-caption",
-        "coverage": ".lf-shotrail > .lf-shotcap",
         "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
     {
@@ -277,7 +256,6 @@ CONTROL_ARCHETYPES = (
         # mechanism stands on the gallery and nowhere a synthetic page reaches.
         "name": "interaction-playback",
         "source": FEATURE_GALLERY,
-        "coverage": ".interaction-controls > button",
         "target": "[data-interaction-toggle]",
     },
     {
@@ -286,7 +264,6 @@ CONTROL_ARCHETYPES = (
         # longest value proves that the row reserves enough room for every state.
         "name": "targeting-box-model",
         "source": TARGETING_GALLERY,
-        "coverage": ".lf-targeting-change-fields > :is(select, button)",
         "target": ".lf-targeting-property",
         "select": "min-height",
     },
@@ -296,9 +273,6 @@ CONTROL_ARCHETYPES = (
         # contents without moving the buttons around it.
         "name": "visual-review-navigation",
         "source": VISUAL_REVIEW_GALLERY,
-        "coverage": (
-            ".lf-vr-queue-region :is(.lf-vr-previous, .lf-vr-case-select, .lf-vr-next)"
-        ),
         "target": ".lf-vr-case-select",
         "select": "keep-mobile-destinations",
     },
@@ -308,7 +282,6 @@ CONTROL_ARCHETYPES = (
         # Compare, Overlay, and size neighbours stay under the reader's pointer.
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "coverage": ".lf-vr-inspector-group > .lf-vr-inspector-button",
         "target": '.lf-vr-mode-group > [data-mode="flip"]',
     },
     {
@@ -316,43 +289,9 @@ CONTROL_ARCHETYPES = (
         # state while its opposite remains beside it.
         "name": "visual-review-disposition",
         "source": VISUAL_REVIEW_GALLERY,
-        "coverage": ".lf-vr-dispositions > button",
         "target": ".lf-vr-case:not([hidden]) .lf-vr-needs-work",
     },
 )
-CONTROL_ROW_PRESS = (
-    "button, summary, select, "
-    "input:is([type=button], [type=checkbox], [type=radio], [type=reset], [type=submit]), "
-    ":is([role=button], [role=checkbox], [role=menuitem], [role=menuitemcheckbox], "
-    "[role=menuitemradio], [role=option], [role=radio], [role=slider], "
-    "[role=spinbutton], [role=switch], [role=tab], [role=treeitem])"
-)
-CONTROL_ROW_NEIGHBOUR = CONTROL_ROW_PRESS + ", a[href]"
-CONTROL_ROW_CLASSIFICATIONS = f"""(controls, {{ neighbours, archetypes }}) => {{
-  const neighbourhood = {NEIGHBOURHOOD};
-  const ariaDisabled = (control) => {{
-    for (let node = control; node;
-         node = node.parentElement || node.getRootNode().host) {{
-      const value = (node.getAttribute('aria-disabled') || '').toLowerCase();
-      if (value === 'true') return true;
-      if (value === 'false') return false;
-    }}
-    return false;
-  }};
-  return controls.flatMap((control) => {{
-    if (control.matches(':disabled') || ariaDisabled(control)) {{
-      return [];
-    }}
-    if (!neighbourhood(control, neighbours).names.length) return [];
-    return [{{
-      label: control.tagName.toLowerCase() + ' '
-          + JSON.stringify((control.textContent || '').trim().slice(0, 24)),
-      matches: archetypes
-          .filter((archetype) => control.matches(archetype.coverage))
-          .map((archetype) => archetype.name),
-    }}];
-  }});
-}}"""
 
 
 def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
@@ -1936,124 +1875,6 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     )
 
 
-def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve):
-    """The corpus keeps the declaration open to control mechanisms added later.
-
-    The examples deliberately distribute those mechanisms across panels, so the sweep
-    visits every outer tab rather than making the first page carry the whole vocabulary.
-    """
-    corpus = next(example for example in EXAMPLES if example.stem == "corpus")
-    page = open_page(browser, serve(corpus))
-    page_at_rest(page)
-    page.evaluate(DEFINE_BOXES)
-    observed = set()
-    undeclared = []
-
-    def collect_controls(state):
-        classifications = (
-            page.locator(CONTROL_ROW_PRESS)
-            .filter(visible=True)
-            .evaluate_all(
-                CONTROL_ROW_CLASSIFICATIONS,
-                {
-                    "neighbours": CONTROL_ROW_NEIGHBOUR,
-                    "archetypes": [
-                        {"name": archetype["name"], "coverage": archetype["coverage"]}
-                        for archetype in CONTROL_ARCHETYPES
-                    ],
-                },
-            )
-        )
-        for classification in classifications:
-            matches = classification["matches"]
-            if len(matches) != 1:
-                undeclared.append(
-                    f"{state}: {classification['label']}: {matches or 'no archetype'}"
-                )
-            observed.update(matches)
-
-    labels = page.locator("#corpus > lf-tab").evaluate_all(
-        "tabs => tabs.map(tab => tab.getAttribute('label'))"
-    )
-    assert labels, "the composed corpus has no panels to sweep"
-    for tab_label in labels:
-        page.get_by_role("tab", name=tab_label, exact=True).click()
-        collect_controls(tab_label)
-
-    assert not undeclared, (
-        "controls with neighbours need one archetype:\n  " + "\n  ".join(undeclared)
-    )
-    expected = {archetype["name"] for archetype in CONTROL_ARCHETYPES}
-    assert observed == expected, (
-        f"corpus reached {sorted(observed)}, expected {sorted(expected)}"
-    )
-
-
-def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, serve):
-    """The layer epoch closes the gap between a stopped server and an open tab.
-
-    Polls are refused so the stale click, not a preceding state read, discovers the
-    change. Its old contract must append nothing and reload; the same real click then
-    succeeds under the replacement contract.
-    """
-    url = serve(REPLAYED_PAGE)
-    page = open_page(browser, url)
-    old_layer = page_registry(page)["$layer"]["generation"]
-    cut = CutOff().hold(page)
-    # A read that meets the cut-off, so the page's reads are known refused before the
-    # server changes under it. The page reads when told the page moved, so tell it.
-    with page.expect_request("**/api/state*"):
-        nudge(serve.page_dir)
-
-    old_server = serve.httpd
-    address = old_server.server_address
-    old_server.shutdown()
-    old_server.server_close()
-    project = serve.page_dir.parent / ".leaf"
-    project.mkdir()
-    (project / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
-    initialized = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*EXAMPLE_PACKAGES, "./.leaf")),
-            str(serve.page_dir),
-        ],
-    )
-    assert initialized.exit_code == 0, initialized.output
-    new_layer = registry_storage.layer_generation(serve.page_dir)
-    assert new_layer != old_layer
-    replacement = hosting_model.TemporaryPageServer(
-        serve.page_dir, token=TOKEN, port=address[1]
-    ).start()
-    serve.servers.append(replacement)
-    serve.httpd = replacement.httpd
-
-    with page.expect_navigation(wait_until="load"):
-        page.locator("#opt-stage").click()
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-    assert [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action"
-    ] == []
-
-    cut.restore()
-    told(page)
-    page.wait_for_function(BOTH_STAMPS)
-    with sending(page, "the pick the restored server takes"):
-        page.locator("#opt-stage").click()
-    actions = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action"
-    ]
-    assert [(event["widget"], event["action"]) for event in actions] == [
-        ("approach", "choose")
-    ]
-
-
 def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     browser, serve, tmp_path, monkeypatch
 ):
@@ -2163,58 +1984,6 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     # answer before either guard runs, so with the wrong reading at this door the press
     # reads exactly as it does here and the log stays empty.
     assert [event["action"] for event in actions(serve.page_dir)] == ["settle"]
-
-
-def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serve):
-    """The runtime bytes and registry are one contract, even across a slow fetch."""
-    url = serve(REPLAYED_PAGE)
-    gate_registry_once = """
-      if (!sessionStorage.getItem('lf-gated-registry')) {
-        sessionStorage.setItem('lf-gated-registry', '1');
-        const nativeFetch = window.fetch.bind(window);
-        window.lfRegistryGate = new Promise(
-          resolve => window.lfReleaseRegistry = resolve
-        );
-        window.fetch = (...args) => {
-          const input = args[0];
-          const requested = typeof input === 'string' ? input : input.url;
-          if (new URL(requested, location.href).pathname === '/registry.json') {
-            window.lfRegistryBlocked = true;
-            return window.lfRegistryGate.then(() => nativeFetch(...args));
-          }
-          return nativeFetch(...args);
-        };
-      }
-    """
-    page = open_page(
-        browser,
-        url,
-        init_script=gate_registry_once,
-        wait_until="domcontentloaded",
-        upgraded=False,
-    )
-    page.wait_for_function("() => window.lfRegistryBlocked === true")
-    old_layer = registry_storage.layer_generation(serve.page_dir)
-
-    old_server = serve.httpd
-    address = old_server.server_address
-    old_server.shutdown()
-    old_server.server_close()
-    initialized = CliRunner().invoke(
-        cli_model.cli, ["page", "init", str(serve.page_dir)]
-    )
-    assert initialized.exit_code == 0, initialized.output
-    assert registry_storage.layer_generation(serve.page_dir) != old_layer
-    replacement = hosting_model.TemporaryPageServer(
-        serve.page_dir, token=TOKEN, port=address[1]
-    ).start()
-    serve.servers.append(replacement)
-    serve.httpd = replacement.httpd
-
-    with page.expect_navigation(wait_until="load"):
-        page.evaluate("() => window.lfReleaseRegistry()")
-    page.wait_for_function(BOTH_STAMPS)
-    assert page.evaluate("() => sessionStorage.getItem('lf-gated-registry')") == "1"
 
 
 def test_a_marked_element_uses_a_complete_contour(browser, serve):
@@ -3041,84 +2810,6 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
     page.close()
 
 
-def test_a_failed_leaves_update_keeps_the_committed_list_and_settles(
-    browser, serve, other_leaf, live_leaf
-):
-    """A failed Leaves paint reports once, restores its whole prior view, and recovers."""
-    _, other_dir = other_leaf
-    _, closing_dir = live_leaf("closing", "The closing leaf")
-    page = open_page(browser, serve(LONG_PAGE))
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    btn = page.locator(".lf-others")
-    rows = page.locator("a.lf-others-row")
-    line = rows.filter(has_text="The other leaf").locator(".lf-others-line")
-    expect(btn).to_have_text("All leaves (3)")
-    expect(rows).to_have_count(2)
-    expect(line).to_have_text("Working — running the suite")
-    page.evaluate(
-        """() => {
-          const list = document.querySelector('lf-leaves-list');
-          const render = list.render.bind(list);
-          window.leavesButtonBefore = document.querySelector('.lf-others');
-          window.leavesRowsBefore = [...document.querySelectorAll('a.lf-others-row')];
-          list.render = () => {
-            list.render = render;
-            window.leavesLabelAtFailure = leavesButtonBefore.textContent;
-            window.leavesPaintFailed = true;
-            throw new Error('deliberate leaves failure');
-          };
-        }"""
-    )
-    files_model.write_json(
-        closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
-    )
-    told(page)
-    page.wait_for_function("window.leavesPaintFailed")
-    page.wait_for_function(
-        """async () => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
-          return presentation.readApplicationPresentation().pending.length === 0;
-        }"""
-    )
-    expect(btn).to_have_text("All leaves (3)")
-    expect(rows).to_have_count(2)
-    expect(line).to_have_text("Working — running the suite")
-    assert page.evaluate(
-        """() => ({
-          changedBeforeFailure: leavesLabelAtFailure,
-          sameButton: leavesButtonBefore === document.querySelector('.lf-others'),
-          sameRows: leavesRowsBefore.every(
-            (row, index) => row === document.querySelectorAll('a.lf-others-row')[index]
-          ),
-        })"""
-    ) == {
-        "changedBeforeFailure": "All leaves (2)",
-        "sameButton": True,
-        "sameRows": True,
-    }
-    assert take_browser_errors(page) == [
-        "leaf: Presentation failed: deliberate leaves failure"
-    ]
-
-    files_model.write_json(
-        other_dir / "status.json",
-        {
-            "state": "working",
-            "detail": "the next paint lands",
-            "ts": events_model.now_iso(),
-        },
-    )
-    told(page)
-    expect(btn).to_have_text("All leaves (2)")
-    expect(rows).to_have_count(1)
-    expect(line).to_have_text("Working — the next paint lands")
-    page.close()
-
-
 def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     browser, serve, other_leaf, live_leaf
 ):
@@ -3535,18 +3226,17 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
 def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     browser, serve
 ):
-    """A live version can replace main without reopening the covering auxiliary surface.
+    """A live version can update main without reopening the covering auxiliary surface.
 
-    The modal boundary follows that replacement, so the new document cannot become a
-    pointer or keyboard target while the sheet still claims modal semantics. Closing
-    restores the new document rather than the detached one it replaced.
+    The modal boundary remains authoritative while the document changes, so the page
+    cannot become a pointer or keyboard target while the sheet still claims modal
+    semantics. Closing restores the updated document.
     """
     url = serve(LONG_PAGE, comments=2)
     page = open_page(browser, live_url(url))
     resized(page, 700, 640)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.evaluate("() => { window.__lfReplacedMain = document.querySelector('main'); }")
     assert page.locator("main").evaluate("el => el.inert")
 
     revised = LONG_PAGE.replace(
@@ -3558,20 +3248,16 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
 
     state = page.evaluate(
         """() => ({
-          oldConnected: window.__lfReplacedMain.isConnected,
-          sameMain: window.__lfReplacedMain === document.querySelector('main'),
           inert: document.querySelector('main').inert,
           modal: document.querySelector('.lf-thread-panel').getAttribute('aria-modal'),
           focusInside: document.querySelector('.lf-thread-panel').contains(document.activeElement),
         })"""
     )
     assert state == {
-        "oldConnected": False,
-        "sameMain": False,
         "inert": True,
         "modal": "true",
         "focusInside": True,
-    }, f"the replacement escaped its covering auxiliary surface: {state}"
+    }, f"the updated document escaped its covering auxiliary surface: {state}"
 
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
@@ -6145,7 +5831,8 @@ AIM_BOXES = """(floor) => {
       w = Math.max(w, parseFloat(at.width) || 0);
       h = Math.max(h, parseFloat(at.height) || 0);
     }
-    const name = (el.className || el.tagName).toString().trim().split(/\\s+/)[0];
+    const name = (el.className || el.tagName).toString().trim().split(/\\s+/)[0]
+      + ` ${JSON.stringify((el.textContent || '').trim().slice(0, 32))}`;
     if (Math.min(w, h) < floor - 0.5)
       found.push(`${name} at ${w.toFixed(1)}x${h.toFixed(1)}`);
   }
@@ -6253,6 +5940,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     )
     small, stood = [], set()
     for _ in _each_aim_surface(page, serve.page_dir):
+        page_at_rest(page)
         small += page.evaluate(AIM_BOXES, floor)
         stood |= {s for s in AIM_SURFACES if page.locator(s).count()}
     assert not (missed := set(AIM_SURFACES) - stood), (

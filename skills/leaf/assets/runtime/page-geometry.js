@@ -8,6 +8,7 @@
 import { visualAt } from "./anchor-resolution.js";
 import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
+import { LAYOUT } from "./widget-elements.js";
 
 export function createPageGeometry({
   refreshAnchorHover,
@@ -117,6 +118,7 @@ export function createPageGeometry({
       capture: true,
       passive: true,
     });
+    document.addEventListener(LAYOUT, pageShifted);
     addEventListener("resize", onResize, { passive: true });
   }
 
@@ -124,6 +126,7 @@ export function createPageGeometry({
     if (!mounted) return;
     mounted = false;
     document.removeEventListener("scroll", pageShifted, { capture: true });
+    document.removeEventListener(LAYOUT, pageShifted);
     globalThis.removeEventListener("resize", onResize);
     if (actionFrame) cancelAnimationFrame(actionFrame);
     actionFrame = 0;

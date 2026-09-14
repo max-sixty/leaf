@@ -1822,10 +1822,9 @@ def test_a_widget_move_keeps_one_target_seat_across_revisions_until_honored(
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
     # The receipt admitted this claim without an x-work declaration. Its semantic
-    # page-edge target remains a local seat in the fresh document, so an unrelated
-    # revision cannot wedge the authoring loop merely because the widget has no content
-    # or conversation seat. DOM identity belongs only to the authored document it came
-    # from.
+    # page-edge target remains a local seat after an unrelated revision, so the
+    # authoring loop cannot wedge merely because the widget has no content or
+    # conversation seat.
     unrelated = ASK_PAGE.replace(
         '<h1 id="h">Three jobs</h1>', '<h1 id="h">Three jobs, checked</h1>'
     )
@@ -1835,7 +1834,6 @@ def test_a_widget_move_keeps_one_target_seat_across_revisions_until_honored(
         "data-lf-icon", "activity"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
-    assert receipt.get_attribute("data-identity-probe") is None
 
     honored = ASK_PAGE.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'

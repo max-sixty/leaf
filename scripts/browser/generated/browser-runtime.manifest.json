@@ -49,14 +49,16 @@
     "createSemanticApplication",
     "describeFailure",
     "html",
+    "nothing",
+    "render",
     "repeat"
   ],
   "externalizedModules": [],
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 42878,
-      "sha256": "181a845c133c446b55c5e29a8584c81cc00276a614d4bd009bd013818957fbff"
+      "bytes": 42904,
+      "sha256": "a61da39bfb5cef5ca060d6297da0a99cbcb22b6a6db12cb9188db19e29887682"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
       "bytes": 374960,

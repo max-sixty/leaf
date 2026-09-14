@@ -1841,6 +1841,55 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
 
 
+def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
+    browser, serve
+):
+    """A newer held draft leaves two destinations on the prior revision."""
+    version_url = serve(LIVE_V1)
+    page = open_page(browser, live_url(version_url))
+
+    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    told(page)
+    stamped = CliRunner().invoke(
+        cli_model.cli,
+        ["version", "stamp", str(serve.page_dir), "--text", "second"],
+    )
+    assert stamped.exit_code == 0, stamped.output
+    told(page)
+
+    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-general textarea").fill("Keep reading this revision.")
+    (serve.page_dir / "index.html").write_text(LIVE_V3)
+    told(page)
+    expect(page).to_have_title("Live second")
+
+    page.locator(".lf-version").click()
+    rows = page.locator(".lf-version-row")
+    expect(rows).to_have_count(4)
+    same_revision = page.locator('.lf-version-row[data-lf-revision="2"]')
+    expect(same_revision).to_have_count(2)
+    stamped_row = page.locator(
+        '.lf-version-row[data-lf-revision="2"][data-lf-version="2"]'
+    )
+    draft_row = page.locator(
+        '.lf-version-row[data-lf-revision="2"]:not([data-lf-version])'
+    )
+    expect(stamped_row).to_contain_text("v2")
+    expect(draft_row).to_contain_text("This view · v2")
+    stamped_row.evaluate("row => window.__lfStampedRow = row")
+    draft_row.evaluate("row => window.__lfDraftRow = row")
+
+    page.keyboard.press("Escape")
+    page.locator(".lf-latest-chip").click()
+    expect(page).to_have_title("Live third")
+    page.locator(".lf-version").click()
+    expect(rows).to_have_count(3)
+    assert stamped_row.evaluate("row => row === window.__lfStampedRow")
+    assert page.evaluate("() => !window.__lfDraftRow.isConnected")
+    stamped_row.click()
+    page.wait_for_url(re.compile(r"/versions/v2\.html\?pin=$"))
+
+
 def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     """A patch applies the author's difference, not the difference from the page.
 

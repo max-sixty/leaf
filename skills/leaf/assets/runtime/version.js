@@ -109,7 +109,9 @@
  * mount binds chooser/intent listeners and paints the initial version reading.
  * installArrival remains the later geometry-ready continuity boundary.
  */
-import { runtime } from "./context.js";
+import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
+
+import { revisionLabel, runtime } from "./context.js";
 
 import { patchTree } from "./dom-children.js";
 import { clippedRect, shownBox } from "./geometry.js";
@@ -291,7 +293,8 @@ const initialPairs = servedMain
 
 /* Passive version destinations shared with banner and layout. */
 export const versionLabels = () => ["Draft", "v999"];
-export const versionBtn = el("button", "lf-btn lf-version", "Draft");
+export const versionBtn = el("button", "lf-btn lf-version");
+render("Draft", versionBtn);
 export const versionMenu = el("div", "lf-ui lf-version-menu");
 versionMenu.id = "lf-versions";
 versionMenu.setAttribute("popover", "auto");
@@ -300,11 +303,9 @@ versionMenu.setAttribute("aria-label", "Versions");
 export const versionMenuIsOpen = () => versionMenu.matches(":popover-open");
 versionBtn.popoverTargetElement = versionMenu;
 versionMenu.lfInvoker = versionBtn;
-export const latestChip = el(
-  "button",
-  "lf-ui lf-btn lf-latest-chip",
-  "New page available → open v999",
-);
+const INITIAL_LATEST = "New page available → open v999";
+export const latestChip = el("button", "lf-ui lf-btn lf-latest-chip");
+render(INITIAL_LATEST, latestChip);
 latestChip.dataset.lfUrgent = "1";
 
 export function createVersionController({
@@ -646,7 +647,7 @@ export function createVersionController({
     run: () => versionBtn.click(),
   };
 
-  let lastVersionsKey = "";
+  let displayedMenuRows = Object.freeze([]);
   let versionsWalkable = false;
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
@@ -676,97 +677,105 @@ export function createVersionController({
       revision: entry.revision,
       version: entry.version,
       name: `v${entry.version}${entry.version === latest ? " (latest version)" : ""}`,
-      note: notes[entry.version],
+      note: notes[entry.version] ?? null,
       current: entry.version === runtime.currentStamp,
-      open: () => goVersion(entry.version),
+      active: false,
       comparable: comparable(entry.version),
     }));
     for (const revision of draftRevisions()) {
       const active = revision === state.active.revision;
       entries.push({
         revision,
-        version: Infinity,
+        version: null,
         name: `${active ? "Current" : "This view"} · ${
           revision === runtime.currentRevision
-            ? runtime.currentLabel
+            ? (runtime.currentLabel ?? revisionLabel(revision))
             : state.active.label
         }`,
+        note: null,
         current: revision === runtime.currentRevision,
-        open: () => {
-          if (active) goActive();
-        },
+        active,
         comparable: false,
       });
     }
     entries.sort(
-      (left, right) => right.revision - left.revision || right.version - left.version,
+      (left, right) =>
+        right.revision - left.revision ||
+        (right.version ?? Infinity) - (left.version ?? Infinity),
     );
-    return entries.flatMap((entry) => {
-      const row = el("button", "lf-version-row");
-      row.setAttribute("role", "menuitem");
-      row.dataset.lfRevision = entry.revision;
-      if (entry.version !== Infinity) row.dataset.lfVersion = entry.version;
-      // The version and its note are two kinds of word — which one this is, and
-      // what it was — so they are two elements rather than one string. That is
-      // what lets the note wrap to as many lines as it needs, which is the whole
-      // reason the notes are here rather than on a control 190px wide.
-      row.append(el("span", "lf-version-num", entry.name));
-      if (entry.note) row.append(el("span", "lf-version-note", entry.note));
-      if (entry.current) row.setAttribute("aria-current", "true");
-      row.onclick = () => {
-        closeVersionMenu();
-        entry.open();
-      };
-      if (!entry.comparable) return [row];
-      // The comparison this row offers, in the menu's second column beside the note
-      // that says the same thing in words. A grid sibling rather than a child, a
-      // button inside a button being no markup at all, and named in full for the row
-      // it compares with the document being read.
-      const press = el("button", "lf-version-diff", "Compare");
-      press.setAttribute("role", "menuitemcheckbox");
-      press.dataset.lfVersion = entry.version;
-      press.setAttribute("aria-label", `Compare with v${entry.version}`);
-      press.title = `Mark what changed since v${entry.version}`;
-      // The pointer's own door, and it closes the menu: the marks are on the page this
-      // hangs over, and a pointer has no walk to be standing in the middle of. The
-      // keyboard's is the walk itself, which leaves the list up.
-      press.onclick = () => {
-        closeVersionMenu();
-        pressComparison(entry.version);
-      };
-      return [row, press];
-    });
+    return Object.freeze(entries.map((entry) => Object.freeze(entry)));
   }
   function renderVersionMenu() {
     // Dismissal can land while state application awaits a thread widget's upgrade.
     // Read its rendered facts without reinstalling an older accepted state.
     const notes = runtime.browser?.version_notes ?? {};
-    const key =
-      runtime.active === null
-        ? ""
-        : JSON.stringify([
-            runtime.active,
-            runtime.versions,
-            notes,
-            runtime.currentRevision,
-            runtime.currentStamp,
-            runtime.currentLabel,
-          ]);
-    // Rebuilt rather than reconciled: this runs only when the versions or their notes
-    // actually changed, which on a page's whole life is a handful of times, and the
-    // menu is only ever read while it is open — where a rebuild would take the focused
-    // row out from under a walk. So an open menu defers the rebuild, and the key is
-    // what the built list holds rather than what the last poll saw: consuming it here
-    // and skipping the build inside would mark the change handled and leave that
-    // version out of the menu until some later one happened along. A version arriving
-    // under an open menu is the new-version chip's news; the list catches up on the
-    // toggle that closes it, using the currently rendered version facts.
-    if (key !== lastVersionsKey && !versionMenuIsOpen()) {
-      lastVersionsKey = key;
-      versionMenu.replaceChildren(
-        ...(runtime.active === null ? [] : menuRows(runtime, notes)),
-      );
-    }
+    // The immutable displayed rows are the one deliberate presentation snapshot. A
+    // version arriving under an open menu must not replace the focused row mid-walk;
+    // dismissal refreshes the snapshot from the accepted application reading.
+    if (!versionMenuIsOpen())
+      displayedMenuRows =
+        runtime.active === null ? Object.freeze([]) : menuRows(runtime, notes);
+    const baseRevision = stamped(diffBase)?.revision;
+    render(
+      html`${repeat(
+        displayedMenuRows,
+        // A tab that began as an unstamped draft can later stand beside the stamped
+        // version of that same revision after a newer draft arrives. They are two
+        // destinations, so their keyed row identity includes which kind each is.
+        (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
+        (entry) => {
+          const compared =
+            diffOn &&
+            baseRevision !== undefined &&
+            entry.revision >= baseRevision &&
+            entry.revision <= runtime.currentRevision;
+          const pending = entry.version === diffPendingBase;
+          return html`
+            <button
+              class=${`lf-version-row${compared ? " lf-compared" : ""}`}
+              role="menuitem"
+              data-lf-revision=${entry.revision}
+              data-lf-version=${entry.version ?? nothing}
+              aria-current=${entry.current ? "true" : nothing}
+              @click=${() => {
+                closeVersionMenu();
+                if (entry.version !== null) goVersion(entry.version);
+                else if (entry.active) goActive();
+              }}
+            >
+              <span class="lf-version-num">${entry.name}</span>
+              ${
+                entry.note
+                  ? html`<span class="lf-version-note">${entry.note}</span>`
+                  : nothing
+              }
+            </button>
+            ${
+              entry.comparable
+                ? html`<button
+                    class="lf-version-diff"
+                    role="menuitemcheckbox"
+                    data-lf-version=${entry.version}
+                    aria-label=${`Compare with v${entry.version}`}
+                    title=${`Mark what changed since v${entry.version}`}
+                    aria-checked=${String(
+                      pending || (diffOn && entry.version === diffBase),
+                    )}
+                    aria-busy=${pending ? "true" : nothing}
+                    @click=${() => {
+                      closeVersionMenu();
+                      pressComparison(entry.version);
+                    }}
+                  >
+                    Compare
+                  </button>`
+                : nothing
+            }
+          `;
+        },
+      )}`,
+      versionMenu,
+    );
   }
 
   // `null` is the page before its first accepted state. Version controls read the
@@ -791,7 +800,6 @@ export function createVersionController({
       versionsWalkable = walkable;
       paintKeys();
     }
-    renderVersionMenu();
     paintDiff(); // the label may change even when an open menu defers its new rows
     if (state !== null && offered !== offeredBefore) {
       offeredBefore = offered;
@@ -807,8 +815,14 @@ export function createVersionController({
       ? state.source_error
       : "Open the current page";
     latestChip.title = latestChip.dataset.lfKeyTitle;
-    if (sourceFailed) latestChip.textContent = "Latest edit couldn't be shown";
-    else if (behind) latestChip.textContent = arriving(runtime.active.label);
+    render(
+      sourceFailed
+        ? "Latest edit couldn't be shown"
+        : behind
+          ? arriving(runtime.active.label)
+          : INITIAL_LATEST,
+      latestChip,
+    );
     showNews(latestChip, sourceFailed || behind);
   }
 
@@ -1168,7 +1182,7 @@ export function createVersionController({
   // where what the chooser says it will do is written from the start rather than
   // standing as a second copy of these sentences up where the control is built.
   function paintDiff() {
-    versionBtn.textContent = currentVersionToken();
+    render(currentVersionToken(), versionBtn);
     versionBtn.classList.toggle("on", diffOn || diffPendingBase !== null);
     versionBtn.toggleAttribute("data-lf-news", behindCurrent());
     const currentLabel = runtime.currentLabel ?? "Draft";
@@ -1197,26 +1211,7 @@ export function createVersionController({
     // paintCoreControls adds the complete route. Keeping the base title here lets the
     // keyboard register project a sequence without this owner reconstructing one.
     versionBtn.title = versionBtn.dataset.lfKeyTitle;
-    const baseRevision = stamped(diffBase)?.revision;
-    for (const row of versionMenu.querySelectorAll(".lf-version-row")) {
-      const revision = +row.dataset.lfRevision;
-      row.classList.toggle(
-        "lf-compared",
-        diffOn &&
-          baseRevision !== undefined &&
-          revision >= baseRevision &&
-          revision <= runtime.currentRevision,
-      );
-    }
-    for (const press of versionMenu.querySelectorAll(".lf-version-diff")) {
-      const pending = +press.dataset.lfVersion === diffPendingBase;
-      press.setAttribute(
-        "aria-checked",
-        String(pending || (diffOn && +press.dataset.lfVersion === diffBase)),
-      );
-      if (pending) press.setAttribute("aria-busy", "true");
-      else press.removeAttribute("aria-busy");
-    }
+    renderVersionMenu();
     // The base title changed above; the shared projection adds the complete shortcut
     // after this paint, including when a comparison changes without moving focus.
     repaint();

@@ -2279,7 +2279,9 @@ export function createMarginProjection({
     // controls. Placement and option counts share this reading; probing again
     // temporarily unfolds controls and forces style/layout work for every row.
     const shownControls = new Set(
-      pageInventory.flatMap((entry) => entry.offers.flatMap(controlsOf)),
+      pageInventory.flatMap((entry) =>
+        entry.offers.flatMap((offered) => controlsOf(offered)),
+      ),
     );
     for (const entry of pageInventory) {
       entry.shownControls = shownControls;

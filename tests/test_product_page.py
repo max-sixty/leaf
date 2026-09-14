@@ -53,8 +53,8 @@ def test_docs_pages_leave_delivery_markup_to_leaf():
     assert {page.name for page in pages} == {
         "index.html",
         "examples.html",
+        "extending.html",
         "how-it-works.html",
-        "packages.html",
         "registry.html",
     }
     for page in pages:
@@ -116,20 +116,37 @@ def test_docs_pages_use_only_registered_widgets():
     assert used and used <= set(registry)
 
 
-def test_package_guide_sits_beside_how_it_works():
-    packages = (DOCS / "packages.html").read_text()
-    assert 'href="/how-it-works/"' in packages
-    assert 'href="/registry/"' in packages
-    assert 'href="/packages/"' in (DOCS / "registry.html").read_text()
-    for source in ("index.html", "how-it-works.html"):
-        assert 'href="/packages/"' in (DOCS / source).read_text()
+def test_every_product_page_has_the_same_site_navigation():
+    expected = [
+        ("/", "leaf"),
+        ("/examples/", "Examples"),
+        ("/how-it-works/", "How it works"),
+        ("/extending/", "Extending"),
+        ("https://github.com/max-sixty/leaf", "GitHub"),
+    ]
+    for source in sorted(DOCS.glob("*.html")):
+        text = source.read_text()
+        nav = re.search(r'<nav class="sitenav"[^>]*>(.*?)</nav>', text, re.DOTALL)
+        assert nav, source.name
+        assert re.findall(r'<a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>', nav.group(1)) == (
+            expected
+        ), source.name
+
+
+def test_extension_references_follow_the_concepts_they_explain():
+    extending = (DOCS / "extending.html").read_text()
+    how_it_works = (DOCS / "how-it-works.html").read_text()
+    registry = (DOCS / "registry.html").read_text()
+    assert 'href="/registry/"' in extending
+    assert '<a href="/registry/">registry</a>' in how_it_works
+    assert 'href="/extending/"' in registry
 
 
 def test_package_catalog_routes_every_optional_package_to_a_focused_page():
-    packages = (DOCS / "packages.html").read_text()
+    extending = (DOCS / "extending.html").read_text()
     catalog = re.findall(
         r'<a class="package-card" href="([^"]+)">\s*<strong>([^<]+)</strong>',
-        packages,
+        extending,
     )
     declared = json.loads((EXAMPLES / "layer.json").read_text())
 
@@ -146,7 +163,7 @@ def test_package_catalog_routes_every_optional_package_to_a_focused_page():
 def test_package_tutorial_registry_entry_is_valid(page_dir):
     blocks = re.findall(
         r"<pre[^>]*><code[^>]*>(.*?)</code></pre>",
-        (DOCS / "packages.html").read_text(),
+        (DOCS / "extending.html").read_text(),
         re.DOTALL,
     )
     entry = json.loads(

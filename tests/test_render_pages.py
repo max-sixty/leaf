@@ -3095,7 +3095,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         """() => {
           const tray = document.querySelector('.lf-asks-panel').getBoundingClientRect();
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
-          const toc = document.querySelector('lf-toc').getBoundingClientRect();
+          const toc = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
           const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
           return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
                   tocTop: toc.top, tocBottom: toc.bottom, lineTop: line.top,

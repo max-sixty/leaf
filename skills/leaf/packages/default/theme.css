@@ -424,11 +424,11 @@ lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink
  * block content is the platform's closed set inverted, exactly as the suggestion
  * slots ask it: any child that is not phrasing content stacks the group, so a
  * widget from any layer is covered without being named — the enumeration this
- * replaces listed fifteen widgets and would have missed the sixteenth. A test
- * states HTML's phrasing content once and holds both copies of the list to it,
- * so neither can drift from the platform or from the other. The marker at the
- * end is the inversion's one wrong answer, an inline widget being a custom
- * element like any other: the registry says which widgets those are and the
+ * replaces listed fifteen widgets and would have missed the sixteenth. Browser
+ * tests exercise the terse comparison and inline-widget outcomes instead of
+ * reflecting the selectors through a second list. The marker at the end is the
+ * inversion's one wrong answer, an inline widget being a custom element like
+ * any other: the registry says which widgets those are and the
  * runtime paints it where a selector can reach it (data-lf-inline, leaf.js
  * markDeclared), so a chip keeps the grid here by the same declaration that
  * keeps a suggestion inline in a sentence. It is in :where() for the reason the

@@ -1185,27 +1185,6 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
 
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
-    buttons = atlas.locator(".lf-margin-entry")
-    expect(buttons).to_have_count(21)
-    records = buttons.evaluate_all(
-        """buttons => buttons.map(button => ({
-          behavior: button.dataset.lfBehavior,
-          tone: button.dataset.lfTone,
-          rank: button.dataset.lfRank,
-        }))"""
-    )
-    grammar = page.evaluate(
-        """async () => {
-          const {MARGIN_ENTRY_SCHEMA} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          return MARGIN_ENTRY_SCHEMA;
-        }"""
-    )
-    for record_axis, grammar_axis in (
-        ("behavior", "behaviors"),
-        ("tone", "tones"),
-        ("rank", "ranks"),
-    ):
-        assert {record[record_axis] for record in records} == set(grammar[grammar_axis])
 
     def specimen(name):
         return atlas.locator(

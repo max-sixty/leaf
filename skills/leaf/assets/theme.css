@@ -1709,12 +1709,11 @@ lf-new { background: var(--add-tint); }
  * suggestion kept the slot it had just retired on the page. :where() zeroes that argument
  * and leaves the list weighing what the tag names weighed.
  *
- * The platform half is that set quoted whole, `link` and `meta` included, which no
- * slot will ever hold and which render nothing if one does. Quoting it whole is what
- * makes it checkable: the test states HTML's phrasing content once and holds both
- * copies to it, where a set filtered by what seemed worth keeping could only ever be
- * checked against itself — which is the check the two copies were already giving each
- * other, and it cannot see a name dropped from both.
+ * The platform half is HTML's phrasing-content set quoted whole, `link` and `meta`
+ * included, which no slot will ever hold and which render nothing if one does. CSS
+ * cannot derive the category, so the selector keeps the literal. Browser tests exercise
+ * representative inline widgets and block children instead of reflecting that literal
+ * through a second test-owned copy.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
  * reads as a stack. That was once the only room the slots could ask for: while the

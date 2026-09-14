@@ -142,33 +142,52 @@ export async function importWidgets(scope) {
   );
 }
 
-// The one upgrade lifecycle for markup that is about to stand in this document, run by
-// startup over the whole body and by a live revision activation over the authored page
-// it has just patched. `mount` is where the caller's own document work belongs, between
-// the pre-upgrade readings and the dressing passes that depend on it.
-export async function installDocument(
-  scope,
-  { source = ["page", null], mount = () => {}, watchLinks = false } = {},
-) {
+// The upgrade lifecycle for the whole authored body, at startup: read it while it is
+// still what its author wrote, import what its tags declare, and dress it.
+export async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation", scope);
   try {
-    rememberPassageParts(scope, source);
+    rememberPassageParts(scope);
     rememberAuthoredParents(scope);
     captureWidgetDescriptors(scope);
     markDeclared(scope, MARKED_IN_PAGE);
-    if (watchLinks) watchExternalLinks(scope);
+    watchExternalLinks(scope);
     await importWidgets(scope);
-    mount();
-    await presentation.present(scope, dress(scope));
-    await whenApplicationPresented();
-    reachScrollers(scope);
-    captureAuthoredFacets(scope);
-    // Capturing the authored initial condition is a semantic publication. Wait for
-    // subscribers to paint that newest reading before declaring upgrade complete.
-    await whenApplicationPresented();
+    await settle(presentation, scope, [scope]);
   } finally {
     presentation.disconnect();
   }
+}
+
+// The same lifecycle for a revision patched into the document a reader is standing in.
+// What arrives is scattered through the page rather than being one subtree, so each step
+// takes the nodes it applies to. The pre-upgrade readings belong to each arrival, before
+// insertion hands a widget's children to its controller, so `patch` makes them as it goes
+// and answers with the roots it brought. Dressing the page instead of those would
+// re-tokenize a code block no revision touched and hand its spans back as new nodes,
+// which is the reader's own page rebuilt under them. Modules are asked for earlier still,
+// off the arriving document, so the install spends nothing on a fetch.
+export async function patchDocument(scope, patch) {
+  const presentation = attachApplicationPresentation("document:patch", scope);
+  try {
+    await settle(presentation, scope, patch());
+  } finally {
+    presentation.disconnect();
+  }
+}
+
+// What arriving markup owes the document once it stands in it: the dressing passes over
+// each root, then the two readings that are of the document rather than of the markup —
+// where the keyboard can reach, and the authored initial condition of every widget not
+// already holding one.
+async function settle(presentation, scope, arrived) {
+  await presentation.present(scope, Promise.all(arrived.map(dress)));
+  await whenApplicationPresented();
+  reachScrollers(scope);
+  captureAuthoredFacets(scope);
+  // Capturing the authored initial condition is a semantic publication. Wait for
+  // subscribers to paint that newest reading before declaring upgrade complete.
+  await whenApplicationPresented();
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {
@@ -191,6 +210,6 @@ export async function upgradeWidgets({ buildReactionBar }) {
     throw new Error("leaf: registry lacks $events, $languages, $tones or $reactions");
   revealLayer();
   buildReactionBar();
-  await installDocument(document.body, { watchLinks: true });
+  await installDocument(document.body);
   return true;
 }

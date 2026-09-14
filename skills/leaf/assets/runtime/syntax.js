@@ -141,9 +141,14 @@ export const langForPath = (path) =>
 // the run of characters it read before. That is what lets this run over the document
 // without the file's reading of the same page needing to know it happened.
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
+const BLOCK = "pre > code[class]";
 export async function highlightBlocks(root) {
   const blocks = [];
-  for (const code of root.querySelectorAll("pre > code[class]")) {
+  // The root counts, like every other dressing pass: a revision that rewrote a block's
+  // code replaces the one element, and what arrives is the `<code>` itself.
+  const found = [...root.querySelectorAll(BLOCK)];
+  if (root.matches?.(BLOCK)) found.unshift(root);
+  for (const code of found) {
     const lang = code.className.match(LANGUAGE_CLASS)?.[1];
     if (lang) blocks.push([code, lang]);
   }

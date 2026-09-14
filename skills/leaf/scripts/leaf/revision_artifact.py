@@ -105,31 +105,22 @@ class RevisionArtifact:
         return json.loads(self.manifest)["implementations"]
 
     @cached_property
-    def executable(self) -> str:
-        """This revision's identity as executable code, decided once at capture."""
-        return manifest_executable(json.loads(self.manifest))
+    def executable(self) -> str | None:
+        """What this revision is as executable code, or nothing where it predates the field.
+
+        A revision saved before capture recorded this carries a manifest without it, and
+        those revisions are immutable: the addresses that still serve them — every
+        stamped version and every revision URL — can never be repaired by saving the page
+        again. So the absence is a reading rather than a fault. A document that does not
+        say what it is as code is one an open page cannot take a revision from, which is
+        the reload path, and a historical document never activates anything at all.
+        """
+        return json.loads(self.manifest).get("executable")
 
     @cached_property
     def widgets(self) -> dict:
         """What each declared widget in this revision's page was written as."""
-        return json.loads(self.manifest)["widgets"]
-
-
-def manifest_executable(manifest: dict) -> str:
-    """The digest a revision was captured with, or a refusal that says why there is none.
-
-    Capture has written this field since the browser learned to take a revision on in
-    place, and a revision saved before that carries a manifest without it. Every served
-    document reads it, so the bare lookup failure landed as a 500 on a page's whole
-    version history and named nothing a reader or an agent could act on.
-    """
-    try:
-        return manifest["executable"]
-    except KeyError:
-        raise ArtifactError(
-            "this revision was captured before revisions recorded what they are as "
-            "executable code; save the page again to record it"
-        ) from None
+        return json.loads(self.manifest).get("widgets", {})
 
 
 def resolve_dependency(specifier: str, importer: str, *, module=False) -> str:
@@ -517,13 +508,23 @@ def _capture_artifact(
     # Digested from the parsed tree before delivery rewrites resource URLs, so two
     # revisions of one widget differ only where its author changed it.
     main = document.tree.select_one("main")
-    widgets = {
-        element.attrs["id"]: _digest(element.html.encode("utf-8"))
-        for element in (main.descendants if main is not None else ())
-        if isinstance(element, turbohtml.Element)
-        and element.attrs.get("id")
-        and registry.get(element.tag, {}).get("x-upgrade")
-    }
+    widgets = {}
+    unnamed: dict[str, int] = {}
+    for element in main.descendants if main is not None else ():
+        if not isinstance(element, turbohtml.Element):
+            continue
+        if not registry.get(element.tag, {}).get("x-upgrade"):
+            continue
+        # An unnamed widget is as much the reader's as a named one. Without a key it
+        # could never answer that its markup was unchanged, so every revision rebuilt
+        # it and took whatever the reader had open in it; `page-authoring.md` never
+        # asked an author to name one, and the shipped examples do not.
+        name = element.attrs.get("id")
+        if not name:
+            seen = unnamed.get(element.tag, 0)
+            unnamed[element.tag] = seen + 1
+            name = f"{element.tag}#{seen}"
+        widgets[name] = _digest(element.html.encode("utf-8"))
     manifest = _canonical_json(
         {
             "html": _digest(document.data),

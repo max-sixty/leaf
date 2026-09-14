@@ -177,7 +177,7 @@ import {
 } from "./widget-descriptors.js";
 import {
   importWidgets,
-  installDocument,
+  patchDocument,
   reindexPassageOwners,
   rememberPassageParts,
 } from "./widget-loader.js";
@@ -256,11 +256,32 @@ const versionedHeadNode = (node) =>
         node.rel === "stylesheet" &&
         new URL(node.href, document.baseURI).pathname === "/theme.css"
       )));
+// This document as its author wrote it, kept inert beside the page it became. A patch
+// applies the difference between two revisions, so it needs the revision the page is
+// standing on as source — not the page, which by then carries a tokenizer's spans, a
+// reader's open disclosure, a tab stop the runtime lent, and whatever a page module
+// built. Cloned here because this module evaluates before any of that: the copy and the
+// page are the same tree for exactly this long, which is also what makes the pairing
+// below a plain walk of the two together.
+const pairSources = (source, live, pairs) => {
+  pairs.set(source, live);
+  const held = source.localName === "template" ? source.content : source;
+  const shown = live.localName === "template" ? live.content : live;
+  const children = [...shown.childNodes];
+  for (const [at, child] of [...held.childNodes].entries())
+    if (children[at]) pairSources(child, children[at], pairs);
+  return pairs;
+};
+const servedMain = document.querySelector("body > main");
 const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
   authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
   authoredHtmlAttributes: authoredAttributes(document.documentElement),
+  source: servedMain?.cloneNode(true) ?? null,
 };
+const initialPairs = servedMain
+  ? pairSources(initialDocument.source, servedMain, new WeakMap())
+  : new WeakMap();
 
 /* Passive version destinations shared with banner and layout. */
 export const versionLabels = () => ["Draft", "v999"];
@@ -297,8 +318,11 @@ export function createVersionController({
 }) {
   let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
     initialDocument;
-  // What this document's widgets were written as, replaced by each revision it takes on.
+  // What this document's widgets were written as, and the source each live node stands
+  // for. Both are replaced by every revision this document takes on.
   let authoredWidgets = servedWidgets;
+  let authoredSource = initialDocument.source;
+  let sourcePairs = initialPairs;
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
   const HANDOFF_KEY = "lf-revision-handoff";
@@ -1365,6 +1389,26 @@ export function createVersionController({
 
   const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
 
+  // Every declared widget in one revision's authored page, named the way its capture
+  // named it: by id where the author gave one, and otherwise by tag and place among the
+  // others of that tag. An unnamed widget is as much the reader's as a named one, and
+  // without a key of its own it could never answer that its markup was unchanged, so
+  // every revision rebuilt it — taking with it whatever the reader had open in it.
+  function widgetKeys(source) {
+    const keys = new Map();
+    const counts = new Map();
+    for (const element of source.querySelectorAll("*")) {
+      if (!upgraded(element)) continue;
+      if (element.id) keys.set(element, element.id);
+      else {
+        const seen = counts.get(element.localName) ?? 0;
+        counts.set(element.localName, seen + 1);
+        keys.set(element, `${element.localName}#${seen}`);
+      }
+    }
+    return keys;
+  }
+
   // The revision arriving in the document the reader is standing in. Their caret,
   // selection, parked pointer, focus and armed key sequence live on the nodes they are
   // over, so the page keeps every node this revision did not rewrite and nothing has to
@@ -1378,90 +1422,98 @@ export function createVersionController({
     const live = document.querySelector("body > main");
     const source = doc.querySelector("body > main");
     const arrivingWidgets = widgetDigests(doc);
+    const heldKeys = widgetKeys(authoredSource);
+    const arrivingKeys = widgetKeys(source);
     retireProjectionCoverage();
-    // Step 5 of the startup order, on an inert copy of the whole arriving revision. The
-    // patch below moves these very nodes into the page, so what is read here is read
-    // about the nodes that end up in it, and read while they are still the markup their
-    // author wrote — connecting a widget is what hands its children to a controller.
-    // Whole, because a preserving owner's identity is its place in the document's order
-    // of them, which only the whole document states.
-    const arriving = document.importNode(source, true);
-    rememberPassageParts(arriving);
-    rememberAuthoredParents(arriving);
-    markDeclared(arriving, MARKED_IN_PAGE);
     revisionDocuments.delete(target.revision);
 
+    // A node with nothing over it is inside a template's content fragment, where a page
+    // may hold authored markup and `elementOver` has no element to answer with. Nothing
+    // there is the runtime's.
     const isAuthored = authored(live);
-    await installDocument(live, {
-      mount: () => {
-        authoredHtmlAttributes = replaceAuthoredAttributes(
-          document.documentElement,
-          doc.documentElement,
-          authoredHtmlAttributes,
+    const generated = (node) =>
+      (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) &&
+      !isAuthored(node);
+    // Step 5 of the startup order, for the markup this revision brings: read while it is
+    // still what its author wrote, because connecting a widget is what hands its children
+    // to a controller. The nodes read here are the nodes that end up in the page, and the
+    // roots among them are what the install dresses.
+    const arrived = [];
+    const arrive = (node) => {
+      const arriving = document.importNode(node, true);
+      pairSources(node, arriving, sourcePairs);
+      if (arriving.nodeType === Node.ELEMENT_NODE) {
+        rememberPassageParts(arriving);
+        rememberAuthoredParents(arriving);
+        markDeclared(arriving, MARKED_IN_PAGE);
+        captureWidgetDescriptors(
+          arriving,
+          { kind: "page", revision: target.revision },
+          live,
         );
-        authoredBodyAttributes = replaceAuthoredAttributes(
-          document.body,
-          doc.body,
-          authoredBodyAttributes,
-        );
-        activateHead(doc, target);
-        patchTree(live, arriving, {
-          generated: (node) => !isAuthored(node),
-          declared: upgraded,
-          // The capture that wrote each revision said what every declared widget in
-          // it was written as. A widget the arriving revision spells the same way is
-          // the widget the reader is holding, so it stays; the digests decide it, and
-          // the page keeps no copy of its own markup to decide it from.
-          unchanged: (element) =>
-            Boolean(element.id) &&
-            Boolean(authoredWidgets[element.id]) &&
-            arrivingWidgets[element.id] === authoredWidgets[element.id],
-          share: authoredAttributes,
-          // What the patch takes out, as it takes it out. Predicting this from the two
-          // sources gets it wrong in the direction that leaves a lie behind: a widget
-          // whose own markup nobody touched still goes when the wrapper around it is
-          // replaced, and a baseline nothing forgot is a baseline the fresh capture
-          // then skips.
-          //
-          // An element going is not the same as its name going, and the name is what
-          // these readings are kept under. A widget the revision moved under an earlier
-          // parent is inserted and read there before this parent's removal reaches the
-          // element it left behind, so forgetting on the element alone would drop the
-          // descriptor its arrival had just captured. Ask the page instead: a name
-          // something still answers to is a name nothing may retire.
-          retire: (element) => {
-            if (!element.id || !upgraded(element)) return;
-            for (const claimant of live.querySelectorAll(`#${CSS.escape(element.id)}`))
-              if (claimant !== element) return;
-            forgetAuthoredOwners(new Set([element.id]));
-            forgetWidgetDescriptors([element.id]);
-          },
-          // Only what arrives. A widget the reader keeps keeps the descriptor taken
-          // from the markup it was written as, and a second reading of the same id
-          // would publish one this revision's number the controller's copy does not
-          // carry — which is the widget's own actions going unavailable under it.
-          adopt: (element) =>
-            captureWidgetDescriptors(
-              element,
-              { kind: "page", revision: target.revision },
-              live,
-            ),
-        });
-        // After the patch, over the document the patch left: an owner's number is its
-        // place among the document's preserving owners, and an insertion moves the ones
-        // after it.
-        reindexPassageOwners(live);
-        pruneScopedElements();
-      },
+        arrived.push(arriving);
+      }
+      return arriving;
+    };
+
+    await patchDocument(live, () => {
+      authoredHtmlAttributes = replaceAuthoredAttributes(
+        document.documentElement,
+        doc.documentElement,
+        authoredHtmlAttributes,
+      );
+      authoredBodyAttributes = replaceAuthoredAttributes(
+        document.body,
+        doc.body,
+        authoredBodyAttributes,
+      );
+      activateHead(doc, target);
+      // The patch pairs what it walks into, and what it is handed stands outside that
+      // walk: `main` is the one node whose pairing has to be stated rather than found,
+      // and the revision after this one is the patch that reads it.
+      sourcePairs.set(source, live);
+      patchTree(authoredSource, source, {
+        pairs: sourcePairs,
+        arrive,
+        generated,
+        declared: upgraded,
+        // The capture that wrote each revision said what every declared widget in it
+        // was written as. A widget the arriving revision spells the same way is the
+        // widget the reader is holding, so it stays.
+        unchanged: (before, after) => {
+          const digest = authoredWidgets[heldKeys.get(before)];
+          return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
+        },
+        // An element going is not the same as its name going, and the name is what
+        // these readings are kept under. A widget the revision moved under an earlier
+        // parent is inserted and read there before this parent's removal reaches the
+        // element it left behind, so forgetting on the element alone would drop the
+        // descriptor its arrival had just captured. Ask the page instead: a name
+        // something still answers to is a name nothing may retire.
+        retire: (element) => {
+          if (!element.id || !upgraded(element)) return;
+          for (const claimant of live.querySelectorAll(`#${CSS.escape(element.id)}`))
+            if (claimant !== element) return;
+          forgetAuthoredOwners(new Set([element.id]));
+          forgetWidgetDescriptors([element.id]);
+        },
+      });
+      // After the patch, over the document the patch left: an owner's number is its
+      // place among the document's preserving owners, and an insertion moves the ones
+      // after it.
+      reindexPassageOwners(live);
+      pruneScopedElements();
+      return arrived;
     });
     authoredWidgets = arrivingWidgets;
+    authoredSource = source;
     await settlePageInterface();
     syncLayout();
     restoreView(view);
     // Focus is not restored, because a patch does not take it: a control the revision
-    // kept is the same element, still holding it. One the revision replaced drops it to
-    // `body`, where the page's own keys are live, which is the honest answer for a
-    // reader whose control the revision took away.
+    // kept is the same element, still holding it, with the tab stop it was lent. One the
+    // revision replaced drops focus to `body`, where the page's own keys are live, which
+    // is the honest answer for a reader whose control the revision took away.
     if (comparedFrom !== null) showComparison(comparedFrom);
     // The same words the fresh document says on arrival. The page changing under a
     // reader is the thing announced, and which install carried it is not their business.
@@ -1505,18 +1557,25 @@ export function createVersionController({
     let doc;
     try {
       doc = await revisionDocument(target);
+      if (doc === null)
+        // Every answer carries `activates`, so no caller has to know which shapes this
+        // can return. `stale` says why this one refuses — the document came from a
+        // re-vendored layer and the page is already reloading — and the heartbeat, which
+        // asks nothing but `activates`, is right without a second reading of that fact.
+        return { stale: true, revision: null, activates: () => false };
+      // Step 6 of the startup order, on the same background stretch as the document
+      // itself: this revision may carry a tag the standing document never held, and
+      // insertion is where its element is constructed. Asked for here so the install
+      // spends nothing on a fetch while the reader is looking at the page. Inside this
+      // try, because the loader keeps a rejected import: one 404 on a module an arriving
+      // revision introduces would otherwise reject every later state read for good.
+      await importWidgets(doc.querySelector("body > main"));
     } catch (error) {
       reportPageError(
         `revision ${target.revision} failed to load: ${error?.message ?? error}`,
       );
       return null;
     }
-    if (doc === null) return { stale: true };
-    // Step 6 of the startup order, on the same background stretch as the document
-    // itself: this revision may carry a tag the standing document never held, and
-    // insertion is where its element is constructed. Asked for here so the install
-    // spends nothing on a fetch while the reader is looking at the page.
-    await importWidgets(doc.querySelector("body > main"));
     return {
       stale: false,
       revision: target.revision,

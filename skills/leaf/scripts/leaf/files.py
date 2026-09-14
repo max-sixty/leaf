@@ -167,7 +167,7 @@ def version_descriptors(page_dir: Path, events: list) -> list[dict]:
 
 def active_descriptor(page_dir: Path, events: list) -> dict | None:
     """The exact immutable document shown at the live root, or None before one."""
-    from leaf.revision_artifact import manifest_executable, read_manifest
+    from leaf.revision_artifact import read_manifest
 
     revision = latest_revision(page_dir)
     if revision is None:
@@ -185,7 +185,7 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         # digest that document's own delivery stamped, and needs a fresh document
         # only when the two differ. Read once here, so every consumer of the
         # active revision works from one reading of it.
-        "executable": manifest_executable(read_manifest(page_dir, revision)),
+        "executable": read_manifest(page_dir, revision).get("executable"),
         "activated_at": datetime.fromtimestamp(
             path.stat().st_mtime, timezone.utc
         ).isoformat(),

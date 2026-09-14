@@ -45,6 +45,7 @@ from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import http as http_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import passages as passages_model
@@ -265,10 +266,11 @@ def test_the_captured_widget_digests_say_which_widgets_a_reader_may_keep(page_di
         return artifact_model.read_artifact(page_dir, activated.revision)
 
     base = activate()
-    # Only elements the vocabulary says carry a module, and only where an id names one:
-    # a widget the patch cannot address is a widget it can only replace. The options
-    # group here has no id, and neither it nor its options declares a module.
-    assert set(base.widgets) == {"plan-choice-decision", "flow"}
+    # Every element the vocabulary says carries a module, named the way its author named
+    # it or, where they named nothing, by its tag and place among the others of that tag.
+    # An unnamed widget is as much the reader's as a named one; without a key it could
+    # never answer that its markup was unchanged, so every revision rebuilt it.
+    assert set(base.widgets) == {"plan-choice-decision", "flow", "lf-options#0"}
 
     document = document.replace("The cutoff lives in", "The cutoff now lives in")
     reworded = activate()
@@ -282,29 +284,66 @@ def test_the_captured_widget_digests_say_which_widgets_a_reader_may_keep(page_di
         != base.widgets["plan-choice-decision"]
     )
     assert rewritten.widgets["flow"] == base.widgets["flow"]
+    # The unnamed group inside the rewritten question is its own widget, and the heading
+    # that changed is not inside it.
+    assert rewritten.widgets["lf-options#0"] == base.widgets["lf-options#0"]
 
 
-def test_a_revision_saved_before_the_executable_digest_says_so(page_dir):
-    """A page whose history predates this field still serves its own version list.
+def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
+    """An immutable revision saved before this field is one no save can repair.
 
-    Every delivered document reads the digest, so a manifest without one turned a
-    revision saved by an older Leaf into a 500 on the whole page — and the failure
-    named a missing dictionary key, which is a bug report against Leaf rather than
-    something a reader or an agent can do anything about. Saving the page again
-    records it.
+    Capture has written the digest since the browser learned to take a revision on in
+    place, and the live root always has one: adding the field moved the manifest digest,
+    so the next save mints a new revision. The addresses where an older manifest is still
+    reachable are the stamped versions and the revision URLs, and those documents are
+    immutable — refusing them turned a page's whole history into a 500 over a field that
+    only ever answers a question a historical document does not ask. So the absence is a
+    reading: state says `null`, every address still serves, and the next save records it.
     """
     (page_dir / "index.html").write_text(PAGE, encoding="utf-8")
     revision = files_model.require_revision(page_dir)
-    manifest_path = (
-        files_model.revision_path(page_dir, revision).with_suffix("") / "manifest.json"
-    )
+    marker = files_model.revision_path(page_dir, revision)
+    bundle = marker.with_suffix("")
+    manifest_path = bundle / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     del manifest["executable"]
+    del manifest["widgets"]
+    # The revision is named for its manifest's digest, so an older manifest arrives
+    # under an older name; write both the way that capture would have.
+    body = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    manifest_path.write_bytes(body)
+    older = f"r{revision}-{artifact_model._digest(body).removeprefix('sha256:')[:16]}"
+    bundle.rename(bundle.with_name(older))
+    marker.rename(marker.with_name(f"{older}.html"))
 
-    with pytest.raises(artifact_model.ArtifactError) as refusal:
-        artifact_model.manifest_executable(manifest)
-    assert "captured before" in str(refusal.value)
-    assert "save the page again" in str(refusal.value)
+    artifact = artifact_model.read_artifact(page_dir, revision)
+    assert artifact.executable is None
+    assert artifact.widgets == {}
+
+    # The reading the browser takes: a document that cannot say what it is as code is
+    # one an open page can only follow into a fresh document.
+    descriptor = files_model.active_descriptor(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert descriptor["executable"] is None
+
+    # And the document itself still serves, prelude and all.
+    document = http_model.runtime_document(
+        (page_dir / "index.html").read_text(encoding="utf-8"),
+        revision,
+        artifact.executable,
+        artifact.widgets,
+    ).decode()
+    assert "lf-executable" not in document and "lf-widgets" not in document
+    assert '<meta name="lf-revision" data-lf-runtime content="1">' in document
+
+    # The next save records it, for every revision from then on.
+    (page_dir / "index.html").write_text(
+        PAGE.replace("Backfill plan", "Backfill schedule"), encoding="utf-8"
+    )
+    saved = revisioning_model.activate_source(page_dir, [])
+    assert saved.error is None, saved.error
+    assert artifact_model.read_artifact(page_dir, saved.revision).executable
 
 
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):

@@ -1489,9 +1489,8 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
  * the spine shows the band currently in view. Crowded rows bend that scale just enough
  * to keep every label distinct; markers, labels, and lens share the fitted positions.
  * Pointer entry, keyboard entry, or the go-to sequence fades the labels in without
- * changing any row's box. The transparent first layer
- * receives the revealing gesture, then the links become pointer targets when that fade
- * is complete; an unseen label cannot navigate on the gesture that discovers it.
+ * changing any row's box. The map's stable margin rectangle receives the pointer, and
+ * its links become ordinary targets immediately rather than waiting for that paint.
  *
  * The start row repeats the page title in that map, and on paper, where the outline is
  * the one reading of the route and keeps every word the map says; the open outline on
@@ -1525,10 +1524,6 @@ lf-toc a { display: inline-block; padding: 3px 0; color: inherit;
            text-decoration: none; }
 lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 
-@keyframes lf-toc-enable-links {
-  to { pointer-events: auto; }
-}
-
 /* The core sidebar states its actual posture after viewport and panel-room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
  * their sticky behavior and an in-flow ToC stays open. The shell inset moves the fixed map
@@ -1544,12 +1539,11 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
  * the question is also what leaves an lf-toc written into ordinary prose alone; the
  * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
-  /* The resting contents spine occupies one compact hit lane. Its labels reveal over
-   * the settled page: a transient pointer or keyboard state cannot renegotiate the
-   * document's width. The fixed map may overflow its 40px sidebar box, while only that
-   * compact lane receives an undisclosed pointer gesture. */
-  main:has(> aside.sidebar > lf-toc:only-child) {
-    --lf-sidebar-claim: 64px;
+  /* The contents map owns one stable margin rectangle whether its labels are hidden or
+   * revealed. Its transparent resting surface is therefore the same size as the links
+   * it discloses, and revealing it changes neither page geometry nor hit geometry. */
+  main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
+    --lf-sidebar-claim: var(--sidebar-max);
     --lf-sidebar-shell-bound: calc(100cqi - var(--lf-sidebar-claim)
       - 2 * var(--col-pad));
     --lf-sidebar-free-left: max(0px, calc(50cqi + var(--lf-shift)
@@ -1562,7 +1556,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
                top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
                z-index: 4;
-               width: 40px;
+               width: calc(var(--lf-sidebar-claim) - var(--sp-4));
                pointer-events: none;
                /* TODO: the shortcut bar covers this map's last entry — 21 of its 36 pixels,
                 * on every page with a spine, at every width, with nothing to scroll it
@@ -1583,13 +1577,10 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                margin: 0; }
       body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
       body[data-lf-sizing] lf-toc { transition: none; }
-      lf-toc .lf-toc-nav { width: 320px; height: 100%; border: 0; padding: 0;
+      lf-toc .lf-toc-nav { width: 100%; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
-                           pointer-events: none;
+                           pointer-events: auto;
                            transition: background-color .24s ease-out; }
-      lf-toc .lf-toc-nav::before { content: ""; position: absolute;
-                                   top: 0; bottom: 0; left: 0; width: 40px;
-                                   z-index: 0; pointer-events: auto; }
       lf-toc .lf-toc-heading { display: none; }
       lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
                             flex-direction: column; }
@@ -1641,9 +1632,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         --lf-toc-label-opacity: 1;
         background: color-mix(in srgb, var(--paper) 92%, transparent);
       }
-      lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
-        animation: lf-toc-enable-links 0s .24s forwards;
-      }
+      lf-toc .lf-toc-nav:is(:hover, :focus-within) a,
+      body[data-lf-go-to-active] lf-toc .lf-toc-nav a { pointer-events: auto; }
       /* A crowded but physically fitting map uses one line per destination before the
        * shared scale is fitted. It still reveals the complete route. */
       lf-toc[data-lf-compact] :is(.lf-toc-start, li) a {
@@ -1662,7 +1652,6 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }
-      lf-toc[data-lf-outline] .lf-toc-nav::before,
       lf-toc[data-lf-outline] .lf-toc-rows::before,
       lf-toc[data-lf-outline] .lf-toc-window,
       lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before { display: none; }
@@ -1679,22 +1668,11 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         padding: 3px 0; transform: none; -webkit-line-clamp: initial;
         opacity: 1; pointer-events: auto;
       }
-      /* A pointer waits for the labels it revealed to finish appearing. The go-to sequence
-       * already made an explicit keyboard gesture, so every route participates immediately. */
-      body[data-lf-go-to-active] lf-toc .lf-toc-nav a { pointer-events: auto; }
     }
   }
 }
 @media (prefers-reduced-motion: reduce) {
   lf-toc a { transition: none; }
-  @container lf-content-frame style(--lf-sidebar-posture: margin) {
-    @container style(--lf-sidebar-slot: margin) {
-      lf-toc .lf-toc-nav:is(:hover, :focus-within) a,
-      body[data-lf-go-to-active] lf-toc .lf-toc-nav a {
-        animation: none; pointer-events: auto;
-      }
-    }
-  }
 }
 @media (forced-colors: active) {
   lf-toc .lf-toc-rows::before,

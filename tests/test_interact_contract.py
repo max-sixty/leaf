@@ -4093,16 +4093,20 @@ def test_the_strip_floor_is_one_number():
 
 
 def test_the_sidebar_and_note_floor_is_their_sum():
-    """Two opposite margin residents need both strips as well as the ordinary floor.
+    """Two opposite margin residents need the largest sidebar claim and ordinary floor.
 
     Media queries cannot read custom properties, so the combined breakpoint is written
     as a pixel value beside the sidebar rule. Hold that necessary copy to the two tokens
     it represents instead of letting a later width change silently squeeze the prose."""
     css = (schema_model.ASSETS / "theme.css").read_text()
     floor = 1152
-    sidebar = re.search(r"--sidebar:\s*(\d+)px", css)
+    sidebar = re.search(r"--sidebar-max:\s*(\d+)px", css)
     assert sidebar
     combined = floor + int(sidebar[1])
+    default_theme = (
+        schema_model.ASSETS.parent / "packages" / "default" / "theme.css"
+    ).read_text()
+    assert "--lf-sidebar-claim: var(--sidebar-max)" in default_theme
     assert re.search(rf"@container\s+lf-shell\s*\(min-width:\s*{combined}px\)", css), (
         f"a sidebar and sidenote need {combined}px together, but no shell query grants "
         "their composed posture at that floor"

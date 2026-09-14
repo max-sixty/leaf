@@ -4580,8 +4580,14 @@ customElements.define("lf-quota", class extends HTMLElement {
   renderState(state) {
     const { to, index } = state.placement.detail;
     const parent = document.getElementById(to);
-    const rest = [...parent.children].filter(child => child.id && child !== this);
-    parent.insertBefore(this, rest[index] ?? null);
+    const placed = [...parent.children].filter(child => child.id);
+    // Idempotent, as a total render owes. Moving an element already in place still
+    // fires the platform's disconnect and connect reactions, and this module renews
+    // its subscription there, so an unconditional move renders itself again.
+    if (placed[index] !== this) {
+      const rest = placed.filter(child => child !== this);
+      parent.insertBefore(this, rest[index] ?? null);
+    }
     this.setAttribute("slots", state.capacity.value);
     paint(this);
   }

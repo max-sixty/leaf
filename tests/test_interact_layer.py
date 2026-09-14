@@ -255,17 +255,18 @@ def test_the_root_instructions_name_every_npm_gate_ci_runs():
     routing above states: a list is the second copy, and the gate added without the
     paragraph would stay green.
 
-    Read as `npm run`, which is the spelling a gate's own script is invoked under.
-    `npm ci` installs rather than gates, and npm's bare `test` alias resolves to
-    `run test` — a word the instructions carry everywhere, so requiring it would
-    assert nothing.
+    Read as `npm run`, and required in `CLAUDE.md` under that same spelling: a bare
+    script name would pass on any word the instructions already carry — `lint`,
+    `check` and `format` are each in there — so the next gate named one of those
+    would stay green while the paragraph went stale. `npm ci` installs rather than
+    gates, and npm's bare `test` alias is not read under this spelling at all.
     """
     workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
     instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     scripts = sorted(set(re.findall(r"\bnpm run ([\w:-]+)", workflow)))
 
     assert scripts, "no npm gate read — an empty set names itself"
-    unnamed = [script for script in scripts if script not in instructions]
+    unnamed = [script for script in scripts if f"npm run {script}" not in instructions]
     assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
 
 

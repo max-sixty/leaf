@@ -1714,7 +1714,6 @@ graph LR
       const main = document.querySelector('main');
       const ms = getComputedStyle(main), mb = main.getBoundingClientRect();
       const box = document.getElementById('flow').getBoundingClientRect();
-      const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
       const toc = document.querySelector('lf-toc').getBoundingClientRect();
       const body = document.body.getBoundingClientRect();
       return {
@@ -1723,7 +1722,6 @@ graph LR
           left: mb.left + parseFloat(ms.paddingLeft),
           right: mb.right - parseFloat(ms.paddingRight),
         },
-        sidebar: {left: sidebar.left, right: sidebar.right},
         toc: {left: toc.left, right: toc.right, width: toc.width},
         stripRight: (() => {
           const probe = document.createElement('i');
@@ -1738,10 +1736,10 @@ graph LR
       };
     }""")
     assert at["box"]["left"] >= at["toc"]["right"] + 15, at
-    assert at["box"]["left"] < at["sidebar"]["left"] - 1, at
+    assert at["box"]["left"] <= at["toc"]["right"] + 25, at
     assert abs(at["box"]["right"] - (at["roomRight"] - at["stripRight"] - 24)) <= 1, at
     assert at["box"]["width"] > 1080, at
-    assert at["box"]["left"] < at["column"]["left"] - 300, at
+    assert at["box"]["left"] < at["column"]["left"] - 100, at
     assert at["sideways"] == 0, at
 
 
@@ -3297,7 +3295,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     # expects — the widths the page is driven at are where the bar is accounted for, and a
     # measure that fell short of 720 anywhere here would be the fault this floor exists to
     # prevent rather than a tolerance to write down.
-    resized(page, 1416, 800)
+    resized(page, 1496, 800)
     at_floor = page.evaluate(reading)
     assert at_floor["column"]["width"] == 720, (
         "the strip came out of the column at the combined floor, which is the one width "
@@ -3306,9 +3304,9 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 
     # The root's client width is the runtime's authority, so a classic scrollbar has
     # already come out of the floor. Add the platform-reported difference to give the
-    # document exactly 1416 usable pixels; overlay-scrollbar platforms add zero.
+    # document exactly 1496 usable pixels; overlay-scrollbar platforms add zero.
     bar = at_floor["gutter"]
-    resized(page, 1416 + bar, 800)
+    resized(page, 1496 + bar, 800)
     roomy = page.evaluate(reading)
     assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [
         ("left", "sticky"),

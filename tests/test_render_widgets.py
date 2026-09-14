@@ -1736,7 +1736,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
 </style>
 <div id="orientation" style="height: 420px"></div>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
-<section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p>Take a snapshot.</p></section>
+<section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p><button id="underlying">Take a snapshot.</button></p></section>
 <div style="height: 90px"></div>
 <section>
   <h3 id="capacity">Check capacity before opening the longer transfer window</h3>
@@ -1805,15 +1805,34 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     prepare_box = page.locator("#prepare").bounding_box()
     assert prepare_box is not None
     assert nav_box["width"] == pytest.approx(320, abs=1)
-    assert prepare_box["x"] < nav_box["x"] + nav_box["width"], (
-        "the revealed map is meant to overlay the settled document rather than move it"
+    assert prepare_box["x"] >= nav_box["x"] + nav_box["width"] + 15, (
+        "the contents map's interaction rectangle overlaps the document"
     )
 
     resized(page, 1800, 900)
     expect(nav).to_have_css("width", "320px")
     resized(page, 1152, 900)
     expect(nav).to_have_css("width", "320px")
+    underlying = page.locator("#underlying")
+    underlying.evaluate(
+        "node => node.addEventListener('pointerdown', "
+        "() => { window.lfUnderlyingPressed = true; }, { once: true })"
+    )
+    underlying_box = underlying.bounding_box()
+    assert underlying_box is not None
+    underlying_point = {
+        "x": underlying_box["x"] + 4,
+        "y": underlying_box["y"] + underlying_box["height"] / 2,
+    }
+    assert underlying_point["x"] >= nav_box["x"] + nav_box["width"] + 15
+    assert page.evaluate(
+        "point => document.elementFromPoint(point.x, point.y)?.closest('#underlying') !== null",
+        underlying_point,
+    ), "the dormant contents map covered an authored control"
+    page.mouse.click(underlying_point["x"], underlying_point["y"])
+    assert page.evaluate("window.lfUnderlyingPressed") is True
     resized(page, 1400, 900)
+    page.mouse.move(1200, 700)
     assert nav.bounding_box() == nav_box
     markers = nav.locator(".lf-toc-start, li").evaluate_all(
         """items => items.map(item => {
@@ -1953,16 +1972,29 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(prepare).to_have_css("pointer-events", "none")
 
     prepare.evaluate(
-        "node => node.addEventListener('pointerdown', () => { window.lfTocPressed = true; }, { once: true })"
+        "node => node.addEventListener('pointerdown', "
+        "() => { window.lfTocPressed = true; }, { once: true })"
     )
     prepare_box = prepare.bounding_box()
     assert prepare_box is not None
-    before_hash = page.evaluate("location.hash")
-    page.mouse.click(prepare_box["x"] + 4, prepare_box["y"] + 4)
-    assert page.evaluate("location.hash") == before_hash
-    assert page.evaluate("window.lfTocPressed") is None
-    expect(prepare).to_have_css("opacity", "1")
-    expect(prepare).to_have_css("pointer-events", "auto")
+    label_point = {"x": prepare_box["x"] + 100, "y": prepare_box["y"] + 4}
+    # A normal right-to-left approach reveals and activates the label in the same
+    # pointer movement. There is no discovery click or dwell time to learn.
+    page.mouse.move(1200, 700)
+    expect(prepare).to_have_css("opacity", "0")
+    expect(prepare).to_have_css("pointer-events", "none")
+    page.mouse.move(500, label_point["y"])
+    page.mouse.move(label_point["x"], label_point["y"], steps=8)
+    assert nav.evaluate("node => node.matches(':hover')")
+    assert prepare.evaluate("node => getComputedStyle(node).pointerEvents") == "auto"
+    assert prepare.evaluate(
+        "node => document.elementFromPoint("
+        f"{label_point['x']}, {label_point['y']}) === node"
+    ), "the fading label was visible but not the pointer target"
+    page.mouse.click(label_point["x"], label_point["y"])
+    expect(page).to_have_url(re.compile(r"#prepare$"))
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    assert page.evaluate("window.lfTocPressed") is True
     revealed_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
         "return [r.x, r.y, r.width, r.height]; })"

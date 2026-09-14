@@ -26,11 +26,15 @@ A page directory holds:
                          replaced. Two revisions sharing the digest differ only in
                          what a live document can be given, so a reader keeps their
                          open document across the change. Beside it, `widgets`
-                         maps each declared widget id in the authored main to a
-                         digest of its authored markup, taken from the parsed tree
-                         before delivery rewrites any address; a patch keeps a
-                         widget whose digest the arriving revision repeats and
-                         replaces every other one.
+                         maps each declared widget in the authored main — by id,
+                         or by tag and place among the unnamed of that tag in
+                         document order, template content included — to a digest
+                         of its authored markup, taken from the parsed tree before
+                         delivery rewrites any address; a patch keeps a widget
+                         whose digest the arriving revision repeats and replaces
+                         every other one. A revision captured before either field
+                         existed records neither, and a document delivered from it
+                         states no executable identity, which is the reload path.
                          The live root follows the active revision, and each
                          revision is also served at its own address under the same
                          delivery boundary as the root.
@@ -179,9 +183,10 @@ fingerprint, packages, and producer;
 error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data.file` always names a readable JSON store.
 `active.executable`, shared with `/api/state`, gives the active revision's
-executable digest, and every delivered document repeats it as
-`<meta name="lf-executable">`, so a reader's own document can tell whether a
-later revision needs a fresh one. `event_seq`
+executable digest (`null` for a revision captured before it was recorded), and a
+delivered document repeats it as `<meta name="lf-executable">` when it has one,
+so a reader's own document can tell whether a later revision needs a fresh one.
+`event_seq`
 is the last event folded into the snapshot and can be passed to `leaf events
 --after`; it is distinct from the acknowledgement cursor.
 

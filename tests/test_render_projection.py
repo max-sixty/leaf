@@ -2086,17 +2086,21 @@ def test_a_revision_patches_one_line_of_a_template_written_over_several(browser,
         '<h1 id="tl-title">Lines</h1>\n'
         '<template id="tl-held" data-interaction-page>\n'
         '  <p class="tl-line">The first account.</p>\n'
-        '  <p class="tl-line">The second account.</p>\n'
+        '  <p class="tl-line">The <lf-gloss tip="held inside">second</lf-gloss>'
+        " account.</p>\n"
         '  <p class="tl-line">The third account.</p>\n'
-        "</template>",
+        "</template>\n"
+        '<p id="tl-after">A <lf-gloss tip="after the template">term</lf-gloss> the'
+        " template does not hold.</p>",
     )
     second = first.replace("Lines first", "Lines second").replace(
-        "The second account.", "The second account, rewritten."
+        "second</lf-gloss> account.", "second</lf-gloss> account, rewritten."
     )
     page = open_page(browser, live_url(serve(first)))
     page.evaluate(
         "() => { window.__tlLines ="
-        " [...document.getElementById('tl-held').content.querySelectorAll('p')]; }"
+        " [...document.getElementById('tl-held').content.querySelectorAll('p')];"
+        " window.__tlAfter = document.querySelector('#tl-after > lf-gloss'); }"
     )
     assert page.evaluate("() => window.__tlLines.length") == 3
 
@@ -2111,6 +2115,11 @@ def test_a_revision_patches_one_line_of_a_template_written_over_several(browser,
             words: lines.map((line) => line.textContent),
             kept: lines.map((line, at) => line === window.__tlLines[at]),
             nodes: content.childNodes.length,
+            // The unnamed widget after the template is the second of its tag only
+            // when the one held inside the template counts; keyed one short, its
+            // digest names the wrong widget and the revision rebuilds it.
+            afterKept:
+              window.__tlAfter === document.querySelector('#tl-after > lf-gloss'),
           };
         }"""
     )
@@ -2122,7 +2131,55 @@ def test_a_revision_patches_one_line_of_a_template_written_over_several(browser,
         ],
         "kept": [True, True, True],
         "nodes": 7,
+        "afterKept": True,
     }, f"the revision did not land on the line it rewrote: {standing}"
+
+
+def test_a_revision_reaches_a_paragraph_a_page_module_moved(browser, serve):
+    """An authored element a page module relocated is still that element.
+
+    The module moved the paragraph into its own box, which is the module's to do. A
+    revision that rewrites the paragraph's words reaches it where it stands: the words
+    change, the node is the same, it stays in the box, and no second copy arrives at the
+    place the source wrote it.
+    """
+    body = """
+<h1 id="mv-title">Moved</h1>
+<div id="mv-box"></div>
+<p id="mv-moved">The cutover has not started.</p>
+<p id="mv-kept">A paragraph that stays where it was written.</p>
+"""
+    module = (
+        '<script type="module">'
+        "document.getElementById('mv-box')"
+        ".append(document.getElementById('mv-moved'));"
+        "</script>"
+    )
+    first = leaf_page("Moved first", body, head=module)
+    second = first.replace("Moved first", "Moved second").replace(
+        "The cutover has not started.", "The cutover finished on the second attempt."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    expect(page.locator("#mv-box > #mv-moved")).to_have_count(1)
+    page.evaluate("() => { window.__mvMoved = document.getElementById('mv-moved'); }")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Moved second")
+    standing = page.evaluate(
+        """() => ({
+          words: document.getElementById('mv-moved').textContent,
+          sameNode: window.__mvMoved === document.getElementById('mv-moved'),
+          inBox: document.getElementById('mv-moved').parentElement.id,
+          copies: document.querySelectorAll('#mv-moved').length,
+        })"""
+    )
+    assert standing == {
+        "words": "The cutover finished on the second attempt.",
+        "sameNode": True,
+        "inBox": "mv-box",
+        "copies": 1,
+    }, f"the revision did not reach the moved paragraph in place: {standing}"
 
 
 def test_a_same_kind_sibling_inserted_above_an_edited_one_keeps_the_page_whole(

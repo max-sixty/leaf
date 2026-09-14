@@ -48,6 +48,9 @@ export function setChildren(parent, nodes, remove = detach) {
      of the held element; a match names the same element on both sides.
    - `unchanged(before, after)`: that widget's authored markup is the same markup. The
      caller compares the digests each revision's capture recorded.
+   - `same(before, after)`: two source elements are spelled the same way, read past the
+     address each revision was delivered at. Asked of an element whose interior a pass
+     other than a controller has taken, since no capture digested it.
    - `generated(node)`: the live node is the runtime's own. Only placement asks, because
      only placement walks live children; nothing here matches or removes on it.
 
@@ -125,6 +128,31 @@ function retire(node, rules) {
   for (const inner of node.querySelectorAll("*")) rules.retire(inner);
 }
 
+// Everything one source element stood for leaves with it: the live element, and any
+// node paired under it that a page module had since moved elsewhere in the document.
+// Removing the element alone would leave that node standing for a source that is gone,
+// and its rebuilt replacement would then stand beside it under the same name.
+function evict(before, live, rules) {
+  retire(live, rules);
+  live.remove();
+  for (const inner of sourceNodes(before)) {
+    const stray = rules.pairs.get(inner);
+    // Still in some tree, and not the one that just left with the element. Asked of
+    // the parent rather than the document, because a template's content is a fragment
+    // nothing is ever connected to.
+    if (!stray?.parentNode || live.contains(stray)) continue;
+    retire(stray, rules);
+    stray.remove();
+  }
+}
+
+function* sourceNodes(node) {
+  for (const child of tree(node).childNodes) {
+    yield child;
+    yield* sourceNodes(child);
+  }
+}
+
 function patchChildren(liveParent, beforeParent, afterParent, rules) {
   const held = [...beforeParent.childNodes];
   const wanted = [...afterParent.childNodes];
@@ -132,19 +160,17 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
   const matched = new Set(matches.values());
   for (const node of held) {
     if (matched.has(node)) continue;
-    const live = rules.pairs.get(node);
-    if (!live) continue;
-    retire(live, rules);
-    live.remove();
+    evict(node, rules.pairs.get(node), rules);
   }
   const placed = [];
   for (const node of wanted) {
     const before = matches.get(node);
     const held = before && rules.pairs.get(before);
-    // An unmatched source node is new. So is one whose live counterpart is no longer
-    // standing where this patch paired it — a widget's controller may have taken its own
-    // subtree apart — and rebuilding it from source is the only honest answer left.
-    const live = held?.parentNode === liveParent ? held : null;
+    // An unmatched source node is new, and so is one whose live counterpart has left
+    // every tree. One a page module moved elsewhere is still that element: the author's
+    // change reaches it where it stands, and placement leaves it there. Standing is a
+    // parent rather than a connection, since a template's content is never connected.
+    const live = held?.parentNode ? held : null;
     if (!live) {
       placed.push(rules.arrive(node));
       continue;
@@ -154,13 +180,12 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     else if (!kept(before, node, rules)) {
       // Its interior is not this patch's to reach into, so a changed one cannot be
       // corrected from outside. It leaves, and its replacement arrives as a new element.
-      retire(live, rules);
-      live.remove();
+      evict(before, live, rules);
       placed.push(rules.arrive(node));
       continue;
     }
     rules.pairs.set(node, live);
-    placed.push(live);
+    if (live.parentNode === liveParent) placed.push(live);
   }
   place(liveParent, placed, rules.generated);
 }
@@ -179,9 +204,10 @@ const atomic = (before, live, rules) =>
 
 // Whether the two revisions spell such an element the same way. A widget answers from
 // the digests its captures recorded, which is the markup the server read of each; nothing
-// else has a capture, and answers from the markup itself, which is all the patch holds.
+// else has a capture, and answers from the markup itself, read past the delivery address
+// each revision wrote into it.
 const kept = (before, after, rules) =>
-  rules.declared(before) ? rules.unchanged(before, after) : before.isEqualNode(after);
+  rules.declared(before) ? rules.unchanged(before, after) : rules.same(before, after);
 
 function matchNodes(held, wanted) {
   const matches = new Map();

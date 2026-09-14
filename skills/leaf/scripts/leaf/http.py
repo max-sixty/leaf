@@ -258,7 +258,7 @@ def head_open_end_offset(document: SourceDocument) -> int:
 
 
 def _delivery_prelude(
-    revision: int, version: int | None, executable: str, widgets: dict
+    revision: int, version: int | None, executable: str | None, widgets: dict
 ) -> str:
     """Declare the delivery's encoding, then the immutable Leaf identity behind it."""
     return DELIVERY_ENCODING_META + delivery_identity(
@@ -283,7 +283,7 @@ def script_hash(body: str) -> str:
 def runtime_document(
     source: str,
     revision: int,
-    executable: str,
+    executable: str | None,
     widgets: dict,
     version: int | None = None,
 ) -> bytes:
@@ -304,7 +304,7 @@ def supervised_document(
     revision: int,
     version: int | None,
     *,
-    executable: str,
+    executable: str | None,
     widgets: dict,
     server_id: str,
     layer_id: str,

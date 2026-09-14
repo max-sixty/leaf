@@ -374,8 +374,8 @@ export function watchExternalLinks(root) {
 // code — and the page's own <pre><code> blocks, alongside the widgets and for the same
 // reason: the tokenizer is vendored, so a page has it exactly when it has a widget
 // layer at all. Written once because it happens twice, over the page at the upgrade and
-// over a widget rebuilt from the version's markup (rebuild), and a near-copy of it
-// would go stale the day the vocabulary grows a fourth pass.
+// over each root a live revision brings into it, and a near-copy of it would go stale
+// the day the vocabulary grows a fourth pass.
 export function dress(root) {
   renderSaid(root);
   renderQuiet(root);

@@ -171,7 +171,12 @@ an unresolved delivery.
 Prose, styling, media, and markup are not code, so revising them costs a reader nothing.
 Within a patched revision, a widget whose authored markup changed is replaced rather
 than corrected, so its module renders the new baseline from scratch; one you left alone
-keeps its element and everything the reader had done inside it.
+keeps its element and everything the reader had done inside it. The same all-or-nothing
+rule reaches any authored element whose children a page module detached or moved: its
+interior is that module's, so an edit inside it replaces the element whole. A patch
+writes an attribute only where the two revisions disagree, so what a reader toggled
+stays as they left it; a form control's `value` or `checked` a reader has already
+changed keeps the reader's choice even where the revision moved the attribute.
 
 Page modules follow the behavior-module contract in `references/packages.md`. In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state

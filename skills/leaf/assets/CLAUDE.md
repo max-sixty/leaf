@@ -53,10 +53,12 @@ frame. Synchronous input layout, ResizeObserver height-only placement, and the s
 animation frames retain their own timing contracts;
 `runtime/standing.js` owns the standing content and geometry phases;
 `runtime/dom-children.js` reconciles retained children without moving nodes already in
-place, and reconciles one authored tree onto the source of another, matching by id and
-then by position so that what a reader holds on a node — caret, selection, hover, focus
-— survives a revision; every judgement it cannot make from the DOM alone is its
-caller's; conversation owners supply reaction teardown when removing their surfaces;
+place, and applies the difference between two authored revisions to the live page
+through a source-to-live map, so that what a reader, the runtime, or a page module has
+done to the page — a selection, an open disclosure, a lent tab stop, a tokenizer's
+spans, a module's own output — is written over only where the author wrote; every
+judgement it cannot make from the DOM alone is its caller's; conversation owners supply
+reaction teardown when removing their surfaces;
 `runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
 `runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
 document roots so authored revision replacement can leave that live state in place;
@@ -234,7 +236,8 @@ highlight rules, the parent walk that crosses a root, and the chrome question
 (`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
 owns the stage an x-shadow widget renders into;
 `runtime/widget-loader.js` owns registry loading, pre-upgrade passage fences,
-dynamic widget imports, and initial settlement;
+dynamic widget imports, initial settlement, and the settlement of markup a live
+revision patches into the page;
 `runtime/storage.js` owns page addressing and browser-backed stores;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;

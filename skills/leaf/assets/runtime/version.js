@@ -272,6 +272,12 @@ const pairSources = (source, live, pairs) => {
     if (children[at]) pairSources(child, children[at], pairs);
   return pairs;
 };
+// Where a delivered document's captured resources are addressed: the directory its
+// registry probe names, which is the revision's own root.
+const artifactRoot = (root) =>
+  root
+    .querySelector("script[data-lf-runtime][data-lf-probe]")
+    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
 const servedMain = document.querySelector("body > main");
 const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
@@ -322,6 +328,7 @@ export function createVersionController({
   // for. Both are replaced by every revision this document takes on.
   let authoredWidgets = servedWidgets;
   let authoredSource = initialDocument.source;
+  let authoredRoot = artifactRoot(document);
   let sourcePairs = initialPairs;
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
@@ -1397,7 +1404,7 @@ export function createVersionController({
   function widgetKeys(source) {
     const keys = new Map();
     const counts = new Map();
-    for (const element of source.querySelectorAll("*")) {
+    for (const element of elementsWithin(source)) {
       if (!upgraded(element)) continue;
       if (element.id) keys.set(element, element.id);
       else {
@@ -1407,6 +1414,38 @@ export function createVersionController({
       }
     }
     return keys;
+  }
+
+  // Every element under a root in document order, a template's content included: the
+  // capture walks the parsed tree the same way, and a widget written inside a template
+  // counts among the others of its tag on both sides or on neither.
+  function* elementsWithin(root) {
+    const inner = root.localName === "template" ? root.content : root;
+    for (const child of inner.children) {
+      yield child;
+      yield* elementsWithin(child);
+    }
+  }
+
+  // Two source elements spelled the same way once the address each revision was
+  // delivered at is read out of them. Delivery writes the revision's own root into every
+  // page and media reference, so the same `<img>` differs between two revisions that
+  // never touched it; a widget's capture digested the markup before that, and this is
+  // the same reading for an element no capture digested.
+  const RESOURCE_ATTRIBUTES = ["src", "href", "srcset", "poster", "data", "style"];
+  function sameAuthoredMarkup(before, after, arrivingRoot) {
+    const unrooted = (element, root) => {
+      const copy = element.cloneNode(true);
+      if (!root) return copy;
+      for (const node of [copy, ...elementsWithin(copy)])
+        for (const name of RESOURCE_ATTRIBUTES) {
+          const value = node.getAttribute(name);
+          if (value?.includes(root))
+            node.setAttribute(name, value.split(root).join("/"));
+        }
+      return copy;
+    };
+    return unrooted(before, authoredRoot).isEqualNode(unrooted(after, arrivingRoot));
   }
 
   // The revision arriving in the document the reader is standing in. Their caret,
@@ -1422,6 +1461,7 @@ export function createVersionController({
     const live = document.querySelector("body > main");
     const source = doc.querySelector("body > main");
     const arrivingWidgets = widgetDigests(doc);
+    const arrivingRoot = artifactRoot(doc);
     const heldKeys = widgetKeys(authoredSource);
     const arrivingKeys = widgetKeys(source);
     retireProjectionCoverage();
@@ -1484,6 +1524,7 @@ export function createVersionController({
           const digest = authoredWidgets[heldKeys.get(before)];
           return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
         },
+        same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
         // An element going is not the same as its name going, and the name is what
         // these readings are kept under. A widget the revision moved under an earlier
         // parent is inserted and read there before this parent's removal reaches the
@@ -1507,6 +1548,7 @@ export function createVersionController({
     });
     authoredWidgets = arrivingWidgets;
     authoredSource = source;
+    authoredRoot = arrivingRoot;
     await settlePageInterface();
     syncLayout();
     restoreView(view);
@@ -1562,7 +1604,7 @@ export function createVersionController({
         // can return. `stale` says why this one refuses — the document came from a
         // re-vendored layer and the page is already reloading — and the heartbeat, which
         // asks nothing but `activates`, is right without a second reading of that fact.
-        return { stale: true, revision: null, activates: () => false };
+        return { stale: true, activates: () => false };
       // Step 6 of the startup order, on the same background stretch as the document
       // itself: this revision may carry a tag the standing document never held, and
       // insertion is where its element is constructed. Asked for here so the install

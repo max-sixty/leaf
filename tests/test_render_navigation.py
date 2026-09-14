@@ -7153,6 +7153,8 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     # The pointer route remains while this text box owns `?`; the key face and
     # accessible shortcut return when pressing the button moves focus out of the box.
     more = page.get_by_role("button", name="More keyboard shortcuts", exact=True)
+    more_node = page.locator(".lf-shortcut-more")
+    more_node.evaluate("button => window.__lfShortcutMore = button")
     expect(more).to_have_attribute("aria-expanded", "false")
     expect(more.locator("kbd")).to_be_hidden()
     expect(more).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
@@ -7165,10 +7167,12 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         "Shortcut shelf expanded. Press question mark again for Command reference"
     )
     assert visible_hints.count() > 2
+    wide_hint_count = visible_hints.count()
     expect(line).to_contain_text("less")
     for width in (1200, 420):
         page.set_viewport_size({"width": width, "height": 800})
         page.evaluate(RENDERED)
+        assert more_node.evaluate("button => button === window.__lfShortcutMore")
         geometry = line.evaluate(
             """node => {
               const visible = [...node.children].filter(el => el.checkVisibility());
@@ -7196,6 +7200,8 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         assert geometry["bandHeight"] <= geometry["maxItemHeight"] * 2 + 8, geometry
     page.set_viewport_size({"width": 1200, "height": 800})
     page.evaluate(RENDERED)
+    expect(visible_hints).to_have_count(wide_hint_count)
+    assert more_node.evaluate("button => button === window.__lfShortcutMore")
     more = page.get_by_role("button", name="? command reference", exact=True)
     expect(more).to_have_attribute("aria-expanded", "true")
     more.click()
@@ -7535,11 +7541,11 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
     """A frame passes between one Tab and the next for every reader, and none for a test.
 
     `renderShortcutBar` runs under the shared repaint frame, so it repaints the shortcut bar just after
-    focus lands somewhere — including on More, the line's own button. Clearing the line
-    with `textContent = ""` took More out of the document, and removing a focused element
-    blurs it; it came straight back as the same node, connected, with the reader dropped
-    to `body`. The button was never gone to look at and never gone from the DOM to assert
-    on, so nothing but standing on it one frame later could see it.
+    focus lands somewhere — including on More, the line's own button. Replacing the line's
+    children used to take More out of the document, and removing a focused element blurs
+    it; it came straight back as the same node, connected, with the reader dropped to
+    `body`. The button was never gone to look at and never gone from the DOM to assert on,
+    so nothing but standing on it one frame later could see it.
 
     That is why the frame is the whole of this test. Pressed back to back the walk is
     whole, because the repaint has not run yet between the presses — the failure hid

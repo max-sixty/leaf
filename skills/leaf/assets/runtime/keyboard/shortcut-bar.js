@@ -48,6 +48,8 @@
    the revealed hint chips themselves remain visual. When there is no additional current
    row, the first activation opens the reference directly. The native control also opens
    it directly. */
+import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+
 import {
   activeRows,
   ariaShortcuts,
@@ -89,9 +91,7 @@ const shortcutBarMore = el("button", "lf-shortcut-more");
 shortcutBarMore.type = "button";
 shortcutBarMore.title = "More keyboard shortcuts";
 shortcutBarMore.setAttribute("aria-label", "? more");
-const shortcutBarMoreKey = document.createElement("kbd");
-const shortcutBarMoreText = el("span", "", "more");
-shortcutBarMore.append(shortcutBarMoreKey, shortcutBarMoreText);
+render(html`<kbd hidden></kbd><span>more</span>`, shortcutBarMore);
 
 const boxesOf = (nodes) =>
   nodes
@@ -290,9 +290,12 @@ export function renderShortcutBar(goToStatus) {
   const referenceBinding = reference ? bindings(reference)[0] : null;
   const referenceDoes = word(SHORTCUT_HELP.does);
   const referenceLine = word(SHORTCUT_HELP.line);
-  shortcutBarMoreKey.hidden = !referenceBinding;
-  if (referenceBinding) shortcutBarMoreKey.textContent = spell(referenceBinding);
-  shortcutBarMoreText.textContent = referenceLine;
+  render(
+    html`<kbd ?hidden=${!referenceBinding}
+        >${referenceBinding ? spell(referenceBinding) : nothing}</kbd
+      ><span>${referenceLine}</span>`,
+    shortcutBarMore,
+  );
   shortcutBarMore.title = referenceDoes;
   shortcutBarMore.setAttribute("aria-expanded", String(shelf));
   shortcutBarMore.setAttribute(
@@ -311,50 +314,61 @@ export function renderShortcutBar(goToStatus) {
   // another destination, so it keeps its ordinary one-step face.
   const sequenceScope = complete?.scope;
   const sequence = word(sequenceScope?.sequence) ?? [];
-  // Everything but More, which the reader may be standing on. `textContent = ""` takes
-  // it out of the document, and removing a focused element blurs it: it returns on the
-  // same line as the same node, connected again, with the reader dropped to `body`. That
-  // lands one frame after they tabbed to it, because this runs under the repaint frame —
-  // so the walk is whole at synthetic speed and broken at every human one, which is the
-  // way round that hides from a suite. The line is cleared around the same seated node
-  // instead, and the chips are drawn around it.
-  for (const node of [...shortcutBarEl.childNodes])
-    if (node !== shortcutBarMore) node.remove();
-  const seated = shortcutBarMore.parentElement === shortcutBarEl;
-  const chip = (steps, said, states, afterMore = false, row = null) => {
-    const span = el("span", "lf-shortcut");
-    span.setAttribute("aria-hidden", "true");
-    if (row) {
-      const active = bindings(row);
-      const commands = commandPresentations(row, active).map(({ id }) => id);
-      span.dataset.lfCommandIds = commands.join(" ");
-      if (row.sequenceControl) span.classList.add("lf-sequence-command");
-    }
-    span.append(keySequence(steps, states));
-    if (said) span.append(el("span", "", said));
-    if (afterMore && seated) shortcutBarEl.append(span);
-    else shortcutBarEl.insertBefore(span, seated ? shortcutBarMore : null);
-    return span;
-  };
-  const drawn = ordered.map((row) => {
+  const presentations = ordered.map((row) => {
     const inSequence = sequence.length && !row.sequenceControl;
     const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
-    const span = chip(steps, word(row.line), states, false, row);
-    span.hidden = sourceRow(row) === SHORTCUT_HELP || (!shelf && !shown.has(row));
-    return { row, span };
+    const active = bindings(row);
+    return {
+      row,
+      steps,
+      states,
+      said: word(row.line),
+      commandIds: commandPresentations(row, active)
+        .map(({ id }) => id)
+        .join(" "),
+    };
   });
   // The door is not useful behind the room it opens. While the reference stands, its
   // own Escape row is the short line and More leaves the focus order with the page. This
   // is the one removal that is meant: a reader standing on the door when the room opens
   // is a state change rather than a repaint, and the command reference takes focus anyway.
-  if (commandReferenceOpen()) shortcutBarMore.remove();
-  else if (!seated) shortcutBarEl.append(shortcutBarMore);
-
-  if (shelf && tail) {
-    const steps = rowSteps(tail);
-    chip(steps, word(tail.line), neutralStates(steps), true);
-  }
+  const tailSteps = shelf && tail ? rowSteps(tail) : null;
+  render(
+    html`${repeat(
+      presentations,
+      ({ row }) => sourceRow(row),
+      ({ row, steps, states, said, commandIds }) => html`
+        <span
+          class=${`lf-shortcut${row.sequenceControl ? " lf-sequence-command" : ""}`}
+          aria-hidden="true"
+          data-lf-command-ids=${commandIds}
+          >${keySequence(steps, states)}${
+            said ? html`<span>${said}</span>` : nothing
+          }</span
+        >
+      `,
+    )}${commandReferenceOpen() ? nothing : shortcutBarMore}${
+      tailSteps
+        ? html`<span class="lf-shortcut" aria-hidden="true"
+            >${keySequence(tailSteps, neutralStates(tailSteps))}<span
+              >${word(tail.line)}</span
+            ></span
+          >`
+        : nothing
+    }`,
+    shortcutBarEl,
+  );
+  const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
+  const drawn = presentations.map((presentation, index) => ({
+    ...presentation,
+    span: rowSpans[index],
+  }));
+  // Fitting is the sole owner of visibility. Lit leaves `hidden` alone; every frame
+  // first restores semantic eligibility, then this synchronous measurement may hide
+  // lower-priority chips to fit the current width.
+  for (const { row, span } of drawn)
+    span.hidden = sourceRow(row) === SHORTCUT_HELP || (!shelf && !shown.has(row));
 
   const visible = () =>
     [...shortcutBarEl.children].filter(

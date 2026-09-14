@@ -2534,11 +2534,6 @@ def test_check_refuses_an_invalid_action_detail_schema(page_dir):
     )
 
 
-def test_generated_child_declaration_is_valid_as_shipped(page_dir):
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [

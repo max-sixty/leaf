@@ -54,11 +54,11 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
+    CORPUS_SOURCES,
     EXAMPLES,
     FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
-    PAGE_FIXTURES,
     RENDERED,
     ROOT,
     TOKEN,
@@ -405,7 +405,7 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
 def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
     browser, serve
 ):
-    example = next(e for e in PAGE_FIXTURES if e.stem == "review-queue")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
     page = open_page(browser, serve(example))
     resized(page, 1100, 520)
     queue = page.locator("#review-queue .lf-pane-body")
@@ -434,7 +434,7 @@ def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
 
 
 def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
-    example = next(e for e in PAGE_FIXTURES if e.stem == "review-queue")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
     page = open_page(
         browser,
         serve(
@@ -469,7 +469,7 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
 def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
     browser, serve
 ):
-    example = next(e for e in PAGE_FIXTURES if e.stem == "review-queue")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -541,7 +541,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     browser, serve
 ):
     """The comparison is simultaneous when room permits and sequential when it does not."""
-    example = next(e for e in PAGE_FIXTURES if e.stem == "current-proposed-comparison")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
     page = open_page(browser, serve(example))
     workspace = page.locator("#comparison-workspace")
     current = page.locator("#comparison-current")
@@ -574,7 +574,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
 
 def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve):
     """Each policy owns a separate anchor and pane-local return route."""
-    example = next(e for e in PAGE_FIXTURES if e.stem == "current-proposed-comparison")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
     page = open_page(
         browser,
         serve(
@@ -630,7 +630,7 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
 
 def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
     """One v1 choice remains authoritative in the v2 policy and rollout."""
-    example = next(e for e in PAGE_FIXTURES if e.stem == "current-proposed-comparison")
+    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")

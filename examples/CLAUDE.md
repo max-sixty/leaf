@@ -46,16 +46,16 @@ under `versions/` remain historical inputs only when the page's version story us
 
 ## Every widget and idiom in the vocabulary stands here
 
-The nightly run uses this corpus in two ways. Page-sensitive contracts run every
-public example, the feature gallery, and the generated corpus: each renders in both
-palettes, passes axe, and exports with its scripts gone. Authored-content sweeps quote
-a compact set of source pages covering every native passage tag, the sweep's four
-representative direct-text widget roots, and wholly projected data pages, then resolve
-anchors written from every source file. Shared runtime mechanisms use causal
-representatives instead of repeating the same gesture over every page, and each
-representative has a non-vacuity floor naming the shapes it stands for. A widget
-that stands in no source page is one the whole-page contracts have never seen, and its
-own green tests read as coverage.
+The nightly run puts each boundary to the smallest corpus that can answer it. Every
+authored source runs the render gate in both palettes. The feature gallery runs Axe at
+desktop and phone widths in both palettes, while focused accessibility tests own chrome
+and specialist surfaces it does not contain. The generated corpus is exported once;
+the test reveals every outer tab before inspecting the complete static payload.
+Authored-content sweeps quote four unlike source pages and resolve anchors written from
+the same four. Shared runtime mechanisms use causal representatives instead of
+repeating the same gesture over every page, and each sweep fails when its representative
+contains nothing to inspect. A widget that stands in no source page is one the
+whole-page contracts have never seen, and its own green tests read as coverage.
 
 `test_every_widget_in_the_vocabulary_stands_in_a_corpus_source` is the floor. It
 reads the widget list off the registry and the package list off `layer.json`

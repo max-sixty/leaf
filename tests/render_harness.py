@@ -70,11 +70,25 @@ assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
     "expected exactly one generated corpus beside the public examples"
 )
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
-PAGE_FIXTURES = (*EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
+CORPUS_PAGE = ROOT / "examples" / "corpus.html"
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
 EXAMPLE_MEDIA = ROOT / "examples" / "media"
+
+PASSAGE_SOURCES = (
+    FEATURE_GALLERY,
+    ROOT / "examples" / "pr-walkthrough.html",
+    ROOT / "examples" / "ship-review.html",
+    ROOT / "examples" / "developer" / "visual-review-gallery.html",
+)
+
+ANCHOR_SOURCES = (
+    FEATURE_GALLERY,
+    ROOT / "examples" / "pr-walkthrough.html",
+    ROOT / "examples" / "ship-review.html",
+    ROOT / "examples" / "developer" / "swipe-gallery.html",
+)
 
 
 def leaf_page(title: str, body: str, *, head: str = "") -> str:

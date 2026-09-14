@@ -77,7 +77,6 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    PAGE_FIXTURES,
     REPLY_HOST_PAGE,
     TOKEN,
     Traffic,
@@ -2080,8 +2079,8 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
-@pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
-def test_page_fixture_renders(browser, serve, page_fixture):
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_page_fixture_renders(browser, serve, source):
     """Every shipped example and the developer gallery lay out in both color schemes: no
     fail-soft error box, no console warning or error, every visible widget occupies real
     space, no sideways scroll, no words on screen a selection can't reach. A
@@ -2089,7 +2088,7 @@ def test_page_fixture_renders(browser, serve, page_fixture):
     is the shape of failure a static lint cannot see. The invariants live in
     render_gate.version.render_version — the pass `version check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through."""
-    assert render_gate_model.render_version(browser, serve(page_fixture)) == []
+    assert render_gate_model.render_version(browser, serve(source)) == []
 
 
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):

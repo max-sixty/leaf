@@ -14,7 +14,7 @@ from render_cases_layout import (
     standing_ring,
 )
 from render_harness import (
-    PAGE_FIXTURES,
+    CORPUS_SOURCES,
     leaf_page,
     open_page,
     resized,
@@ -26,7 +26,7 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 VISUAL_REVIEW_GALLERY = next(
-    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
 
 

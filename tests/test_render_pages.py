@@ -61,6 +61,7 @@ from render_cases_widgets import (
     written_anchors,
 )
 from render_harness import (
+    ANCHOR_SOURCES,
     BOTH_STAMPS,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
@@ -496,19 +497,17 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     )
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("source", ANCHOR_SOURCES, ids=lambda p: p.stem)
 def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     browser, serve, source
 ):
     """The claim `leaf comment` makes is that a quote read out of the mapped revision
-    names the same passage in the browser. Checked on the pages people actually write,
-    because the ways it can fail are all theirs: a diagram that renders to a picture, an
-    attribute the runtime turns into text, two paragraphs whose join is a space in one
-    reading and nothing in the other. The generated corpus derives its tab bodies from
-    these sources; its generation check owns that composition, while this sweep keeps
-    one file reading for every page an author can change. A page that authors only a
-    data-backed widget has no file passage to compare; its data anchors are covered at
-    their projection boundary."""
+    names the same passage in the browser. Four unlike authored pages cover native
+    blocks, representative widgets, and projected text that can make the file and
+    browser readings disagree. The generated corpus derives its tab bodies from these
+    sources, and its generation check owns that composition. A page that authors only a
+    data-backed widget has no file passage to compare, so it does not belong in this
+    file-to-browser reading."""
     # Suppress the shipped log while retaining companion data. This sweep
     # writes its own anchors and then compares the whole painted mark against
     # exactly those quotes; a seeded thread paints into the same highlight and
@@ -522,15 +521,7 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     document = structure_model.SourceDocument(html)
     registry = registry_storage.load_registry(d)
     authored = page_passages(document, registry).text
-    # A focused data-driven page may author only the widget that projects its words.
-    # Its data anchors are covered at that boundary; there is no file passage for this
-    # file-to-browser reading to exercise.
-    if not authored.strip():
-        assert anchors == []
-        assert any(
-            registry[node["tag"]].get("x-data") for node in document.by_id.values()
-        ), f"{source.stem} has neither authored passages nor a data-backed widget"
-        return
+    assert authored.strip(), f"{source.stem} has no file passage for this sweep"
     # Nine overlapping anchors exercise section, prefix, and suffix resolution across
     # a compact authored passage without forcing filler prose into the page.
     assert len(anchors) >= 9, (

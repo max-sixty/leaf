@@ -2486,6 +2486,46 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert stopped.value.code == 404
 
 
+def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
+    """The deployment gate names the turn it read, not the panel it looked at.
+
+    A hosted turn that publishes nothing and replies nothing leaves Threads with no
+    reply to draw, so the panel reading is a symptom. The complaint has to carry the
+    revision the page reached, the activity it stood under, and the receipts it
+    collected, because that reading is the only account of why the turn stopped.
+    """
+    stalled = verify_site.TurnReading(
+        {"active": {"revision": 1}, "activity": {"kind": "answering"}}, None, [], None
+    )
+    with pytest.raises(RuntimeError) as stopped:
+        verify_site.check_turn_answered(
+            "https://leaf.page/examples/triage-board/",
+            "Deployment 446b8fe9 verified",
+            stalled,
+            1,
+            1,
+        )
+    assert str(stopped.value) == (
+        "https://leaf.page/examples/triage-board/ agent did not publish "
+        "‘Deployment 446b8fe9 verified’; it reached revision 1 from 1 "
+        "with the page reading answering and did not reply"
+    )
+
+    answered = verify_site.TurnReading(
+        {"active": {"revision": 2}, "activity": {"kind": "listening"}},
+        {"revision": 2},
+        [{"text": "deployment verified"}],
+        {"text": "deployment verified"},
+    )
+    verify_site.check_turn_answered(
+        "https://leaf.page/examples/triage-board/",
+        "Deployment 446b8fe9 verified",
+        answered,
+        1,
+        1,
+    )
+
+
 def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     page_dir, tmp_path
 ):

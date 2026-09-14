@@ -23,7 +23,7 @@
     let sent = false;
     let presentedMs = null;
     const rounded = (value) =>
-      Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+      Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
     const report = (outcome) => {
       if (sent) return;
       sent = true;
@@ -52,6 +52,7 @@
     };
     const observer = new MutationObserver(() => {
       if (!document.body?.hasAttribute("data-lf-presented")) return;
+      observer.disconnect();
       presentedMs = Math.round(performance.now());
       const afterLoad = () => setTimeout(() => report("presented"));
       if (document.readyState === "complete") afterLoad();

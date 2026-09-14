@@ -3836,10 +3836,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
 
 
 def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
-    """The list is rebuilt rather than reconciled, and an open menu defers the
-    rebuild so a version landing mid-walk can't take the focused row away.
-    Dismissal must apply the deferred update: unchanged state no longer repaints
-    the page, so no later state response can be relied on to rebuild the list."""
+    """An open menu keeps its row snapshot and focus until dismissal refreshes it."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page = open_page(browser, url, pin=True)
@@ -3848,10 +3845,15 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
 
     page.locator(".lf-version").click()
     expect(menu).to_be_visible()
+    focused_row = page.locator(".lf-version-row").first
+    focused_row.focus()
+    focused_row.evaluate("row => window.__lfFocusedVersionRow = row")
     _publish(serve.page_dir, 3, INLINE_PAGE, "three")
     told(page)  # the poll that carries it has been and gone
     # Deferred, so the walk the reader is in the middle of is undisturbed.
     expect(page.locator(".lf-version-row")).to_have_count(2)
+    assert focused_row.evaluate("row => row === window.__lfFocusedVersionRow")
+    expect(focused_row).to_be_focused()
 
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()

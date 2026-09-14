@@ -1,17 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ACTIVE_COOKIE,
-  CONTAINER_COOKIE,
-  HTTP_ACTIVE_COOKIE,
-  HTTP_CONTAINER_COOKIE,
+  ACTIVE_COOKIE_PREFIX,
+  HTTP_ACTIVE_COOKIE_PREFIX,
   HTTP_SESSION_COOKIE,
   SESSION_COOKIE,
   activeCookie,
   activeFromCookie,
-  clearContainerCookie,
-  containerCookie,
-  containerFromCookie,
   isPageApiRequest,
   isPageSessionFileRequest,
   isPrivatePageRequest,
@@ -73,7 +68,6 @@ describe("website page routing", () => {
         },
       }),
     ).toThrow('at pages["/"].state');
-
     // Every page carries the card a shared link unfurls into, so a build that
     // published one without it is refused here rather than at the reader.
     const { image: _image, ...cardless } = page("product");
@@ -132,30 +126,37 @@ describe("website page routing", () => {
     expect(isPrivatePageRequest("/examples/triage-board/api/state")).toBe(false);
   });
 
-  it("pins a mismatched page until its container catches the edge", () => {
-    expect(activeFromCookie(`${ACTIVE_COOKIE}=1`, true)).toBe(true);
-    expect(activeFromCookie(`${HTTP_ACTIVE_COOKIE}=1`, false)).toBe(true);
-    expect(activeFromCookie(`${HTTP_ACTIVE_COOKIE}=1`, true)).toBe(false);
-    expect(activeFromCookie(null, true)).toBe(false);
-    expect(activeCookie(true)).toBe(
-      `${ACTIVE_COOKIE}=1; Path=/; Secure; HttpOnly; SameSite=Lax`,
+  it("marks private state for only the page that owns it", () => {
+    const root = "/examples/triage-board";
+    expect(
+      activeFromCookie(
+        `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=1`,
+        true,
+        root,
+      ),
+    ).toBe(true);
+    expect(
+      activeFromCookie(
+        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=1`,
+        false,
+        root,
+      ),
+    ).toBe(true);
+    expect(
+      activeFromCookie(
+        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=1`,
+        true,
+        root,
+      ),
+    ).toBe(false);
+    expect(activeFromCookie(`${ACTIVE_COOKIE_PREFIX}-root=1`, true, root)).toBe(false);
+    expect(activeFromCookie(`${ACTIVE_COOKIE_PREFIX}=1`, true, root)).toBe(false);
+    expect(activeFromCookie(null, true, root)).toBe(false);
+    expect(activeCookie(true, root)).toBe(
+      `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=1; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
-    expect(activeCookie(false)).toBe(
-      `${HTTP_ACTIVE_COOKIE}=1; Path=/; HttpOnly; SameSite=Lax`,
-    );
-    expect(containerFromCookie(`${CONTAINER_COOKIE}=1`, true)).toBe(true);
-    expect(containerFromCookie(`${HTTP_CONTAINER_COOKIE}=1`, false)).toBe(true);
-    expect(containerFromCookie(`${HTTP_CONTAINER_COOKIE}=1`, true)).toBe(false);
-    expect(containerFromCookie(`${CONTAINER_COOKIE}=0`, true)).toBe(false);
-    expect(containerFromCookie(null, true)).toBe(false);
-    expect(containerCookie(true)).toBe(
-      `${CONTAINER_COOKIE}=1; Path=/; Secure; HttpOnly; SameSite=Lax`,
-    );
-    expect(containerCookie(false)).toBe(
-      `${HTTP_CONTAINER_COOKIE}=1; Path=/; HttpOnly; SameSite=Lax`,
-    );
-    expect(clearContainerCookie(true)).toBe(
-      `${CONTAINER_COOKIE}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax`,
+    expect(activeCookie(false, "/")).toBe(
+      `${HTTP_ACTIVE_COOKIE_PREFIX}-root=1; Path=/; HttpOnly; SameSite=Lax`,
     );
   });
 

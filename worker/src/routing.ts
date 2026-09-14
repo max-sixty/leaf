@@ -4,10 +4,8 @@ import * as z from "zod/mini";
 
 export const SESSION_COOKIE = "__Host-leaf-page";
 export const HTTP_SESSION_COOKIE = "leaf-page-local";
-export const ACTIVE_COOKIE = "__Host-leaf-active";
-export const HTTP_ACTIVE_COOKIE = "leaf-active-local";
-export const CONTAINER_COOKIE = "__Host-leaf-container";
-export const HTTP_CONTAINER_COOKIE = "leaf-container-local";
+export const ACTIVE_COOKIE_PREFIX = "__Host-leaf-active";
+export const HTTP_ACTIVE_COOKIE_PREFIX = "leaf-active-local";
 
 const PAGE_RESOURCE =
   /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$/;
@@ -160,23 +158,26 @@ export function sessionFromCookie(
   return null;
 }
 
-export function containerFromCookie(
+export function activeFromCookie(
   cookie: string | null,
   secure: boolean,
+  pageRoot: string,
 ): boolean {
   if (cookie === null) return false;
-  const expected = secure ? CONTAINER_COOKIE : HTTP_CONTAINER_COOKIE;
+  const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
+  const expected = pageCookieName(prefix, pageRoot);
   return cookie
     .split(";")
     .some((item) => item.trim() === `${expected}=1`);
 }
 
-export function activeFromCookie(cookie: string | null, secure: boolean): boolean {
-  if (cookie === null) return false;
-  const expected = secure ? ACTIVE_COOKIE : HTTP_ACTIVE_COOKIE;
-  return cookie
-    .split(";")
-    .some((item) => item.trim() === `${expected}=1`);
+function pageCookieName(prefix: string, pageRoot: string): string {
+  if (!PAGE_ROOT.test(pageRoot)) throw new Error("invalid page cookie root");
+  const suffix =
+    pageRoot === "/"
+      ? "root"
+      : `page-${pageRoot.slice(1).replaceAll("/", "_")}`;
+  return `${prefix}-${suffix}`;
 }
 
 export function newSessionId(random: Uint8Array): string {
@@ -193,20 +194,9 @@ export function sessionCookie(sessionId: string, secure: boolean): string {
   return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }
 
-export function containerCookie(secure: boolean): string {
-  const name = secure ? CONTAINER_COOKIE : HTTP_CONTAINER_COOKIE;
+export function activeCookie(secure: boolean, pageRoot: string): string {
+  const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
+  const name = pageCookieName(prefix, pageRoot);
   const security = secure ? "; Secure" : "";
   return `${name}=1; Path=/${security}; HttpOnly; SameSite=Lax`;
-}
-
-export function activeCookie(secure: boolean): string {
-  const name = secure ? ACTIVE_COOKIE : HTTP_ACTIVE_COOKIE;
-  const security = secure ? "; Secure" : "";
-  return `${name}=1; Path=/${security}; HttpOnly; SameSite=Lax`;
-}
-
-export function clearContainerCookie(secure: boolean): string {
-  const name = secure ? CONTAINER_COOKIE : HTTP_CONTAINER_COOKIE;
-  const security = secure ? "; Secure" : "";
-  return `${name}=; Path=/; Max-Age=0${security}; HttpOnly; SameSite=Lax`;
 }

@@ -49,8 +49,10 @@ rules a new or changed example has to meet.
   example, and `check_links` resolves it the way it resolves an href.
   `verify-site-local.sh` checks that built output through that boundary and prints the
   document, widget-upgrade, and presentation milestones with the requests and bytes
-  loaded by presentation. A failed check prints the Worker's log beside the browser's
-  own account of the page that stopped it. Pull requests run it for review evidence.
+  loaded by presentation. It requires the browser's startup profile to reach the Worker
+  and checks that activating one page leaves a neighboring page on the edge. A failed
+  check prints the Worker's log beside the browser's own account of the page that stopped
+  it. Pull requests run it for review evidence.
   `.github/workflows/publish-site.yaml` deploys both halves for relevant pushes to
   `main`; it runs the local check before the first public operation, then verifies the
   exact release again after deployment. That production pass also sends one private

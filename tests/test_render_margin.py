@@ -1215,6 +1215,26 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     ):
         expect(specimen(name)).to_have_css("cursor", "default")
 
+    axes = atlas.locator(".lf-margin-entry").evaluate_all(
+        """buttons => ({
+          behaviors: buttons.map(button => button.dataset.lfBehavior),
+          tones: buttons.map(button => button.dataset.lfTone),
+          ranks: buttons.map(button => button.dataset.lfRank),
+        })"""
+    )
+    grammar = page.evaluate(
+        """async () => {
+          const {MARGIN_ENTRY_SCHEMA} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return MARGIN_ENTRY_SCHEMA;
+        }"""
+    )
+    for axis in ("behaviors", "tones", "ranks"):
+        assert set(axes[axis]) == set(grammar[axis]), (
+            f"the gallery shows {sorted(set(axes[axis]))} of the declared "
+            f"{axis} {grammar[axis]}"
+        )
+
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
         [
             "Rank and behavior",

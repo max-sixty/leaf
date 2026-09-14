@@ -1711,9 +1711,11 @@ lf-new { background: var(--add-tint); }
  *
  * The platform half is HTML's phrasing-content set quoted whole, `link` and `meta`
  * included, which no slot will ever hold and which render nothing if one does. CSS
- * cannot derive the category, so the selector keeps the literal. Browser tests exercise
- * representative inline widgets and block children instead of reflecting that literal
- * through a second test-owned copy.
+ * cannot derive the category, so the selector keeps the literal, and nothing checks
+ * it: a name dropped from it blockizes any slot holding that element, with no test
+ * reading a slot's form to say so. What the browser does answer for is the marker
+ * half, through lf-compare's copy of the list, and the :where() argument, through a
+ * decided block slot keeping nothing it retired.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
  * reads as a stack. That was once the only room the slots could ask for: while the

@@ -133,6 +133,11 @@ export function isPageSessionFileRequest(route: PageRoute | null): boolean {
   return ["media", "revisions", "versions"].includes(directory ?? "");
 }
 
+/** The page's live document: the stable address a revision activates by reloading. */
+export function isLivePageDocumentRequest(route: PageRoute | null): boolean {
+  return route?.inside === "";
+}
+
 export function needsPageSlash(pathname: string, route: PageRoute): boolean {
   return route.inside === "" && pathname !== "/" && !pathname.endsWith("/");
 }

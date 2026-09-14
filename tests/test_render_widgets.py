@@ -1786,10 +1786,39 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "timing": "ease-out, ease-out",
     }
     nav_box = nav.bounding_box()
+    toc_box = toc.bounding_box()
+    banner_box = page.locator(".lf-banner").bounding_box()
     assert nav_box is not None
+    assert toc_box is not None
+    assert banner_box is not None
     assert 23 <= nav_box["x"] <= 25
     assert 64 <= nav_box["y"] <= 68
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
+    padding = toc.evaluate(
+        "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
+    )
+    assert toc_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
+    assert toc_box["y"] + toc_box["height"] == pytest.approx(
+        page.evaluate("innerHeight"), abs=1
+    )
+    assert nav_box["y"] == pytest.approx(toc_box["y"] + padding, abs=1)
+    assert nav_box["y"] + nav_box["height"] == pytest.approx(
+        toc_box["y"] + toc_box["height"] - padding, abs=1
+    )
+
+    # The dedicated lane, rather than only its visible spine, owns pointer entry. Its
+    # padding keeps the map clear of the banner without opening a dead gap between them.
+    page.mouse.move(500, nav_box["y"] - 8)
+    page.mouse.move(nav_box["x"] + 100, nav_box["y"] - 8, steps=8)
+    assert toc.evaluate("node => node.matches(':hover')")
+    expect(prepare).to_have_css("opacity", "1")
+    expect(prepare).to_have_css("pointer-events", "auto")
+    page.mouse.move(nav_box["x"] + 100, toc_box["y"] - 2)
+    assert page.evaluate(
+        "point => document.elementFromPoint(point.x, point.y)?.closest('.lf-banner') !== null",
+        {"x": nav_box["x"] + 100, "y": toc_box["y"] - 2},
+    )
+    expect(prepare).to_have_css("opacity", "0")
     # The map is sized to the window, so it runs past the shortcut bar and the line stands
     # over its last entry. That is the accepted state, not an oversight: the line is a
     # hover, and `lf-toc`'s own rule carries the TODO for choosing between that and a
@@ -1995,6 +2024,14 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(page).to_have_url(re.compile(r"#prepare$"))
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     assert page.evaluate("window.lfTocPressed") is True
+    expect(prepare).to_have_attribute("aria-current", "location")
+    assert prepare.evaluate("node => node.matches(':hover')")
+    current_hover_color = prepare.evaluate("node => getComputedStyle(node).color")
+    capacity_box = capacity.bounding_box()
+    assert capacity_box is not None
+    page.mouse.move(capacity_box["x"] + 100, capacity_box["y"] + 4)
+    expect(capacity).not_to_have_attribute("aria-current", "location")
+    expect(capacity).to_have_css("color", current_hover_color)
     revealed_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
         "return [r.x, r.y, r.width, r.height]; })"

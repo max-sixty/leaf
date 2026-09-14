@@ -1554,10 +1554,12 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     @container style(--lf-sidebar-slot: margin) {
       lf-toc { position: fixed;
                left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
-               top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
+               top: var(--lf-banner-h, 0px);
                z-index: 4;
                width: calc(var(--lf-sidebar-claim) - var(--sp-4));
-               pointer-events: none;
+               box-sizing: border-box;
+               padding-block: var(--sp-4);
+               pointer-events: auto;
                /* TODO: the shortcut bar covers this map's last entry — 21 of its 36 pixels,
                 * on every page with a spine, at every width, with nothing to scroll it
                 * clear. The map is the fourth region standing in the line's band and the
@@ -1573,7 +1575,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                 * line's own character is chosen — at which point either every region
                 * ends above it, this one included, or none does and the other three give
                 * their reservations back. */
-               height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
+               height: calc(100vh - var(--lf-banner-h, 0px));
                margin: 0; }
       body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
       body[data-lf-sizing] lf-toc { transition: none; }
@@ -1624,15 +1626,17 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       }
       lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
                                line-height: 1.2; max-height: 2.4em; }
-      lf-toc li a[aria-current="location"] { color: var(--ink-2); }
+      lf-toc li a[aria-current="location"]:not(:hover, :focus-visible) {
+        color: var(--ink-2);
+      }
       lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
                                outline-offset: calc(-1 * var(--here-ring-w)); }
-      lf-toc .lf-toc-nav:is(:hover, :focus-within),
+      lf-toc:is(:hover, :focus-within) .lf-toc-nav,
       body[data-lf-go-to-active] lf-toc .lf-toc-nav {
         --lf-toc-label-opacity: 1;
         background: color-mix(in srgb, var(--paper) 92%, transparent);
       }
-      lf-toc .lf-toc-nav:is(:hover, :focus-within) a,
+      lf-toc:is(:hover, :focus-within) .lf-toc-nav a,
       body[data-lf-go-to-active] lf-toc .lf-toc-nav a { pointer-events: auto; }
       /* A crowded but physically fitting map uses one line per destination before the
        * shared scale is fitted. It still reveals the complete route. */

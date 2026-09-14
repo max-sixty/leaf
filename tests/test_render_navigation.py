@@ -3596,6 +3596,82 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     expect(page.locator(".lf-notice")).to_be_visible()
 
 
+def test_reader_news_interrupts_and_then_restores_background_news(browser, serve):
+    """The visible queue is local state; repainting it neither moves nor re-announces."""
+    page = open_page(browser, serve(NOTED_PAGE))
+    page.locator(".lf-threads-toggle").focus()
+    page.evaluate(
+        """async () => {
+          window.__lfNoticeNode = document.querySelector('.lf-notice');
+          window.__lfNoticeFocus = document.activeElement;
+          window.__lfLiveChanges = [];
+          new MutationObserver(() => {
+            const words = document.querySelector('.lf-live').textContent;
+            if (words) window.__lfLiveChanges.push(words);
+          }).observe(document.querySelector('.lf-live'), {
+            childList: true,
+            subtree: true,
+          });
+          const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
+          notice('Agent replied — open Threads', {background: true});
+        }"""
+    )
+    live = page.locator(".lf-live")
+    notice = page.locator(".lf-notice")
+    expect(live).to_have_text("Agent replied — open Threads")
+    expect(notice).to_have_text("Agent replied — open Threads")
+
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/notifications.js'))"
+        ".notice('Saved — sent')"
+    )
+    expect(live).to_have_text("Saved — sent")
+    expect(notice).to_have_text("Saved — sent")
+    expect(notice).to_have_text("Agent replied — open Threads", timeout=5_000)
+    assert (
+        page.evaluate(
+            "() => window.__lfLiveChanges.filter("
+            "words => words === 'Agent replied — open Threads').length"
+        )
+        == 1
+    ), "restoring background news announced it again"
+    assert page.evaluate(
+        """() => document.querySelector('.lf-notice') === window.__lfNoticeNode
+          && document.activeElement === window.__lfNoticeFocus"""
+    )
+
+
+def test_overlapping_identical_live_announcements_are_fresh_changes(browser, serve):
+    """Even overlapping identical words give the polite region two arrivals."""
+    page = open_page(browser, serve(NOTED_PAGE))
+    page.locator(".lf-threads-toggle").focus()
+    page.evaluate(
+        """async () => {
+          window.__lfLiveNode = document.querySelector('.lf-live');
+          window.__lfLiveFocus = document.activeElement;
+          window.__lfRepeatedAnnouncements = [];
+          new MutationObserver(() => {
+            const words = document.querySelector('.lf-live').textContent;
+            if (words) window.__lfRepeatedAnnouncements.push(words);
+          }).observe(document.querySelector('.lf-live'), {
+            childList: true,
+            subtree: true,
+          });
+          const {announce} = await window.__lfRuntimeImport('/runtime/notifications.js');
+          announce('Same update');
+          announce('Same update');
+        }"""
+    )
+    page.wait_for_function(
+        "() => window.__lfRepeatedAnnouncements.filter("
+        "words => words === 'Same update').length === 2"
+    )
+    assert page.evaluate(
+        """() => document.querySelector('.lf-live') === window.__lfLiveNode
+          && document.activeElement === window.__lfLiveFocus"""
+    )
+
+
 def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
     """Crowded opaque routes are separated; none can be inferred if its face is dropped."""
     page = open_page(browser, serve(CROWDED_PAGE))

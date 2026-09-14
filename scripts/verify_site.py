@@ -512,6 +512,37 @@ def deployment_answer(replies: list[dict]) -> dict | None:
     return next((reply for reply in replies if "failure" not in reply), None)
 
 
+def check_turn_answered(
+    url: str, heading: str, turn: TurnReading, asks: int, revision: int
+) -> None:
+    """Require the deployed turn to have published the heading and answered the ask.
+
+    This reads only what the container admitted, so it settles what the turn did
+    before anything asks how the reader's browser drew it. A turn that answered
+    nothing leaves Threads no reply to show, and reporting the panel for it names a
+    presentation fault the page never had while discarding the reading — revision,
+    activity, receipts — that says why the turn stopped.
+    """
+    state, published, replies, answer = turn
+    tried = f" to {asks} asks" if asks > 1 else ""
+    reading = (state.get("activity") or {}).get("kind") or "no activity"
+    said = "; it replied: " + " / ".join(event["text"] for event in replies)
+    check(
+        published is not None,
+        f"{url} agent did not publish ‘{heading}’{tried}; it reached revision "
+        f"{state['active']['revision']} from {revision} with the page "
+        f"reading {reading}" + (said if replies else " and did not reply"),
+    )
+    check(
+        replies != [],
+        f"{url} agent published but did not reply{tried}; the page read {reading}",
+    )
+    check(
+        answer is not None,
+        f"{url} agent returned an unexpected reply{tried}{said}",
+    )
+
+
 def start_direct_agent(context, url: str, comment: dict) -> None:
     """Run the local adapter's side of the production Worker dispatch."""
     endpoint = urljoin(url, "_leaf/agent/")
@@ -786,38 +817,26 @@ def verify_agent_turn(
     except PlaywrightTimeout:
         pass
     visible_reply_at = page.evaluate("window.__leafVerifier.visibleReplyAt")
+    if visible_reply_at is not None:
+        check(
+            profile.visible_reply_started_ms is not None,
+            f"{url} did not record its first submission edge",
+        )
+        profile.milestones["response visible"] = (
+            visible_reply_at - profile.visible_reply_started_ms
+        ) / 1000
+    if report:
+        print_agent_profile(profile)
+    # What the turn did comes before how Threads drew it. The panel owes the reader a
+    # reply only once the container has admitted one, so a turn that stopped without
+    # answering is reported as that turn rather than as a page that failed to paint.
+    check_turn_answered(url, heading, turn, asks, revision)
+    published, answer = turn.published, turn.answer
     if visible_reply_at is None:
         visible_reply_debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
         raise RuntimeError(
             f"{url} reply never became visible in Threads: {visible_reply_debug}"
         )
-    check(
-        profile.visible_reply_started_ms is not None,
-        f"{url} did not record its first submission edge",
-    )
-    profile.milestones["response visible"] = (
-        visible_reply_at - profile.visible_reply_started_ms
-    ) / 1000
-    state, published, replies, answer = turn
-    if report:
-        print_agent_profile(profile)
-    tried = f" to {asks} asks" if asks > 1 else ""
-    reading = (state.get("activity") or {}).get("kind") or "no activity"
-    said = "; it replied: " + " / ".join(event["text"] for event in replies)
-    check(
-        published is not None,
-        f"{url} agent did not publish ‘{heading}’{tried}; it reached revision "
-        f"{state['active']['revision']} from {revision} with the page "
-        f"reading {reading}" + (said if replies else " and did not reply"),
-    )
-    check(
-        replies != [],
-        f"{url} agent published but did not reply{tried}; the page read {reading}",
-    )
-    check(
-        answer is not None,
-        f"{url} agent returned an unexpected reply{tried}{said}",
-    )
     reloaded = page.reload(wait_until="load", timeout=120_000)
     check(
         reloaded is not None and reloaded.ok,

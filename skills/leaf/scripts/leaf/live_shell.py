@@ -68,6 +68,8 @@ def write_live_shell(
             deliver_document(artifact.html.decode("utf-8"), revision_root),
             revision,
             version,
+            executable=artifact.executable,
+            widgets=artifact.widgets,
             server_id=server_id,
             layer_id=artifact.registry["$layer"]["generation"],
             bootstrap=artifact.resources["/runtime/bootstrap.js"].data.decode("utf-8"),

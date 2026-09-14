@@ -104,14 +104,20 @@ export function createStateApplication({
         await notifyChangedData();
         return;
       }
-      // Live activation navigates into a fresh document and never returns to install
-      // this candidate in the old realm. Pending deferral is rechecked by activates.
-      if (activation?.activates()) await activation.install();
-      if (!state.browser.views[String(runtime.currentRevision)]) {
+      // Pending deferral is rechecked by activates. An installation edits the reader's
+      // document and there is no putting it back, so the answer that would follow it is
+      // judged first, against the revision the install would leave showing. A candidate
+      // that could not be adopted is dropped here, with the page still whole.
+      const following = activation?.activates() ? activation.revision : null;
+      if (!applicationState.canAdopt(state, following)) {
         await notifyChangedData();
         return;
       }
-      if (!applicationState.adopt(state)) {
+      // A reload never returns to install this candidate in the old realm. A patch
+      // does, and adoption is where the revision it installed becomes current, so the
+      // document and the state that speaks for it reach the page in one reading.
+      if (following !== null) await activation.install();
+      if (!applicationState.adopt(state, following)) {
         await notifyChangedData();
         return;
       }

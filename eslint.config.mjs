@@ -1077,6 +1077,9 @@ export default [
   {
     // These primitives may use the browser, but importing an application owner
     // would make every caller acquire that owner's initialization and paint graph.
+    // A vendored bundle is not an owner: it initializes nothing, paints nothing, and
+    // reaches no other module, so a primitive may take an algorithm from one rather
+    // than write a second copy of it beside the layer's.
     files: [
       "skills/leaf/assets/runtime/anchor-coordinate.js",
       "skills/leaf/assets/runtime/chrome.js",
@@ -1087,12 +1090,24 @@ export default [
       "skills/leaf/assets/runtime/conversation/identity.js",
     ],
     rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(?!/vendor/)",
+              message:
+                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle may be imported.",
+            },
+          ],
+        },
+      ],
       "no-restricted-syntax": [
         "error",
         {
           selector:
-            "ImportDeclaration, ImportExpression, ExportAllDeclaration, ExportNamedDeclaration[source]",
-          message: "Runtime primitives must remain independent of other owners.",
+            "ImportExpression, ExportAllDeclaration, ExportNamedDeclaration[source]",
+          message: "Runtime primitives import statically and re-export nothing.",
         },
       ],
     },

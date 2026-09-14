@@ -58,6 +58,7 @@ from render_cases_interaction import (
     WRAP_TOP,
     backdate_note,
     drifting_widget,
+    executable_revision,
     live_url,
     stale_report,
     trial_family,
@@ -103,6 +104,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    take_browser_errors,
     ticked,
     told,
     undo,
@@ -1705,14 +1707,16 @@ diff --git a/tests/second.py b/tests/second.py
     expect(diff.locator("summary").nth(1)).to_be_visible()
 
 
-def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
+def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     browser, serve
 ):
     """A valid save advances the live surface; stamping only changes its label.
 
-    A revision opens a fresh document at the same address. The open panel and the
-    passage's viewport coordinate survive through explicit saved state. Five paragraphs arrive
-    above that passage so a raw scroll offset cannot satisfy the position assertion.
+    Nothing here is executable, so the reader keeps this document: the next file is
+    fetched while they read, then its authored markup is patched onto the page they
+    are standing in. The URL, runtime identity, open chrome, `main` itself, and the
+    passage's viewport coordinate therefore survive. Five paragraphs arrive above that
+    passage so a raw scroll offset cannot satisfy the position assertion.
     """
     # Deliberately collide with a property the runtime owns after startup. Authored
     # replacement must remove source properties without erasing a live runtime override.
@@ -1729,7 +1733,8 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
         """() => { document.scrollingElement.scrollBy({
           top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
           behavior: 'instant'
-        }); }"""
+        }); window.__leafDocument = 'the same runtime';
+          window.__leafMain = document.querySelector('main'); }"""
     )
     original_document = page.evaluate("performance.timeOrigin")
     before = page.locator("#live-reading").evaluate(
@@ -1751,8 +1756,14 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     told(page)
     expect(page).to_have_title("Live second")
 
-    assert page.evaluate("performance.timeOrigin") != original_document, (
-        "the revision retained the previous browser document"
+    assert page.evaluate("performance.timeOrigin") == original_document, (
+        "the revision replaced the browser document rather than its authored page"
+    )
+    assert page.evaluate("window.__leafDocument") == "the same runtime", (
+        "the revision replaced the browser document rather than its authored page"
+    )
+    assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
+        "the revision replaced the authored main rather than patching it"
     )
     assert "/versions/" not in page.url, (
         f"the update changed the live address to {page.url}"
@@ -1807,7 +1818,7 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     page.evaluate("document.body.focus({preventScroll: true})")
     assert page.evaluate("document.activeElement === document.body")
 
-    draft_document = page.evaluate("performance.timeOrigin")
+    page.evaluate("window.__leafMain = document.querySelector('main')")
     stamped = CliRunner().invoke(
         cli_model.cli,
         ["version", "stamp", str(serve.page_dir), "--text", "new findings"],
@@ -1820,14 +1831,720 @@ def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     assert signoff.evaluate("el => parseFloat(el.style.minWidth) > 0"), (
         "approval was measured while its control was detached"
     )
-    assert page.evaluate("performance.timeOrigin") == draft_document, (
-        "stamping the displayed revision replaced its document"
+    assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
+        "stamping the displayed revision replaced its main"
     )
 
     page.locator(".lf-general textarea").fill("This comment belongs to the live draft.")
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
+
+
+def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
+    """A patch applies the author's difference, not the difference from the page.
+
+    Everything the browser, the runtime, a reader, or a page module has done to a page
+    since it loaded makes the page differ from any source, so a patch that reconciled
+    the live tree against the arriving revision would take all of it back. Four owners,
+    none of them the author, on one page: the reader's open disclosure, the tokenizer's
+    spans in a code block, a tab stop `focus.js` lends to land the keyboard somewhere,
+    and what a page module built inside an authored container. The revision rewrites one
+    paragraph and mentions none of them.
+    """
+    body = """
+<h1 id="ow-title">Owners</h1>
+<details id="ow-details"><summary>Evidence</summary><p>The measured run.</p></details>
+<pre id="ow-code"><code class="language-python">def run(value):
+    return value + 1
+</code></pre>
+<div id="ow-built"></div>
+<p id="ow-land">A paragraph the keyboard can land on.</p>
+<p id="ow-edited">The cutover has not started.</p>
+"""
+    module = (
+        '<script type="module">'
+        "document.getElementById('ow-built')"
+        ".append(Object.assign(document.createElement('span'),"
+        " {id: 'ow-made', textContent: 'built by the page'}));"
+        "</script>"
+    )
+    first = leaf_page("Owners first", body, head=module)
+    second = first.replace("Owners first", "Owners second").replace(
+        "The cutover has not started.", "The cutover finished on the second attempt."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    expect(page.locator("#ow-made")).to_have_text("built by the page")
+    page.locator("#ow-details > summary").click()
+    expect(page.locator("#ow-details")).to_have_attribute("open", "")
+    # The runtime lends a tab stop to land the keyboard on a paragraph. Taking that
+    # attribute back is taking the focus with it.
+    page.locator("#ow-land").evaluate(
+        "el => { el.tabIndex = -1; el.focus({preventScroll: true}); }"
+    )
+    held = page.evaluate(
+        """() => ({
+          spans: document.querySelectorAll('#ow-code code span').length,
+          made: document.getElementById('ow-made'),
+        })"""
+    )
+    assert held["spans"] > 1, "the code block was never highlighted"
+    page.evaluate(
+        "() => { window.__owFirstSpan = document.querySelector('#ow-code code span'); }"
+    )
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Owners second")
+    expect(page.locator("#ow-edited")).to_have_text(
+        "The cutover finished on the second attempt."
+    )
+    standing = page.evaluate(
+        """() => ({
+          open: document.getElementById('ow-details').hasAttribute('open'),
+          spans: document.querySelectorAll('#ow-code code span').length,
+          sameSpan:
+            window.__owFirstSpan === document.querySelector('#ow-code code span'),
+          made: Boolean(document.getElementById('ow-made')),
+          landing: document.getElementById('ow-land').getAttribute('tabindex'),
+          focused: document.activeElement === document.getElementById('ow-land'),
+        })"""
+    )
+    assert standing == {
+        "open": True,
+        "spans": held["spans"],
+        "sameSpan": True,
+        "made": True,
+        "landing": "-1",
+        "focused": True,
+    }, f"the revision took back what its author never wrote: {standing}"
+
+
+def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
+    browser, serve
+):
+    """An unnamed widget is as much the reader's as a named one.
+
+    Nothing asks an author to name a widget, and the shipped examples do not, so the
+    digests each capture records key an unnamed one by its tag and place among the
+    others of that tag. Without that key it could never answer that its markup was
+    unchanged, and every revision would rebuild it — taking whatever the reader had
+    open in it.
+    """
+    body = (
+        '<h1 id="nm-title">Unnamed</h1>\n'
+        '<p id="nm-kept">A <lf-gloss tip="the cutover of the store">cutover</lf-gloss>'
+        " the reader is asking about.</p>\n"
+        '<p id="nm-edited">The cutover has not started.</p>'
+    )
+    first = leaf_page("Unnamed first", body)
+    second = first.replace("Unnamed first", "Unnamed second").replace(
+        "The cutover has not started.", "The cutover finished."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    expect(page.locator("lf-gloss")).to_have_count(1)
+    page.evaluate(
+        "() => { window.__nmGloss = document.querySelector('lf-gloss');"
+        " window.__nmGloss.dataset.readerHeld = 'open'; }"
+    )
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Unnamed second")
+    standing = page.evaluate(
+        """() => ({
+          same: window.__nmGloss === document.querySelector('lf-gloss'),
+          held: document.querySelector('lf-gloss')?.dataset.readerHeld ?? null,
+        })"""
+    )
+    assert standing == {"same": True, "held": "open"}, (
+        f"a widget the revision never touched was rebuilt for want of a name: {standing}"
+    )
+
+
+def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
+    """The paragraph a revision rewrote is the only thing the reader gives up.
+
+    A native selection, the focus, and the element a page was handed all belong to
+    nodes rather than to markup, and a revision that rewrites one paragraph says
+    nothing about any of them. So the words change and nothing else does: the selection
+    still reads what it read, over the same text node; whatever held the focus holds it
+    still; the element is still the element; and the chooser says the page moved.
+
+    A standing selection is a composition, so the page waits rather than moving under
+    the reader mid-sentence. This is the reader releasing that hold themselves, which
+    is the one way the case can be reached and the way it is met in practice: they see
+    a new page is available and ask for it while their selection stands.
+    """
+    first = leaf_page(
+        "Prose first",
+        """
+<h1 id="pr-title">Prose</h1>
+<p id="pr-kept">The account the reader is halfway through, held across the revision.</p>
+<p id="pr-edited">The cutover has not started.</p>
+<button id="pr-control" type="button">Inspect</button>
+""",
+    )
+    second = first.replace("Prose first", "Prose second").replace(
+        "The cutover has not started.",
+        "The cutover finished on the second attempt.",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.locator("#pr-control").focus()
+    held = page.evaluate(
+        """() => {
+          const node = document.getElementById('pr-kept').firstChild;
+          const range = document.createRange();
+          range.setStart(node, 4);
+          range.setEnd(node, 11);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          window.__prKept = document.getElementById('pr-kept');
+          window.__prNode = node;
+          return selection.toString();
+        }"""
+    )
+    assert held == "account", f"the selection did not stand where it was put: {held!r}"
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Prose first")
+    chip = page.locator(".lf-latest-chip")
+    expect(chip).to_be_visible()
+    # Pressed without taking the focus off whatever is holding it, which is what a
+    # press with a pointer does and what the assertion below is about.
+    page.evaluate("() => { window.__prFocus = document.activeElement; }")
+    chip.evaluate("el => el.click()")
+
+    expect(page).to_have_title("Prose second")
+    expect(page.locator("#pr-edited")).to_have_text(
+        "The cutover finished on the second attempt."
+    )
+    standing = page.evaluate(
+        """() => ({
+          selection: getSelection().toString(),
+          sameNode: getSelection().anchorNode === window.__prNode,
+          sameElement: window.__prKept === document.getElementById('pr-kept'),
+          focused: document.activeElement === window.__prFocus,
+        })"""
+    )
+    assert standing == {
+        "selection": "account",
+        "sameNode": True,
+        "sameElement": True,
+        "focused": True,
+    }, f"the revision took something the reader was holding: {standing}"
+    # The passage the selection named is the passage it still names, so the box the
+    # reader had open over it is still theirs to send.
+    expect(page.locator(".lf-composer")).to_contain_text("account")
+    page.locator(".lf-version").click()
+    expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
+
+
+def test_a_revision_reaches_the_markup_held_inside_a_template(browser, serve):
+    """A template's tree is its content fragment, not its children.
+
+    `childNodes` is empty on a template however much markup it holds, so a patch that
+    read the element alone left every template on a page frozen at the revision it
+    arrived in — silently, because the element is there and its attributes even keep
+    up. The one template an authored page may hold is the gallery's interaction page,
+    which is the markup every replay in the feature gallery instantiates.
+    """
+    first = leaf_page(
+        "Template first",
+        '<h1 id="tm-title">Template</h1>\n'
+        '<template id="tm-held" data-interaction-page>'
+        '<p class="tm-line">The first account.</p></template>',
+    )
+    second = first.replace("Template first", "Template second").replace(
+        "The first account.", "The second account, rewritten."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    held = "() => document.getElementById('tm-held').content.textContent"
+    assert page.evaluate(held) == "The first account."
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Template second")
+    assert page.evaluate(held) == "The second account, rewritten.", (
+        "the revision did not reach the markup inside the template"
+    )
+
+
+def test_a_revision_patches_one_line_of_a_template_written_over_several(browser, serve):
+    """A template's content is markup like the rest of the page, indentation included.
+
+    An author writes the lines of a template one to a line, so its content fragment
+    holds a whitespace text node between every pair of them and around both ends. Those
+    nodes are what the matcher walks through to reach the lines: they all read alike,
+    there are more of them than there are lines, and one of them taking a line's pairing
+    would put the rewrite in the wrong line or rebuild the fragment whole.
+    """
+    first = leaf_page(
+        "Lines first",
+        '<h1 id="tl-title">Lines</h1>\n'
+        '<template id="tl-held" data-interaction-page>\n'
+        '  <p class="tl-line">The first account.</p>\n'
+        '  <p class="tl-line">The <lf-gloss tip="held inside">second</lf-gloss>'
+        " account.</p>\n"
+        '  <p class="tl-line">The third account.</p>\n'
+        "</template>\n"
+        '<p id="tl-after">A <lf-gloss tip="after the template">term</lf-gloss> the'
+        " template does not hold.</p>",
+    )
+    second = first.replace("Lines first", "Lines second").replace(
+        "second</lf-gloss> account.", "second</lf-gloss> account, rewritten."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.evaluate(
+        "() => { window.__tlLines ="
+        " [...document.getElementById('tl-held').content.querySelectorAll('p')];"
+        " window.__tlAfter = document.querySelector('#tl-after > lf-gloss'); }"
+    )
+    assert page.evaluate("() => window.__tlLines.length") == 3
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Lines second")
+    standing = page.evaluate(
+        """() => {
+          const content = document.getElementById('tl-held').content;
+          const lines = [...content.querySelectorAll('p')];
+          return {
+            words: lines.map((line) => line.textContent),
+            kept: lines.map((line, at) => line === window.__tlLines[at]),
+            nodes: content.childNodes.length,
+            // The unnamed widget after the template is the second of its tag only
+            // when the one held inside the template counts; keyed one short, its
+            // digest names the wrong widget and the revision rebuilds it.
+            afterKept:
+              window.__tlAfter === document.querySelector('#tl-after > lf-gloss'),
+          };
+        }"""
+    )
+    assert standing == {
+        "words": [
+            "The first account.",
+            "The second account, rewritten.",
+            "The third account.",
+        ],
+        "kept": [True, True, True],
+        "nodes": 7,
+        "afterKept": True,
+    }, f"the revision did not land on the line it rewrote: {standing}"
+
+
+def test_a_rewritten_widget_inside_an_exhibit_stays_quoted(browser, serve):
+    """A widget that arrives alone still knows where it stands.
+
+    The readings taken off arriving markup before a controller owns it ask about its
+    place in the document: whether an exhibit quotes it, which declared elements
+    enclose it. The node is not in the document yet when they are taken, so the parent
+    it will stand under is stated to them. Without that, a rewritten widget inside an
+    exhibit arrives unquoted and its actions open, and a reader can record a decision
+    against material the page declares as evidence.
+    """
+    first = leaf_page(
+        "Quoted first",
+        """
+<h1 id="qt-title">Quoted</h1>
+<lf-specimen id="qt-spec" label="an inert pick">
+  <lf-options id="qt-opts" choose>
+    <lf-option id="qt-a">Alpha</lf-option>
+    <lf-option id="qt-b">Beta</lf-option>
+  </lf-options>
+</lf-specimen>
+""",
+    )
+    second = first.replace("Quoted first", "Quoted second").replace(
+        ">Beta<", ">Beta, rewritten<"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    read = (
+        "async () => { const api = await window.__lfRuntimeImport('/runtime/widget-api.js');"
+        " const reading = api.widgetController(document.getElementById('qt-opts')).read();"
+        " return { choose: reading.actions.choose.available,"
+        " label: document.getElementById('qt-b').textContent.trim() }; }"
+    )
+    assert page.evaluate(read) == {"choose": False, "label": "Beta"}
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Quoted second")
+    expect(page.locator("#qt-b")).to_contain_text("Beta, rewritten")
+    assert page.evaluate(read) == {"choose": False, "label": "Beta, rewritten"}, (
+        "the rewritten widget arrived unquoted"
+    )
+
+
+def test_an_authored_class_written_over_two_lines_patches(browser, serve):
+    """Source text is the patch's input, whitespace and all."""
+    first = leaf_page(
+        "Classes first",
+        '<h1 id="cs-title">Classes</h1>\n'
+        '<p id="cs-note" class="note\n    aside">The cutover has not started.</p>',
+    )
+    second = first.replace("Classes first", "Classes second").replace(
+        "The cutover has not started.", "The cutover finished on the second attempt."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Classes second")
+    expect(page.locator("#cs-note")).to_have_text(
+        "The cutover finished on the second attempt."
+    )
+    assert page.evaluate(
+        "() => [...document.getElementById('cs-note').classList].sort()"
+    ) == ["aside", "note"]
+
+
+def test_media_the_revision_never_mentioned_keeps_its_address(browser, serve):
+    """Each revision is delivered under its own root, and that is not a change.
+
+    Delivery writes the revision's root into every media address, so the same picture
+    is spelled differently in two revisions that never touched it. The page keeps the
+    address it has, which is still served because revisions are immutable, and the
+    picture is not fetched again.
+    """
+    first = leaf_page(
+        "Media first",
+        '<h1 id="md-title">Media</h1>\n'
+        '<img id="md-shot" src="/media/051bee487bfb5d13.png" alt="a shot">\n'
+        '<p id="md-edited">The cutover has not started.</p>',
+    )
+    second = first.replace("Media first", "Media second").replace(
+        "The cutover has not started.", "The cutover finished on the second attempt."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    held = page.evaluate(
+        """() => {
+          const shot = document.getElementById('md-shot');
+          window.__mdLoads = 0;
+          shot.addEventListener('load', () => { window.__mdLoads += 1; });
+          return shot.getAttribute('src');
+        }"""
+    )
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Media second")
+    expect(page.locator("#md-edited")).to_have_text(
+        "The cutover finished on the second attempt."
+    )
+    standing = page.evaluate(
+        "() => ({ src: document.getElementById('md-shot').getAttribute('src'),"
+        " loads: window.__mdLoads })"
+    )
+    assert standing == {"src": held, "loads": 0}, (
+        f"the revision re-addressed a picture it never mentioned: {standing}"
+    )
+
+
+def test_a_word_the_revision_adds_to_a_surviving_element_is_said(browser, serve):
+    """An attribute written in place is dressed like one that arrived.
+
+    A metric says its delta through an attribute rendered as real text. When a revision
+    adds that attribute to an element the patch keeps, the element is dressed again, so
+    the number is readable and pointable rather than an attribute nobody rendered.
+    """
+    first = leaf_page(
+        "Said first",
+        '<h1 id="sd-title">Said</h1>\n'
+        '<lf-metrics id="sd-metrics"><lf-metric id="sd-metric" value="42">'
+        "checks complete</lf-metric></lf-metrics>",
+    )
+    second = first.replace("Said first", "Said second").replace(
+        'value="42"', 'value="45" delta="+3"'
+    )
+    page = open_page(browser, live_url(serve(first)))
+    expect(page.locator('#sd-metric [data-lf-said="value"]')).to_have_text("42")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Said second")
+    expect(page.locator('#sd-metric [data-lf-said="value"]')).to_have_text("45")
+    expect(page.locator('#sd-metric [data-lf-said="delta"]')).to_have_text("+3")
+
+
+def test_a_revision_reaches_a_paragraph_a_page_module_moved(browser, serve):
+    """An authored element a page module relocated is still that element.
+
+    The module moved the paragraph into its own box, which is the module's to do. A
+    revision that rewrites the paragraph's words reaches it where it stands: the words
+    change, the node is the same, it stays in the box, and no second copy arrives at the
+    place the source wrote it.
+    """
+    body = """
+<h1 id="mv-title">Moved</h1>
+<div id="mv-box"></div>
+<p id="mv-moved">The cutover has not started.</p>
+<p id="mv-kept">A paragraph that stays where it was written.</p>
+"""
+    module = (
+        '<script type="module">'
+        "document.getElementById('mv-box')"
+        ".append(document.getElementById('mv-moved'));"
+        "</script>"
+    )
+    first = leaf_page("Moved first", body, head=module)
+    second = first.replace("Moved first", "Moved second").replace(
+        "The cutover has not started.", "The cutover finished on the second attempt."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    expect(page.locator("#mv-box > #mv-moved")).to_have_count(1)
+    page.evaluate("() => { window.__mvMoved = document.getElementById('mv-moved'); }")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Moved second")
+    standing = page.evaluate(
+        """() => ({
+          words: document.getElementById('mv-moved').textContent,
+          sameNode: window.__mvMoved === document.getElementById('mv-moved'),
+          inBox: document.getElementById('mv-moved').parentElement.id,
+          copies: document.querySelectorAll('#mv-moved').length,
+        })"""
+    )
+    assert standing == {
+        "words": "The cutover finished on the second attempt.",
+        "sameNode": True,
+        "inBox": "mv-box",
+        "copies": 1,
+    }, f"the revision did not reach the moved paragraph in place: {standing}"
+
+
+def test_a_same_kind_sibling_inserted_above_an_edited_one_keeps_the_page_whole(
+    browser, serve
+):
+    """The one shape the gap cannot decide, and what it still owes the reader.
+
+    Insert a paragraph above one the same revision rewrote and there is nothing to
+    decide it on: both are paragraphs, neither carries a name, and the words that would
+    have paired them are the words that changed. The reader's node survives either way,
+    so nothing is torn out from under them, but which of the two the words land in is
+    not something this can promise — and it is the diff's answer, not a walk's, so the
+    page itself is whole and in order whichever way it falls.
+    """
+    first = leaf_page(
+        "Twins first",
+        "<h1 id='tw-title'>Twins</h1>\n<p>The cutover has not started.</p>",
+    )
+    second = first.replace("Twins first", "Twins second").replace(
+        "<p>The cutover has not started.</p>",
+        "<p>A finding above it.</p>\n<p>The cutover finished on the second attempt.</p>",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.evaluate(
+        """() => {
+          const paragraph = document.querySelector('main p');
+          window.__twParagraph = paragraph;
+          window.__twNode = paragraph.firstChild;
+        }"""
+    )
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Twins second")
+
+    standing = page.evaluate(
+        """() => {
+          const paragraphs = [...document.querySelectorAll('main p')];
+          return {
+            words: paragraphs.map((p) => p.textContent),
+            kept: paragraphs.includes(window.__twParagraph),
+            connected: window.__twNode.isConnected,
+          };
+        }"""
+    )
+    assert standing == {
+        "words": [
+            "A finding above it.",
+            "The cutover finished on the second attempt.",
+        ],
+        "kept": True,
+        "connected": True,
+    }, f"the page did not come out whole: {standing}"
+
+
+def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_reader_on_it(
+    browser, serve
+):
+    """The gap between pinned siblings is diffed, not walked in step.
+
+    A stretch the revision edited also holds whatever it inserted, and a cursor meets an
+    insertion in the way that costs the reader their node: a heading above the paragraph
+    they are reading is nothing the cursor can pair with, so it spends the cursor, and
+    the paragraph is left with no partner and removed. Nothing is pinned here — the
+    revision rewrote the only paragraph in the gap — so the whole answer comes from the
+    gap's own diff.
+    """
+    first = leaf_page(
+        "Kinds first",
+        "<h1 id='kd-title'>Kinds</h1>\n<p>The cutover has not started.</p>",
+    )
+    second = first.replace("Kinds first", "Kinds second").replace(
+        "<p>The cutover has not started.</p>",
+        "<h2>Progress</h2>\n<p>The cutover finished on the second attempt.</p>",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    held = page.evaluate(
+        """() => {
+          const node = document.querySelector('main p').firstChild;
+          const range = document.createRange();
+          range.setStart(node, 4);
+          range.setEnd(node, 11);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          window.__kdNode = node;
+          window.__kdParagraph = node.parentElement;
+          return selection.toString();
+        }"""
+    )
+    assert held == "cutover", f"the selection did not land on the word: {held!r}"
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Kinds first")
+    page.evaluate("() => { window.__kdFocus = document.activeElement; }")
+    page.locator(".lf-latest-chip").evaluate("el => el.click()")
+    expect(page).to_have_title("Kinds second")
+
+    expect(page.locator("main h2")).to_have_text("Progress")
+    standing = page.evaluate(
+        """() => ({
+          words: document.querySelector('main p').textContent,
+          sameParagraph: window.__kdParagraph === document.querySelector('main p'),
+          sameNode: getSelection().anchorNode === window.__kdNode,
+          selection: getSelection().toString(),
+        })"""
+    )
+    assert standing == {
+        "words": "The cutover finished on the second attempt.",
+        "sameParagraph": True,
+        "sameNode": True,
+        "selection": "cutover",
+    }, f"the inserted heading took the reader's paragraph with it: {standing}"
+
+
+def test_a_paragraph_inserted_above_the_reader_does_not_shift_the_ones_below(
+    browser, serve
+):
+    """Unnamed siblings are matched by what they say, not by where they stand.
+
+    Walking the two child lists in step is right until something is inserted, and then
+    it is wrong in the way that costs a reader most: every later paragraph pairs with
+    its neighbour, so the one they are reading keeps its node while its words are
+    overwritten with the next paragraph's, and the last paragraph goes for want of a
+    partner. None of these paragraphs carries an id, which is the case a page of prose
+    is made of.
+    """
+    body = "\n".join(
+        f"<p>Paragraph {n}. " + "Settled words. " * 6 + "</p>" for n in range(1, 5)
+    )
+    first = leaf_page("Prose order first", f"<h1 id='po-title'>Order</h1>\n{body}")
+    second = first.replace("Prose order first", "Prose order second").replace(
+        "<p>Paragraph 1.",
+        "<p>Paragraph 0. A finding the revision put above everything else.</p>\n"
+        "<p>Paragraph 1.",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    held = page.evaluate(
+        """() => {
+          const second = [...document.querySelectorAll('main p')][1];
+          const node = second.firstChild;
+          const range = document.createRange();
+          range.setStart(node, 0);
+          range.setEnd(node, 11);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          window.__poNode = node;
+          window.__poParagraph = second;
+          return selection.toString();
+        }"""
+    )
+    assert held == "Paragraph 2", f"the selection did not land on paragraph 2: {held!r}"
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Prose order first")
+    page.evaluate("() => { window.__poFocus = document.activeElement; }")
+    page.locator(".lf-latest-chip").evaluate("el => el.click()")
+    expect(page).to_have_title("Prose order second")
+
+    standing = page.evaluate(
+        """() => {
+          const paragraphs = [...document.querySelectorAll('main p')];
+          return {
+            words: paragraphs.map((p) => p.textContent.trim().split('.')[0]),
+            selection: getSelection().toString(),
+            sameNode: getSelection().anchorNode === window.__poNode,
+            sameParagraph: window.__poParagraph === paragraphs[2],
+          };
+        }"""
+    )
+    assert standing == {
+        "words": ["Paragraph 0", "Paragraph 1", "Paragraph 2", "Paragraph 3"]
+        + ["Paragraph 4"],
+        "selection": "Paragraph 2",
+        "sameNode": True,
+        "sameParagraph": True,
+    }, f"the insertion shifted the paragraphs below it: {standing}"
+
+
+def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
+    browser, serve
+):
+    """A widget renders from its authored markup, so a rewritten one cannot be put right
+    from outside it: it leaves, and its replacement arrives through capture and upgrade
+    like any new element. The question beside it that the revision did not touch is the
+    same element it always was, still holding the reader's focus."""
+    first = leaf_page(
+        "Widgets first",
+        """
+<lf-ask id="wd-store-ask"><h2>Which store?</h2>
+<lf-options id="wd-store" choose>
+  <lf-option id="wd-keep">Keep the store</lf-option>
+  <lf-option id="wd-drop">Drop the store</lf-option>
+</lf-options></lf-ask>
+<lf-ask id="wd-when-ask"><h2>Which schedule?</h2>
+<lf-options id="wd-when" choose>
+  <lf-option id="wd-now">Start now</lf-option>
+  <lf-option id="wd-later">Start later</lf-option>
+</lf-options></lf-ask>
+""",
+    )
+    second = first.replace("Widgets first", "Widgets second").replace(
+        '<lf-option id="wd-later">Start later</lf-option>',
+        '<lf-option id="wd-later">Start later</lf-option>\n'
+        '  <lf-option id="wd-never">Do not start at all</lf-option>',
+    )
+    page = open_page(browser, live_url(serve(first)))
+    mark = page.locator("#wd-keep .lf-pick")
+    mark.focus()
+    expect(mark).to_be_focused()
+    page.evaluate(
+        "() => { window.__wdStore = document.getElementById('wd-store');"
+        " window.__wdWhen = document.getElementById('wd-when'); }"
+    )
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Widgets second")
+    expect(page.locator("#wd-never")).to_contain_text("Do not start at all")
+    expect(page.locator("#wd-never .lf-pick")).to_have_count(1)
+    assert page.evaluate("window.__wdWhen !== document.getElementById('wd-when')"), (
+        "the rewritten question kept an element rendering the markup it replaced"
+    )
+    assert page.evaluate("window.__wdStore === document.getElementById('wd-store')"), (
+        "the untouched question was replaced along with its neighbour"
+    )
+    expect(page.locator("#wd-keep .lf-pick")).to_be_focused()
+    page.keyboard.press("1")
+    expect(page.locator("#wd-keep")).to_have_attribute("chosen", "")
 
 
 def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser, serve):
@@ -2108,7 +2825,10 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
     wait_for_revision(page, 2)
 
     expect(page.locator("#prior-controls")).to_have_attribute("open", "")
-    expect(page.locator("#standing-control")).to_be_focused()
+    # The revision wrapped the control, so the element the reader was on is gone and
+    # focus went to the page with it. What the region still owes them is the way back
+    # to it: revealed rather than shut inside a disclosure they never closed.
+    expect(page.locator("#standing-control")).to_be_visible()
     after = page.locator("#reading-title").evaluate(
         "heading => heading.getBoundingClientRect().top"
     )
@@ -2140,7 +2860,9 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     wait_for_revision(page, 2)
 
     expect(page.locator("#prior-controls")).to_have_attribute("open", "")
-    expect(page.locator("#standing-control")).to_be_focused()
+    # Reachable, not focused: the revision wrapped the control, so the element the
+    # reader stood on is gone and the region owes them the way back to its replacement.
+    expect(page.locator("#standing-control")).to_be_visible()
 
 
 def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):
@@ -2302,7 +3024,8 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
     wait_for_revision(page, 2)
 
     assert right.evaluate("scroller => scroller.scrollTop") == 0
-    expect(page.locator("#standing-control")).to_be_focused()
+    # The region moved parents, so its control is a new element under the other one.
+    expect(page.locator("#right-region #standing-control")).to_be_visible()
 
 
 def test_a_live_revision_with_new_authored_code_reloads_the_document(browser, serve):
@@ -2425,14 +3148,20 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
 
 
-def test_live_activation_restores_standing_but_restarts_keyboard_sequences(
+def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     browser, serve
 ):
-    """Only explicit, revalidated standing crosses the fresh-document boundary.
+    """A revision arriving under a reader mid-press keeps their next press live.
 
-    An armed sequence is local to its document; the reader starts it again against the
-    current target set. A surviving authored control keeps its keyboard meaning.
-    """
+    Two kinds of pending input meet an activation. A sequence is the runtime's: bare `g`
+    names the visible targets, and the chips are read off whichever document is standing,
+    so the window holds through the revision and the hints land on the new page — minus
+    the hint for a link the revision took away, which is the honest reading. The reader's
+    standing is the document's: the Ask's actions remain live over a focused pick mark,
+    and a revision that leaves that widget's markup alone leaves the mark itself alone,
+    so the digit still picks and the bottom status acknowledges it. One revision arrives
+    as a draft and the next as a stamped version, since both bring the page to the reader
+    by the same door."""
     version_url = serve(LIVE_KEYS_V1)
     page = open_page(browser, live_url(version_url))
     chips = page.locator(".lf-go-to-hint")
@@ -2443,11 +3172,9 @@ def test_live_activation_restores_standing_but_restarts_keyboard_sequences(
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_V2)
     told(page)
     expect(page).to_have_title("Live keys second")
-    expect(link_chips).to_have_count(0)
-    page.keyboard.press("g")
     expect(link_chips).to_have_count(2)
     assert "visible target" in shortcut_bar_text(page), (
-        "the new sequence did not use the current document"
+        "the sequence did not follow the new document"
     )
     page.keyboard.type(address_code(page, "Link", "lk-link-three"))
     expect(page.locator("#lk-para")).to_be_focused()
@@ -2464,10 +3191,11 @@ def test_live_activation_restores_standing_but_restarts_keyboard_sequences(
     expect(page).to_have_title("Live keys third")
     expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text("Updated to v2")
     assert page.locator(".lf-toast").count() == 0
-    # The fresh mark: main was replaced whole, so the one the reader pressed on is gone.
+    # The same mark, still holding the focus the reader put on it: the revision rewrote
+    # nothing in this widget, so nothing replaced it.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
     assert "1–3\nOne / Two / Another option" in shortcut_bar_text(page), (
-        "the swap took the reader's keys down"
+        "the revision took the reader's keys down"
     )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
@@ -2564,43 +3292,6 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         page.close()
 
 
-def test_live_activation_revalidates_control_meaning_and_consumes_the_handoff(
-    browser, serve
-):
-    """A surviving id cannot transfer focus to a changed action, or replay it later."""
-    first = leaf_page(
-        "First action",
-        '<h1>Review</h1><button id="operation" type="button">Inspect</button>',
-    )
-    second = first.replace("First action", "Second action").replace(
-        ">Inspect</button>", ">Publish</button>"
-    )
-    page = open_page(browser, live_url(serve(first)))
-    operation = page.get_by_role("button", name="Inspect", exact=True)
-    operation.focus()
-    expect(operation).to_be_focused()
-
-    (serve.page_dir / "index.html").write_text(second)
-    wait_for_revision(page, 2)
-    expect(page.get_by_role("button", name="Publish", exact=True)).not_to_be_focused()
-    assert page.evaluate("document.activeElement === document.body")
-
-    # An unchanged action does retain focus across a subsequent live revision.
-    page.get_by_role("button", name="Publish", exact=True).focus()
-    (serve.page_dir / "index.html").write_text(
-        second.replace("Second action", "Third action")
-    )
-    wait_for_revision(page, 3)
-    expect(page.get_by_role("button", name="Publish", exact=True)).to_be_focused()
-
-    # Its one-use handoff must not restore that action on an ordinary reload.
-    page.locator("h1").click()
-    page.reload()
-    page.wait_for_function(BOTH_STAMPS)
-    assert page.evaluate("document.activeElement === document.body")
-    page.close()
-
-
 def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
     """Composition reads the control inside a widget's shadow tree, not its host."""
     version_url = serve(LIVE_V1)
@@ -2637,8 +3328,12 @@ def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
 
 
 def test_a_pending_navigation_prevents_another_live_activation(browser, serve):
-    """The departing document stops applying state after its navigation starts."""
-    page = open_page(browser, live_url(serve(LIVE_V1)))
+    """The departing document stops applying state after its navigation starts.
+
+    Each revision changes the page's own code, so each is followed into a fresh
+    document and there is a navigation to hold.
+    """
+    page = open_page(browser, live_url(serve(executable_revision(LIVE_V1, "one"))))
     held = []
 
     def hold_navigation(route):
@@ -2649,11 +3344,13 @@ def test_a_pending_navigation_prevents_another_live_activation(browser, serve):
 
     page.route("**/*", hold_navigation)
     try:
-        (serve.page_dir / "index.html").write_text(LIVE_V2)
+        (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
         holding(page, held, 1, "the fresh revision document")
         # A newer save overtakes this navigation. The same live root response owns
         # the final revision; the old realm cannot launch another activation.
-        (serve.page_dir / "index.html").write_text(LIVE_V3)
+        (serve.page_dir / "index.html").write_text(
+            executable_revision(LIVE_V3, "three")
+        )
         held[0].continue_()
         told(page)
         expect(page).to_have_title("Live third")
@@ -2662,11 +3359,66 @@ def test_a_pending_navigation_prevents_another_live_activation(browser, serve):
         page.unroute("**/*", hold_navigation)
 
 
+def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serve):
+    """A refusal is an answer the beat has to be able to read.
+
+    A page can adopt a newer revision without installing it. The fetch for its document
+    can fail, which is reported and left for the version chip to retry, so the reader
+    stands on the older revision with the newer one named in the state the page applied.
+    Every beat from then on asks the same preparation whether it would activate now. When
+    a later fetch answers from a layer re-vendored under the page, the preparation refuses
+    instead: this page is already reloading, and the revision belongs to the layer it is
+    leaving. An answer only the install path knew how to read made the beat's question
+    throw, and the beat carries the clock, the deferred corrections, and this retry, so a
+    refusal stopped all three and reported a page failure on the way out of a document
+    nobody had complained about.
+    """
+    first = leaf_page(
+        "Beat first",
+        '<h1 id="bt-title">Beat</h1>\n<p id="bt-line">The cutover has not started.</p>',
+    )
+    second = first.replace("Beat first", "Beat second").replace(
+        "The cutover has not started.", "The cutover finished."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    asked = []
+    # The state applies the first refusal and adopts the revision anyway; the two after
+    # it are beats, which is what puts the beat on the answer the fourth ask brings back.
+    REFUSALS = 3
+
+    def answer(route):
+        asked.append(route)
+        if len(asked) <= REFUSALS:
+            refuse(route)
+            return
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Layer": "re-vendored"},
+        )
+
+    page.route("**/revisions/*", answer)
+    try:
+        (serve.page_dir / "index.html").write_text(second)
+        holding(page, asked, REFUSALS + 1, "the asks the beats made for the revision")
+        # The refusal reloads, and the page that comes back is on the layer it was told
+        # about, holding the revision it could not be given in place.
+        expect(page).to_have_title("Beat second", timeout=15_000)
+        page.wait_for_function(BOTH_STAMPS)
+        problems = take_browser_errors(page)
+        assert len(problems) >= 2 and all("failed to load" in p for p in problems), (
+            "the beats did not come through with only their own refused asks behind "
+            f"them: {problems}"
+        )
+    finally:
+        page.unroute("**/revisions/*", answer)
+
+
 def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
     """Fresh-document activation does not depend on same-document animation."""
-    page = open_page(browser, live_url(serve(LIVE_V1)))
+    page = open_page(browser, live_url(serve(executable_revision(LIVE_V1, "one"))))
     page.evaluate("document.startViewTransition = undefined")
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
 
     expect(page).to_have_title("Live second", timeout=10_000)
     page.wait_for_function(BOTH_STAMPS)
@@ -7334,15 +8086,46 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
     expect(row).not_to_contain_text("3h")
 
 
-def test_command_hub_gets_a_new_document_after_live_version_replacement(browser, serve):
-    """Old command owners and their event listeners disappear with the document."""
+def test_command_hub_keeps_its_command_owners_through_a_live_version(browser, serve):
+    """A revision carrying no new code leaves the hub's owners standing.
+
+    The hub is page modules and the owners they constructed, and a live document can
+    neither evaluate a module twice nor redefine an element. A revision whose code is
+    the code already running therefore has nothing to re-run: the document stays, its
+    owners stay with it, and the widgets go on answering for themselves rather than
+    being rebuilt around the reader.
+    """
     url = serve(COMMAND_HUB_EXAMPLE)
     page = open_page(browser, live_url(url))
+    operations = page.locator("#dedupe-operations")
     original_document = page.evaluate("performance.timeOrigin")
+    page.evaluate(
+        "() => { window.__leafMain = document.querySelector('main');"
+        " window.__leafOperations = document.getElementById('dedupe-operations'); }"
+    )
     stamp_page(serve.page_dir, COMMAND_HUB_PAGE, "same plan")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    assert page.evaluate("performance.timeOrigin") != original_document
+    assert page.evaluate("performance.timeOrigin") == original_document, (
+        "an unchanged module graph opened a fresh document"
+    )
+    assert page.evaluate("window.__leafMain === document.querySelector('main')")
+    assert page.evaluate(
+        "window.__leafOperations === document.getElementById('dedupe-operations')"
+    ), "the revision replaced a widget whose authored markup it did not change"
+    # And the retained controller still answers for the widget: its descriptor, its
+    # request offers, and the projection it reads all survived with the element.
+    available = operations.evaluate(
+        """async holder => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const reading = widgetController(holder).read();
+          return [
+            reading.requests.restart.available,
+            reading.requests.land.available,
+          ];
+        }"""
+    )
+    assert available == [True, False]
 
 
 def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, serve):

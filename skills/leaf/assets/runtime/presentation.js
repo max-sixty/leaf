@@ -129,7 +129,11 @@ export const PRESENTATION = "lf-presentation";
 // pass here, so a dynamically imported surface cannot appear after either page is
 // already in front of the reader.
 export const PAGE_INTERFACE = "lf-page-interface";
-export async function settlePageInterface() {
+// `presented` is the wait the caller owes once the interface has settled: the whole
+// application at startup, and for a live revision patched in place only this region,
+// since that install runs inside the state turn whose answer may still owe a standing
+// widget its data — a wait on the whole application there is a wait on itself.
+export async function settlePageInterface(presented = whenApplicationPresented) {
   const pending = [];
   const presentation = attachApplicationPresentation("page-interface", document);
   const present = (promise) => {
@@ -143,7 +147,7 @@ export async function settlePageInterface() {
     // Each optional owner reports its own failure. One rejected surface must not keep
     // every generated control on the page behind the upgrade boundary.
     await presentation.present(pending, Promise.allSettled(pending));
-    await whenApplicationPresented();
+    await presented();
   } finally {
     presentation.disconnect();
   }
@@ -374,8 +378,8 @@ export function watchExternalLinks(root) {
 // code — and the page's own <pre><code> blocks, alongside the widgets and for the same
 // reason: the tokenizer is vendored, so a page has it exactly when it has a widget
 // layer at all. Written once because it happens twice, over the page at the upgrade and
-// over a widget rebuilt from the version's markup (rebuild), and a near-copy of it
-// would go stale the day the vocabulary grows a fourth pass.
+// over each root a live revision brings into it, and a near-copy of it would go stale
+// the day the vocabulary grows a fourth pass.
 export function dress(root) {
   renderSaid(root);
   renderQuiet(root);
@@ -500,8 +504,16 @@ export function renderSaid(root) {
     for (const el of elementsIn(root, tag))
       for (const [attr, edge] of Object.entries(entry["x-says"])) {
         const text = el.getAttribute(attr);
-        if (text === null || el.querySelector(`:scope > [data-lf-said="${attr}"]`))
+        const standing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
+        // A live revision may change or drop the attribute under a span already
+        // standing for it; the span follows the attribute rather than the first word
+        // it ever said.
+        if (standing) {
+          if (text === null) standing.remove();
+          else if (standing.textContent !== text) standing.textContent = text;
           continue;
+        }
+        if (text === null) continue;
         const span = document.createElement("span");
         span.dataset.lfSaid = attr;
         span.dataset.lfGen = "1";

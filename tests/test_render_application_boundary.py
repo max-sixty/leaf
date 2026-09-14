@@ -349,14 +349,11 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
         assert len(held) == 1
 
         # The explicit door may release a composition hold, but it cannot release the
-        # delivery hold. Put the reader back on the authored destination afterwards so
-        # the eventual handoff has the same standing the automatic attempt observed.
+        # delivery hold.
         with page.expect_response("**/api/state*"):
             page.locator(".lf-latest-chip").click()
         told(page)
         assert page.evaluate("performance.timeOrigin") == first_document
-        standing.click()
-        expect(standing).to_be_focused()
         assert len(held) == 1
     finally:
         held.pop(0).continue_()
@@ -368,7 +365,11 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
         "loads": 1,
         "label": "second",
     }
-    expect(page.locator("#standing-control")).to_be_focused()
+    # Leaf state crosses; the reader's place on a control does not. A fresh document
+    # cannot know it has found the same control again — an id, a tag and a count among
+    # siblings are a shape, not an identity — so it leaves focus on the page, where the
+    # page's own keys are live, rather than hand the next press to a guess.
+    assert page.evaluate("document.activeElement === document.body")
     expect(page.locator("#activation-go")).to_have_attribute("chosen", "")
     restored_top = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"

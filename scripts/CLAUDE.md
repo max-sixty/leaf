@@ -12,6 +12,12 @@ file says which script owns what, and the rules that hold across them.
 
 - `preview.py [page]` serves one public example or developer fixture as a live page
   under `.tmp/previews/<source-stem>`, watching the fixture and the selected runtime.
+  It re-vendors when the layer it watches changed or the source asked for different
+  packages, and copies the source alone otherwise, because vendoring mints a fresh
+  layer generation and the generation is part of what a revision is as executable code.
+  A preview that re-vendored on every save could therefore only ever show a revision
+  arriving as a fresh document, which is the half of the behavior a reader is least
+  likely to be looking for.
   `--export` writes the browser-drawn result as one standalone file instead.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
   companion data from the examples, regression pages under `tests/fixtures/pages/`, and the developer feature gallery.

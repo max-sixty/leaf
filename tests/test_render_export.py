@@ -153,8 +153,12 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
 
     assert preview.source_packages(source) == ["diagram"]
     assert preview.media_source(source) == media
-    paths, _ = preview.watch_paths(source, ROOT, [], {})
+    paths, _, layer = preview.watch_paths(source, ROOT, [], {})
     assert examples / "layer.json" in paths
+    # The layer is told apart from the page's own inputs, because re-vendoring changes
+    # what a revision is as executable code and editing the source does not.
+    assert str(examples / "layer.json") not in layer
+    assert str(ROOT / "uv.lock") in layer
 
 
 def test_preview_reexpands_inputs_only_when_directory_membership_changes(

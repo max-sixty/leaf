@@ -27,6 +27,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     SHORT_SUGGESTION,
     SUGGESTION_PAGE,
+    executable_revision,
     live_url,
     sent_events,
 )
@@ -4990,7 +4991,12 @@ def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, se
 def test_data_written_during_fresh_revision_startup_waits_for_activation(
     browser, serve
 ):
-    """A source update cannot paint until the new revision document has activated."""
+    """A source update cannot paint until the new revision document has activated.
+
+    The revision published below changes the page's own code, which is the one thing
+    the standing document cannot take on, so it is followed into a fresh document and
+    there is a startup to write data during.
+    """
     activation_probe = """
       window.__lfRevisionRegistryBlocked = false;
       window.__lfDataDuringStartup = false;
@@ -5023,7 +5029,9 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
     _publish(
         d,
         2,
-        current.replace("Live status follows.", "Live status follows now."),
+        executable_revision(
+            current.replace("Live status follows.", "Live status follows now."), "two"
+        ),
         "refreshed the page",
     )
     page.wait_for_function("() => window.__lfRevisionRegistryBlocked === true")

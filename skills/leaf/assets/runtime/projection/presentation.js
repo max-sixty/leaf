@@ -8,7 +8,6 @@ import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
 import { projectionDeferred, setProjectionDeferred } from "./state.js";
 import { applicationState, attachApplicationPresentation } from "../semantic-state.js";
-import { stateSpecs } from "../registry.js";
 import { runtime } from "../context.js";
 import { authored, elementById, inChrome, pageQueryAll } from "../passages.js";
 import {
@@ -152,21 +151,22 @@ export function createProjectionPresentation({ onDeferredReady }) {
     return covered;
   }
 
-  function resetAuthoredPage() {
-    const pageOwners = new Set();
-    for (const { tag } of stateSpecs())
-      for (const widget of pageQueryAll(tag))
-        if (widget.id && !inChrome(widget)) pageOwners.add(widget.id);
-    const dropCoordinates = (records) => {
-      for (const coordinate of records.keys()) {
-        const [owner] = JSON.parse(coordinate);
-        if (pageOwners.has(owner)) records.delete(coordinate);
-      }
-    };
-    dropCoordinates(committedProjection);
-    applicationState.forgetAuthored(pageOwners);
-    document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
+  // Page widgets leaving the document, told as a live revision takes them out. Their
+  // baselines describe markup the document no longer carries and their coordinate
+  // commits describe elements it no longer holds, so both go with them, while the
+  // widgets the revision left standing keep theirs.
+  function forgetAuthoredOwners(owners) {
+    for (const coordinate of [...committedProjection.keys()])
+      if (owners.has(JSON.parse(coordinate)[0])) committedProjection.delete(coordinate);
+    applicationState.forgetAuthored(owners);
   }
+
+  // The coverage stamp says how much of the log the last complete projection covered,
+  // and it is what a waiter outside the page reads to know the page has caught up. A
+  // revision arriving in this document has not been projected at all yet, so the stamp
+  // describes a reading nobody can still be looking at.
+  const retireProjectionCoverage = () =>
+    document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
 
   function watchProjectionDrag() {
     if (projectionDragObserver) return;
@@ -277,7 +277,8 @@ export function createProjectionPresentation({ onDeferredReady }) {
     prepare,
     present,
     stageOptimistic,
-    resetAuthoredPage,
+    forgetAuthoredOwners,
+    retireProjectionCoverage,
     coordinateProjectionCommitted,
   };
 }

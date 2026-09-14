@@ -436,11 +436,10 @@ export const renderStatus = clocked(document.body, renderStatusNow);
 // So the one control a page that asks nothing put in front of its reader offered
 // them an ending it could not deliver. The declaration rides the document, so a
 // pinned older version keeps its own decision.
-let signoffDeclared =
+export const isSignoffDeclared = () =>
   document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
 
-let signoff = signoffDeclared && runtime.currentStamp !== null;
-export const isSignoffDeclared = () => signoffDeclared;
+let signoff = isSignoffDeclared() && runtime.currentStamp !== null;
 
 // One order, at every width. An edge's control sits at that edge: All leaves is the first
 // control beside the tray it opens on the left, and approval and Threads finish beside the
@@ -520,11 +519,12 @@ export function mountBanner({ approveVersion, paintApproval }) {
   };
 }
 
-// Sign-off belongs to the authored revision. A revision navigation rebuilds the chrome;
-// stamping the document already open can still add or remove this control in place.
+// Sign-off belongs to the authored revision, and the head it rides in is the only copy
+// of it: a revision this document takes on in place brings its own, so the reading is
+// taken from the document each time rather than kept beside it. Stamping the document
+// already open can also add or remove this control without any revision change.
 export function stateSignoff(next, syncLayout, paintApproval) {
-  signoffDeclared = next;
-  const shown = signoffDeclared && runtime.currentStamp !== null;
+  const shown = next && runtime.currentStamp !== null;
   if (shown === signoff) return;
   signoff = shown;
   if (!signoff) approveBtn.remove();

@@ -8,9 +8,11 @@ selected layer whole also preserves its declaration-driven dynamic imports.
 
 A bundle contains exact source bytes, resources, their dependency edges, MIME
 types, the effective registry, and implementation provenance. Its canonical
-manifest determines its digest. The HTML revision file is the commit marker:
-the complete bundle is made durable before that file appears. Readers never
-discover a staged or incomplete revision, including after a process crash.
+manifest determines its digest, and carries a second ``executable`` digest over
+the inputs an already-open document cannot re-evaluate in place. The HTML
+revision file is the commit marker: the complete bundle is made durable before
+that file appears. Readers never discover a staged or incomplete revision,
+including after a process crash.
 """
 
 import hashlib
@@ -28,6 +30,7 @@ from urllib.parse import unquote, urlsplit
 
 import tinycss2
 import tree_sitter_javascript
+import turbohtml
 from tree_sitter import Language, Parser
 
 from leaf.files import file_stamp, fsync_parents, list_revisions, revision_path
@@ -100,6 +103,24 @@ class RevisionArtifact:
     @cached_property
     def implementations(self) -> dict:
         return json.loads(self.manifest)["implementations"]
+
+    @cached_property
+    def executable(self) -> str | None:
+        """What this revision is as executable code, or nothing where it predates the field.
+
+        A revision saved before capture recorded this carries a manifest without it, and
+        those revisions are immutable: the addresses that still serve them — every
+        stamped version and every revision URL — can never be repaired by saving the page
+        again. So the absence is a reading rather than a fault. A document that does not
+        say what it is as code is one an open page cannot take a revision from, which is
+        the reload path, and a historical document never activates anything at all.
+        """
+        return json.loads(self.manifest).get("executable")
+
+    @cached_property
+    def widgets(self) -> dict:
+        """What each declared widget in this revision's page was written as."""
+        return json.loads(self.manifest).get("widgets", {})
 
 
 def resolve_dependency(specifier: str, importer: str, *, module=False) -> str:
@@ -444,12 +465,74 @@ def _capture_artifact(
         }
         for tag, source in widget_sources.items()
     }
+    layer = registry.get("$layer", {})
+    # Which of this capture's inputs a standing document cannot take on in place. A
+    # module graph is evaluated once per document and a custom element is defined
+    # once, so new bytes behind either need a new document. Stylesheets, media,
+    # prose, and markup are absent because an open document can be given all of
+    # them, and a revision that only edits those should keep the reader's document.
+    #
+    # The vocabulary is digested without `$layer`, which describes the vendoring
+    # run rather than the code it installed. Its fingerprint and producer commit
+    # say where a layer was built, and its generation reaches a document through
+    # `runtime/layer-client.js`, where vendoring writes the epoch: a re-vendor
+    # moves that module, so the modules below already carry it.
+    executable = _digest(
+        _canonical_json(
+            {
+                "vocabulary": _digest(
+                    _canonical_json(
+                        {
+                            tag: entry
+                            for tag, entry in registry.items()
+                            if tag != "$layer"
+                        }
+                    )
+                ),
+                "modules": {
+                    path: resource.digest
+                    for path, resource in resources.items()
+                    if resource.mime == "application/javascript"
+                },
+                "inline": [
+                    _digest(script["body"].encode("utf-8"))
+                    for script in document.inline_scripts
+                ],
+            }
+        )
+    )
+    # What each declared widget in the authored page was written as, one digest per id.
+    # A reader's open document keeps the widgets a revision did not rewrite, and only
+    # the capture still holds the markup to say which those are: after upgrade a
+    # controller owns every widget's children, so the page cannot answer for itself.
+    # Digested from the parsed tree before delivery rewrites resource URLs, so two
+    # revisions of one widget differ only where its author changed it.
+    main = document.tree.select_one("main")
+    widgets = {}
+    unnamed: dict[str, int] = {}
+    for element in main.descendants if main is not None else ():
+        if not isinstance(element, turbohtml.Element):
+            continue
+        if not registry.get(element.tag, {}).get("x-upgrade"):
+            continue
+        # An unnamed widget is as much the reader's as a named one. Without a key it
+        # could never answer that its markup was unchanged, so every revision rebuilt
+        # it and took whatever the reader had open in it; `page-authoring.md` never
+        # asked an author to name one, and the shipped examples do not.
+        name = element.attrs.get("id")
+        if not name:
+            seen = unnamed.get(element.tag, 0)
+            unnamed[element.tag] = seen + 1
+            name = f"{element.tag}#{seen}"
+        widgets[name] = _digest(element.html.encode("utf-8"))
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
             "entries": sorted(set(entries)),
+            "executable": executable,
+            "widgets": widgets,
             "public_modules": list(PUBLIC_MODULES),
-            "layer": registry.get("$layer", {}),
+            "layer": layer,
             "declarations": dict(declaration_sources or {}),
             "implementations": implementations,
             "resources": {
@@ -523,6 +606,24 @@ def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
         file_stamp(bundle),
         manifest_stamp,
     )
+
+
+def read_manifest(page_dir: Path, revision: int) -> dict:
+    """One revision's manifest, without materializing the resources beside it.
+
+    ``read_artifact`` reads every captured byte of a revision, which is what a caller
+    serving one needs and what a caller reading a single manifest field pays for on a
+    cache miss. The active descriptor is that second caller, and it answers every state
+    read.
+    """
+    bundle = revision_path(page_dir, revision).absolute().with_suffix("")
+    manifest_path = bundle / "manifest.json"
+    return _read_manifest_stamped(manifest_path, file_stamp(manifest_path))
+
+
+@lru_cache(maxsize=8)
+def _read_manifest_stamped(manifest_path: Path, manifest_stamp: tuple | None) -> dict:
+    return json.loads(_read_stamped(manifest_path, manifest_stamp))
 
 
 @lru_cache(maxsize=8)

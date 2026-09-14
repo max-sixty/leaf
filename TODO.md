@@ -6,17 +6,6 @@ remain in git history.
 
 ## Now
 
-- **Make live revision activation feel like one continuously evolving document.** When
-  the captured registry and executable module graph are unchanged, patch authored HTML
-  in place at text-node granularity, recapture changed widget baselines, and publish one
-  semantic snapshot. Let retained DOM identity make the browser preserve focus, caret,
-  selection, hover, scroll, and armed keyboard routes; do not add parallel handoff code
-  for state the browser already owns. Navigate through the existing fresh-document path
-  only when captured executable inputs changed. Keep immutable revisions, stamps, and
-  comparisons in the background, and prove prose-only edits retain an untouched native
-  selection, parked hover, element identity, and an armed route while an executable
-  change still performs one correct reload.
-
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use

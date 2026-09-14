@@ -775,6 +775,23 @@ CONVERSATION_DIFF_PAGE = leaf_page(
 LIVE_READING = (
     "The reader is halfway through this account of the cutover and its evidence."
 )
+
+
+def executable_revision(source: str, mark: str) -> str:
+    """The same page carrying an inline module body no other revision has.
+
+    A revision states what it is as running code, and inline module bodies are part of
+    that statement, so a page that changes one can only be followed into a fresh
+    document. Nothing else in these fixtures is executable — prose, styling, root
+    attributes, and head metadata are not — which is why a case about the reload path
+    has to say so rather than relying on any edit reloading.
+    """
+    return source.replace(
+        "</head>",
+        f'<script type="module">window.__leafRevisionMark = "{mark}";</script></head>',
+    )
+
+
 LIVE_V1 = leaf_page(
     "Live first",
     """

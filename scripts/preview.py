@@ -20,9 +20,12 @@ An example can also ship companion `.jsonl` events and `.data.json` source
 values. The first lets a page arrive mid-conversation; the second supplies the
 same page-bound external data a real host would replace through `leaf data set`.
 
-A source or layer edit stops the preview service, re-vendors through the normal
-compatibility gate, stamps changed source, and restarts at the same URL. The
-browser reloads through the existing layer generation handshake. The page log
+A source or layer edit stops the preview service, stamps changed source, and restarts
+at the same URL. A layer edit also re-vendors, through the normal compatibility gate;
+a source edit alone does not, because vendoring mints a fresh layer generation and a
+revision carrying one is a different program, which the browser can only follow into a
+fresh document. So a prose edit here arrives the way it arrives for a reader, patched
+into the page they are standing in. The page log
 and reader decisions survive; a refused update stays visible in the terminal
 or background log and is retried after the next edit. Existing slots resume.
 Changing fixture identity or seeded history is refused so a slot keeps its feedback.
@@ -311,11 +314,20 @@ def refresh_preview(
     runtime: Path,
     identity: dict,
     automation: bool,
+    vendor: bool = True,
 ) -> None:
     """Replace only admitted layer/source changes; never recreate the page log.
 
     Runtime updates do not overwrite an agent's direct page edits. If the fixture
     and the live authored source both changed, neither silently wins.
+
+    `vendor` re-copies the layer, which is what a runtime edit needs and what a prose
+    edit must not do. Vendoring mints a fresh layer generation, and the generation is
+    part of what a revision is as executable code, so re-vendoring on every save made
+    every preview revision a different program from the one before it — and a preview,
+    the one place this is watched by eye, could only ever show the reload path. The
+    watcher re-vendors when the layer it watches changed, and copies the source alone
+    when that is all that changed.
     """
     if source_identity(source, runtime, automation) != {
         key: identity[key] for key in ("source", "runtime", "seed", "interaction")
@@ -337,7 +349,13 @@ def refresh_preview(
         )
     packages = source_packages(source)
     selection_args = package_selection_args(packages)
-    leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+    # The page's own package selection is vendored too, so a source that changed which
+    # packages it asks for needs the layer copied again whatever else stood still.
+    vendored_packages = json.loads(
+        (page / "registry.json").read_text(encoding="utf-8")
+    )["$layer"]["packages"]
+    if vendor or packages != vendored_packages:
+        leaf(launcher, runtime, "page", "init", *selection_args, str(page))
     refresh_media(source, page)
     if source_changed:
         previous = authored.read_bytes()
@@ -374,6 +392,10 @@ def watch_paths(
     paths = [
         path for path in inputs if path not in resolved_roots and not path.is_dir()
     ]
+    # Everything above is the layer `page init` vendors. What follows is the page's own,
+    # and the two are told apart because re-copying the layer changes what a revision is
+    # as executable code while editing the page does not.
+    layer = {str(path) for path in paths}
     manifest = source_manifest(source)
     paths.append(source)
     paths.extend(source_manifest_candidates(source))
@@ -390,6 +412,12 @@ def watch_paths(
         elif path.suffix == ".py":
             paths.append(path)
     paths.extend((runtime / "pyproject.toml", runtime / "uv.lock"))
+    layer.update(str(runtime / name) for name in ("pyproject.toml", "uv.lock"))
+    layer.update(
+        str(path)
+        for path in scripts.rglob("*")
+        if not path.is_dir() and path.suffix == ".py"
+    )
     media = media_source(source)
     directories.append(source.parent / "media")
     if manifest is not None:
@@ -399,7 +427,7 @@ def watch_paths(
             directories.append(path)
         else:
             paths.append(path)
-    return paths, list(dict.fromkeys(directories))
+    return paths, list(dict.fromkeys(directories)), layer
 
 
 def snapshot(paths: list[Path]) -> dict:
@@ -426,6 +454,7 @@ class WatchedInputs:
         self.seed = seed
         self.paths: list[Path] = []
         self.directories: list[Path] = []
+        self.layer: set[str] = set()
         self.all_paths: list[Path] = []
         self.directory_state = {}
 
@@ -433,13 +462,13 @@ class WatchedInputs:
         while True:
             known_directories = {str(path) for path in self.directories}
             directory_state = snapshot(self.directories)
-            paths, directories = watch_paths(
+            paths, directories, layer = watch_paths(
                 self.source, self.runtime, self.roots, self.seed
             )
             if any(str(path) not in known_directories for path in directories):
                 self.directories = directories
                 continue
-            self.paths, self.directories = paths, directories
+            self.paths, self.directories, self.layer = paths, directories, layer
             break
         self.all_paths = list(dict.fromkeys((*self.paths, *self.directories)))
         state = snapshot(self.all_paths)
@@ -452,6 +481,13 @@ class WatchedInputs:
             if str(path) in directory_state
         }
         return current
+
+    # Whether what `page init` vendors moved, as against the page's own source. One
+    # re-copies the layer and one does not, and the difference is what a reader sees:
+    # a fresh layer generation makes the next revision a different program, which is a
+    # reload, while a prose edit alone is a revision the reader keeps their page for.
+    def layer_changed(self, before: dict, after: dict) -> bool:
+        return any(before.get(key) != after.get(key) for key in self.layer)
 
     def read(self) -> dict:
         if not self.all_paths:
@@ -699,6 +735,7 @@ def watch_preview(
                 if current != candidate:
                     candidate = current
                     continue  # one quiet interval groups an editor's save batch
+                vendored = watched_inputs.layer_changed(previous, current)
                 previous = current
                 if automation:
                     token, port = temporary.token, temporary.port
@@ -708,7 +745,13 @@ def watch_preview(
                     cmd_stop(page)
                 try:
                     refresh_preview(
-                        source, page, launcher, runtime, identity, automation
+                        source,
+                        page,
+                        launcher,
+                        runtime,
+                        identity,
+                        automation,
+                        vendor=vendored,
                     )
                     roots = layer_inputs(
                         tuple(read_json(page / "registry.json")["$layer"]["packages"])

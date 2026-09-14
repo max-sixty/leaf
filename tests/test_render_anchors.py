@@ -340,20 +340,26 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     ) == ["c-backfill"], "the diff read the runtime's own spans as text the base lacked"
 
 
-@pytest.mark.parametrize("revision", [1, 2])
+@pytest.mark.parametrize("revision", [1, 2, 3])
 def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     browser, serve, revision
 ):
     """Module-only words may sit between authored parts, but they cannot give the
-    browser more context than the mapped revision can confirm."""
+    browser more context than the mapped revision can confirm.
+
+    Three documents: the one served, one where a revision changed only the title so
+    every widget is kept, and one where the revision rewrote the milestone itself so
+    that widget arrives alone into the page and its fence is read off the arriving
+    root rather than off a page it is not yet in.
+    """
     page = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
+    source = FENCED_CAPTURE_PAGE
     if revision == 2:
-        # Activation mounts cloned nodes after preloading their widget modules.
-        stamp_page(
-            serve.page_dir,
-            FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>"),
-            "Refresh the document",
-        )
+        source = FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
+    elif revision == 3:
+        source = FENCED_CAPTURE_PAGE.replace('when="week-1"', 'when="week-2"')
+    if revision != 1:
+        stamp_page(serve.page_dir, source, "Refresh the document")
         wait_for_revision(page, 2)
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
@@ -368,7 +374,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
 
     for index, (selector, quote, section) in enumerate(cases, 1):
         expected_anchor = anchor_capture_model.capture_anchor(
-            structure_model.SourceDocument(FENCED_CAPTURE_PAGE),
+            structure_model.SourceDocument(source),
             registry,
             quote,
             section,

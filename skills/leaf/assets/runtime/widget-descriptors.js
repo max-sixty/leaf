@@ -101,17 +101,25 @@ function askDescriptor(element, declaration, documentContext) {
   };
 }
 
+// `boundary` is the document region this markup's target references resolve within.
+// It is derived from the markup itself wherever the markup is already standing in that
+// region. A live revision activation is the one caller that holds them apart: it reads
+// the incoming revision off an inert copy so each widget's declaration is captured
+// before a controller can rewrite it, while the references those widgets capture belong
+// to the `main` they are about to be patched into.
 export function captureWidgetDescriptors(
   root = document,
   documentContext = { kind: "page", revision: runtime.currentRevision },
+  boundary = null,
 ) {
   const captured = new Map();
   const referenceBoundary =
-    documentContext.kind === "thread"
+    boundary ??
+    (documentContext.kind === "thread"
       ? targetReferenceBoundary(root.children)
       : root.matches?.("main")
         ? root
-        : root.querySelector("main");
+        : root.querySelector("main"));
   for (const element of candidates(root)) {
     if (!element.id || byElement.has(element)) continue;
     const declaration = structuredClone(runtime.registry[element.localName]);
@@ -135,6 +143,17 @@ export function captureWidgetDescriptors(
     captured.set(element.id, descriptor);
   }
   if (captured.size) applicationState.captureDescriptors(captured);
+}
+
+// A revision that rewrites a widget's authored markup retires the descriptor taken from
+// the markup it replaced. The id survives the revision and the element does not, so the
+// id-keyed readings are the ones that would otherwise answer for a document nobody is
+// reading; the element-keyed ones leave with their elements.
+export function forgetWidgetDescriptors(ids) {
+  for (const id of ids) {
+    byId.delete(id);
+    referenceBoundaryById.delete(id);
+  }
 }
 
 export function widgetDescriptor(owner) {

@@ -137,6 +137,8 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         PAGE_SOURCE,
         1,
         1,
+        executable="sha256:executable",
+        widgets={},
         server_id="server",
         layer_id="layer",
         bootstrap="",

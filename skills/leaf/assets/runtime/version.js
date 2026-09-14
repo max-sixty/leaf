@@ -30,26 +30,42 @@
  * base, and walking to the version being read clears the comparison because it has no
  * earlier base to mark against.
  *
- * Every live revision activates by reloading the stable live address. Arbitrary page
- * modules, listeners, custom elements, and styles therefore start together in a fresh
- * browser document. `midComposition` or an open version menu defers activation and leaves
- * the newest-version chip visible. Ending composition releases it on the next heartbeat;
- * pressing the chip explicitly releases the composition hold. `goActive` is that door
- * and the way back from a pinned document; `goVersion` opens an older public version.
+ * A live revision arrives through one door, `prepareActivation`, with two installs
+ * behind it, and one server fact decides which. Each revision's delivery states the
+ * digest of what it is as running code — registry, module graph, inline module bodies —
+ * and the state naming the next revision carries the same digest for it. Equal, and the
+ * revision is taken on in the document the reader is standing in: the authored page is
+ * patched onto the arriving source, the widgets it rewrote are recaptured, and the rest
+ * of the document is untouched. Different, and it opens a fresh one, because a live
+ * document cannot re-evaluate a module graph or redefine a custom element. Content,
+ * prose, styling, and media are not executable and cost nobody a reload.
+ *
+ * `midComposition`, an unresolved delivery, or an open version menu defers either
+ * install and leaves the newest-version chip visible. Ending composition releases it on
+ * the next heartbeat; pressing the chip explicitly releases the composition hold.
+ * `goActive` is that door and the way back from a pinned document; `goVersion` opens an
+ * older public version.
+ *
+ * What a patch keeps, it keeps by keeping the node: caret, native selection, hover,
+ * scroll, focus, an armed key sequence over the ids in front of the reader, and every
+ * widget the revision left word-for-word alone, with the state the log gave it. Nothing
+ * is carried across anything, because nothing crosses. The reading landmark and the
+ * standing comparison are still recorded, because content above the reader can change
+ * height and the base document is another fetch.
  *
  * An older version is historical rather than live: choosing one navigates to its virtual
  * version address with `?pin`, and it stays at the revision it was pinned at while
  * offering the newest-version chip. The view record carries reading position and the
- * decision-walk landmark across navigation. Live activation additionally carries a
- * one-use handoff containing that reading, the standing comparison, and the authored
- * or retained runtime control the reader held. The new document restores a control only
- * when its owner and meaning survive. Otherwise it restores the surviving authored
- * owner or leaves focus on the page. Explicit historical travel carries neither focus
- * nor a selection. Native selections and arbitrary module state never cross documents.
- * TODO(2026-09-13): Carry an armed Go-to sequence through the activation handoff,
- * preserving its filter and partial hint only when each remaining route revalidates.
- * Durable drafts and stored chrome arrangement use their
- * existing stores; transient retained chrome revalidates its own semantic handoff.
+ * decision-walk landmark across navigation. A reload install additionally carries a
+ * one-use handoff containing that reading, the standing comparison, the pointer, and the
+ * margin's own retained standing, which is keyed by the entries and owners it names
+ * rather than by where anything sat. Focus on the page is not in it: an authored control
+ * has no identity a new document could be sure it had found again, only a shape — an
+ * owner's id, a tag, a class, a count among its siblings, a string of its words — and a
+ * guess that lands on the wrong control hands it the reader's next press. Focus goes to
+ * the page instead, where its keys are live. Explicit historical travel carries neither
+ * focus nor a selection. Durable drafts and stored chrome arrangement use their existing
+ * stores. Native selections and arbitrary module state never cross documents.
  *
  * The handoff is scoped to this page and consumed once, even when a newer revision
  * overtakes the one that triggered navigation. Ordinary reloads and history travel
@@ -67,9 +83,16 @@
  * back navigation. `landArrival` applies that ranking only after final page geometry is
  * available.
  *
- * Historical travel preserves directional continuity without claiming the reader still
- * stands on a control. Live activation restores only the reader's revalidated standing,
- * after authoritative presentation, so a changed control cannot inherit their next press.
+ * Neither install claims the reader still stands on a control. A patch does not have to
+ * claim it: focus the revision did not disturb was never lost, because the control is
+ * the same element. A reload cannot, so it does not try.
+ *
+ * Served identity is read before boot mutates the document, and it includes what each
+ * declared widget in this page was written as, one digest per id, decided by the capture
+ * that wrote the revision. A patch keeps the widgets the arriving revision spells the
+ * same way. The page cannot answer that for itself — after upgrade a controller owns
+ * every widget's children — and does not have to: both maps arrive in a document head,
+ * this one at boot and the other inside the revision document a patch already fetches.
  *
  * A layer also owes a way out at all, over the same page the way in is live on.
  * `versionsOffered` (there is a menu) answers for the destination, the chooser standing over
@@ -88,9 +111,10 @@
  */
 import { runtime } from "./context.js";
 
+import { patchTree } from "./dom-children.js";
 import { clippedRect, shownBox } from "./geometry.js";
 import { PRESS, walkRows } from "./keyboard/bindings.js";
-import { focused, keys, paintKeys } from "./keyboard/scopes.js";
+import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
 import {
@@ -130,18 +154,33 @@ import {
 } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
-import { focusDestination } from "./focus.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButCommandReference } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import { sameDelivery } from "./layer-client.js";
+import { reportPageError, sameDelivery } from "./layer-client.js";
 import { projectView } from "./semantic-state.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
-import { domFacet, stateCoordinate } from "./projection/authored.js";
-import { applicationState } from "./semantic-state.js";
+import {
+  domFacet,
+  rememberAuthoredParents,
+  stateCoordinate,
+} from "./projection/authored.js";
+import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
+import { MARKED_IN_PAGE, markDeclared, settlePageInterface } from "./presentation.js";
+import { runtimeRootState } from "./root-state.js";
+import {
+  captureWidgetDescriptors,
+  forgetWidgetDescriptors,
+} from "./widget-descriptors.js";
+import {
+  importWidgets,
+  patchDocument,
+  reindexPassageOwners,
+  rememberPassageParts,
+} from "./widget-loader.js";
 
 // Which document this is, read off the served page before anything else asks: the
 // revision the server rendered, the stamp a pinned version URL or its marker names, and
@@ -163,6 +202,92 @@ applicationState.identify(
   LIVE_ROOT,
 );
 servedStampMarker?.remove();
+// What this document is as running code: the digest the capture took over the registry,
+// the module graph, and every inline module body. A revision whose digest matches can
+// be taken on by this document; one whose digest differs needs a fresh one, because a
+// live document cannot re-evaluate a module graph or redefine a custom element.
+export const servedExecutable = document.querySelector(
+  'meta[name="lf-executable"][data-lf-runtime]',
+)?.content;
+// What each declared widget in this document's page was written as, one digest per id,
+// decided by the capture that wrote the revision. A patch keeps the widgets whose
+// digest the arriving revision repeats, and the arriving revision's map is in the head
+// of the document a patch already fetches, so neither reading costs a request.
+const widgetDigests = (doc) => {
+  const stated = doc.querySelector('meta[name="lf-widgets"][data-lf-runtime]')?.content;
+  return stated ? JSON.parse(stated) : {};
+};
+export const servedWidgets = widgetDigests(document);
+
+// The document roots may carry authored classes, data attributes, and inline custom
+// properties that page-local styles read. The live document also paints its own facts
+// onto those same two elements. Most arrive after this module, but the server's prepaint
+// bootstrap deliberately runs before the module graph and has already written the live
+// shell and provisional reader layout. Authored markup cannot use the `data-lf-` or
+// `lf-` namespaces, so that boundary identifies the authored share without mistaking
+// early runtime state for page source. An activation can then replace exactly that share
+// without erasing the presentation, layout, and mode facts the surviving runtime owns.
+function authoredAttributes(root) {
+  const attributes = new Map();
+  for (const { name, value } of root.attributes) {
+    if (name.startsWith("data-lf-")) continue;
+    if (name === "class") {
+      const authoredClasses = [...root.classList]
+        .filter((token) => !token.startsWith("lf-"))
+        .join(" ");
+      if (authoredClasses) attributes.set(name, authoredClasses);
+    } else attributes.set(name, value);
+  }
+  return attributes;
+}
+// The authored share of the head, which a revision brings with it. Delivery marks
+// what it inserts — the identity markers, the page's canonical address, a
+// publication's card — and that share belongs to the document the reader was
+// served rather than to the revision arriving inside it.
+const versionedHeadNode = (node) =>
+  !node.hasAttribute("data-lf-runtime") &&
+  (node.localName === "title" ||
+    node.localName === "style" ||
+    node.localName === "base" ||
+    (node.localName === "meta" &&
+      (node.hasAttribute("name") || node.hasAttribute("property"))) ||
+    (node.localName === "link" &&
+      !(
+        node.rel === "stylesheet" &&
+        new URL(node.href, document.baseURI).pathname === "/theme.css"
+      )));
+// This document as its author wrote it, kept inert beside the page it became. A patch
+// applies the difference between two revisions, so it needs the revision the page is
+// standing on as source — not the page, which by then carries a tokenizer's spans, a
+// reader's open disclosure, a tab stop the runtime lent, and whatever a page module
+// built. Cloned here because this module evaluates before any of that: the copy and the
+// page are the same tree for exactly this long, which is also what makes the pairing
+// below a plain walk of the two together.
+const pairSources = (source, live, pairs) => {
+  pairs.set(source, live);
+  const held = source.localName === "template" ? source.content : source;
+  const shown = live.localName === "template" ? live.content : live;
+  const children = [...shown.childNodes];
+  for (const [at, child] of [...held.childNodes].entries())
+    if (children[at]) pairSources(child, children[at], pairs);
+  return pairs;
+};
+// Where a delivered document's captured resources are addressed: the directory its
+// registry probe names, which is the revision's own root.
+const artifactRoot = (root) =>
+  root
+    .querySelector("script[data-lf-runtime][data-lf-probe]")
+    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
+const servedMain = document.querySelector("body > main");
+const initialDocument = {
+  authoredBodyAttributes: authoredAttributes(document.body),
+  authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
+  authoredHtmlAttributes: authoredAttributes(document.documentElement),
+  source: servedMain?.cloneNode(true) ?? null,
+};
+const initialPairs = servedMain
+  ? pairSources(initialDocument.source, servedMain, new WeakMap())
+  : new WeakMap();
 
 /* Passive version destinations shared with banner and layout. */
 export const versionLabels = () => ["Draft", "v999"];
@@ -191,9 +316,20 @@ export function createVersionController({
   setLanded,
   readableDestination,
   scrollToElement,
+  forgetAuthoredOwners,
+  retireProjectionCoverage,
+  syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
 }) {
+  let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
+    initialDocument;
+  // What this document's widgets were written as, and the source each live node stands
+  // for. Both are replaced by every revision this document takes on.
+  let authoredWidgets = servedWidgets;
+  let authoredSource = initialDocument.source;
+  let authoredRoot = artifactRoot(document);
+  let sourcePairs = initialPairs;
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
   const HANDOFF_KEY = "lf-revision-handoff";
@@ -1203,9 +1339,266 @@ export function createVersionController({
   }
 
   // ---------- live revision activation ----------
-  // Navigation is the activation boundary for every revision, including content-only
-  // changes. No new module is imported into the departing document. The chip may release
-  // a composition hold, but unresolved delivery must settle before its ledger disappears.
+  function replaceAuthoredAttributes(target, source, prior) {
+    const scratch = document.createElement(target.localName);
+    for (const [name, value] of prior) scratch.setAttribute(name, value);
+    const runtimeState = runtimeRootState(target);
+    for (const name of prior.keys()) {
+      if (name === "class")
+        for (const token of scratch.classList) target.classList.remove(token);
+      else if (name === "style")
+        for (const property of scratch.style) {
+          // Inline style is the one root attribute whose members can have different
+          // owners. Registered runtime properties survive; every other declaration is
+          // authored and retires with its revision like every other source attribute.
+          if (!runtimeState.styles.has(property)) target.style.removeProperty(property);
+        }
+      else if (!runtimeState.attributes.has(name)) target.removeAttribute(name);
+    }
+    const next = authoredAttributes(source);
+    for (const [name, value] of next) {
+      if (name === "class") {
+        for (const token of value.split(" ")) target.classList.add(token);
+      } else if (name === "style") {
+        for (const property of source.style)
+          if (!runtimeState.styles.has(property))
+            target.style.setProperty(
+              property,
+              source.style.getPropertyValue(property),
+              source.style.getPropertyPriority(property),
+            );
+      } else if (!runtimeState.attributes.has(name)) target.setAttribute(name, value);
+    }
+    return next;
+  }
+
+  // The chrome's sheets are adopted, not head nodes, so they cascade after everything
+  // the head holds whatever order it is written in; the authored share goes at the end.
+  function activateHead(doc, revision) {
+    for (const node of authoredHeadNodes) node.remove();
+    const next = new Set();
+    for (const node of doc.head.children) {
+      if (!versionedHeadNode(node)) continue;
+      const imported = document.importNode(node, true);
+      document.head.append(imported);
+      next.add(imported);
+    }
+    authoredHeadNodes = next;
+    let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
+    if (!marker) {
+      marker = document.createElement("meta");
+      marker.name = "lf-revision";
+      marker.dataset.lfRuntime = "1";
+      document.head.append(marker);
+    }
+    marker.content = String(revision.revision);
+  }
+
+  const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
+
+  // Every declared widget in one revision's authored page, named the way its capture
+  // named it: by id where the author gave one, and otherwise by tag and place among the
+  // others of that tag. An unnamed widget is as much the reader's as a named one, and
+  // without a key of its own it could never answer that its markup was unchanged, so
+  // every revision rebuilt it — taking with it whatever the reader had open in it.
+  function widgetKeys(source) {
+    const keys = new Map();
+    const counts = new Map();
+    for (const element of elementsWithin(source)) {
+      if (!upgraded(element)) continue;
+      if (element.id) keys.set(element, element.id);
+      else {
+        const seen = counts.get(element.localName) ?? 0;
+        counts.set(element.localName, seen + 1);
+        keys.set(element, `${element.localName}#${seen}`);
+      }
+    }
+    return keys;
+  }
+
+  // Every element under a root in document order, a template's content included: the
+  // capture walks the parsed tree the same way, and a widget written inside a template
+  // counts among the others of its tag on both sides or on neither.
+  function* elementsWithin(root) {
+    const inner = root.localName === "template" ? root.content : root;
+    for (const child of inner.children) {
+      yield child;
+      yield* elementsWithin(child);
+    }
+  }
+
+  // Two source elements spelled the same way once the address each revision was
+  // delivered at is read out of them. Delivery writes the revision's own root into every
+  // page and media reference, so the same `<img>` differs between two revisions that
+  // never touched it; a widget's capture digested the markup before that, and this is
+  // the same reading for an element no capture digested.
+  const RESOURCE_ATTRIBUTES = ["src", "href", "srcset", "poster", "data", "style"];
+  const unrooted = (value, root) =>
+    root && value.includes(root) ? value.split(root).join("/") : value;
+  // One attribute, read the same way: an address that differs only by the revision it
+  // was delivered under is the same address, and the page keeps the one it has, which
+  // is still served because revisions are immutable.
+  const sameValue = (name, held, value, arrivingRoot) =>
+    RESOURCE_ATTRIBUTES.includes(name)
+      ? unrooted(held, authoredRoot) === unrooted(value, arrivingRoot)
+      : held === value;
+  function sameAuthoredMarkup(before, after, arrivingRoot) {
+    const strip = (element, root) => {
+      const copy = element.cloneNode(true);
+      if (!root) return copy;
+      for (const node of [copy, ...elementsWithin(copy)])
+        for (const name of RESOURCE_ATTRIBUTES) {
+          const value = node.getAttribute(name);
+          if (value?.includes(root)) node.setAttribute(name, unrooted(value, root));
+        }
+      return copy;
+    };
+    return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
+  }
+
+  // The revision arriving in the document the reader is standing in. Their caret,
+  // selection, parked pointer, focus and armed key sequence live on the nodes they are
+  // over, so the page keeps every node this revision did not rewrite and nothing has to
+  // be carried across anything.
+  async function activateRevision(doc, target) {
+    const view = captureView();
+    // A pending selection is standing too: cancel its old-document request before the
+    // authored page changes, then restore that base against the arriving revision.
+    const comparedFrom = selectedBase();
+    if (comparedFrom !== null) setDiff(false);
+    const live = document.querySelector("body > main");
+    const source = doc.querySelector("body > main");
+    const arrivingWidgets = widgetDigests(doc);
+    const arrivingRoot = artifactRoot(doc);
+    const heldKeys = widgetKeys(authoredSource);
+    const arrivingKeys = widgetKeys(source);
+    retireProjectionCoverage();
+    revisionDocuments.delete(target.revision);
+
+    // A node with nothing over it is inside a template's content fragment, where a page
+    // may hold authored markup and `elementOver` has no element to answer with. Nothing
+    // there is the runtime's.
+    const isAuthored = authored(live);
+    const generated = (node) =>
+      (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) &&
+      !isAuthored(node);
+    // Step 5 of the startup order, for the markup this revision brings: read while it is
+    // still what its author wrote, because connecting a widget is what hands its children
+    // to a controller. The nodes read here are the nodes that end up in the page, and the
+    // roots among them are what the install dresses.
+    const arrived = [];
+    // Elements whose attributes the patch rewrote in place. What a dressing pass reads
+    // off an attribute — a word an element says, the language of a code block — is
+    // owed again, and these are the roots the install dresses beside the arrivals.
+    const touched = [];
+    const arrive = (node, parent) => {
+      const arriving = document.importNode(node, true);
+      pairSources(node, arriving, sourcePairs);
+      if (arriving.nodeType === Node.ELEMENT_NODE) {
+        rememberPassageParts(arriving);
+        // Stated rather than read, because the node is not in the document yet and
+        // the readings below ask where it stands: whether an exhibit quotes it, and
+        // which declared elements enclose it.
+        rememberAuthoredParents(arriving, parent);
+        markDeclared(arriving, MARKED_IN_PAGE);
+        captureWidgetDescriptors(
+          arriving,
+          { kind: "page", revision: target.revision },
+          live,
+        );
+        arrived.push(arriving);
+      }
+      return arriving;
+    };
+
+    await patchDocument(live, () => {
+      authoredHtmlAttributes = replaceAuthoredAttributes(
+        document.documentElement,
+        doc.documentElement,
+        authoredHtmlAttributes,
+      );
+      authoredBodyAttributes = replaceAuthoredAttributes(
+        document.body,
+        doc.body,
+        authoredBodyAttributes,
+      );
+      activateHead(doc, target);
+      // The patch pairs what it walks into, and what it is handed stands outside that
+      // walk: `main` is the one node whose pairing has to be stated rather than found,
+      // and the revision after this one is the patch that reads it.
+      sourcePairs.set(source, live);
+      patchTree(authoredSource, source, {
+        pairs: sourcePairs,
+        arrive,
+        generated,
+        declared: upgraded,
+        // The capture that wrote each revision said what every declared widget in it
+        // was written as. A widget the arriving revision spells the same way is the
+        // widget the reader is holding, so it stays.
+        unchanged: (before, after) => {
+          const digest = authoredWidgets[heldKeys.get(before)];
+          return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
+        },
+        same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
+        sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
+        touched: (element) => touched.push(element),
+        // An element going is not the same as its name going, and the name is what
+        // these readings are kept under. A widget the revision moved under an earlier
+        // parent is inserted and read there before this parent's removal reaches the
+        // element it left behind, so forgetting on the element alone would drop the
+        // descriptor its arrival had just captured. Ask the page instead: a name
+        // something still answers to is a name nothing may retire.
+        retire: (element) => {
+          if (!element.id || !upgraded(element)) return;
+          for (const claimant of live.querySelectorAll(`#${CSS.escape(element.id)}`))
+            if (claimant !== element) return;
+          forgetAuthoredOwners(new Set([element.id]));
+          forgetWidgetDescriptors([element.id]);
+        },
+      });
+      // After the patch, over the document the patch left: an owner's number is its
+      // place among the document's preserving owners, and an insertion moves the ones
+      // after it.
+      reindexPassageOwners(live);
+      pruneScopedElements();
+      // The roots the install dresses, and the widgets among the arrivals whose
+      // rendering and preparation it waits for: what this patch brought, and only that.
+      return {
+        roots: [...arrived, ...touched],
+        widgets: arrived
+          .flatMap((root) => [root, ...elementsWithin(root)])
+          .filter((element) => upgraded(element) && element.id)
+          .map((element) => element.id),
+      };
+    });
+    authoredWidgets = arrivingWidgets;
+    authoredSource = source;
+    authoredRoot = arrivingRoot;
+    await settlePageInterface(() =>
+      whenApplicationRegionsPresented(["page-interface"], () => true),
+    );
+    syncLayout();
+    restoreView(view);
+    // Focus is not restored, because a patch does not take it: a control the revision
+    // kept is the same element, still holding it, with the tab stop it was lent. One the
+    // revision replaced drops focus to `body`, where the page's own keys are live, which
+    // is the honest answer for a reader whose control the revision took away.
+    if (comparedFrom !== null) showComparison(comparedFrom);
+    // The same words the fresh document says on arrival. The page changing under a
+    // reader is the thing announced, and which install carried it is not their business.
+    // Named from the descriptor rather than the current label, which still reads the
+    // revision this document is a statement away from leaving.
+    notice(`Updated to ${target.label}`, { background: true });
+  }
+
+  // The move a state asks of the live root, prepared ahead of the commit that makes it.
+  // Null where there is nothing to follow — no newer revision, or a document that failed
+  // to load, which is reported; the commit's own render then lights the chip as the way
+  // to try again. `stale` where the document came from a re-vendored layer, so the page
+  // is reloading and the state belongs to the layer it is leaving. Whether the move
+  // happens now is asked at the commit: an unresolved delivery, `midComposition`, or an
+  // open menu defers it, unless the chip was pressed (goActive) — the one override,
+  // spent by the install it forced.
   async function prepareActivation(state) {
     const target = state.active;
     if (
@@ -1214,36 +1607,80 @@ export function createVersionController({
       target.revision <= runtime.currentRevision
     )
       return null;
+    const activates = () =>
+      target.revision > runtime.currentRevision &&
+      !hasPending() &&
+      (!midComposition() || forceActivation) &&
+      !versionMenuIsOpen();
+    // The revision either install leaves this document showing. State application reads
+    // it to judge the answer before the install edits anything, and adopts the answer
+    // against it afterwards, so the document's revision and the state that speaks for it
+    // become current in one reading.
+    if (!servedExecutable || target.executable !== servedExecutable)
+      return {
+        stale: false,
+        revision: target.revision,
+        activates,
+        install: reloadInto(target),
+      };
+    let doc;
+    try {
+      doc = await revisionDocument(target);
+      if (doc === null)
+        // Every answer carries `activates`, so no caller has to know which shapes this
+        // can return. `stale` says why this one refuses — the document came from a
+        // re-vendored layer and the page is already reloading — and the heartbeat, which
+        // asks nothing but `activates`, is right without a second reading of that fact.
+        return { stale: true, activates: () => false };
+      // Step 6 of the startup order, on the same background stretch as the document
+      // itself: this revision may carry a tag the standing document never held, and
+      // insertion is where its element is constructed. Asked for here so the install
+      // spends nothing on a fetch while the reader is looking at the page. Inside this
+      // try, because the loader keeps a rejected import: one 404 on a module an arriving
+      // revision introduces would otherwise reject every later state read for good.
+      await importWidgets(doc.querySelector("body > main"));
+    } catch (error) {
+      reportPageError(
+        `revision ${target.revision} failed to load: ${error?.message ?? error}`,
+      );
+      return null;
+    }
     return {
       stale: false,
-      activates: () =>
-        target.revision > runtime.currentRevision &&
-        !hasPending() &&
-        (!midComposition() || forceActivation) &&
-        !versionMenuIsOpen(),
+      revision: target.revision,
+      activates,
       install: () => {
         forceActivation = false;
-        const view = captureView();
-        tabStore.set(VIEW_KEY, JSON.stringify(view));
-        tabStore.set(
-          HANDOFF_KEY,
-          JSON.stringify({
-            revision: target.revision,
-            url: location.href,
-            view,
-            standing: captureStanding(),
-            retainedStanding: captureRetainedStanding(),
-            comparison: selectedBase(),
-            pointer: pointerAt(),
-          }),
-        );
-        location.reload();
-        // The new document owns the continuation. Keeping this activation pending
-        // prevents the old realm from applying state while navigation commits.
-        return new Promise(() => {});
+        return activateRevision(doc, target);
       },
     };
   }
+
+  // The other install, for a revision whose executable identity differs: a live document
+  // cannot re-evaluate a module graph or redefine a custom element, so arbitrary page
+  // modules, listeners, custom elements, and styles start together in a fresh one. The
+  // reader's place, standing, comparison, and pointer are the only things a new document
+  // can be given, and they ride across as a one-use handoff.
+  const reloadInto = (target) => () => {
+    forceActivation = false;
+    const view = captureView();
+    tabStore.set(VIEW_KEY, JSON.stringify(view));
+    tabStore.set(
+      HANDOFF_KEY,
+      JSON.stringify({
+        revision: target.revision,
+        url: location.href,
+        view,
+        retainedStanding: captureRetainedStanding(),
+        comparison: selectedBase(),
+        pointer: pointerAt(),
+      }),
+    );
+    location.reload();
+    // The new document owns the continuation. Keeping this activation pending
+    // prevents the old realm from applying state while navigation commits.
+    return new Promise(() => {});
+  };
 
   // ---------- reading continuity across a replacement ----------
   // Following a new version opens a fresh document. A raw navigation leaves the reader
@@ -1531,73 +1968,6 @@ export function createVersionController({
     watchReadingRegionTransitions(readingRegionTransition);
   }
 
-  // Standing is an authored owner and a control, not a saved DOM node. Match the control's
-  // declared role, form identity, and words as well as its location so a replacement or
-  // reordered action cannot receive the next press intended for its predecessor.
-  const controlMeaning = (control) =>
-    JSON.stringify([
-      control.localName,
-      ...[
-        "role",
-        "type",
-        "name",
-        "value",
-        "aria-label",
-        "href",
-        "target",
-        "formaction",
-        "formmethod",
-      ].map((name) => control.getAttribute(name)),
-      control.matches("button, a, input, select, textarea, [role]")
-        ? control.textContent
-        : null,
-    ]);
-
-  function captureStanding() {
-    const held = focused();
-    if (!held || held === document.body || inChrome(held)) return null;
-    const main = document.querySelector("body > main");
-    const place = closestAcross(held, "[id]:not(.lf-ui)");
-    if (!place || !main || !containsAcross(main, place)) return null;
-    const owner = { id: place.id, tag: place.localName };
-    if (place === held) return { ...owner, meaning: controlMeaning(held) };
-    // The first class is the one the control was built with; later ones are state the
-    // fresh control will not be wearing yet. Escaped, since an authored class need not
-    // be a bare identifier.
-    const kind = [held.localName, held.classList[0] && CSS.escape(held.classList[0])]
-      .filter(Boolean)
-      .join(".");
-    return {
-      ...owner,
-      kind,
-      index: [...place.querySelectorAll(kind)].indexOf(held),
-      meaning: controlMeaning(held),
-    };
-  }
-  // The same control where the revision kept it; the place where it kept only that; and
-  // nothing where it kept neither — a reader whose item the revision removed is standing
-  // nowhere, and body, where the page's own keys are live, is the honest answer.
-  function restoreStanding(standing) {
-    if (!standing) return;
-    // A reader who focused something during startup has already chosen another place.
-    const held = focused();
-    if (held && held !== document.body) return;
-    const place = elementById(standing.id);
-    if (!place || place.localName !== standing.tag || inChrome(place)) return;
-    const control =
-      standing.kind === undefined
-        ? place
-        : (place.querySelectorAll(standing.kind)[standing.index] ?? place);
-    if (
-      control &&
-      controlMeaning(control) === standing.meaning &&
-      !control.matches(":disabled, [aria-disabled='true']")
-    )
-      focusDestination(control);
-    else if (!place.matches("button, a, input, select, textarea, [role]"))
-      focusDestination(place);
-  }
-
   function installArrival() {
     installReadingContinuity();
     // Ordinary reload and history travel belong to the browser. The root is its document
@@ -1645,8 +2015,7 @@ export function createVersionController({
       if (handoff) {
         restorePointer(handoff.pointer);
         restoreView(handoff.view);
-        if (!restoreRetainedStanding(handoff.retainedStanding))
-          restoreStanding(handoff.standing);
+        restoreRetainedStanding(handoff.retainedStanding);
         if (handoff.comparison !== null && stamped(handoff.comparison))
           showComparison(handoff.comparison);
         return;

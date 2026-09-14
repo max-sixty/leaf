@@ -40,6 +40,7 @@ from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import http as http_model
 from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
@@ -140,6 +141,205 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     historical = artifact_model.read_artifact(page_dir, first.revision)
     assert historical.resources["/page/value.js"].data == b"export const value = 1;"
     assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
+
+
+def test_the_captured_executable_digest_separates_code_from_content(page_dir):
+    """What a standing document cannot take on in place, and nothing else.
+
+    A reader's open document keeps its module graph and its defined elements for as
+    long as it lives, so the capture states which revisions can be given to that
+    document and which need a new one. Words, styling, and the stamp a vendoring
+    run leaves behind can be given to it. The vocabulary that binds elements to
+    modules, the module bytes, and the inline module bodies cannot. A re-vendor
+    reaches the digest through the modules it replaced, its epoch included.
+    """
+    authored = page_dir / "page"
+    (authored / "widgets").mkdir(parents=True)
+    (authored / "app.js").write_text("window.result = 1;")
+    (authored / "style.css").write_text("main { color: rebeccapurple; }")
+    (authored / "widgets" / "lf-options.js").write_text("export function upgrade() {}")
+    source = PAGE.replace(
+        "</head>",
+        '<script type="module" src="/page/app.js"></script>'
+        '<script type="module">window.inlineRan = 1;</script>'
+        '<link rel="stylesheet" href="/page/style.css"></head>',
+    )
+
+    # Each revision below carries every edit before it, so a comparison is always
+    # against the revision immediately before and names one changed input.
+    document = source
+
+    def activate():
+        (page_dir / "index.html").write_text(document)
+        activated = revisioning_model.activate_source(page_dir, [])
+        assert activated.error is None, activated.error
+        assert activated.created
+        return artifact_model.read_artifact(page_dir, activated.revision)
+
+    base = activate()
+
+    document = document.replace("<h2>Plan</h2>", "<h2>The plan, restated</h2>")
+    reworded = activate()
+    assert reworded.digest != base.digest
+    assert reworded.executable == base.executable
+
+    (authored / "style.css").write_text("main { color: seagreen; }")
+    restyled = activate()
+    assert restyled.digest != reworded.digest
+    assert restyled.executable == base.executable
+
+    (authored / "app.js").write_text("window.result = 2;")
+    remoduled = activate()
+    assert remoduled.executable != restyled.executable
+
+    (authored / "widgets" / "lf-options.js").write_text(
+        "export function upgrade() { return true; }"
+    )
+    rewidgeted = activate()
+    assert rewidgeted.executable != remoduled.executable
+
+    document = document.replace("window.inlineRan = 1;", "window.inlineRan = 2;")
+    inlined = activate()
+    assert inlined.executable != rewidgeted.executable
+
+    declaration = json.loads((page_dir / "registry.json").read_text())["lf-options"]
+    declaration["description"] = "Options this page declares for itself."
+    (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
+    redeclared = activate()
+    assert redeclared.executable != inlined.executable
+
+    files_model.replace_files(
+        [(page_dir / "leaf.js", b"// re-vendored runtime", False)]
+    )
+    revendored = activate()
+    assert revendored.executable != redeclared.executable
+
+    # `$layer` records where a vendoring run came from rather than what it
+    # installed: the fingerprint identifies the composed layer independently of
+    # its epoch, the producer names the checkout that built it, and the epoch
+    # itself is a fresh token every `page init` mints. None of the three says
+    # what this document would have to evaluate, so a restamp on its own leaves
+    # the digest alone.
+    layer_path = page_dir / "registry.json"
+    vendored = json.loads(layer_path.read_text())
+    vendored["$layer"] = {
+        **vendored["$layer"],
+        "fingerprint": "sha256:" + "b" * 64,
+        "producer": {"commit": "abcdef1", "dirty": True},
+        "generation": "0123456789abcdef0123456789abcdef",
+    }
+    files_model.replace_files([(layer_path, json.dumps(vendored).encode(), False)])
+    restamped = activate()
+    assert restamped.digest != revendored.digest
+    assert restamped.executable == revendored.executable
+
+    # Vendoring writes that epoch into `runtime/layer-client.js`, which every
+    # document evaluates, so a real re-vendor reaches the digest through the
+    # module rather than through the stamp beside it.
+    files_model.replace_files(
+        [(page_dir / "runtime" / "layer-client.js", b"// re-vendored epoch", False)]
+    )
+    reissued = activate()
+    assert reissued.executable != restamped.executable
+
+
+def test_the_captured_widget_digests_say_which_widgets_a_reader_may_keep(page_dir):
+    """One digest per declared widget, over what its author wrote.
+
+    A reader's open document keeps the widgets a revision did not rewrite, and only the
+    capture still holds the markup to say which those are: after upgrade a controller
+    owns every widget's children. Digested from the parsed tree, so two revisions of one
+    widget differ where the author changed it and nowhere else.
+    """
+    document = PAGE
+
+    def activate():
+        (page_dir / "index.html").write_text(document)
+        activated = revisioning_model.activate_source(page_dir, [])
+        assert activated.error is None, activated.error
+        return artifact_model.read_artifact(page_dir, activated.revision)
+
+    base = activate()
+    # Every element the vocabulary says carries a module, named the way its author named
+    # it or, where they named nothing, by its tag and place among the others of that tag.
+    # An unnamed widget is as much the reader's as a named one; without a key it could
+    # never answer that its markup was unchanged, so every revision rebuilt it.
+    assert set(base.widgets) == {"plan-choice-decision", "flow", "lf-options#0"}
+
+    document = document.replace("The cutoff lives in", "The cutoff now lives in")
+    reworded = activate()
+    assert reworded.digest != base.digest, "the prose edit made no new revision"
+    assert reworded.widgets == base.widgets
+
+    document = document.replace("Which plan should lead?", "Which plan leads?")
+    rewritten = activate()
+    assert (
+        rewritten.widgets["plan-choice-decision"]
+        != base.widgets["plan-choice-decision"]
+    )
+    assert rewritten.widgets["flow"] == base.widgets["flow"]
+    # The unnamed group inside the rewritten question is its own widget, and the heading
+    # that changed is not inside it.
+    assert rewritten.widgets["lf-options#0"] == base.widgets["lf-options#0"]
+
+
+def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
+    """An immutable revision saved before this field is one no save can repair.
+
+    Capture has written the digest since the browser learned to take a revision on in
+    place, and the live root always has one: adding the field moved the manifest digest,
+    so the next save mints a new revision. The addresses where an older manifest is still
+    reachable are the stamped versions and the revision URLs, and those documents are
+    immutable — refusing them turned a page's whole history into a 500 over a field that
+    only ever answers a question a historical document does not ask. So the absence is a
+    reading: state says `null`, every address still serves, and the next save records it.
+    """
+    (page_dir / "index.html").write_text(PAGE, encoding="utf-8")
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None, activated.error
+    revision = activated.revision
+    marker = files_model.revision_path(page_dir, revision)
+    bundle = marker.with_suffix("")
+    manifest_path = bundle / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["executable"]
+    del manifest["widgets"]
+    # The revision is named for its manifest's digest, so an older manifest arrives
+    # under an older name; write both the way that capture would have.
+    body = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    manifest_path.write_bytes(body)
+    older = f"r{revision}-{artifact_model._digest(body).removeprefix('sha256:')[:16]}"
+    bundle.rename(bundle.with_name(older))
+    marker.rename(marker.with_name(f"{older}.html"))
+
+    artifact = artifact_model.read_artifact(page_dir, revision)
+    assert artifact.executable is None
+    assert artifact.widgets == {}
+
+    # The reading the browser takes: a document that cannot say what it is as code is
+    # one an open page can only follow into a fresh document.
+    descriptor = files_model.active_descriptor(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert descriptor["executable"] is None
+
+    # And the document itself still serves, prelude and all.
+    document = http_model.runtime_document(
+        (page_dir / "index.html").read_text(encoding="utf-8"),
+        revision,
+        artifact.executable,
+        artifact.widgets,
+    ).decode()
+    assert "lf-executable" not in document and "lf-widgets" not in document
+    assert '<meta name="lf-revision" data-lf-runtime content="1">' in document
+
+    # The next save records it, for every revision from then on.
+    (page_dir / "index.html").write_text(
+        PAGE.replace("Backfill plan", "Backfill schedule"), encoding="utf-8"
+    )
+    saved = revisioning_model.activate_source(page_dir, [])
+    assert saved.error is None, saved.error
+    assert artifact_model.read_artifact(page_dir, saved.revision).executable
 
 
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):

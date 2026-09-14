@@ -36,7 +36,7 @@ from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_medi
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import RevisionArtifact, read_artifact
-from .revision_delivery import deliver_document, deliver_resource
+from .revision_delivery import deliver_document, deliver_resource, delivery_identity
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
@@ -257,17 +257,12 @@ def head_open_end_offset(document: SourceDocument) -> int:
     return document.head_open_end
 
 
-def _delivery_prelude(revision: int, version: int | None) -> str:
-    """Declare the delivery's encoding and immutable Leaf identity first."""
-    identity = f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
-    return (
-        DELIVERY_ENCODING_META
-        + identity
-        + (
-            f'<meta name="lf-version" data-lf-runtime content="{version}">'
-            if version is not None
-            else ""
-        )
+def _delivery_prelude(
+    revision: int, version: int | None, executable: str | None, widgets: dict
+) -> str:
+    """Declare the delivery's encoding, then the immutable Leaf identity behind it."""
+    return DELIVERY_ENCODING_META + delivery_identity(
+        revision, version, executable, widgets
     )
 
 
@@ -285,12 +280,22 @@ def script_hash(body: str) -> str:
     return f"'sha256-{digest}'"
 
 
-def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+def runtime_document(
+    source: str,
+    revision: int,
+    executable: str | None,
+    widgets: dict,
+    version: int | None = None,
+) -> bytes:
     """Give a clean authored document its runtime head and immutable identity."""
     document = SourceDocument(source)
     offset = head_open_end_offset(document)
     theme_head, entry_head = _runtime_assets()
-    runtime = _delivery_prelude(revision, version) + theme_head + entry_head
+    runtime = (
+        _delivery_prelude(revision, version, executable, widgets)
+        + theme_head
+        + entry_head
+    )
     return (UTF8_BOM + source[:offset] + runtime + source[offset:]).encode()
 
 
@@ -299,6 +304,8 @@ def supervised_document(
     revision: int,
     version: int | None,
     *,
+    executable: str | None,
+    widgets: dict,
     server_id: str,
     layer_id: str,
     bootstrap: str,
@@ -349,7 +356,7 @@ def supervised_document(
         f'data-lf-probe="{asset_path}/registry.json">{bootstrap}</script>'
     )
     supervised = (
-        _delivery_prelude(revision, version)
+        _delivery_prelude(revision, version, executable, widgets)
         + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
         + bootstrap_head
         + theme_head
@@ -801,6 +808,8 @@ class Handler(BaseHTTPRequestHandler):
                 ),
                 revision,
                 version,
+                executable=artifact.executable,
+                widgets=artifact.widgets,
                 server_id=self.server_id,
                 layer_id=artifact.registry["$layer"]["generation"],
                 bootstrap=artifact.resources["/runtime/bootstrap.js"].data.decode(

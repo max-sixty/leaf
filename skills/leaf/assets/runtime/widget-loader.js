@@ -13,6 +13,7 @@ import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
 import {
   attachApplicationPresentation,
   whenApplicationPresented,
+  whenWidgetsPresented,
 } from "./semantic-state.js";
 import {
   captureAuthoredFacets,
@@ -48,37 +49,55 @@ import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js
 // has no authored id. Record these readings before upgrades move or replace nodes.
 const rememberedPassageRoots = new WeakSet();
 
+// Root-inclusive, like every reading of arriving markup: when a live revision brings a
+// single widget, the scope is that widget.
+const within = (scope, selector) => [
+  ...(scope.matches?.(selector) ? [scope] : []),
+  ...scope.querySelectorAll(selector),
+];
+
 export function rememberPassageParts(scope = document, source = ["page", null]) {
   for (const tag of tagsDeclaring(
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
   ))
-    for (const root of scope.querySelectorAll(tag)) {
+    for (const root of within(scope, tag)) {
       if (rememberedPassageRoots.has(root)) continue;
       rememberedPassageRoots.add(root);
       opaquePassageRoots.add(root);
       for (const child of root.children) opaquePassageParts.add(child);
     }
-  const preserving = [...scope.querySelectorAll("*")].filter(
-    (root) => registry[root.localName]?.["x-verbatim"],
-  );
-  for (const [ownerIndex, root] of preserving.entries()) {
+  for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
     if (rememberedPassageRoots.has(root)) continue;
     rememberedPassageRoots.add(root);
-    const owner = [...source, ownerIndex];
-    verbatimOwnerIdentity.set(root, owner);
-    let boundaryIndex = 0;
-    const visit = (parent) => {
-      for (const child of parent.children) {
-        if (registry[child.localName]?.["x-upgrade"]) {
-          verbatimBoundaryIdentity.set(child, {
-            owner,
-            index: boundaryIndex++,
-          });
-        } else visit(child);
-      }
-    };
-    visit(root);
+    identifyPreserving(root, [...source, ownerIndex]);
   }
+}
+
+const preservingOwners = (scope) =>
+  within(scope, "*").filter((root) => registry[root.localName]?.["x-verbatim"]);
+
+function identifyPreserving(root, owner) {
+  verbatimOwnerIdentity.set(root, owner);
+  let boundaryIndex = 0;
+  const visit = (parent) => {
+    for (const child of parent.children) {
+      if (registry[child.localName]?.["x-upgrade"])
+        verbatimBoundaryIdentity.set(child, { owner, index: boundaryIndex++ });
+      else visit(child);
+    }
+  };
+  visit(root);
+}
+
+// A preserving owner with no id is identified by where it stands among the document's
+// other preserving owners, which is a fact about all of them rather than about any one.
+// A live revision that inserts or drops one therefore renumbers the rest, and leaving
+// the standing owners on the numbers they arrived with would have two of them answering
+// to the same name. Read from the document rather than from what the patch brought in,
+// for the same reason: the order is the whole document's.
+export function reindexPassageOwners(scope = document, source = ["page", null]) {
+  for (const [ownerIndex, root] of preservingOwners(scope).entries())
+    identifyPreserving(root, [...source, ownerIndex]);
 }
 
 // The one import-on-demand door: a page loads the modules its own markup uses and no
@@ -129,29 +148,61 @@ export async function importWidgets(scope) {
   );
 }
 
-async function installDocument(
-  scope,
-  { source = ["page", null], mount = () => {}, watchLinks = false } = {},
-) {
+// The upgrade lifecycle for the whole authored body, at startup: read it while it is
+// still what its author wrote, import what its tags declare, and dress it.
+export async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation", scope);
   try {
-    rememberPassageParts(scope, source);
+    rememberPassageParts(scope);
     rememberAuthoredParents(scope);
     captureWidgetDescriptors(scope);
     markDeclared(scope, MARKED_IN_PAGE);
-    if (watchLinks) watchExternalLinks(scope);
+    watchExternalLinks(scope);
     await importWidgets(scope);
-    mount();
-    await presentation.present(scope, dress(scope));
-    await whenApplicationPresented();
-    reachScrollers(scope);
-    captureAuthoredFacets(scope);
-    // Capturing the authored initial condition is a semantic publication. Wait for
-    // subscribers to paint that newest reading before declaring upgrade complete.
-    await whenApplicationPresented();
+    await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {
     presentation.disconnect();
   }
+}
+
+// The same lifecycle for a revision patched into the document a reader is standing in.
+// What arrives is scattered through the page rather than being one subtree, so each step
+// takes the nodes it applies to. The pre-upgrade readings belong to each arrival, before
+// insertion hands a widget's children to its controller, so `patch` makes them as it goes
+// and answers with the roots it brought. Dressing the page instead of those would
+// re-tokenize a code block no revision touched and hand its spans back as new nodes,
+// which is the reader's own page rebuilt under them. Modules are asked for earlier still,
+// off the arriving document, so the install spends nothing on a fetch.
+//
+// A patch runs inside the state turn that brought the revision, and that answer may
+// carry more than the revision: a data replacement for a widget the revision left
+// standing reaches that widget only after the turn adopts the answer. So the patch
+// waits for the widgets it brought and for its own dressing, never for the whole
+// application — that wait would be on a renderer whose turn cannot come until this one
+// returns, and a page that stops there has stopped answering with nothing said.
+export async function patchDocument(scope, patch) {
+  const presentation = attachApplicationPresentation("document:patch", scope);
+  try {
+    const { roots, widgets } = patch();
+    await settle(presentation, scope, roots, () => whenWidgetsPresented(widgets));
+  } finally {
+    presentation.disconnect();
+  }
+}
+
+// What arriving markup owes the document once it stands in it: the dressing passes over
+// each root, then the two readings that are of the document rather than of the markup —
+// where the keyboard can reach, and the authored initial condition of every widget not
+// already holding one. `presented` is the wait each caller owes: the whole application
+// at startup, the widgets it brought for a patch.
+async function settle(presentation, scope, arrived, presented) {
+  await presentation.present(scope, Promise.all(arrived.map(dress)));
+  await presented();
+  reachScrollers(scope);
+  captureAuthoredFacets(scope);
+  // Capturing the authored initial condition is a semantic publication. Wait for
+  // subscribers to paint that newest reading before declaring upgrade complete.
+  await presented();
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {
@@ -174,6 +225,6 @@ export async function upgradeWidgets({ buildReactionBar }) {
     throw new Error("leaf: registry lacks $events, $languages, $tones or $reactions");
   revealLayer();
   buildReactionBar();
-  await installDocument(document.body, { watchLinks: true });
+  await installDocument(document.body);
   return true;
 }

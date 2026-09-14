@@ -39,11 +39,12 @@ Claude Code and Codex install the tracked tree whole. Its main parts are:
 
 `examples/` is the authored-page and render corpus. `tests/` covers the file,
 CLI, browser, and published-site boundaries. `scripts/` owns developer preview,
-site, demo, and vendor tooling. `worker/` is the Cloudflare Worker behind
-<https://leaf.page/> — it serves the built site and routes each example to the
-canonical Python server in a per-reader container. Its container adapter,
-`worker/server.py`, is ordinary Python that `tests/` covers; its TypeScript half
-is the one part of the tree with a gate of its own that `tests/` does not reach.
+site, demo, vendor, and browser-framework tooling. `worker/` is the Cloudflare
+Worker behind <https://leaf.page/> — it serves the built site and routes each
+example to the canonical Python server in a per-reader container. Its container
+adapter, `worker/server.py`, is ordinary Python that `tests/` covers. Its
+TypeScript half and the TypeScript under `scripts/browser/` are the two parts of
+the tree with gates of their own that `tests/` does not reach.
 Agents on `max-sixty` use the finely grained Cloudflare token available there
 for API and Wrangler access.
 
@@ -214,14 +215,21 @@ the Linux authority.
 
 The Python suite reads the adapter under `worker/`: `tests/test_website_server.py`
 loads `worker/server.py` and drives its routes. Pre-commit's ruff hooks take it as they
-take every other Python file. Nothing on either landing
-path parses `worker/src/`: pre-commit's whitespace and typos hooks take those files,
-but its prettier and eslint hooks take JavaScript and HTML rather than
-TypeScript. A pull request runs its website gate before merge, but a direct
-`wt merge` first runs it in `publish-site`, after main has already moved. Run it
-before landing a TypeScript change directly:
+take every other Python file. Nothing on either landing path parses the tree's
+TypeScript — `worker/src/` and `scripts/browser/`: pre-commit's whitespace and typos
+hooks take those files, but its prettier and eslint hooks take JavaScript and HTML
+rather than TypeScript. Each half has a gate of its own, and a pull request runs both
+before merge. A direct `wt merge` runs neither: the website gate follows in
+`publish-site` and the browser framework's in main's own `ci`, after main has already
+moved. Run the gate for the half a TypeScript change touches before landing it
+directly:
 
 ```sh
+# scripts/browser/
+npm ci
+npm run check:browser && npm run test:browser
+
+# worker/src/
 npm ci --prefix worker
 npm run typecheck --prefix worker
 npm test --prefix worker

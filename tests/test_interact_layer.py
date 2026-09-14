@@ -239,6 +239,36 @@ def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
     assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
 
 
+def test_the_root_instructions_name_every_npm_gate_ci_runs():
+    """A gate with its own tools is named by its command, not only by its tree.
+
+    The reading above finds a gate through `working-directory`, which is how a gate
+    that keeps a tree of its own announces itself. A gate can hold its own tools at
+    the repository root instead: `scripts/browser/`'s TypeScript is typechecked and
+    tested by npm scripts run from the root, so it declares no `working-directory`
+    and that reading passes straight over it — which is how the root map went on
+    calling the worker's TypeScript half the one part of the tree with a gate of its
+    own after a second one had landed. Prettier and eslint take JavaScript and HTML
+    rather than TypeScript, and `wt merge` runs only pre-commit and the suite, so a
+    session that lands on either half with the root instructions alone reddens main.
+    The set comes from the workflow rather than a list here, for the reason the
+    routing above states: a list is the second copy, and the gate added without the
+    paragraph would stay green.
+
+    Read as `npm run`, which is the spelling a gate's own script is invoked under.
+    `npm ci` installs rather than gates, and npm's bare `test` alias resolves to
+    `run test` — a word the instructions carry everywhere, so requiring it would
+    assert nothing.
+    """
+    workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
+    instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    scripts = sorted(set(re.findall(r"\bnpm run ([\w:-]+)", workflow)))
+
+    assert scripts, "no npm gate read — an empty set names itself"
+    unnamed = [script for script in scripts if script not in instructions]
+    assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
+
+
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
     """A top-level directory a session works in must be named where sessions read.
 

@@ -944,8 +944,8 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
     module = package / "widgets" / "lf-badge.js"
     module.write_text(
         module.read_text().replace(
-            "      if (!once(this)) return;",
-            "      if (!once(this)) return;\n" + BADGE_CHROME,
+            "      once(this);",
+            "      once(this);\n" + BADGE_CHROME,
         )
     )
 

@@ -676,7 +676,8 @@ export function createSemanticApplication({
       return adoptable(state, revision);
     },
     // `revision` is the revision a live activation has just installed into this
-    // document, and adopting the answer that named it is where it becomes current.
+    // document, and adopting the answer that named it is where its revision and stamp
+    // become current.
     // The two are one reading: published apart, every widget renders once against a
     // state holding no view of the revision the document now shows — an empty
     // projection, indistinguishable for many widgets from their authored condition,
@@ -699,7 +700,11 @@ export function createSemanticApplication({
         document:
           shown === prior.document.revision
             ? prior.document
-            : { ...prior.document, revision: shown },
+            : {
+                ...prior.document,
+                revision: shown,
+                stamp: state.active.version ?? null,
+              },
         authoritative,
         unresolved,
         phase: "ready",

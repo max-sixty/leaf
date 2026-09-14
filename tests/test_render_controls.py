@@ -800,20 +800,18 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     page.keyboard.press("Enter")
     expect(explanation).to_be_visible()
     expect(explanation).to_be_focused()
-    selected = page.evaluate(
+    detail_text = page.evaluate(
         """() => {
           const detail = document.querySelector('.lf-status-detail');
           window.__lfStatusNodes = {
             button: document.querySelector('.lf-status-button'),
             detail,
             dot: document.querySelector('.lf-banner .lf-dot'),
+            text: [...detail.childNodes].find(
+              (node) => node.nodeType === Node.TEXT_NODE,
+            ),
           };
-          const range = document.createRange();
-          range.selectNodeContents(detail);
-          const selection = getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          return selection.toString();
+          return window.__lfStatusNodes.text.data;
         }"""
     )
     session_model.cmd_status(serve.page_dir, "working", detail)
@@ -825,7 +823,9 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
           dot: window.__lfStatusNodes.dot === document.querySelector('.lf-banner .lf-dot'),
           focused: document.activeElement === window.__lfStatusNodes.detail,
           open: window.__lfStatusNodes.detail.matches(':popover-open'),
-          selected: getSelection().toString(),
+          text: window.__lfStatusNodes.text.parentNode === window.__lfStatusNodes.detail
+            ? window.__lfStatusNodes.text.data
+            : null,
         })"""
     )
     assert survived == {
@@ -834,12 +834,11 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         "dot": True,
         "focused": True,
         "open": True,
-        "selected": selected,
+        "text": detail_text,
     }, (
-        "an unchanged status poll disturbed the native disclosure or the words a "
-        f"reader selected: {survived}"
+        "an unchanged status poll disturbed the native disclosure or rebuilt its "
+        f"unchanged detail: {survived}"
     )
-    page.evaluate("() => getSelection().removeAllRanges()")
     page.keyboard.press("Escape")
     for width in (1280, 841, 390):
         resized(page, width, 900)

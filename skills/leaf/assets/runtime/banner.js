@@ -187,7 +187,8 @@ const presentStatus = ({ kind, tone, summary, explanation, publication = null })
   }
   dot.className = "lf-dot" + (tone ? " " + tone : "");
   render(summary, statusText);
-  // Lit leaves an unchanged text part in place, preserving a selection across polls.
+  // Lit skips a primitive equal to the one it committed, so an unchanged poll leaves
+  // the detail's text node in place rather than rebuilding it.
   render(explanation, statusDetail);
   statusButton.title = explanation;
   statusText.title = explanation;

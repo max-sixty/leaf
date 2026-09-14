@@ -3,6 +3,7 @@ import { spell } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
+import { LitElement, html } from "../../vendor/browser-runtime.js";
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such textarea one input contract: persist each edit, keep the
@@ -22,6 +23,63 @@ import { iconElement } from "../icons.js";
 // The submit binding owns the shortcut spelling used by the placeholder and tooltip.
 const SEND = "Mod+Enter";
 const inputDrafts = new WeakMap();
+
+const MEDIA_SHELF_TAG = "leaf-pasted-media-shelf";
+
+class PastedMediaShelf extends LitElement {
+  static properties = {
+    model: { attribute: false },
+  };
+
+  constructor() {
+    super();
+    this.model = [];
+    this.removeMedia = null;
+  }
+
+  createRenderRoot() {
+    return this;
+  }
+
+  present(model, removeMedia) {
+    this.model = model;
+    this.removeMedia = removeMedia;
+    this.performUpdate();
+  }
+
+  updated() {
+    this.hidden = this.model.length === 0;
+  }
+
+  render() {
+    return this.model.map(
+      ({ index, url }) => html`
+        <span class="lf-composer-media-item">
+          <button
+            type="button"
+            class="lf-media-open lf-composer-media-open"
+            data-lf-media-url=${url}
+            aria-label=${`View pasted image ${index + 1}`}
+          >
+            <img src=${url} alt="" />
+          </button>
+          <button
+            type="button"
+            class="lf-composer-media-remove"
+            aria-label=${`Remove pasted image ${index + 1}`}
+            @click=${() => this.removeMedia(index)}
+          >
+            ×
+          </button>
+        </span>
+      `,
+    );
+  }
+}
+
+if (!customElements.get(MEDIA_SHELF_TAG))
+  customElements.define(MEDIA_SHELF_TAG, PastedMediaShelf);
+
 // A wired textarea's visible value omits generated image Markdown. Readers outside
 // this module ask through this seam for the complete draft; an unwired textarea keeps
 // the platform's ordinary value.
@@ -72,42 +130,28 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     field.append(ta, sendBtn);
     sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
     sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
-    const mediaShelf = document.createElement("div");
+    const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
     mediaShelf.className = "lf-composer-media";
     mediaShelf.setAttribute("role", "group");
     mediaShelf.setAttribute("aria-label", "Pasted images");
     field.before(mediaShelf);
     let pastedMedia = [];
     const draftValue = () => writePastedMedia(ta.value, pastedMedia);
+    const removeMedia = (index) => {
+      pastedMedia.splice(index, 1);
+      renderMedia();
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      ta.focus({ preventScroll: true });
+    };
     const renderMedia = () => {
-      mediaShelf.replaceChildren();
-      mediaShelf.hidden = pastedMedia.length === 0;
-      pastedMedia.forEach((path, index) => {
-        const item = document.createElement("span");
-        item.className = "lf-composer-media-item";
-        const view = document.createElement("button");
-        view.type = "button";
-        view.className = "lf-media-open lf-composer-media-open";
-        view.dataset.lfMediaUrl = scopedMediaUrl(path);
-        view.setAttribute("aria-label", `View pasted image ${index + 1}`);
-        const image = document.createElement("img");
-        image.src = scopedMediaUrl(path);
-        image.alt = "";
-        view.append(image);
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "lf-composer-media-remove";
-        remove.textContent = "×";
-        remove.setAttribute("aria-label", `Remove pasted image ${index + 1}`);
-        remove.addEventListener("click", () => {
-          pastedMedia.splice(index, 1);
-          renderMedia();
-          ta.dispatchEvent(new Event("input", { bubbles: true }));
-          ta.focus({ preventScroll: true });
-        });
-        item.append(view, remove);
-        mediaShelf.append(item);
-      });
+      mediaShelf.present(
+        Object.freeze(
+          pastedMedia.map((path, index) =>
+            Object.freeze({ index, url: scopedMediaUrl(path) }),
+          ),
+        ),
+        removeMedia,
+      );
     };
     const hydrate = (value) => {
       const restored = readPastedMedia(value);

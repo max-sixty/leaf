@@ -278,6 +278,20 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
             "button", name="Remove pasted image 1"
         ).click()
         expect(page.locator(".lf-general .lf-composer-media img")).to_have_count(0)
+        expect(general).to_be_focused()
+        expect(
+            page.locator(".lf-general").get_by_role("button", name="Send")
+        ).to_have_attribute("aria-disabled", "true")
+        assert (
+            general.evaluate(
+                """async textarea => {
+              const entry = document.querySelector('script[type="module"][src$="leaf.js"]');
+              const input = await import(new URL('runtime/composing/input.js', entry.src));
+              return input.draftOf(textarea);
+            }"""
+            )
+            == ""
+        )
 
         assert page.title() == "t"
         assert page.locator(".lf-banner").is_visible()

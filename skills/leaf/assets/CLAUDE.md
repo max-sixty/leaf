@@ -109,8 +109,9 @@ and page-click routing;
 `runtime/composing/drawing.js` owns one-stroke pointer capture and drawing commands;
 `composing/drawing-record.js` owns drawing payload shape and validation; `composing/drawing-paint.js` owns their
 projection into the page;
-`runtime/composing/input.js` owns shared text input, including the thumbnail projection
-of pasted page media; `runtime/composing/selection.js` owns selection-composer state;
+`runtime/composing/input.js` owns shared text input and pasted-media draft state, while
+its retained Lit shelf owns the thumbnail projection; `runtime/composing/selection.js`
+owns selection-composer state;
 `runtime/media.js` owns generated image blocks, delivery-route scoping, and the shared
 full-image viewer;
 `runtime/drawn-edge.js` owns the shared resizable boundary used by the thread panel

@@ -760,11 +760,10 @@ export function moveCommandReferenceSelection(dir) {
   const nextRecord = commandReferenceView.visibleCommands.find(
     ({ entry }) => entry.id === nextId,
   );
-  const scopeWords = nextRecord.promoted ? nextRecord.entry.sectionTitle : "";
   commandReferenceState = {
     ...commandReferenceState,
     selectedCommandId: nextId,
-    metaOverride: `${nextRecord.entry.action}${scopeWords} · ${
+    metaOverride: `${nextRecord.entry.action} · ${
       nextRecord.entry.steps[0]
     } · ⏎ activate`,
   };

@@ -4917,6 +4917,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
             '.lf-command-reference-command[data-lf-command="navigation.panel.threads"]'
         )
     ).to_have_attribute("data-lf-selected", "true")
+    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
+        "Go to the Threads panel · g · ⏎ activate"
+    )
     search.fill("Tab")
     tab_matches = help_el.locator(
         ".lf-command-reference-binding-matches tr[data-lf-command]:visible"

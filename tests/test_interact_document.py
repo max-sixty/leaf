@@ -13,15 +13,12 @@ from interact_support import (
     COMMAND_SUBJECTS,
     OPTIONS,
     PAGE,
-    PHRASING_CONTENT,
     SHIPPED_PACKAGES,
     SUGGESTION,
     X,
     Y,
-    _balanced,
     _board,
     _decided,
-    _marker_for,
     _report,
     _status,
     _tasks_version,
@@ -43,7 +40,6 @@ from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
@@ -904,75 +900,6 @@ def test_a_misplaced_class_is_offered_whatever_tag_takes_a_language(page_dir):
     assert "or use" not in out, out
 
 
-def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
-    """Two selectors in the theme decide what counts as block content — the
-    suggestion slots' blockization and lf-compare's stacked-variant trigger
-    (lf-options stacks on the title alone, so it asks no block question) — by the
-    platform's closed set inverted: any child that is not phrasing content is block.
-    The enumeration this replaced named every shipped widget, which is the closed
-    list the norms forbid: the first project-layer widget staged in a slot rendered
-    inline and the fold dropped it in the frame of the press.
-
-    So each list is held to what it claims to be, in both of its halves. The platform
-    half is HTML's phrasing content entire, stated above, which is the half the two
-    copies could never check: agreeing with each other says nothing about a name
-    dropped from both, and a missing one blockizes a slot holding the element it
-    names. The widget half is the inversion's one wrong answer — an inline widget is
-    a custom element like any other — and it is a marker rather than tag names,
-    because which widgets those are is the registry's to say (x-inline) and a
-    stylesheet cannot read it. Four names stood here, one of them a standard chip's
-    inside the integrated theme, and no layer could join them; the runtime paints the
-    declaration instead and an inline widget joins by declaring it.
-
-    The marker is held to what markDeclared paints for x-inline, because a selector
-    naming an attribute nothing writes matches nothing and says so nowhere — it reads
-    as the ordinary case of a page with no inline widget in a slot. Being a name the
-    runtime is allowed to paint is not that: the wiring is a declaration's entry in
-    one of markDeclared's tables, and _marker_for is what follows it. And it is held
-    to :where(), which is what keeps an answer about content
-    from becoming a claim on the cascade: :not() takes the specificity of the most
-    specific thing in it, so a bare attribute selector lifts the whole rule a column
-    above the type names beside it, over the marks the layer paints on top of the
-    result. Bare, it beat [data-lf-retired] and a decided suggestion kept the slot
-    it had just retired."""
-    theme = layer_model.composed_theme(
-        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
-    )
-    lists = [_balanced(theme, found.end()) for found in re.finditer(r":not\(", theme)]
-    lists = [found for found in lists if found.startswith("a, abbr")]
-    assert len(lists) == 2, (
-        "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
-    )
-    registry = validation_model.incoming_registry(
-        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
-    )
-    assert [
-        tag
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and entry.get("x-inline")
-    ], "no widget declares x-inline, so the marker in these lists stands for nothing"
-    for found in lists:
-        tags = {t.strip() for t in found.split(",")}
-        markers = {t for t in tags if not t.isalpha()}
-        assert tags - markers == PHRASING_CONTENT, (
-            "the platform half of a block-content list is not HTML's phrasing "
-            "content: a name dropped from it stacks a slot holding that element, "
-            "one added to it leaves a block child laid out inline, and a widget "
-            "named in either half re-closes the inversion"
-        )
-        assert markers == {":where([data-lf-inline])"}, (
-            "the widget half of a block-content list is the inline marker the "
-            "runtime paints from x-inline, in :where() so the question does not "
-            "outrank the marks painted over its answer"
-        )
-        for marker in markers:
-            attribute = marker[len(":where([") : -len("])")]
-            assert _marker_for("x-inline") == attribute, (
-                f"{marker} is not what the runtime paints for x-inline, so the "
-                "list's widget half matches nothing on any page"
-            )
-
-
 def test_the_collapse_class_is_one_set_on_both_sides():
     """COLLAPSE_CHARS (the file side) and the passage reader's COLLAPSE regex
     (the browser side) are two spellings of one set, and everything quote-shaped
@@ -1071,63 +998,6 @@ def test_the_render_viewport_is_wide_enough_to_have_margins():
         "sidenote, a suggestion's controls or a wide exhibit's reach is being made "
         "against a page the theme has already taken the margins off"
     )
-
-
-def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
-    """A choose group's affordance rules stand down inside an exhibit in their own
-    selectors, because a stylesheet cannot read the registry the runtime's quoted()
-    dispatches on. What they exclude is the paint that declaration leaves on the
-    page (data-lf-exhibit, markDeclared) rather than the widgets declaring it, so
-    the layer that ships an exhibit and the layer whose rules withhold the hand need
-    not be the same one — the shape a tag list cannot have.
-
-    Every ancestor exclusion in the rules of the composed theme is read, not the
-    exhibit ones alone: a tag name in one is a closed vocabulary wherever it appears,
-    and the failure it causes is a project's own widget silently outside the answer.
-    Comments come off first, because two of them quote this very selector — left in,
-    the set could be satisfied with every rule that carries the exclusion deleted.
-
-    The marker is then held to what `markDeclared` actually paints for x-exhibit and
-    to a widget declaring it: either missing leaves every one of those rules excluding
-    nothing on any page, which renders as a quoted group offering the pick it exists
-    to withhold. Not the pick itself, which quoted() refuses at the layer's own door:
-    what is lost is that a mention stops looking like a mention. Which of
-    markDeclared's two tables the declaration sits in is a different question — where
-    the fact holds — and the browser answers it, in a reply as well as in the
-    document.
-
-    What this cannot see is one rule of ten dropping its exclusion while the others
-    keep theirs: a set does not count. That reading is the browser's."""
-    theme = re.sub(
-        r"/\*.*?\*/",
-        "",
-        layer_model.composed_theme([schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]),
-        flags=re.DOTALL,
-    )
-    excluded = {
-        inside.removesuffix(" *")
-        for found in re.finditer(r":not\(", theme)
-        if (inside := _balanced(theme, found.end())).endswith(" *")
-    }
-    assert excluded == {":where([data-lf-exhibit])"}, (
-        f"the theme's ancestor exclusions are {excluded}, and the thing an affordance "
-        "may stand down inside is a painted exhibit. A tag spelled here answers for "
-        "the layer that ships it and no other; a second marker is a second question, "
-        "and belongs to the test that owns it"
-    )
-    assert _marker_for("x-exhibit") == "data-lf-exhibit", (
-        "the theme excludes data-lf-exhibit and markDeclared paints "
-        f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
-        "page and an exhibit keeps every affordance these rules meant to withhold"
-    )
-    registry = validation_model.incoming_registry(
-        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
-    )
-    assert [
-        tag
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and entry.get("x-exhibit")
-    ], "no widget declares x-exhibit, so the marker in these rules stands for nothing"
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():

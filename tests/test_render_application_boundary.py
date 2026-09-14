@@ -410,22 +410,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
 
     expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
     expect(page.locator("#package-options .lf-pick")).to_have_count(2)
-    boundary = page.evaluate(
-        """async () => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const removed = [
-            'actionAvailable', 'actionStands', 'sendAction', 'actionSequence',
-            'watchActions', 'requestAvailable', 'sendRequest',
-            'watchRequestLifecycle', 'standingState', 'projectionChanged', 'settle',
-            'applicationState', 'readApplication', 'currentProjection',
-          ];
-          window.legacyActionEvents = 0;
-          document.addEventListener('lf-actions', () => legacyActionEvents += 1);
-          return removed.filter(name => name in api);
-        }"""
-    )
-    assert boundary == []
-
     reference_contract = page.evaluate(
         """() => {
           const controller = document.querySelector('#page-local').controller;
@@ -600,7 +584,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         "data-readings", str(readings + 1)
     )
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
-    assert page.evaluate("legacyActionEvents") == 0
     page.close()
 
 

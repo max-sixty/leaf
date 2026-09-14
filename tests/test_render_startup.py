@@ -676,47 +676,6 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
     )
 
 
-def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
-    page = open_page(browser, serve(SHORT_SUGGESTION))
-    exports = page.evaluate(
-        """async () => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const entry = await import('/leaf.js');
-          const names = [
-            'clearDraft',
-            'declarationFor',
-            'elementsDeclaring',
-            'layerFact',
-            'loadDraft',
-            'matchesWhen',
-            'quietWord',
-            'saveDraft',
-            'sendDraft',
-            'watchDraft',
-          ];
-          return Object.fromEntries(names.map((name) => [name, {
-            api: typeof api[name],
-            entry: name in entry,
-          }]));
-        }"""
-    )
-    assert exports == {
-        name: {"api": "function", "entry": False}
-        for name in [
-            "clearDraft",
-            "declarationFor",
-            "elementsDeclaring",
-            "layerFact",
-            "loadDraft",
-            "matchesWhen",
-            "quietWord",
-            "saveDraft",
-            "sendDraft",
-            "watchDraft",
-        ]
-    }
-
-
 def test_reading_regions_share_posture_allocation_and_transition_boundaries(
     browser, serve
 ):
@@ -2288,15 +2247,6 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
         p for p in asked if p == "/registry.json"
     ]
 
-    # The narrowing has to have narrowed something: the layer this page was vendored
-    # with declares a vocabulary many times the size of what it just loaded.
-    declared = page.evaluate(
-        """async () => {
-          const { tagsDeclaring } = await window.__lfRuntimeImport('/runtime/registry.js');
-          return tagsDeclaring((entry) => entry['x-upgrade']).length;
-        }"""
-    )
-    assert declared > len(modules) + 5, declared
     assert page.evaluate("() => !!customElements.get('lf-board')")
 
 

@@ -58,6 +58,7 @@ import {
   clearMarginEntryControls,
   compareMarginContributions,
   compareMarginEntryRecords,
+  createMarginEntryControl,
   marginContributionEntries,
   marginContributionState,
   marginEntry,
@@ -75,7 +76,7 @@ import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
-import { clampedRow, PRESS } from "./keyboard/bindings.js";
+import { clampedRow } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
@@ -258,14 +259,6 @@ export function createMarginProjection({
 
   const acknowledgments = () => runtime.activity?.interactions ?? [];
   const renderMargin = clocked(document.body, renderNow);
-  // The margin entry the reader is standing on, or null off one: the press row's words read it.
-  const focusedMarginEntryBehavior = () => {
-    const control = focused();
-    return control?.matches?.(".lf-margin-entry")
-      ? marginEntryRecord(control).behavior
-      : null;
-  };
-
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
@@ -525,13 +518,8 @@ export function createMarginProjection({
     for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
     for (const entry of entries) {
       let control = controls.get(entry.key);
-      const status = entry.behavior === "status";
-      if (
-        !control ||
-        (status && control instanceof HTMLButtonElement) ||
-        (!status && !(control instanceof HTMLButtonElement))
-      ) {
-        control = offer(status ? "span" : "button", "");
+      if (!control) {
+        control = createMarginEntryControl();
         controls.set(entry.key, control);
         presentMarginEntry(control, entry);
       } else if (marginEntryRecord(control) !== entry) {
@@ -786,11 +774,9 @@ export function createMarginProjection({
   // A reading wears two promises over its life — a margin entry while there is something to
   // open, a status once the move is made — and only one element may carry both, or the
   // seat moves under a reader standing in it. A <button> cannot stop being one, so the
-  // seat is a span and `marginEntry` writes whichever promise the reading now makes.
-  // What the platform then does not supply is the press, which the margin's own scope
-  // declares (margin.press) rather than a listener here: a key the register does not
-  // hold is a key no surface can promise.
-  const readingControl = (className) => offer("span", className);
+  // shared entry host is a span and writes whichever promise the reading now makes,
+  // including the declared margin.press route while it remains actionable.
+  const readingControl = createMarginEntryControl;
 
   // The one writer over a reading's disclosure relation, settling `aria-controls` and
   // `aria-expanded` together because a control that says it opens something has to say
@@ -1769,39 +1755,6 @@ export function createMarginProjection({
 
   let marginKeysAvailable = false;
   const marginKeys = [
-    // The seat a reading holds is a span, so the platform's own activation is not under
-    // it. Declared here rather than answered by a listener on the control: this is the
-    // register's whole bargain — the line and the reference draw the key off the same row
-    // the press is matched against, so neither can promise what the other does not do.
-    // Only the span-shaped readings, because a native margin entry in this cluster answers its
-    // own press and a second answer here would be two meanings for one key.
-    {
-      id: "margin.press",
-      keys: PRESS,
-      // Said for the margin entry under the reader, not for margin entries in general: "work this
-      // margin entry" over a Change reading promised something, and Enter there scrolls to a
-      // paragraph already on screen. A reading's press goes to what it points at; a
-      // disclosure's opens or closes it; an action's does the verb on its face.
-      // Read off the standing margin entry, and only where there is one: the reference
-      // lists this row's sentence from anywhere on the page.
-      does: () => {
-        const behavior = focusedMarginEntryBehavior();
-        if (behavior === "disclosure")
-          return "Open or close what the focused margin entry holds";
-        if (behavior === "action") return "Press the focused margin entry";
-        if (behavior) return "Go to what the focused margin entry points at";
-        return "Work the focused margin entry";
-      },
-      line: () => {
-        const behavior = focusedMarginEntryBehavior();
-        if (behavior === "disclosure") return "open / close";
-        if (behavior === "action") return "press";
-        if (behavior) return "go to it";
-        return "work this margin entry";
-      },
-      when: () => focused()?.matches?.('.lf-margin-entry[role="button"]'),
-      run: () => focused().click(),
-    },
     {
       id: "margin.controls",
       keys: ["ArrowLeft", "ArrowRight"],

@@ -267,7 +267,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 sheet = page.get_by_role("dialog", name="Page Map", exact=True)
                 expect(
                     sheet.locator(
-                        f'[data-lf-map-margin-entry$=":reaction:{reaction["id"]}:open"]'
+                        '[data-lf-margin-entry-owner="standing-reactions"]'
+                        f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
                     )
                 ).to_be_visible()
                 page.keyboard.press("Escape")

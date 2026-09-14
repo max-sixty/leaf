@@ -83,7 +83,9 @@ function declaredStack(origin) {
   // therefore get the last word in their section.
   const activeScopes = scopesFor(origin);
   const named = (section) =>
-    activeScopes.some((scope) => scope.title === section.title);
+    activeScopes.some(
+      (scope) => scope.title === section.title && (!scope.when || scope.when()),
+    );
   // Carry a scope's sequence down to each row before same-title sections merge. The prefix
   // belongs only to the rows that scope contributed.
   const referenceRows = (scope) =>

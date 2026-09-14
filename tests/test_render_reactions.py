@@ -636,7 +636,8 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     page.locator(".lf-page-map-toggle").evaluate("button => button.click()")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     decision = sheet.locator(
-        f'[data-lf-map-margin-entry="id:{target}:suggestion:{target}:{action}"]'
+        f'[data-lf-margin-entry-owner="suggestion:{target}"]'
+        f'[data-lf-margin-entry-key="{action}"]'
     )
     decision.focus()
     expect(decision).to_be_focused()

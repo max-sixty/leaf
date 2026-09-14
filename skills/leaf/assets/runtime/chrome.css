@@ -1751,7 +1751,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
-    color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
+    color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: default; }
+  .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
+    cursor: pointer; }
   .lf-page-map-action:is(
     [data-lf-agent-workflow="picked_up"],
     [data-lf-agent-workflow="working"]
@@ -1768,7 +1770,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @media (prefers-reduced-motion: reduce) {
     .lf-page-map-action[data-lf-agent-arrival] { animation: none; }
   }
-  .lf-page-map-action:is(:hover, :focus-visible) { background: var(--lf-agent-tint, var(--chip)); }
+  .lf-page-map-action:is(button, [role="button"]):is(:hover, :focus-visible):not([aria-disabled="true"]) {
+    background: var(--lf-agent-tint, var(--chip)); }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
     align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;
     stroke-linecap: round; stroke-linejoin: round; }

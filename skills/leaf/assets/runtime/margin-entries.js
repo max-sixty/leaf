@@ -15,9 +15,10 @@
 import { html, render } from "../vendor/browser-runtime.js";
 import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
-import { keeps } from "./widget-elements.js";
+import { keeps, offer } from "./widget-elements.js";
 import { agentWorkflowStage } from "./updates.js";
-import { projectCommandScope } from "./keyboard/scopes.js";
+import { PRESS } from "./keyboard/bindings.js";
+import { commandScope, keys, projectCommandScope } from "./keyboard/scopes.js";
 
 const contributions = new Set();
 const listeners = new Set();
@@ -290,6 +291,43 @@ export function watchMarginContributions(listener) {
 export const visibleMarginEntryLabel = ({ behavior, label }) =>
   behavior !== "disclosure" || label.endsWith("…") ? label : `${label}…`;
 
+const marginEntryCommands = (control) =>
+  commandScope(
+    "On a margin entry",
+    [
+      {
+        id: "margin.press",
+        keys: PRESS,
+        does: () =>
+          records.get(control)?.behavior === "disclosure"
+            ? "Open or close what the focused margin entry holds"
+            : "Press the focused margin entry",
+        line: () =>
+          records.get(control)?.behavior === "disclosure" ? "open / close" : "press",
+        run: () => control.click(),
+      },
+    ],
+    {
+      when: () => {
+        const record = records.get(control);
+        return Boolean(record && record.behavior !== "status" && !record.disabled);
+      },
+    },
+  );
+
+/** Create the stable semantic host for a generated margin entry.
+ *
+ * A contribution key plus entry key names one reader place even when its current
+ * reading changes between an action and a status. A native button cannot shed its
+ * button semantics, so projections retain this span and the shared presenter changes
+ * its ARIA role, tab seat, and command capability in place.
+ */
+export function createMarginEntryControl(className = "") {
+  const control = offer("span", className);
+  keys(control, marginEntryCommands(control));
+  return control;
+}
+
 export function marginEntryRecord(control) {
   const record = records.get(control);
   if (!record)
@@ -410,7 +448,7 @@ function iconFor(control, icon) {
   return node;
 }
 
-export function presentMarginEntry(
+export function presentMarginEntryHost(
   control,
   offered,
   { writesRelation = true, writesSeat = true } = {},
@@ -418,19 +456,9 @@ export function presentMarginEntry(
   if (!(control instanceof Element))
     throw new TypeError("A margin presentation needs an Element control");
   const record = entryRecords.has(offered) ? offered : marginEntry(offered);
+  if (control instanceof HTMLButtonElement && record.behavior === "status")
+    throw new TypeError("A status margin entry needs a stable span host");
   records.set(control, record);
-  if (!control.classList.contains("lf-margin-entry"))
-    control.classList.add("lf-margin-entry");
-  const priorClasses = contributorClasses.get(control) ?? [];
-  const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
-  if (
-    priorClasses.length !== nextClasses.length ||
-    priorClasses.some((name, index) => name !== nextClasses[index])
-  ) {
-    control.classList.remove(...priorClasses);
-    if (nextClasses.length) control.classList.add(...nextClasses);
-  }
-  contributorClasses.set(control, nextClasses);
   keeps(control, "data-lf-margin-entry-key", record.key);
   if (record.owner) keeps(control, "data-lf-margin-entry-owner", record.owner);
   else control.removeAttribute("data-lf-margin-entry-owner");
@@ -458,6 +486,9 @@ export function presentMarginEntry(
     else control.removeAttribute("aria-haspopup");
   }
   if (control instanceof HTMLButtonElement) {
+    const wasStatus = control.getAttribute("role") === "status";
+    control.removeAttribute("role");
+    if (writesSeat && wasStatus) control.removeAttribute("tabindex");
     if (control.type !== "button") control.type = "button";
     // A pending action can be the reader's retained place even while it refuses a
     // second activation. Native disabled buttons cannot hold that place; the immutable
@@ -466,6 +497,7 @@ export function presentMarginEntry(
     keeps(control, "aria-disabled", record.disabled);
   } else if (record.behavior === "status") {
     keeps(control, "role", "status");
+    control.removeAttribute("aria-disabled");
     if (writesSeat) keeps(control, "tabindex", -1);
   } else {
     keeps(control, "role", "button");
@@ -481,6 +513,23 @@ export function presentMarginEntry(
   if (record.title) keeps(control, "title", record.title);
   else if (!agentWorkflowDescriptions.has(control)) control.removeAttribute("title");
   projectCommandScope(control, record.scope);
+  return record;
+}
+
+export function presentMarginEntry(control, offered, options = {}) {
+  const record = presentMarginEntryHost(control, offered, options);
+  if (!control.classList.contains("lf-margin-entry"))
+    control.classList.add("lf-margin-entry");
+  const priorClasses = contributorClasses.get(control) ?? [];
+  const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
+  if (
+    priorClasses.length !== nextClasses.length ||
+    priorClasses.some((name, index) => name !== nextClasses[index])
+  ) {
+    control.classList.remove(...priorClasses);
+    if (nextClasses.length) control.classList.add(...nextClasses);
+  }
+  contributorClasses.set(control, nextClasses);
   const visibleLabel = visibleMarginEntryLabel(record);
   const glyph = record.icon
     ? iconFor(control, record.icon)

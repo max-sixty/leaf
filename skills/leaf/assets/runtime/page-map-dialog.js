@@ -20,11 +20,12 @@ import { blockAt, says } from "./passages.js";
 import { html, render } from "../vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
 import { paintKeys } from "./keyboard/scopes.js";
-import { projectCommandScope } from "./keyboard/scopes.js";
 import { el, keeps, keepsHidden } from "./widget-elements.js";
 import {
   clearMarginEntryControls,
   compareMarginEntryRecords,
+  createMarginEntryControl,
+  presentMarginEntryHost,
   syncMarginAgentWorkflow,
   trackMarginEntryControl,
   visibleMarginEntryLabel,
@@ -73,6 +74,9 @@ export function createPageMapDialog({
   let from = null;
   let target = null;
   const faceNodes = new WeakMap();
+  const itemControls = new Map();
+  const contributionControls = new WeakMap();
+  let contributionControlOrdinal = 0;
 
   const pageMapIsActive = () => dialog.open || activeInMargin();
 
@@ -91,10 +95,10 @@ export function createPageMapDialog({
     return records;
   }
 
-  const dialogItemKey = (entry, item) => `${entry.key}:item:${item.id}`;
+  const dialogItemKey = (entry, item) => JSON.stringify(["item", entry.key, item.id]);
 
   function dialogControlKey(entry, offered, record) {
-    return `${entry.key}:${record.owner}:${record.key}`;
+    return JSON.stringify(["control", entry.key, offered.key, record.key]);
   }
 
   function syncDialogFace(
@@ -124,15 +128,15 @@ export function createPageMapDialog({
       button.setAttribute("aria-label", accessibleLabel);
   }
 
-  function syncSheetItem(button, entry, item) {
-    button.lfMapEntry = entry;
-    button.lfMapItem = item;
-    delete button.lfMapOffer;
-    delete button.lfMapRecord;
-    button.dataset.lfMapItem = item.id;
-    delete button.dataset.lfMapMarginEntry;
+  function syncSheetItem(control, entry, item) {
+    control.lfMapEntry = entry;
+    control.lfMapItem = item;
+    delete control.lfMapOffer;
+    delete control.lfMapRecord;
+    control.dataset.lfMapItem = item.id;
+    delete control.dataset.lfMapMarginEntry;
     const label = item.text || entry.title;
-    syncDialogFace(button, {
+    syncDialogFace(control, {
       icon: faceFor(item).icon,
       label: `Open ${faceFor(item).label.toLowerCase()}: ${label}`,
       visibleLabel: label,
@@ -140,92 +144,58 @@ export function createPageMapDialog({
       // comparisons do: their pair is provenance rather than part of the account.
       context: item.mapContext,
     });
-    syncMarginAgentWorkflow(button, item.workflowReceipt);
-    button.disabled = false;
+    syncMarginAgentWorkflow(control, item.workflowReceipt);
+    control.disabled = false;
   }
 
-  function syncSheetControl(button, entry, offered, record) {
-    button.lfMapEntry = entry;
-    button.lfMapOffer = offered;
-    button.lfMapRecord = record;
-    delete button.lfMapItem;
-    delete button.dataset.lfMapItem;
-    button.dataset.lfMapMarginEntry = dialogControlKey(entry, offered, record);
-    button.dataset.lfBehavior = record.behavior;
-    button.dataset.lfTone = record.tone;
-    button.dataset.lfRank = record.rank;
-    button.dataset.lfState = record.state;
-    button.dataset.lfMarginEntryKey = record.key;
-    button.dataset.lfMarginEntryOwner = record.owner;
-    button.toggleAttribute("data-lf-target-selected", record.selected);
-    if (record.pressed == null) button.removeAttribute("aria-pressed");
-    else keeps(button, "aria-pressed", record.pressed);
-    if (record.state === "busy") {
-      button.setAttribute("aria-busy", "true");
-    } else {
-      button.removeAttribute("aria-busy");
-    }
-    button.disabled = record.disabled || record.behavior === "status";
-    if (record.behavior === "disclosure")
-      keeps(button, "aria-expanded", record.relation?.expanded ?? false);
-    else button.removeAttribute("aria-expanded");
-    if (record.relation?.kind === "element")
-      keeps(button, "aria-controls", record.relation.id);
-    else button.removeAttribute("aria-controls");
-    if (record.relation?.popup) keeps(button, "aria-haspopup", record.relation.popup);
-    else button.removeAttribute("aria-haspopup");
-    if (record.description) keeps(button, "aria-description", record.description);
-    else button.removeAttribute("aria-description");
-    if (record.title) keeps(button, "title", record.title);
-    else button.removeAttribute("title");
+  function syncSheetControl(control, entry, offered, record) {
+    control.lfMapEntry = entry;
+    control.lfMapOffer = offered;
+    control.lfMapRecord = record;
+    delete control.lfMapItem;
+    delete control.dataset.lfMapItem;
+    control.dataset.lfMapMarginEntry = dialogControlKey(entry, offered, record);
+    presentMarginEntryHost(control, record);
     const workflow = entry.workflowCarrier;
     const receipt =
       workflow?.key === record.key && workflow.owner === record.owner
         ? workflow.receipt
         : record.workflowReceipt;
-    syncMarginAgentWorkflow(button, receipt);
-    projectCommandScope(button, record.scope);
-    syncDialogFace(button, {
+    syncMarginAgentWorkflow(control, receipt);
+    syncDialogFace(control, {
       ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
       label: record.accessibleLabel,
       visibleLabel: visibleMarginEntryLabel(record),
       context: record.context,
     });
-    trackMarginEntryControl(offered, "map", record.key, button);
+    trackMarginEntryControl(offered, "map", record.key, control);
   }
 
-  function makeSheetAction(key) {
-    const button = el("button", "lf-page-map-action");
-    button.type = "button";
-    button.dataset.lfMapKey = key;
-    button.onclick = (event) => {
-      if (button.lfMapItem) {
-        activateItem(button.lfMapItem, button.lfMapEntry);
+  function bindSheetAction(control) {
+    control.onclick = (event) => {
+      if (control.lfMapItem) {
+        activateItem(control.lfMapItem, control.lfMapEntry);
         return;
       }
-      const offered = button.lfMapOffer;
-      const record = button.lfMapRecord;
-      if (!offered || !record) return;
+      const offered = control.lfMapOffer;
+      const record = control.lfMapRecord;
+      if (!offered || !record || record.behavior === "status" || record.disabled)
+        return;
       const relation = record.relation;
       // A disclosure that owns another contributed control unfolds within the map.
       // The first press can then reveal the exact second action without closing the
       // only surface where a spilled contribution is reachable.
       if (relation?.kind === "entries") {
-        const entry = button.lfMapEntry;
         offered.registration.activate(record.key, {
-          origin: button,
+          origin: control,
           surface: "map",
           input: event.detail === 0 ? "keyboard" : "pointer",
         });
         requestAnimationFrame(() => {
           const revealed = relation.keys
-            .map((key) =>
-              dialogList.querySelector(
-                `[data-lf-map-key="${CSS.escape(`control:${entry.key}:${offered.key}:${key}`)}"]`,
-              ),
-            )
+            .map((key) => offered.registration.control(key, "map", true))
             .find((candidate) => candidate?.checkVisibility());
-          (revealed ?? button).focus({ preventScroll: true });
+          (revealed ?? control).focus({ preventScroll: true });
         });
         return;
       }
@@ -235,12 +205,44 @@ export function createPageMapDialog({
       if (returnTo?.isConnected && returnTo.checkVisibility())
         returnTo.focus({ preventScroll: true });
       offered.registration.activate(record.key, {
-        origin: button,
+        origin: control,
         surface: "map",
         input: event.detail === 0 ? "keyboard" : "pointer",
       });
     };
-    return button;
+    return control;
+  }
+
+  function sheetItemControl(entry, item) {
+    let controls = itemControls.get(entry.key);
+    if (!controls) {
+      controls = new Map();
+      itemControls.set(entry.key, controls);
+    }
+    let control = controls.get(item.id);
+    if (!control) {
+      control = el("button", "lf-page-map-action");
+      control.type = "button";
+      control.dataset.lfMapKey = dialogItemKey(entry, item);
+      controls.set(item.id, bindSheetAction(control));
+    }
+    return control;
+  }
+
+  function sheetContributionControl(entry, offered, record) {
+    let controls = contributionControls.get(offered);
+    if (!controls) {
+      controls = new Map();
+      contributionControls.set(offered, controls);
+    }
+    let control = controls.get(record.key);
+    if (!control) {
+      control = createMarginEntryControl("lf-page-map-action");
+      control.id = `lf-page-map-entry-${++contributionControlOrdinal}`;
+      controls.set(record.key, bindSheetAction(control));
+    }
+    control.dataset.lfMapKey = dialogControlKey(entry, offered, record);
+    return control;
   }
 
   function filterSheet() {
@@ -276,24 +278,25 @@ export function createPageMapDialog({
       const heading = group.querySelector(":scope > h3");
       if (heading.textContent !== entry.title) heading.textContent = entry.title;
       const actions = group.querySelector(":scope > .lf-page-map-actions");
-      const existing = new Map(
-        [...actions.children].map((button) => [button.dataset.lfMapKey, button]),
-      );
       const controls = dialogControls(entry);
       const controlOwners = new Set(controls.map(({ record }) => record.owner));
       const items = entry.items.filter(
         (item) => !item.owner || !controlOwners.has(item.owner),
       );
+      const retainedItems = itemControls.get(entry.key);
+      if (retainedItems) {
+        const liveItemIds = new Set(items.map((item) => item.id));
+        for (const itemId of retainedItems.keys())
+          if (!liveItemIds.has(itemId)) retainedItems.delete(itemId);
+      }
       const wantedActions = [];
       for (const item of items) {
-        const key = dialogItemKey(entry, item);
-        const button = existing.get(key) ?? makeSheetAction(key);
+        const button = sheetItemControl(entry, item);
         syncSheetItem(button, entry, item);
         wantedActions.push(button);
       }
       for (const { offered, record } of controls) {
-        const key = `control:${dialogControlKey(entry, offered, record)}`;
-        const button = existing.get(key) ?? makeSheetAction(key);
+        const button = sheetContributionControl(entry, offered, record);
         syncSheetControl(button, entry, offered, record);
         wantedActions.push(button);
       }
@@ -311,7 +314,7 @@ export function createPageMapDialog({
           .filter(Boolean);
         related.forEach((candidate) => {
           if (!candidate.id)
-            candidate.id = `lf-page-map-entry-${candidate.dataset.lfMapMarginEntry.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+            candidate.id = `lf-page-map-entry-${++contributionControlOrdinal}`;
         });
         if (related.length)
           keeps(
@@ -321,16 +324,18 @@ export function createPageMapDialog({
           );
         else button.removeAttribute("aria-controls");
       }
-      for (const offered of entry.offers)
-        clearMarginEntryControls(
-          offered,
-          "map",
-          new Set(
-            controls
-              .filter((candidate) => candidate.offered === offered)
-              .map(({ record }) => record.key),
-          ),
+      for (const offered of entry.offers) {
+        const liveKeys = new Set(
+          controls
+            .filter((candidate) => candidate.offered === offered)
+            .map(({ record }) => record.key),
         );
+        const retainedControls = contributionControls.get(offered);
+        if (retainedControls)
+          for (const key of retainedControls.keys())
+            if (!liveKeys.has(key)) retainedControls.delete(key);
+        clearMarginEntryControls(offered, "map", liveKeys);
+      }
       for (const child of [...actions.children])
         if (!wantedActions.includes(child)) child.remove();
       wantedActions.forEach((button, index) => {
@@ -346,6 +351,9 @@ export function createPageMapDialog({
     }
     for (const child of [...dialogList.children])
       if (!wantedGroups.includes(child)) child.remove();
+    const liveEntryKeys = new Set(entries.map((entry) => entry.key));
+    for (const key of itemControls.keys())
+      if (!liveEntryKeys.has(key)) itemControls.delete(key);
     wantedGroups.forEach((group, index) => {
       if (dialogList.children[index] !== group)
         dialogList.insertBefore(group, dialogList.children[index] ?? null);

@@ -962,7 +962,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
             const box = node.getBoundingClientRect();
             return {x: box.left + box.width / 2, y: box.top + box.height / 2};
           });
-          const controls = [...item.querySelectorAll('button')].filter((button) => {
+          const controls = [...item.querySelectorAll('[role="button"]')].filter((button) => {
             const box = button.getBoundingClientRect();
             return box.width && /^(Accept|Reject) the /.test(button.ariaLabel);
           });
@@ -1034,7 +1034,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         round_trip(page)
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
         page.locator(
-            f'button[data-lf-margin-entry-owner="suggestion:{target}"]'
+            f'[role="button"][data-lf-margin-entry-owner="suggestion:{target}"]'
             '[aria-label^="Undo "]'
         ).click()
         round_trip(page)
@@ -1080,7 +1080,8 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         and event.get("anchor", {}).get("section") == "bg-crowded"
     )
     reaction_actions = dialog.locator(
-        f'[data-lf-map-margin-entry$=":reaction:{reaction["id"]}:open"]'
+        '[data-lf-margin-entry-owner="standing-reactions"]'
+        f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
     )
     expect(reaction_actions).to_have_attribute(
         "aria-label", "prioritize reaction actions"
@@ -1734,15 +1735,18 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let state = {
             state: 'engaged', expanded: true, popup: 'dialog', pressed: true,
-            selected: true, disabled: false
+            selected: true, disabled: false, behavior: 'disclosure'
           };
           const read = () => ({entries: [marginEntry({
             key: 'inspect', icon: 'question', label: 'Inspect source',
-            context: 'Patch ready', behavior: 'disclosure', tone: 'negative',
+            context: 'Patch ready', behavior: state.behavior, tone: 'negative',
             rank: 'reading', state: state.state, disabled: state.disabled,
             selected: state.selected, pressed: state.pressed,
-            relation: {kind: 'element', id: 'how-cap', expanded: state.expanded,
-              popup: state.popup}, activation: 'inspect-source'
+            relation: state.behavior === 'disclosure'
+              ? {kind: 'element', id: 'how-cap', expanded: state.expanded,
+                  popup: state.popup}
+              : null,
+            activation: 'inspect-source'
           })]});
           window.lfCanonicalActivations = [];
           const registration = registerMarginContribution({
@@ -1759,6 +1763,11 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
             },
             disable(disabled) {
               state = {...state, disabled};
+              registration.update({immediate: true});
+            },
+            behavior(behavior) {
+              state = {...state, behavior, state: 'idle', disabled: false,
+                pressed: null, selected: false};
               registration.update({immediate: true});
             },
             recordProof() {
@@ -1834,9 +1843,114 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
         ).count()
         == 0
     ), "the contribution left a hidden source control beside its projections"
-    proxy.click()
+    page.evaluate("() => window.lfCanonicalMarginEntry.behavior('status')")
+    retained = dialog.locator('[data-stable-proof="same-proxy"]')
+    expect(retained).to_be_focused()
+    expect(retained).to_have_attribute("role", "status")
+    expect(retained).to_have_attribute("tabindex", "-1")
+    expect(retained).not_to_have_attribute("aria-disabled", re.compile(".+"))
+    expect(retained).not_to_have_attribute("aria-expanded", re.compile(".+"))
+    expect(retained).not_to_have_attribute("aria-controls", re.compile(".+"))
+    expect(retained).not_to_have_attribute("aria-haspopup", re.compile(".+"))
+    expect(retained).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
+    expect(dialog).to_be_visible()
+    assert page.evaluate("() => window.lfCanonicalActivations") == []
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.get_by_role("dialog", name="Command reference", exact=True)
+    reference.get_by_role("combobox", name="Search commands").fill("margin.press")
+    press = reference.locator(
+        '.lf-command-reference-command[data-lf-command="margin.press"]'
+    )
+    expect(press).to_have_attribute("data-lf-available", "false")
+    page.keyboard.press("Escape")
+    expect(retained).to_be_focused()
+
+    page.evaluate("() => window.lfCanonicalMarginEntry.behavior('action')")
+    expect(retained).to_be_focused()
+    expect(retained).to_have_attribute("role", "button")
+    expect(retained).to_have_attribute("tabindex", "0")
+    expect(retained).to_have_attribute("aria-keyshortcuts", "Enter Space")
+    page.keyboard.press(" ")
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => window.lfCanonicalActivations") == ["inspect-source"]
+
+
+def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
+    browser, serve
+):
+    """Composite keys retain both controls and relations target unique stable hosts."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    page.evaluate(
+        """async () => {
+          const {marginEntry, registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const target = document.querySelector('#how-cap');
+          window.lfIdentityActivations = [];
+          const register = (owner, key, label) => registerMarginContribution({
+            key: owner, target,
+            read: () => ({entries: [marginEntry({key, icon: 'dot', label})]}),
+            activate: activation => window.lfIdentityActivations.push(activation),
+          });
+          const first = register('a:b', 'c', 'First opaque action');
+          const second = register('a', 'b:c', 'Second opaque action');
+          const related = registerMarginContribution({
+            key: 'relations', target,
+            read: () => ({entries: [
+              marginEntry({key: 'open-colon', icon: 'more', label: 'Open colon',
+                behavior: 'disclosure',
+                relation: {kind: 'entries', keys: ['a:b'], expanded: true}}),
+              marginEntry({key: 'a:b', icon: 'dot', label: 'Colon target'}),
+              marginEntry({key: 'open-slash', icon: 'more', label: 'Open slash',
+                behavior: 'disclosure',
+                relation: {kind: 'entries', keys: ['a/b'], expanded: true}}),
+              marginEntry({key: 'a/b', icon: 'dot', label: 'Slash target'}),
+            ]}), activate: () => {},
+          });
+          window.lfIdentityMargins = {first, second, related};
+        }"""
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    first = dialog.get_by_role("button", name="First opaque action", exact=True)
+    second = dialog.get_by_role("button", name="Second opaque action", exact=True)
+    expect(first).to_have_count(1)
+    expect(second).to_have_count(1)
+    first.evaluate("node => { node.dataset.identityProbe = 'first'; }")
+    second.evaluate("node => { node.dataset.identityProbe = 'second'; }")
+
+    page.evaluate(
+        """() => Object.values(window.lfIdentityMargins)
+          .forEach(registration => registration.update({immediate: true}))"""
+    )
+    expect(first).to_have_attribute("data-identity-probe", "first")
+    expect(second).to_have_attribute("data-identity-probe", "second")
+    assert first.get_attribute("data-lf-map-margin-entry") != second.get_attribute(
+        "data-lf-map-margin-entry"
+    )
+
+    colon_target = dialog.get_by_role("button", name="Colon target", exact=True)
+    slash_target = dialog.get_by_role("button", name="Slash target", exact=True)
+    colon_relation = dialog.get_by_role("button", name="Open colon", exact=True)
+    slash_relation = dialog.get_by_role("button", name="Open slash", exact=True)
+    assert colon_target.get_attribute("id") != slash_target.get_attribute("id")
+    assert colon_relation.get_attribute("aria-controls") == colon_target.get_attribute(
+        "id"
+    )
+    assert slash_relation.get_attribute("aria-controls") == slash_target.get_attribute(
+        "id"
+    )
+
+    first.click()
+    expect(dialog).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    second.click()
+    expect(dialog).to_be_hidden()
+    assert page.evaluate("() => window.lfIdentityActivations") == ["c", "b:c"]
 
 
 def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_page_map(

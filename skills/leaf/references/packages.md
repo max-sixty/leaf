@@ -325,7 +325,9 @@ command.
 page-edge actions. `read()` returns the contribution's complete current reading,
 including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
 those same records independently in the target's Margin cluster and in Page Map,
-retaining each projected control by the contribution key and entry key. `target` is an
+retaining each projected control by the opaque contribution key and entry key. The same
+host survives action, disclosure, and status readings for that identity; Leaf changes
+its role, tab seat, and Enter/Space capability in place. `target` is an
 element or a function returning the element that currently anchors the action. `source`
 defaults to that target and may separately name the semantic owner when presentation has
 to move to a surviving ancestor.

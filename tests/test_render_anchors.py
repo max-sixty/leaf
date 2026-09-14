@@ -3,6 +3,7 @@
 import io
 import json
 import re
+from html import escape
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
@@ -85,6 +86,18 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def _diff_page(*specimens):
+    """A complete authored page of `(id, escaped pre markup)` diff specimens."""
+    return leaf_page(
+        "diff specimens",
+        '<h1 id="diff-specimens">Diff specimens</h1>'
+        + "".join(
+            f'<lf-diff id="{identifier}"><pre>{markup}</pre></lf-diff>'
+            for identifier, markup in specimens
+        ),
+    )
 
 
 def test_a_missing_node_has_no_passage_location(browser, serve):
@@ -1772,31 +1785,20 @@ def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
 
 def test_a_diff_keeps_source_markup_inert(browser, serve):
     """Pierre returns HTML, but the diff remains data rather than a markup door."""
-    page = open_page(browser, serve(DIFF_PAGE))
-    result = page.evaluate("""async () => {
-      const payload = '<img src=x onerror=globalThis.__lfDiffPwned=1>';
-      const host = document.createElement('lf-diff');
-      host.id = 'inert-diff';
-      const pre = document.createElement('pre');
-      pre.textContent = [
-        'diff --git a/example.html b/example.html',
-        '--- a/example.html',
-        '+++ b/example.html',
-        '@@ -1 +1 @@',
-        '-old',
-        '+' + payload,
-      ].join('\\n');
-      host.append(pre);
-      document.querySelector('main').append(host);
-      await new Promise((resolve, reject) => {
-        const limit = setTimeout(() => reject(new Error('diff did not render')), 2000);
-        const ready = () => {
-          if (!host.classList.contains('lf-rendered')) return requestAnimationFrame(ready);
-          clearTimeout(limit);
-          resolve();
-        };
-        ready();
-      });
+    payload = "<img src=x onerror=globalThis.__lfDiffPwned=1>"
+    source = "\n".join(
+        [
+            "diff --git a/example.html b/example.html",
+            "--- a/example.html",
+            "+++ b/example.html",
+            "@@ -1 +1 @@",
+            "-old",
+            f"+{payload}",
+        ]
+    )
+    page = open_page(browser, serve(_diff_page(("inert-diff", escape(source)))))
+    result = page.evaluate("""() => {
+      const host = document.querySelector('#inert-diff');
       const added = [...host.shadowRoot.querySelectorAll('[data-line]')]
         .find(line => line.dataset.lineType === 'change-addition');
       return {
@@ -1816,112 +1818,7 @@ def test_a_diff_keeps_source_markup_inert(browser, serve):
 
 def test_a_diff_rejects_incomplete_hunks(browser, serve):
     """Missing or wrong hunk ranges must fail instead of hiding review evidence."""
-    page = open_page(browser, serve(DIFF_PAGE))
-    result = page.evaluate("""async () => {
-      const settle = async (id, lines) => {
-        const host = document.createElement('lf-diff');
-        host.id = id;
-        const pre = document.createElement('pre');
-        pre.textContent = lines.join('\\n');
-        host.append(pre);
-        document.querySelector('main').append(host);
-        await new Promise((resolve, reject) => {
-          const limit = setTimeout(() => reject(new Error('diff did not settle')), 2000);
-          const ready = () => {
-            if (!host.querySelector('.lf-error') && !host.shadowRoot)
-              return requestAnimationFrame(ready);
-            clearTimeout(limit);
-            resolve();
-          };
-          ready();
-        });
-        return {
-          rendered: host.classList.contains('lf-rendered'),
-          error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
-          source: host.querySelector('.lf-error pre')?.textContent ?? null,
-        };
-      };
-      return Promise.all([
-        settle('wrong-count-diff', [
-          'diff --git a/example.js b/example.js',
-          '--- a/example.js',
-          '+++ b/example.js',
-          '@@ -1 +1 @@',
-          '-old',
-          '+new',
-          '+silently-lost',
-        ]),
-        settle('missing-hunk-diff', [
-          'diff --git a/example.js b/example.js',
-          '--- a/example.js',
-          '+++ b/example.js',
-          '-old',
-          '+new',
-        ]),
-        settle('mixed-binary-diff', [
-          'diff --git a/app.js b/app.js',
-          '--- a/app.js',
-          '+++ b/app.js',
-          '@@ -1 +1 @@',
-          '-const value = 1;',
-          '+const value = 2;',
-          'diff --git a/logo.png b/logo.png',
-          'index 1234567..89abcde 100644',
-          'Binary files a/logo.png and b/logo.png differ',
-        ]),
-        settle('empty-added-diff', [
-          'diff --git a/empty.txt b/empty.txt',
-          'new file mode 100644',
-          'index 0000000..e69de29',
-        ]),
-        settle('empty-deleted-diff', [
-          'diff --git a/empty.txt b/empty.txt',
-          'deleted file mode 100644',
-          'index e69de29..0000000',
-        ]),
-        settle('copy-diff', [
-          'diff --git a/source.js b/copied.js',
-          'similarity index 100%',
-          'copy from source.js',
-          'copy to copied.js',
-        ]),
-        settle('rename-and-mode-diff', [
-          'diff --git a/old.js b/new.js',
-          'old mode 100644',
-          'new mode 100755',
-          'similarity index 100%',
-          'rename from old.js',
-          'rename to new.js',
-        ]),
-        settle('rename-with-missing-hunk-diff', [
-          'diff --git a/old.js b/new.js',
-          'similarity index 100%',
-          'rename from old.js',
-          'rename to new.js',
-          '--- a/old.js',
-          '+++ b/new.js',
-          '-before',
-          '+after',
-        ]),
-        settle('similarity-only-diff', [
-          'diff --git a/old.js b/new.js',
-          'similarity index 100%',
-        ]),
-        settle('empty-rename-paths-diff', [
-          'diff --git a/old.js b/new.js',
-          'similarity index 100%',
-          'rename from ',
-          'rename to ',
-        ]),
-        settle('contradictory-rename-paths-diff', [
-          'diff --git a/header-old.js b/header-new.js',
-          'similarity index 100%',
-          'rename from body-old.js',
-          'rename to body-new.js',
-        ]),
-      ]);
-    }""")
-    assert result == [
+    expected = [
         {
             "rendered": False,
             "error": (
@@ -2086,43 +1983,59 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
             ),
         },
     ]
+    identifiers = (
+        "wrong-count-diff",
+        "missing-hunk-diff",
+        "mixed-binary-diff",
+        "empty-added-diff",
+        "empty-deleted-diff",
+        "copy-diff",
+        "rename-and-mode-diff",
+        "rename-with-missing-hunk-diff",
+        "similarity-only-diff",
+        "empty-rename-paths-diff",
+        "contradictory-rename-paths-diff",
+    )
+    page = open_page(
+        browser,
+        serve(
+            _diff_page(
+                *(
+                    (identifier, escape(case["source"]))
+                    for identifier, case in zip(identifiers, expected, strict=True)
+                )
+            )
+        ),
+    )
+    result = page.locator("lf-diff").evaluate_all(
+        """hosts => hosts.map(host => ({
+          rendered: host.classList.contains('lf-rendered'),
+          error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+          source: host.querySelector('.lf-error pre')?.textContent ?? null,
+        }))"""
+    )
+    assert result == expected
 
 
 def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, serve):
     """A path-only rename remains evidence without an invented textual hunk."""
-    page = open_page(browser, serve(DIFF_PAGE))
+    source = '''diff --git a/app.js b/app.js
+--- a/app.js
++++ b/app.js
+@@ -1 +1 @@
+-const value = 1;
++const value = 2;
+diff --git a/old-name.js b/new-name.js
+similarity index 100%
+rename from old-name.js
+rename to new-name.js
+diff --git "a/old\\tname.js" "b/new\\tname.js"
+similarity index 100%
+rename from "old\\tname.js"
+rename to "new\\tname.js"'''
+    page = open_page(browser, serve(_diff_page(("mixed-rename-diff", escape(source)))))
     result = page.evaluate("""async () => {
-      const host = document.createElement('lf-diff');
-      host.id = 'mixed-rename-diff';
-      const pre = document.createElement('pre');
-      pre.textContent = [
-        'diff --git a/app.js b/app.js',
-        '--- a/app.js',
-        '+++ b/app.js',
-        '@@ -1 +1 @@',
-        '-const value = 1;',
-        '+const value = 2;',
-        'diff --git a/old-name.js b/new-name.js',
-        'similarity index 100%',
-        'rename from old-name.js',
-        'rename to new-name.js',
-        'diff --git "a/old\\\\tname.js" "b/new\\\\tname.js"',
-        'similarity index 100%',
-        'rename from "old\\\\tname.js"',
-        'rename to "new\\\\tname.js"',
-      ].join('\\n');
-      host.append(pre);
-      document.querySelector('main').append(host);
-      await new Promise((resolve, reject) => {
-        const limit = setTimeout(() => reject(new Error('diff did not settle')), 2000);
-        const ready = () => {
-          if (!host.querySelector('.lf-error') && !host.shadowRoot)
-            return requestAnimationFrame(ready);
-          clearTimeout(limit);
-          resolve();
-        };
-        ready();
-      });
+      const host = document.querySelector('#mixed-rename-diff');
       const shadow = host.shadowRoot;
       const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
       const rename = renames[0];
@@ -2169,35 +2082,20 @@ def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, se
 
 def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
     """The documented entity for an empty context line survives wrapper cleanup."""
-    page = open_page(browser, serve(DIFF_PAGE))
-    result = page.evaluate("""async () => {
-      const host = document.createElement('lf-diff');
-      host.id = 'final-empty-context-diff';
-      const pre = document.createElement('pre');
-      pre.innerHTML = [
-        'diff --git a/example.txt b/example.txt',
-        '--- a/example.txt',
-        '+++ b/example.txt',
-        '@@ -1,2 +1,2 @@',
-        ' visible',
-        '&#32;',
-        '',
-      ].join('\\n');
-      const authored = pre.textContent;
-      host.append(pre);
-      document.querySelector('main').append(host);
-      await new Promise((resolve, reject) => {
-        const limit = setTimeout(() => reject(new Error('diff did not settle')), 2000);
-        const ready = () => {
-          if (!host.querySelector('.lf-error') && !host.shadowRoot)
-            return requestAnimationFrame(ready);
-          clearTimeout(limit);
-          resolve();
-        };
-        ready();
-      });
+    source_markup = """diff --git a/example.txt b/example.txt
+--- a/example.txt
++++ b/example.txt
+@@ -1,2 +1,2 @@
+ visible
+&#32;
+"""
+    page = open_page(
+        browser,
+        serve(_diff_page(("final-empty-context-diff", source_markup))),
+    )
+    result = page.evaluate("""() => {
+      const host = document.querySelector('#final-empty-context-diff');
       return {
-        authoredTail: authored.slice(-3),
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         lines: [...(host.shadowRoot?.querySelectorAll('[data-line]') ?? [])]
@@ -2205,7 +2103,6 @@ def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
       };
     }""")
     assert result == {
-        "authoredTail": "\n \n",
         "rendered": True,
         "error": None,
         "lines": ["visible", ""],

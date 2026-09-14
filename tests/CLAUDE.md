@@ -445,10 +445,8 @@ any binding, so a promise awaited inside it is a wait nothing bounds: it spends
 the job's whole step, and the share of the suite already handed to that worker
 never runs. State synchronous readiness inside the page and poll it with
 `wait_for_probe`, whose driver-side wait carries `SERVED_TIMEOUT_MS`;
-`render_checks.py` refuses a probe that returns a Promise. The diff renders in
-`test_render_anchors.py` hold a frame poll against an explicit rejecting timer;
-a shipped probe's ordinary browser lifecycle is always a synchronous fact
-observed from outside the page.
+`render_checks.py` refuses a probe that returns a Promise. A shipped probe's ordinary
+browser lifecycle is always a synchronous fact observed from outside the page.
 
 ### A state the page passes through is not a state to poll for
 

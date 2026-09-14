@@ -7477,6 +7477,10 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     # fresh sample and then hold, which is the window a travel would appear in.
     observe_live_region(page)
     page.keyboard.press("a")  # one ask, so the clamped walk stays on it
+    page.wait_for_function(
+        "() => window.__lfLiveRegionChanges.some("
+        "words => words.includes('waiting on you'))"
+    )
     expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on you"))
     assert "" in page.evaluate("window.__lfLiveRegionChanges")
     expect(page.locator("#sc-sug")).to_be_focused()

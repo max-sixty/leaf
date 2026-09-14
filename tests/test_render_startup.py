@@ -1114,12 +1114,8 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         expect(choice).to_be_visible()
         choice.dispatch_event("click")
         expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
-        suggestion_accept = page.locator(
-            ".lf-sug-actions[data-lf-for='sug'] "
-            "button[aria-label^='Accept the suggested change']"
-        )
-        expect(suggestion_accept).to_have_attribute("aria-disabled", "true")
-        expect(suggestion_accept).to_have_attribute("tabindex", "-1")
+        suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
+        expect(suggestion_accept).to_be_disabled()
         assert suggestion_accept.evaluate(
             """button => {
               const glyph = button.firstElementChild;
@@ -1132,7 +1128,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             }"""
         ), "an unchanged availability paint rebuilt the suggestion control"
         suggestion_accept.dispatch_event("click")
-        expect(suggestion_accept).to_have_attribute("aria-disabled", "true")
+        expect(suggestion_accept).to_be_disabled()
         assert posts == [], "a durable action posted before the first state projection"
         authored_note = page.locator("#startup-note .lf-draft-body")
         expect(authored_note).to_have_text("Ship on Tuesday from the blue room.")
@@ -1895,8 +1891,9 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(DRAFT_EDITED)
-    page.locator(".lf-draft-controls[data-lf-for='draft-ops']").get_by_role(
-        "button", name="Save"
+    page.locator(
+        '[data-lf-margin-entry-owner="draft:draft-ops"]'
+        '[data-lf-margin-entry-key="save"]:visible'
     ).click()
     expect(page.locator("#draft-ops[data-lf-reader-override]")).to_have_count(1)
 
@@ -5083,6 +5080,6 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     context.route("**/leaf-boot.js", boot_after_one_frame)
     page = open_page(browser, url, context=context)
     assert page.evaluate("window.apiImportedBeforeBoot") is True
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")

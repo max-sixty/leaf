@@ -61,6 +61,22 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+def margin_control(page, owner, key, *, visible=True):
+    return page.locator(
+        f'[data-lf-margin-entry-owner="{owner}"]'
+        f'[data-lf-margin-entry-key="{key}"]'
+        f"{':visible' if visible else ''}"
+    )
+
+
+def suggestion_control(page, suggestion_id, key, *, visible=True):
+    return margin_control(page, f"suggestion:{suggestion_id}", key, visible=visible)
+
+
+def draft_control(page, draft_id="note-cli"):
+    return margin_control(page, f"draft:{draft_id}", "edit")
+
+
 def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
     serve, held_events
 ):
@@ -411,7 +427,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     old_route = older[0]
     old_state = old_route.fetch().json()
 
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
 
@@ -454,7 +470,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
             message.type == "error" and "leaf: state in event response" in message.text
         )
     ) as reported:
-        page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
+        suggestion_control(page, "sug-thistle", "accept").click()
     expect(page.locator("#sug-thistle")).not_to_have_attribute("aria-busy", "true")
     expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
 
@@ -481,7 +497,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
 
     # A later refusal is another asynchronous reconciliation wake-up. It may not release
     # either hold merely because its delivery completed.
-    page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").click()
+    suggestion_control(page, "sug-in-card", "accept").click()
     round_trip(page)
     expect(page.locator("#sug-in-card")).not_to_have_attribute(
         "data-lf-state", "accept"
@@ -1327,7 +1343,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
-        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+        suggestion_control(page, "sug-refill", "accept").click()
     holding(page, held, 1, "the suggestion settlement")
     accepted_answer = held[0].fetch()
     attempt = held[0].request.post_data_json["attempt"]
@@ -1362,7 +1378,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
-        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+        suggestion_control(page, "sug-refill", "accept").click()
     holding(page, held, 1, "the accepted suggestion")
     # Append the accept while its browser response remains held, with the page's
     # reads held too, so one complete read accounts the accept and replays the reject.
@@ -1557,9 +1573,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
     with page.expect_request("**/api/event"):
-        page.locator(
-            ".lf-draft-controls[data-lf-for='note-cli'] .lf-draft-pencil"
-        ).click()
+        draft_control(page).click()
         draft.locator("textarea").fill("Local C")
         page.keyboard.press("Meta+Enter")
     holding(page, held, 1, "the refused draft")
@@ -1616,7 +1630,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
-    page.locator(".lf-draft-controls[data-lf-for='note-cli'] .lf-draft-pencil").click()
+    draft_control(page).click()
     draft.locator("textarea").fill("Local C")
 
     append_command(
@@ -1658,7 +1672,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     authored = body.inner_text()
     assert "\n\n" in authored
 
-    page.locator(".lf-draft-controls .lf-draft-pencil").click()
+    draft_control(page).click()
     page.locator("lf-draft textarea").fill("Rewritten.")
     page.keyboard.press("Meta+Enter")
     round_trip(page)
@@ -1720,7 +1734,7 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     regains its old passage and decision controls without replacing its subtree."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     old = page.locator("#sug-refill lf-old")
-    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    accept = suggestion_control(page, "sug-refill", "accept")
     expect(old).to_be_visible()
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
 
@@ -1734,12 +1748,12 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     # the control offers the decision rather than recording it, and the banner
     # counts the question among the ones still waiting on the reader.
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
-    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_attribute(
+    expect(suggestion_control(page, "sug-refill", "accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
     )
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
-    assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
-        "undo left more than one control row for the same suggestion"
+    assert suggestion_control(page, "sug-refill", "accept").count() == 1, (
+        "undo left more than one Accept record for the same suggestion"
     )
     (accepted,) = actions(serve.page_dir)
     assert accepted["action"] == "accept"
@@ -1771,26 +1785,42 @@ def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
     marks = "() => (CSS.highlights.get('lf-mark')?.size ?? 0)"
     page.wait_for_function(f"{marks} > 0")
 
-    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    accept = suggestion_control(page, "sug-refill", "accept")
     accept.click()
     round_trip(page)
     # The sentence left the page with the decision, so the mark goes with it.
     page.wait_for_function(f"{marks} === 0")
-    expect(
-        page.locator("[data-lf-for='sug-refill']").get_by_role(
-            "button", name=re.compile(r"^Undo accepting")
-        )
-    ).to_be_focused()
+    expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
 
     undo(page)
     page.wait_for_function(f"{marks} === 1")
-    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_be_focused()
+    expect(suggestion_control(page, "sug-refill", "accept")).to_be_focused()
+
+
+def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
+    """The replacement keeps the press's place immediately, not after delivery.
+
+    Once the reader moves elsewhere, the eventual admission cannot pull them back to the
+    Undo control that replaced the decision they pressed.
+    """
+    browser, held = held_events
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+
+    suggestion_control(page, "sug-refill", "accept").click()
+    holding(page, held, 1, "the accepted suggestion")
+    expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
+
+    elsewhere = page.locator(".lf-threads-toggle")
+    elsewhere.focus()
+    held.pop(0).continue_()
+    round_trip(page)
+    expect(elsewhere).to_be_focused()
 
 
 def test_undo_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
     """Undo from elsewhere changes the decision without moving the reader's focus."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
     page.evaluate("() => document.body.focus()")
 
@@ -1814,14 +1844,14 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     body = "lf-draft .lf-draft-body"
     authored = one.locator(body).inner_text()
 
-    one.locator(".lf-draft-controls .lf-draft-pencil").click()
+    draft_control(one).click()
     one.locator("lf-draft textarea").fill("Rewritten.")
     one.keyboard.press("Meta+Enter")
     round_trip(one)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
     # The second tab is now holding words of its own, so the log may not write over it.
-    two.locator(".lf-draft-controls .lf-draft-pencil").click()
+    draft_control(two).click()
     expect(two.locator("lf-draft textarea")).to_be_focused()
     undo(one)
     expect(one.locator(body)).to_have_text(authored)
@@ -1970,7 +2000,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
     pending = one.evaluate(marks, "sug-refill")
     assert pending["lf-sug-del"] and pending["lf-sug-ins"]
 
-    one.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    suggestion_control(one, "sug-refill", "accept").click()
     round_trip(one)
     expect(two.locator("#sug-refill lf-old")).to_be_hidden()
 
@@ -1988,7 +2018,9 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
         == 0
     )
 
-    unfolded_button(two.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).click()
+    unfolded_button(
+        suggestion_control(two, "sug-refill", "reject", visible=False)
+    ).click()
     round_trip(two)
     expect(one.locator("#sug-refill lf-new")).to_be_hidden()
     assert [
@@ -2008,14 +2040,14 @@ def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve)
     round_trip(page)
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
 
-    page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
+    suggestion_control(page, "sug-thistle", "accept").click()
     round_trip(page)
     undo(page)
 
     expect(page.locator("#sug-thistle lf-old, #sug-thistle lf-new")).to_have_count(1)
-    expect(
-        page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept")
-    ).to_have_attribute("aria-label", re.compile(r"^Accept the suggested change"))
+    expect(suggestion_control(page, "sug-thistle", "accept")).to_have_attribute(
+        "aria-label", re.compile(r"^Accept the suggested change")
+    )
     assert original.evaluate(
         "node => node === document.querySelector('#sug-thistle lf-options')"
     )
@@ -2026,7 +2058,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
     """A page loaded after an undo renders the same undecided state as a page that received the withdrawal live."""
     url = serve(SUGGESTION_PAGE)
     page = open_page(browser, url)
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
     undo(page)
     page.close()
@@ -2346,11 +2378,11 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
 
     page.route("**/api/event", first_answer_only)
     with page.expect_request("**/preparation-content"):
-        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+        suggestion_control(page, "sug-refill", "accept").click()
     assert page.locator("#detail").get_attribute("data-ready") is None
     assert len(preparations) == 1
 
-    page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
+    suggestion_control(page, "sug-thistle", "accept").click()
     expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
     page.locator(".lf-general textarea").fill("Keep this newer comment visible.")
     page.locator(".lf-general textarea").press("ControlOrMeta+Enter")
@@ -2499,7 +2531,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     """Undo waits during application, then reads accepted truth after a paint fault."""
     url = _serve_preparing_thread(serve)
     page = open_page(browser, url)
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
     before = page.locator("body").get_attribute("data-lf-reading")
     page.locator(".lf-threads-toggle").click()
@@ -2631,12 +2663,12 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
         ),
         timeout=2_000,
     ):
-        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+        suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
 
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    undo = page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
-    expect(undo).to_have_attribute("aria-disabled", "false")
+    undo = suggestion_control(page, "sug-refill", "undo")
+    expect(undo).to_be_enabled()
     assert [event["action"] for event in actions(serve.page_dir)] == ["accept"]
     errors = take_browser_errors(page)
     expected = [
@@ -2666,7 +2698,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         }"""
     )
     with page.expect_response("**/api/event"):
-        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+        suggestion_control(page, "sug-refill", "accept").click()
     page.wait_for_function(
         "reading => document.body.dataset.lfReading !== reading", arg=prior_reading
     )
@@ -2681,9 +2713,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     ), "the action left before projection chrome committed its surviving reading"
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
-    expect(
-        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
-    ).to_have_attribute("aria-disabled", "false")
+    expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2757,9 +2787,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    expect(
-        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
-    ).to_have_attribute("aria-disabled", "false")
+    expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
     assert take_browser_errors(page) == [
         "leaf: State presentation failed: injected wake candidate fault",
         "leaf: read failed: injected wake candidate fault",

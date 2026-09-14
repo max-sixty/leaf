@@ -300,10 +300,7 @@ const anchorControls = createAnchorControls({
   invalidatePageGeometry: pageGeometry.invalidate,
   messageReferenceRoot: panel,
   draftQuote: composerQuote,
-  presentedControl: (control) =>
-    pageMapDialog?.presentedControl(control) ?? app.margin.presentedControl(control),
   focused,
-  keys,
   paintKeys,
 });
 
@@ -439,6 +436,7 @@ asks = createAskView({
   readingBlock: version.readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
+  projectionTarget: app.margin.marginTargetAt,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   setOpenTray: (...args) => trays.setOpenTray(...args),
   trayCovers: () => trays.traysEdge.over.matches,
@@ -454,6 +452,7 @@ const standingElement = createStandingElement({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   askPlace: asks.askPlace,
   standingIn: asks.standingIn,
+  projectionTarget: app.margin.marginTargetAt,
 });
 
 panelComposer = createPanelComposer({

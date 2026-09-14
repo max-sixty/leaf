@@ -247,19 +247,14 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     )
                 ).to_have_count(0)
         for reaction in reacted:
-            glyph = page.locator(
-                f'.lf-reacts > .lf-react-mark[data-event="{reaction["id"]}"]'
+            item = page.locator(
+                f'.lf-margin-cluster[data-lf-margin-for="{reaction["anchor"]["section"]}"]'
             )
-            expect(glyph).to_have_count(1)
-            expect(glyph.locator("..")).to_have_attribute(
-                "data-lf-for", reaction["anchor"]["section"]
-            )
+            expect(item).to_have_count(1)
             # A crowded target may expose this exact reaction through overflow. Follow
             # its visible route rather than requiring every margin entry to stand at rest.
-            item = glyph.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
             visible = item.locator(
-                f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]:visible, '
-                f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open:proxy"]:visible'
+                f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]:visible'
             )
             more = item.locator(":scope > .lf-margin-more")
             if not visible.count() and more.is_visible():
@@ -272,8 +267,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 sheet = page.get_by_role("dialog", name="Page Map", exact=True)
                 expect(
                     sheet.locator(
-                        f'[data-lf-map-margin-entry$=":reaction:{reaction["id"]}:open"], '
-                        f'[data-lf-map-margin-entry$=":reaction:{reaction["id"]}:open:proxy"]'
+                        f'[data-lf-map-margin-entry$=":reaction:{reaction["id"]}:open"]'
                     )
                 ).to_be_visible()
                 page.keyboard.press("Escape")
@@ -2001,7 +1995,9 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
     watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
-    expect(page.locator(".lf-sug-actions")).to_have_count(0)
+    expect(
+        page.locator('.lf-margin-entry[data-lf-margin-entry-owner^="suggestion:"]')
+    ).to_have_count(0)
     expect(page.locator(".lf-react-mark")).to_have_count(1)
     fit = page.evaluate(RAIL_FIT)
     assert fit["rail"] != "0px", (

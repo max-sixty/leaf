@@ -455,8 +455,7 @@ export function createGoToSequence({
     const chip = el("span", "lf-key-badge lf-key-hint lf-go-to-hint");
     chip.dataset.lfHintCode = candidate.code;
     chip.dataset.lfGoToKind = candidate.kind;
-    const source = candidate.member.lfForwardedControl ?? candidate.member;
-    const marginEntryKey = source.dataset?.lfMarginEntryKey;
+    const marginEntryKey = candidate.member.dataset?.lfMarginEntryKey;
     if (marginEntryKey) chip.dataset.lfGoToMarginEntry = marginEntryKey;
     const targetId =
       closestAcross(candidate.member, "[data-lf-margin-for]")?.dataset.lfMarginFor ||

@@ -98,7 +98,7 @@ import {
 } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import { takesLetters } from "../focus.js";
-import { elementScopes, focused, recoveredLabelFocus, scopesFor } from "./scopes.js";
+import { focused, recoveredLabelFocus, scopesAt, scopesFor } from "./scopes.js";
 import { RETURN, invoke } from "./return-stack.js";
 import {
   currentModalLayer,
@@ -272,7 +272,7 @@ export const shadow = () => {
 // point of an ancestor projection such as Ask.
 function referencedInvocation(reference) {
   if (!reference?.source?.isConnected) return null;
-  if (elementScopes.get(reference.source) !== reference.scope) return null;
+  if (!scopesAt(reference.source).includes(reference.scope)) return null;
   if (!pageHas(reference.scope) || !reference.scope.rows.includes(reference.row))
     return null;
   if (!live(reference.row)) return null;

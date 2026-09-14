@@ -35,7 +35,8 @@ import {
 customElements.define(
   "lf-shot",
   class extends HTMLElement {
-    #button;
+    #box;
+    #alt;
     #margin;
 
     static observedAttributes = ["data-lf-shot-controls"];
@@ -46,6 +47,7 @@ customElements.define(
         return;
       }
       const alt = this.getAttribute("alt");
+      this.#alt = alt;
       const shots = [];
       const captions = new Map();
 
@@ -78,6 +80,7 @@ customElements.define(
       }
 
       const box = offer("input", "lf-shotflip", undefined, "checkbox");
+      this.#box = box;
       box.name = "comparison";
       box.ariaLabel = `Compare before and after — ${alt}`;
       const show = (state) => {
@@ -103,40 +106,26 @@ customElements.define(
           },
         ]);
       }
-      this.#button = offer("button", "lf-shot-toggle");
-      this.#button.addEventListener("click", () => box.click());
       const paint = () => {
         const visible = box.checked ? "after" : "before";
         for (const [state, caption] of captions)
           caption.setAttribute("aria-pressed", String(state === visible));
-        const label = `Show ${box.checked ? "before" : "after"}`;
-        this.#button.ariaLabel = `${label} — ${alt}`;
-        marginEntry(this.#button, {
-          key: "toggle",
-          icon: box.checked ? "compare-after" : "compare-before",
-          label,
-        });
         this.#margin?.update();
         paintKeys();
       };
       box.addEventListener("change", paint);
-      // Both native controls own activation. These rows only name its current effect.
-      for (const [control, bindings] of [
-        [box, [" "]],
-        [this.#button, PRESS],
-      ]) {
-        commands(control, "On a screenshot", [
-          {
-            id: "screenshot.toggle",
-            keys: bindings,
-            does: () => `Show the ${box.checked ? "before" : "after"} frame`,
-            line: () => `show ${box.checked ? "before" : "after"}`,
-            when: () => this.dataset.lfShotControls !== "off",
-          },
-        ]);
-      }
+      commands(box, "On a screenshot", [
+        {
+          id: "screenshot.toggle",
+          keys: [" "],
+          does: () => `Show the ${box.checked ? "before" : "after"} frame`,
+          line: () => `show ${box.checked ? "before" : "after"}`,
+          when: () => this.dataset.lfShotControls !== "off",
+          run: () => this.#margin?.activate("toggle"),
+        },
+      ]);
       paint();
-      this.append(box, this.#button);
+      this.append(box);
       this.#offer();
       // A visual-review run creates shots after authored descriptor capture. Its
       // authored controller explicitly owns that generated child's preparation;
@@ -164,11 +153,35 @@ customElements.define(
         this.#margin = null;
         return;
       }
-      if (!this.#button || this.#margin) return;
+      if (!this.#box || this.#margin) return;
       this.#margin = registerMarginContribution({
         key: `shot:${this.id}`,
         target: () => this,
-        controls: this.#button,
+        read: () => {
+          const label = `Show ${this.#box.checked ? "before" : "after"}`;
+          return {
+            subject: null,
+            state: "idle",
+            side: "before",
+            claim: true,
+            reserve: 0,
+            notice: null,
+            entries: [
+              marginEntry({
+                key: "toggle",
+                icon: this.#box.checked ? "compare-after" : "compare-before",
+                label,
+                accessibleLabel: `${label} — ${this.#alt}`,
+                activation: "toggle",
+                className: "lf-shot-toggle",
+              }),
+            ],
+            readings: [],
+          };
+        },
+        activate: (activation) => {
+          if (activation === "toggle") this.#box.click();
+        },
       });
     }
 

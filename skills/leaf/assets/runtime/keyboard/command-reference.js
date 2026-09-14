@@ -42,11 +42,11 @@ import {
 } from "./register.js";
 import {
   byCommand,
-  elementScopes,
   focused,
   merge,
   pruneScopedElements,
   scopeRefs,
+  scopesAt,
   scopesFor,
 } from "./scopes.js";
 import { repaint } from "../repaint.js";
@@ -103,13 +103,21 @@ function declaredStack(origin) {
     // a stable shape across loads.
     const held = [...scopeRefs]
       .map((ref) => ref.deref())
-      .filter((node) => node?.isConnected && elementScopes.get(node)?.title);
+      .filter(
+        (node) => node?.isConnected && scopesAt(node).some((scope) => scope.title),
+      );
     held.sort((left, right) =>
       left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
     );
+    const seen = new Set();
     for (const node of held) {
-      const section = elementScopes.get(node);
-      merge(declared, { ...section, rows: referenceRows(section) });
+      for (const section of scopesAt(node)) {
+        if (!section.title) continue;
+        const identity = section.identity ?? section;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        merge(declared, { ...section, rows: referenceRows(section) });
+      }
     }
     // Reapply the active path from outside in so the innermost live instance supplies
     // dynamic words for command ids shared by several instances.

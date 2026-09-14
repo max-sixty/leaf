@@ -1215,8 +1215,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
 
        Only the note. The rail claims this side too for a suggestion's controls, which
        are positioned rather than floated, so `clear` cannot see them; the module that
-       hangs them measures the same collision instead, and the rule beside
-       .lf-sug-actions spends its answer.
+       hangs them measures the same collision and applies the resulting layout.
 
        Every wide element, including one inside a box that withheld the room from it. A
        widget with no room has no negative margin and could not have reached the note, so
@@ -1798,11 +1797,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); margin-right: 0; }
 }
-/* A suggestion's contribution is an unpositioned group inside the shared target cluster.
- * Its only theme rules are the semantics of the decision controls; placement, docking,
- * packing, and the focus-ring allowance belong to .lf-margin-cluster below. */
-.lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
-    white-space: nowrap; }
 /* The margin projection is a retained projection with one cluster per page target. Its
  * primary margin entry, optional `…`, and the secondary margin entries that ellipsis unfolds share
  * one host. One packing pass keeps the clusters clear, docks each whole unit when the
@@ -1838,21 +1832,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }
 .lf-margin-cluster.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
-/* The word stays in the DOM and out of the paint: a reaction reads as the same
- * circular, glyph-only status before the runtime's stylesheet arrives, and a widget
- * rebuilding its own control reads the word back off the span. What names the control
- * is the aria-label `marginEntry` writes, not that word — the runtime style below
- * turns the span into transient hover and focus chrome, and it rides into a static copy
- * with the rest of the sheet, so in a file the word is hidden in every medium too. */
+/* The visible label becomes transient hover and focus chrome once the runtime's
+ * stylesheet arrives. The accessible name comes from the entry reading, and a static
+ * copy keeps the compact glyph in every medium. */
 .lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {
   display: none;
 }
-.lf-margin-reactions { display: inline-flex; align-items: center; gap: 4px;
-    white-space: nowrap; }
-.lf-margin-reactions > .lf-react-trigger { display: none; }
-.lf-margin-reactions > .lf-react-palette { display: inline-flex; align-items: center;
-    gap: 4px; flex-wrap: nowrap; }
-.lf-margin-reactions .lf-react[aria-busy="true"] { opacity: .55; }
 .lf-margin-marker { color: var(--muted); pointer-events: auto; }
 .lf-margin-reading-option { position: relative; }
 .lf-margin-more { letter-spacing: .04em; }

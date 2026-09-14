@@ -972,13 +972,23 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
     expect(page.locator("#quoted-suggestion lf-old")).to_be_hidden()
     expect(page.locator("#quoted-suggestion lf-new")).to_be_visible()
-    assert page.locator("[data-lf-for='quoted-suggestion']").count() == 0
+    assert (
+        page.locator(
+            "[data-lf-margin-entry-owner='suggestion:quoted-suggestion']"
+        ).count()
+        == 0
+    )
     expect(page.get_by_role("button", name="Accept all (1)")).to_be_visible()
 
     # The control: the same markup unquoted wires all of it.
     assert page.locator('#live-group .lf-pick[role="checkbox"]').count() == 2
     assert page.locator("#live-board .lf-grip").count() == 1
-    assert page.locator("[data-lf-for='live-suggestion']").count() == 1
+    assert (
+        page.locator(
+            "[data-lf-margin-entry-owner='suggestion:live-suggestion']"
+        ).count()
+        == 2
+    )
 
     # Nor the room for one. A quoted card stands at the height of a live titled card:
     # neither carries the old footer strip, and the live card's header state is out of

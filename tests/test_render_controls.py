@@ -4479,7 +4479,10 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
-    page.locator(".lf-sug-accept").first.focus()
+    page.locator(
+        '[data-lf-margin-entry-owner^="suggestion:"]'
+        '[data-lf-margin-entry-key="accept"]:visible'
+    ).first.focus()
     # The probe's control must begin clear of the viewport edge. Its subject is each
     # ancestor's clipping behavior, not where the corpus happened to place this button.
     page.evaluate("document.activeElement.scrollIntoView({block: 'center'})")
@@ -4526,7 +4529,10 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
-    page.locator(".lf-sug-accept").first.focus()
+    page.locator(
+        '[data-lf-margin-entry-owner^="suggestion:"]'
+        '[data-lf-margin-entry-key="accept"]:visible'
+    ).first.focus()
 
     plant = """(how) => {
       const box = document.querySelector('main p');
@@ -5069,7 +5075,13 @@ RING_CASES = (
             ),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
-                (".lf-sug-accept:visible", ("ask", "margin-entry")),
+                (
+                    (
+                        '[data-lf-margin-entry-owner^="suggestion:"]'
+                        '[data-lf-margin-entry-key="accept"]:visible'
+                    ),
+                    ("ask", "margin-entry"),
+                ),
                 (".lf-draft-edit", "draft-editor"),
                 (".lf-mark-note", "pressable"),
             ),
@@ -5546,7 +5558,10 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 if settled.get_attribute("aria-expanded") != "true":
                     settled.click()
             if scope == "the page":
-                pencil = page.locator(".lf-draft-controls .lf-draft-pencil").first
+                pencil = page.locator(
+                    '[data-lf-margin-entry-owner^="draft:"]'
+                    '[data-lf-margin-entry-key="edit"]:visible'
+                ).first
                 if pencil.count() and pencil.is_visible():
                     pencil.click()
                 # A source can sit behind nested disclosures. Open each visible ancestor
@@ -5625,8 +5640,16 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     carrier_selector = RING_REMOTE_CARRIER[ring_name]
                     if ring_name == "ask":
                         ask_id = target.evaluate(
-                            "node => node.closest('[data-lf-for]')?."
-                            "getAttribute('data-lf-for')"
+                            """node => {
+                              const owner = node.getAttribute(
+                                'data-lf-margin-entry-owner'
+                              );
+                              if (owner?.startsWith('suggestion:'))
+                                return owner.slice('suggestion:'.length);
+                              return node.closest('[data-lf-for]')?.getAttribute(
+                                'data-lf-for'
+                              );
+                            }"""
                         )
                         assert ask_id, f"{selector} {where} names no ask carrier"
                         carrier_selector = f'[id="{ask_id}"]'

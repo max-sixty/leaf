@@ -991,7 +991,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(gallery.locator(".interaction-pointer").first).to_be_visible()
         expect(accept_frame_element).to_have_attribute("data-interaction-ready", "")
         accept_controls = accept_frame.locator(
-            '.lf-sug-actions[data-lf-for="bg-motion-accept"]'
+            '[data-lf-margin-for="bg-motion-accept"]'
         )
         expect(accept_controls).to_be_visible()
         assert accept_controls.evaluate(
@@ -1014,7 +1014,8 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
                 columnRight: frame.contentDocument
                     .querySelector('#bg-motion-accept-copy').getBoundingClientRect().right,
                 controlsLeft: frame.contentDocument
-                    .querySelector('.lf-sug-actions').getBoundingClientRect().left,
+                    .querySelector('[data-lf-margin-for="bg-motion-accept"]')
+                    .getBoundingClientRect().left,
                 mainBoxSizing: getComputedStyle(
                     frame.contentDocument.querySelector('main')).boxSizing,
             })"""

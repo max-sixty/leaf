@@ -17,7 +17,8 @@ import {
   visualPart,
   visualSelector,
 } from "./anchor-resolution.js";
-import { marginEntry, registerMarginContribution } from "./margin-entries.js";
+import { registerMarginContribution } from "./margin-entries.js";
+import { commandScope } from "./keyboard/scopes.js";
 import { scheduleMarginLayout } from "./margin-layout.js";
 import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
@@ -25,7 +26,6 @@ import { targetElement, targetParts } from "./resolved-target.js";
 import { el, offer, reveal } from "./widget-elements.js";
 
 const NOTE = "lf-mark-note";
-const SEAT = "lf-reacts";
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
 export function createAnchorControls({
@@ -37,9 +37,7 @@ export function createAnchorControls({
   invalidatePageGeometry,
   messageReferenceRoot,
   draftQuote,
-  presentedControl,
   focused,
-  keys,
   paintKeys,
 }) {
   const visualActionHolders = new WeakMap();
@@ -48,35 +46,20 @@ export function createAnchorControls({
   let invalidationQueued = false;
   let pendingVisualActions = new Map();
 
-  function syncReactionRemoval(record) {
-    for (const mark of record.seat.querySelectorAll(":scope > .lf-react-mark"))
-      mark.setAttribute(
-        "aria-expanded",
-        mark.dataset.event === record.expanded ? "true" : "false",
-      );
-    for (const remove of record.seat.querySelectorAll(":scope > .lf-react-remove"))
-      remove.hidden = remove.dataset.event !== record.expanded;
-  }
-
-  function setReactionRemoval(record, eventId, { focus = false } = {}) {
+  function setReactionRemoval(record, eventId, { focus = false, surface = null } = {}) {
     if (eventId)
       for (const other of reactionSeats.values())
         if (other !== record && other.expanded) {
           other.expanded = null;
-          syncReactionRemoval(other);
           other.margin?.update({ immediate: true });
         }
     record.expanded = eventId;
-    syncReactionRemoval(record);
     record.margin?.update({ immediate: true });
     paintKeys();
     if (focus && eventId)
-      requestAnimationFrame(() => {
-        const remove = record.seat.querySelector(
-          `:scope > .lf-react-remove[data-event="${CSS.escape(eventId)}"]`,
-        );
-        presentedControl(remove)?.focus({ preventScroll: true });
-      });
+      requestAnimationFrame(() =>
+        record.margin?.focus(`reaction:${eventId}:remove`, surface),
+      );
   }
 
   const visualActionAnchor = (anchor) =>
@@ -213,8 +196,8 @@ export function createAnchorControls({
       if (!notes.has(note.parentElement)) note.remove();
   }
 
-  // Each target contributes one margin seat containing its standing reactions. The
-  // target-to-contribution record is authority because margin layout may move the node.
+  // Each target contributes its complete standing reaction reading. Only the selected
+  // removal disclosure is local state; both rendered surfaces read the same entry keys.
   function seatReactions(seats) {
     const kept = new Set();
     for (const [at, held] of seats) {
@@ -229,11 +212,8 @@ export function createAnchorControls({
             root.token !== record.roots[index]?.token,
         );
       if (!record) {
-        const seat = el("span", `lf-ui ${SEAT}`);
-        seat.dataset.lfGen = "1";
-        record = { seat, roots, expanded: null, margin: null };
-        keys(
-          seat,
+        record = { roots, expanded: null, margin: null, surface: null };
+        record.scope = commandScope(
           "On a standing reaction",
           [
             {
@@ -244,13 +224,15 @@ export function createAnchorControls({
               when: () => Boolean(record.expanded),
               run: () => {
                 const eventId = record.expanded;
-                const mark = eventId
-                  ? record.seat.querySelector(
-                      `:scope > .lf-react-mark[data-event="${CSS.escape(eventId)}"]`,
-                    )
-                  : null;
+                const entryKey = `reaction:${eventId}:open`;
+                const surface =
+                  ["map", "margin", "inline"].find((candidate) =>
+                    [entryKey, `reaction:${eventId}:remove`].some(
+                      (key) => record.margin.control(key, candidate) === focused(),
+                    ),
+                  ) ?? record.surface;
                 setReactionRemoval(record, null);
-                presentedControl(mark)?.focus({ preventScroll: true });
+                record.margin.focus(entryKey, surface);
               },
             },
           ],
@@ -258,80 +240,71 @@ export function createAnchorControls({
         );
         reactionSeats.set(at, record);
       }
-      const { seat } = record;
       record.roots = roots;
       kept.add(at);
-      if (at.id) seat.dataset.lfFor = at.id;
-      else seat.removeAttribute("data-lf-for");
       if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;
-      const wanted = roots.flatMap((root) => {
-        let mark = seat.querySelector(
-          `:scope > .lf-react-mark[data-event="${CSS.escape(root.id)}"]`,
-        );
-        if (!mark) {
-          const entry = registry.$reactions.tokens[root.token];
-          mark = marginEntry(offer("button", "lf-react-mark"), {
-            key: `reaction:${root.id}:open`,
-            glyph: entry?.glyph ?? root.token,
-            label: `${root.token} reaction actions`,
-            behavior: "disclosure",
-            rank: "secondary",
-          });
-          mark.dataset.event = root.id;
-          mark.dataset.token = root.token;
-        }
-        let remove = seat.querySelector(
-          `:scope > .lf-react-remove[data-event="${CSS.escape(root.id)}"]`,
-        );
-        if (!remove) {
-          remove = marginEntry(offer("button", "lf-react-remove"), {
-            key: `reaction:${root.id}:remove`,
-            icon: "cross",
-            label: `Remove ${root.token} reaction`,
-            tone: "negative",
-            rank: "secondary",
-          });
-          remove.dataset.event = root.id;
-          remove.hidden = true;
-          remove.id = `lf-reaction-remove-${root.id}`;
-        }
-        mark.setAttribute("aria-controls", remove.id);
-        mark.onclick = (event) => {
-          const standing = focused();
-          setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-            focus:
-              event.detail === 0 &&
-              (standing === mark || standing?.lfForwardedControl === mark) &&
-              standing.matches(":focus-visible, .lf-focus-visible"),
-          });
-        };
-        remove.onclick = () => withdrawReaction(root);
-        return [mark, remove];
-      });
-      for (const child of [...seat.children])
-        if (!wanted.includes(child)) child.remove();
-      wanted.forEach((mark, index) => {
-        if (seat.children[index] !== mark)
-          seat.insertBefore(mark, seat.children[index] ?? null);
-      });
-      syncReactionRemoval(record);
       if (!record.margin)
         record.margin = registerMarginContribution({
           key: "standing-reactions",
           target: at,
-          controls: seat,
-          items: () =>
-            record.roots.map((root) => ({
+          read: () => ({
+            side: "after",
+            state: record.expanded ? "engaged" : "idle",
+            claim: false,
+            entries: record.roots.flatMap((root) => [
+              {
+                key: `reaction:${root.id}:open`,
+                glyph: registry.$reactions.tokens[root.token]?.glyph ?? root.token,
+                label: `${root.token} reaction actions`,
+                staticLabel: root.token,
+                behavior: "disclosure",
+                rank: "secondary",
+                className: "lf-react-mark",
+                scope: record.scope,
+                relation: {
+                  kind: "entries",
+                  keys: [`reaction:${root.id}:remove`],
+                  expanded: record.expanded === root.id,
+                },
+              },
+              {
+                key: `reaction:${root.id}:remove`,
+                icon: "cross",
+                label: `Remove ${root.token} reaction`,
+                tone: "negative",
+                rank: "secondary",
+                className: "lf-react-remove",
+                scope: record.scope,
+                visible: record.expanded === root.id,
+              },
+            ]),
+            readings: record.roots.map((root) => ({
               id: `reaction:${root.id}`,
               text: `${root.token} reaction actions`,
-              activate: () =>
-                record.seat
-                  .querySelector(`[data-event="${CSS.escape(root.id)}"]`)
-                  ?.focus({ preventScroll: true }),
+              activate: () => record.margin.focus(`reaction:${root.id}:open`),
             })),
-          side: "after",
-          state: () => (record.expanded ? "engaged" : "idle"),
-          claim: false,
+          }),
+          activate: (activation, context) => {
+            const root = record.roots.find(
+              (candidate) =>
+                activation === `reaction:${candidate.id}:open` ||
+                activation === `reaction:${candidate.id}:remove`,
+            );
+            if (!root) return;
+            if (activation === `reaction:${root.id}:remove`) {
+              withdrawReaction(root);
+              return;
+            }
+            record.surface = context.surface ?? null;
+            const standing = focused();
+            setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
+              focus:
+                context.input === "keyboard" &&
+                context.origin === standing &&
+                standing?.matches(":focus-visible, .lf-focus-visible"),
+              surface: record.surface,
+            });
+          },
         });
       else if (changed) record.margin.update();
     }
@@ -395,10 +368,7 @@ export function createAnchorControls({
     for (const record of reactionSeats.values())
       if (
         record.expanded &&
-        !event.composedPath().some((node) => {
-          const source = node?.lfForwardedControl ?? node;
-          return source instanceof Node && record.seat.contains(source);
-        })
+        !event.composedPath().some((node) => record.margin.contains(node))
       )
         setReactionRemoval(record, null);
   };

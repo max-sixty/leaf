@@ -46,6 +46,9 @@ const unpainted = new Set();
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 export const elementScopes = new WeakMap();
+const projectedScopes = new WeakMap();
+export const scopesAt = (element) =>
+  [elementScopes.get(element), projectedScopes.get(element)].filter(Boolean);
 // The weak map is the dispatcher's lookup. The reference also has to enumerate every
 // connected contributor, so keep weak references beside it. A live-version replacement
 // can then be collected, while an element temporarily moved out of the document keeps
@@ -144,10 +147,27 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * `aria-keyshortcuts` projection are both settled there; a first paint that refuses a
  * scope retracts it from both indexes.
  *
- * Returns the rows, so a widget that says its own keys out loud — a grip announcing what a
- * grabbed card answers — reads them back off the declaration rather than restating them.
+ * Passing a `commandScope()` capability in place of `title` attaches that one
+ * declaration to retained widget DOM as well as its generated projections. Returns the
+ * rows, so a widget that says its own keys out loud — a grip announcing what a grabbed
+ * card answers — reads them back off the declaration rather than restating them.
  */
+function attachScope(where, declaration, { validateAtPaint = true } = {}) {
+  const scope = {
+    ...declaration,
+    el: where,
+    validated: !validateAtPaint,
+  };
+  unpainted.delete(elementScopes.get(where));
+  elementScopes.set(where, scope);
+  rememberScopedElement(where);
+  if (validateAtPaint) unpainted.add(scope);
+  repaint();
+  return scope.rows;
+}
+
 export function keys(where, title, rows, options) {
+  if (title?.scope && rows === undefined) return attachScope(where, title.scope);
   const configuration =
     typeof options === "function" ? { when: options } : (options ?? {});
   if (typeof configuration !== "object")
@@ -161,26 +181,61 @@ export function keys(where, title, rows, options) {
     );
   const scope = {
     title,
-    el: where,
     rows: checked(rows, title ?? "a scope"),
     when,
     answer,
     escape,
-    validated: false,
   };
   // A declaration this one replaces before its first paint is owed nothing: read at
   // the frame, a stale scope that refused would retract the element's standing
   // declaration along with itself.
-  unpainted.delete(elementScopes.get(where));
-  elementScopes.set(where, scope);
-  rememberScopedElement(where);
-  // Published unread, and read at the frame below. The element keeps whatever
-  // `aria-keyshortcuts` it already stood with until that paint answers, rather than
-  // losing it for a frame or claiming a set of keys this declaration has not been read
-  // for.
-  unpainted.add(scope);
-  repaint();
-  return rows;
+  return attachScope(where, scope);
+}
+
+/** Declare a command scope that presentation owners attach to generated controls.
+ *
+ * The declaration is browser state, not a hidden source element. Margin and Page Map
+ * may attach the same capability to independent controls while each active reading is
+ * rooted at the visible control in its own native layer.
+ */
+export function commandScope(title, rows, options) {
+  const configuration =
+    typeof options === "function" ? { when: options } : (options ?? {});
+  if (typeof configuration !== "object")
+    throw new TypeError("A command scope's options must be an object");
+  const { when, answer, escape } = configuration;
+  if (answer !== undefined && typeof answer !== "function")
+    throw new TypeError("A command scope's answer must be a function");
+  if (escape !== undefined && escape !== "inner")
+    throw new TypeError(
+      `A command scope's Escape ownership must be "inner", got ${String(escape)}`,
+    );
+  const scope = {
+    identity: Object.freeze({}),
+    title,
+    rows: checked(rows, title ?? "a scope"),
+    when,
+    answer,
+    escape,
+  };
+  validateRows(scope.rows, title ?? "a scope");
+  return Object.freeze({ scope });
+}
+
+export function projectCommandScope(control, capability = null) {
+  if (!(control instanceof Element))
+    throw new TypeError("A projected command scope needs an Element");
+  if (capability == null) {
+    projectedScopes.delete(control);
+    if (!elementScopes.has(control)) forgetScopedElement(control);
+    reflectElementShortcuts(control);
+    return;
+  }
+  if (!capability.scope)
+    throw new TypeError("A projected command scope needs a commandScope capability");
+  projectedScopes.set(control, capability.scope);
+  rememberScopedElement(control);
+  reflectElementShortcuts(control);
 }
 
 // Commands whose scope stands in one widget, in declaration order. Preserve the
@@ -193,6 +248,7 @@ export function keys(where, title, rows, options) {
 function scopesWithin(root, activeOnly) {
   pruneScopedElements();
   const found = [];
+  const seen = new Set();
   for (const ref of scopeRefs) {
     const scoped = ref.deref();
     if (!scoped?.isConnected) continue;
@@ -203,9 +259,13 @@ function scopesWithin(root, activeOnly) {
         break;
       }
     if (!inside) continue;
-    const scope = elementScopes.get(scoped);
-    if (!scope || (activeOnly && scope.when && !scope.when())) continue;
-    found.push({ source: scoped, scope });
+    for (const scope of scopesAt(scoped)) {
+      if (activeOnly && scope.when && !scope.when()) continue;
+      const identity = scope.identity ?? scope;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      found.push({ source: scoped, scope });
+    }
   }
   return found;
 }
@@ -223,46 +283,51 @@ export const commandScopesWithin = (root) =>
     source,
     answer: scope.answer,
   }));
-// One scope painted: its rows read for the scene they are in, and that reading projected
-// onto the element. This is the whole of a scope's first paint, so the attempt is what
-// takes it out of `unpainted` — a refusal retracts the scope rather than leaving it owed
-// a second reading.
-function reflectShortcuts(scope) {
-  unpainted.delete(scope);
-  const available = !scope.when || scope.when();
-  try {
-    if (available) validateRows(scope.rows, scope.title ?? "a scope");
-  } catch (error) {
-    // A scope is published before it is read, and a capability-gated one may only become
-    // readable some paints later. If the reading that first reaches it fails, retract the
-    // unpublished contract completely; leaving it in the weak map would make every later
-    // paint fail after the caller handled the one error.
-    if (!scope.validated) {
-      elementScopes.delete(scope.el);
-      forgetScopedElement(scope.el);
-      scope.el.removeAttribute("aria-keyshortcuts");
+// Every declaration on one element is painted as one native shortcut attribute. A local
+// and a projected declaration can coexist, so neither may erase the other's bindings.
+function reflectElementShortcuts(element) {
+  const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
+  for (const scope of available) {
+    try {
+      validateRows(scope.rows, scope.title ?? "a scope");
+    } catch (error) {
+      // A local declaration is published before its first read. If that first reading
+      // fails, retract only that declaration; a projected capability on the same element
+      // remains independently valid and enumerable.
+      if (scope.el === element && !scope.validated) {
+        unpainted.delete(scope);
+        elementScopes.delete(element);
+        if (!projectedScopes.has(element)) forgetScopedElement(element);
+      }
+      throw error;
     }
-    throw error;
+    if (scope.el === element) scope.validated = true;
   }
-  if (available) scope.validated = true;
-  const shortcuts = available
-    ? ariaShortcuts(scope.rows, true, scope.title ?? "a scope")
+  const shortcuts = available.length
+    ? ariaShortcuts(
+        available.flatMap((scope) => scope.rows),
+        true,
+        "the element's command scopes",
+      )
     : "";
   if (shortcuts) {
-    if (scope.el.getAttribute("aria-keyshortcuts") !== shortcuts)
-      scope.el.setAttribute("aria-keyshortcuts", shortcuts);
-  } else scope.el.removeAttribute("aria-keyshortcuts");
+    if (element.getAttribute("aria-keyshortcuts") !== shortcuts)
+      element.setAttribute("aria-keyshortcuts", shortcuts);
+  } else element.removeAttribute("aria-keyshortcuts");
 }
 // Ahead of standing content, so an ambiguous declaration is refused under its own title
 // rather than under whichever surface reads its rows first.
 export function reflectFirstScopes() {
-  for (const scope of unpainted) reflectShortcuts(scope);
+  for (const scope of [...unpainted]) {
+    unpainted.delete(scope);
+    reflectElementShortcuts(scope.el);
+  }
 }
 export const paintKeys = () => {
   pruneScopedElements();
   for (const ref of scopeRefs) {
     const scoped = ref.deref();
-    if (scoped?.isConnected) reflectShortcuts(elementScopes.get(scoped));
+    if (scoped?.isConnected) reflectElementShortcuts(scoped);
   }
   repaint();
 };
@@ -385,31 +450,22 @@ export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
 
 // The element scopes covering a node, innermost first — the climb crosses a shadow
 // boundary the way `closest` climbs inside one, so a widget staging its controls in a
-// shadow tree declares them the same way. A projected margin control carries the source
-// control's semantic scopes ahead of the projection's containing scopes: its press and
-// local Escape still mean what the contributor declared, while the sheet or margin it
-// was projected into remains the surrounding keyboard context.
+// shadow tree declares them the same way. Generated margin controls own their visible
+// position directly; they no longer borrow scopes from hidden source controls.
 export function scopesFor(node) {
   const found = [];
   const seen = new Set();
-  const collect = (start, projectedAt = null) => {
+  const collect = (start) => {
     for (let a = start; a; a = upFrom(a)) {
-      const scope = elementScopes.get(a);
-      if (scope && !seen.has(scope)) {
-        // A projection carries the source command into its own native layer. Keep the
-        // declaration and its liveness closures, but root this active reading at the
-        // visible control so a modal floor does not mistake it for an inert-page scope.
-        found.push(projectedAt ? { ...scope, el: projectedAt } : scope);
-        seen.add(scope);
-        // Projection replaces the source control's container. Carry its nearest
-        // semantic scope, then let the visible projection contribute its own ancestors.
-        if (projectedAt) break;
+      for (const scope of scopesAt(a)) {
+        const identity = scope.identity ?? scope;
+        if (seen.has(identity)) continue;
+        found.push(scope.el ? scope : { ...scope, el: a });
+        seen.add(identity);
       }
       if (a.hasAttribute?.("data-lf-thread-surface")) break;
     }
   };
-  const source = node?.lfForwardedControl;
-  if (source) collect(source, node);
   collect(node);
   return found;
 }

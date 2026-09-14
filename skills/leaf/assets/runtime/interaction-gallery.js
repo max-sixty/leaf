@@ -504,10 +504,7 @@ const scenarios = {
       await demo.arrive(generation);
       const suggestion = demo.query("#bg-motion-accept");
       const accept = await demo.waitFor(
-        () =>
-          demo.query(
-            '.lf-sug-actions[data-lf-for="bg-motion-accept"] [aria-label^="Accept"]',
-          ),
+        () => demo.query('[data-lf-margin-for="bg-motion-accept"] .lf-sug-accept'),
         "the suggestion did not expose its Accept control",
         generation,
       );

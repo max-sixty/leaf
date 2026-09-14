@@ -8,27 +8,26 @@
  * content and Undo carry visual feedback; a live announcement says the same decision
  * without restating it on screen, and refusal restores actionable failure controls.
  *
- * The suggestion owns only those controls and their semantics. It contributes the row
- * through `registerMarginContribution`; the margin projection joins it to comment threads,
+ * The suggestion owns only those entries and their semantics. It contributes an immutable
+ * reading through `registerMarginContribution`; the margin projection joins it to comment threads,
  * decisions, delivery status, activity, and temporary reaction controls for this same
  * target.
- * That owner hoists and places the one resulting item, measures the rail, docks it when
+ * That owner renders and places the resulting entries, measures the rail, docks them when
  * the margin is too narrow, and reads rendered descendants when a project makes the
  * target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import {
   alignText,
   announce,
+  commandScope,
   commands,
   FOLD_MS,
   marginEntry,
-  setMarginEntryState,
   motion,
-  offer,
   once,
+  paintKeys,
   quietWord,
   quoted,
-  relabel,
   renderRetired,
   registerMarginContribution,
   says,
@@ -43,7 +42,6 @@ const FACE = {
   accept: { icon: "check", tone: "positive", rank: "primary" },
   reject: { icon: "cross", tone: "negative", rank: "secondary" },
 };
-const verb = (btn) => (btn.matches(".lf-sug-accept") ? "accept" : "reject");
 
 // ---------- word-level emphasis ----------
 // A block replacement asked the reader to eyeball-diff two paragraphs for the words
@@ -119,18 +117,12 @@ function toRanges(segments, spans) {
 customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
-    #row = null;
-    #failureReceipt = null;
     #deciding = null; // the decision in flight, so a second press joins it
     #staging = false; // the synchronous span before that promise exists
     #failed = null;
-    #accept = null;
-    #reject = null;
-    #retry = null;
-    #cancelFailure = null;
-    #undo = null;
     #undoing = false;
     #margin = null;
+    #commandScope = null;
     #stopReading = null;
     #controller = null;
 
@@ -154,18 +146,13 @@ customElements.define(
         this.#watchReading();
         return;
       }
-      // The runtime says it just opened this element's containers (reveal): the row
+      // The runtime says it just opened this element's containers (reveal): the entry
       // may be waiting on geometry the target only now has, and the caller is about
       // to focus it, so the layout question is answered now rather than at the
       // observer's next frame.
       this.addEventListener("lf-reveal", () =>
         this.#margin?.update({ immediate: true }),
       );
-      this.#row = offer("span", "lf-sug-actions");
-      this.#row.dataset.lfFor = this.id; // which change it decides, for anyone reading the page
-      this.#accept = this.#button("accept");
-      this.#reject = this.#button("reject");
-      this.#renderControls();
       this.#offer();
       this.#watchReading();
     }
@@ -173,25 +160,18 @@ customElements.define(
     #watchReading() {
       this.#controller ??= widgetController(this);
       this.#stopReading ??= this.#controller.subscribe((reading) => {
-        if (quoted(this) || !this.#row) return;
-        const active = document.activeElement;
-        const focused = active?.lfForwardedControl ?? active;
+        if (quoted(this) || !this.#margin) return;
         if (
-          this.#row.contains(focused) &&
+          this.#margin.contains(document.activeElement) &&
           (reading.state.settlement.value ?? null) !== (this.dataset.lfState || null)
         ) {
           // Signals publish before the projection adapter. Keep the currently focused
-          // control until that adapter applies the new state: #replaceControls can then
+          // entry until that adapter applies the new state: the next complete reading can
           // hand focus directly to its semantic replacement instead of losing the
           // reader's place when this subscriber removes it first.
           return;
         }
-        if (!this.dataset.lfState) {
-          this.#paintAvailability();
-          return;
-        }
-        this.#renderControls();
-        this.#margin?.update();
+        this.#refreshMargin();
       });
     }
 
@@ -205,7 +185,8 @@ customElements.define(
     }
 
     #offer() {
-      if (!this.#row || this.#margin) return;
+      if (quoted(this) || this.#margin) return;
+      this.#ensureCommands();
       this.#margin = registerMarginContribution({
         key: `suggestion:${this.id}`,
         // An accepted deletion (or rejected insertion) has no surviving slot and the
@@ -216,207 +197,161 @@ customElements.define(
           shownParts(this).some((part) => part.checkVisibility())
             ? this
             : this.parentElement,
-        controls: this.#row,
-        // The slots use tint and strike/insert paint to carry their relationship on the
-        // page. Away from that paint, concatenating them turns `red` → `blue` into the
-        // meaningless `redblue`; give the shared Page Map projection the same relation
-        // in words without teaching it this widget's tags.
-        subject: () => this.#subject(),
-        state: () =>
-          this.#failed
-            ? "failed"
-            : this.#staging || this.#deciding || this.#undoing
-              ? "busy"
-              : "idle",
-        items: () =>
-          this.dataset.lfState && !this.#undoable(this.dataset.lfState)
-            ? []
-            : [
-                {
-                  id: `suggestion:${this.id}`,
-                  // Before settlement this contribution is the Ask, so suppress the shared
-                  // Ask at the same target. Afterwards Undo remains in this cluster without
-                  // inventing another page-map reading.
-                  kind: this.dataset.lfState ? "action" : "ask",
-                  ...(this.dataset.lfState ? {} : { represents: true }),
-                  text: this.dataset.lfState
-                    ? `${this.dataset.lfState === "accept" ? "Accepted" : "Rejected"} suggested change`
-                    : "Accept or reject suggested change",
-                  activate: () =>
-                    this.#row
-                      .querySelector(
-                        this.#failed
-                          ? '[data-lf-margin-entry-key="retry"]'
-                          : this.dataset.lfState
-                            ? '[data-lf-margin-entry-key="undo"]'
-                            : "[data-lf-offer='button']",
-                      )
-                      ?.focus({ preventScroll: true }),
-                },
-              ],
+        source: () => this,
+        read: () => this.#readMargin(),
+        activate: (activation, { focus }) => {
+          if (activation === "accept" || activation === "reject")
+            return this.#decide(activation, focus);
+          if (activation === "undo") return this.#undoOutcome();
+          if (activation === "retry") return this.#retryDecision();
+          if (activation === "cancel-failure") return this.#cancelFailedDecision();
+        },
       });
     }
 
-    // Through `offer` like every other injected control, then through marginEntry so
-    // this widget supplies only the verb and tone. The shared RHS contract supplies
-    // its shape, focus treatment, and responsive label behavior.
-    #button(outcome) {
-      const btn = offer("button", `lf-sug-${outcome}`);
-      btn.onclick = () => this.#decide(outcome);
-      this.#name(btn, "idle", this.#label());
-      return btn;
-    }
-
-    // Everything a control says, in the state it is in: its transient verb (from
-    // WORDS), and the name that has to carry the change as well. The
-    // change's own words come in rather than being read here, because settling
-    // retires the slot they live in and a name asked for afterwards would answer the
-    // id. Both controls restate together.
-    #name(btn, state, change) {
-      const kind = verb(btn);
-      btn.removeAttribute("data-lf-said");
-      marginEntry(btn, {
-        key: kind,
-        ...FACE[kind],
-        label: WORDS[kind],
-        state,
-      });
-      btn.setAttribute(
-        "aria-label",
-        `${kind === "accept" ? "Accept" : "Reject"} the suggested change: ${change}`,
-      );
-    }
-
-    #paintAvailability = () => {
-      for (const btn of [this.#accept, this.#reject]) {
-        const available =
-          !this.#staging &&
-          !this.#deciding &&
-          this.#controller.read().actions[verb(btn)]?.available;
-        const disabled = String(!available);
-        if (btn.getAttribute("aria-disabled") !== disabled)
-          btn.setAttribute("aria-disabled", disabled);
-        const tabIndex = available ? 0 : -1;
-        if (btn.tabIndex !== tabIndex) btn.tabIndex = tabIndex;
-      }
-    };
-
-    #utilityButton({ key, icon, label, tone = "neutral", rank = "primary", press }) {
-      const button = marginEntry(offer("button", ""), {
-        key,
-        icon,
-        label,
-        tone,
-        rank,
-        state: this.#failed ? "failed" : "idle",
-      });
-      button.onclick = press;
-      return button;
-    }
-
-    #renderControls(
-      change = this.#label(),
-      { pending = Boolean(this.#staging || this.#deciding) } = {},
-    ) {
-      if (!this.#row) return;
+    #entries() {
       const outcome = this.dataset.lfState;
       if (outcome && !this.#failed) {
-        this.#undo ??= this.#utilityButton({
-          key: "undo",
-          icon: "undo",
-          label: "Undo",
-          rank: "primary",
-          press: () => this.#undoOutcome(),
-        });
-        const undoing = Boolean(pending || this.#undoing);
-        setMarginEntryState(this.#undo, undoing ? "busy" : "idle");
-        this.#undo.setAttribute("aria-disabled", String(undoing));
-        this.#undo.setAttribute(
-          "aria-label",
-          `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change}`,
-        );
-        delete this.#row.dataset.lfMarginReceipt;
-        this.#replaceControls(
-          ...(pending || this.#undoable(outcome) ? [this.#undo] : []),
-        );
-        return;
+        const pending = Boolean(this.#staging || this.#deciding);
+        if (!pending && !this.#undoable(outcome)) return [];
+        return [
+          marginEntry({
+            key: "undo",
+            icon: "undo",
+            label: "Undo",
+            accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${this.#label()}`,
+            rank: "primary",
+            state: pending || this.#undoing ? "busy" : "idle",
+            disabled: pending || this.#undoing,
+            activation: "undo",
+            scope: this.#commandScope,
+          }),
+        ];
       }
 
       if (this.#failed) {
-        this.#failureReceipt ??= document.createElement("span");
-        this.#failureReceipt.className = "lf-margin-receipt";
-        relabel(
-          this.#failureReceipt,
-          this.#failed.undo
-            ? `Undo failed · ${outcome === "accept" ? "Accepted" : "Rejected"}`
-            : "Failed",
-          { says: true },
-        );
-        this.#retry ??= this.#utilityButton({
-          key: "retry",
-          icon: "retry",
-          label: "Retry",
-          rank: "complete",
-          press: () => this.#retryDecision(),
-        });
-        this.#cancelFailure ??= this.#utilityButton({
-          key: "cancel-failure",
-          icon: "cross",
-          label: "Cancel",
-          rank: "escape",
-          press: () => this.#cancelFailedDecision(),
-        });
-        for (const control of [this.#retry, this.#cancelFailure])
-          setMarginEntryState(control, "failed");
-        this.#row.dataset.lfMarginReceipt = "failed";
-        this.#replaceControls(this.#retry, this.#cancelFailure, this.#failureReceipt);
-        return;
+        return [
+          marginEntry({
+            key: "retry",
+            icon: "retry",
+            label: "Retry",
+            rank: "complete",
+            state: "failed",
+            activation: "retry",
+            scope: this.#commandScope,
+          }),
+          marginEntry({
+            key: "cancel-failure",
+            icon: "cross",
+            label: "Cancel",
+            rank: "escape",
+            state: "failed",
+            activation: "cancel-failure",
+            scope: this.#commandScope,
+          }),
+        ];
       }
 
-      delete this.#row.dataset.lfMarginReceipt;
       const state = this.#deciding ? "busy" : "idle";
-      for (const button of [this.#accept, this.#reject]) {
-        this.#name(button, state, change);
-      }
-      this.#paintAvailability();
-      this.#replaceControls(this.#accept, this.#reject);
+      const change = this.#label();
+      return Object.keys(WORDS).map((kind) =>
+        marginEntry({
+          key: kind,
+          ...FACE[kind],
+          label: WORDS[kind],
+          accessibleLabel: `${WORDS[kind]} the suggested change: ${change}`,
+          state,
+          disabled:
+            this.#staging ||
+            Boolean(this.#deciding) ||
+            !this.#controller.read().actions[kind]?.available,
+          activation: kind,
+          className: `lf-sug-${kind}`,
+          scope: this.#commandScope,
+        }),
+      );
     }
 
-    #replaceControls(...wanted) {
-      const active = document.activeElement;
-      const source = active?.lfForwardedControl ?? active;
-      const held = this.#row.contains(source);
-      for (const child of [...this.#row.children])
-        if (!wanted.includes(child)) child.remove();
-      wanted.forEach((child, index) => {
-        if (this.#row.children[index] !== child)
-          this.#row.insertBefore(child, this.#row.children[index] ?? null);
+    #readMargin() {
+      const outcome = this.dataset.lfState;
+      const entries = this.#entries();
+      return {
+        // The slots use tint and strike/insert paint to carry their relationship on the
+        // page. Away from that paint, concatenating them turns `red` → `blue` into the
+        // meaningless `redblue`; give Page Map that relation in words.
+        subject: this.#subject(),
+        state: this.#failed
+          ? "failed"
+          : this.#staging || this.#deciding || this.#undoing
+            ? "busy"
+            : "idle",
+        side: "before",
+        claim: true,
+        reserve: 0,
+        notice: this.#failed
+          ? {
+              text: this.#failed.undo
+                ? `Undo failed · ${outcome === "accept" ? "Accepted" : "Rejected"}`
+                : "Failed",
+              tone: "negative",
+            }
+          : null,
+        entries,
+        readings: entries.length
+          ? [
+              {
+                id: `suggestion:${this.id}`,
+                // Before settlement this contribution is the Ask, so suppress the shared
+                // Ask at the same target. Afterwards Undo remains without inventing a
+                // second page-map reading.
+                kind: outcome ? "action" : "ask",
+                ...(outcome ? {} : { represents: true }),
+                text: outcome
+                  ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
+                  : "Accept or reject suggested change",
+                activate: () => this.#margin?.focus(this.#focusKey()),
+              },
+            ]
+          : [],
+      };
+    }
+
+    #focusKey() {
+      if (this.#failed) return "retry";
+      return this.dataset.lfState ? "undo" : "accept";
+    }
+
+    #refreshMargin({ immediate = false, focus = null } = {}) {
+      if (!this.#margin) return;
+      const held = this.#margin.contains(document.activeElement);
+      this.#margin.update({
+        immediate,
+        focus: focus ?? (held ? this.#focusKey() : null),
       });
-      if (held && !wanted.includes(source)) {
-        this.#margin?.update({ immediate: true });
-        wanted
-          .find((node) => node.matches(".lf-margin-entry") && node.checkVisibility())
-          ?.focus({ preventScroll: true });
-      }
-      commands(
-        this,
+      paintKeys();
+    }
+
+    #ensureCommands() {
+      if (this.#commandScope) return;
+      const labels = {
+        accept: "Accept",
+        reject: "Reject",
+        undo: "Undo",
+        retry: "Retry",
+        "cancel-failure": "Cancel",
+      };
+      this.#commandScope = commandScope(
         "On a suggested change",
-        wanted
-          .filter((control) => control.matches?.(".lf-margin-entry"))
-          .map((control) => {
-            const label = control.querySelector(
-              ":scope > .lf-margin-entry-label",
-            ).textContent;
-            return {
-              id: `suggestion.${control.dataset.lfMarginEntryKey}`,
-              keys: [],
-              control,
-              decision: label,
-              does: `${label} the suggested change`,
-              line: label.toLowerCase(),
-              run: () => control.click(),
-            };
-          }),
+        Object.entries(labels).map(([key, label]) => ({
+          id: `suggestion.${key}`,
+          keys: [],
+          control: () => this.#margin?.control(key),
+          decision: label,
+          does: `${label} the suggested change`,
+          line: label.toLowerCase(),
+          when: () => this.#entries().some((entry) => entry.key === key),
+          run: () => this.#margin?.activate(key),
+        })),
         {
           answer: () => {
             if (!this.dataset.lfState) return "";
@@ -424,6 +359,7 @@ customElements.define(
           },
         },
       );
+      commands(this, this.#commandScope);
     }
 
     // What the change is about, for the button's label and failure receipt: the
@@ -453,7 +389,7 @@ customElements.define(
     // projection until the log accounts for it. A definitive refusal removes the local
     // winner and reconciles the authored state before this continuation paints the repair
     // controls, so the reader returns to a pending suggestion with Failed, Retry, Cancel.
-    #decide(outcome) {
+    #decide(outcome, focus = null) {
       if (this.#controller.read().state.settlement.value) return Promise.resolve(true);
       if (!this.#controller.read().actions[outcome]?.available)
         return Promise.resolve(false);
@@ -494,8 +430,7 @@ customElements.define(
           // target as Failed, Retry, Cancel; there is no detail disclosure because the
           // transport returned no useful detail beyond the notice it already showed.
           this.#failed = { outcome, label };
-          this.#renderControls(label);
-          this.#margin?.update();
+          this.#refreshMargin();
           return false;
         }
         // Usually the accepted state has already replayed this decision. Paint is
@@ -503,21 +438,19 @@ customElements.define(
         // same event list also carried a later undo: authored state then stands.
         if (this.#acceptedStillStands(accepted)) {
           if (this.dataset.lfState === outcome) {
-            this.#renderControls(label);
-            this.#margin?.update();
+            this.#refreshMargin();
           } else this.#settle(outcome);
           announce(
             `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
           );
         } else {
-          this.#renderControls(label);
-          this.#margin?.update();
+          this.#refreshMargin();
         }
         // TODO(2026-09-06): Decide whether accepted work with no active agent pickup
         // needs a distinct post-send presentation.
         return true;
       });
-      this.#inFlight(sent, label);
+      this.#inFlight(sent, focus);
       this.#staging = false;
       return sent;
     }
@@ -537,14 +470,14 @@ customElements.define(
     // The field refuses a second press while the first is unresolved. A pending result
     // that has not painted also marks the widget busy; an optimistic result instead puts
     // that state on its disabled Undo margin entry so the settled prose stays legible.
-    #inFlight(decision, label = this.#label()) {
+    #inFlight(decision, focus = null) {
       this.#deciding = decision;
       // Optimistic content already says what the press did. Busy belongs to its disabled
       // Undo margin entry, not as a dimming veil over the settled prose.
       if (decision && !this.dataset.lfState) this.setAttribute("aria-busy", "true");
       else this.removeAttribute("aria-busy");
-      this.#renderControls(label);
-      this.#margin?.update();
+      this.#refreshMargin({ immediate: Boolean(focus) });
+      focus?.("undo");
     }
 
     #retryDecision() {
@@ -558,9 +491,7 @@ customElements.define(
     #cancelFailedDecision() {
       if (!this.#failed || this.#deciding) return;
       this.#failed = null;
-      this.#renderControls();
-      this.#margin?.update();
-      (this.dataset.lfState ? this.#undo : this.#accept).focus({ preventScroll: true });
+      this.#refreshMargin({ immediate: true, focus: this.#focusKey() });
     }
 
     async #undoOutcome() {
@@ -577,8 +508,7 @@ customElements.define(
       }
       this.#failed = null;
       this.#undoing = true;
-      this.#renderControls();
-      this.#margin?.update();
+      this.#refreshMargin();
       try {
         if (
           !(await this.#controller.dispatch({
@@ -589,10 +519,7 @@ customElements.define(
           this.#failed = { undo: true };
       } finally {
         this.#undoing = false;
-        if (this.isConnected) {
-          this.#renderControls();
-          this.#margin?.update();
-        }
+        if (this.isConnected) this.#refreshMargin();
       }
     }
 
@@ -606,7 +533,6 @@ customElements.define(
       if (this.dataset.lfState === outcome) return;
       // Read before the state moves: deciding retires the slot, and its words leave
       // the page's reading with it.
-      const change = this.#label();
       const fold = this.#fold(outcome);
       this.#failed = null;
       this.#deciding = null;
@@ -617,12 +543,9 @@ customElements.define(
       // method on the gesture's own tab, so it hides the slot in the frame the
       // decision lands; the layer then writes the same mark unconditionally.
       renderRetired(this);
-      if (this.#row) {
-        // The only remaining circle is Undo, which still acts; the fold and surviving
-        // content carry the outcome without leaving another status beside them.
-        this.#renderControls(change);
-      }
-      this.#margin?.update();
+      // The only remaining circle is Undo, which still acts; the fold and surviving
+      // content carry the outcome without leaving another status beside them.
+      this.#refreshMargin();
       // The emphasis goes with the pending state: a decided suggestion is plain
       // prose. So does the word naming each slot, which is the same fact said to
       // whoever is listening.
@@ -768,10 +691,9 @@ customElements.define(
       this.#failed = null;
       this.#deciding = null;
       this.removeAttribute("aria-busy");
-      this.#renderControls();
+      this.#refreshMargin();
       this.#voice();
       this.#emphasize();
-      this.#margin?.update();
     }
   },
 );

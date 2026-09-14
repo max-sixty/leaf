@@ -364,7 +364,7 @@ HEARTBEAT_PAGES = (
     pytest.param(
         next(example for example in EXAMPLES if example.stem == "corpus"),
         {".lf-margin-cluster": 15},
-        {"row posture", "rail width", "fold rule"},
+        {"row posture", "rail width"},
         id="corpus",
     ),
     # The gallery draws the margin entries the corpus has none of, and the writers that only
@@ -380,7 +380,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-entry[data-lf-behavior="status"]': 2,
         },
-        {"rail width", "row push", "fold rule"},
+        {"rail width", "row push"},
         id="gallery",
     ),
 )
@@ -488,11 +488,6 @@ def test_an_unchanged_viewport_refresh_restates_no_margin_name(
              'margin-layout reads the rail again once the docked rows are back in flow',
              record => record.attributeName === 'style'
                && record.target.matches('nav.lf-margin-projection')],
-            ['fold rule',
-             'controlsShownByOwner lifts the fold rule off a contributed control to '
-             + 'read how its owner paints it',
-             record => record.attributeName === 'data-lf-margin-entry-primary'
-               && record.target.matches('.lf-margin-entry')],
           ];
           const probe = (record, pass) =>
             probes.find(([, , holds]) => holds(record, pass))?.[0] ?? null;
@@ -603,13 +598,12 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const controls = document.createElement('span');
-          controls.append(marginEntry(offer('button', ''), {
-            key: 'act', icon: 'dot', label: 'Act on the target', rank: 'primary'}));
           registerMarginContribution({key: 'target', target: document.getElementById('target'),
-            controls});
+            read: () => ({entries: [marginEntry({
+              key: 'act', icon: 'dot', label: 'Act on the target', rank: 'primary'
+            })]}), activate: () => {}});
         }"""
     )
     margins_laid_out(page)
@@ -647,76 +641,6 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     )
     assert marks == {"passes": 5, "marks": []}, marks
     expect(row).to_have_class(re.compile(r"lf-docked"))
-
-
-def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
-    browser, serve
-):
-    """A margin entry rebuilt from a record keeps the relation writer the record names.
-
-    `optionControlNode` builds the options group's proxy from `marginEntryRecord`, so a
-    declaration that stops at the call site is re-inferred there: the proxy takes
-    the disclosure default, writes `aria-expanded`, and `syncForwardedMarginEntryState`
-    reads `null` off the source and strips it again the same pass. That is an add
-    and a remove every refresh, and news to the document's disclosure watch, for
-    exactly the margin entry the declaration was added for — a module contributing a
-    reading whose relation another writer owns. No shipped page draws one, so the
-    seam is stated here rather than on the corpus.
-    """
-    fixture = leaf_page("Forwarded reading", '<p id="target">Target passage</p>')
-    page = open_page(browser, serve(fixture))
-    resized(page, 1440, 900)
-    page.evaluate(
-        """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const controls = document.createElement('span');
-          controls.append(
-            marginEntry(offer('button', ''), {
-              key: 'act', icon: 'dot', label: 'Act on the target', rank: 'primary'
-            }),
-            // The reading whose `aria-expanded` this module owns rather than the
-            // margin: a disclosure that declares its writer away.
-            marginEntry(offer('span', ''), {
-              key: 'read', icon: 'dot', label: 'Read the target',
-              behavior: 'disclosure', rank: 'reading', writesRelation: false
-            }),
-          );
-          registerMarginContribution({key: 'target', target: document.getElementById('target'),
-            controls});
-        }"""
-    )
-    margins_laid_out(page)
-    proxy = page.locator(".lf-margin-option-proxy")
-    expect(proxy).to_have_count(1)
-    relation = page.evaluate(
-        """async refreshes => {
-          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
-          const group = document.querySelector('.lf-margin-options');
-          const records = [];
-          const observer = new MutationObserver(list => records.push(...list));
-          observer.observe(group, {subtree: true, attributes: true,
-            attributeOldValue: true, attributeFilter: ['aria-expanded']});
-          for (let i = 0; i < refreshes; i++) {
-            window.dispatchEvent(new Event('resize'));
-            await frame();
-          }
-          records.push(...observer.takeRecords());
-          observer.disconnect();
-          return {
-            wrote: records.map(record => ({
-              on: record.target.className,
-              was: record.oldValue,
-              now: record.target.getAttribute('aria-expanded'),
-            })),
-            standing: document.querySelector('.lf-margin-option-proxy')
-              .getAttribute('aria-expanded'),
-          };
-        }""",
-        5,
-    )
-    assert relation["wrote"] == [], relation["wrote"]
-    assert relation["standing"] is None, relation
 
 
 def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
@@ -765,18 +689,18 @@ def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
     page = open_page(browser, serve(fixture))
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           for (const [id, count] of [['first', 8], ['second', 1]]) {
-            const controls = document.createElement('span');
-            for (let i = 0; i < count; i++) controls.append(
-              marginEntry(offer('button', ''), {
+            const entries = () => Array.from({length: count}, (_, i) =>
+              marginEntry({
                 key: `action-${i}`, icon: 'dot', label: `Action ${i} for ${id}`,
                 rank: i ? 'secondary' : 'primary'
               })
             );
-            registerMarginContribution({key: id, target: document.getElementById(id), controls,
-              claim: false, state: count > 1 ? 'engaged' : 'idle'});
+            registerMarginContribution({key: id, target: document.getElementById(id),
+              read: () => ({entries: entries(), claim: false,
+                state: count > 1 ? 'engaged' : 'idle'}), activate: () => {}});
           }
         }"""
     )
@@ -810,13 +734,13 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           for (const id of ['first', 'second']) {
             registerMarginContribution({key: id, target: document.getElementById(id),
-              controls: marginEntry(offer('button', ''), {
+              read: () => ({entries: [marginEntry({
                 key: 'act', icon: 'dot', label: `Act on ${id}`
-              })});
+              })]}), activate: () => {}});
           }
         }"""
     )
@@ -1105,11 +1029,14 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         ("bg-delete", "accept"),
     ):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
-        controls = page.locator(f'.lf-sug-actions[data-lf-for="{target}"]')
+        controls = item
         item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
         round_trip(page)
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
-        controls.get_by_role("button", name=re.compile("^Undo ")).click()
+        page.locator(
+            f'button[data-lf-margin-entry-owner="suggestion:{target}"]'
+            '[aria-label^="Undo "]'
+        ).click()
         round_trip(page)
         expect(
             item.get_by_role("button", name=re.compile("^Accept the "))
@@ -1724,7 +1651,8 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(
         page.locator(
             '[data-lf-margin-for="bg-react-lost"] '
-            '.lf-react-mark[data-token="clarify"] > .lf-margin-entry-glyph'
+            '.lf-react-mark[aria-label="clarify reaction actions"] '
+            "> .lf-margin-entry-glyph"
         )
     ).to_have_text("🤔")
     expect(
@@ -1754,9 +1682,9 @@ def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
     refusal = page.evaluate(
         """async () => {
-          const {offer, marginEntry} = await import('/runtime/widget-api.js');
+          const {marginEntry} = await import('/runtime/widget-api.js');
           try {
-            marginEntry(offer('button', ''), {
+            marginEntry({
               key: 'cancel', icon: 'cross', label: 'Cancel', role: 'escape'
             });
           } catch (error) {
@@ -1773,16 +1701,14 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
     page = open_page(browser, serve(PANEL_PAGE))
     message = page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const controls = document.createElement('span');
-          for (const label of ['First', 'Second'])
-            controls.append(marginEntry(offer('button', ''), {
-              key: 'same', icon: 'dot', label
-            }));
           try {
             registerMarginContribution({
-              key: 'ambiguous', target: document.querySelector('#how-cap'), controls
+              key: 'ambiguous', target: document.querySelector('#how-cap'),
+              read: () => ({entries: ['First', 'Second'].map(label => marginEntry({
+                key: 'same', icon: 'dot', label
+              }))}), activate: () => {}
             });
           } catch (error) {
             return error.message;
@@ -1800,38 +1726,48 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
 def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     browser, serve
 ):
-    """One retained proxy follows margin entry semantics and ARIA without owning activation."""
+    """Frozen replacement records retain one keyed view and one activation command."""
     page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, setMarginEntryState, syncMarginEntrySelection,
-            registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const control = marginEntry(offer('button', ''), {
+          let state = {
+            state: 'engaged', expanded: true, popup: 'dialog', pressed: true,
+            selected: true, disabled: false
+          };
+          const read = () => ({entries: [marginEntry({
             key: 'inspect', icon: 'question', label: 'Inspect source',
-            context: 'Patch ready',
-            behavior: 'disclosure', tone: 'negative', rank: 'reading',
-            state: 'engaged'
+            context: 'Patch ready', behavior: 'disclosure', tone: 'negative',
+            rank: 'reading', state: state.state, disabled: state.disabled,
+            selected: state.selected, pressed: state.pressed,
+            relation: {kind: 'element', id: 'how-cap', expanded: state.expanded,
+              popup: state.popup}, activation: 'inspect-source'
+          })]});
+          window.lfCanonicalActivations = [];
+          const registration = registerMarginContribution({
+            key: 'fixture', target: document.querySelector('#how-cap'), read,
+            activate: token => window.lfCanonicalActivations.push(token)
           });
-          control.setAttribute('aria-controls', 'how-cap');
-          control.setAttribute('aria-expanded', 'true');
-          control.setAttribute('aria-haspopup', 'dialog');
-          control.setAttribute('aria-pressed', 'true');
-          syncMarginEntrySelection(control, true);
-          control.onclick = () => window.lfCanonicalPresses += 1;
-          window.lfCanonicalPresses = 0;
+          const initial = registration.entry('inspect');
           window.lfCanonicalMarginEntry = {
-            control,
-            registration: registerMarginContribution({
-              key: 'fixture', target: document.querySelector('#how-cap'), controls: control
-            }),
+            registration,
             update() {
-              setMarginEntryState(control, 'busy');
-              control.setAttribute('aria-expanded', 'false');
-              control.setAttribute('aria-haspopup', 'menu');
-              control.removeAttribute('aria-pressed');
-              syncMarginEntrySelection(control, false);
-              this.registration.update({immediate: true});
+              state = {...state, state: 'busy', expanded: false, popup: 'menu',
+                pressed: null, selected: false};
+              registration.update({immediate: true});
+            },
+            disable(disabled) {
+              state = {...state, disabled};
+              registration.update({immediate: true});
+            },
+            recordProof() {
+              const current = registration.entry('inspect');
+              return {initialFrozen: Object.isFrozen(initial)
+                  && Object.isFrozen(initial.relation),
+                currentFrozen: Object.isFrozen(current)
+                  && Object.isFrozen(current.relation),
+                replaced: current !== initial};
             }
           };
         }"""
@@ -1871,9 +1807,16 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
 
     proxy.evaluate("button => button.dataset.stableProof = 'same-proxy'")
     proxy.focus()
+    focused_key = proxy.get_attribute("data-lf-map-margin-entry")
     page.evaluate("() => window.lfCanonicalMarginEntry.update()")
     expect(proxy).to_be_focused()
     expect(proxy).to_have_attribute("data-stable-proof", "same-proxy")
+    expect(proxy).to_have_attribute("data-lf-map-margin-entry", focused_key)
+    assert page.evaluate("() => window.lfCanonicalMarginEntry.recordProof()") == {
+        "initialFrozen": True,
+        "currentFrozen": True,
+        "replaced": True,
+    }
     expect(proxy).to_have_attribute("data-lf-state", "busy")
     expect(proxy).to_have_attribute("aria-busy", "true")
     expect(proxy).to_have_attribute("aria-expanded", "false")
@@ -1881,25 +1824,19 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     expect(proxy).not_to_have_attribute("aria-pressed", re.compile(".+"))
     expect(proxy).not_to_have_attribute("data-lf-target-selected", re.compile(".*"))
 
-    page.evaluate(
-        """() => {
-          const fixture = window.lfCanonicalMarginEntry;
-          fixture.control.setAttribute('aria-disabled', 'true');
-          fixture.registration.update({immediate: true});
-        }"""
-    )
+    page.evaluate("() => window.lfCanonicalMarginEntry.disable(true)")
     expect(proxy).to_be_disabled()
-    page.evaluate(
-        """() => {
-          const fixture = window.lfCanonicalMarginEntry;
-          fixture.control.removeAttribute('aria-disabled');
-          fixture.registration.update({immediate: true});
-        }"""
-    )
+    page.evaluate("() => window.lfCanonicalMarginEntry.disable(false)")
     expect(proxy).to_be_enabled()
+    assert (
+        page.locator(
+            '[data-lf-margin-entry-key="inspect"]:not(.lf-margin-entry):not(.lf-page-map-action)'
+        ).count()
+        == 0
+    ), "the contribution left a hidden source control beside its projections"
     proxy.click()
     expect(dialog).to_be_hidden()
-    assert page.evaluate("() => window.lfCanonicalPresses") == 1
+    assert page.evaluate("() => window.lfCanonicalActivations") == ["inspect-source"]
 
 
 def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
@@ -2265,13 +2202,13 @@ def test_tab_into_a_margin_entry_cluster_replaces_ellipsis_with_all_margin_entri
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           registerMarginContribution({key: 'extra', target: document.querySelector('#sug-refill'),
-            controls: marginEntry(offer('button', ''), {
+            read: () => ({entries: [marginEntry({
               key: 'details', icon: 'comment', label: 'Details',
               behavior: 'disclosure', rank: 'reading'
-            })});
+            })]}), activate: () => {}});
         }"""
     )
     page.locator("#before-margin-entries").focus()
@@ -2424,34 +2361,42 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     """Tone keeps its meaning through interaction and agent-workflow states."""
     page = open_page(
         browser,
-        serve(leaf_page("margin entry tones", '<p id="target">A shared target</p>')),
+        serve(
+            leaf_page(
+                "margin entry tones",
+                '<p id="neutral-target">Neutral target</p>'
+                '<p id="positive-target">Positive target</p>'
+                '<p id="negative-target">Negative target</p>',
+            )
+        ),
     )
     page.emulate_media(color_scheme=scheme, reduced_motion="reduce")
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, setMarginEntryState, syncMarginAgentWorkflow} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const controls = document.createElement('div');
-          controls.className = 'lf-ui';
-          for (const tone of ['neutral', 'positive', 'negative']) {
-            controls.append(marginEntry(offer('button', ''), {
-              key: tone, icon: 'check', label: tone, tone
-            }));
-          }
-          const buttons = Array.from(controls.children);
-          document.querySelector('main').append(controls);
+          const tones = ['neutral', 'positive', 'negative'];
+          let currentState = 'idle';
+          let phase = null;
+          const registrations = tones.map((tone, index) =>
+            registerMarginContribution({
+              key: `tone-${tone}`, target: document.querySelector(`#${tone}-target`),
+              read: () => ({entries: [marginEntry({
+                key: tone, icon: 'check', label: tone, tone, state: currentState,
+                disabled: currentState === 'busy', workflowReceipt: phase ? {
+                  id: `tone-${index}`, target: {kind: 'widget', id: `${tone}-target`}, phase
+                } : null
+              })]}), activate: () => {}
+            })
+          );
           window.setToneState = state => {
-            for (const button of buttons) {
-              setMarginEntryState(button, state);
-              button.setAttribute('aria-disabled', String(state === 'busy'));
-            }
+            currentState = state;
+            registrations.forEach(registration => registration.update({immediate: true}));
           };
-          window.setToneReceiptPhase = phase => {
-            buttons.forEach((button, index) => syncMarginAgentWorkflow(
-              button,
-              phase ? {id: `tone-${index}`, target: {kind: 'widget', id: 'target'}, phase} : null
-            ));
+          window.setToneReceiptPhase = next => {
+            phase = next;
+            registrations.forEach(registration => registration.update({immediate: true}));
           };
         }"""
     )
@@ -2547,8 +2492,8 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
 
-    suggestion = page.locator("[data-lf-for='sug-refill'].lf-sug-actions")
     suggestion_item = page.locator('[data-lf-margin-for="sug-refill"]')
+    suggestion = suggestion_item
     expect(suggestion_item).to_have_class(re.compile(r"lf-margin-cluster"))
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
     expect(suggestion_item.locator(".lf-sug-accept")).to_be_visible()
@@ -2600,8 +2545,8 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(options).to_be_hidden()
     expect(more).to_be_focused()
 
-    draft_controls = page.locator("[data-lf-for='draft-ops'].lf-draft-controls")
     draft_item = page.locator('[data-lf-margin-for="draft-ops"]')
+    draft_controls = draft_item
     expect(draft_item).to_have_class(re.compile(r"lf-margin-cluster"))
     expect(draft_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
     expect(draft_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
@@ -2733,13 +2678,13 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
     page.keyboard.press("e")
-    reactions = suggestion_item.locator(".lf-margin-reactions")
+    reactions = suggestion_item.locator(":scope > .lf-margin-options")
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
     expect(reactions.locator(".lf-react").first).to_have_class(
         re.compile(r"lf-margin-entry")
     )
-    ok = reactions.locator('.lf-react[data-token="keep"]')
+    ok = reactions.get_by_role("button", name="keep", exact=True)
     expect(ok).to_have_attribute("aria-label", "keep")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
     ok.hover()
@@ -2758,9 +2703,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         )
         == column
     ), "opening reaction choices moved the readable column"
-    assert reactions.evaluate(
-        "surface => surface.closest('.lf-margin-options') !== null"
-    ), "e did not expand the target's canonical margin entry options"
+    assert reactions.evaluate("surface => surface.matches('.lf-margin-options')"), (
+        "e did not expand the target's canonical margin entry options"
+    )
 
     # Labels remain transient even with abundant room; options never widen the rail.
     resized(page, 2400, 900)
@@ -2826,7 +2771,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
     expect(suggestion_item).to_have_class(re.compile(r"lf-docked"))
     with sending(page, "the keep reaction"):
-        reactions.locator('.lf-react[data-token="keep"]').click()
+        reactions.get_by_role("button", name=re.compile(r"^keep\b")).click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "keep" and sent["anchor"] == {"section": "sug-refill"}
 
@@ -3072,22 +3017,22 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # Two contributed actions fold the Thread control behind More. The visible
     # primary must retain the workflow, and its own accessible description survives it.
     page.evaluate("""async () => {
-      const {offer, marginEntry, registerMarginContribution} =
+      const {marginEntry, registerMarginContribution} =
         await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const controls = document.createElement('span');
-      const edit = marginEntry(offer('button', ''), {
-        key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
-      });
-      edit.setAttribute('aria-description', 'Edit the proposed bracket');
-      const cancel = marginEntry(offer('button', ''), {
-        key: 'cancel', icon: 'cross', label: 'Cancel', rank: 'secondary'
-      });
-      controls.append(edit, cancel);
-      window.agentCarrier = edit;
-      window.agentCancel = cancel;
+      let cancelReceipt = null;
       window.agentContribution = registerMarginContribution({
-        key: 'carrier-probe', target: document.querySelector('#bracket'), controls,
+        key: 'carrier-probe', target: document.querySelector('#bracket'),
+        read: () => ({entries: [
+          marginEntry({key: 'edit', icon: 'edit', label: 'Edit',
+            description: 'Edit the proposed bracket', behavior: 'disclosure'}),
+          marginEntry({key: 'cancel', icon: 'cross', label: 'Cancel',
+            rank: 'secondary', workflowReceipt: cancelReceipt}),
+        ]}), activate: () => {}
       });
+      window.setAgentCancelReceipt = receipt => {
+        cancelReceipt = receipt;
+        window.agentContribution.update({immediate: true});
+      };
     }""")
     carrier = cluster.get_by_role("button", name="Edit", exact=True)
     expect(carrier).to_be_visible()
@@ -3101,31 +3046,22 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals, (
         "moving the same work claim to another semantic carrier replayed its arrival"
     )
-    # A contributor can forward a control whose workflow was already painted.
-    # Use the same canonical receipt to exercise its real secondary option proxy.
+    # A secondary entry can publish the same canonical workflow receipt.
     page.evaluate("""async () => {
-      const {syncMarginAgentWorkflow} = await window.__lfRuntimeImport('/runtime/widget-api.js');
       const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
       const receipt = runtime.activity.interactions.find(item => item.phase === 'active');
-      syncMarginAgentWorkflow(window.agentCancel, receipt);
+      window.setAgentCancelReceipt(receipt);
     }""")
     cluster.locator(":scope > .lf-margin-more").click()
-    proxy = cluster.locator(".lf-margin-option-proxy").filter(has_text="Cancel")
+    proxy = cluster.locator('[data-lf-margin-entry-key="cancel"]')
     expect(proxy).to_be_visible()
-    assert proxy.evaluate("node => node.lfForwardedControl === window.agentCancel")
     expect(proxy).to_have_attribute("title", f"Cancel · Working · {detail}")
     expect(proxy).to_have_attribute("aria-description", f"Working · {detail}")
     assert workflow_text_mutations(proxy) == []
     page.evaluate("""async () => {
-      const {syncMarginAgentWorkflow} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      syncMarginAgentWorkflow(window.agentCancel, null);
       window.agentContribution.unregister();
     }""")
     expect(marker).to_be_visible()
-    assert (
-        page.evaluate("() => window.agentCarrier.getAttribute('aria-description')")
-        == "Edit the proposed bracket"
-    )
     resized(page, 390, 760)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -3488,15 +3424,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     # restores the status fallback with the same canonical receipt.
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const control = marginEntry(offer('button', ''), {
-            key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
-          });
-          control.classList.add('lf-receipt-primary-probe');
           window.lfReceiptSecondary = registerMarginContribution({
             key: 'receipt-primary-probe', target: document.querySelector('#jobs'),
-            controls: control
+            read: () => ({entries: [marginEntry({
+              key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure',
+              className: 'lf-receipt-primary-probe'
+            })]}), activate: () => {}
           });
         }"""
     )
@@ -3565,33 +3500,37 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const controls = document.createElement('span');
-          const primary = marginEntry(offer('button', ''), {
-            key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
-          });
-          const backup = marginEntry(offer('button', ''), {
-            key: 'backup', glyph: 'B', label: 'Backup', behavior: 'action', rank: 'secondary'
-          });
-          const locked = marginEntry(offer('button', ''), {
-            key: 'locked', glyph: 'L', label: 'Locked', behavior: 'action', rank: 'secondary'
-          });
-          const details = marginEntry(offer('button', ''), {
-            key: 'details', glyph: 'D', label: 'Details', behavior: 'disclosure', rank: 'reading'
-          });
-          details.setAttribute('aria-expanded', 'true');
-          locked.setAttribute('aria-disabled', 'true');
-          primary.onclick = () => window.lfPrimaryClicks += 1;
-          backup.onclick = () => window.lfBackupClicks += 1;
-          controls.append(primary, backup, locked, details);
+          let visible = {act: true, backup: true, locked: true, details: true};
           window.lfPrimaryClicks = 0;
           window.lfBackupClicks = 0;
+          const registration = registerMarginContribution({
+            key: 'fixture', target: document.querySelector('#how-cap'),
+            read: () => ({entries: [
+              marginEntry({key: 'act', glyph: 'A', label: 'Act',
+                behavior: 'action', visible: visible.act}),
+              marginEntry({key: 'backup', glyph: 'B', label: 'Backup',
+                behavior: 'action', rank: 'secondary', visible: visible.backup}),
+              marginEntry({key: 'locked', glyph: 'L', label: 'Locked',
+                behavior: 'action', rank: 'secondary', disabled: true,
+                visible: visible.locked}),
+              marginEntry({key: 'details', glyph: 'D', label: 'Details',
+                behavior: 'disclosure', rank: 'reading', visible: visible.details,
+                relation: {kind: 'element', id: 'how-cap', expanded: true}}),
+            ]}),
+            activate: token => {
+              if (token === 'act') window.lfPrimaryClicks += 1;
+              if (token === 'backup') window.lfBackupClicks += 1;
+            }
+          });
           window.lfMarginEntryFixture = {
-            primary, backup, locked, details,
-            registration: registerMarginContribution({
-              key: 'fixture', target: document.querySelector('#how-cap'), controls
-            })
+            registration,
+            hide(...keys) {
+              visible = {...visible};
+              keys.forEach(key => visible[key] = false);
+              registration.update({immediate: true});
+            }
           };
         }"""
     )
@@ -3626,10 +3565,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     backup.focus()
     page.evaluate(
         """() => {
-          const fixture = window.lfMarginEntryFixture;
-          fixture.backup.hidden = true;
-          fixture.details.hidden = true;
-          fixture.registration.update({immediate: true});
+          window.lfMarginEntryFixture.hide('backup', 'details');
         }"""
     )
     expect(options.get_by_role("button", name="Locked")).to_be_visible()
@@ -3643,9 +3579,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
 
     page.evaluate(
         """() => {
-          const fixture = window.lfMarginEntryFixture;
-          fixture.locked.hidden = true;
-          fixture.registration.update({immediate: true});
+          window.lfMarginEntryFixture.hide('locked');
         }"""
     )
     expect(more).to_be_hidden()
@@ -3665,51 +3599,57 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
     resized(page, width, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, setMarginEntryState, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           window.marginEntryFixtures = [];
           for (const [index, id] of ['first', 'second'].entries()) {
             const target = document.getElementById(id);
-            const ordinary = document.createElement('span');
-            const editor = document.createElement('span');
-            const act = marginEntry(offer('button', ''), {
-              key: 'act', icon: 'check', label: `Act ${id}`, rank: 'primary'
-            });
-            const details = Array.from({length: 5}, (_, n) => {
-              const button = marginEntry(offer('button', ''), {
-                key: `detail-${n + 1}`, icon: 'dot',
-                label: `Detail ${n + 1} ${id}` + (n === 1
-                  ? ' with a longer explanation that must remain inside its tooltip' : ''),
-                rank: 'secondary'
-              });
-              button.onclick = () => target.dataset.lastAction = String(n + 1);
-              return button;
-            });
-            const save = marginEntry(offer('button', ''), {
-              key: 'save', icon: 'check', label: `Save ${id}`, rank: 'complete',
-              tone: 'positive', state: 'engaged'
-            });
-            const cancel = marginEntry(offer('button', ''), {
-              key: 'cancel', icon: 'cross', label: `Cancel ${id}`, rank: 'escape',
-              state: 'engaged'
-            });
-            ordinary.append(...(index ? [...details, act].reverse() : [act, ...details]));
-            editor.append(...(index ? [save, cancel] : [cancel, save]));
-            const fixture = {act, details, save, cancel, engaged: true, registrations: []};
+            const fixture = {engaged: true, saveState: 'engaged', registrations: []};
+            const ordinary = () => {
+              const entries = [
+                marginEntry({key: 'act', icon: 'check', label: `Act ${id}`,
+                  rank: 'primary'}),
+                ...Array.from({length: 5}, (_, n) => marginEntry({
+                  key: `detail-${n + 1}`, icon: 'dot',
+                  label: `Detail ${n + 1} ${id}` + (n === 1
+                    ? ' with a longer explanation that must remain inside its tooltip' : ''),
+                  rank: 'secondary', visible: fixture.engaged || n === 0
+                }))
+              ];
+              return index ? entries.reverse() : entries;
+            };
+            const editor = () => {
+              const entries = [
+                marginEntry({key: 'cancel', icon: 'cross', label: `Cancel ${id}`,
+                  rank: 'escape', state: 'engaged', visible: fixture.engaged}),
+                marginEntry({key: 'save', icon: 'check', label: `Save ${id}`,
+                  rank: 'complete', tone: 'positive', state: fixture.saveState,
+                  visible: fixture.engaged})
+              ];
+              return index ? entries.reverse() : entries;
+            };
             const offers = [
-              {key: 'ordinary', target, controls: ordinary},
-              {key: 'editor', target, controls: editor,
-                state: () => fixture.engaged ? 'engaged' : 'idle'}
+              {key: 'ordinary', target, read: () => ({entries: ordinary()}),
+                activate: token => {
+                  if (token.startsWith('detail-'))
+                    target.dataset.lastAction = token.slice('detail-'.length);
+                }},
+              {key: 'editor', target,
+                read: () => ({entries: editor(),
+                  state: fixture.engaged ? 'engaged' : 'idle'}), activate: () => {}}
             ];
             for (const offered of index ? offers.reverse() : offers)
               fixture.registrations.push(registerMarginContribution(offered));
             fixture.rest = () => {
               fixture.engaged = false;
-              save.hidden = cancel.hidden = true;
-              details.slice(1).forEach(button => button.hidden = true);
-              fixture.registrations.forEach(registration => registration.update());
+              fixture.registrations.forEach(registration =>
+                registration.update({immediate: true}));
             };
-            fixture.busy = () => setMarginEntryState(save, 'busy');
+            fixture.busy = () => {
+              fixture.saveState = 'busy';
+              fixture.registrations.forEach(registration =>
+                registration.update({immediate: true}));
+            };
             window.marginEntryFixtures.push(fixture);
           }
         }"""
@@ -3718,7 +3658,7 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         expect(item.locator(".lf-margin-entry:visible")).to_have_count(6)
         assert item.locator(".lf-margin-entry:visible").evaluate_all(
-            "buttons => buttons.map(button => button.dataset.lfMarginEntryKey.replace(/:proxy$/, ''))"
+            "buttons => buttons.map(button => button.dataset.lfMarginEntryKey)"
         ) == ["save", "cancel", "act", "detail-1", "detail-2", "all-options"]
         expect(item.locator(".lf-margin-more")).to_be_hidden()
         expect(item.locator(".lf-margin-spill")).to_have_attribute(
@@ -3731,7 +3671,7 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
         expect(label).to_be_visible()
         box = label.bounding_box()
         assert box["x"] >= 0 and box["x"] + box["width"] <= width
-        detail = item.locator('[data-lf-margin-entry-key="detail-2:proxy"]')
+        detail = item.locator('[data-lf-margin-entry-key="detail-2"]')
         detail.hover()
         expect(detail.locator(".lf-margin-entry-label")).to_be_visible()
         assert detail.locator(".lf-margin-entry-label").evaluate(
@@ -3790,17 +3730,14 @@ def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const controls = document.createElement('span');
-          for (let index = 0; index < 6; index += 1)
-            controls.append(marginEntry(offer('button', ''), {
-              key: `peer-${index}`, icon: 'dot', label: `Peer ${index}`,
-              rank: 'secondary'
-            }));
           window.readingBudgetFixture = registerMarginContribution({
             key: 'reading-budget', target: document.querySelector('#how-cap'),
-            controls, side: 'after'
+            read: () => ({entries: Array.from({length: 6}, (_, index) =>
+              marginEntry({key: `peer-${index}`, icon: 'dot',
+                label: `Peer ${index}`, rank: 'secondary'})), side: 'after'}),
+            activate: () => {}
           });
         }"""
     )
@@ -3821,14 +3758,13 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const controls = document.createElement('span');
-          for (let i = 0; i < 5; i++) controls.append(marginEntry(offer('button', ''), {
-            key: `detail-${i}`, icon: 'dot', label: `Detail ${i}`, rank: 'secondary'
-          }));
           registerMarginContribution({key: 'details', target: document.getElementById('sug-refill'),
-            controls, state: 'engaged'});
+            read: () => ({entries: Array.from({length: 5}, (_, i) => marginEntry({
+              key: `detail-${i}`, icon: 'dot', label: `Detail ${i}`,
+              rank: 'secondary'
+            })), state: 'engaged'}), activate: () => {}});
         }"""
     )
     item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -4003,16 +3939,22 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, registerMarginContribution} =
+          const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const primary = marginEntry(offer('button', ''), {
-            key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
+          let primaryVisible = true;
+          const registration = registerMarginContribution({
+            key: 'fixture', target: document.querySelector('#how-cap'),
+            read: () => ({claim: true, entries: [marginEntry({
+              key: 'act', glyph: 'A', label: 'Act', behavior: 'action',
+              visible: primaryVisible
+            })]}), activate: () => {}
           });
           window.lfThreadOwner = {
-            primary,
-            registration: registerMarginContribution({
-              key: 'fixture', target: document.querySelector('#how-cap'), controls: primary, claim: true
-            })
+            registration,
+            showPrimary(visible) {
+              primaryVisible = visible;
+              registration.update({immediate: true});
+            }
           };
         }"""
     )
@@ -4029,9 +3971,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     thread.focus()
     page.evaluate(
         """() => {
-          const fixture = window.lfThreadOwner;
-          fixture.primary.hidden = true;
-          fixture.registration.update({immediate: true});
+          window.lfThreadOwner.showPrimary(false);
         }"""
     )
     expect(marker).to_be_visible()
@@ -4042,9 +3982,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
 
     page.evaluate(
         """() => {
-          const fixture = window.lfThreadOwner;
-          fixture.primary.hidden = false;
-          fixture.registration.update({immediate: true});
+          window.lfThreadOwner.showPrimary(true);
         }"""
     )
     expect(options).to_be_visible()
@@ -4144,10 +4082,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             const target = document.createElement('p');
             target.textContent = `${label} target`;
             root.append(target);
-            const controls = marginEntry(document.createElement('button'), {
-              key: label, glyph: '!', label: `${label} controls`
-            });
-            return {label, shell, target, controls};
+            return {label, shell, target};
           };
           const first = makeRecord('first');
           const nested = makeRecord('nested');
@@ -4160,10 +4095,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             const target = document.createElement('p');
             target.slot = slot;
             target.textContent = `${label} target`;
-            const controls = marginEntry(document.createElement('button'), {
-              key: label, glyph: '!', label: `${label} controls`
-            });
-            return {label, shell: slottedShell, target, controls};
+            return {label, shell: slottedShell, target};
           };
           const slotA = makeSlottedRecord('slot a', 'a');
           const slotB = makeSlottedRecord('slot b', 'b');
@@ -4172,14 +4104,20 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
           main.append(first.shell, second.shell, slottedShell);
           const records = [slotA, nested, second, slotB, first];
           for (const record of records) {
-            const {target, controls} = record;
-            const margin = registerMarginContribution({key: record.label, target, controls});
+            const {target} = record;
+            const margin = registerMarginContribution({key: record.label, target,
+              read: () => ({entries: [marginEntry({
+                key: record.label, glyph: '!', label: `${record.label} controls`
+              })]}), activate: () => {}});
             record.margin = margin;
           }
           await new Promise(done =>
             requestAnimationFrame(() => requestAnimationFrame(done))
           );
-          const readings = [first, nested, second, slotA, slotB].map(({shell, target, controls}) => ({
+          const readings = [first, nested, second, slotA, slotB].map(
+            ({label, shell, target, margin}) => {
+            const controls = margin.control(label, 'margin');
+            return {
             ownsTarget: controls.parentElement?.lfEntry?.target === target,
             inDocument: controls.getRootNode() === document,
             itemCount: shell.shadowRoot.querySelectorAll('.lf-margin-cluster').length,
@@ -4188,7 +4126,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             minHeight: getComputedStyle(controls).minHeight,
             radius: getComputedStyle(controls).borderRadius,
             visibleWord: controls.querySelector('.lf-margin-entry-label')?.textContent,
-          }));
+          }});
           const testTargets = new Set(records.map(({target}) => target));
           const itemOrder = [...main.querySelectorAll(':scope > .lf-margin-cluster')]
             .filter(item => testTargets.has(item.lfEntry?.target))
@@ -4273,18 +4211,20 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
         """async () => {
               const {marginEntry, registerMarginContribution} =
                 await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const status = marginEntry(document.createElement('span'), {
-            key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
-          });
           registerMarginContribution({
             key: 'shape-status', target: document.querySelector('#outer'),
-            controls: status
+            read: () => ({entries: [marginEntry({
+              key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
+            })]}), activate: () => {}
           });
         }"""
     )
     margins_laid_out(page)
 
     status = page.locator('[data-lf-margin-entry-key="shape-status"]')
+    expect(status).to_have_attribute("role", "status")
+    expect(status).to_have_attribute("tabindex", "-1")
+    assert status.evaluate("node => node.tagName") == "SPAN"
     status.hover()
     trace = page.locator('.lf-target-trace[data-for="outer"]')
     expect(trace).to_be_visible()

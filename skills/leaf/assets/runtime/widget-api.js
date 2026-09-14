@@ -25,16 +25,19 @@ export { landInConversation } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
-export { focused, keys as commands, paintKeys, saying } from "./keyboard/scopes.js";
+export {
+  commandScope,
+  focused,
+  keys as commands,
+  paintKeys,
+  saying,
+} from "./keyboard/scopes.js";
 export { repaint } from "./repaint.js";
 export { beginWalk, listWalkPosition } from "./walk-position.js";
 export {
   MARGIN_ENTRY_SCHEMA,
   marginEntry,
-  setMarginEntryState,
-  syncMarginAgentWorkflow,
-  syncMarginEntryCount,
-  syncMarginEntrySelection,
+  presentMarginEntry,
   registerMarginContribution,
 } from "./margin-entries.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";

@@ -122,10 +122,10 @@ shared tray furniture;
 `runtime/live-leaves-list.js` presents that reading through one banner face and keyed
 tray list under one application-presentation ticket;
 `runtime/margin-entries.js` owns the public margin-entry grammar and contribution
-registry; content modules contribute live controls and semantics there but never place
-their own RHS rows;
-`runtime/page-map-dialog.js` owns the complete searchable Page Map dialog, its retained action
-proxies, filtering, modal lifecycle, and focus return;
+registry; content modules contribute immutable readings and activation capabilities,
+while Leaf creates the controls for each projection;
+`runtime/page-map-dialog.js` owns the complete searchable Page Map dialog, its retained
+projected actions, filtering, modal lifecycle, and focus return;
 `runtime/margin-projection.js` projects those contributions with page readings into the page
 margin, supplies the Page Map entries, and owns anchored margin threads, the design-mode
 exclusion of its top-layer preview, and one aggregated cluster for each page target;

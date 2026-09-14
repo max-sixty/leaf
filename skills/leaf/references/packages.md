@@ -321,6 +321,24 @@ refusal restores authoritative state. Undo targets only a stable `id` or `attemp
 the current command entry's candidates. The server remains final admission for every
 command.
 
+`registerMarginContribution({key, target, source?, read, activate})` is the package boundary for
+page-edge actions. `read()` returns the contribution's complete current reading,
+including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
+those same records independently in the target's Margin cluster and in Page Map,
+retaining each projected control by the contribution key and entry key. `target` is an
+element or a function returning the element that currently anchors the action. `source`
+defaults to that target and may separately name the semantic owner when presentation has
+to move to a surviving ancestor.
+`activate(token, context)` is the sole effect path and receives the projected origin,
+surface, input kind, current entry, and a focus capability. The returned registration
+exposes `entry`, `control`, `contains`, `activate`, `focus`, `update`, and `unregister`;
+`update()` replaces the whole reading and may synchronously lay it out or focus a
+surviving key. Keep text fields, history, and other mechanical editing state in the
+widget. Publish only action and status records to the margin, with explicit `element` or
+`entries` relations when a disclosure owns another surface or entry. An entry whose
+interactive name no longer describes its script-free rendering supplies `staticLabel`;
+export removes the action and keeps that name on the resulting static image.
+
 An `x-state` or `x-report` verb may declare `references`, a map whose keys are
 package- or page-chosen semantic roles. Each role uses the same target contract as
 `x-refers`: `{}` accepts any authored element, while `{via, where}` constrains a
@@ -461,6 +479,14 @@ Escape declaration cannot reserve the key and strand the next live return. A row
 `run` only presents native behavior or a shared outer handler and does not shadow it. Text
 fields and other native interactions retain their editing keys ahead of ancestor widget
 scopes.
+
+Use `commandScope(title, rows, options)` when Leaf, rather than the widget, creates the
+focusable control. Put the returned capability on a margin-entry record's `scope`; each
+projection attaches that scope to its own visible control. When the same command set
+also applies to retained widget DOM, attach that one capability with
+`commands(element, scope)` instead of declaring the rows again. Use
+`commands(element, title, rows, options)` for a scope that exists only on widget-owned
+DOM.
 
 Every visible press a widget builds with `offer()` or `selectableOffer()` also joins the
 generated target map after `g`. Packages do not declare another `g` binding or repeat

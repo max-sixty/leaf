@@ -328,7 +328,8 @@ export function bake() {
     ])
       mark.removeAttribute(attr);
     mark.setAttribute("role", "img");
-    mark.setAttribute("aria-label", mark.dataset.token);
+    mark.setAttribute("aria-label", mark.dataset.lfStaticLabel);
+    mark.removeAttribute("data-lf-static-label");
   }
   // Two reactions on overlapping words leave the second range straddling the first's
   // mark, which no element can wrap; that range keeps its glyph and loses its wash.

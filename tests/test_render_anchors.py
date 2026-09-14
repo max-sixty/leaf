@@ -608,11 +608,11 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert not page.evaluate("getSelection().isCollapsed")
 
-    item = page.locator("[data-lf-for='sug-refill']").locator("xpath=..")
+    item = page.locator("[data-lf-margin-for='sug-refill']")
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     item.get_by_role("button", name=re.compile(r"Reject")).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
-    page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").focus()
+    page.locator("[data-lf-margin-for='sug-in-card'] .lf-sug-accept").focus()
     page.keyboard.press("Enter")
     expect(page.locator("#sug-in-card")).to_have_attribute("data-lf-state", "accept")
 
@@ -637,7 +637,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.evaluate(RENDERED)  # selection placement reaches the frame before hit testing
     assert (
-        page.locator("[data-lf-for='sug-refill']").evaluate(
+        page.locator("[data-lf-margin-for='sug-refill']").evaluate(
             "el => el.getBoundingClientRect().left"
         )
         >= box["x"] + box["width"]
@@ -659,7 +659,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         .map(c => c.className)""")
     assert under == [], f"floating chrome is standing on controls: {under}"
 
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(
         page.locator(".lf-composer")
@@ -686,7 +686,7 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     expect(page.locator(".lf-composer")).to_be_visible()
     assert not page.evaluate("getSelection().isCollapsed")
 
-    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    accept = page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept")
     if route == "g":
         page.keyboard.press("g")
         page.keyboard.type(address_code(page, "Margin entry", "sug-refill", "accept"))

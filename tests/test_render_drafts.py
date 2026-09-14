@@ -147,17 +147,16 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
     assert message["text"] == " "
 
 
-def draft_controls(page, draft_id="draft-ops"):
-    return page.locator(f".lf-draft-controls[data-lf-for='{draft_id}']")
+def draft_control(page, key, draft_id="draft-ops"):
+    return page.locator(
+        f'[data-lf-margin-entry-owner="draft:{draft_id}"]'
+        f'[data-lf-margin-entry-key="{key}"]:visible'
+    )
 
 
 def cancel_draft(page, draft_id="draft-ops"):
     """Cancel stands beside Save throughout an engaged draft edit."""
-    controls = draft_controls(page, draft_id)
-    item = controls.locator("xpath=..")
-    item.locator(":scope > .lf-margin-options").get_by_role(
-        "button", name="Cancel", exact=True
-    ).click()
+    draft_control(page, "cancel", draft_id).click()
 
 
 def test_page_round_trip(browser, serve):
@@ -217,7 +216,7 @@ def test_page_round_trip(browser, serve):
     assert draft.locator(".lf-draft-body").inner_text() == DRAFT_TEXT
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(DRAFT_EDITED)
-    draft_controls(page).get_by_role("button", name="Save").click()
+    draft_control(page, "save").click()
     page.wait_for_function(
         "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
         arg=DRAFT_EDITED,
@@ -320,7 +319,13 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, sect
     )
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
-    expect(page.locator('.lf-reacts[data-lf-for="draft-ops"]')).to_have_count(1)
+    expect(
+        page.locator(
+            '[data-lf-margin-for="draft-ops"] '
+            '[data-lf-margin-entry-owner="standing-reactions"]'
+            '[data-lf-margin-entry-key^="reaction:"]:visible'
+        )
+    ).to_have_count(1)
     page.locator("#draft-ops .lf-draft-body").dblclick()
     assert page.locator("#draft-ops textarea").input_value() == DRAFT_TEXT
 
@@ -398,7 +403,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     page.mouse.dblclick(*spot)
     editor = page.locator("#draft-ops textarea")
     expect(editor).to_be_focused()
-    pencil = draft_controls(page).locator(".lf-draft-pencil")
+    pencil = draft_control(page, "edit")
     assert page.screenshot(clip=band) == outside_before, (
         "opening the editor painted outside the box the draft already occupied"
     )
@@ -440,7 +445,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     # Reopened through the other door, because print is where the box has to be
     # gone and its words still there — and print emulation blurs the textarea it
     # hides, so an editor opened before this point is no longer one Escape closes.
-    draft_controls(page).locator(".lf-draft-pencil").click()
+    draft_control(page, "edit").click()
     expect(page.locator("#draft-ops textarea")).to_be_visible()
     page.emulate_media(media="print")
     assert page.locator("#draft-ops").inner_text() == DRAFT_TEXT, (
@@ -539,7 +544,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
           };
         }"""
     )
-    draft_controls(page).get_by_role("button", name="Save").click()
+    draft_control(page, "save").click()
     # A 503 cannot say whether the server appended before its answer was lost. Keep
     # the one saved gesture visibly pending and its draft recoverable; reopening the
     # editor would invite a second gesture while this attempt is still retrying.
@@ -589,16 +594,15 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     sent = "The first save still owns this body."
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(sent)
-    draft_controls(page).get_by_role("button", name="Save").click()
+    draft_control(page, "save").click()
     expect(draft).to_have_attribute("aria-busy", "true")
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == sent
 
-    expect(draft_controls(page).locator(".lf-draft-pencil")).to_be_disabled()
-    draft_controls(page).locator(".lf-draft-pencil").evaluate(
-        "button => button.click()"
-    )
+    expect(draft_control(page, "edit")).to_be_disabled()
+    # The projection owns a native disabled button, so a forced DOM click is refused
+    # before the contributor's activation capability can run.
+    draft_control(page, "edit").evaluate("button => button.click()")
     expect(draft.locator("textarea")).to_have_count(0)
-    expect(page.locator(".lf-notice")).to_contain_text("Wait for the current edit")
 
     page.evaluate("window.releaseDraftSend()")
     page.wait_for_function(
@@ -613,7 +617,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     ]
     assert [event["detail"]["text"] for event in events] == [sent]
 
-    draft_controls(page).locator(".lf-draft-pencil").click()
+    draft_control(page, "edit").click()
     expect(draft.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
 
@@ -648,7 +652,9 @@ def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
           };
           requestAnimationFrame(tick);
           document.querySelector(
-            '[data-lf-for="draft-ops"] [aria-label="Save"]'
+            '[data-lf-margin-for="draft-ops"] '
+            + '[data-lf-margin-entry-owner="draft:draft-ops"]'
+            + '[data-lf-margin-entry-key="save"]'
           ).click();
           await new Promise(resolve => setTimeout(resolve, 700));
           stop = true;
@@ -689,7 +695,7 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
             json={"ok": False, "final": True, "error": "refused before append"},
         ),
     )
-    draft_controls(page).get_by_role("button", name="Save", exact=True).click()
+    draft_control(page, "save").click()
     item = page.locator('[data-lf-margin-for="draft-ops"]')
     expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     expect(item).to_have_attribute("data-lf-state", "failed")
@@ -741,7 +747,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     first_draft.locator("textarea").fill(edited)
     expect(second_draft.locator("textarea")).to_have_value(edited)
 
-    draft_controls(first).get_by_role("button", name="Save").click()
+    draft_control(first, "save").click()
     round_trip(first)
     expect(second_draft.locator("textarea")).to_have_count(0)
     # The body the other tab is left looking at is the log's, which is what closing the
@@ -794,9 +800,9 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    draft_controls(first).get_by_role("button", name="Save").click()
+    draft_control(first, "save").click()
     holding(first, held, 1, "the first draft edit")
-    draft_controls(second).get_by_role("button", name="Save").click()
+    draft_control(second, "save").click()
     round_trip(second)
 
     held[0].continue_()
@@ -2754,8 +2760,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     """One disclosure answers both deferred draft decisions. It compares this version's
     authored body with the standing body, retains every absolute edit in log order,
     and walks back by posting another ordinary edit. A second tab proves restore is
-    durable replay rather than local history state; copy mode proves the generated
-    controls do not survive without their handlers."""
+    durable replay rather than local history state; copy mode proves the local history
+    does not survive without its handlers."""
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
     edits = [
@@ -2765,7 +2771,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     for index, text in enumerate(edits, 1):
         draft.locator(".lf-draft-body").dblclick()
         draft.locator("textarea").fill(text)
-        draft_controls(page).get_by_role("button", name="Save").click()
+        draft_control(page, "save").click()
         round_trip(page)  # the history is drawn from the log, not the box
         expect(draft.locator(".lf-draft-history > summary")).to_have_text(
             f"Changes · {index} {'edit' if index == 1 else 'edits'}"
@@ -2796,7 +2802,6 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     page.evaluate("document.documentElement.classList.add('lf-copy')")
     expect(draft.locator(".lf-draft-history")).not_to_be_visible()
-    expect(draft.locator(".lf-draft-controls")).not_to_be_visible()
     expect(draft.locator(".lf-draft-body")).to_be_visible()
     page.evaluate("document.documentElement.classList.remove('lf-copy')")
 
@@ -2997,7 +3002,7 @@ def test_registered_control_keys_activate_once(browser, serve):
     delivers this event with `repeat` set."""
     page = open_page(browser, serve(KEYS_PAGE))
 
-    pencil = draft_controls(page).locator(".lf-draft-pencil")
+    pencil = draft_control(page, "edit")
     assert pencil.evaluate("el => el.localName") == "button"
     expect(pencil).to_have_attribute("type", "button")
     pencil.focus()
@@ -3625,7 +3630,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
 
     # And the pencil is still there, still the keyboard's way in.
     page.keyboard.press("Escape")
-    pencil = draft_controls(page).locator(".lf-draft-pencil")
+    pencil = draft_control(page, "edit")
     expect(pencil).to_be_focused()
     pencil.click()
     expect(draft.locator("textarea")).to_be_visible()

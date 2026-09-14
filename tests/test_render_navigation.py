@@ -85,6 +85,14 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+
+def draft_control(page, key, draft_id):
+    return page.locator(
+        f'[data-lf-margin-entry-owner="draft:{draft_id}"]'
+        f'[data-lf-margin-entry-key="{key}"]:visible'
+    )
+
+
 READING_REGIONS_PAGE = leaf_page(
     "reading region navigation",
     """
@@ -817,11 +825,16 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     page = open_page(browser, url)
     page.locator("#bg-route-river").click()
     round_trip(page)
-    controls = page.locator('[data-lf-for="bg-nested-change"]')
-    controls.get_by_role("button", name=re.compile("^Accept the ")).click()
+    page.locator(
+        '[data-lf-margin-entry-owner="suggestion:bg-nested-change"]'
+        '[data-lf-margin-entry-key="accept"]:visible'
+    ).click()
     round_trip(page)
     expect(page.locator("#bg-nested-change > lf-old")).to_be_hidden()
-    controls.get_by_role("button", name=re.compile("^Undo ")).click()
+    page.locator(
+        '[data-lf-margin-entry-owner="suggestion:bg-nested-change"]'
+        '[data-lf-margin-entry-key="undo"]:visible'
+    ).click()
     round_trip(page)
 
     expect(page.locator("#bg-nested-change > lf-old")).to_be_visible()
@@ -4720,6 +4733,28 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     behind it makes the visible scope and the focus scope disagree. Forward and reverse
     Tab use the same registered walk, while Escape closes and restores the opener."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
+    page.evaluate(
+        """async () => {
+          const {commandScope, marginEntry, presentMarginEntry} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const control = document.createElement('button');
+          control.id = 'projected-only-command';
+          document.querySelector('main').append(control);
+          const scope = commandScope('On a projected-only control', [{
+            id: 'test.projected-only',
+            keys: ['Mod+Alt+0'],
+            does: 'Exercise the generated command scope',
+            line: 'exercise projected command',
+            run: () => {},
+          }]);
+          presentMarginEntry(control, marginEntry({
+            key: 'projected-only',
+            icon: 'question',
+            label: 'Projected command',
+            scope,
+          }));
+        }"""
+    )
     opener = page.get_by_role("button", name="? more", exact=True)
     opener.click()
     opener = page.get_by_role("button", name="? command reference", exact=True)
@@ -4728,6 +4763,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     close = page.get_by_role("button", name="Back to more shortcuts")
     expect(close).to_be_visible()
     for command in [
+        "test.projected-only",
         "response.reaction.choose",
         "response.tab",
         "response.move",
@@ -5182,12 +5218,14 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     edit.click()
     expect(page.locator("#note textarea")).to_be_focused()
 
-    save = page.locator(".lf-draft-controls [data-lf-margin-entry-key='save']")
+    save = draft_control(page, "save", "note")
     save.focus()
     expect(save).to_be_focused()
     page.keyboard.press("?")
     assert "1–2\nSave / Cancel" in shortcut_bar_text(page)
-    expect(save).to_have_attribute("aria-keyshortcuts", "1")
+    expect(save).to_have_attribute(
+        "aria-keyshortcuts", "Escape Meta+Enter Control+Enter 1"
+    )
     page.keyboard.press("?")
     cancel = page.locator(
         '.lf-command-reference-command[data-lf-command="draft.cancel"]'
@@ -8400,19 +8438,11 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
-    controls = page.locator(".lf-draft-controls[data-lf-for='plan']")
-    controls.get_by_role("button", name="Edit").click()
+    draft_control(page, "edit", "plan").click()
     editor = page.locator("#plan textarea")
     editor.fill("Save through the visible control.")
-    save = controls.get_by_role("button", name="Save")
-    save.evaluate(
-        """control => control.addEventListener('click', () => {
-          document.body.dataset.draftShortcutClicks =
-            String(Number(document.body.dataset.draftShortcutClicks || 0) + 1);
-        })"""
-    )
-    page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator("body")).to_have_attribute("data-draft-shortcut-clicks", "1")
+    with sending(page, "the draft shortcut"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("#plan .lf-draft-body")).to_have_text(
         "Save through the visible control."
     )
@@ -8666,7 +8696,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.keyboard.press("c")  # panel open, so the old second action would show
     expect(page.locator(".lf-thread-panel")).to_be_visible()
 
-    page.locator(".lf-draft-controls .lf-draft-pencil").click()
+    draft_control(page, "edit", "plan").click()
     ta = page.locator("lf-draft textarea")
     expect(ta).to_be_focused()
     ta.fill("Ship it — but louder.")
@@ -8674,7 +8704,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-thread-panel")).to_be_visible()  # …and only the editor
     # The edit was set aside, not discarded: reopening resumes it.
-    page.locator(".lf-draft-controls .lf-draft-pencil").click()
+    draft_control(page, "edit", "plan").click()
     expect(page.locator("lf-draft textarea")).to_have_value("Ship it — but louder.")
     page.keyboard.press("Escape")
 
@@ -8769,7 +8799,10 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     # A decision with no seat: focus on its action names the rewrite, and the composer
     # anchors there rather than on the page.
     page.evaluate(RENDERED)
-    rewrite_action = page.locator('[data-lf-margin-for="sug-window"] .lf-sug-accept')
+    rewrite_action = page.locator(
+        '[data-lf-margin-entry-owner="suggestion:sug-window"]'
+        '[data-lf-margin-entry-key="accept"]:visible'
+    )
     rewrite_action.focus()
     expect(rewrite_action).to_be_focused()
     expect(page.locator("#sug-window")).to_have_attribute("data-lf-ask", "1")

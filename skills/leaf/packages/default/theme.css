@@ -2007,7 +2007,7 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
            font: inherit; min-height: 0; max-height: none; overflow: hidden; }
 .lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
            --lf-here-ring: none; }
-.lf-draft-controls, .lf-draft-history { display: none; }
+.lf-draft-history { display: none; }
 @media screen {
   html:not(.lf-copy) {
     /* The box is the door (lf-draft.js), so the box answers the pointer: the dashed
@@ -2023,9 +2023,7 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
     lf-draft:has(.lf-draft-edit:focus-visible) { outline: var(--here-ring);
                --lf-here-ring: draft-editor;
                outline-offset: calc(-1 * (var(--here-ring-w) + var(--here-ring-gap))); }
-    lf-draft:has(.lf-draft-edit) > .lf-draft-body,
-    lf-draft:has(.lf-draft-edit) .lf-draft-pencil { display: none; }
-    .lf-draft-controls { display: flex; }
+    lf-draft:has(.lf-draft-edit) > .lf-draft-body { display: none; }
     .lf-draft-history { display: block; }
   }
 }
@@ -2033,10 +2031,6 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
   html:not(.lf-copy) lf-draft:has(.lf-draft-edit:focus-visible) {
     outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
-}
-.lf-draft-controls { justify-content: flex-end; gap: 4px; margin-top: 6px; }
-.lf-margin-cluster > .lf-draft-controls {
-  align-items: center; justify-content: flex-start; margin-top: 0;
 }
 .lf-draft-history { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule);
                     font-size: var(--t-5); color: var(--ink-2); }

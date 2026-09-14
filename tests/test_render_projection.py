@@ -141,7 +141,10 @@ def test_inspection_and_browser_share_retirement_and_bound_input_origins(
     )
     data_model.cmd_data_set(serve.page_dir, "instructions", "Current instructions.\n")
     page = open_page(browser, url)
-    page.locator(".lf-sug-accept").click()
+    page.locator(
+        '[data-lf-margin-entry-owner="suggestion:change"]'
+        '[data-lf-margin-entry-key="accept"]:visible'
+    ).click()
     round_trip(page)
     expect(page.locator("#change lf-old")).to_be_hidden()
     expect(page.locator("#change lf-new")).to_be_visible()
@@ -3628,32 +3631,31 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     page.keyboard.press("a")
     suggestion = page.locator("#sug-refill")
     expect(suggestion).to_have_attribute("data-lf-ask", "1")
-    accept = page.locator(".lf-sug-accept")
+    accept = page.locator(
+        '[data-lf-margin-entry-owner="suggestion:sug-refill"]'
+        '[data-lf-margin-entry-key="accept"]:visible'
+    )
     accept.focus()
-    # Tab inside the margin reaches the same suggestion's ✗ Reject, re-presented as the
-    # options group's proxy for it. A control that forwards another control's press
-    # stands where that control stands, so the reader is still deciding this change and
-    # the ring stays on it. It did not: the proxy stood nowhere, the band came off the
-    # suggestion for as long as the reader held that control, and returning to ✓ Accept
-    # brought it back a frame later — which is also how the read below came to be taken
-    # while nothing on the page was ringed at all.
+    # Tab inside the margin reaches the same suggestion's ✗ Reject, rendered from the
+    # same contribution in the options group. The reader is still deciding this change,
+    # so the ring stays on it. It did not: the secondary control stood nowhere, the band
+    # came off the suggestion for as long as the reader held that control, and returning
+    # to ✓ Accept brought it back a frame later — which is also how the read below came
+    # to be taken while nothing on the page was ringed at all.
     #
     # Read after the frame the focus move's repaint is coalesced into, so this states the
     # band the page settles on rather than whichever side of that frame the read lands on.
     page.keyboard.press("Tab")
     page.evaluate(RENDERED)
-    forwarded_ring = suggestion.evaluate(RING)
-    assert forwarded_ring == row_ring, (
-        "the decision lost its ring while the reader held the margin's proxy for one of "
-        f"its own controls: {forwarded_ring} against {row_ring}"
+    decision_ring = suggestion.evaluate(RING)
+    assert decision_ring == row_ring, (
+        "the decision lost its ring while the reader held one of its own margin "
+        f"controls: {decision_ring} against {row_ring}"
     )
-    # The stand-in says where it stands in an attribute of its own. Said in the row's
-    # attribute instead, every selector meaning "the row for this change" — the runtime's
-    # own lookups, the theme, and a good part of this suite — would resolve to two
-    # elements for the one ask, since the options group is built on every margin render
-    # and merely hidden while it is closed.
-    assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
-        "the suggestion's margin row is no longer the one element that identifies it"
+    # Stable identity is the contribution owner plus entry key, independent of which
+    # projection surface currently presents it.
+    assert accept.count() == 1, (
+        "the suggestion has more than one presented Accept control"
     )
     page.keyboard.press("Shift+Tab")
     expect(accept).to_be_focused()
@@ -5644,7 +5646,12 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
         == "Refill a feeder when its camera shows it half-empty."
     )
 
-    unfolded_button(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).click()
+    unfolded_button(
+        page.locator(
+            '[data-lf-margin-entry-owner="suggestion:sug-refill"]'
+            '[data-lf-margin-entry-key="reject"]'
+        )
+    ).click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
@@ -6074,7 +6081,12 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
         f"the attached thread's outline hangs on a box of no size: {box}"
     )
 
-    unfolded_button(page.locator("[data-lf-for='sug-thistle'] .lf-sug-reject")).click()
+    unfolded_button(
+        page.locator(
+            '[data-lf-margin-entry-owner="suggestion:sug-thistle"]'
+            '[data-lf-margin-entry-key="reject"]'
+        )
+    ).click()
     expect(thread).to_have_class(re.compile(r"\bdetached\b"))
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
 
@@ -6467,8 +6479,9 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     assert body.text_content() == "First line.\nSecond line."
     widget.locator(".lf-draft-body").click()
     widget.locator("textarea").fill("A reader's exact words.\n")
-    page.locator('[data-lf-for="crossed-draft"]').get_by_role(
-        "button", name="Save", exact=True
+    page.locator(
+        '[data-lf-margin-entry-owner="draft:crossed-draft"]'
+        '[data-lf-margin-entry-key="save"]:visible'
     ).click()
     round_trip(page)
     assert body.text_content() == "A reader's exact words.\n"
@@ -7551,11 +7564,11 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     d = serve.page_dir
     page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
-    controls = page.locator(".lf-draft-controls[data-lf-for='ledger-cargo']")
-    controls.get_by_role("button", name="Edit ledger-cargo").click()
+    owner = '[data-lf-margin-entry-owner="draft:ledger-cargo"]'
+    page.locator(f'{owner}[data-lf-margin-entry-key="edit"]:visible').click()
     provided = "ledger_id,amount\n7,42"
     draft.get_by_role("textbox", name="Edit ledger-cargo").fill(provided)
-    controls.get_by_role("button", name="Save").click()
+    page.locator(f'{owner}[data-lf-margin-entry-key="save"]:visible').click()
     round_trip(page)
     expect(page.get_by_role("button", name="Asks 1/5")).to_be_visible()
 
@@ -7759,8 +7772,8 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     d = serve.page_dir
     page = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
-    controls = page.locator(".lf-draft-controls[data-lf-for='ledger-cargo']")
-    controls.get_by_role("button", name="Edit ledger-cargo").click()
+    owner = '[data-lf-margin-entry-owner="draft:ledger-cargo"]'
+    page.locator(f'{owner}[data-lf-margin-entry-key="edit"]:visible').click()
     editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
     editor.fill(
         "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42"
@@ -7774,7 +7787,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
         "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42"
     )
     with sending(page, "the saved edit"):
-        controls.get_by_role("button", name="Save").click()
+        page.locator(f'{owner}[data-lf-margin-entry-key="save"]:visible').click()
 
     edit = next(
         event

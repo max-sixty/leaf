@@ -295,7 +295,9 @@ def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
     reading: state says `null`, every address still serves, and the next save records it.
     """
     (page_dir / "index.html").write_text(PAGE, encoding="utf-8")
-    revision = files_model.require_revision(page_dir)
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None, activated.error
+    revision = activated.revision
     marker = files_model.revision_path(page_dir, revision)
     bundle = marker.with_suffix("")
     manifest_path = bundle / "manifest.json"

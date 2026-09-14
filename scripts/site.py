@@ -69,7 +69,7 @@ PRODUCT_ROUTES = {
     "index.html": "/",
     "examples.html": "/examples/",
     "how-it-works.html": "/how-it-works/",
-    "packages.html": "/packages/",
+    "extending.html": "/extending/",
     "registry.html": "/registry/",
 }
 SITE_PACKAGE = "./docs/package"

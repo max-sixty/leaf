@@ -1714,7 +1714,6 @@ graph LR
       const main = document.querySelector('main');
       const ms = getComputedStyle(main), mb = main.getBoundingClientRect();
       const box = document.getElementById('flow').getBoundingClientRect();
-      const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
       const toc = document.querySelector('lf-toc').getBoundingClientRect();
       const body = document.body.getBoundingClientRect();
       return {
@@ -1723,7 +1722,6 @@ graph LR
           left: mb.left + parseFloat(ms.paddingLeft),
           right: mb.right - parseFloat(ms.paddingRight),
         },
-        sidebar: {left: sidebar.left, right: sidebar.right},
         toc: {left: toc.left, right: toc.right, width: toc.width},
         stripRight: (() => {
           const probe = document.createElement('i');
@@ -1738,10 +1736,10 @@ graph LR
       };
     }""")
     assert at["box"]["left"] >= at["toc"]["right"] + 15, at
-    assert at["box"]["left"] < at["sidebar"]["left"] - 1, at
+    assert at["box"]["left"] <= at["toc"]["right"] + 25, at
     assert abs(at["box"]["right"] - (at["roomRight"] - at["stripRight"] - 24)) <= 1, at
     assert at["box"]["width"] > 1080, at
-    assert at["box"]["left"] < at["column"]["left"] - 300, at
+    assert at["box"]["left"] < at["column"]["left"] - 100, at
     assert at["sideways"] == 0, at
 
 
@@ -2222,10 +2220,10 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
     )
 
 
-def test_a_compact_spine_and_right_rail_leave_the_middle_room(browser, serve):
+def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
     """A right-side action withholds only the right growth from a surface level with
-    it. The compact contents spine occupies the shell edge, so the empty band between
-    it and prose remains available on the left."""
+    it. The contents map owns its complete interaction rectangle at the shell edge, so
+    the empty band between that map and the prose remains available on the left."""
     source = RAIL_BAND_PAGE.replace(
         '<h1 id="t">Release</h1>',
         '<aside class="sidebar"><lf-toc id="rail-toc"></lf-toc></aside>'
@@ -2236,13 +2234,17 @@ def test_a_compact_spine_and_right_rail_leave_the_middle_room(browser, serve):
     margins_laid_out(page)
     at = page.evaluate(RAIL_BANDS)
     plan = at["plan"]
+    toc = page.locator("#rail-toc").bounding_box()
+    assert toc is not None
     hanging = [row for row in at["rows"] if not row["docked"]]
     assert page.locator("#plan").get_attribute("data-lf-yield") == "r"
     assert hanging and any(
         plan["top"] < row["bottom"] and plan["bottom"] > row["top"] for row in hanging
     ), at
     assert plan["right"] <= at["column"]["right"] + 1, at
-    assert plan["left"] < at["column"]["left"] - 300, at
+    assert toc["x"] + toc["width"] + 15 <= plan["left"]
+    assert plan["left"] <= toc["x"] + toc["width"] + 25
+    assert plan["left"] < at["column"]["left"] - 100, at
     for row in hanging:
         across = plan["left"] < row["right"] and plan["right"] > row["left"]
         down = plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
@@ -2958,9 +2960,11 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     """The sidebar is a page-level margin resident rather than a narrower prose column.
 
     On a roomy page it takes an explicit left strip, stands wholly outside the prose, and
-    stays below the fixed banner while the page scrolls. The release-notes shot is the
-    wide exhibit in the control: it may use the other margins but not the one the sticky
-    sidebar can occupy at any scroll position.
+    stays below the fixed banner while the page scrolls. A contents map claims its whole
+    interaction rectangle: the column shifts only as far as that claim requires, then
+    returns to the page axis once both equal gutters can hold it. The release-notes shot
+    is the wide exhibit in the control: it may use the other margins but not the one the
+    sticky sidebar can occupy at any scroll position.
 
     Opening the thread panel narrows the page without changing the viewport. The body's
     container query sees the resulting content box and returns the aside to the flow. A
@@ -3031,33 +3035,29 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     resized(page, 1400, 900)
     margins_laid_out(page)
     roomy = page.evaluate(reading)
-    assert roomy["strip"] == 64
+    assert roomy["strip"] == 344
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
         f"the sidebar entered the prose column: {roomy}"
     )
-    assert roomy["sidebar"]["width"] == 40
-    assert (
-        abs(
-            (roomy["column"]["left"] + roomy["column"]["right"]) / 2
-            - roomy["viewportWidth"] / 2
-        )
-        <= 1
-    ), f"the sidebar moved a reading column that already had room: {roomy}"
+    assert roomy["sidebar"]["width"] == 320
+    assert abs(roomy["column"]["left"] - roomy["sidebar"]["right"] - 24) <= 1, (
+        f"the contents map shifted the column farther than its rectangle needs: {roomy}"
+    )
     assert roomy["exhibit"]["left"] >= roomy["sidebar"]["right"] - 1, (
         f"a wide exhibit painted into the sidebar's standing margin: {roomy}"
     )
     assert page.evaluate(sideways) == 0
 
-    # The real pointer route reveals a translucent map over the settled document. Its
-    # compact reservation and every unrelated box remain fixed under the reader's aim.
+    # The real pointer route reveals labels inside the map's settled rectangle. Its
+    # complete reservation and every unrelated box remain fixed under the reader's aim.
     page.locator("lf-toc").hover()
     page.wait_for_function(
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
     )
     expanded = page.evaluate(reading)
-    assert expanded["strip"] == 64 and expanded["sidebar"]["width"] == 40
-    assert expanded["toc"]["width"] == 40
+    assert expanded["strip"] == 344 and expanded["sidebar"]["width"] == 320
+    assert expanded["toc"]["width"] == 320
     assert expanded["nav"]["width"] == 320
     assert expanded["column"] == roomy["column"]
     assert expanded["exhibit"] == roomy["exhibit"]
@@ -3095,7 +3095,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         """() => {
           const tray = document.querySelector('.lf-asks-panel').getBoundingClientRect();
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
-          const toc = document.querySelector('lf-toc').getBoundingClientRect();
+          const toc = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
           const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
           return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
                   tocTop: toc.top, tocBottom: toc.bottom, lineTop: line.top,
@@ -3207,6 +3207,20 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(narrow["sidebar"]["left"] - narrow["column"]["left"]) <= 1
     assert page.evaluate(sideways) == 0
 
+    # Two 368px gutters hold the 344px map claim, its 24px gap, and a centred
+    # 720px reading column exactly. Above that floor the narrower window's shift ends.
+    centred_floor = 2 * (roomy["strip"] + 24) + 720
+    resized(page, centred_floor, 900)
+    margins_laid_out(page)
+    centred = page.evaluate(reading)
+    assert (
+        abs(
+            (centred["column"]["left"] + centred["column"]["right"]) / 2
+            - centred["viewportWidth"] / 2
+        )
+        <= 1
+    ), f"the contents map kept the reading column off axis after both fit: {centred}"
+
     resized(page, 1400, 900)
     page.emulate_media(media="print")
     printed = page.evaluate(reading)
@@ -3297,7 +3311,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     # expects — the widths the page is driven at are where the bar is accounted for, and a
     # measure that fell short of 720 anywhere here would be the fault this floor exists to
     # prevent rather than a tolerance to write down.
-    resized(page, 1416, 800)
+    resized(page, 1496, 800)
     at_floor = page.evaluate(reading)
     assert at_floor["column"]["width"] == 720, (
         "the strip came out of the column at the combined floor, which is the one width "
@@ -3306,9 +3320,9 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 
     # The root's client width is the runtime's authority, so a classic scrollbar has
     # already come out of the floor. Add the platform-reported difference to give the
-    # document exactly 1416 usable pixels; overlay-scrollbar platforms add zero.
+    # document exactly 1496 usable pixels; overlay-scrollbar platforms add zero.
     bar = at_floor["gutter"]
-    resized(page, 1416 + bar, 800)
+    resized(page, 1496 + bar, 800)
     roomy = page.evaluate(reading)
     assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [
         ("left", "sticky"),

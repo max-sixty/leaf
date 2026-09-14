@@ -78,16 +78,16 @@ const MANIFEST = {
       states: { "1": "/_leaf/state/how-it-works.json" },
       title: "how leaf works",
     },
-    "/packages": {
-      assets: `/_leaf-release/${RELEASE}/packages`,
-      description: "The leaf packages page.",
-      directory: "_leaf/pages/packages",
+    "/extending": {
+      assets: `/_leaf-release/${RELEASE}/extending`,
+      description: "The extending leaf page.",
+      directory: "_leaf/pages/extending",
       image: "/media/0000000000000005.png",
       kind: "product",
       layer: LAYER,
-      state: "/_leaf/state/packages.json",
-      states: { "1": "/_leaf/state/packages.json" },
-      title: "leaf packages",
+      state: "/_leaf/state/extending.json",
+      states: { "1": "/_leaf/state/extending.json" },
+      title: "Extending Leaf",
     },
     "/registry": {
       assets: `/_leaf-release/${RELEASE}/registry`,
@@ -174,7 +174,7 @@ describe("product-site delivery", () => {
     "/registry/",
     "/examples/",
     "/examples/triage-board/",
-    "/packages/",
+    "/extending/",
   ])(
     "serves the product document %s without starting its container",
     async (pathname) => {

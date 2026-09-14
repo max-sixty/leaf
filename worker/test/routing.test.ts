@@ -32,7 +32,7 @@ const page = (kind: "product" | "example") => ({
 const pages = {
   "/": page("product"),
   "/examples": page("product"),
-  "/packages": page("product"),
+  "/extending": page("product"),
   "/examples/triage-board": page("example"),
 };
 const route = (pathname: string) => pageRoute(pathname, pages);
@@ -107,7 +107,7 @@ describe("website page routing", () => {
     // each reader a container session before it had seen a page.
     expect(route("/robots.txt")).toBeNull();
     expect(route("/sitemap.xml")).toBeNull();
-    expect(needsPageSlash("/packages", route("/packages")!)).toBe(true);
+    expect(needsPageSlash("/extending", route("/extending")!)).toBe(true);
     expect(needsPageSlash("/examples/triage-board/", route("/examples/triage-board/")!)).toBe(false);
     expect(route("/examples/api/event")).toEqual({
       root: "/examples",

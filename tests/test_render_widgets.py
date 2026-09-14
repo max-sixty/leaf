@@ -100,6 +100,20 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+
+def observe_live_region(page):
+    """Record announcements without disturbing the renderer-owned live region."""
+    page.evaluate(
+        """() => {
+          const live = document.querySelector('.lf-live');
+          const changes = [];
+          window.__lfLiveRegionChanges = changes;
+          new MutationObserver(() => changes.push(live.textContent))
+            .observe(live, {childList: true, characterData: true, subtree: true});
+        }"""
+    )
+
+
 WORKSPACE_PAGE = leaf_page(
     "workspace reading regions",
     """
@@ -1736,7 +1750,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
 </style>
 <div id="orientation" style="height: 420px"></div>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
-<section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p>Take a snapshot.</p></section>
+<section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p><button id="underlying">Take a snapshot.</button></p></section>
 <div style="height: 90px"></div>
 <section>
   <h3 id="capacity">Check capacity before opening the longer transfer window</h3>
@@ -1786,10 +1800,39 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "timing": "ease-out, ease-out",
     }
     nav_box = nav.bounding_box()
+    toc_box = toc.bounding_box()
+    banner_box = page.locator(".lf-banner").bounding_box()
     assert nav_box is not None
+    assert toc_box is not None
+    assert banner_box is not None
     assert 23 <= nav_box["x"] <= 25
     assert 64 <= nav_box["y"] <= 68
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
+    padding = toc.evaluate(
+        "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
+    )
+    assert toc_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
+    assert toc_box["y"] + toc_box["height"] == pytest.approx(
+        page.evaluate("innerHeight"), abs=1
+    )
+    assert nav_box["y"] == pytest.approx(toc_box["y"] + padding, abs=1)
+    assert nav_box["y"] + nav_box["height"] == pytest.approx(
+        toc_box["y"] + toc_box["height"] - padding, abs=1
+    )
+
+    # The dedicated lane, rather than only its visible spine, owns pointer entry. Its
+    # padding keeps the map clear of the banner without opening a dead gap between them.
+    page.mouse.move(500, nav_box["y"] - 8)
+    page.mouse.move(nav_box["x"] + 100, nav_box["y"] - 8, steps=8)
+    assert toc.evaluate("node => node.matches(':hover')")
+    expect(prepare).to_have_css("opacity", "1")
+    expect(prepare).to_have_css("pointer-events", "auto")
+    page.mouse.move(nav_box["x"] + 100, toc_box["y"] - 2)
+    assert page.evaluate(
+        "point => document.elementFromPoint(point.x, point.y)?.closest('.lf-banner') !== null",
+        {"x": nav_box["x"] + 100, "y": toc_box["y"] - 2},
+    )
+    expect(prepare).to_have_css("opacity", "0")
     # The map is sized to the window, so it runs past the shortcut bar and the line stands
     # over its last entry. That is the accepted state, not an oversight: the line is a
     # hover, and `lf-toc`'s own rule carries the TODO for choosing between that and a
@@ -1805,15 +1848,34 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     prepare_box = page.locator("#prepare").bounding_box()
     assert prepare_box is not None
     assert nav_box["width"] == pytest.approx(320, abs=1)
-    assert prepare_box["x"] < nav_box["x"] + nav_box["width"], (
-        "the revealed map is meant to overlay the settled document rather than move it"
+    assert prepare_box["x"] >= nav_box["x"] + nav_box["width"] + 15, (
+        "the contents map's interaction rectangle overlaps the document"
     )
 
     resized(page, 1800, 900)
     expect(nav).to_have_css("width", "320px")
     resized(page, 1152, 900)
     expect(nav).to_have_css("width", "320px")
+    underlying = page.locator("#underlying")
+    underlying.evaluate(
+        "node => node.addEventListener('pointerdown', "
+        "() => { window.lfUnderlyingPressed = true; }, { once: true })"
+    )
+    underlying_box = underlying.bounding_box()
+    assert underlying_box is not None
+    underlying_point = {
+        "x": underlying_box["x"] + 4,
+        "y": underlying_box["y"] + underlying_box["height"] / 2,
+    }
+    assert underlying_point["x"] >= nav_box["x"] + nav_box["width"] + 15
+    assert page.evaluate(
+        "point => document.elementFromPoint(point.x, point.y)?.closest('#underlying') !== null",
+        underlying_point,
+    ), "the dormant contents map covered an authored control"
+    page.mouse.click(underlying_point["x"], underlying_point["y"])
+    assert page.evaluate("window.lfUnderlyingPressed") is True
     resized(page, 1400, 900)
+    page.mouse.move(1200, 700)
     assert nav.bounding_box() == nav_box
     markers = nav.locator(".lf-toc-start, li").evaluate_all(
         """items => items.map(item => {
@@ -1953,16 +2015,37 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(prepare).to_have_css("pointer-events", "none")
 
     prepare.evaluate(
-        "node => node.addEventListener('pointerdown', () => { window.lfTocPressed = true; }, { once: true })"
+        "node => node.addEventListener('pointerdown', "
+        "() => { window.lfTocPressed = true; }, { once: true })"
     )
     prepare_box = prepare.bounding_box()
     assert prepare_box is not None
-    before_hash = page.evaluate("location.hash")
-    page.mouse.click(prepare_box["x"] + 4, prepare_box["y"] + 4)
-    assert page.evaluate("location.hash") == before_hash
-    assert page.evaluate("window.lfTocPressed") is None
-    expect(prepare).to_have_css("opacity", "1")
-    expect(prepare).to_have_css("pointer-events", "auto")
+    label_point = {"x": prepare_box["x"] + 100, "y": prepare_box["y"] + 4}
+    # A normal right-to-left approach reveals and activates the label in the same
+    # pointer movement. There is no discovery click or dwell time to learn.
+    page.mouse.move(1200, 700)
+    expect(prepare).to_have_css("opacity", "0")
+    expect(prepare).to_have_css("pointer-events", "none")
+    page.mouse.move(500, label_point["y"])
+    page.mouse.move(label_point["x"], label_point["y"], steps=8)
+    assert nav.evaluate("node => node.matches(':hover')")
+    assert prepare.evaluate("node => getComputedStyle(node).pointerEvents") == "auto"
+    assert prepare.evaluate(
+        "node => document.elementFromPoint("
+        f"{label_point['x']}, {label_point['y']}) === node"
+    ), "the fading label was visible but not the pointer target"
+    page.mouse.click(label_point["x"], label_point["y"])
+    expect(page).to_have_url(re.compile(r"#prepare$"))
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    assert page.evaluate("window.lfTocPressed") is True
+    expect(prepare).to_have_attribute("aria-current", "location")
+    assert prepare.evaluate("node => node.matches(':hover')")
+    current_hover_color = prepare.evaluate("node => getComputedStyle(node).color")
+    capacity_box = capacity.bounding_box()
+    assert capacity_box is not None
+    page.mouse.move(capacity_box["x"] + 100, capacity_box["y"] + 4)
+    expect(capacity).not_to_have_attribute("aria-current", "location")
+    expect(capacity).to_have_css("color", current_hover_color)
     revealed_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
         "return [r.x, r.y, r.width, r.height]; })"
@@ -7392,9 +7475,14 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     # never moved gives, and the settle probe carries its last reading between waits, so
     # it answered from the nudge that came before this press. The sentinel makes it take a
     # fresh sample and then hold, which is the window a travel would appear in.
-    page.evaluate("() => { document.querySelector('.lf-live').textContent = ''; }")
+    observe_live_region(page)
     page.keyboard.press("a")  # one ask, so the clamped walk stays on it
+    page.wait_for_function(
+        "() => window.__lfLiveRegionChanges.some("
+        "words => words.includes('waiting on you'))"
+    )
     expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on you"))
+    assert "" in page.evaluate("window.__lfLiveRegionChanges")
     expect(page.locator("#sc-sug")).to_be_focused()
     page.evaluate("() => { window.__lfScroll = -1; }")
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
@@ -8026,14 +8114,14 @@ def test_ask_rows_keep_identity_and_activate_the_current_document_order(browser,
     # id through current allAsks(), so its arrival reports its new ordinal rather than
     # the order or element from the prior row model.
     page.evaluate(
-        """() => {
-          document.querySelector('main').append(document.querySelector('#honored-decision'));
-          document.querySelector('.lf-live').textContent = '';
-        }"""
+        """() => document.querySelector('main').append(
+          document.querySelector('#honored-decision'))"""
     )
+    observe_live_region(page)
     page.locator('.lf-asks-row[data-lf-at="honored-decision"]').click()
     expect(page.locator("#honored-decision")).to_be_focused()
     expect(page.locator(".lf-live")).to_have_text("Ask 4 of 4 answered")
+    assert "Ask 4 of 4 answered" in page.evaluate("window.__lfLiveRegionChanges")
     page.close()
 
 

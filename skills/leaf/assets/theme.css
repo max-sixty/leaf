@@ -63,7 +63,7 @@
    like apparatus and still be a page word the reader can quote.
 
    Which question a floor asks belongs to the posture it grants. A floor asking how much
-   room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
+   room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1496
    for the sidebar and sidenote strips. The margin projection's 900 asks the window instead,
    because it is half of a pair — `@media
    screen and (max-width: 899px)` stops drawing the margin at all, and a marker's presence
@@ -178,6 +178,10 @@
      labels without making a second prose column. The rule beside aside.sidebar spends
      it; the shell's container query decides when the page can afford it. */
   --sidebar: 264px;
+  /* The widest left-margin allocation any sidebar posture can request. Container
+     queries cannot read this token, so the paired sidebar-and-note floor copies it as
+     1496px = the ordinary 1152px floor plus this 344px maximum. */
+  --sidebar-max: 344px;
   /* The measure, and the gutter main sets it in. Named because three rules now want
      main's width: the element itself, the strip arithmetic beside aside.sidenote, and
      the room a copy states for itself. A second copy of 720 would be a release behind
@@ -1044,9 +1048,9 @@ dd { margin: 0 0 8px 0; }
    The claim is page-wide because a sticky box may occupy any height while the reader
    scrolls. A wide exhibit therefore gives up its left growth while the sidebar stands;
    subtracting the strip from --lf-room alone still lets symmetric growth cross the
-   gutter. A sidebar and a sidenote together wait for 1416px of shell, the ordinary
-   1152px margin floor plus the sidebar's 264px; granting both at the ordinary floor
-   shrank the prose to 504px. The paired number is held to those two tokens in
+   gutter. A sidebar and a sidenote together wait for 1496px of shell, the ordinary
+   1152px margin floor plus the widest sidebar's 344px; granting both at the ordinary
+   floor shrank the prose. The paired number is held to those two tokens in
    test_the_sidebar_and_note_floor_is_their_sum. Paper gets only the base in-flow form,
    and therefore neither a sticky box nor an empty margin.
 
@@ -1110,7 +1114,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
       calc(-1 * var(--lf-sidebar-claim, var(--sidebar)));
   }
   }
-  @container lf-shell (min-width: 1416px) {
+  @container lf-shell (min-width: 1496px) {
   html:not(.lf-copy)
     main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));

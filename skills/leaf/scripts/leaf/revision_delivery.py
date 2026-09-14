@@ -98,8 +98,9 @@ def delivery_identity(
     decide what the reader gets. The executable digest says whether this document can
     take that revision on at all: a running document evaluates a module graph once and
     defines an element once, so new bytes behind either need a fresh one. The widget
-    digests then say which widgets the reader keeps, one per declared id, over the
-    markup its author wrote. Both travel in the head, where a document knows its own
+    digests then say which widgets the reader keeps, one per declared widget — by id,
+    or by tag and place among the unnamed of that tag — over the markup its author
+    wrote. Both travel in the head, where a document knows its own
     answer without asking, and where the revision document a patch already fetches
     carries the other one for free.
 

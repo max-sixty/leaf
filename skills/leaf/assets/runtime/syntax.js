@@ -150,12 +150,16 @@ export async function highlightBlocks(root) {
   if (root.matches?.(BLOCK)) found.unshift(root);
   for (const code of found) {
     const lang = code.className.match(LANGUAGE_CLASS)?.[1];
-    if (lang) blocks.push([code, lang]);
+    // A block already tokenized for this language keeps its spans: a live revision
+    // that rewrote an ancestor's attribute dresses the ancestor again, and the reader
+    // may be holding a selection in the block beneath it.
+    if (lang && code.dataset.lfSyntax !== lang) blocks.push([code, lang]);
   }
   if (!blocks.length) return;
   for (const [code, lang] of blocks) {
     try {
       code.replaceChildren(...synNodes(await syntax(code.textContent, lang)));
+      code.dataset.lfSyntax = lang;
     } catch (err) {
       console.error(
         `leaf: <pre><code class="language-${lang}"> failed to highlight`,

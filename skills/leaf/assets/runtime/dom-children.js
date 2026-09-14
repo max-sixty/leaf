@@ -40,9 +40,15 @@ export function setChildren(parent, nodes, remove = detach) {
    What the caller answers, since this module knows no registry, namespace or document:
 
    - `pairs`: the source-to-live map, read and written here as the patch proceeds.
-   - `arrive(node)`: bring this source node into the document — import it, pair the whole
-     subtree, and read whatever has to be read off a widget's markup before a controller
-     owns its children. Returns the live node to place.
+   - `arrive(node, parent)`: bring this source node into the document — import it, pair
+     the whole subtree, and read whatever has to be read off a widget's markup before a
+     controller owns its children, with `parent` as the live element it will stand under,
+     since a reading about its place in the document is made before it has one. Returns
+     the live node to place.
+   - `sameValue(name, before, after)`: two revisions spell this attribute the same way.
+     A resource address is written per revision, so it is read past that root.
+   - `touched(element)`: this live element's attributes changed, and whatever a dressing
+     pass reads off its attributes is owed again.
    - `retire(element)`: this live element is leaving, with every element under it.
    - `declared(element)`: an upgraded widget, whose children are its controller's. Asked
      of the held element; a match names the same element on both sides.
@@ -62,7 +68,7 @@ export function setChildren(parent, nodes, remove = detach) {
    which is what pairs a paragraph with its own rewrite. */
 export function patchTree(before, after, rules) {
   const live = rules.pairs.get(before);
-  patchAttributes(live, before, after);
+  patchAttributes(live, before, after, rules);
   patchChildren(tree(live), tree(before), tree(after), rules);
 }
 
@@ -74,25 +80,30 @@ const tree = (node) => (node.localName === "template" ? node.content : node);
 // the page has it, which is the whole of how a reader's `<details open>`, a tab stop
 // `focus.js` lent to land them somewhere, and anything a page module wrote survive a
 // revision that never mentioned them.
-function patchAttributes(live, before, after) {
+function patchAttributes(live, before, after, rules) {
+  let changed = false;
   for (const { name, value } of before.attributes) {
     if (after.hasAttribute(name)) continue;
     if (name === "class") live.classList.remove(...tokens(value));
     else live.removeAttribute(name);
+    changed = true;
   }
   for (const { name, value } of after.attributes) {
     const held = before.getAttribute(name);
-    if (held === value) continue;
+    if (held !== null && rules.sameValue(name, held, value)) continue;
     // Classes are a set the page shares with the runtime, so only the author's own
     // members move; every mark and state class beside them stays.
     if (name === "class") {
       live.classList.remove(...tokens(held ?? ""));
       live.classList.add(...tokens(value));
     } else live.setAttribute(name, value);
+    changed = true;
   }
+  if (changed) rules.touched(live);
 }
 
-const tokens = (value) => value.split(" ").filter(Boolean);
+// Source text, so any run of whitespace separates two classes.
+const tokens = (value) => value.split(/\s+/).filter(Boolean);
 
 // Only the run of words that actually changed. Assigning `data` replaces the node's
 // whole content, and the platform's replace-data step collapses every Range endpoint
@@ -172,7 +183,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     // parent rather than a connection, since a template's content is never connected.
     const live = held?.parentNode ? held : null;
     if (!live) {
-      placed.push(rules.arrive(node));
+      placed.push(rules.arrive(node, liveParent));
       continue;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
@@ -181,7 +192,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
       // Its interior is not this patch's to reach into, so a changed one cannot be
       // corrected from outside. It leaves, and its replacement arrives as a new element.
       evict(before, live, rules);
-      placed.push(rules.arrive(node));
+      placed.push(rules.arrive(node, liveParent));
       continue;
     }
     rules.pairs.set(node, live);

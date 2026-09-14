@@ -1433,19 +1433,27 @@ export function createVersionController({
   // never touched it; a widget's capture digested the markup before that, and this is
   // the same reading for an element no capture digested.
   const RESOURCE_ATTRIBUTES = ["src", "href", "srcset", "poster", "data", "style"];
+  const unrooted = (value, root) =>
+    root && value.includes(root) ? value.split(root).join("/") : value;
+  // One attribute, read the same way: an address that differs only by the revision it
+  // was delivered under is the same address, and the page keeps the one it has, which
+  // is still served because revisions are immutable.
+  const sameValue = (name, held, value, arrivingRoot) =>
+    RESOURCE_ATTRIBUTES.includes(name)
+      ? unrooted(held, authoredRoot) === unrooted(value, arrivingRoot)
+      : held === value;
   function sameAuthoredMarkup(before, after, arrivingRoot) {
-    const unrooted = (element, root) => {
+    const strip = (element, root) => {
       const copy = element.cloneNode(true);
       if (!root) return copy;
       for (const node of [copy, ...elementsWithin(copy)])
         for (const name of RESOURCE_ATTRIBUTES) {
           const value = node.getAttribute(name);
-          if (value?.includes(root))
-            node.setAttribute(name, value.split(root).join("/"));
+          if (value?.includes(root)) node.setAttribute(name, unrooted(value, root));
         }
       return copy;
     };
-    return unrooted(before, authoredRoot).isEqualNode(unrooted(after, arrivingRoot));
+    return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
 
   // The revision arriving in the document the reader is standing in. Their caret,
@@ -1479,12 +1487,19 @@ export function createVersionController({
     // to a controller. The nodes read here are the nodes that end up in the page, and the
     // roots among them are what the install dresses.
     const arrived = [];
-    const arrive = (node) => {
+    // Elements whose attributes the patch rewrote in place. What a dressing pass reads
+    // off an attribute — a word an element says, the language of a code block — is
+    // owed again, and these are the roots the install dresses beside the arrivals.
+    const touched = [];
+    const arrive = (node, parent) => {
       const arriving = document.importNode(node, true);
       pairSources(node, arriving, sourcePairs);
       if (arriving.nodeType === Node.ELEMENT_NODE) {
         rememberPassageParts(arriving);
-        rememberAuthoredParents(arriving);
+        // Stated rather than read, because the node is not in the document yet and
+        // the readings below ask where it stands: whether an exhibit quotes it, and
+        // which declared elements enclose it.
+        rememberAuthoredParents(arriving, parent);
         markDeclared(arriving, MARKED_IN_PAGE);
         captureWidgetDescriptors(
           arriving,
@@ -1525,6 +1540,8 @@ export function createVersionController({
           return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
         },
         same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
+        sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
+        touched: (element) => touched.push(element),
         // An element going is not the same as its name going, and the name is what
         // these readings are kept under. A widget the revision moved under an earlier
         // parent is inserted and read there before this parent's removal reaches the
@@ -1544,7 +1561,7 @@ export function createVersionController({
       // after it.
       reindexPassageOwners(live);
       pruneScopedElements();
-      return arrived;
+      return [...arrived, ...touched];
     });
     authoredWidgets = arrivingWidgets;
     authoredSource = source;

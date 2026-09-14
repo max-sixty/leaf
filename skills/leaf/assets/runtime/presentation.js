@@ -500,8 +500,16 @@ export function renderSaid(root) {
     for (const el of elementsIn(root, tag))
       for (const [attr, edge] of Object.entries(entry["x-says"])) {
         const text = el.getAttribute(attr);
-        if (text === null || el.querySelector(`:scope > [data-lf-said="${attr}"]`))
+        const standing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
+        // A live revision may change or drop the attribute under a span already
+        // standing for it; the span follows the attribute rather than the first word
+        // it ever said.
+        if (standing) {
+          if (text === null) standing.remove();
+          else if (standing.textContent !== text) standing.textContent = text;
           continue;
+        }
+        if (text === null) continue;
         const span = document.createElement("span");
         span.dataset.lfSaid = attr;
         span.dataset.lfGen = "1";

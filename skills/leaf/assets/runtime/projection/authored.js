@@ -59,10 +59,13 @@ export function domFacet(el, record) {
   return quoteFrom(textNodesUnder(el));
 }
 
-export function rememberAuthoredParents(root = document) {
-  const elements = root.nodeType === Node.ELEMENT_NODE ? [root] : [];
-  elements.push(...root.querySelectorAll("*"));
-  for (const element of elements)
+// `parent` states where a root that is not yet in the document will stand, so the
+// readings that ask about its place are right before insertion; a root already in the
+// document answers for itself.
+export function rememberAuthoredParents(root = document, parent = root.parentElement) {
+  if (root.nodeType === Node.ELEMENT_NODE && !authoredParents.has(root))
+    authoredParents.set(root, parent);
+  for (const element of root.querySelectorAll("*"))
     if (!authoredParents.has(element))
       authoredParents.set(element, element.parentElement);
 }

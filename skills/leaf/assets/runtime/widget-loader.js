@@ -48,11 +48,18 @@ import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js
 // has no authored id. Record these readings before upgrades move or replace nodes.
 const rememberedPassageRoots = new WeakSet();
 
+// Root-inclusive, like every reading of arriving markup: when a live revision brings a
+// single widget, the scope is that widget.
+const within = (scope, selector) => [
+  ...(scope.matches?.(selector) ? [scope] : []),
+  ...scope.querySelectorAll(selector),
+];
+
 export function rememberPassageParts(scope = document, source = ["page", null]) {
   for (const tag of tagsDeclaring(
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
   ))
-    for (const root of scope.querySelectorAll(tag)) {
+    for (const root of within(scope, tag)) {
       if (rememberedPassageRoots.has(root)) continue;
       rememberedPassageRoots.add(root);
       opaquePassageRoots.add(root);
@@ -66,9 +73,7 @@ export function rememberPassageParts(scope = document, source = ["page", null]) 
 }
 
 const preservingOwners = (scope) =>
-  [...scope.querySelectorAll("*")].filter(
-    (root) => registry[root.localName]?.["x-verbatim"],
-  );
+  within(scope, "*").filter((root) => registry[root.localName]?.["x-verbatim"]);
 
 function identifyPreserving(root, owner) {
   verbatimOwnerIdentity.set(root, owner);

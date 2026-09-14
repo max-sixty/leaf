@@ -2135,6 +2135,139 @@ def test_a_revision_patches_one_line_of_a_template_written_over_several(browser,
     }, f"the revision did not land on the line it rewrote: {standing}"
 
 
+def test_a_rewritten_widget_inside_an_exhibit_stays_quoted(browser, serve):
+    """A widget that arrives alone still knows where it stands.
+
+    The readings taken off arriving markup before a controller owns it ask about its
+    place in the document: whether an exhibit quotes it, which declared elements
+    enclose it. The node is not in the document yet when they are taken, so the parent
+    it will stand under is stated to them. Without that, a rewritten widget inside an
+    exhibit arrives unquoted and its actions open, and a reader can record a decision
+    against material the page declares as evidence.
+    """
+    first = leaf_page(
+        "Quoted first",
+        """
+<h1 id="qt-title">Quoted</h1>
+<lf-specimen id="qt-spec" label="an inert pick">
+  <lf-options id="qt-opts" choose>
+    <lf-option id="qt-a">Alpha</lf-option>
+    <lf-option id="qt-b">Beta</lf-option>
+  </lf-options>
+</lf-specimen>
+""",
+    )
+    second = first.replace("Quoted first", "Quoted second").replace(
+        ">Beta<", ">Beta, rewritten<"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    read = (
+        "async () => { const api = await window.__lfRuntimeImport('/runtime/widget-api.js');"
+        " const reading = api.widgetController(document.getElementById('qt-opts')).read();"
+        " return { choose: reading.actions.choose.available,"
+        " label: document.getElementById('qt-b').textContent.trim() }; }"
+    )
+    assert page.evaluate(read) == {"choose": False, "label": "Beta"}
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Quoted second")
+    expect(page.locator("#qt-b")).to_contain_text("Beta, rewritten")
+    assert page.evaluate(read) == {"choose": False, "label": "Beta, rewritten"}, (
+        "the rewritten widget arrived unquoted"
+    )
+
+
+def test_an_authored_class_written_over_two_lines_patches(browser, serve):
+    """Source text is the patch's input, whitespace and all."""
+    first = leaf_page(
+        "Classes first",
+        '<h1 id="cs-title">Classes</h1>\n'
+        '<p id="cs-note" class="note\n    aside">The cutover has not started.</p>',
+    )
+    second = first.replace("Classes first", "Classes second").replace(
+        "The cutover has not started.", "The cutover finished on the second attempt."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Classes second")
+    expect(page.locator("#cs-note")).to_have_text(
+        "The cutover finished on the second attempt."
+    )
+    assert page.evaluate(
+        "() => [...document.getElementById('cs-note').classList].sort()"
+    ) == ["aside", "note"]
+
+
+def test_media_the_revision_never_mentioned_keeps_its_address(browser, serve):
+    """Each revision is delivered under its own root, and that is not a change.
+
+    Delivery writes the revision's root into every media address, so the same picture
+    is spelled differently in two revisions that never touched it. The page keeps the
+    address it has, which is still served because revisions are immutable, and the
+    picture is not fetched again.
+    """
+    first = leaf_page(
+        "Media first",
+        '<h1 id="md-title">Media</h1>\n'
+        '<img id="md-shot" src="/media/051bee487bfb5d13.png" alt="a shot">\n'
+        '<p id="md-edited">The cutover has not started.</p>',
+    )
+    second = first.replace("Media first", "Media second").replace(
+        "The cutover has not started.", "The cutover finished on the second attempt."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    held = page.evaluate(
+        """() => {
+          const shot = document.getElementById('md-shot');
+          window.__mdLoads = 0;
+          shot.addEventListener('load', () => { window.__mdLoads += 1; });
+          return shot.getAttribute('src');
+        }"""
+    )
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Media second")
+    expect(page.locator("#md-edited")).to_have_text(
+        "The cutover finished on the second attempt."
+    )
+    standing = page.evaluate(
+        "() => ({ src: document.getElementById('md-shot').getAttribute('src'),"
+        " loads: window.__mdLoads })"
+    )
+    assert standing == {"src": held, "loads": 0}, (
+        f"the revision re-addressed a picture it never mentioned: {standing}"
+    )
+
+
+def test_a_word_the_revision_adds_to_a_surviving_element_is_said(browser, serve):
+    """An attribute written in place is dressed like one that arrived.
+
+    A metric says its delta through an attribute rendered as real text. When a revision
+    adds that attribute to an element the patch keeps, the element is dressed again, so
+    the number is readable and pointable rather than an attribute nobody rendered.
+    """
+    first = leaf_page(
+        "Said first",
+        '<h1 id="sd-title">Said</h1>\n'
+        '<lf-metrics id="sd-metrics"><lf-metric id="sd-metric" value="42">'
+        "checks complete</lf-metric></lf-metrics>",
+    )
+    second = first.replace("Said first", "Said second").replace(
+        'value="42"', 'value="45" delta="+3"'
+    )
+    page = open_page(browser, live_url(serve(first)))
+    expect(page.locator('#sd-metric [data-lf-said="value"]')).to_have_text("42")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Said second")
+    expect(page.locator('#sd-metric [data-lf-said="value"]')).to_have_text("45")
+    expect(page.locator('#sd-metric [data-lf-said="delta"]')).to_have_text("+3")
+
+
 def test_a_revision_reaches_a_paragraph_a_page_module_moved(browser, serve):
     """An authored element a page module relocated is still that element.
 

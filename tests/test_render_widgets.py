@@ -100,6 +100,20 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+
+def observe_live_region(page):
+    """Record announcements without disturbing the renderer-owned live region."""
+    page.evaluate(
+        """() => {
+          const live = document.querySelector('.lf-live');
+          const changes = [];
+          window.__lfLiveRegionChanges = changes;
+          new MutationObserver(() => changes.push(live.textContent))
+            .observe(live, {childList: true, characterData: true, subtree: true});
+        }"""
+    )
+
+
 WORKSPACE_PAGE = leaf_page(
     "workspace reading regions",
     """
@@ -7461,9 +7475,14 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     # never moved gives, and the settle probe carries its last reading between waits, so
     # it answered from the nudge that came before this press. The sentinel makes it take a
     # fresh sample and then hold, which is the window a travel would appear in.
-    page.evaluate("() => { document.querySelector('.lf-live').textContent = ''; }")
+    observe_live_region(page)
     page.keyboard.press("a")  # one ask, so the clamped walk stays on it
+    page.wait_for_function(
+        "() => window.__lfLiveRegionChanges.some("
+        "words => words.includes('waiting on you'))"
+    )
     expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on you"))
+    assert "" in page.evaluate("window.__lfLiveRegionChanges")
     expect(page.locator("#sc-sug")).to_be_focused()
     page.evaluate("() => { window.__lfScroll = -1; }")
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
@@ -8095,14 +8114,14 @@ def test_ask_rows_keep_identity_and_activate_the_current_document_order(browser,
     # id through current allAsks(), so its arrival reports its new ordinal rather than
     # the order or element from the prior row model.
     page.evaluate(
-        """() => {
-          document.querySelector('main').append(document.querySelector('#honored-decision'));
-          document.querySelector('.lf-live').textContent = '';
-        }"""
+        """() => document.querySelector('main').append(
+          document.querySelector('#honored-decision'))"""
     )
+    observe_live_region(page)
     page.locator('.lf-asks-row[data-lf-at="honored-decision"]').click()
     expect(page.locator("#honored-decision")).to_be_focused()
     expect(page.locator(".lf-live")).to_have_text("Ask 4 of 4 answered")
+    assert "Ask 4 of 4 answered" in page.evaluate("window.__lfLiveRegionChanges")
     page.close()
 
 

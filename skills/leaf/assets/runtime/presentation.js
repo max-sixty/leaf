@@ -129,7 +129,11 @@ export const PRESENTATION = "lf-presentation";
 // pass here, so a dynamically imported surface cannot appear after either page is
 // already in front of the reader.
 export const PAGE_INTERFACE = "lf-page-interface";
-export async function settlePageInterface() {
+// `presented` is the wait the caller owes once the interface has settled: the whole
+// application at startup, and for a live revision patched in place only this region,
+// since that install runs inside the state turn whose answer may still owe a standing
+// widget its data — a wait on the whole application there is a wait on itself.
+export async function settlePageInterface(presented = whenApplicationPresented) {
   const pending = [];
   const presentation = attachApplicationPresentation("page-interface", document);
   const present = (promise) => {
@@ -143,7 +147,7 @@ export async function settlePageInterface() {
     // Each optional owner reports its own failure. One rejected surface must not keep
     // every generated control on the page behind the upgrade boundary.
     await presentation.present(pending, Promise.allSettled(pending));
-    await whenApplicationPresented();
+    await presented();
   } finally {
     presentation.disconnect();
   }

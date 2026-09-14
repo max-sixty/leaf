@@ -168,7 +168,7 @@ import {
   rememberAuthoredParents,
   stateCoordinate,
 } from "./projection/authored.js";
-import { applicationState } from "./semantic-state.js";
+import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { MARKED_IN_PAGE, markDeclared, settlePageInterface } from "./presentation.js";
 import { runtimeRootState } from "./root-state.js";
 import {
@@ -1561,12 +1561,22 @@ export function createVersionController({
       // after it.
       reindexPassageOwners(live);
       pruneScopedElements();
-      return [...arrived, ...touched];
+      // The roots the install dresses, and the widgets among the arrivals whose
+      // rendering and preparation it waits for: what this patch brought, and only that.
+      return {
+        roots: [...arrived, ...touched],
+        widgets: arrived
+          .flatMap((root) => [root, ...elementsWithin(root)])
+          .filter((element) => upgraded(element) && element.id)
+          .map((element) => element.id),
+      };
     });
     authoredWidgets = arrivingWidgets;
     authoredSource = source;
     authoredRoot = arrivingRoot;
-    await settlePageInterface();
+    await settlePageInterface(() =>
+      whenApplicationRegionsPresented(["page-interface"], () => true),
+    );
     syncLayout();
     restoreView(view);
     // Focus is not restored, because a patch does not take it: a control the revision

@@ -13,6 +13,7 @@ import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
 import {
   attachApplicationPresentation,
   whenApplicationPresented,
+  whenWidgetsPresented,
 } from "./semantic-state.js";
 import {
   captureAuthoredFacets,
@@ -158,7 +159,7 @@ export async function installDocument(scope) {
     markDeclared(scope, MARKED_IN_PAGE);
     watchExternalLinks(scope);
     await importWidgets(scope);
-    await settle(presentation, scope, [scope]);
+    await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {
     presentation.disconnect();
   }
@@ -172,10 +173,18 @@ export async function installDocument(scope) {
 // re-tokenize a code block no revision touched and hand its spans back as new nodes,
 // which is the reader's own page rebuilt under them. Modules are asked for earlier still,
 // off the arriving document, so the install spends nothing on a fetch.
+//
+// A patch runs inside the state turn that brought the revision, and that answer may
+// carry more than the revision: a data replacement for a widget the revision left
+// standing reaches that widget only after the turn adopts the answer. So the patch
+// waits for the widgets it brought and for its own dressing, never for the whole
+// application — that wait would be on a renderer whose turn cannot come until this one
+// returns, and a page that stops there has stopped answering with nothing said.
 export async function patchDocument(scope, patch) {
   const presentation = attachApplicationPresentation("document:patch", scope);
   try {
-    await settle(presentation, scope, patch());
+    const { roots, widgets } = patch();
+    await settle(presentation, scope, roots, () => whenWidgetsPresented(widgets));
   } finally {
     presentation.disconnect();
   }
@@ -184,15 +193,16 @@ export async function patchDocument(scope, patch) {
 // What arriving markup owes the document once it stands in it: the dressing passes over
 // each root, then the two readings that are of the document rather than of the markup —
 // where the keyboard can reach, and the authored initial condition of every widget not
-// already holding one.
-async function settle(presentation, scope, arrived) {
+// already holding one. `presented` is the wait each caller owes: the whole application
+// at startup, the widgets it brought for a patch.
+async function settle(presentation, scope, arrived, presented) {
   await presentation.present(scope, Promise.all(arrived.map(dress)));
-  await whenApplicationPresented();
+  await presented();
   reachScrollers(scope);
   captureAuthoredFacets(scope);
   // Capturing the authored initial condition is a semantic publication. Wait for
   // subscribers to paint that newest reading before declaring upgrade complete.
-  await whenApplicationPresented();
+  await presented();
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {

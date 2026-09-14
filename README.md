@@ -67,9 +67,9 @@ later.
   revisions, and the widgets a page can use.
 - [Examples](https://leaf.page/examples/): proposals, editable drafts, release
   workspaces, and code reviews.
-- [Packages](https://leaf.page/packages/): extend Leaf with reusable widgets,
-  themes, and browser modules. Your agent can build a widget a task needs and use
-  it in later pages.
+- [Extending](https://leaf.page/extending/): choose between page-local changes,
+  reusable packages, and Leaf's shared kernel. Your agent can build a widget a
+  task needs and use it in later pages.
 - [Public contracts](skills/leaf/SKILL.md): authoring, serving, and continuing a
   Leaf page. The [experimental MCP App](skills/leaf/scripts/leaf/mcp-app.md)
   provides an additional host integration.

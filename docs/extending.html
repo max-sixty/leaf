@@ -5,10 +5,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>leaf packages</title>
+    <title>Extending Leaf</title>
     <meta
       name="description"
-      content="Build a small Leaf package with a reusable theme and widget."
+      content="Choose between page-local presentation, reusable packages, and Leaf's shared kernel, then build a small package."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -65,24 +65,46 @@
         <a class="brand" href="/">leaf</a>
         <a href="/examples/">Examples</a>
         <a href="/how-it-works/">How it works</a>
-        <a href="/packages/" aria-current="page">Packages</a>
-        <a href="/registry/">Registry</a>
+        <a href="/extending/" aria-current="page">Extending</a>
         <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
       <header id="top">
-        <p class="eyebrow">packages</p>
-        <h1>Give a page a new shape</h1>
+        <p class="eyebrow">extending</p>
+        <h1>Extending Leaf</h1>
         <p class="lede" id="lede">
-          A package can restyle Leaf, add one element, or carry a related widget family.
-          This tutorial builds the smallest useful package: a reusable callout made from
-          one element declaration and one CSS rule.
+          A change can belong to one page, a reusable package, or Leaf's shared kernel.
+          Put it where its behavior should apply; most new reusable widgets belong in a
+          package. This guide sets those boundaries, then builds the smallest useful
+          package.
         </p>
       </header>
 
-      <aside class="sidebar" id="package-route">
-        <lf-toc id="package-contents"></lf-toc>
+      <aside class="sidebar" id="extending-route">
+        <lf-toc id="extending-contents"></lf-toc>
       </aside>
+
+      <section id="boundaries">
+        <h2>Choose the extension boundary</h2>
+        <ol class="steps">
+          <li id="extend-page">
+            <strong>One page.</strong> Semantic HTML, existing Leaf elements, a
+            page-local <code>&lt;style&gt;</code>, and inline SVG shape one document.
+            Keep presentation here when no other page needs it.
+          </li>
+          <li id="extend-package">
+            <strong>A package.</strong> A reusable element, theme, browser behavior, or
+            author guidance belongs in a package. A project-local package, an installed
+            package, and a package bundled with Leaf all use the same composition
+            format.
+          </li>
+          <li id="extend-kernel">
+            <strong>Leaf's kernel.</strong> Runtime, chrome, and protocol behavior
+            shared by every page belongs in Leaf itself. A package consumes those
+            capabilities; it does not add a parallel runtime path.
+          </li>
+        </ol>
+      </section>
 
       <section id="bundled">
         <h2>Choose a bundled package</h2>
@@ -330,7 +352,7 @@ $ leaf version check PAGE --render</code></pre>
         <p id="links">
           <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
           <a href="/how-it-works/">How it works</a> ·
-          <a href="/packages/">Packages</a> · <a href="/registry/">Registry</a> ·
+          <a href="/extending/">Extending</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>

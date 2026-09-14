@@ -1,5 +1,5 @@
 /** Internal framework bundle. Content modules import runtime/widget-api.js. */
-export { LitElement, html } from "lit";
+export { LitElement, html, render } from "lit";
 export { repeat } from "lit/directives/repeat.js";
 export { createApplicationPublisher } from "./snapshot.js";
 export { createSemanticApplication } from "./application.js";

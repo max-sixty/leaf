@@ -1,3 +1,5 @@
+import { render } from "../../vendor/browser-runtime.js";
+
 import { focusedThread } from "../conversation/focus.js";
 import { takesLetters, letGo } from "../focus.js";
 import { EVERYTHING, TEXT_ENTRY } from "./text-entry.js";
@@ -1285,8 +1287,7 @@ export function createPageKeys({
     const closeTitle = returningToMore
       ? "Back to more shortcuts"
       : "Close the command reference";
-    if (commandReferenceClose.textContent !== closeSays)
-      commandReferenceClose.textContent = closeSays;
+    render(closeSays, commandReferenceClose);
     if (commandReferenceClose.dataset.lfKeyTitle !== closeTitle)
       commandReferenceClose.dataset.lfKeyTitle = closeTitle;
     keeps(commandReferenceClose, "aria-label", closeTitle);

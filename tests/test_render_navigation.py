@@ -4994,6 +4994,135 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
 
+def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serve):
+    """Filtering and selection update one stable search surface through Lit.
+
+    The input owns its native value and caret while the projected result model owns the
+    selected command. Filtering a selection out clears it rather than retaining a hidden
+    command, and filtering it back does not silently revive it.
+    """
+    page = open_page(browser, serve(NOTED_PAGE, comments=2))
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    search = page.get_by_role("combobox", name="Search commands")
+    result = reference.locator(
+        '.lf-command-reference-command[data-lf-command="thread.resolution.toggle"]'
+    )
+    page.evaluate(
+        """() => {
+          window.__commandReferenceSearch = document.querySelector(
+            '.lf-command-reference-search');
+          window.__commandReferenceResults = document.querySelector(
+            '.lf-command-reference-results');
+          window.__resolutionCommandKeys = document.querySelector(
+            '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence');
+        }"""
+    )
+
+    search.fill("resolveit")
+    search.evaluate("input => input.setSelectionRange(7, 7)")
+    page.keyboard.type(" ")
+    expect(search).to_have_value("resolve it")
+    assert search.evaluate("input => input.selectionStart") == 8
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(result).to_have_attribute("data-lf-selected", "true")
+
+    search.fill("r")
+    expect(result).to_have_attribute("data-lf-selected", "true")
+    expect(result).to_have_attribute("tabindex", "0")
+    row = result.locator("xpath=ancestor::tr")
+    expect(row).to_have_attribute("aria-selected", "true")
+    expect(search).to_have_attribute("aria-activedescendant", row.get_attribute("id"))
+    assert page.evaluate(
+        """() =>
+          window.__commandReferenceSearch === document.querySelector(
+            '.lf-command-reference-search') &&
+          window.__commandReferenceResults === document.querySelector(
+            '.lf-command-reference-results') &&
+          window.__resolutionCommandKeys === document.querySelector(
+            '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence')"""
+    )
+
+    search.fill("no command has these words")
+    expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
+    expect(search).not_to_have_attribute("aria-activedescendant", re.compile(r".+"))
+    search.fill("resolve it")
+    expect(result).to_have_attribute("data-lf-selected", "false")
+    assert page.evaluate(
+        """() =>
+          window.__resolutionCommandKeys === document.querySelector(
+            '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence')"""
+    )
+
+
+def test_the_reference_revalidates_a_captured_command_before_running_it(browser, serve):
+    """An opening-time catalog cannot execute a command whose live route changed.
+
+    Search stays deterministic while the dialog stands. Activation closes the dialog,
+    resolves the stable id against the live register, and reopens a fresh catalog with an
+    explanation when that captured id is no longer available.
+    """
+    page = open_page(browser, serve(NOTED_PAGE))
+    page.evaluate(
+        """async () => {
+          const { commands, paintKeys } = await window.__lfRuntimeImport(
+            '/runtime/widget-api.js');
+          const control = document.createElement('button');
+          control.id = 'changing-command-scope';
+          control.textContent = 'Changing command scope';
+          control.dataset.phase = 'first';
+          document.querySelector('main').append(control);
+          commands(control, 'Changing commands', [
+            {
+              id: 'test.changing.first',
+              keys: ['F8'],
+              does: 'Run the first changing command',
+              line: 'first changing command',
+              when: () => control.dataset.phase === 'first',
+              run: () => { control.dataset.ran = 'first'; },
+            },
+            {
+              id: 'test.changing.second',
+              keys: ['F8'],
+              does: 'Run the second changing command',
+              line: 'second changing command',
+              when: () => control.dataset.phase === 'second',
+              run: () => { control.dataset.ran = 'second'; },
+            },
+          ]);
+          paintKeys();
+          control.focus();
+        }"""
+    )
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    first = reference.locator(
+        '.lf-command-reference-command[data-lf-command="test.changing.first"]'
+    )
+    second = reference.locator(
+        '.lf-command-reference-command[data-lf-command="test.changing.second"]'
+    )
+    expect(first).to_be_visible()
+    expect(second).to_have_count(0)
+
+    page.locator("#changing-command-scope").evaluate(
+        "control => { control.dataset.phase = 'second'; }"
+    )
+    first.click()
+    expect(reference).to_be_visible()
+    expect(reference.locator(".lf-command-reference-meta")).to_have_text(
+        "That command is no longer available"
+    )
+    expect(first).to_have_count(0)
+    expect(second).to_be_visible()
+    expect(page.locator("#changing-command-scope")).not_to_have_attribute(
+        "data-ran", re.compile(r".+")
+    )
+
+
 def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     """Each Ask digit is a distinct command when invoked without a keydown."""
     page = open_page(browser, serve(ASKS_PAGE))

@@ -794,6 +794,53 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     session_model.cmd_status(serve.page_dir, "working", detail)
     told(page)
     expect(page.locator(".lf-status-detail")).to_contain_text(detail.strip())
+    door = page.locator(".lf-status-button")
+    explanation = page.locator(".lf-status-detail")
+    door.focus()
+    page.keyboard.press("Enter")
+    expect(explanation).to_be_visible()
+    expect(explanation).to_be_focused()
+    selected = page.evaluate(
+        """() => {
+          const detail = document.querySelector('.lf-status-detail');
+          window.__lfStatusNodes = {
+            button: document.querySelector('.lf-status-button'),
+            detail,
+            dot: document.querySelector('.lf-banner .lf-dot'),
+          };
+          const range = document.createRange();
+          range.selectNodeContents(detail);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          return selection.toString();
+        }"""
+    )
+    session_model.cmd_status(serve.page_dir, "working", detail)
+    told(page)
+    survived = page.evaluate(
+        """() => ({
+          button: window.__lfStatusNodes.button === document.querySelector('.lf-status-button'),
+          detail: window.__lfStatusNodes.detail === document.querySelector('.lf-status-detail'),
+          dot: window.__lfStatusNodes.dot === document.querySelector('.lf-banner .lf-dot'),
+          focused: document.activeElement === window.__lfStatusNodes.detail,
+          open: window.__lfStatusNodes.detail.matches(':popover-open'),
+          selected: getSelection().toString(),
+        })"""
+    )
+    assert survived == {
+        "button": True,
+        "detail": True,
+        "dot": True,
+        "focused": True,
+        "open": True,
+        "selected": selected,
+    }, (
+        "an unchanged status poll disturbed the native disclosure or the words a "
+        f"reader selected: {survived}"
+    )
+    page.evaluate("() => getSelection().removeAllRanges()")
+    page.keyboard.press("Escape")
     for width in (1280, 841, 390):
         resized(page, width, 900)
         read = page.evaluate(STATUS_FIT)
@@ -804,8 +851,6 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         assert read["text"] == "Claude working", read
         assert detail.strip() in read["title"], read
         assert read["actions"]["shown"] >= read["actions"]["needed"], read
-        door = page.locator(".lf-status-button")
-        explanation = page.locator(".lf-status-detail")
         expect(door).to_have_attribute("aria-describedby", "lf-status-detail")
         door.focus()
         page.keyboard.press("Enter")

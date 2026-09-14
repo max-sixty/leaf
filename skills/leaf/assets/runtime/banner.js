@@ -1,5 +1,6 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
+import { html, render } from "../vendor/browser-runtime.js";
 import { ago, clocked } from "./presence.js";
 import { el, reserve } from "./widget-elements.js";
 import { agentName, runtime, runtimeResource } from "./context.js";
@@ -23,12 +24,14 @@ import { createBannerApprovalFace } from "./banner-approval.js";
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 export const dot = el("span", "lf-dot");
-const statusText = el("span", "lf-status-text", "Connecting…");
+const statusText = el("span", "lf-status-text");
+render("Connecting…", statusText);
 const statusButton = el("button", "lf-status-button");
 statusButton.type = "button";
 statusButton.setAttribute("aria-expanded", "false");
 statusButton.append(dot, statusText);
-const statusDetail = el("div", "lf-ui lf-status-detail", "Connecting…");
+const statusDetail = el("div", "lf-ui lf-status-detail");
+render("Connecting…", statusDetail);
 statusDetail.id = "lf-status-detail";
 statusDetail.tabIndex = -1;
 statusDetail.setAttribute("popover", "auto");
@@ -164,11 +167,28 @@ function paintTab() {
 // remains available to pointer, keyboard, and touch through the native disclosure;
 // announcements report that explanation only when the kind changes, not on every poll.
 let saidKind;
-const showStatus = (kind, tone, summary, explanation) => {
+const presentStatus = ({ kind, tone, summary, explanation, publication = null }) => {
+  if (publication) {
+    // A publication's introduction and install link remain an ordinary reading row.
+    // Links never become children of the status disclosure button.
+    if (statusDetail.matches(":popover-open")) statusDetail.hidePopover();
+    statusButton.hidden = true;
+    if (statusText.parentElement !== bannerStatus)
+      bannerStatus.prepend(dot, statusText);
+    const [said, installs] = publicationWords(publication);
+    explanation = said + installs;
+    summary = html`<span class="lf-publication-copy">${said}</span
+      ><a class="lf-publication-install" href=${publication.install_url}
+        >${installs}</a
+      >`;
+  } else {
+    statusButton.hidden = false;
+    if (statusText.parentElement !== statusButton) statusButton.append(dot, statusText);
+  }
   dot.className = "lf-dot" + (tone ? " " + tone : "");
-  statusText.replaceChildren(summary);
-  // Leave a selected explanation intact across unchanged polls.
-  if (statusDetail.textContent !== explanation) statusDetail.textContent = explanation;
+  render(summary, statusText);
+  // Lit leaves an unchanged text part in place, preserving a selection across polls.
+  render(explanation, statusDetail);
   statusButton.title = explanation;
   statusText.title = explanation;
   paintTab();
@@ -355,42 +375,32 @@ function renderSessionReference() {
 
 function renderStatusNow(state) {
   renderSessionReference();
-  if (!state?.publication) {
-    statusButton.hidden = false;
-    if (statusText.parentElement !== statusButton) statusButton.append(dot, statusText);
-  }
   if (state instanceof Error) {
-    showStatus("broken", "offline", BROKEN_LINE, BROKEN_LINE);
+    presentStatus({
+      kind: "broken",
+      tone: "offline",
+      summary: BROKEN_LINE,
+      explanation: BROKEN_LINE,
+    });
     return;
   }
   if (state === null) {
-    showStatus(
-      "unreachable",
-      "offline",
-      "Server offline — reconnecting; keep page open",
-      OFFLINE_LINE,
-    );
+    presentStatus({
+      kind: "unreachable",
+      tone: "offline",
+      summary: "Server offline — reconnecting; keep page open",
+      explanation: OFFLINE_LINE,
+    });
     return;
   }
   renderPreview(state);
   const publication = state.publication;
   if (publication) {
-    const [said, installs] = publicationWords(publication);
-    const install = el("a", "lf-publication-install", installs);
-    install.href = publication.install_url;
-    showStatus(
-      "unattended",
-      TONE.unattended,
-      el("span", "lf-publication-copy", said),
-      said + installs,
-    );
-    // A publication's introduction and install link remain an ordinary reading row.
-    // Links never become children of the status disclosure button.
-    if (statusDetail.matches(":popover-open")) statusDetail.hidePopover();
-    statusButton.hidden = true;
-    if (statusText.parentElement !== bannerStatus)
-      bannerStatus.prepend(dot, statusText);
-    statusText.append(install);
+    presentStatus({
+      kind: "unattended",
+      tone: TONE.unattended,
+      publication,
+    });
     return;
   }
   const { activity } = state;
@@ -424,7 +434,7 @@ function renderStatusNow(state) {
     kind === "working" && activity.ts ? `${text} (${ago(activity.ts)})` : text;
   if (kind === "working" && activity.counts.queued)
     explanation += `. ${activity.counts.queued} more update${activity.counts.queued === 1 ? " is" : "s are"} queued.`;
-  showStatus(kind, TONE[kind], summary, explanation);
+  presentStatus({ kind, tone: TONE[kind], summary, explanation });
 }
 
 export const renderStatus = clocked(document.body, renderStatusNow);

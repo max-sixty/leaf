@@ -167,7 +167,8 @@ and pending accounting after presentation proof;
 `runtime/semantic-state.js` owns the single application publisher, its read-only
 semantic selectors, and the document-wide presentation coordinator;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a
-status kind that has changed;
+status kind that has changed; `runtime/banner-approval.js` owns the Lit-rendered face
+inside the banner shelf's stable approval button;
 `runtime/banner-shelf.js` owns news-control reservation and focus continuity, and
 the fold that decides which of the banner's controls stand on its row and which
 stand in its menu;

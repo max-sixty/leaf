@@ -18,6 +18,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
+import { createBannerApprovalFace } from "./banner-approval.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -54,12 +55,13 @@ export const toggleBtn = el(
 );
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
-const approveBtn = el("button", "lf-btn primary lf-signoff", "Approve version");
+const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
 // the reader has not seen yet.
 approveBtn.disabled = true;
+const approvalFace = createBannerApprovalFace(approveBtn);
 
 // ---------- banner ----------
 const TONE = {
@@ -620,22 +622,26 @@ export function paintApproval(pendingApprovals, unansweredAsks = []) {
       e.revision === runtime.currentRevision &&
       e.version === runtime.currentStamp,
   );
-  approveBtn.disabled =
-    approving ||
-    runtime.currentStamp === null ||
-    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-    unansweredAsks.length > 0 ||
-    approved;
-  approveBtn.textContent = approved ? "✓ Version approved" : "Approve version";
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
   // surface that could have told a reader what pressing it would do next went on
   // describing a press they had already made. Approved, it says the state and the way
   // out of it, which is `z` like every other reader gesture.
-  approveBtn.title = approved
-    ? "Approved. Press z to take it back while it is still your last gesture"
-    : unansweredAsks.length
-      ? "Answer every Ask before approving this work"
-      : "Approve this work; the page stays open for follow-up";
+  approvalFace.present(
+    Object.freeze({
+      disabled:
+        approving ||
+        runtime.currentStamp === null ||
+        !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
+        unansweredAsks.length > 0 ||
+        approved,
+      text: approved ? "✓ Version approved" : "Approve version",
+      title: approved
+        ? "Approved. Press z to take it back while it is still your last gesture"
+        : unansweredAsks.length
+          ? "Answer every Ask before approving this work"
+          : "Approve this work; the page stays open for follow-up",
+    }),
+  );
   repaint();
 }

@@ -1,17 +1,19 @@
 # Leaf website worker
 
 Cloudflare serves each product and example page's live shell and initial canonical
-projection from `.tmp/site-assets`, so a reader arrives at a document that paints and
-presents without waiting for a container. The HTML response issues a secure, HTTP-only
-identity cookie. When `AGENT_PREWARM` is `true`, a browser document navigation also
-starts that identity's container through `waitUntil`. Asset fetches, API clients, and
-release probes do not prewarm. Setting the variable to `false` keeps read-only visits at
-the edge. The first request that needs private, mutable state marks the identity active
-and reaches the canonical Python Leaf server in that Cloudflare Container. Its copied
-page directories and append-only logs are private to that reader and disappear when
-Cloudflare replaces the container; no website-only projection or conversation store
-exists. A returning tab detects a new server incarnation and reloads before it can apply
-that fresh container's lower event sequence over vanished state.
+projection from `.tmp/site-assets`, so every ordinary
+document navigation paints without waiting for a container. The HTML response issues a
+secure, HTTP-only identity cookie. A page-specific active cookie says only that the
+page's private API state lives in a container; changing one page does not activate
+another. When `AGENT_PREWARM` is `true`, a browser document navigation also starts that
+identity's container through `waitUntil`. Asset fetches, API clients, and release probes
+do not prewarm. Setting the variable to `false` keeps read-only visits at the edge. The
+first request that needs private, mutable state reaches the canonical Python Leaf
+server. Containers are keyed by both reader identity and site release, so a deployment
+may discard ephemeral demo state instead of routing the new site through an older
+container. The copied page directories and append-only logs remain private to that
+reader and disappear when Cloudflare replaces the container; no website-only projection
+or conversation store exists.
 
 The build gives every document, state response, and module graph one release digest.
 Runtime assets live behind release-addressed URLs with immutable cache headers, while
@@ -21,25 +23,23 @@ The build-generated manifest is the routing authority shared by the Worker and t
 Python adapter, and carries each page's title, description, and card image, which both
 halves compose into the head a crawler and a link preview read. Published media,
 revisions, and version documents stay on the edge; when one of those paths is absent
-from the release, the Worker asks the reader's active container. The live page document
-is the one address the edge answers for every reader, so an active identity reads it
-from its own container instead: a revision activates by reloading that address, and the
-build's answer would hand the reloading document the revision that reader's own session
-had just replaced. The container composes it against `/<page>/revisions/rN-<hash>/`,
-which is content-addressed over the document and its resources, so a release that moves
-the runtime changes the hash, misses at the edge and falls through to the same
-container; a document and its module graph never come from different releases. Those
-page-path assets revalidate rather than carrying the release tree's immutable year.
+from the release, the Worker asks the reader's container only when that page is active.
+A private revision with changed executable code needs a fresh browser document because
+the current document cannot redefine custom elements or re-evaluate its module graph.
+The runtime marks that one reload with `_leaf-revision`; the Worker serves it from the
+current release's container, and the arriving runtime immediately removes the marker.
+Every ordinary visit and reload continues to use the edge document. The container
+composes the private document against `/<page>/revisions/rN-<hash>/`, which is
+content-addressed over the document and its resources.
 
 The deployment admits up to 5,990 concurrent `basic` containers. A prewarmed container
-with no interaction sleeps after ten idle minutes. After a session is active, a visible
-page holds it through Leaf's news stream; a passive page opens no stream. Hidden tabs
-close their streams, so the idle timer can begin after the browser session has no
-visible Leaf tab. This is resource lifetime, not a persistence guarantee: Cloudflare
-can replace an active instance during a rollout.
-Deployments allow active instances a bounded ten-minute drain window, after which a
-replacement starts with fresh ephemeral state. Durable website sessions will require a
-durable page-directory store rather than another lifecycle promise.
+with no interaction sleeps after ten idle minutes. After any page in a session is
+active, a visible active page holds its container through Leaf's news stream; a passive
+page opens no stream. Hidden tabs close their streams, so the idle timer can begin after
+the browser session has no visible active Leaf page. This is resource lifetime, not a
+persistence guarantee: Cloudflare can replace an active instance, and each site release
+deliberately gets a fresh one. Durable website sessions will require a durable
+page-directory store.
 
 Accepted browser events also write canonical metadata to the
 `leaf_website_events` Analytics Engine dataset. The data point omits event content,
@@ -157,6 +157,14 @@ printing or persisting it. In Max's agent setup, the `Cloudflare Leaf diagnostic
 in the `Max` 1Password vault carries the account id and current token. Agents may inspect
 the complete Cloudflare envelope, including request metadata, through the Observability
 API or `wrangler tail`.
+
+Each public document emits one `component=leaf-startup` record from the inline
+bootstrap, including when the module graph fails. It identifies the route, release,
+browser family and major version, platform, and navigation type. `serverMs`,
+`firstByteMs`, `firstContentfulPaintMs`, and `presentedMs` separate Worker, network,
+browser paint, and Leaf startup time. The payload contains no page content, URL details,
+cookies, IP addresses, or private session id. Filter Observability by the public session
+reference, route, browser, or `loadId`.
 
 Workers Observability is the operational log store. Request-path records carry the
 canonical `eventId`; Worker-side records also carry the public `reference` and `route`.

@@ -44,10 +44,10 @@ PAGES = (
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
 # How long the page reloaded after the turn gets to reach each of its two gates. It must
-# first present; the release pass's ordinary bound is calibrated for pages the edge
-# serves in about a second, while this container-backed reload may spend ten seconds at
-# the runtime's own presentation wait. Presentation does not mean that the first state
-# read has answered, so the same patience then lets that read activate the revision the
+# first present; a private executable revision reload may spend ten seconds starting its
+# container after the ordinary document already arrived from the edge. Presentation does
+# not mean that the first state read has answered, so the same patience then lets that
+# read activate the revision the
 # agent published. If it expires, the revision check reports what the page says about
 # the read. This second wait starts after presentation, so it outlasts the runtime's
 # first-read bound and samples only after that read has ended.
@@ -133,9 +133,19 @@ def verify_page(
     page = context.new_page()
     failures = observe_startup(page)
     url = urljoin(f"{origin}/", path.lstrip("/"))
-    response = page.goto(url, wait_until="load", timeout=120_000)
-    check(response is not None and response.ok, f"{url} did not load")
-    await_presentation(page, url, failures)
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/performance")
+            and response.request.method == "POST"
+        )
+    ) as startup_report:
+        response = page.goto(url, wait_until="load", timeout=120_000)
+        check(response is not None and response.ok, f"{url} did not load")
+        await_presentation(page, url, failures)
+    check(
+        startup_report.value.status == 204,
+        f"{url} startup report returned {startup_report.value.status}",
+    )
 
     identity = page.evaluate("window.__leafVerifier.identity")
     check(identity["release"] == release, f"{url} served release {identity['release']}")
@@ -165,13 +175,14 @@ def verify_page(
         identity_cookie in cookie_names, f"{url} did not establish one session identity"
     )
     check(
-        not cookie_names.intersection(
-            {
-                "__Host-leaf-active",
-                "leaf-active-local",
-                "__Host-leaf-container",
-                "leaf-container-local",
-            }
+        not any(
+            name.startswith(
+                (
+                    "__Host-leaf-active-",
+                    "leaf-active-local-",
+                )
+            )
+            for name in cookie_names
         ),
         f"{url} activated a container before interaction",
     )
@@ -230,6 +241,37 @@ def verify_page(
         state.get("publication", {}).get("kind") == kind,
         f"{state_url} returned the wrong page kind",
     )
+    if path == "/examples/triage-board/":
+        neighbor_url = urljoin(f"{origin}/", "how-it-works/")
+        neighbor = context.new_page()
+        neighbor_failures = observe_startup(neighbor)
+        with neighbor.expect_response(
+            lambda response: (
+                response.url.endswith("/api/performance")
+                and response.request.method == "POST"
+            )
+        ) as neighbor_report:
+            neighbor_response = neighbor.goto(
+                neighbor_url, wait_until="load", timeout=120_000
+            )
+            await_presentation(neighbor, neighbor_url, neighbor_failures)
+        check(
+            neighbor_response is not None and neighbor_response.ok,
+            f"{neighbor_url} did not load beside an active page",
+        )
+        check(
+            neighbor_response.headers.get("leaf-session") != "active",
+            f"{neighbor_url} inherited another page's private container",
+        )
+        check(
+            neighbor_report.value.status == 204,
+            f"{neighbor_url} startup report returned {neighbor_report.value.status}",
+        )
+        check(
+            not neighbor_failures,
+            f"{neighbor_url} reported browser errors: {neighbor_failures}",
+        )
+        neighbor.close()
     context.close()
     return startup
 
@@ -351,15 +393,11 @@ def agent_session(
 ) -> AgentSession:
     """Open one reader session whose private container is serving `release`.
 
-    The Worker keys a container on the reader session alone, so a session that lands
-    on a draining allocation stays on that image for its whole life; only a fresh
-    session can reach a different one. The page checks answer for their own sessions
-    rather than for this one, and the edge answers a passive `api/state` out of the
-    built site whatever the containers are running — so neither establishes the
-    container that has to admit this turn's comment. This does, by activating a
-    session and reading the release back out of an answer the container itself gave,
-    and it takes a fresh session while a rollout drains. Nothing here writes: the
-    turn is posted once, afterwards.
+    The Worker keys containers by reader and release. This activates a session and
+    reads the release back from the container that will admit the turn; a rollout may
+    still be propagating between edge locations, so the gate retries with a fresh
+    context until both readings agree. Nothing here writes: the turn is posted once,
+    afterwards.
     """
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")

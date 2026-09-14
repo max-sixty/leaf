@@ -25,7 +25,10 @@ sequence (Startup and presentation, below). It exports no capability and no owne
 imports it back. The HTTP boundary places the vendored
 `runtime/bootstrap.js` before loadable resources, with an exact CSP hash; it can
 show startup failure and hear a replacement server even if the module graph or
-stylesheet never loads. `runtime/widget-api.js` is the one public
+stylesheet never loads. A delivery carrying a site release also uses that bootstrap
+to send one content-free startup profile after presentation, failure, timeout, or
+navigation away; ordinary Leaf servers carry no release and emit no telemetry.
+`runtime/widget-api.js` is the one public
 helper surface for behavior modules and reexports capabilities directly from their
 runtime owners; an owner never reaches back through the entry module or public facade.
 

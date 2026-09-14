@@ -1,13 +1,16 @@
 /**
  * Public Leaf site with edge reads and isolated canonical mutation sessions.
  *
- * Cloudflare serves the immutable live shell of each product and example page. API
- * initial state stay at the edge. A request needing mutation starts the Python Leaf
- * server in a container selected by an opaque browser cookie. The container starts with
- * the same complete page directories and writes only to its own ephemeral filesystem,
- * so one reader can exercise the real event log without changing another reader's page.
- * During an image rollout, a layer mismatch pins that reader briefly to the container's
- * complete shell so a static document never reloads against an older API in a loop.
+ * Cloudflare serves the immutable live shell, initial state, and published data of each
+ * product and example page at the edge. A request needing mutation starts the Python
+ * Leaf server in a container selected by an opaque browser cookie. The container starts
+ * with the same complete page directories and writes only to its own ephemeral
+ * filesystem, so one reader can exercise the real event log without changing another
+ * reader's page.
+ * Containers are scoped to the deployed release, so a rollout may reset this explicitly
+ * ephemeral state but never sends a new document through an older container. A private
+ * revision that changes executable code marks its one required container reload in the
+ * URL; every ordinary document navigation stays at the edge.
  * Accepted browser events start their agent task in the already-selected reader
  * container without holding the browser acknowledgement open. Analytics Engine records
  * accepted product events; Workers Observability records the content-free execution path.
@@ -25,9 +28,6 @@ import * as z from "zod/mini";
 import {
   activeCookie,
   activeFromCookie,
-  clearContainerCookie,
-  containerCookie,
-  containerFromCookie,
   isLivePageDocumentRequest,
   isPageApiRequest,
   isPageSessionFileRequest,
@@ -53,7 +53,7 @@ export interface Env {
 }
 
 interface AgentTaskParams {
-  sessionId: string;
+  containerId: string;
   reference: string;
   route: string;
   eventId: string;
@@ -61,6 +61,32 @@ interface AgentTaskParams {
 }
 
 const settledAgentResultSchema = z.object({ status: z.literal("settled") });
+const startupTime = z.nullable(
+  z.number().check(z.int(), z.nonnegative(), z.maximum(300_000)),
+);
+const startupReportSchema = z.strictObject({
+  version: z.literal(1),
+  loadId: z.uuidv4(),
+  release: z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/)),
+  layer: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
+  outcome: z.union([
+    z.literal("presented"),
+    z.literal("failed"),
+    z.literal("timeout"),
+    z.literal("abandoned"),
+  ]),
+  navigationType: z.union([
+    z.literal("navigate"),
+    z.literal("reload"),
+    z.literal("back_forward"),
+    z.literal("prerender"),
+    z.literal("unknown"),
+  ]),
+  serverMs: startupTime,
+  firstByteMs: startupTime,
+  firstContentfulPaintMs: startupTime,
+  presentedMs: startupTime,
+});
 const agentResultSchemas = {
   start: z.discriminatedUnion("status", [
     settledAgentResultSchema,
@@ -356,6 +382,13 @@ function sessionReference(sessionId: string): string {
   return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
 }
 
+// Website sessions are explicitly ephemeral. A deployment starts a fresh container
+// rather than routing a new static document through an older release to preserve demo
+// state that the website does not promise to persist.
+function containerId(sessionId: string, release: string): string {
+  return `${release}:${sessionId}`;
+}
+
 function agentLog(
   event: string,
   params: Pick<AgentTaskParams, "reference" | "route" | "eventId">,
@@ -383,6 +416,85 @@ function prewarmLog(
     reference,
     route,
     ...fields,
+  });
+}
+
+function browserIdentity(request: Request): {
+  browser: string;
+  browserVersion: number | null;
+  platform: string;
+} {
+  const userAgent = request.headers.get("User-Agent") ?? "";
+  const browserPatterns: Array<[string, RegExp]> = [
+    ["edge", /(?:Edg|EdgA|EdgiOS)\/(\d+)/],
+    ["chrome", /(?:Chrome|CriOS)\/(\d+)/],
+    ["firefox", /(?:Firefox|FxiOS)\/(\d+)/],
+    ["safari", /Version\/(\d+).+Safari\//],
+  ];
+  const browserReading = browserPatterns
+    .map(([browser, pattern]) => ({ browser, match: userAgent.match(pattern) }))
+    .find(({ match }) => match !== null);
+  const parsedVersion = browserReading ? Number(browserReading.match?.[1]) : null;
+  const platform =
+    /Windows/.test(userAgent)
+      ? "windows"
+      : /(?:iPhone|iPad)/.test(userAgent)
+        ? "ios"
+        : /Android/.test(userAgent)
+          ? "android"
+          : /CrOS/.test(userAgent)
+            ? "chromeos"
+            : /Macintosh/.test(userAgent)
+              ? "macos"
+              : /Linux/.test(userAgent)
+                ? "linux"
+                : "other";
+  return {
+    browser: browserReading?.browser ?? "other",
+    browserVersion:
+      parsedVersion !== null &&
+      Number.isSafeInteger(parsedVersion) &&
+      parsedVersion <= 9999
+        ? parsedVersion
+        : null,
+    platform,
+  };
+}
+
+async function recordStartup(
+  request: Request,
+  manifest: SiteManifest,
+  route: PageRoute,
+  reference: string,
+): Promise<Response> {
+  if (Number(request.headers.get("Content-Length")) > 2048)
+    return new Response("startup report is too large", { status: 413 });
+  const raw = await request.text();
+  if (raw.length > 2048) {
+    return new Response("startup report is too large", { status: 413 });
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return new Response("invalid startup report", { status: 400 });
+  }
+  const parsed = startupReportSchema.safeParse(value);
+  if (!parsed.success) {
+    return new Response("invalid startup report", { status: 400 });
+  }
+  console.log({
+    component: "leaf-startup",
+    event: "browser_startup",
+    reference,
+    route: route.root,
+    currentRelease: manifest.release,
+    ...browserIdentity(request),
+    ...parsed.data,
+  });
+  return new Response(null, {
+    status: 204,
+    headers: { "Cache-Control": "no-store" },
   });
 }
 
@@ -425,7 +537,7 @@ async function askContainer(
   action: "start" | "reply",
   body: object,
 ): Promise<AgentResult> {
-  const response = await getContainer(env.PAGES, params.sessionId).fetch(
+  const response = await getContainer(env.PAGES, params.containerId).fetch(
     agentRequest(params, action, body),
   );
   const raw = await response.text();
@@ -508,7 +620,7 @@ async function dispatchAgentTask(
 
 async function prewarmContainer(
   env: Env,
-  sessionId: string,
+  id: string,
   reference: string,
   route: string,
   sourceId: string,
@@ -525,7 +637,7 @@ async function prewarmContainer(
       });
       return;
     }
-    await getContainer(env.PAGES, sessionId).start();
+    await getContainer(env.PAGES, id).start();
     prewarmLog("container_prewarm_completed", reference, route, {
       durationMs: Date.now() - started,
     });
@@ -647,15 +759,15 @@ async function staticState(
   const now = new Date();
   state.now = now.toISOString();
   state.taken = now.getTime() / 1000;
-  const headers = new Headers({
-    "Cache-Control": "no-store",
-    "Content-Type": "application/json; charset=utf-8",
-    "Leaf-Layer": route.layer,
-    "Leaf-Release": manifest.release,
-    "Leaf-Session": "passive",
-    "Leaf-Session-Reference": reference,
+  return Response.json(state, {
+    headers: {
+      "Cache-Control": "no-store",
+      "Leaf-Layer": route.layer,
+      "Leaf-Release": manifest.release,
+      "Leaf-Session": "passive",
+      "Leaf-Session-Reference": reference,
+    },
   });
-  return Response.json(state, { headers });
 }
 
 export default {
@@ -697,32 +809,37 @@ export default {
     const secure = url.protocol === "https:";
     const cookie = request.headers.get("Cookie");
     const existing = sessionFromCookie(cookie, secure);
-    const active = activeFromCookie(cookie, secure);
-    const containerOnly = containerFromCookie(cookie, secure);
+    const active = activeFromCookie(cookie, secure, route.root);
     const sessionId = existing ?? randomSessionId();
+    const privateContainer = containerId(sessionId, manifest.release);
     const reference = sessionReference(sessionId);
+    if (request.method === "POST" && route.inside === "api/performance") {
+      if (existing === null) {
+        return new Response("startup report has no page session", { status: 400 });
+      }
+      return recordStartup(request, manifest, route, reference);
+    }
     if (
       !active &&
-      !containerOnly &&
       request.method === "GET" &&
       route.inside === "api/state"
     ) {
       return staticState(request, env, manifest, route, reference);
     }
-    // The edge holds the built page, which is this reader's page only until their own
-    // session publishes a revision over it. A live revision activates by reloading the
-    // stable page address, so serving that address out of the build would hand the
-    // reloading document the revision it was leaving: the runtime reads the same older
-    // revision back, asks for the newer one again, and the reader reloads forever
-    // without ever reaching the page their agent just published. Session files already
-    // fall through below because the edge answers them 404; the live document is the
-    // one the edge answers with a stale 200, so an active session takes it from the
-    // container that owns its `index.html`.
+    // Documents always come from the edge. The only exception is the one reload the
+    // runtime marks after learning that a private revision changed executable code; its
+    // current container owns that document. The runtime removes the marker on arrival,
+    // so ordinary reloads and later visits return to the static shell.
+    const privateRevision = url.searchParams.get("_leaf-revision");
+    const privateDocumentReload =
+      existing !== null &&
+      active &&
+      isLivePageDocumentRequest(route) &&
+      /^[1-9][0-9]*$/.test(privateRevision ?? "");
     if (
       (request.method === "GET" || request.method === "HEAD") &&
       !isPageApiRequest(route) &&
-      !containerOnly &&
-      !(active && existing !== null && isLivePageDocumentRequest(route))
+      !privateDocumentReload
     ) {
       const response = stampedStaticResponse(
         await env.ASSETS.fetch(request),
@@ -740,6 +857,7 @@ export default {
         }
         const headers = new Headers(response.headers);
         headers.set("Leaf-Session-Reference", reference);
+        headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
         if (existing === null) {
           headers.append("Set-Cookie", sessionCookie(sessionId, secure));
         }
@@ -750,7 +868,13 @@ export default {
         ) {
           const sourceId = request.headers.get("CF-Connecting-IP") ?? "unknown";
           ctx.waitUntil(
-            prewarmContainer(env, sessionId, reference, route.root, sourceId),
+            prewarmContainer(
+              env,
+              privateContainer,
+              reference,
+              route.root,
+              sourceId,
+            ),
           );
         }
         return new Response(response.body, {
@@ -764,7 +888,7 @@ export default {
       request.method === "POST" && route.inside === "api/event"
         ? request.clone()
         : null;
-    const response = await getContainer(env.PAGES, sessionId).fetch(request);
+    const response = await getContainer(env.PAGES, privateContainer).fetch(request);
     if (postedRequest) {
       const accepted = await acceptedEvent(postedRequest, response);
       if (accepted) {
@@ -773,7 +897,7 @@ export default {
       if (accepted?.needsReply) {
         const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
         const params = {
-          sessionId,
+          containerId: privateContainer,
           reference,
           route: route.root,
           eventId: accepted.event.id,
@@ -789,46 +913,15 @@ export default {
         ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }
-    const requestLayer = request.headers.get("Leaf-Layer");
-    const requestRelease = request.headers.get("Leaf-Release");
-    const responseLayer = response.headers.get("Leaf-Layer");
-    const responseRelease = response.headers.get("Leaf-Release");
-    const needsContainer =
-      (requestLayer !== null &&
-        responseLayer !== null &&
-        requestLayer !== responseLayer) ||
-      (requestRelease !== null &&
-        responseRelease !== null &&
-        requestRelease !== responseRelease);
-    const containerCaughtUp =
-      containerOnly &&
-      requestLayer !== null &&
-      requestLayer === responseLayer &&
-      route.layer === responseLayer &&
-      requestRelease !== null &&
-      requestRelease === responseRelease &&
-      manifest.release === responseRelease;
-    if (existing !== null && active && !needsContainer && !containerCaughtUp) {
-      const headers = new Headers(response.headers);
-      headers.set("Leaf-Session", "active");
-      headers.set("Leaf-Session-Reference", reference);
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
-    }
-
     const headers = new Headers(response.headers);
     headers.set("Leaf-Session", "active");
     headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
       headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active) headers.append("Set-Cookie", activeCookie(secure));
-    if (needsContainer) headers.append("Set-Cookie", containerCookie(secure));
-    if (containerCaughtUp) {
-      headers.append("Set-Cookie", clearContainerCookie(secure));
+    if (!active) headers.append("Set-Cookie", activeCookie(secure, route.root));
+    if (response.headers.get("Content-Type")?.startsWith("text/html")) {
+      headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }
     return new Response(response.body, {
       status: response.status,

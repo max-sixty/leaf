@@ -71,8 +71,13 @@ shown in the useful status at the page foot, and the brief boundary state when a
 press stays at the same destination; clamped and cyclic owners use the same reading, while
 native focus traversal and gestures that rearrange state keep their local feedback;
 `runtime/icons.js` owns the layer's icon table;
-`runtime/context.js` owns the mutable facts shared across the browser layers and
-their direct readers;
+`runtime/context.js` owns the mutable facts shared across the browser layers and their
+direct readers;
+`runtime/document-identity.js` reads the server-delivered revision, stamp, executable,
+and authored-widget markers once; the composition root initializes the existing
+application publisher from that reading before it constructs browser owners, while
+version travel and contained gallery documents consume the executable and widget
+readings;
 `runtime/native-layers.js` owns the browser's modal-dialog and popover order across the
 document and declared shadow roots, including the modal floor beneath a nested popover;
 `runtime/deferred-modals.js` holds authored modals outside the top layer until the
@@ -198,16 +203,19 @@ the outer page remains the live reader lease;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
-`runtime/version.js` owns version travel whole: the chooser control, its menu and the
-newest-version chip, its `g V` destination row and the menu's local `v` scope, forced
-live activation,
-version-comparison state, its marks and chooser paint, the inline text diff a
+`runtime/version.js` owns version travel whole: the chooser's `g V` destination row and
+the menu's local `v` scope, forced live activation, version-comparison state, its marks,
+the inline text diff a
 marked block discloses, version document loading, the one activation door and the two
 installs behind it — the authored page patched in place, or a fresh document — which
 the arriving revision's executable identity decides, the per-widget digests each
 revision's delivery states that decide which widgets a patch may keep, the persisted
 semantic reading landmarks carried across either, and the page-block reading
 directional walks start from;
+`runtime/version-chooser.js` consumes one frozen version presentation reading and owns
+the retained native chooser button, versions popover, and latest-version chip in their
+separate chrome seats: their synchronous Lit paint, keyed rows, disclosure focus and
+walk mechanics, stable command calls, and width reservation;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
 `runtime/validation.js` is the private adapter through which render checks inspect

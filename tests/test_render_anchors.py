@@ -3532,7 +3532,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # is v1 and the row carrying it is where an open lands. Landing on the version being
     # read would put the focus and the base on different rows, and the reader's next arrow
     # press would then move the base off the version they marked from — the whole reason
-    # the two are one thing (focusVersionRow).
+    # the two are one thing (the chooser's focusSelectedRow).
     open_versions(page)
     expect(menu).to_be_visible()
     expect(btn).to_have_attribute("aria-expanded", "true")

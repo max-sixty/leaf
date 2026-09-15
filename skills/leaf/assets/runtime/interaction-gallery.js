@@ -9,7 +9,7 @@
 
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { runtime } from "./context.js";
-import { servedExecutable, servedWidgets } from "./version.js";
+import { servedExecutable, servedWidgets } from "./document-identity.js";
 import { offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}

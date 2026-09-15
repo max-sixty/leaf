@@ -2,6 +2,7 @@
 import "./vendor/browser-runtime.js";
 import chromeSheet from "./runtime/chrome.css" with { type: "css" };
 import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
+import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { marksSheet } from "./runtime/shadow.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -110,7 +111,12 @@ import { createAuxiliaryModality } from "./runtime/auxiliary-modality.js";
 import { restoreReaderView } from "./runtime/restore-state.js";
 import { readerStore } from "./runtime/storage.js";
 import { watchProjection } from "./runtime/projection-watch.js";
-import { createVersionController, versionBtn, versionMenu } from "./runtime/version.js";
+import { createVersionController } from "./runtime/version.js";
+import {
+  versionBtn,
+  versionMenu,
+  versionMenuIsOpen,
+} from "./runtime/version-chooser.js";
 import {
   banner,
   foldBannerRow,
@@ -123,6 +129,8 @@ import {
   stateSignoff,
   toggleBtn,
 } from "./runtime/banner.js";
+
+initializeServedDocument();
 
 // A published shell may bundle the entry without publishing its source modules beside
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
@@ -508,7 +516,7 @@ responseSurface = createResponseSurface({
   bottomChromeBoxes,
   closeShortcutShelf: (...args) => closeShortcutShelf(...args),
   closeVersionMenu: version.closeVersionMenu,
-  versionMenuIsOpen: () => versionMenu.matches(":popover-open"),
+  versionMenuIsOpen,
   openPageThread: app.margin.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
   refreshConversation: app.refreshConversation,

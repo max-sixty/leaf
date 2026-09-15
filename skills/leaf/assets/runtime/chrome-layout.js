@@ -55,7 +55,7 @@ import { setRuntimeRootStyle } from "./root-state.js";
 // uses the same transition without replacing it.
 export const THREAD_PANEL_W = 420;
 // How narrow they may draw it in. 320 is the narrowest window the panel is held to
-// standing up in (test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next),
+// standing up in (test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote),
 // so it is the narrowest width anything has laid a thread's reply box and its two
 // actions out at; below it nothing says they still fit. Wanting the panel gone is what
 // closing it is for, and narrowing it to nothing is not the same wish.

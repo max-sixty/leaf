@@ -626,6 +626,40 @@ def _read_manifest_stamped(manifest_path: Path, manifest_stamp: tuple | None) ->
     return json.loads(_read_stamped(manifest_path, manifest_stamp))
 
 
+def read_registry(page_dir: Path, revision: int) -> dict:
+    """One revision's captured vocabulary, without materializing the bundle beside it.
+
+    Validation asks every document in a page's history what its own registry declared,
+    so a single state read consults one resource of every revision. ``read_artifact``
+    answers that by materializing the whole capture — a bundle holds a couple of
+    hundred files — and it retains only a handful of revisions, so a page with a longer
+    history re-reads all of it on every request. This reader opens one file per
+    revision instead.
+    """
+    bundle = revision_path(page_dir, revision).absolute().with_suffix("")
+    registry_path = bundle / "resources" / "registry.json"
+    return _read_registry_stamped(registry_path, file_stamp(registry_path))
+
+
+@lru_cache(maxsize=512)
+def _read_registry_stamped(registry_path: Path, registry_stamp: tuple | None) -> dict:
+    """Hold one reading per revision, so a whole page history stays resident."""
+    return _shared_registry(registry_path.read_bytes())
+
+
+@lru_cache(maxsize=16)
+def _shared_registry(data: bytes) -> dict:
+    """Parse once for all the revisions that captured the same vocabulary.
+
+    Revisions rewrite the authored page far more often than they re-vendor the layer,
+    so a long history holds a handful of distinct registries. Keying the parse on the
+    exact captured bytes keeps what the reader above retains proportional to those
+    rather than to the revision count. A reading is shared, so it is read-only, on the
+    same terms as ``RevisionArtifact.registry``.
+    """
+    return json.loads(data)
+
+
 @lru_cache(maxsize=8)
 def _read_artifact_stamped(
     path: Path,

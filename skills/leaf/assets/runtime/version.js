@@ -188,6 +188,7 @@ import {
 // revision the server rendered, the stamp a pinned version URL or its marker names, and
 // the label that stamp wears.
 const VERSION_MATCH = PAGE_PATH.match(VERSION_PATH);
+const PRIVATE_REVISION_PARAM = "_leaf-revision";
 const servedRevision = document.querySelector(
   'meta[name="lf-revision"][data-lf-runtime]',
 )?.content;
@@ -1671,6 +1672,9 @@ export function createVersionController({
         pointer: pointerAt(),
       }),
     );
+    const marked = new URL(location.href);
+    marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
+    history.replaceState(history.state, "", marked);
     location.reload();
     // The new document owns the continuation. Keeping this activation pending
     // prevents the old realm from applying state while navigation commits.

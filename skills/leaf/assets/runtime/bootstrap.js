@@ -1,6 +1,11 @@
 // The server places this exact hashed script before any loadable page resource.
 // It must run even when the entry module or one of its dependencies cannot load.
 (() => {
+  const arrived = new URL(location.href);
+  if (arrived.searchParams.has("_leaf-revision")) {
+    arrived.searchParams.delete("_leaf-revision");
+    history.replaceState(history.state, "", arrived);
+  }
   const script = document.currentScript;
   const root = document.documentElement;
   root.toggleAttribute("data-lf-live", true);
@@ -10,6 +15,61 @@
   const entry = new URL(script.dataset.lfEntry, location.href).href;
   const theme = new URL(script.dataset.lfTheme, location.href).href;
   let recovering = false;
+
+  // A small public-site profile distinguishes server delay, browser paint, and Leaf
+  // presentation. It starts here so failed module graphs report too.
+  function observePublicStartup() {
+    if (!release) return;
+    let sent = false;
+    let presentedMs = null;
+    const rounded = (value) =>
+      Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+    const report = (outcome) => {
+      if (sent) return;
+      sent = true;
+      observer.disconnect();
+      const navigation = performance.getEntriesByType("navigation")[0];
+      const paint = performance
+        .getEntriesByName("first-contentful-paint", "paint")
+        .at(0);
+      navigator.sendBeacon(
+        "/api/performance",
+        JSON.stringify({
+          version: 1,
+          loadId: crypto.randomUUID(),
+          release,
+          layer,
+          outcome,
+          navigationType: navigation?.type ?? "unknown",
+          serverMs: rounded(
+            navigation?.serverTiming?.find((entry) => entry.name === "leaf")?.duration,
+          ),
+          firstByteMs: rounded(navigation?.responseStart),
+          firstContentfulPaintMs: rounded(paint?.startTime),
+          presentedMs,
+        }),
+      );
+    };
+    const observer = new MutationObserver(() => {
+      if (!document.body?.hasAttribute("data-lf-presented")) return;
+      observer.disconnect();
+      presentedMs = Math.round(performance.now());
+      const afterLoad = () => setTimeout(() => report("presented"));
+      if (document.readyState === "complete") afterLoad();
+      else window.addEventListener("load", afterLoad, { once: true });
+    });
+    observer.observe(document, {
+      attributes: true,
+      attributeFilter: ["data-lf-presented"],
+      childList: true,
+      subtree: true,
+    });
+    window.addEventListener("lf-startup-failed", () => report("failed"), {
+      once: true,
+    });
+    window.addEventListener("pagehide", () => report("abandoned"), { once: true });
+    setTimeout(() => report("timeout"), 15000);
+  }
 
   // Reader-arranged workspaces are page geometry, so their saved shape must reach the
   // document before the module graph that builds their contents. The theme consumes
@@ -90,4 +150,9 @@
     true,
   );
   window.addEventListener("lf-startup-failed", recover);
+  try {
+    observePublicStartup();
+  } catch {
+    // Optional website diagnostics must never take startup supervision down with them.
+  }
 })();

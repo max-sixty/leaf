@@ -3114,6 +3114,7 @@ document.querySelector('#counter').append(document.createElement('page-counter')
     expect(page.get_by_role("button", name="Count 10", exact=True)).to_be_visible()
     assert page.evaluate("performance.timeOrigin") != original_document
     assert "/versions/" not in page.url
+    assert "_leaf-revision" not in page.url
 
 
 def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser, serve):

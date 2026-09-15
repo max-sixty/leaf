@@ -2633,12 +2633,12 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
 
     What separates those from the rail is not where they are written but whether the
     copy still has the thing they measure. The panel and the tray leave with the chrome;
-    the room is a reading of a window nobody will open this file in. A suggestion's rail
-    is the width of a control a decided change keeps, and
-    `test_a_copy_keeps_the_rail_a_decided_change_left` is what says so — a sweep of every
-    inline custom property on the root takes it and puts the exported board off the left
-    of the page. So this asks for the named ones and asks the rail's own test for the
-    rail.
+    the room is a reading of a window nobody will open this file in. The rail is the
+    width of a margin contribution the copy still carries, and
+    `test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail` is what says so —
+    a sweep of every inline custom property on the root takes it and puts the exported
+    board off the left of the page. So this asks for the named ones and asks the rail's
+    own test for the rail.
 
     The live half is the non-vacuity: unless this page really states them, a copy that
     carries none says nothing at all."""

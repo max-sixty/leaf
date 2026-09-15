@@ -1972,7 +1972,17 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
 ):
     """A standing reaction survives export with the rail reserved for its mark. A wide
     board later in the copy must spend the room inside that rail rather than run past
-    the page's own box; the live render gate cannot inspect this rewritten file."""
+    the page's own box; the live render gate cannot inspect this rewritten file.
+
+    The rail the copy has to keep is the one the live page measured, which is why this
+    reads the live number first and asks the copy for that number rather than for a
+    non-zero one. The cascade leaves a floor under `--rail` — the generated marker's own
+    width — so a copy that lost the measurement still reports a strip, and a mark wider
+    than the floor then hangs over the room the file lays its content out in. That is
+    the standing trap `prepareExport` names where it sweeps the root's inline custom
+    properties: `--rail` is measured furniture the copy still has, not a reading of the
+    exporter's window, and adding it to that sweep is the mistake this case exists to
+    catch."""
     url = serve(RAIL_AND_WIDE_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -1987,6 +1997,20 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
             },
         },
     )
+    live = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(live)
+    live.goto(url, wait_until="load")
+    live.wait_for_function("() => document.body.dataset.lfPresented === '1'")
+    measured = live.evaluate(
+        "() => document.documentElement.style.getPropertyValue('--rail')"
+    )
+    live_fit = live.evaluate(RAIL_FIT)
+    live.close()
+    assert measured and measured != "0px", (
+        "the live page states no rail, so a copy keeping none would prove nothing — "
+        f"{measured!r}"
+    )
+
     out = tmp_path / "reaction-rail.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
@@ -1998,9 +2022,17 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
         page.locator('.lf-margin-entry[data-lf-margin-entry-owner^="suggestion:"]')
     ).to_have_count(0)
     expect(page.locator(".lf-react-mark")).to_have_count(1)
+    carried = page.evaluate(
+        "() => document.documentElement.style.getPropertyValue('--rail')"
+    )
     fit = page.evaluate(RAIL_FIT)
-    assert fit["rail"] != "0px", (
-        "the standing reaction kept its mark but lost the rail reserved for it"
+    assert carried == measured, (
+        "the copy lost the rail the live page measured and fell back to the cascade's "
+        f"floor — live {measured!r}, copy {carried!r}"
+    )
+    assert fit["rail"] == live_fit["rail"], (
+        "the copy's right strip is not the one the mark was measured into — "
+        f"live {live_fit['rail']}, copy {fit['rail']}"
     )
     assert fit["past"] <= 1, (
         f"the copied board stands {fit['past']:.0f}px outside the page's own box, "

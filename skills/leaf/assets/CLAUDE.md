@@ -186,9 +186,9 @@ kind that has changed; `runtime/banner-status-view.js` owns the Lit-rendered sta
 surface, its tone paint, native disclosure, and publication layout;
 `runtime/banner-approval.js` owns the Lit-rendered face inside the banner shelf's
 stable approval button;
-`runtime/banner-shelf.js` owns news-control reservation and focus continuity, and
-the fold that decides which of the banner's controls stand on its row and which
-stand in its menu;
+`runtime/banner-shelf.js` consumes explicit ranked control contributions and owns the
+complete synchronous Lit inventory, order, presence, reservation, focus continuity,
+overflow door, and row-versus-menu partition; native controls remain retained islands;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
 `runtime/interaction-gallery.js` and `runtime/interaction-gallery-frame.js` own the

@@ -64,11 +64,6 @@ class VersionChooserView {
     // exposes the same relationship from the popover end to owners restoring a layer.
     this.button.popoverTargetElement = this.menu;
     this.menu.lfInvoker = this.button;
-    // This is the one banner control whose arrival a reader must not miss: the document
-    // being read has been replaced. The shelf therefore keeps its news on the menu door
-    // while the chip is folded (banner-shelf.js, paintDoor).
-    this.latestChip.dataset.lfUrgent = "1";
-
     this.menu.addEventListener("toggle", (event) => {
       const open = event.newState === "open";
       if (this.#model.chooser.offered)

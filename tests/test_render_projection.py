@@ -1791,7 +1791,8 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     version.click()
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-signoff")).to_have_count(0)
+    expect(page.locator(".lf-signoff")).to_have_count(1)
+    expect(page.locator(".lf-signoff")).to_be_hidden()
     assert page.locator('meta[name="description"]').get_attribute("content") == "second"
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
@@ -3172,6 +3173,12 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     expect(page).to_have_title("Live second")
     assert "/versions/" not in page.url
     expect(general).to_have_value("Do not replace the page under these words.")
+    approval = page.locator(".lf-signoff")
+    expect(approval).to_have_count(1)
+    page.evaluate(
+        "control => { window.__lfApprovalControl = control; }",
+        approval.element_handle(),
+    )
 
     # Keep editing after the explicit release. The chip press necessarily took focus,
     # so state the active-composition condition again before asking v3 to honor it.
@@ -3186,7 +3193,8 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     told(page)
     expect(page).to_have_title("Live third")
     assert "/versions/" not in page.url
-    expect(page.locator(".lf-signoff")).to_have_count(0)
+    expect(approval).to_be_hidden()
+    assert approval.evaluate("control => control === window.__lfApprovalControl")
     expect(page.locator("body")).not_to_have_class(re.compile(r"\blive-second\b"))
     assert page.locator("body").get_attribute("data-live-body") is None
     assert (

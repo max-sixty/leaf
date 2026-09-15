@@ -167,7 +167,6 @@ export function createAskView({
   presentedControl,
   projectionTarget,
   readingBlock,
-  placeBulkAnswer,
   announce,
   repaint,
 }) {
@@ -225,7 +224,6 @@ export function createAskView({
       const label = verb[0].toUpperCase() + verb.slice(1);
       const btn = bannerControls.registerBulk(verb, label);
       bulkAnswers.set(verb, label);
-      placeBulkAnswer(btn);
       // In the row now, so it holds the widest it reaches below a thousand — the same
       // words syncAsks writes, measured in the face it will render in (see reserve).
       reserve(btn, [`${label} all (999)`]);

@@ -90,7 +90,6 @@ import { focused, keys, paintKeys } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
-import { foldShelf } from "./banner-shelf.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./conversation/panel-elements.js";
 import { blockAt, closestAcross, elementById, inChrome, says } from "./passages.js";
@@ -3017,8 +3016,6 @@ export function createMarginProjection({
     });
     renderMargin();
     matchMedia(COVERING).addEventListener("change", changePosture);
-    versionBtn.before(mapButton);
-    foldShelf();
     chromeRoot.append(nav, preview);
   }
   return {

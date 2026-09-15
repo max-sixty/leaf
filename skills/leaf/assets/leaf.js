@@ -111,11 +111,7 @@ import { restoreReaderView } from "./runtime/restore-state.js";
 import { readerStore } from "./runtime/storage.js";
 import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController } from "./runtime/version.js";
-import {
-  versionBtn,
-  versionMenu,
-  versionMenuIsOpen,
-} from "./runtime/version-chooser.js";
+import { versionMenu, versionMenuIsOpen } from "./runtime/version-chooser.js";
 import {
   banner,
   foldBannerRow,
@@ -449,7 +445,6 @@ asks = createAskView({
   readableDestination: anchorTravel.readableDestination,
   scrollToElement: anchorTravel.scrollToElement,
   refreshConversation: () => app.refreshConversation(),
-  placeBulkAnswer: (button) => versionBtn.before(button),
   announce,
   repaint,
 });

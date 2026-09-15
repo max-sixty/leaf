@@ -20,7 +20,12 @@ import { blockAt, says } from "./passages.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { focused, paintKeys } from "./keyboard/scopes.js";
-import { el, keeps, keepsHidden } from "./widget-elements.js";
+import { el, keeps } from "./widget-elements.js";
+import {
+  BANNER_CONTROL_RANK,
+  registerBannerControl,
+  showBannerControl,
+} from "./banner-shelf.js";
 import {
   clearMarginEntryControls,
   compareMarginEntryRecords,
@@ -32,8 +37,13 @@ import {
 
 export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
 mapButton.type = "button";
-mapButton.hidden = true;
 mapButton.title = "Open Page Map";
+registerBannerControl({
+  key: "map",
+  control: mapButton,
+  rank: BANNER_CONTROL_RANK.map,
+  present: false,
+});
 
 const dialog = document.createElement("dialog");
 dialog.className = "lf-ui lf-page-map-dialog";
@@ -358,7 +368,7 @@ export function createPageMapDialog({
   function renderPageMapDialog(nextEntries) {
     entries = nextEntries;
     const label = `Map (${entries.length})`;
-    keepsHidden(mapButton, entries.length === 0);
+    showBannerControl(mapButton, entries.length > 0);
     if (mapButton.textContent !== label) mapButton.textContent = label;
     if (dialog.open) renderSheet();
   }

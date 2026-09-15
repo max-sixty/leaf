@@ -1,23 +1,12 @@
-/* Conversation message rendering, caching, and printed anchor labels.
+/* Synchronous Lit message presentation and frozen authored message islands.
 
-   Messages render from Markdown after escaping raw HTML. Literal text such as a
-   generic type remains text and cannot inject markup. A widget in an event's
-   gate-validated `markup` is instantiated once in the panel; inline conversation seats
-   show a textual projection with a link to that reply's controls in Threads.
-
-   An agent message edit is a later event folded onto the original message id. The
-   panel and an inline conversation update the existing message node and show
-   `edited`; the text wrapper alone is replaced. The message's cached markup nodes stay
-   connected because their widget state and authored baseline belong to the original
-   event, not to the prose revision.
-
-   Fragment links in messages use the browser's `hidden="until-found"` behavior to
-   reveal authored disclosures and tabs. `paintAnchors` marks a link detached when this
-   version no longer has the id and refuses its press. A thread outlives its version,
-   but a fragment target may not. */
+   Generated metadata, prose, receipts and reaction placement have one owner. An
+   immutable descriptor changes prose without reconnecting the validated authored
+   fragment. The fragment is captured inertly before its first upgrade; panel
+   presentation waits for preparation before capturing typed authored facets. */
+import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { loadMarkdown, markdownReady, renderMarkdown } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { el } from "../widget-elements.js";
 import { isReaction } from "./model.js";
 import { tokenEntry } from "../registry.js";
 import { rememberAuthoredParents } from "../projection/authored.js";
@@ -29,7 +18,7 @@ import {
   renderSaid,
 } from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
-import { ago, clocked } from "../presence.js";
+import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
 import { designName } from "../design-readings.js";
 import {
@@ -38,243 +27,278 @@ import {
   visualPartLabel,
 } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
+import { createReceipt } from "./acknowledgments.js";
+import { ReactionStripView } from "./reaction-strips.js";
 
-// Lazily, like the tokenizer: a page is usually handed over before anyone has said
-// anything, and one with no messages never pays the parse. poll() awaits this before
-// the panel builds a body, which is what keeps msgNode synchronous.
-//
-// Raw HTML — block and inline both route through the one `html` renderer — escapes to
-// the characters it was written in: prose says `Vec<T>`, and a message injects widgets
-// only through its gate-validated `markup` field, never through text. breaks: a single
-// newline is a line break, because a message is typed prose and nobody types two
-// spaces to mean the line they just ended.
-// Plain escaped text until the renderer arrives, so a failed vendor import
-// degrades a body's Markdown to its own words instead of refusing the poll
-// that carries it.
 export const loadMarked = () =>
   loadMarkdown((error) =>
     reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`),
   );
 
-// Bodies are cached per message id and re-adopted when a thread node is rebuilt — which
-// the reconcile leaves one occasion for, a thread resolving. An edit is a later log
-// event folded onto that id, so it replaces only the text wrapper. The frozen markup
-// beside it keeps its nodes: a widget in a reply may already hold reader state, and
-// re-upgrading it over a prose correction would turn the edit into a second transition.
-const msgBodies = new Map();
-const messageClocks = new WeakMap();
-function paintMsgText(text, m) {
-  const words = m.text ?? "";
-  if (m.suggestion) text.textContent = words;
-  else text.innerHTML = renderMarkdown(words);
-}
-
-function buildMsgBody(m) {
-  const body = el("div", "lf-msg-body");
-  const text = el("div", "lf-msg-text");
-  body.append(text);
-  if (isReaction(m)) {
-    // A thread whose root is a mark: the glyph and its word, in the chrome's own
-    // face, where a comment's words would be. A layer may add its own explanation on
-    // hover; the token itself remains sufficient.
-    const said = el(
-      "span",
-      "lf-react-said",
-      `${tokenEntry(m.token)?.glyph ?? ""} ${m.token}`.trim(),
-    );
-    const meaning = tokenEntry(m.token)?.means;
-    if (meaning) said.title = meaning;
-    text.append(said);
-  } else if (m.suggestion) {
-    // Verbatim: a suggestion's characters are bound for the page as typed, and a
-    // rendering would show an italic where the next version carries the asterisks.
-    body.classList.add("lf-suggest-body");
-    paintMsgText(text, m);
-  } else {
-    paintMsgText(text, m);
-    if (m.drawing) body.append(el("span", "lf-drawing-reference", "Drawing comment"));
-    // The widget markup beside the text, injected as the CLI gate validated it. A
-    // template is deliberately inert: an already-defined custom element's constructor
-    // runs even in a detached ordinary div. Capture parentage in the literal markup,
-    // then connect these same nodes; thread-list captures typed initial values only
-    // after their synchronous and asynchronous upgrades finish.
-    // The passes below don't come along with that upgrade — the said and quiet passes
-    // write a widget's declared words, spoken and silent, and a fenced block is a
-    // <pre><code class="language-…"> like any the page holds.
-    //
-    // The declared marks come along by the half that holds here (MARKED_ANYWHERE):
-    // whether a widget is set among the words is true of it in a reply as much as on
-    // the page, and a chip-led comparison quoted into one stacks without it. The width
-    // model is the half that stays behind, and the reason is what it hands out: the room
-    // the *document* has, which is not the room in here. A diagram in a reply is a widget
-    // the vocabulary calls wide, and marked as one it would lay itself out to the page's
-    // measure inside the panel. The room a message has is the message's, and it already
-    // has it.
-    if (m.markup) {
-      const authored = document.createElement("template");
-      authored.innerHTML = m.markup;
-      rememberAuthoredParents(authored.content);
-      captureWidgetDescriptors(authored.content, { kind: "thread" });
-      rememberPassageParts(authored.content, ["event", m.id]);
-      body.append(authored.content);
-    }
-    markDeclared(body, MARKED_ANYWHERE);
-    renderSaid(body);
-    renderQuiet(body);
-    // Not registered as widget presentation: that queue holds page geometry for the first anchor
-    // pass, and a message colors in the panel, where no anchor is captured and nothing
-    // waits. Each block already fails soft to its own plain source.
-    highlightBlocks(body);
-  }
-  return { body, revision: bodyRevision(m), text };
-}
-
-// The reader's own message is rendered once, under the attempt both its pending record
-// and the server's event carry, so the body drawn in the gesture is the body still
-// standing when the log answers — the same words, not a second rendering of them. Every
-// other message keys by its server-minted id.
-const bodyKey = (m) => m.attempt ?? m.id;
-
-// What a cached body was painted from: the event and prose revisions, and whether the
-// renderer had arrived. A message the reader sends paints in their gesture, and the
-// lazy Markdown import it needs may still be in the wire — so the first painting can be escaped
-// source, which is the right thing to show and the wrong thing to keep. Reading the
-// renderer's state into the key gives those words their Markdown on the next render.
-const bodyRevision = (m) =>
-  `${m.id}:${m.edited?.id ?? ""}:${m.stream_state ? m.text : ""}:${markdownReady() ? "md" : "raw"}`;
-
-// The node already standing for this message, found by its id or, while the log is still
-// answering, by that same attempt.
-export const msgNodeIn = (parent, m) =>
-  parent.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`) ??
-  (m.attempt
-    ? parent.querySelector(`:scope > .lf-msg[data-attempt="${m.attempt}"]`)
-    : null);
-
-function msgBody(m) {
-  let rendered = msgBodies.get(bodyKey(m));
-  if (!rendered) {
-    rendered = buildMsgBody(m);
-    msgBodies.set(bodyKey(m), rendered);
-  }
-  const revision = bodyRevision(m);
-  if (rendered.revision !== revision) {
-    paintMsgText(rendered.text, m);
-    if (!m.suggestion) highlightBlocks(rendered.text);
-    rendered.revision = revision;
-  }
-  return rendered.body;
-}
-
-export function syncEdited(head, m) {
-  let edited = head.querySelector(":scope > .lf-edited");
-  if (!m.edited) {
-    edited?.remove();
-    return;
-  }
-  if (!edited) {
-    edited = el("span", "lf-edited", "edited");
-    head.append(edited);
-  }
-  edited.title = `Edited ${ago(m.edited.ts)}`;
-}
-
-function syncMessageClock(div, m) {
-  let paint = messageClocks.get(div);
-  if (!paint) {
-    paint = clocked(div, (message) => {
-      const head = div.querySelector(":scope > .lf-msg-head");
-      const when = head.querySelector(":scope > time");
-      when.dateTime = message.ts;
-      const said = ago(message.ts);
-      if (when.textContent !== said) when.textContent = said;
-      syncEdited(head, message);
+// Prose parsing is shared across descriptor passes and surfaces. Its value changes
+// with admission, edits, stream text, or the lazy Markdown renderer becoming ready;
+// clock and receipt paint reuse the same HTML without retaining generated DOM.
+const renderedProse = new Map();
+function messageHtml(message) {
+  const key = message.attempt ?? message.id;
+  const edited = message.edited?.id ?? null;
+  const text = message.text ?? "";
+  const markdown = markdownReady();
+  let reading = renderedProse.get(key);
+  if (
+    !reading ||
+    reading.id !== message.id ||
+    reading.edited !== edited ||
+    reading.text !== text ||
+    reading.markdown !== markdown
+  ) {
+    reading = Object.freeze({
+      id: message.id,
+      edited,
+      text,
+      markdown,
+      html: renderMarkdown(text),
     });
-    messageClocks.set(div, paint);
+    renderedProse.set(key, reading);
   }
-  paint(m);
+  return reading.html;
 }
 
-export function syncStreamState(node, head, m) {
-  const state = m.stream_state;
-  if (state) node.dataset.streamState = state;
-  else delete node.dataset.streamState;
-  let label = head.querySelector(":scope > .lf-stream-state");
-  if (!state || state === "active") {
-    label?.remove();
-    return;
+// A rollback can withdraw an authored island, but neither retry nor a prose edit
+// may instantiate it twice. Its native identity is independent of the prose cache.
+const authoredMessages = new Map();
+function authoredMessage(message) {
+  const key = message.attempt ?? message.id;
+  if (!authoredMessages.has(key)) {
+    const template = document.createElement("template");
+    template.innerHTML = message.markup ?? "";
+    const widgets = Object.freeze(
+      [...template.content.querySelectorAll("[id]")].map((node) => node.id),
+    );
+    rememberAuthoredParents(template.content);
+    captureWidgetDescriptors(template.content, { kind: "thread" });
+    rememberPassageParts(template.content, ["event", message.id]);
+    const nodes = Object.freeze([...template.content.childNodes]);
+    authoredMessages.set(key, { nodes, widgets });
   }
-  if (!label) {
-    label = el("span", "lf-stream-state lf-edited");
-    head.append(label);
+  return authoredMessages.get(key);
+}
+export const messageWidgetIds = (message) =>
+  message.markup ? authoredMessage(message).widgets : Object.freeze([]);
+
+export function messageReading(message, { panel, receipts, reactions }) {
+  const token = isReaction(message) ? tokenEntry(message.token) : null;
+  const kind = isReaction(message)
+    ? "reaction"
+    : message.suggestion
+      ? "suggestion"
+      : "prose";
+  return Object.freeze({
+    key: message.attempt ?? message.id,
+    id: message.id,
+    attempt: message.attempt ?? null,
+    author: message.author,
+    by: message.author === "claude" ? message.agent || "Agent" : "You",
+    timestamp: message.ts,
+    age: ago(message.ts),
+    edited: message.edited ? `Edited ${ago(message.edited.ts)}` : null,
+    pending: Boolean(message.pending),
+    stream: message.stream_state ?? null,
+    streamLabel:
+      !message.stream_state || message.stream_state === "active"
+        ? null
+        : message.stream_state === "failed"
+          ? "Failed"
+          : message.stream_state === "interrupted"
+            ? "Interrupted"
+            : message.stream_state === "disconnected"
+              ? "Disconnected"
+              : "Partial",
+    body: Object.freeze({
+      kind,
+      text: message.text ?? "",
+      html: kind === "prose" ? messageHtml(message) : "",
+      drawing: Boolean(message.drawing),
+      token: message.token ?? null,
+      glyph: token?.glyph ?? "",
+      meaning: token?.means ?? null,
+      markup: message.markup ?? null,
+    }),
+    panel,
+    receipts,
+    reactions,
+  });
+}
+
+export class MessageView {
+  #commands;
+  #model = null;
+  #receipts = new Map();
+  #reaction = null;
+  #authored = null;
+  #dressed = false;
+
+  constructor(commands) {
+    this.#commands = commands;
+    this.node = document.createElement("div");
   }
-  label.textContent =
-    state === "failed"
-      ? "Failed"
-      : state === "interrupted"
-        ? "Interrupted"
-        : state === "disconnected"
-          ? "Disconnected"
-          : "Partial";
+
+  present(model) {
+    const prior = this.#model;
+    this.#model = model;
+    const panel = model.panel;
+    if (prior && prior.author !== model.author)
+      this.node.classList.remove(prior.author);
+    this.node.classList.add(panel ? "lf-msg" : "lf-conversation-msg", model.author);
+    if (!panel) {
+      this.node.classList.add("lf-ui");
+      this.node.dataset.lfGen = "1";
+      this.node.dataset.lfOffer = "";
+    }
+    if (panel) this.node.tabIndex = -1;
+    this.node.setAttribute(panel ? "data-mid" : "data-event", model.id);
+    if (model.attempt) this.node.dataset.attempt = model.attempt;
+    else delete this.node.dataset.attempt;
+    if (model.pending) this.node.setAttribute("aria-busy", "true");
+    else this.node.removeAttribute("aria-busy");
+    if (model.stream) this.node.dataset.streamState = model.stream;
+    else delete this.node.dataset.streamState;
+    if (panel && model.body.markup && !this.#authored)
+      this.#authored = authoredMessage({
+        id: model.id,
+        attempt: model.attempt,
+        markup: model.body.markup,
+      }).nodes;
+    const receipts = model.receipts.map((receipt) => {
+      let node = this.#receipts.get(receipt.id);
+      if (!node) this.#receipts.set(receipt.id, (node = createReceipt()));
+      node.dataset.receiptId = receipt.id;
+      node.present(receipt);
+      return { key: receipt.id, node };
+    });
+    if (!model.reactions) this.#reaction?.retire();
+    const strip = model.reactions
+      ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(
+          model.reactions,
+        )
+      : nothing;
+    render(
+      html`
+        <div class=${panel ? "lf-msg-head" : "lf-conversation-head"}>
+          <b>${model.by}</b><time datetime=${model.timestamp}>${model.age}</time>
+          ${
+            model.body.kind === "suggestion" && panel
+              ? html`<span class="lf-suggest-label">Suggestion</span>`
+              : nothing
+          }
+          ${
+            model.edited
+              ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
+              : nothing
+          }
+          ${
+            model.streamLabel
+              ? html`<span class="lf-stream-state lf-edited"
+                  >${model.streamLabel}</span
+                >`
+              : nothing
+          }
+          ${repeat(
+            receipts,
+            (receipt) => receipt.key,
+            (receipt) => receipt.node,
+          )}
+        </div>
+        ${
+          panel
+            ? html`<div
+                class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
+              >
+                ${this.#body(model.body)}
+                ${
+                  model.body.drawing
+                    ? html`<span class="lf-drawing-reference">Drawing comment</span>`
+                    : nothing
+                }
+                ${model.body.markup ? this.#authored : nothing}
+              </div>`
+            : this.#inlineBody(model.body)
+        }
+        ${
+          !panel && model.body.markup
+            ? html`<button
+                type="button"
+                class="lf-btn lf-conversation-open lf-ui"
+                data-lf-gen="1"
+                data-lf-offer="button"
+                @click=${() => this.#commands.showThread(this.#model.id)}
+              >
+                Open interactive reply in Threads
+              </button>`
+            : nothing
+        }
+        ${strip}
+      `,
+      this.node,
+    );
+    if (this.#authored && !this.#dressed) {
+      markDeclared(this.node, MARKED_ANYWHERE);
+      renderSaid(this.node);
+      renderQuiet(this.node);
+      this.#dressed = true;
+    }
+    // Markdown is an opaque property part: tokenization never rewrites Lit markers.
+    highlightBlocks(this.node);
+    return this.node;
+  }
+
+  #body(body) {
+    if (body.kind === "reaction")
+      return html`<div class="lf-msg-text">
+        <span class="lf-react-said" title=${body.meaning ?? nothing}
+          >${`${body.glyph} ${body.token}`.trim()}</span
+        >
+      </div>`;
+    if (body.kind === "suggestion")
+      return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
+    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>`;
+  }
+
+  #inlineBody(body) {
+    if (body.kind === "suggestion")
+      return html`<div class="lf-conversation-body" .textContent=${body.text}></div>`;
+    if (body.kind === "reaction")
+      return html`<div class="lf-conversation-body">
+        <span class="lf-react-said" title=${body.meaning ?? nothing}
+          >${`${body.glyph} ${body.token}`.trim()}</span
+        >
+      </div>`;
+    return html`<div
+      class="lf-conversation-body"
+      .innerHTML=${
+        body.html +
+        (body.drawing
+          ? '<span class="lf-drawing-reference">Drawing comment</span>'
+          : "")
+      }
+    ></div>`;
+  }
+
+  commit() {
+    const wanted = new Set(this.#model.receipts.map((receipt) => receipt.id));
+    for (const key of this.#receipts.keys())
+      if (!wanted.has(key)) this.#receipts.delete(key);
+    if (!this.#model.reactions && this.#reaction) {
+      this.#reaction.retire();
+      this.#reaction = null;
+    }
+  }
+
+  retire() {
+    this.#reaction?.retire();
+  }
 }
 
-export function syncMsgNode(div, m) {
-  // The log answering for a pending message renames this node rather than replacing it,
-  // so the reader's words keep their place, and anything standing in them keeps it too.
-  // `aria-busy` is the whole difference the reader can see, and the delayed rule in
-  // chrome.css means a send the log takes at once never shows it at all.
-  if (div.dataset.mid !== m.id) div.dataset.mid = m.id;
-  if (m.pending) div.setAttribute("aria-busy", "true");
-  else div.removeAttribute("aria-busy");
-  const head = div.querySelector(":scope > .lf-msg-head");
-  syncMessageClock(div, m);
-  syncStreamState(div, head, m);
-  const body = msgBody(m);
-  const standing = div.querySelector(":scope > .lf-msg-body");
-  if (standing !== body) standing?.replaceWith(body);
-}
-
-export function msgNode(m) {
-  const div = el("div", `lf-msg ${m.author}`);
-  div.tabIndex = -1;
-  div.dataset.mid = m.id; // the reconcile's key and direct-navigation identity
-  // The reader's own gesture, named so the log's answer can find this node again.
-  if (m.attempt) div.dataset.attempt = m.attempt;
-  if (m.pending) div.setAttribute("aria-busy", "true");
-  const head = el("div", "lf-msg-head");
-  // "3 hours ago" is not a datetime, so the machine-readable one goes in the attribute
-  // the element has for it — which is also what `saidAt` reads back when a widget the
-  // message carries needs to know when it was said.
-  const when = el("time");
-  when.dateTime = m.ts;
-  head.append(el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"), when);
-  if (m.suggestion) head.append(el("span", "lf-suggest-label", "Suggestion"));
-  div.append(head);
-  div.append(msgBody(m));
-  syncMessageClock(div, m);
-  syncStreamState(div, head, m);
-  return div;
-}
-
-// How an anchor reads where it has to be printed rather than pointed at — every thread in
-// the panel, and the open composer when the page has no passage left to mark. A quote-less
-// anchor points at an element (a diagram or image targeted explicitly rather than by
-// selection) and names its section instead of quoting it. One function, so the two places
-// can't come to say it differently.
-//
-// An id is the page's name for an addressable element and not the user's. `card-migration`
-// says nothing they wrote, and pointing at an element is an ordinary gesture rather than the
-// diagram's special case, so anchors reading this way are ordinary in the panel too.
-// An element anchor is labelled with the element's own opening words, and falls
-// back to the id where this version has no such element. The kind goes before the words
-// because the two together are a name, where the words alone read as a quote the thread
-// does not hold.
-//
-// A design comment (`about: "design"`) reads "design ·" first, because what follows names
-// the thing whose look or behaviour is in question rather than the words on it: the
-// control the press landed on where it landed on one (`part`), then the element — a
-// widget by its tag and id, a runtime part by its name — since a design comment's
-// subject is the element itself and its opening words would read as a quote.
 function datumLabel(anchor) {
   if (!anchor?.section || !anchor.datum) return "";
   const datum = pageQueryAll("[data-lf-projection][data-lf-datum]").find(
@@ -306,5 +330,3 @@ export function anchorLabel(anchor, about, omitted = null) {
   if (omitted && says) return `“${says}”`;
   return `§ ${says ? `${addressableWord(addressable)} · ${says}` : anchor.section}`;
 }
-
-export const renderMessageMarkdown = (text) => renderMarkdown(text);

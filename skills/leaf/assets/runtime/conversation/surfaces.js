@@ -3,13 +3,11 @@
    Registrations are the domain's durable extension points. Each public registration is
    supplied the application invalidation that owns its next semantic render; the module
    stores no application service or generic event channel. */
-import { setChildren } from "../dom-children.js";
 import { reportPageError } from "../layer-client.js";
 import { datumAimTarget, resolveAnchor } from "../anchor-resolution.js";
 import { containsAcross, pageText } from "../passages.js";
 import { registry } from "../registry.js";
-import { renderThreadSurface } from "./inline.js";
-import { removeConversationNode } from "./reaction-strips.js";
+import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 
 const registrations = new Map();
 let claimedIds = new Set();
@@ -23,11 +21,7 @@ function update(registration) {
   });
 }
 
-export function registerThreadSurface(
-  owner,
-  adapter,
-  { invalidate, closeReactionMode, composition },
-) {
+export function registerThreadSurface(owner, adapter, { invalidate, composition }) {
   if (!(owner instanceof Element))
     throw new TypeError("registerThreadSurface owner must be a widget element");
   if (registry[owner.localName]?.["x-thread-surface"] !== true)
@@ -46,8 +40,6 @@ export function registerThreadSurface(
     );
   if (typeof invalidate !== "function")
     throw new TypeError("registerThreadSurface needs an invalidation function");
-  if (typeof closeReactionMode !== "function")
-    throw new TypeError("registerThreadSurface needs reaction teardown");
   if (
     !composition ||
     typeof composition.open !== "function" ||
@@ -64,7 +56,6 @@ export function registerThreadSurface(
     adapter,
     owner,
     invalidate,
-    closeReactionMode,
     composition,
     outlets: new Set(),
     reconcileQueued: false,
@@ -98,13 +89,9 @@ export function registerThreadSurface(
   };
 }
 
-function removeNode(node, commands) {
-  removeConversationNode(node, commands.reaction.closeReactionMode);
-}
-
-function clearOutlets(outlets, commands) {
+function clearOutlets(outlets) {
   for (const outlet of outlets) {
-    setChildren(outlet, [], (node) => removeNode(node, commands));
+    clearThreadSurface(outlet);
     delete outlet.dataset.lfThreadSurface;
   }
 }
@@ -125,11 +112,7 @@ function clearRegistration(registration, commands) {
     reportFailure(registration, error);
   }
   if (commands) clearOutlets(registration.outlets, commands);
-  else
-    for (const outlet of registration.outlets)
-      setChildren(outlet, [], (node) =>
-        removeConversationNode(node, registration.closeReactionMode),
-      );
+  else for (const outlet of registration.outlets) clearThreadSurface(outlet);
   registration.outlets.clear();
 }
 

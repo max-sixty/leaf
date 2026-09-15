@@ -13,7 +13,8 @@
    banner counts keep reading the whole log. No narrowing is stored: returning to a
    page should not silently hide conversation. Cards remain in the document while
    filtered so reply widgets keep their identity and the rest of the runtime can still
-   read them by id. */
+   read them by id. The list checkpoints this owner's immutable summary and facet
+   reading with its rows; repainting a retained reading does not change reader intent. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsReader } from "./model.js";
 import {
@@ -97,17 +98,18 @@ export function noMatchText() {
 const entries = (threads, groups) =>
   threads.map((thread) => ({ thread, group: groups.get(thread) }));
 const count = (rows, predicate) => rows.filter(predicate).length;
-const setButton = (button, selected, amount) => {
+const setButton = (button, { selected, amount, disabled }) => {
   button.setAttribute("aria-pressed", String(selected));
   button.classList.toggle("on", selected);
   const label = button.dataset.filterLabel;
   button.textContent = amount ? `${label} (${amount})` : label;
+  button.disabled = disabled;
 };
 
 // Counts are faceted: each chip answers how many results switching that facet to its
 // value would show while every other standing filter remains. A static all-page count
 // on "Page" would promise threads the selected Open/Resolved state then hid.
-export function paintNarrowing(threads, shown, groups = new Map()) {
+export function narrowingReading(threads, shown, groups = new Map()) {
   const rows = entries(threads, groups);
   const baseline = threads.filter((thread) =>
     state === "resolved" ? thread.resolved : !thread.resolved,
@@ -124,10 +126,8 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
     subject ? subjectButtons[subject].dataset.filterLabel : null,
     onlyGone ? goneBtn.dataset.filterLabel : null,
   ].filter(Boolean);
-  viewSummary.textContent = facets.join(" · ");
-  viewRow.hidden = !narrowed();
-
-  for (const [value, button] of Object.entries(stateButtons)) {
+  const states = {};
+  for (const value of Object.keys(stateButtons)) {
     const amount = count(
       rows,
       ({ thread, group }) =>
@@ -137,10 +137,14 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
         matchesSubject(thread) &&
         matchesGone(thread, group),
     );
-    setButton(button, state === value, amount);
-    button.disabled = state !== value && !amount;
+    states[value] = Object.freeze({
+      selected: state === value,
+      amount,
+      disabled: state !== value && !amount,
+    });
   }
-  for (const [value, button] of Object.entries(scopeButtons)) {
+  const scopes = {};
+  for (const value of Object.keys(scopeButtons)) {
     const amount = count(
       rows,
       ({ thread, group }) =>
@@ -150,10 +154,14 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
         matchesSubject(thread) &&
         matchesGone(thread, group),
     );
-    setButton(button, scope === value, amount);
-    button.disabled = scope !== value && !amount;
+    scopes[value] = Object.freeze({
+      selected: scope === value,
+      amount,
+      disabled: scope !== value && !amount,
+    });
   }
-  for (const [value, button] of Object.entries(subjectButtons)) {
+  const subjects = {};
+  for (const value of Object.keys(subjectButtons)) {
     const amount = count(
       rows,
       ({ thread, group }) =>
@@ -163,8 +171,11 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
         matchesSubject(thread, value) &&
         matchesGone(thread, group),
     );
-    setButton(button, subject === value, amount);
-    button.disabled = subject !== value && !amount;
+    subjects[value] = Object.freeze({
+      selected: subject === value,
+      amount,
+      disabled: subject !== value && !amount,
+    });
   }
   const gone = count(
     rows,
@@ -175,17 +186,41 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
       matchesSubject(thread) &&
       matchesGone(thread, group, true),
   );
-  goneBtn.hidden = !gone && !onlyGone;
-  setButton(goneBtn, onlyGone, gone);
-  goneBtn.disabled = !onlyGone && !gone;
+  return Object.freeze({
+    summary: facets.join(" · "),
+    hidden: !narrowed(),
+    states: Object.freeze(states),
+    scopes: Object.freeze(scopes),
+    subjects: Object.freeze(subjects),
+    gone: Object.freeze({
+      hidden: !gone && !onlyGone,
+      selected: onlyGone,
+      amount: gone,
+      disabled: !onlyGone && !gone,
+    }),
+    readerTitle: needsYou()
+      ? "Show open threads"
+      : states.reader.disabled
+        ? "Nothing is waiting on you"
+        : "Show threads waiting on you",
+  });
+}
+
+export function paintNarrowing(reading) {
+  viewSummary.textContent = reading.summary;
+  viewRow.hidden = reading.hidden;
+  for (const [value, button] of Object.entries(stateButtons))
+    setButton(button, reading.states[value]);
+  for (const [value, button] of Object.entries(scopeButtons))
+    setButton(button, reading.scopes[value]);
+  for (const [value, button] of Object.entries(subjectButtons))
+    setButton(button, reading.subjects[value]);
+  goneBtn.hidden = reading.gone.hidden;
+  setButton(goneBtn, reading.gone);
 
   // Through the key-title seat paintCoreControls appends `w` while the panel owns it.
-  stateButtons.reader.dataset.lfKeyTitle = needsYou()
-    ? "Show open threads"
-    : stateButtons.reader.disabled
-      ? "Nothing is waiting on you"
-      : "Show threads waiting on you";
-  stateButtons.reader.title = stateButtons.reader.dataset.lfKeyTitle;
+  stateButtons.reader.dataset.lfKeyTitle = reading.readerTitle;
+  stateButtons.reader.title = reading.readerTitle;
 }
 
 function renarrow(refreshNarrowing) {

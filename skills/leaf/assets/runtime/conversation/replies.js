@@ -86,7 +86,7 @@ export function wireReply(
     const held = input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation");
     if (held) revealReplyEditor(input, "instant");
   });
-  mirrorDraft(
+  const dispose = mirrorDraft(
     input,
     {
       load: (value) => {
@@ -95,8 +95,9 @@ export function wireReply(
       },
     },
     draftCtx,
+    { retained: true },
   );
-  return sync;
+  return { sync, dispose };
 }
 
 // null means this is not a reply box. False is the useful third state: a reply box

@@ -1,303 +1,476 @@
-/* Retained comment-panel thread cards and their controls. */
-import { threadsBox } from "./panel-elements.js";
-import { turns } from "./model.js";
-import { anchorLabel, msgNode, msgNodeIn, syncMsgNode } from "./messages.js";
-import { paintReactStrips, removeConversationNode } from "./reaction-strips.js";
-import { el, reachedForWords } from "../widget-elements.js";
-import { keys, paintKeys } from "../keyboard/scopes.js";
+/* One synchronous Lit owner for complete panel, page, outlet and margin threads.
+
+   Immutable descriptors contain generated presentation only. Retained native editors
+   and frozen message widgets keep their mechanical lifetime outside those values.
+   The owner alone renders its native card root and all generated descendants; a
+   failed candidate is restored by presenting its committed descriptor again. */
+import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
+import { turns, threadKey } from "./model.js";
+import {
+  anchorLabel,
+  MessageView,
+  messageReading,
+  messageWidgetIds,
+} from "./messages.js";
+import { reactionReading } from "./reaction-strips.js";
+import { messageReceipts } from "./acknowledgments.js";
+import { el, offer, reachedForWords, measure, reserve } from "../widget-elements.js";
+import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
-import { settlementControl } from "./folding.js";
-import { threadList } from "./state.js";
+import { settleThread, pendingSettlement } from "./folding.js";
 import { groupFor, pageOutline } from "./placement.js";
+import { iconTemplate } from "../icons.js";
+import { loadDraft } from "../drafts.js";
+import { SAY_BOX } from "./selectors.js";
 
-const threadAnchorLabel = (t, placedAt, outline = pageOutline()) => {
-  const group = groupFor(t, outline, placedAt);
-  const segments = placedAt(t.root.id)?.segments ?? [];
-  // The group heading already says these exact words immediately above the thread.
-  // Decide that from the resolved nodes, not from a text comparison: identical words
-  // elsewhere in the section remain a real quote and keep their label.
-  if (
+function quoteReading(thread, anchors, outline) {
+  const group = groupFor(thread, outline, anchors.placedAt);
+  const placement = anchors.placedAt(thread.root.id);
+  const segments = placement?.segments ?? [];
+  const label =
     group.target &&
     segments.length &&
     segments.every(({ node }) => group.target.contains(node))
-  )
-    return "";
-  return anchorLabel(t.detached_from ?? t.anchor, t.root.about, group.target);
-};
-
-// The adopted log is append-only, but a refused state application can withdraw a
-// candidate message. A kept card reconciles its complete message set. Resolving
-// removes the reply box and reopening restores it, so either one rebuilds the node;
-// msgBodies carries the rendered bodies across. `grow` animates what this call creates,
-// for arrivals into a list the user is already looking at.
-// The card standing for this thread, by its id or — while the log is still answering for
-// a comment the reader just sent — by the attempt its root carries. The server's event
-// carries that attempt back, so the card the send drew keeps its place in the list, the
-// focus inside it, and any reply already typed into its box.
-const standingCard = (t) =>
-  threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`) ??
-  (t.root.attempt
-    ? threadsBox.querySelector(`.lf-thread[data-attempt="${t.root.attempt}"]`)
-    : null);
-
-export function threadNode(t, grow, commands) {
-  const { reply, settlement, reaction, travel, anchors, openThreads } = commands;
-  const hasDestination = (id) => anchors.isMarked(id) || Boolean(anchors.placedAt(id));
-  const removeNode = (node) => removeConversationNode(node, reaction.closeReactionMode);
-  const existing = standingCard(t);
-  const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
-  if (existing && existingResolved === Boolean(t.resolved)) {
-    existing.dataset.resolved = String(Boolean(t.resolved));
-    if (existing.dataset.id !== t.root.id) {
-      existing.dataset.id = t.root.id;
-    }
-    const compose = existing.querySelector(":scope > .lf-compose");
-    const tail = compose ?? existing.querySelector(":scope > .lf-thread-actions");
-    const messages = turns(t);
-    const current = new Set(messages.map((message) => message.id));
-    // New messages append before the thread controls.
-    for (const m of messages) {
-      let msg = msgNodeIn(existing, m);
-      if (!msg) {
-        msg = msgNode(m);
-        if (grow) msg.classList.add("grow");
-        existing.insertBefore(msg, tail);
-      }
-      syncMsgNode(msg, m);
-    }
-    for (const message of existing.querySelectorAll(":scope > .lf-msg"))
-      if (!current.has(message.dataset.mid)) removeNode(message);
-    paintReactStrips(existing, t, reaction);
-    return existing;
-  }
-
-  const div = el("div", "lf-thread");
-  // The card's own name for its thread, read at use rather than captured: the log
-  // answering for a comment the reader just sent renames this node in place, and a
-  // handler holding the earlier name would go on addressing a thread nothing wears.
-  const liveId = () => div.dataset.id;
-  const shownCard = () =>
-    threadsBox.querySelector(
-      `:scope > .lf-thread[data-id="${CSS.escape(liveId())}"]:not([hidden])`,
-    );
-  div.tabIndex = -1; // t/T focus target; the thread scope's Enter drops into its reply box
-  div.dataset.id = t.root.id;
-  div.dataset.resolved = String(Boolean(t.resolved));
-  if (t.root.attempt) div.dataset.attempt = t.root.attempt;
-  if (grow) div.classList.add("grow");
-  const label = threadAnchorLabel(t, anchors.placedAt);
-  const threadHead = el("header", "lf-thread-head");
-  if (label) {
-    const quote = el("blockquote", "lf-quote");
-    quote.append(el("span", "lf-quote-label", label));
-    // An anchored label is words and a press at once: it says which passage the
-    // comment is about, and pressing it travels there. A page-wide design label has no
-    // destination, so paintThreadQuotes leaves it as static words. A drag across an
-    // anchored label is the reader taking the words, so the travel stands down — the
-    // reading `offer` makes of its own controls, which this is not one of.
-    quote.onclick = (ev) => {
-      if (ev.detail !== 0 && reachedForWords(quote)) return;
-      // A covering sheet should spend itself only on a real return. `detached` cannot
-      // answer that: a resolved thread has no painted mark but keeps the placement it
-      // can still travel to. Read the anchor pass's two destination records instead.
-      if (!hasDestination(liveId())) return;
-      if (travel.panelCovers()) travel.setPanel(false);
-      travel.scrollToThread(liveId(), {
-        land: () => travel.focusSurface(liveId()),
-      });
-    };
-    keys(quote, "On a comment's quoted passage", [
-      {
-        id: "passage.return",
-        keys: PRESS,
-        does: "Return to the quoted passage on the page",
-        line: "return to the passage",
-        when: () => hasDestination(liveId()),
-        run: () => quote.click(),
-      },
-    ]);
-    threadHead.append(quote);
-  }
-  let resolve = null;
-  if (!t.resolved) {
-    // Resolve belongs to the whole thread. Keep it beside the thread's quoted target,
-    // before any message controls in the keyboard order; a message head says only who
-    // wrote that message and when.
-    resolve = settlementControl(t, {
-      ...settlement,
-      liveId,
-      prepareLanding: () => {
-        // Resolving removes this card and its focus in the optimistic presentation.
-        // Land in that same turn on the thread that takes its place, or the previous
-        // thread when this one was last in the list. A refusal restores the original
-        // thread only while no later reader gesture has claimed the landing.
-        const mayLand = travel.retainPanelLanding(div);
-        const at = openThreads().indexOf(div);
-        let mayRestore = () => false;
-        return {
-          optimistic: () => {
-            if (!mayLand()) return false;
-            const kept = openThreads();
-            const destination = kept[at] ?? kept[at - 1] ?? threadsBox;
-            destination.focus({ preventScroll: true });
-            mayRestore = travel.retainPanelLanding(destination);
-            return true;
-          },
-          refused: () => {
-            if (mayRestore()) shownCard()?.focus({ preventScroll: true });
-          },
-        };
-      },
-    });
-    threadHead.append(resolve);
-  }
-  if (threadHead.childElementCount) div.append(threadHead);
-  turns(t).forEach((m) => div.append(msgNode(m)));
-  paintReactStrips(div, t, reaction);
-  if (!t.resolved) {
-    const row = el("div", "lf-compose");
-    const input = document.createElement("textarea");
-    input.name = "reply";
-    const send = el("button", "lf-btn primary lf-thread-send", "Send");
-    row.append(input, send);
-    wireReply(t, input, send, {
-      liveId,
-      createReply: reply.createReply,
-      revealReplyEditor: reply.revealReplyEditor,
-      wireInput: reply.wireInput,
-    });
-    div.append(row);
-  } else {
-    const actions = el("div", "lf-thread-actions");
-    const status = el("span");
-    if (t.resolved.author === "claude") {
-      // Said only where the reader was not the one who closed it. Their own resolve
-      // needs no telling: they pressed it, and the selected state already says
-      // "Resolved". A thread closed from the other side settles with
-      // nothing in this tab to watch it happen, so the page is the only thing that can
-      // say who did.
-      const by = t.resolved.agent || "Agent";
-      status.append(el("span", "lf-resolved-by", `✓ Resolved by ${by}`));
-    }
-    const reopen = settlementControl(t, {
-      ...settlement,
-      liveId,
-      prepareLanding: () => {
-        const mayLand = travel.retainPanelLanding(div);
-        const narrowing = travel.retainNarrowing();
-        let mayRestore = () => false;
-        return {
-          optimistic: async () => {
-            if (!mayLand()) return false;
-            // revealThread clears the retained Resolved/search view synchronously, before
-            // its keyed list has finished presenting. Capture that transition-owned
-            // replacement now: a search the reader types while presentation is pending
-            // is newer intent, not the replacement a refusal may erase.
-            const arriving = travel.showThread(liveId());
-            narrowing.replaced();
-            if (!(await arriving)) return false;
-            const destination = shownCard();
-            if (destination) mayRestore = travel.retainPanelLanding(destination);
-            return Boolean(destination);
-          },
-          refused: async () => {
-            const restoreFocus = mayRestore();
-            await narrowing.restore(async () => {
-              if (!restoreFocus) return;
-              // Restoring the resolved state folds the optimistic open card. Finish
-              // that transition through the ordinary direct-arrival path before
-              // putting back the narrower view it clears.
-              await travel.showThread(liveId(), { focus: "thread" });
-            });
-          },
-        };
-      },
-    });
-    actions.append(status, reopen);
-    div.append(actions);
-  }
-  return div;
+      ? ""
+      : anchorLabel(
+          thread.detached_from ?? thread.anchor,
+          thread.root.about,
+          group.target,
+        );
+  if (!label) return null;
+  const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
+  const found =
+    !thread.detached_from && (anchors.isMarked(thread.root.id) || Boolean(placement));
+  const outdated = anchored && placement?.status === "outdated";
+  return Object.freeze({
+    label,
+    anchored,
+    found,
+    outdated,
+    title: !anchored
+      ? null
+      : found
+        ? outdated
+          ? "This comment refers to an earlier data revision"
+          : "Jump to this passage"
+        : thread.detached_from
+          ? "This passage is no longer in the version you're viewing"
+          : "This passage can't be identified in the version you're viewing",
+  });
 }
 
-// The panel's side of what the anchor pass drew, read off that pass's own record so the
-// two views can't disagree: a passage rewritten in a later version has no home to jump to,
-// and a dead-looking link is worse than one that says so. Called by the pass that writes
-// the record, and again by a narrowing that rebuilt the nodes the record was painted on.
-export function paintThreadQuotes({ placedAt, isMarked }) {
-  const threads = new Map(threadList().map((t) => [t.root.id, t]));
-  const outline = pageOutline();
-  for (const div of threadsBox.querySelectorAll(".lf-thread")) {
-    // The words too, for the same reason the class below is repainted here rather than
-    // written where the node was built. An element anchor is labelled with its element's
-    // own opening words, and the element may be a widget an agent sent — built by this
-    // same reconcile and not yet in the document when the node wearing the label was
-    // made, so the reading came back empty and the label fell to the bare id. The
-    // reconcile keeps a node it has already built, so nothing else ever asked again:
-    // `§ off-slip` stood where `§ options · If their release comes and goes…` belonged,
-    // for the life of the tab.
-    const thread = threads.get(div.dataset.id);
-    const said = thread && threadAnchorLabel(thread, placedAt, outline);
-    const quote = div.querySelector(".lf-quote");
-    // A quote selected from the run heading can be built before the final grouping
-    // pass has omitted that heading. Reconcile absence as well as changed words so the
-    // temporary duplicate does not become a kept node for the life of the tab.
-    if (thread && !said) {
-      const head = quote?.closest(".lf-thread-head");
-      quote?.remove();
-      if (head && !head.childElementCount) head.remove();
-      continue;
-    }
-    if (!quote) continue;
-    const label = quote.querySelector(":scope > .lf-quote-label");
-    if (said && label.textContent !== said) label.textContent = said;
-    // A pending card can keep its browser-minted id for the one reconciliation that
-    // adopts the server's event. Its already-painted quote remains valid until that
-    // pass renames or removes the card; there is no current thread to repaint it from.
-    if (!thread) continue;
-    const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
-    const outdated = anchored && placedAt(div.dataset.id)?.status === "outdated";
-    let status = quote.querySelector(":scope > .lf-anchor-status");
-    if (outdated && !status) {
-      status = el("span", "lf-anchor-status", "Outdated");
-      quote.append(status);
-    } else if (!outdated) status?.remove();
-    if (!anchored) {
-      quote.classList.remove("detached");
-      quote.removeAttribute("aria-disabled");
-      quote.removeAttribute("role");
-      quote.removeAttribute("tabindex");
-      quote.removeAttribute("title");
-      continue;
-    }
-    quote.tabIndex = 0;
-    quote.setAttribute("role", "button");
-    // Resolved threads deliberately carry no mark, but retain the placement their
-    // folded quote can return to. One reading owns visual, assistive, keyboard, and
-    // pointer availability so the same quote never becomes a pointer-only action.
-    const found =
-      !thread.detached_from &&
-      (isMarked(div.dataset.id) || Boolean(placedAt(div.dataset.id)));
-    quote.classList.toggle("detached", !found);
-    quote.setAttribute("aria-disabled", String(!found));
-    quote.title = found
-      ? outdated
-        ? "This comment refers to an earlier data revision"
-        : "Jump to this passage"
-      : thread.detached_from
-        ? "This passage is no longer in the version you're viewing"
-        : "This passage can't be identified in the version you're viewing";
-  }
-  paintKeys();
-}
-
-// A kept node may still be moved by a later reconcile, and reinsertion restarts CSS
-// animations — so the class comes off the moment its animation has run. A node grown
-// while its list was off-screen never ran one; the panelOpen gate above is what keeps
-// that replay from greeting the panel's next open.
-// Wired once the chrome is mounted (leaf.js): the list is the panel's.
-export function wireThreadCards() {
-  threadsBox.addEventListener("animationend", (ev) =>
-    ev.target.classList.remove("grow"),
+export function threadReading(
+  thread,
+  surface,
+  commands,
+  { interactions, revision, visible = true, grow = false, outline = null },
+) {
+  const panel = surface === "panel";
+  const resolved = Boolean(thread.resolved);
+  const pending = pendingSettlement(
+    commands.settlement.pendingEntries(),
+    thread.root.id,
   );
+  const kind = resolved ? "unresolve" : "resolve";
+  const word = resolved ? "Reopen" : "Resolve";
+  const label =
+    pending?.event.kind === kind
+      ? resolved
+        ? "Reopening…"
+        : "Resolving thread…"
+      : resolved
+        ? word
+        : "Resolve thread";
+  return Object.freeze({
+    key: threadKey(thread),
+    id: thread.root.id,
+    attempt: thread.root.attempt ?? null,
+    surface,
+    visible,
+    grow,
+    folding: false,
+    quote: panel
+      ? quoteReading(thread, commands.anchors, outline ?? pageOutline())
+      : null,
+    resolved,
+    resolvedBy:
+      thread.resolved?.author === "claude"
+        ? `✓ Resolved by ${thread.resolved.agent || "Agent"}`
+        : panel
+          ? ""
+          : "✓ Resolved",
+    settlement: Object.freeze({ kind, word, label, pending: Boolean(pending) }),
+    reply: !resolved && (panel || thread.root.response?.kind !== "version"),
+    messages: Object.freeze(
+      turns(thread).map((message) =>
+        messageReading(message, {
+          panel,
+          receipts: messageReceipts(
+            thread,
+            message,
+            panel ? messageWidgetIds(message) : [],
+            interactions,
+            revision,
+          ),
+          reactions: reactionReading(thread, message, panel || surface === "outlet"),
+        }),
+      ),
+    ),
+  });
+}
+
+export class ThreadView {
+  #commands;
+  #model = null;
+  #messages = new Map();
+  #reply = null;
+  #summaryResolved = null;
+  #keys = new WeakSet();
+  #settlements = new Map();
+  #growing = false;
+
+  constructor(surface, commands) {
+    this.#commands = commands;
+    this.node = document.createElement(surface === "outlet" ? "details" : "div");
+    this.node.tabIndex = -1;
+    this.node.addEventListener("animationend", () => {
+      this.#growing = false;
+      this.node.classList.remove("grow");
+    });
+  }
+
+  get model() {
+    return this.#model;
+  }
+
+  present(model) {
+    const prior = this.#model;
+    const standing = focused();
+    const heldFocus = this.node.contains(standing);
+    this.#model = model;
+    const panel = model.surface === "panel";
+    const hiding = !model.visible && !model.folding && !this.node.hidden;
+    if (hiding) this.retire();
+    this.node.hidden = !model.visible && !model.folding;
+    this.#growing ||= !prior && model.grow;
+    this.node.classList.toggle("lf-going", model.folding);
+    this.node.classList.toggle("lf-thread", panel && !model.folding);
+    this.node.classList.toggle("grow", this.#growing && !model.folding);
+    if (!panel) {
+      this.node.classList.add("lf-conversation-thread", "lf-ui");
+      this.node.dataset.lfGen = "1";
+      this.node.dataset.lfOffer = "";
+    }
+    this.node.inert = model.folding;
+    this.node.setAttribute(panel ? "data-id" : "data-thread", model.id);
+    this.node.dataset.resolved = String(model.resolved);
+    if (model.attempt) this.node.dataset.attempt = model.attempt;
+    else delete this.node.dataset.attempt;
+    if (model.surface === "outlet" && this.#summaryResolved !== model.resolved) {
+      this.node.open = !model.resolved;
+      this.#summaryResolved = model.resolved;
+    }
+    const wanted = new Set(model.messages.map((message) => message.key));
+    for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
+    const messages = model.messages.map((message) => {
+      let view = this.#messages.get(message.key);
+      if (!view)
+        this.#messages.set(message.key, (view = new MessageView(this.#commands)));
+      view.present(message);
+      return { key: message.key, node: view.node };
+    });
+    if (model.reply && !this.#reply) this.#reply = this.#createReply(model);
+    const settlement = this.#settlement(model);
+    render(
+      html`
+        ${
+          model.surface === "outlet"
+            ? html`<summary
+                class="lf-conversation-summary lf-ui"
+                data-lf-gen="1"
+                data-lf-offer=""
+                ?hidden=${!model.resolved}
+              >
+                Resolved · ${model.messages.length}
+                message${model.messages.length === 1 ? "" : "s"}
+              </summary>`
+            : nothing
+        }
+        ${
+          model.quote || !model.resolved
+            ? html`<header class="lf-thread-head">
+                ${
+                  model.quote
+                    ? html`<blockquote
+                        class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
+                        role=${model.quote.anchored ? "button" : nothing}
+                        tabindex=${model.quote.anchored ? "0" : nothing}
+                        aria-disabled=${
+                          model.quote.anchored ? String(!model.quote.found) : nothing
+                        }
+                        title=${model.quote.title ?? nothing}
+                        @click=${this.#returnToQuote}
+                      >
+                        <span class="lf-quote-label">${model.quote.label}</span>
+                        ${
+                          model.quote.outdated
+                            ? html`<span class="lf-anchor-status">Outdated</span>`
+                            : nothing
+                        }
+                      </blockquote>`
+                    : nothing
+                }
+                ${!model.resolved ? settlement : nothing}
+              </header>`
+            : nothing
+        }
+        ${repeat(
+          messages,
+          (message) => message.key,
+          (message) => message.node,
+        )}
+        ${model.reply ? this.#reply.node : nothing}
+        ${
+          model.resolved
+            ? html`<div
+                class=${panel ? "lf-thread-actions" : "lf-conversation-resolved lf-ui"}
+              >
+                <span
+                  >${
+                    model.resolvedBy
+                      ? html`<span class=${panel ? "lf-resolved-by" : nothing}
+                          >${model.resolvedBy}</span
+                        >`
+                      : nothing
+                  }</span
+                >
+                ${settlement}
+              </div>`
+            : nothing
+        }
+      `,
+      this.node,
+    );
+    this.#wireKeys();
+    if (heldFocus && !this.node.contains(standing)) {
+      if (!panel)
+        this.#commands.landInConversation(
+          this.node.querySelector(SAY_BOX) ?? this.node,
+        );
+    }
+    return this.node;
+  }
+
+  #settlement(model) {
+    const state = model.settlement;
+    const reopen = state.kind === "unresolve";
+    let button = this.#settlements.get(state.kind);
+    if (!button) {
+      button = offer(
+        "button",
+        reopen
+          ? "lf-btn lf-reopen lf-thread-action"
+          : "lf-btn lf-resolve lf-icon-action",
+      );
+      button.type = "button";
+      button.onclick = this.#settle;
+      this.#settlements.set(state.kind, button);
+    }
+    button.setAttribute("aria-disabled", String(state.pending || model.folding));
+    button.setAttribute("aria-busy", String(state.pending && !model.folding));
+    if (!reopen) {
+      const label = model.folding ? "Resolved" : state.label;
+      button.setAttribute("aria-label", label);
+      button.title = label;
+    }
+    render(reopen ? state.label : iconTemplate("check", "lf-action-icon"), button);
+    return button;
+  }
+
+  #settle = () => {
+    const model = this.#model;
+    if (model.folding) return;
+    void settleThread({
+      id: () => this.#model.id,
+      resolved: model.resolved,
+      prepareLanding:
+        model.surface === "panel" ? () => this.#prepareLanding(model.resolved) : null,
+      ...this.#commands.settlement,
+    }).catch(() => {});
+  };
+
+  #returnToQuote = (event) => {
+    const model = this.#model;
+    if (!model.quote?.anchored || !model.quote.found) return;
+    if (event.detail !== 0 && reachedForWords(event.currentTarget)) return;
+    const travel = this.#commands.travel;
+    if (travel.panelCovers()) travel.setPanel(false);
+    travel.scrollToThread(model.id, {
+      land: () => travel.focusSurface(this.#model.id),
+    });
+  };
+
+  #wireKeys() {
+    const quote = this.node.querySelector(":scope > .lf-thread-head > .lf-quote");
+    if (quote && !this.#keys.has(quote)) {
+      this.#keys.add(quote);
+      keys(quote, "On a comment's quoted passage", [
+        {
+          id: "passage.return",
+          keys: PRESS,
+          does: "Return to the quoted passage on the page",
+          line: "return to the passage",
+          when: () => Boolean(this.#model.quote?.found),
+          run: () => quote.click(),
+        },
+      ]);
+    }
+    const button = this.node.querySelector(
+      ":scope > .lf-thread-head > .lf-resolve, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
+    );
+    if (button && !this.#keys.has(button)) {
+      this.#keys.add(button);
+      const reopen = this.#model.resolved;
+      const word = reopen ? "Reopen" : "Resolve";
+      keys(button, `On a thread's ${word} button`, [
+        {
+          id: reopen ? "thread.reopen" : "thread.resolve",
+          keys: PRESS,
+          does: `${word} it`,
+          line: word.toLowerCase(),
+          when: () =>
+            !pendingSettlement(
+              this.#commands.settlement.pendingEntries(),
+              this.#model.id,
+            ),
+          run: () => button.click(),
+        },
+      ]);
+      if (reopen)
+        measure(button, () =>
+          requestAnimationFrame(() =>
+            measure(button, () => reserve(button, ["Reopen", "Reopening…"])),
+          ),
+        );
+    }
+  }
+
+  #createReply(model) {
+    const panel = model.surface === "panel";
+    const row = offer("div", panel ? "lf-compose" : "lf-say");
+    const compact = model.surface === "margin";
+    const disclosure = compact
+      ? offer("button", "lf-btn lf-reply-disclosure", "Reply")
+      : null;
+    const input = offer("textarea");
+    input.name = "reply";
+    const send = el(
+      "button",
+      panel ? "lf-btn primary lf-thread-send" : "lf-btn primary",
+      "Send",
+    );
+    if (disclosure) row.append(disclosure);
+    row.append(input, send);
+    const hasDraft = () => loadDraft("reply:" + model.key) !== null;
+    const reveal = () => {
+      if (!disclosure) return;
+      row.classList.remove("lf-reply-collapsed");
+      disclosure.hidden = true;
+      disclosure.setAttribute("aria-expanded", "true");
+    };
+    const collapse = () => {
+      if (!disclosure || hasDraft()) return;
+      row.classList.add("lf-reply-collapsed");
+      disclosure.hidden = false;
+      disclosure.setAttribute("aria-expanded", "false");
+    };
+    if (disclosure) {
+      input.lfRevealReply = reveal;
+      input.lfCollapseReply = collapse;
+      disclosure.onclick = () => this.#commands.landInConversation(input);
+    }
+    const lifetime = wireReply(
+      { root: { id: model.id, attempt: model.attempt } },
+      input,
+      send,
+      {
+        liveId: () => this.#model.id,
+        ...this.#commands.reply,
+        onDraftLoaded: () => {
+          if (hasDraft()) reveal();
+        },
+      },
+    );
+    collapse();
+    return { node: row, dispose: lifetime.dispose };
+  }
+
+  #prepareLanding(reopen) {
+    const { travel, openThreads } = this.#commands;
+    const mayLand = travel.retainPanelLanding(this.node);
+    const shownCard = () =>
+      !this.node.hidden && this.node.isConnected ? this.node : null;
+    let mayRestore = () => false;
+    if (!reopen) {
+      const at = openThreads().indexOf(this.node);
+      return {
+        optimistic: () => {
+          if (!mayLand()) return false;
+          const kept = openThreads();
+          const destination = kept[at] ?? kept[at - 1] ?? this.#commands.listRoot;
+          destination.focus({ preventScroll: true });
+          mayRestore = travel.retainPanelLanding(destination);
+          return true;
+        },
+        refused: () => {
+          if (mayRestore()) shownCard()?.focus({ preventScroll: true });
+        },
+      };
+    }
+    const narrowing = travel.retainNarrowing();
+    return {
+      optimistic: async () => {
+        if (!mayLand()) return false;
+        const arriving = travel.showThread(this.#model.id);
+        narrowing.replaced();
+        if (!(await arriving)) return false;
+        const destination = shownCard();
+        if (destination) mayRestore = travel.retainPanelLanding(destination);
+        return Boolean(destination);
+      },
+      refused: async () => {
+        const restoreFocus = mayRestore();
+        await narrowing.restore(async () => {
+          if (restoreFocus)
+            await travel.showThread(this.#model.id, { focus: "thread" });
+        });
+      },
+    };
+  }
+
+  commit() {
+    const wanted = new Set(this.#model.messages.map((message) => message.key));
+    for (const [key, view] of this.#messages) {
+      if (wanted.has(key)) view.commit();
+      else {
+        view.retire();
+        this.#messages.delete(key);
+      }
+    }
+    if (!this.#model.reply && this.#reply) {
+      this.#reply.dispose();
+      this.#reply = null;
+    }
+  }
+
+  retire() {
+    for (const view of this.#messages.values()) view.retire();
+  }
+
+  dispose() {
+    this.retire();
+    this.#reply?.dispose();
+    this.#reply = null;
+  }
 }

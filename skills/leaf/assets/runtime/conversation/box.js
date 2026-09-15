@@ -5,6 +5,7 @@ import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";
 import { offer, quoted } from "../widget-elements.js";
 import { notice } from "../notifications.js";
+import { mountFirstMessage } from "./inline.js";
 
 export const conversationBox = (
   el,
@@ -68,6 +69,6 @@ export const conversationBox = (
     sync.load(value ?? "");
     onDraftChanged();
   });
-  box.append(row);
+  mountFirstMessage(box, row);
   return box;
 };

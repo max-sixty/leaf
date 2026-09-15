@@ -4,10 +4,18 @@ import json
 
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_cases_interaction import LIVE_READING, LIVE_V1, LIVE_V2, live_url
+from render_cases_interaction import (
+    LIVE_READING,
+    LIVE_V1,
+    LIVE_V2,
+    SEATED_ASK_ENTRY,
+    SEATED_ASK_MODULE,
+    live_url,
+)
 from render_harness import (
     BOTH_STAMPS,
     holding,
+    leaf_page,
     open_page,
     panel_settled,
     round_trip,
@@ -941,6 +949,195 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
     page.close()
 
 
+def test_a_failed_list_candidate_restores_its_complete_committed_reading(
+    browser, serve
+):
+    """Rows, count, narrowing, and native islands roll back as one checkpoint."""
+    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ASK_ENTRY}
+    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ASK_MODULE}
+    url = serve(
+        leaf_page(
+            "Conversation rollback",
+            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+        ),
+        layer_registry=layer,
+        layer_widgets=widgets,
+    )
+    kept = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "kept-conversation",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "proposal"},
+            "text": "Keep this thread and its editor.",
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    inline = page.locator(
+        f'#proposal > .lf-conversation > [data-thread="{kept["id"]}"]'
+    )
+    editor = inline.locator(":scope > .lf-say textarea")
+    editor.fill("draft survives sibling rollback")
+    editor.evaluate("node => node.setSelectionRange(6, 14, 'backward')")
+    expect(editor).to_be_focused()
+
+    page.evaluate(
+        """async id => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          let release;
+          const promise = new Promise(done => { release = done; });
+          window.threadPreparation = {promise, release};
+          window.threadPreparationSettled = false;
+          promise.then(() => { window.threadPreparationSettled = true; });
+          window.__heldLocalPresentations = new Map([['thread-held', promise]]);
+          window.readLeafPresentation = presentation.readApplicationPresentation;
+          window.keptPanel = document.querySelector(
+            `.lf-thread[data-id="${id}"]`
+          );
+          window.keptInline = document.querySelector(
+            `#proposal > .lf-conversation > [data-thread="${id}"]`
+          );
+          window.keptEditor = keptInline.querySelector(':scope > .lf-say textarea');
+
+          const list = document.querySelector('leaf-thread-list');
+          const present = list.present.bind(list);
+          let failures = 2;
+          let releaseRetry;
+          const retry = new Promise(done => { releaseRetry = done; });
+          window.releaseConversationRetry = releaseRetry;
+          window.conversationRetryReleased = false;
+          list.present = async model => {
+            const candidate = model.rows.some(
+              row => row.kind === 'thread' &&
+                row.descriptor.id === 'held-widget-thread'
+            );
+            if (!candidate) return present(model);
+            if (failures > 0) {
+              await present(model);
+              failures -= 1;
+              window.completeListFailures = 2 - failures;
+              throw new Error('injected complete-list failure');
+            }
+            if (!window.conversationRetryReleased) {
+              window.conversationRetryHeld = true;
+              await retry;
+            }
+            return present(model);
+          };
+        }""",
+        kept["id"],
+    )
+
+    # Each failed attempt reaches Lit's updated callback, so the candidate count and
+    # narrowing have painted before the list owner restores its committed reading.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "held-widget-thread",
+            "author": "user",
+            "revision": 1,
+            "text": "Prepare the frozen widget.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "id": "held-widget-reply",
+            "author": "claude",
+            "revision": 1,
+            "parent": "held-widget-thread",
+            "text": "This preparation remains held.",
+            "markup": '<lf-local id="thread-held" choice="idle"></lf-local>',
+        },
+    )
+    page.wait_for_function(
+        """() => window.completeListFailures === 2 &&
+          window.conversationRetryHeld === true""",
+        timeout=5000,
+    )
+
+    assert page.evaluate("() => !window.threadPreparationSettled")
+    expect(page.locator("#thread-held")).to_have_count(0)
+    expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(0)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
+    assert page.evaluate(
+        """id => {
+          const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
+          const inline = document.querySelector(
+            `#proposal > .lf-conversation > [data-thread="${id}"]`
+          );
+          return panel === window.keptPanel && inline === window.keptInline &&
+            inline.querySelector(':scope > .lf-say textarea') === window.keptEditor;
+        }""",
+        kept["id"],
+    ), "list retention replaced a committed panel card, seat, or editor"
+    expect(editor).to_have_value("draft survives sibling rollback")
+    expect(editor).to_be_focused()
+    assert editor.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [6, 14, "backward"]
+    assert "conversation" in page.evaluate("window.readLeafPresentation().pending")
+    assert take_browser_errors(page) == [
+        (
+            "leaf: Presentation failed: Thread list presentation retry failed: "
+            "injected complete-list failure; injected complete-list failure"
+        ),
+        "leaf: State presentation failed: Thread list presentation retry failed",
+    ]
+
+    # The retry paints the whole candidate again and then reaches the independently
+    # held frozen-widget preparation. Only that complete reading may commit.
+    page.evaluate(
+        """() => {
+          window.conversationRetryReleased = true;
+          window.releaseConversationRetry();
+        }"""
+    )
+    page.wait_for_function(
+        """() => document.querySelector('#thread-held') &&
+          document.querySelector('.lf-threads-toggle')?.textContent === 'Threads (2)' &&
+          window.readLeafPresentation().pending.includes(
+            'widget:thread-held:preparation'
+          )""",
+        timeout=5000,
+    )
+    page.evaluate("window.threadPreparation.release('prepared')")
+    page.wait_for_function("() => window.threadPreparationSettled === true")
+    page.wait_for_function(
+        "() => !window.readLeafPresentation().pending.includes('conversation')",
+        timeout=5000,
+    )
+    expect(page.locator("#thread-held")).to_have_count(1)
+    expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(1)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("2 open threads")
+    assert page.evaluate(
+        """id => {
+          const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
+          const inline = document.querySelector(
+            `#proposal > .lf-conversation > [data-thread="${id}"]`
+          );
+          return panel === window.keptPanel && inline === window.keptInline &&
+            inline.querySelector(':scope > .lf-say textarea') === window.keptEditor;
+        }""",
+        kept["id"],
+    ), "successful list retry replaced a committed panel card, seat, or editor"
+    expect(editor).to_have_value("draft survives sibling rollback")
+    assert take_browser_errors(page) == [
+        "leaf: read failed: Thread list presentation retry failed"
+    ]
+    page.close()
+
+
 def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
     """The existing conversation ticket includes Lit ordering without replacing a card."""
     url = serve(LIVE_V1)
@@ -970,15 +1167,17 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
           );
           const list = document.querySelector('leaf-thread-list');
           const schedule = list.scheduleUpdate.bind(list);
+          const perform = list.performUpdate.bind(list);
           let release;
           const held = new Promise(resolve => { release = resolve; });
-          let armed = true;
-          list.scheduleUpdate = () => {
-            if (!armed) return schedule();
-            armed = false;
-            return held.then(schedule);
+          window.threadListReleased = false;
+          list.scheduleUpdate = () => held.then(schedule);
+          list.performUpdate = (...args) =>
+            window.threadListReleased ? perform(...args) : undefined;
+          window.releaseThreadList = () => {
+            window.threadListReleased = true;
+            release();
           };
-          window.releaseThreadList = release;
           window.readLeafPresentation = presentation.readApplicationPresentation;
           window.standingThread = document.querySelector(
             '.lf-thread[data-id="standing-thread"]'

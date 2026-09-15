@@ -29,8 +29,8 @@
 
    Token rendering and per-press submission helpers are passive exports. Boot
    constructs the reaction controller with auxiliary-surface, composer, and travel
-   capabilities; conversation views receive its surface builder as a semantic
-   callback. mount installs the mode teardown listeners after composition. */
+   capabilities; conversation views register their template-owned trigger and palette.
+   mount installs the mode teardown listeners after composition. */
 
 import { registerMarginContribution } from "./margin-entries.js";
 import { runtime } from "./context.js";
@@ -49,7 +49,6 @@ import { allButCommandReference } from "./keyboard/register.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./conversation/messages.js";
-import { iconElement } from "./icons.js";
 import { reactionsAt } from "./conversation/model.js";
 import { allThreads } from "./conversation/state.js";
 import { watchProjection } from "./projection-watch.js";
@@ -102,7 +101,6 @@ export function createReactionController({
   standingElement,
 }) {
   const surfaces = new WeakMap();
-  let surfaceOrdinal = 0;
   const marginSurface = Symbol("margin reactions");
   let marginOffer = null;
   let marginTarget = null;
@@ -110,27 +108,14 @@ export function createReactionController({
   let pageCommands = null;
   const marginReactionKey = (name, ordinal) =>
     `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
-  function buildReactSurface(surface, pressed, { label, target, triggerLabel = null }) {
-    if (!reactionTokens().length) return surface;
-    surface.classList.add("lf-react-surface");
-    const trigger = offer("button", "lf-react-trigger");
-    trigger.append(iconElement("reaction", "lf-react-trigger-icon"));
-    trigger.setAttribute("aria-expanded", "false");
-    const showLabel = triggerLabel ?? "Add reaction";
-    trigger.setAttribute("aria-label", showLabel);
-    trigger.title = showLabel;
-    const palette = el("span", "lf-react-palette");
-    palette.id = `lf-reactions-${++surfaceOrdinal}`;
-    palette.setAttribute("role", "group");
-    palette.setAttribute("aria-label", label);
-    trigger.setAttribute("aria-controls", palette.id);
-    for (const [name, entry] of reactionTokens())
-      palette.append(reactionChip(name, entry, pressed));
-    surface.append(trigger, palette);
+  function registerReactSurface(surface, { palette, target, trigger }) {
     surfaces.set(surface, { palette, target, trigger });
-    trigger.onclick = () =>
-      setReact(!(reactArmed && reactSurface === surface), { surface });
-    return surface;
+    return {
+      toggle: () => setReact(!(reactArmed && reactSurface === surface), { surface }),
+      close: () => {
+        if (reactSurface === surface) setReact(false);
+      },
+    };
   }
 
   function buildReactBar(commands) {
@@ -549,7 +534,7 @@ export function createReactionController({
     });
   }
   return {
-    buildReactSurface,
+    registerReactSurface,
     buildReactBar,
     hasReactionTarget,
     syncReactLayout,

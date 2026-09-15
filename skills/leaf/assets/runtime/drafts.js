@@ -15,9 +15,9 @@
    action.
 
    One context has one shared generation. `watchDraft` mirrors storage changes into
-   every connected view. The DOM's listener cleanup is the index: a watcher stops when
-   its box is disconnected, so panel reconciliation does not maintain a parallel map of
-   live inputs.
+   every live view. Ordinary disconnected inputs retire their subscription. Retained
+   reply editors keep mirroring through candidate detachment; their presentation owner
+   disposes the subscription when removal commits.
 
    A draft generation stores `{text, attempt, base, payload?}` while active and
    `{attempt, base, settled: true}` after settlement. Its attempt is minted when an edit
@@ -403,17 +403,15 @@ addEventListener("storage", (ev) => {
 // box already holds alone, because writing .value on a focused box moves the caret to
 // the end. The box grows to fit either way, sizing being the stylesheet's (wireInput).
 //
-// A box out of the document drops its view at the next word it would have shown, rather
-// than at the moment it leaves — the one box that ever leaves is a reply box going with
-// its resolved thread, and asking the panel to say so would be the index this design is
-// for not keeping. What the check has to hold is that such a box never renders and never
-// doubles the live one: a thread a retraction reopens is a second box on the same
-// context, and the one that is still in the document is the one that paints.
-export function mirrorDraft(ta, sync, ctx) {
+// A retained editor remains a draft view during candidate detachment and receives
+// concurrent draft changes before rollback reconnects it. Its owner explicitly disposes
+// that lifetime on committed removal. Ordinary inputs retire on disconnection.
+export function mirrorDraft(ta, sync, ctx, { retained = false } = {}) {
   const off = watchDraft(ctx, (value) => {
-    if (!ta.isConnected) return off();
+    if (!retained && !ta.isConnected) return off();
     sync.load(value ?? "");
   });
+  return off;
 }
 // Reply drafts are never pruned. A thread resolving is not a discard: another
 // tab's Resolve, or this tab accepting a suggestion whose action `resolves`,

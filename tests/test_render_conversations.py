@@ -49,6 +49,7 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     RENDERED,
+    CutOff,
     holding,
     leaf_page,
     open_page,
@@ -76,7 +77,8 @@ def hold_visible_thread_presentation(page, thread_id):
           let used = false;
           list.present = (model) => {
             const reveals = model.rows.some(row =>
-              row.kind === 'thread' && row.thread.root.id === threadId && row.visible);
+              row.kind === 'thread' && row.descriptor.id === threadId &&
+              row.descriptor.visible);
             if (!reveals || used) return present(model);
             used = true;
             window.visibleThreadPresentationHeld = true;
@@ -88,7 +90,13 @@ def hold_visible_thread_presentation(page, thread_id):
     )
 
 
-def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, request):
+def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, request):
+    """One retained message gains its durable prose and validated authored island.
+
+    The stream placeholder exists before the final event, so its owner must not freeze
+    the absence of markup at construction. A later prose edit keeps both that owner and
+    the island the durable reply introduced.
+    """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
     claim = record_claim(
@@ -121,12 +129,22 @@ def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, re
     panel_settled(page)
     message = page.locator(f'.lf-msg[data-attempt="{attempt}"]')
     expect(message.locator(".lf-msg-text")).to_be_empty()
+    page.evaluate(
+        "attempt => { window.__streamMessage = document.querySelector("
+        '`.lf-msg[data-attempt="${attempt}"]`); }',
+        attempt,
+    )
 
     reply = conversation_model.cmd_reply(
         serve.page_dir,
         root,
         "The complete answer.",
-        "",
+        (
+            '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
+            '<lf-options id="stream-reply-choice" choose>'
+            '<lf-option id="stream-reply-now">Use it now</lf-option>'
+            "</lf-options></lf-ask>"
+        ),
         for_event=root,
         attempt=attempt,
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -136,6 +154,30 @@ def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, re
 
     expect(message).to_have_attribute("data-mid", reply["id"])
     expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
+    expect(message.locator("#stream-reply-choice")).to_have_count(1)
+    page.evaluate(
+        "() => { window.__streamWidget = document.querySelector("
+        "'#stream-reply-choice'); }"
+    )
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "claude",
+            "agent": "Codex",
+            "session": "codex-thread",
+            "message": reply["id"],
+            "text": "The complete edited answer.",
+        },
+    )
+    told(page)
+    expect(message.locator(".lf-msg-text")).to_have_text("The complete edited answer.")
+    assert page.evaluate(
+        f"""() => window.__streamMessage === document.querySelector(
+          '.lf-msg[data-mid="{reply["id"]}"]')
+          && window.__streamWidget === document.querySelector('#stream-reply-choice')"""
+    ), "the durable reply or its authored island was replaced after the edit"
 
 
 @pytest.mark.parametrize("resolved", [False, True])
@@ -251,7 +293,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_reader_focus(browser, serve):
         f'#jobs .lf-conversation-thread[data-thread="{root}"] .lf-conversation-open'
     ).click()
     page.wait_for_function(
-        "window.visibleThreadPresentationHeld === true", timeout=3000
+        "() => window.visibleThreadPresentationHeld === true", timeout=3000
     )
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
@@ -660,6 +702,61 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     expect(inline.locator("textarea")).to_be_focused()
 
 
+def test_a_poll_accounted_settlement_repaints_before_its_post_response(
+    held_events, serve
+):
+    """A poll may prove acceptance while the original POST response remains held.
+
+    The poll paints and accounts the receipt first. Delivery then retires the already
+    accounted ledger entry, which must invalidate the unchanged conversation reading;
+    otherwise every mirrored settlement control stays busy until an unrelated clock
+    tick or state read.
+    """
+    browser, held = held_events
+    url = serve(SEATED_QUESTION_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "Account this resolution from the complete reading.",
+        },
+    )["id"]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    panel = page.locator(f'.lf-thread[data-id="{root}"]')
+
+    with page.expect_request("**/api/event"):
+        inline.get_by_role("button", name="Resolve thread", exact=True).click()
+    holding(page, held, 1, "the resolution whose response remains held")
+    pending = inline.get_by_role("button", name="Reopen", exact=True)
+    expect(pending).to_be_disabled()
+    expect(pending).to_have_attribute("aria-busy", "true")
+
+    # Let exactly the news-triggered state read through. Its receipt accounts the
+    # gesture while the page's original POST still has no response, and refusing later
+    # reads prevents another poll from hiding a missing local invalidation.
+    reads = CutOff(lets_through=1).hold(page)
+    route = held.pop()
+    accepted = route.fetch()
+    told(page)
+    reads.cut()
+    for settled in (
+        inline.get_by_role("button", name="Reopen", exact=True),
+        panel.locator(":scope > .lf-thread-actions > .lf-reopen"),
+    ):
+        expect(settled).to_be_enabled(timeout=1000)
+        expect(settled).not_to_have_attribute("aria-busy", "true", timeout=1000)
+
+    route.fulfill(response=accepted)
+    page.unroute("**/api/event")
+    round_trip(page)
+
+
 def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     """A send is the one gesture that produces a thread, so it gets the same answer a
     click on a page mark does: the panel scrolls the new thread into its scrollport.
@@ -1062,6 +1159,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     ta.type("half a thought")
     page.evaluate("""() => {
         document.activeElement.setSelectionRange(4, 4);
+        window.__heldEditor = document.activeElement;
         window.__probe = document.activeElement.closest('.lf-thread');
     }""")
 
@@ -1084,6 +1182,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     assert page.evaluate("""() => {
         const ta = document.activeElement;
         return ta.tagName === 'TEXTAREA'
+            && ta === window.__heldEditor
             && ta.closest('.lf-thread') === window.__probe
             && window.__probe === document.querySelector('.lf-threads > .lf-thread')
             && ta.value === 'half a thought'
@@ -1203,7 +1302,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
 
 
 def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve):
-    """A transient Lit fault cannot mix a candidate card with old list readings."""
+    """A failed child paint restores the retained card before retrying its reading."""
     url = serve(LONG_PAGE, comments=2)
     roots = [
         event["id"]
@@ -1218,32 +1317,58 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 resolved thread")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
     page.evaluate(
         """async (id) => {
-          const application = await window.__lfRuntimeImport('/runtime/application.js');
           const presentation = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js'
           );
+          const {ThreadView} = await window.__lfRuntimeImport(
+            '/runtime/conversation/thread-card.js'
+          );
           const list = document.querySelector('leaf-thread-list');
-          const render = list.render.bind(list);
+          const presentCard = ThreadView.prototype.present;
           let armed = true;
-          list.render = () => {
-            if (armed) {
+          ThreadView.prototype.present = function(model) {
+            const node = presentCard.call(this, model);
+            if (armed && model.id === id && (model.folding || model.resolved)) {
               armed = false;
-              window.threadListFailed = true;
-              throw new Error('injected thread-list failure');
+              window.threadChildFailed = true;
+              throw new Error('injected thread-card failure');
             }
-            return render();
+            return node;
           };
-          window.threadListApplication = application;
+          const presentList = list.present.bind(list);
+          let release;
+          const held = new Promise(done => { release = done; });
+          list.present = async model => {
+            const candidate = model.rows.find(row =>
+              row.kind === 'thread' && row.descriptor.id === id)?.descriptor;
+            if (window.threadChildFailed && candidate?.resolved &&
+                !window.threadRetryReleased) {
+              window.threadRetryHeld = true;
+              await held;
+            }
+            return presentList(model);
+          };
+          window.releaseThreadRetry = () => {
+            window.threadRetryReleased = true;
+            release();
+          };
           window.threadListPresentation = presentation;
           window.committedThread = document.querySelector(
             `.lf-thread[data-id="${id}"]`
+          );
+          window.committedMessage = committedThread.querySelector(
+            `:scope > .lf-msg[data-mid="${id}"]`
+          );
+          window.committedEditor = committedThread.querySelector(
+            ':scope > .lf-compose textarea'
+          );
+          window.committedResolve = committedThread.querySelector(
+            ':scope > .lf-thread-head > .lf-resolve'
           );
         }""",
         root,
@@ -1256,44 +1381,50 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         root,
     )
     page.wait_for_function(
-        "() => threadListFailed && "
-        "!threadListPresentation.readApplicationPresentation().pending.length",
+        "() => window.threadChildFailed && window.threadRetryHeld && "
+        "window.threadListPresentation.readApplicationPresentation().pending"
+        ".includes('conversation')",
         timeout=5000,
     )
 
     recovered = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(recovered).to_have_count(1)
     expect(recovered).to_be_visible()
-    expect(recovered.locator("textarea")).to_have_count(0)
-    assert not page.evaluate(
-        'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
-        "=== committedThread",
+    expect(recovered).to_have_attribute("data-resolved", "false")
+    expect(recovered.locator("textarea")).to_have_count(1)
+    expect(recovered.locator(".lf-reopen")).to_have_count(0)
+    assert page.evaluate(
+        """id => {
+          const thread = document.querySelector(`.lf-thread[data-id="${id}"]`);
+          return thread === window.committedThread
+            && thread.querySelector(`:scope > .lf-msg[data-mid="${id}"]`) === window.committedMessage
+            && thread.querySelector(':scope > .lf-compose textarea') === window.committedEditor
+            && thread.querySelector(':scope > .lf-thread-head > .lf-resolve') === window.committedResolve;
+        }""",
         root,
-    )
+    ), "rollback replaced a retained card, message, editor, or control"
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("2 resolved threads")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
-    assert take_browser_errors(page) == [
-        "leaf: Presentation failed: injected thread-list failure"
-    ]
-    page.evaluate(
-        "id => { window.recoveredThread = document.querySelector("
-        '`.lf-thread[data-id="${id}"]`); }',
-        root,
-    )
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
 
-    page.evaluate("threadListApplication.refreshConversation()")
-    expect(recovered).to_be_visible()
+    page.evaluate("window.releaseThreadRetry()")
+    page.wait_for_function(
+        "() => !window.threadListPresentation.readApplicationPresentation().pending.length"
+    )
+    expect(recovered).to_be_hidden()
     expect(recovered).to_have_attribute("data-resolved", "true")
     expect(recovered.locator("textarea")).to_have_count(0)
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("2 resolved threads")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    expect(recovered.locator(".lf-reopen")).to_have_count(1)
     assert page.evaluate(
         'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
-        "=== recoveredThread",
+        "=== window.committedThread",
         root,
-    )
+    ), "successful retry replaced the retained card"
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("0 open threads")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    assert take_browser_errors(page) == [
+        "leaf: Presentation failed: injected thread-card failure"
+    ]
     held_events[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -1368,7 +1499,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
           let failures = 2;
           list.render = () => {
             const row = list.model.rows.find(({kind}) => kind === 'thread');
-            if (row?.visible && failures-- > 0)
+            if (row?.descriptor.visible && failures-- > 0)
               throw new Error('deliberate reveal failure');
             return render();
           };

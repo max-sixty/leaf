@@ -299,8 +299,7 @@ export function mountApplication(dependencies) {
   };
   const settlementView = { pendingEntries: ledger.snapshot, setResolved };
   const reactionView = {
-    buildSurface: dependencies.buildReactSurface,
-    closeReactionMode: dependencies.closeReactionMode,
+    registerSurface: dependencies.registerReactSurface,
     currentRevision: () => runtime.currentRevision,
     sendReaction: (event, chip, where) =>
       dependencies.sendReaction(event, chip, where, post),
@@ -333,7 +332,6 @@ export function mountApplication(dependencies) {
   };
   const listView = {
     card: cardView,
-    closeReactionMode: reactionView.closeReactionMode,
     isMarked: dependencies.anchorPaint.isMarked,
     placedAt: dependencies.anchorPaint.placedAt,
     panelIsOpen: dependencies.panelIsOpen,
@@ -374,9 +372,6 @@ export function mountApplication(dependencies) {
 
   conversation = createConversationPresentation({
     available: dependencies.conversationAvailable ?? true,
-    panelIsOpen: dependencies.panelIsOpen,
-    setThreadCount: dependencies.setThreadCount,
-    onConversationChanged: dependencies.onConversationChanged,
     listView,
     inlineView,
     surfaceView,
@@ -396,7 +391,13 @@ export function mountApplication(dependencies) {
     projection.present(readApplication(), prepared);
   const accountPending = (receipts) => {
     const removed = ledger.account(receipts);
-    if (removed) paintKeys();
+    if (removed) {
+      paintKeys();
+      // Accounting changes generated command availability even when the accepted
+      // conversation itself is unchanged. Reuse the state application's queued
+      // invalidation so every descriptor reads the accounted ledger after this pass.
+      invalidateDom();
+    }
     releasePendingSafely("receipt presentation");
   };
 
@@ -451,12 +452,16 @@ export function mountApplication(dependencies) {
         releasePendingSafely("rejected event presentation");
         await prepared;
       }),
-    settlementChanged: (_entry, accepted) => {
+    settlementChanged: (entry, accepted) => {
       if (accepted) {
         // A poll can account for the attempt before delivery marks its entry answered.
         // Retry after ledger.accept; release itself waits for every owning presentation
         // region before undo and other semantic readers may observe the entry leave.
         releasePendingSafely("accepted event reconciliation");
+        // Poll presentation can account for the attempt before this POST answers.
+        // In that ordering accept() removes it; the same descriptor invalidation
+        // belongs to whichever accounting edge actually retires the ledger record.
+        if (!applicationState.entry(entry.event.attempt)) invalidateDom();
         return;
       }
       paintKeys();
@@ -487,7 +492,6 @@ export function mountApplication(dependencies) {
   const registerThreadSurface = (owner, adapter) =>
     registerSurface(owner, adapter, {
       invalidate: invalidateDom,
-      closeReactionMode: dependencies.closeReactionMode,
       composition: dependencies.compositionSurface,
     });
 
@@ -510,7 +514,6 @@ export function mountApplication(dependencies) {
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     openAsks,
     unansweredAsks,
-    paintAcknowledgments: conversation.paintAcknowledgments,
     pendingApprovals,
     pendingRequests,
     post,

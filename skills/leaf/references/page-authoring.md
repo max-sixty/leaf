@@ -107,6 +107,15 @@ measure and let declared visual surfaces use the room their task needs. A wide c
 can remain part of a scrolling document. Use a workspace when the reader benefits from
 keeping task regions together, rather than merely to obtain more width.
 
+An individual block or section may request a responsive allocation with
+`data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
+uses the standard prose measure, including inside a wider section. `wide` uses the
+shared capped evidence width. `available` uses all room left by the page shell, frames,
+chrome, and occupied margins. The occurrence overrides a widget's package default, so
+`data-width="column"` can deliberately keep a normally wide widget with the prose.
+Use these names on the semantic block itself, including a native `table`, `lf-code`, or
+`lf-diff`; do not reproduce their responsive widths in page CSS.
+
 Show evidence at the scale needed to judge it. For a local change, supply an aligned
 detail view with the complete object available for context; use whole frames when their
 composition is the subject. A fitted thumbnail is an overview, not a substitute for

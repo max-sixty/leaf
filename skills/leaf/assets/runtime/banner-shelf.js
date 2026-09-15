@@ -53,6 +53,7 @@ const ordered = () =>
     (left, right) => left.rank - right.rank || left.sequence - right.sequence,
   );
 const visible = (entry) => entry.present && (!entry.conditional || entry.offered);
+const occupies = (entry) => visible(entry) || (entry.present && entry.reserved);
 
 function rowTemplate() {
   return html`
@@ -93,13 +94,13 @@ function paintControl(entry) {
   entry.control.classList.toggle("lf-news-shown", entry.conditional && entry.offered);
   // These are paint only. The owner's entry is the value read by layout and door
   // decisions; neither class nor style is read back as authority.
-  entry.control.style.display =
-    visible(entry) || (entry.reserved && row.includes(entry)) ? "" : "none";
+  const displayed = row.includes(entry) ? occupies(entry) : visible(entry);
+  entry.control.style.display = displayed ? "" : "none";
   entry.control.style.visibility = visible(entry) ? "" : "hidden";
 }
 
 function paintDoor() {
-  const hasMenu = menu.some(visible);
+  const hasMenu = menu.some(occupies);
   const news = menu.some((entry) => entry.urgent && visible(entry));
   // Keep the native invoker standing until its open popover has closed. A semantic
   // update can retire the last visible item while the reader is inside the frozen
@@ -335,7 +336,7 @@ export function dismissBannerControls() {
 }
 
 function foldable() {
-  const present = row.filter((entry) => visible(entry) || entry.reserved);
+  const present = row.filter(occupies);
   return present.slice(0, Math.max(0, present.length - KEPT));
 }
 
@@ -362,9 +363,11 @@ function refold(focused) {
   // the typed partition before either fold loop decides there is no work to do.
   paint();
 
-  // Permanent overflow is always a prefix. Hand ordinary controls back in reverse
-  // fold order, then take the earliest foldable control until the row fits.
-  for (let back = menu.at(-1); back && !back.alwaysFolded; back = menu.at(-1)) {
+  // Hand ordinary controls back in reverse fold order without assuming the registered
+  // ranks put every permanent-overflow contribution before them. Then take the earliest
+  // foldable control until the row fits.
+  const giveBack = () => menu.findLast((entry) => !entry.alwaysFolded);
+  for (let back = giveBack(); back; back = giveBack()) {
     menu = menu.filter((entry) => entry !== back);
     row.push(back);
     normalizePartition();

@@ -465,6 +465,12 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     approval = page.locator(".lf-signoff")
     expect(approval).to_have_count(1)
     expect(approval).to_be_hidden()
+    expect(approval).to_be_disabled()
+    events_before = len(events_model.read_events(serve.page_dir))
+    approval.evaluate("control => control.click()")
+    assert len(events_model.read_events(serve.page_dir)) == events_before, (
+        "the retained control approved a page that did not declare sign-off"
+    )
     # The Lit-faced native island stays connected for its lifetime, but approval takes
     # the slot beside Threads only where a page asks for one. The visible row is a control
     # short rather than a control longer.
@@ -668,6 +674,16 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
               rank: shelf.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
             });
           }
+          const permanent = document.createElement('button');
+          permanent.className =
+            'lf-ui lf-btn lf-secondary-destination lf-permanent-destination';
+          permanent.textContent = 'Permanent destination';
+          shelf.registerBannerControl({
+            key: 'test-permanent-secondary',
+            control: permanent,
+            rank: shelf.BANNER_CONTROL_RANK.threads + 1,
+            alwaysFolded: true,
+          });
         }"""
     )
     behind = {}
@@ -679,9 +695,12 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     # comparable: below it the status has a line of its own and the controls get the
     # whole width, so a phone row can legitimately hold more of them than a small laptop.
     assert behind[1600] < behind[900], (
-        f"a widening window did not hand controls back to the row: {behind}"
+        "a widening window did not hand controls back past a high-ranked permanent "
+        f"overflow contribution: {behind}"
     )
     # Take the crowd away and the row takes every one of its own back, door and all.
+    # The shelf retains each registered native island in one Lit root; hiding one changes
+    # its presentation, not its identity or connection to the document.
     page.evaluate(
         """async () => {
           const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
@@ -691,7 +710,48 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     resized(page, 1600, 844)
     expect(page.locator(".lf-banner-more")).to_be_hidden()
-    expect(page.locator(".lf-banner-menu")).to_be_empty()
+    expect(page.locator(".lf-banner-menu > *:visible")).to_have_count(0)
+    expect(page.locator(".lf-permanent-destination")).to_be_attached()
+
+    reserved = page.evaluate(
+        """async () => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const control = document.createElement('button');
+          control.className = 'lf-ui lf-btn lf-reserved-destination';
+          control.textContent = 'Reserved destination';
+          control.style.width = '200px';
+          shelf.registerBannerControl({
+            key: 'test-reserved-secondary',
+            control,
+            rank: shelf.BANNER_CONTROL_RANK.threads + 0.5,
+            conditional: true,
+            offered: true,
+            reserved: true,
+          });
+          const identity = control;
+          const offered = control.offsetWidth;
+          shelf.showNews(control, false);
+          await Promise.resolve();
+          const quiet = control.offsetWidth;
+          shelf.showBannerControl(control, false);
+          const retired = control.offsetWidth;
+          shelf.showBannerControl(control, true);
+          const returned = control.offsetWidth;
+          shelf.showBannerControl(control, false);
+          return {
+            offered, quiet, retired, returned,
+            retained: control === identity && control.isConnected,
+          };
+        }"""
+    )
+    assert reserved == {
+        "offered": 200,
+        "quiet": 200,
+        "retired": 0,
+        "returned": 200,
+        "retained": True,
+    }
+    expect(page.locator(".lf-banner-more")).to_be_hidden()
 
     # The covering Threads panel locks the page behind it, and the row is no longer a
     # side door around that lock: a wheel over it reaches the document scrollport, which
@@ -754,6 +814,27 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     assert seen["onTheRow"] or seen["behindTheDoor"], (
         f"the phone banner took its page news out of the reader's sight: {seen}"
     )
+    positions = pinned.evaluate(
+        """async () => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          const chip = document.querySelector('.lf-latest-chip');
+          const threads = document.querySelector('.lf-threads-toggle');
+          const door = document.querySelector('.lf-banner-more');
+          const x = () => threads.getBoundingClientRect().x;
+          const shown = x();
+          shelf.showNews(chip, false);
+          await Promise.resolve();
+          const quiet = {
+            x: x(), door: door.checkVisibility(), news: door.hasAttribute('data-lf-news'),
+          };
+          shelf.showNews(chip, true);
+          await Promise.resolve();
+          return {shown, quiet, returned: x()};
+        }"""
+    )
+    assert positions["quiet"]["door"] and not positions["quiet"]["news"], positions
+    assert positions["quiet"]["x"] == pytest.approx(positions["shown"], abs=0.01)
+    assert positions["returned"] == pytest.approx(positions["shown"], abs=0.01)
     pinned.locator(".lf-banner-more").click()
     expect(pinned.locator(".lf-banner-menu")).to_be_visible()
     chip_size = pinned.locator(".lf-latest-chip").evaluate(

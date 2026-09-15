@@ -498,10 +498,8 @@ export function stateSignoff(next, syncLayout, paintApproval) {
   if (shown === signoff) return;
   signoff = shown;
   showBannerControl(approveBtn, signoff);
-  if (signoff) {
-    reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-    paintApproval();
-  }
+  if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
+  paintApproval();
   syncLayout();
 }
 
@@ -581,6 +579,7 @@ export function paintApproval(pendingApprovals, unansweredAsks = []) {
   approvalFace.present(
     Object.freeze({
       disabled:
+        !signoff ||
         approving ||
         runtime.currentStamp === null ||
         !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||

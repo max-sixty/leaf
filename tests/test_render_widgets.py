@@ -203,6 +203,161 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     expect(detail).not_to_have_attribute("data-lf-more-below", "")
 
 
+ROOT_TABS_PAGE = Path(__file__).parent / "fixtures/pages/root-tabs.html"
+
+
+@pytest.mark.parametrize(
+    "with_header", [True, False], ids=["shared-header", "tabs-only"]
+)
+def test_root_tabs_allocate_the_active_workspace_and_restore_each_reading_place(
+    browser, serve, with_header
+):
+    """Hidden workspaces cannot capture the document; active ones fit below its tabs."""
+    source = (
+        ROOT_TABS_PAGE
+        if with_header
+        else re.sub(
+            r"<header>.*?</header>",
+            "",
+            ROOT_TABS_PAGE.read_text(),
+            count=1,
+            flags=re.DOTALL,
+        )
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    tabs = page.locator("#root-tabs")
+    plan = tabs.get_by_role("tab", name="Plan", exact=True)
+    work = tabs.get_by_role("tab", name="Workbench", exact=True)
+    expect(plan).to_have_attribute("aria-selected", "true")
+    assert (
+        page.evaluate("getComputedStyle(document.documentElement).overflowY")
+        != "hidden"
+    )
+    expect(tabs).to_have_css("border-left-width", "0px")
+
+    page.locator("#plan-return").hover()
+    page.mouse.wheel(0, 450)
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 100")
+    page.wait_for_function(SCROLL_SETTLED)
+    plan_scroll = page.evaluate("document.scrollingElement.scrollTop")
+    # Locator.click scrolls this sticky descendant back to its static-flow position.
+    # A reader clicks the strip where it is painted, preserving the reading above.
+    work_box = work.bounding_box()
+    page.mouse.click(
+        work_box["x"] + work_box["width"] / 2,
+        work_box["y"] + work_box["height"] / 2,
+    )
+    workspace = page.locator("#workbench")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    page.wait_for_function(
+        "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
+    )
+    geometry = page.evaluate("""() => {
+      const box = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
+      return {strip: box('#root-tabs > .lf-tabstrip'), workspace: box('#workbench'),
+              queue: box('#queue-pane'), detail: box('#detail-pane'), height: innerHeight};
+    }""")
+    assert geometry["workspace"]["top"] >= geometry["strip"]["bottom"] - 1, geometry
+    assert geometry["workspace"]["bottom"] <= geometry["height"], geometry
+    assert geometry["detail"]["left"] >= geometry["queue"]["right"] - 1, geometry
+
+    detail = page.locator("#detail-pane > .lf-pane-content > .lf-pane-body")
+    detail.hover()
+    page.mouse.wheel(0, 350)
+    page.wait_for_function(
+        "() => document.querySelector('#detail-pane > .lf-pane-content > .lf-pane-body').scrollTop > 100"
+    )
+    page.wait_for_function(SCROLL_SETTLED)
+    detail_scroll = detail.evaluate("element => element.scrollTop")
+    plan.click()
+    expect(plan).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(
+        "expected => Math.abs(document.scrollingElement.scrollTop - expected) < 2",
+        arg=plan_scroll,
+    )
+    work_box = work.bounding_box()
+    page.mouse.click(
+        work_box["x"] + work_box["width"] / 2,
+        work_box["y"] + work_box["height"] / 2,
+    )
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    page.wait_for_function(
+        "expected => Math.abs(document.querySelector('#detail-pane > .lf-pane-content > .lf-pane-body').scrollTop - expected) < 2",
+        arg=detail_scroll,
+    )
+    page.go_back()
+    expect(plan).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(
+        "expected => Math.abs(document.scrollingElement.scrollTop - expected) < 2",
+        arg=plan_scroll,
+    )
+    page.go_forward()
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    page.wait_for_function(
+        "expected => Math.abs(document.querySelector('#detail-pane > .lf-pane-content > .lf-pane-body').scrollTop - expected) < 2",
+        arg=detail_scroll,
+    )
+    resized(page, 520, 900)
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    flow = page.evaluate("""() => ({
+      queue: document.querySelector('#queue-pane').getBoundingClientRect().toJSON(),
+      detail: document.querySelector('#detail-pane').getBoundingClientRect().toJSON(),
+      width: document.documentElement.scrollWidth, viewport: innerWidth
+    })""")
+    assert flow["detail"]["top"] >= flow["queue"]["bottom"] - 1, flow
+    assert flow["width"] <= flow["viewport"], flow
+    resized(page, 1440, 900)
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+
+
+def test_root_tab_targets_remain_global_and_export_in_authored_order(
+    browser, serve, tmp_path
+):
+    """Ask travel crosses hidden tabs and a static record contains all destinations."""
+    url = serve(ROOT_TABS_PAGE)
+    page = open_page(
+        browser,
+        url + "#plan-stages",
+        context=browser.new_context(viewport={"width": 1280, "height": 720}),
+    )
+    tabs = page.locator("#root-tabs")
+    page.wait_for_function(SCROLL_SETTLED)
+    expect(page.locator("#plan-stages")).to_be_in_viewport()
+    arrival = page.evaluate("""() => ({
+      target: document.querySelector('#plan-stages').getBoundingClientRect().top,
+      strip: document.querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect().bottom
+    })""")
+    assert arrival["target"] >= arrival["strip"] - 1, arrival
+    page.keyboard.press("a")
+    expect(tabs.get_by_role("tab", name="Evidence", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(page.locator("#evidence-question")).to_be_in_viewport()
+    page.locator('a[href="#plan-return"]').first.click()
+    expect(tabs.get_by_role("tab", name="Plan", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(page.locator("#plan-return")).to_be_in_viewport()
+    tabs.get_by_role("tab", name="Workbench", exact=True).click()
+    expect(page.locator("#workbench")).to_have_attribute(
+        "data-lf-reading-posture", "bounded"
+    )
+
+    out = tmp_path / "root-tabs-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page(viewport={"width": 900, "height": 800})
+    copy.goto(out.as_uri(), wait_until="load")
+    for panel in ("plan-tab", "evidence-tab", "workbench-tab"):
+        expect(copy.locator(f"#{panel}")).to_be_visible()
+    positions = copy.locator("#root-tabs > lf-tab").evaluate_all(
+        "panels => panels.map(panel => panel.getBoundingClientRect().top)"
+    )
+    assert positions == sorted(positions) and len(set(positions)) == 3, positions
+    expect(copy.locator(".lf-tabstrip")).to_be_hidden()
+    copy.close()
+
+
 # A root whose furniture answers the width it is given: four fixed badges stand on one
 # row in the width a bounded allocation has, and on two rows in the narrower reading
 # measure flow leaves. The wrapping is geometry rather than text, so the two readings

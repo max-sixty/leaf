@@ -271,6 +271,12 @@ runtime-reserved stable id with `compoundReadingRegionId(owner, localName)`.
 `watchReadingRegionTransitions(listener)` receives a `before` reading while old geometry
 is intact and an `after` reading on settled new geometry; a newer posture change cancels
 the obsolete `after`. The continuity owner decides what to capture and restore.
+Use `preserveReadingRegions(owner, change)` when a composition hides or reveals regions.
+It invokes `change` immediately and awaits its returned layout promise before restoring
+the visible regions through the same continuity owner. Its notifications have null
+`from` and `to`: visibility changed, not necessarily posture. A superseding change marks
+its `before` as `retained`; a failed or disconnected change marks its `after` as
+`cancelled`. Enclosing composition transitions own continuity over nested posture changes.
 
 When a position action completes an Ask only after its own move empties a queue,
 declare `completion: {empty: {within: "CONTAINER-TAG", when: {ATTRIBUTE: [VALUE]}}}`
@@ -375,7 +381,8 @@ What the module owes:
 a total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a
 detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
 `relabel()` on anything injected, with its room reserved from inside `measure` and
-`layoutChanged` called after a view swap; asynchronous visible preparation is registered
+`layoutChanged` called after a view swap (await its returned promise before restoring
+scroll against the resulting layout); asynchronous visible preparation is registered
 through `controller.present(promise)`; box-derived apparatus takes its first visible
 reading synchronously from `PRESENTATION` and observes later changes through the normal
 layout signals (each helper's header under `runtime/` says why); `keeps(node, name,

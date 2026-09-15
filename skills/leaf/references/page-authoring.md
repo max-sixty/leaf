@@ -75,15 +75,30 @@ stands alone, since whoever reads it there has none of the page around it.
 </html>
 ```
 
-## Document or workspace
+## Document, page tabs, or workspace
 
 Use ordinary document flow for material the reader takes in sequence. Use a
 workspace when the task needs regions visible together, such as controls beside a
 preview or a queue beside its detail. Both use the same widgets, Asks, comments,
 and revisions; packages supply the vocabulary and guidance for the task.
 
-For a workspace, make `lf-workspace` the sole content element directly inside
-`main`, with the page title in its optional direct native `header`. Its body is
+Use page tabs for project-scale views that belong to one artifact and share one
+history, Threads panel, Ask inventory, and revision sequence. Put an optional shared
+header and then `lf-tabs` directly inside `main`, with no substantive content after the
+tab set. Each `lf-tab` contains an ordinary document view or one `lf-workspace`; views
+in the same set may use either form. The tab strip becomes the page's top navigation,
+and links, comment anchors, Ask travel, search, and reading-position restoration open
+the view containing their destination.
+Selecting a page tab puts its panel id in the URL, so browser Back and Forward travel
+between views. An explicit fragment opens the tab containing that target.
+
+An `lf-tabs` inside document flow, a pane, or another widget is a tabbed section. Use
+one for local alternatives within the surrounding view. It keeps the framed treatment
+that separates it from adjacent content.
+
+For a root workspace, make `lf-workspace` the sole content element directly inside
+`main`, with the page title in its optional direct native `header`. A workspace used as
+a page tab's sole content element follows the same bounded composition. Its body is
 exactly one element. Put prose in an `lf-pane`; compose multiple named panes with
 one `lf-partition`, where each partition takes two panes or partitions in `columns` or
 `rows`.

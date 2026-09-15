@@ -736,7 +736,7 @@
     "x-upgrade": false
   },
   "lf-tabs": {
-    "description": "A tab set presenting several views of one page. Keep the shared title and lede before it, put the primary current view first, and remove an earlier view once the current work no longer depends on it, keeping the context it still needs, and any passage whose id anchors an open thread or holds a standing decision, in a collapsed details inside the relevant tab. Ordering gives the first panel emphasis and makes it the default for a reader with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the reader's display state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained view with its own prose and widgets, while Threads, Asks, versions, and sign-off remain global. Find-in-page, Ask travel, and comment-anchor jumps open the owning tab. Its members are lf-tab elements only; unupgraded, panels stack as labeled sections.",
+    "description": "A tab set presenting several views of one page. At the root of main, after an optional shared header and with no substantive content after it, the set becomes borderless page navigation and each tab owns the content area; use this for project-scale views that share one history, Threads panel, Ask inventory, and revision sequence. Elsewhere it is a framed tabbed section for local alternatives within surrounding content. Keep the shared title and lede before a root set, put the primary current view first, and remove an earlier view once the current work no longer depends on it, keeping the context it still needs, and any passage whose id anchors an open thread or holds a standing decision, in a collapsed details inside the relevant tab. Ordering gives the first panel emphasis and makes it the default for a reader with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the reader's display state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained view with its own prose and widgets, while Threads, Asks, versions, and sign-off remain global. Find-in-page, Ask travel, and comment-anchor jumps open the owning tab. Its members are lf-tab elements only; unupgraded, panels stack as labeled sections.",
     "type": "object",
     "properties": {
       "id": {
@@ -753,7 +753,7 @@
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
-    "description": "One view in a tab set. `label` names its tab in the strip (and the stacked heading before upgrade); content is open — prose, sections, and other widgets nest freely. Ids inside share the page's one universe, so keep them distinct across tabs.",
+    "description": "One view in a tab set. `label` names its tab in the strip (and the stacked heading before upgrade). In page navigation, its content is an ordinary document view or one workspace; page tabs in the same set may mix those forms. In a tabbed section, prose, sections, and widgets nest freely. Ids inside share the page's one universe, so keep them distinct across tabs.",
     "type": "object",
     "properties": {
       "id": {

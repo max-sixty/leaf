@@ -79,7 +79,10 @@ item.
 | **Effective reading scroller** | The scroll container currently governing one reading region |
 | **Reading posture** | The content frame's responsive presentation: `flow` or `bounded` |
 
-A root workspace may produce bounded posture. An embedded workspace remains in flow.
+A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
+changes their presentation rather than creating another structural kind. A root
+workspace, including one that solely occupies a page tab, may produce bounded posture.
+An embedded workspace remains in flow.
 A compound widget may own reading regions without being a pane.
 
 ## Chrome and auxiliary surfaces

@@ -4332,6 +4332,295 @@ expire old keys</code></pre>
       </lf-workspace>
 </lf-tab>
 
+<lf-tab id="corpus-root-tabs" label="Root Tabs">
+<header>
+        <p class="eyebrow">release 3.4 · candidate two</p>
+        <h1>Prepare the account migration</h1>
+        <p class="lede">
+          Review the rollout plan, settle the remaining evidence question, and work
+          through the migration queue without leaving this page.
+        </p>
+      </header>
+
+      <lf-tabs id="root-tabs">
+        <lf-tab id="plan-tab" label="Plan">
+          <section id="plan-return">
+            <h2>Rollout plan</h2>
+            <p>
+              Move active accounts in three cohorts. Each cohort starts after the prior
+              cohort has completed a full business day with matching account totals,
+              successful sign-ins, and no increase in support contacts.
+            </p>
+            <p>
+              The migration copies account settings before switching reads. Writes
+              continue to the current store until verification finishes, so returning a
+              cohort does not require reconstructing reader changes.
+            </p>
+          </section>
+
+          <section id="plan-stages">
+            <h2>Stages</h2>
+            <ol>
+              <li>
+                <strong>Internal accounts.</strong> Migrate staff and test tenants,
+                compare settings and permissions, then hold for one business day.
+              </li>
+              <li>
+                <strong>Ten percent.</strong> Select accounts across regions and plan
+                types, then compare sign-in and settings-save rates with the control.
+              </li>
+              <li>
+                <strong>Remaining accounts.</strong> Advance in four equal batches while
+                the old store remains writable for rollback.
+              </li>
+            </ol>
+          </section>
+
+          <section id="plan-gates">
+            <h2>Advancement gates</h2>
+            <dl class="facts">
+              <dt>Account totals</dt>
+              <dd>Exact match between stores</dd>
+              <dt>Successful sign-ins</dt>
+              <dd>No decrease greater than 0.2 percentage points</dd>
+              <dt>Settings saves</dt>
+              <dd>No increase in failed writes</dd>
+              <dt>Support contacts</dt>
+              <dd>No migration-related cluster</dd>
+            </dl>
+            <p>
+              The evidence behind these gates and the one unresolved choice are in
+              <a href="#evidence-question">Evidence</a>. The working list for individual
+              cohorts is in the <a href="#workbench">Workbench</a>.
+            </p>
+          </section>
+
+          <section id="plan-rollback">
+            <h2>Rollback</h2>
+            <p>
+              A failed gate returns reads to the current store and stops later cohorts.
+              The migration record keeps the copied rows and comparison output so the
+              team can diagnose the mismatch before retrying.
+            </p>
+            <p>
+              The old store remains the write authority until all cohorts complete the
+              observation period. Retiring it is a later release with its own plan.
+            </p>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="evidence-tab" label="Evidence">
+          <section id="evidence-summary">
+            <h2>Rehearsal results</h2>
+            <p>
+              Three rehearsals copied 48,219 accounts from a production snapshot. Every
+              account and permission row matched after normalization, and all sampled
+              accounts could sign in and save settings through the candidate service.
+            </p>
+            <table id="rehearsal-results">
+              <thead>
+                <tr>
+                  <th>Rehearsal</th>
+                  <th>Accounts</th>
+                  <th>Copy time</th>
+                  <th>Mismatches</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>North America</td>
+                  <td>18,104</td>
+                  <td>21 minutes</td>
+                  <td>0</td>
+                </tr>
+                <tr>
+                  <td>Europe</td>
+                  <td>16,780</td>
+                  <td>19 minutes</td>
+                  <td>0</td>
+                </tr>
+                <tr>
+                  <td>Asia Pacific</td>
+                  <td>13,335</td>
+                  <td>17 minutes</td>
+                  <td>0</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="evidence-sign-in">
+            <h2>Sign-in checks</h2>
+            <p>
+              The test covered password, passkey, and enterprise sign-in for new and
+              long-lived sessions. Expired sessions refreshed once and returned to the
+              requested page. Revoked sessions returned to sign-in without retrying.
+            </p>
+            <ul>
+              <li>2,400 password sign-ins completed successfully.</li>
+              <li>600 passkey sign-ins completed successfully.</li>
+              <li>300 enterprise sign-ins completed successfully.</li>
+              <li>120 expired sessions refreshed without duplicate requests.</li>
+            </ul>
+          </section>
+
+          <section id="evidence-open-choice">
+            <lf-ask id="evidence-question">
+              <h2>How long should each cohort remain under observation?</h2>
+              <p>
+                Every rehearsal stabilized within four hours. A full business day also
+                includes the daily permissions sync and the regional support handoff.
+              </p>
+              <lf-options id="observation-window" choose>
+                <lf-option id="observe-four-hours">
+                  <strong>Four hours</strong> The rollout can finish in one day, before
+                  the daily permissions sync runs.
+                </lf-option>
+                <lf-option id="observe-one-day">
+                  <strong>One business day</strong> Each cohort includes the permissions
+                  sync and one support handoff before the next begins.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
+          <section id="evidence-follow-through">
+            <h2>Follow-through</h2>
+            <p>
+              After settling the observation window, return to the
+              <a href="#plan-return">rollout plan</a> to confirm the schedule or open
+              the <a href="#queue-pane">Workbench queue</a> to assign the first cohort.
+            </p>
+            <details id="evidence-method">
+              <summary>How the comparison was performed</summary>
+              <p>
+                The verifier compared normalized account settings, permission rows, and
+                tenant memberships by stable account id. It then replayed sign-in and
+                settings-save journeys against the copied records.
+              </p>
+            </details>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="workbench-tab" label="Workbench">
+          <lf-workspace id="workbench">
+            <header>
+              <p class="eyebrow">migration workbench · eight cohorts</p>
+              <h2>Prepare and inspect each cohort</h2>
+            </header>
+            <lf-partition id="workbench-regions" direction="columns">
+              <lf-pane id="queue-pane" label="Cohort queue">
+                <header><h3>Cohort queue</h3></header>
+                <nav aria-label="Migration cohorts">
+                  <ul>
+                    <li><a href="#cohort-staff">Staff and test tenants</a> · ready</li>
+                    <li><a href="#cohort-na-free">North America free</a> · waiting</li>
+                    <li><a href="#cohort-na-paid">North America paid</a> · waiting</li>
+                    <li><a href="#cohort-eu-free">Europe free</a> · waiting</li>
+                    <li><a href="#cohort-eu-paid">Europe paid</a> · waiting</li>
+                    <li><a href="#cohort-apac-free">Asia Pacific free</a> · waiting</li>
+                    <li><a href="#cohort-apac-paid">Asia Pacific paid</a> · waiting</li>
+                    <li>
+                      <a href="#cohort-remaining">Remaining accounts</a> · waiting
+                    </li>
+                  </ul>
+                </nav>
+                <section id="queue-guidance">
+                  <h4>Queue order</h4>
+                  <p>
+                    Staff accounts lead. Regional free cohorts follow before paid
+                    cohorts, keeping the first customer group small while still covering
+                    every authentication method.
+                  </p>
+                </section>
+                <footer>
+                  <p><a href="#evidence-question">Review the observation window</a></p>
+                </footer>
+              </lf-pane>
+
+              <lf-pane id="detail-pane" label="Cohort detail">
+                <header><h3>Selected cohort</h3></header>
+                <section id="cohort-staff">
+                  <h4>Staff and test tenants</h4>
+                  <dl class="facts">
+                    <dt>Accounts</dt>
+                    <dd>1,284</dd>
+                    <dt>Regions</dt>
+                    <dd>All</dd>
+                    <dt>Authentication</dt>
+                    <dd>Password, passkey, enterprise</dd>
+                    <dt>Owner</dt>
+                    <dd>Identity platform</dd>
+                  </dl>
+                  <p>
+                    This cohort covers every account shape while keeping the first move
+                    inside teams that can report a broken journey directly.
+                  </p>
+                  <h4>Before migration</h4>
+                  <ul>
+                    <li>Capture account and permission totals by region.</li>
+                    <li>Confirm the rollback writer is healthy.</li>
+                    <li>Notify support of the cohort start and observation window.</li>
+                    <li>Record the current sign-in and settings-save rates.</li>
+                  </ul>
+                  <h4>After migration</h4>
+                  <ul>
+                    <li>Compare copied account, tenant, and permission rows.</li>
+                    <li>Run password, passkey, and enterprise sign-in checks.</li>
+                    <li>Run the daily permissions sync against migrated accounts.</li>
+                    <li>Review migration-related support contacts.</li>
+                    <li>Record the advancement decision with its evidence.</li>
+                  </ul>
+                  <details id="cohort-staff-commands">
+                    <summary>Inspect the operator sequence</summary>
+                    <pre><code>capture --cohort staff
+copy --cohort staff
+compare --cohort staff
+switch-reads --cohort staff
+observe --cohort staff</code></pre>
+                  </details>
+                </section>
+                <section id="cohort-na-free">
+                  <h4>North America free</h4>
+                  <p>Begins after the staff cohort passes every advancement gate.</p>
+                </section>
+                <section id="cohort-na-paid">
+                  <h4>North America paid</h4>
+                  <p>Adds subscription and invoice settings to the comparison.</p>
+                </section>
+                <section id="cohort-eu-free">
+                  <h4>Europe free</h4>
+                  <p>Adds regional residency and consent settings.</p>
+                </section>
+                <section id="cohort-eu-paid">
+                  <h4>Europe paid</h4>
+                  <p>Adds regional tax and billing permissions.</p>
+                </section>
+                <section id="cohort-apac-free">
+                  <h4>Asia Pacific free</h4>
+                  <p>Adds the longest replication route in the release.</p>
+                </section>
+                <section id="cohort-apac-paid">
+                  <h4>Asia Pacific paid</h4>
+                  <p>Adds subscription records across the longest replication route.</p>
+                </section>
+                <section id="cohort-remaining">
+                  <h4>Remaining accounts</h4>
+                  <p>
+                    Completes the migration in four equal batches after every regional
+                    cohort passes.
+                  </p>
+                </section>
+                <footer>
+                  <p><a href="#plan-return">Return to the rollout plan</a></p>
+                </footer>
+              </lf-pane>
+            </lf-partition>
+          </lf-workspace>
+        </lf-tab>
+      </lf-tabs>
+</lf-tab>
+
 <lf-tab id="corpus-feature-gallery" label="Core features">
 <h1 id="bg-title">Leaf core product gallery</h1>
       <p class="lede" id="bg-lede">
@@ -4949,7 +5238,10 @@ gallery/
             ><span class="bg-feature-detail">: saved panel selection</span>
           </h3>
           <p id="bg-tabs-guide">
-            Tabs switch between panels and remember the selected panel after reload.
+            This embedded specimen is a framed tabbed section. The browser test also
+            presents this same tab set at the root of a page, where it becomes
+            borderless top navigation for page-scale views. Both forms remember the
+            selected panel after reload.
           </p>
           <lf-tabs id="bg-tabs">
             <lf-tab id="bg-tab-current" label="Current">

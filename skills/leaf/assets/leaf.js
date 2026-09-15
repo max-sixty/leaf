@@ -581,7 +581,6 @@ layout = createChromeLayout({
     threadsBox,
     shortcutBarEl,
     bottomStatusEl,
-    chromeRoot,
   },
   foldBannerRow,
   scheduleThreadPreviewPosition: app.margin.scheduleThreadPreviewPosition,

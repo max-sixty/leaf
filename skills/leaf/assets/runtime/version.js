@@ -1739,8 +1739,32 @@ export function createVersionController({
   };
 
   const postureTransitions = new Map();
-  function readingRegionTransition({ phase, owner, from, to, regions }) {
+  function readingRegionTransition({
+    phase,
+    owner,
+    from,
+    to,
+    regions,
+    cancelled,
+    retained,
+  }) {
+    // A composition swap captures the intact view before hiding any region. Its
+    // eventual restore owns the whole change; nested posture probes must not replace
+    // that reading with an intermediate layout.
+    if (
+      cancelled ||
+      [...postureTransitions.keys()].some(
+        (ancestor) => ancestor !== owner && containsAcross(ancestor, owner),
+      )
+    ) {
+      postureTransitions.delete(owner);
+      return;
+    }
     if (phase === "before") {
+      if (retained && postureTransitions.has(owner)) {
+        postureTransitions.get(owner).intent = navigationIntent;
+        return;
+      }
       const blocks = textBlocks();
       const active = activeReadingRegion(regions, blocks);
       const captured =
@@ -1759,7 +1783,11 @@ export function createVersionController({
     postureTransitions.delete(owner);
     if (!transition || transition.intent !== navigationIntent) return;
     const live = new Map(readingRegions().map((region) => [region.id, region]));
-    const candidates = transition.regions.map((id) => live.get(id)).filter(Boolean);
+    // A posture can change because its owner was hidden. Keep that region's cached
+    // reading for its return, but continuity must not reveal it over a newer choice.
+    const candidates = transition.regions
+      .map((id) => live.get(id))
+      .filter((region) => region && shownRegionBounds(region));
     const active = activeReadingRegion(candidates);
     const restored = new Set();
     const ordered = active

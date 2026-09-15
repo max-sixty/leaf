@@ -1110,9 +1110,18 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
         "-m",
         "plugin",
     )
-    payload.write_text("changed\n")
+    (plugin / ".codex-marketplace-install.json").write_text("{}\n")
     index = plugin / ".git" / "index"
     before = index.stat().st_mtime_ns
+
+    clean = layer_model.payload_provenance(include_path=True)
+    assert clean == {
+        "path": str(plugin),
+        "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "dirty": False,
+    }
+
+    payload.write_text("changed\n")
 
     provenance = layer_model.payload_provenance(include_path=True)
 

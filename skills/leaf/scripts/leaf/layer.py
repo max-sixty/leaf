@@ -292,7 +292,15 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     provenance["commit"] = lines[1]
     try:
         dirty = subprocess.run(
-            [*git, "status", "--porcelain"],
+            [
+                *git,
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--",
+                ".",
+                ":(top,exclude).codex-marketplace-install.json",
+            ],
             capture_output=True,
             text=True,
             check=False,

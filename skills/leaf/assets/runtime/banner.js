@@ -1,6 +1,5 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
-import { html, render } from "../vendor/browser-runtime.js";
 import { ago, clocked } from "./presence.js";
 import { el, reserve } from "./widget-elements.js";
 import { agentName, runtime, runtimeResource } from "./context.js";
@@ -20,36 +19,12 @@ import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
+import { createBannerStatusView } from "./banner-status-view.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
-export const dot = el("span", "lf-dot");
-const statusText = el("span", "lf-status-text");
-render("Connecting…", statusText);
-const statusButton = el("button", "lf-status-button");
-statusButton.type = "button";
-statusButton.setAttribute("aria-expanded", "false");
-statusButton.append(dot, statusText);
-const statusDetail = el("div", "lf-ui lf-status-detail");
-render("Connecting…", statusDetail);
-statusDetail.id = "lf-status-detail";
-statusDetail.tabIndex = -1;
-statusDetail.setAttribute("popover", "auto");
-statusDetail.setAttribute("role", "group");
-statusDetail.setAttribute("aria-label", "Page status");
-statusButton.setAttribute("aria-describedby", statusDetail.id);
-statusButton.popoverTargetElement = statusDetail;
-statusDetail.lfInvoker = statusButton;
-statusDetail.addEventListener("toggle", (event) => {
-  const open = event.newState === "open";
-  statusButton.setAttribute("aria-expanded", String(open));
-  // Focus the scrollable explanation so keyboard readers can reach long details.
-  if (open && document.activeElement === statusButton)
-    statusDetail.focus({ preventScroll: true });
-  repaint();
-});
-const bannerStatus = el("div", "lf-banner-status");
-bannerStatus.append(statusButton);
+const bannerStatus = createBannerStatusView(repaint);
+export const dot = bannerStatus.dot;
 
 export const toggleBtn = el(
   "button",
@@ -168,34 +143,31 @@ function paintTab() {
 // announcements report that explanation only when the kind changes, not on every poll.
 let saidKind;
 const presentStatus = ({ kind, tone, summary, explanation, publication = null }) => {
+  let publicationModel = null;
   if (publication) {
     // A publication's introduction and install link remain an ordinary reading row.
     // Links never become children of the status disclosure button.
-    if (statusDetail.matches(":popover-open")) statusDetail.hidePopover();
-    statusButton.hidden = true;
-    if (statusText.parentElement !== bannerStatus)
-      bannerStatus.prepend(dot, statusText);
     const [said, installs] = publicationWords(publication);
     explanation = said + installs;
-    summary = html`<span class="lf-publication-copy">${said}</span
-      ><a class="lf-publication-install" href=${publication.install_url}
-        >${installs}</a
-      >`;
-  } else {
-    statusButton.hidden = false;
-    if (statusText.parentElement !== statusButton) statusButton.append(dot, statusText);
+    publicationModel = Object.freeze({
+      copy: said,
+      install: installs,
+      installUrl: publication.install_url,
+    });
   }
-  dot.className = "lf-dot" + (tone ? " " + tone : "");
-  render(summary, statusText);
-  // Lit skips a primitive equal to the one it committed, so an unchanged poll leaves
-  // the detail's text node in place rather than rebuilding it.
-  render(explanation, statusDetail);
-  statusButton.title = explanation;
-  statusText.title = explanation;
+  bannerStatus.present(
+    Object.freeze({
+      kind,
+      tone,
+      summary,
+      explanation,
+      publication: publicationModel,
+    }),
+  );
   paintTab();
   const changed = saidKind !== undefined && saidKind !== kind;
   saidKind = kind;
-  if (changed) announce(statusDetail.textContent);
+  if (changed) announce(explanation);
 };
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
@@ -516,7 +488,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
   bannerActions.append(latestChip, asksBtn, versionBtn);
 
   arrangeBannerControls();
-  banner.append(bannerStatus, bannerActions, statusDetail);
+  banner.append(bannerStatus, bannerActions);
   approveBtn.onclick = async () => {
     if (approving) return;
     approving = true;

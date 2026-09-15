@@ -23,6 +23,7 @@ CORPUS = EXAMPLES_DIR / "corpus.html"
 CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
 # Keep the short core pages first; specialist and regression surfaces follow.
 PUBLIC_TABS = [
+    ("review-a-plan", "Plan review"),
     ("triage-board", "Triage"),
     ("ideas-to-implement", "Ideas"),
     ("release-notes", "Notes"),

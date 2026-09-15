@@ -66,11 +66,12 @@
  * mousedown of a double-click, and that mousedown now lands in the open textarea, where
  * selecting a word is what a double-click means everywhere else.
  *
- * Chrome is injected through the runtime's `offer`, which marks it .lf-ui for the chrome
- * look, data-lf-gen so the diff ignores it, and data-lf-offer for a thing to work — which
- * is what keeps it off the printed page, out of the anchor pass (this widget declaring no
- * label the page speaks through), and out of the way of the box's own door below; the class
- * also earns the edit box the runtime's one textarea rule. Presentation is theme CSS, the
+ * The local editor and history are injected through the runtime's `offer`, which marks them
+ * .lf-ui for the chrome look, data-lf-gen so the diff ignores them, and data-lf-offer for a
+ * thing to work. The margin controls are projection-owned DOM rendered from this widget's
+ * immutable contribution. Those boundaries keep chrome off the printed page, out of the
+ * anchor pass, and out of the way of the box's own door below; the class also earns the
+ * edit box the runtime's one textarea rule. Presentation is theme CSS, the
  * swap between the two views included: an open edit is the box being in the document, so
  * the CSS reads that and this module writes no display state at all. Which is also what
  * lets paper disagree — it drops the box and keeps the words. History is chrome too and
@@ -78,6 +79,7 @@
  * content is never discarded, so there is no failSoft.
  */
 import {
+  commandScope,
   DISCLOSE,
   dataBody,
   once,
@@ -92,9 +94,7 @@ import {
   commands,
   saveDraft,
   loadDraft,
-  measure,
   marginEntry,
-  setMarginEntryState,
   clearDraft,
   watchDraft,
   alignText,
@@ -112,6 +112,12 @@ const ctx = (id) => "edit:" + id;
 const saveEdit = (id, text) => saveDraft(ctx(id), text);
 const clearEdit = (id) => clearDraft(ctx(id));
 const loadEdit = (id) => loadDraft(ctx(id));
+const draftReserve = () => {
+  const aim = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--aim-floor"),
+  );
+  return Math.max(32, aim || 0) * 2 + 4;
+};
 
 // Where the click asked for the caret, as an offset in the body's text — the body holds
 // one text node, so its offsets are the textarea's offsets. Past the end of the text
@@ -149,10 +155,6 @@ customElements.define(
   class extends HTMLElement {
     #controller = widgetController(this);
     #body;
-    #pencil;
-    #cancel;
-    #save;
-    #row;
     #raw;
     #history = null;
     #historyKey = "";
@@ -160,9 +162,8 @@ customElements.define(
     #ta = null;
     #sending = false;
     #failed = false;
-    #failureReceipt = null;
     #margin = null;
-    #buttonReserve = 0;
+    #commandScope = null;
     #stopActions = null;
     #stopDraft = null;
     #resumeProjection = null;
@@ -190,87 +191,17 @@ customElements.define(
       // gates the action channel, not presentation.
       if (quoted(this)) return;
 
-      // The way in is a gesture rather than a key, so its row binds nothing and the line
-      // never offers it as the next press — the rule that keeps ⌥ click and F7 off it.
-      // Declared on the element the reader stands on before the box exists, so opening a
-      // draft is in the reference from the moment the page has one.
-      commands(
-        this,
-        "On a draft",
-        [
-          {
-            id: "draft.edit",
-            keys: [],
-            control: () => this.#pencil,
-            decision: "Edit…",
-            does: "Edit the text in place",
-            line: "edit",
-            when: () => !this.#ta,
-            run: () => this.#pencil.click(),
-          },
-        ],
-        { answer: () => this.#body?.textContent?.trim() || "Empty" },
-      );
-
-      this.#pencil = this.#marginEntry(
-        "edit",
-        "edit",
-        "Edit",
-        () => {
-          if (this.#available()) this.#open();
-        },
-        "neutral",
-        "disclosure",
-        "primary",
-      );
-      this.#pencil.classList.add("lf-draft-pencil");
-      this.#pencil.setAttribute("aria-label", `Edit ${this.id}`);
-      this.#row = offer("div", "lf-draft-controls");
-      this.#row.dataset.lfFor = this.id;
-      this.#cancel = this.#marginEntry(
-        "cancel",
-        "cross",
-        "Cancel",
-        () => this.#close(true),
-        "neutral",
-        "action",
-        "escape",
-        "engaged",
-      );
-      this.#save = this.#marginEntry(
-        "save",
-        "check",
-        "Save",
-        () => this.#commit(),
-        "positive",
-        "action",
-        "complete",
-        "engaged",
-      );
-      // Reserve the editor's wider pair before the page is presented, then keep the
-      // resting pencil against the marker at the row's right edge. Opening the editor
-      // changes what the one row offers without moving the document beneath it.
-      this.#row.style.opacity = "0";
-      this.#row.append(this.#save, this.#cancel);
       this.#offer();
+
+      // Reserve the editor's wider pair before the page is presented, then keep the
+      // resting pencil against the marker at the entry's right edge. Opening the editor
+      // changes the immutable entries without moving the document beneath it.
       // Establish availability before the action watcher makes its first synchronous
       // reading, which no longer notifies. Every later transition this paints — failed,
-      // sending, engaged — already runs through a notifying `#paintButtons`, so the
+      // sending, engaged — already runs through a notifying margin update, so the
       // watcher's own callback would fan one shared refresh out through every draft for
       // a projection none of them changed.
-      this.#paintButtons();
-      measure(this.#row, () => {
-        // The engaged cluster is Save + Cancel; reserve that complete margin entry while
-        // the detached measurement row contains its direct controls, before resting
-        // Edit replaces them. Both margin entries share one margin entry, plus one gap.
-        const saveWidth = Math.ceil(this.#save.getBoundingClientRect().width);
-        this.#buttonReserve = saveWidth * 2 + 4;
-        this.#row.style.minWidth = `${saveWidth}px`;
-        this.#paintRow();
-        this.#row.style.opacity = "";
-        this.#margin?.update();
-        paintKeys();
-      });
+      this.#refreshMargin();
       this.#watchReading();
 
       // The box is the door. A draft is the one block on the page whose whole purpose is
@@ -325,7 +256,7 @@ customElements.define(
     }
 
     #watchReading() {
-      if (quoted(this) || !this.#row) return;
+      if (quoted(this) || !this.#margin) return;
       if (
         this.#ta &&
         !this.#resumeProjection &&
@@ -341,7 +272,7 @@ customElements.define(
     }
 
     #watchDraft() {
-      if (quoted(this) || !this.#row) return;
+      if (quoted(this) || !this.#margin) return;
       this.#stopDraft ??= watchDraft(ctx(this.id), (text) => {
         if (text === null) this.#close(false);
         else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
@@ -349,30 +280,70 @@ customElements.define(
     }
 
     #offer() {
-      if (!this.#row || this.#margin) return;
+      if (quoted(this) || this.#margin) return;
+      this.#ensureCommands();
       this.#margin = registerMarginContribution({
         key: `draft:${this.id}`,
         target: () => this,
-        controls: this.#row,
-        // Editing is the target's active interaction, not a temporary peek behind
-        // `…`: keep every peer action exposed until Save or Cancel ends that state.
-        state: () =>
-          this.#failed
-            ? "failed"
-            : this.#sending
-              ? "busy"
-              : this.#ta
-                ? "engaged"
-                : "idle",
-        reserve: () => this.#buttonReserve,
-        items: () => [
+        read: () => this.#readMargin(),
+        activate: (activation) => {
+          if (activation === "edit" && this.#available()) return this.#open();
+          if (activation === "commit") return this.#commit();
+          if (activation === "cancel") return this.#close(true);
+        },
+      });
+    }
+
+    #ensureCommands() {
+      if (this.#commandScope) return;
+      this.#commandScope = commandScope(
+        "On a draft",
+        [
           {
-            id: `draft:${this.id}`,
-            text: this.#ta ? "Save or cancel draft edit" : `Edit ${this.id}`,
-            activate: () => (this.#ta ?? this.#pencil)?.focus({ preventScroll: true }),
+            id: "draft.edit",
+            keys: [],
+            control: () => this.#margin?.control("edit"),
+            decision: "Edit…",
+            does: "Edit the text in place",
+            line: "edit",
+            when: () => !this.#ta,
+            run: () => this.#margin?.activate("edit"),
+          },
+          {
+            id: "draft.save",
+            reach: "in an open draft editor",
+            keys: ["Mod+Enter"],
+            control: () => this.#margin?.control(this.#saveKey()),
+            decision: () => (this.#failed ? "Retry" : "Save"),
+            does: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),
+            line: () => (this.#failed ? "retry" : "save"),
+            when: () => Boolean(this.#ta),
+            run: () => this.#margin?.activate(this.#saveKey()),
+          },
+          {
+            id: "draft.cancel",
+            reach: "in an open draft editor",
+            keys: [],
+            control: () => this.#margin?.control("cancel"),
+            decision: "Cancel",
+            does: "Cancel the edit",
+            line: "cancel",
+            when: () => Boolean(this.#ta),
+            run: () => this.#margin?.activate("cancel"),
+          },
+          {
+            id: "draft.close",
+            reach: "in an open draft editor",
+            keys: ["Escape"],
+            does: "Close the editor, keeping the edit",
+            line: "close — edit kept",
+            when: () => Boolean(this.#ta),
+            run: () => this.#close(false),
           },
         ],
-      });
+        { answer: () => this.#body?.textContent?.trim() || "Empty" },
+      );
+      commands(this, this.#commandScope);
     }
 
     #button(text, onClick, variant) {
@@ -381,72 +352,96 @@ customElements.define(
       return b;
     }
 
-    #marginEntry(
-      key,
-      icon,
-      label,
-      onClick,
-      tone = "neutral",
-      behavior = "action",
-      rank = "primary",
-      state = "idle",
-    ) {
-      const button = marginEntry(offer("button", ""), {
-        key,
-        icon,
-        label,
-        tone,
-        behavior,
-        rank,
-        state,
-      });
-      button.addEventListener("click", onClick);
-      return button;
+    #saveKey() {
+      return this.#failed ? "retry" : "save";
     }
 
-    #paintButtons({ notify = true } = {}) {
-      marginEntry(this.#save, {
-        key: this.#failed ? "retry" : "save",
-        icon: this.#failed ? "retry" : "check",
-        label: this.#failed ? "Retry" : "Save",
-        tone: "positive",
-        rank: "complete",
-        state: this.#failed ? "failed" : "engaged",
-      });
-      keeps(this.#save, "aria-label", this.#failed ? "Retry" : "Save");
-      setMarginEntryState(this.#cancel, this.#failed ? "failed" : "engaged");
-      setMarginEntryState(this.#pencil, this.#sending ? "busy" : "idle");
+    #entries() {
       const available = this.#available();
-      // The action sequence this paint follows arrives on every heartbeat, so each of
-      // these states is written on a page nobody has touched. State only what changed.
-      const reach = (control, blocked) => {
-        keeps(control, "aria-disabled", blocked);
-        const stop = blocked ? -1 : 0;
-        if (control.tabIndex !== stop) control.tabIndex = stop;
+      if (!this.#ta)
+        return [
+          marginEntry({
+            key: "edit",
+            icon: "edit",
+            label: "Edit",
+            accessibleLabel: `Edit ${this.id}`,
+            behavior: "disclosure",
+            rank: "primary",
+            state: this.#sending ? "busy" : "idle",
+            disabled: this.#sending || !available,
+            activation: "edit",
+            className: "lf-draft-pencil",
+            scope: this.#commandScope,
+          }),
+        ];
+      return [
+        marginEntry({
+          key: this.#saveKey(),
+          icon: this.#failed ? "retry" : "check",
+          label: this.#failed ? "Retry" : "Save",
+          tone: "positive",
+          rank: "complete",
+          state: this.#failed ? "failed" : "engaged",
+          disabled: !available,
+          activation: "commit",
+          scope: this.#commandScope,
+        }),
+        marginEntry({
+          key: "cancel",
+          icon: "cross",
+          label: "Cancel",
+          rank: "escape",
+          state: this.#failed ? "failed" : "engaged",
+          activation: "cancel",
+          scope: this.#commandScope,
+        }),
+      ];
+    }
+
+    #readMargin() {
+      return {
+        subject: null,
+        state: this.#failed
+          ? "failed"
+          : this.#sending
+            ? "busy"
+            : this.#ta
+              ? "engaged"
+              : "idle",
+        side: "before",
+        claim: true,
+        reserve: draftReserve(),
+        notice: this.#failed && this.#ta ? { text: "Failed", tone: "negative" } : null,
+        entries: this.#entries(),
+        readings: [
+          {
+            id: `draft:${this.id}`,
+            text: this.#ta ? "Save or cancel draft edit" : `Edit ${this.id}`,
+            activate: () => {
+              if (this.#ta) this.#ta.focus({ preventScroll: true });
+              else this.#margin?.focus("edit");
+            },
+          },
+        ],
       };
-      reach(this.#pencil, this.#sending || !available);
-      reach(this.#save, !available);
-      for (const restore of this.querySelectorAll(".lf-draft-restore"))
-        reach(restore, !available);
-      if (this.#failed && this.#ta) {
-        this.#failureReceipt ??= document.createElement("span");
-        this.#failureReceipt.className = "lf-margin-receipt";
-        this.#failureReceipt.textContent = "Failed";
-        this.#row.append(this.#failureReceipt);
-        this.#row.dataset.lfMarginReceipt = "failed";
-      } else {
-        this.#failureReceipt?.remove();
-        delete this.#row.dataset.lfMarginReceipt;
-      }
-      if (notify) {
-        this.#margin?.update();
-        paintKeys();
+    }
+
+    #setRestoreAvailability() {
+      const blocked = !this.#available();
+      for (const restore of this.querySelectorAll(".lf-draft-restore")) {
+        keeps(restore, "aria-disabled", blocked);
+        const stop = blocked ? -1 : 0;
+        if (restore.tabIndex !== stop) restore.tabIndex = stop;
       }
     }
 
-    #paintAvailability = () => {
-      if (this.#pencil) this.#paintButtons({ notify: false });
-    };
+    #refreshMargin({ immediate = false, focus = null } = {}) {
+      this.#setRestoreAvailability();
+      this.#margin?.update({ immediate, focus });
+      paintKeys();
+    }
+
+    #paintAvailability = () => this.#refreshMargin();
 
     #available() {
       return Boolean(this.#controller.read().actions.edit?.available);
@@ -571,6 +566,7 @@ customElements.define(
       this.#history?.replaceWith(history);
       if (!this.#history) this.append(history);
       this.#history = history;
+      this.#setRestoreAvailability();
       if (keepFocus) summary.focus();
     }
 
@@ -587,27 +583,14 @@ customElements.define(
       if (text === this.#body.textContent) return;
       this.#sending = true;
       this.setAttribute("aria-busy", "true");
-      this.#paintButtons();
+      this.#refreshMargin();
       this.#body.textContent = text;
       const ok = await this.#dispatch(text)?.delivery;
       this.#sending = false;
       this.removeAttribute("aria-busy");
-      this.#paintButtons();
+      this.#refreshMargin();
       this.#renderHistory(this.#controller.read().actions.edit.history);
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
-    }
-
-    // States the whole row rather than moving two buttons in and out of it, so read
-    // mode and edit mode are each one call from anywhere. What it reads is the editor
-    // itself, not the gesture that changed it: the reserve measurement lands whenever
-    // the row is first drawn, which is after presentation rather than at connection,
-    // and a recovered draft has already opened the editor by then. Asked the other way
-    // the measurement put the resting pencil back over an open editor and took Save
-    // with it, leaving the reader words they could no longer send.
-    #paintRow() {
-      this.#row.replaceChildren(
-        ...(this.#ta ? [this.#save, this.#cancel] : [this.#pencil]),
-      );
     }
 
     #open(seed, at) {
@@ -626,7 +609,7 @@ customElements.define(
         saveEdit(this.id, ta.value);
         if (this.#failed) {
           this.#failed = false;
-          this.#paintButtons();
+          this.#refreshMargin();
         }
       });
       // The composer's bindings on the box that replaces the page's own words. Escape sets
@@ -634,40 +617,10 @@ customElements.define(
       // discard) — and being the innermost scope's is what keeps the runtime's own rung
       // from running behind it and closing the panel too, which the widget used to have to
       // prevent by consuming the press.
-      commands(ta, "On a draft", [
-        {
-          id: "draft.save",
-          reach: "in an open draft editor",
-          keys: ["Mod+Enter"],
-          control: this.#save,
-          decision: () => (this.#failed ? "Retry" : "Save"),
-          does: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),
-          line: () => (this.#failed ? "retry" : "save"),
-          run: () => this.#save.click(),
-        },
-        {
-          id: "draft.cancel",
-          reach: "in an open draft editor",
-          keys: [],
-          control: this.#cancel,
-          decision: "Cancel",
-          does: "Cancel the edit",
-          line: "cancel",
-          run: () => this.#cancel.click(),
-        },
-        {
-          id: "draft.close",
-          reach: "in an open draft editor",
-          keys: ["Escape"],
-          does: "Close the editor, keeping the edit",
-          line: "close — edit kept",
-          run: () => this.#close(false),
-        },
-      ]);
       this.#ta = ta;
-      this.#paintRow();
+      commands(ta, this.#commandScope);
       this.#body.after(ta);
-      this.#paintButtons();
+      this.#refreshMargin();
       ta.focus();
       // Only the pointer names a place; the pencil and a recovered draft leave the
       // caret where focus put it, at the start of the text. The range was measured
@@ -685,13 +638,14 @@ customElements.define(
       // another tab's settlement brings takes focus from wherever they actually are.
       const stood =
         this.contains(document.activeElement) ||
-        this.#row.contains(document.activeElement);
+        this.#margin?.contains(document.activeElement);
       this.#ta.remove();
       this.#ta = null;
       this.#failed = false;
-      this.#paintRow();
-      this.#paintButtons();
-      if (stood) this.#pencil.focus();
+      this.#refreshMargin({
+        immediate: stood,
+        focus: stood ? "edit" : null,
+      });
       // Replay may have been held by this editor. Its close is the generic projection
       // invalidation that lets the state feed retry the complete reading now.
       this.#resumeProjection?.();
@@ -717,7 +671,7 @@ customElements.define(
       );
       this.#sending = false;
       this.removeAttribute("aria-busy");
-      this.#paintButtons();
+      this.#refreshMargin();
       this.#renderHistory(this.#controller.read().actions.edit.history);
       if (ok) {
         notice(`Edited “${this.id}” — sent`);

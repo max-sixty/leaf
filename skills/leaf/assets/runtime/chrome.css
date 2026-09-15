@@ -318,17 +318,9 @@
   > .lf-margin-entry-label {
   transition: none;
 }
-.lf-margin-cluster > .lf-margin-contribution >
-  .lf-margin-entry:not([data-lf-margin-entry-primary]),
-.lf-margin-cluster > .lf-margin-entry.lf-margin-contribution:not([data-lf-margin-entry-primary]) {
-  display: none;
-}
-.lf-margin-cluster > .lf-margin-contribution:not(.lf-margin-entry):not([data-lf-margin-receipt]):not(:has(> [data-lf-margin-entry-primary])) {
-  display: none;
-}
 .lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
-[data-lf-margin-receipt="failed"] > .lf-margin-receipt { color: var(--danger-ink); }
+.lf-margin-receipt[data-lf-margin-receipt="negative"] { color: var(--danger-ink); }
 /* A gesture the log has not answered yet, in the platform's own word for it, which
    is why no tag is named here: any widget that says aria-busy is painted, and
    lf-draft was saying it to screen readers alone before this rule existed.
@@ -493,11 +485,8 @@ body[data-lf-draw-mode] main .lf-conversation * { cursor: auto !important; }
    cannot hover the words to find out whether anything is there. */
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
   text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
-/* The glyphs of the reactions standing on a target — a margin entry per reaction, the margin entry
-   revealing the reaction's separate eraser (anchor-controls.js seatReactions). This is an unpositioned
-   contribution: the margin projection joins it to the target's other RHS controls and
-   decides whether their one complete item hangs or docks. */
-.lf-reacts { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+/* The glyphs of the reactions standing on a target — a margin entry per reaction,
+   revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
 /* Opening a standing reaction leaves its familiar face in place and reveals the
    separately named removal action beside it. Its existing contour takes the shared
@@ -1762,7 +1751,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
-    color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
+    color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: default; }
+  .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
+    cursor: pointer; }
   .lf-page-map-action:is(
     [data-lf-agent-workflow="picked_up"],
     [data-lf-agent-workflow="working"]
@@ -1779,7 +1770,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @media (prefers-reduced-motion: reduce) {
     .lf-page-map-action[data-lf-agent-arrival] { animation: none; }
   }
-  .lf-page-map-action:is(:hover, :focus-visible) { background: var(--lf-agent-tint, var(--chip)); }
+  .lf-page-map-action:is(button, [role="button"]):is(:hover, :focus-visible):not([aria-disabled="true"]) {
+    background: var(--lf-agent-tint, var(--chip)); }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
     align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;
     stroke-linecap: round; stroke-linejoin: round; }

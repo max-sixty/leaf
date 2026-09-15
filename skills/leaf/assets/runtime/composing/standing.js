@@ -26,19 +26,28 @@ import { addressableAt } from "../anchor-resolution.js";
 // control a widget hoisted into the margin speaks for the Ask it points back at rather
 // than for the block it hangs beside.
 //
-// Focus in the chrome is not a place in the page. The banner, the panel and the trays are
-// where a reader works on the page rather than where they stand in it, so a press made
-// from one means the page whole. A box that takes letters never arrives here at all: the
-// typing scope claims the letter before the page is asked.
+// A projected margin control is chrome with an explicit page target, so that target wins
+// before the general chrome fence. The banner, panel, and trays have no such coordinate:
+// they are where a reader works on the page rather than where they stand in it, so a press
+// made from one means the page whole. A box that takes letters never arrives here at all:
+// the typing scope claims the letter before the page is asked.
 //
 // `documentFocused()` rather than `focused()`: a control
 // staged in a shadow tree retargets to its host, and the host is the place in the document
 // both the chrome guard and the element walk want. standingConversation below wants the inner
 // reading, and says so.
-export function createStandingElement({ isAskControl, askPlace, standingIn }) {
+export function createStandingElement({
+  isAskControl,
+  askPlace,
+  standingIn,
+  projectionTarget,
+}) {
   return function standingElement() {
     const held = documentFocused();
-    if (!held || held === document.body || inChrome(held)) return null;
+    if (!held || held === document.body) return null;
+    const projected = projectionTarget(held);
+    if (projected) return projected;
+    if (inChrome(held)) return null;
     const working = isAskControl(held) ? standingIn() : null;
     return working ?? addressableAt(askPlace(held));
   };

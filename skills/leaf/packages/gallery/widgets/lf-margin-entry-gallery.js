@@ -1,5 +1,5 @@
 /* A developer exhibit of the complete margin-entry face and its projection.
- * It uses the public marginEntry, count, selection, agent-workflow, and contribution helpers
+ * It uses the public immutable margin-entry reading and presentation helpers
  * rather than reproducing anatomy or paint. The package owns only the comparison grid,
  * the words naming each cell, and one local disclosure that makes the compact margin
  * control and its full Page Map row directly exercisable. */
@@ -7,11 +7,9 @@ import {
   marginEntry,
   once,
   offer,
+  presentMarginEntry,
   registerMarginContribution,
   relabel,
-  syncMarginAgentWorkflow,
-  syncMarginEntryCount,
-  syncMarginEntrySelection,
 } from "/runtime/widget-api.js";
 
 const GROUPS = [
@@ -222,43 +220,53 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
   item.dataset.marginEntrySpecimen = specimen.name.toLowerCase();
   const behavior = specimen.behavior ?? "action";
   const key = `gallery-${groupIndex}-${specimenIndex}`;
-  const control = marginEntry(
-    offer(behavior === "status" ? "span" : "button", "margin-entry-gallery-face"),
-    {
-      key,
-      label: specimen.name,
-      ...(specimen.icon ? { icon: specimen.icon } : { glyph: specimen.glyph }),
-      context: specimen.context,
-      behavior,
-      tone: specimen.tone ?? "neutral",
-      rank: specimen.rank ?? "primary",
-      state: specimen.state ?? "idle",
-    },
+  const control = offer(
+    behavior === "status" ? "span" : "button",
+    "margin-entry-gallery-face",
   );
-  if (specimen.workflowStage)
-    syncMarginAgentWorkflow(control, {
-      id: key,
-      target: { kind: "widget", id: key },
-      phase: specimen.workflowStage === "working" ? "active" : specimen.workflowStage,
-    });
-  syncMarginEntrySelection(control, specimen.selected ?? false);
-  syncMarginEntryCount(control, specimen.count ?? 1);
-  if (specimen.showLabel) control.dataset.marginEntryLabelLive = "";
-  if (specimen.expanded) control.setAttribute("aria-expanded", "true");
+  let expanded = Boolean(specimen.expanded);
   let disclosure = null;
   if (specimen.interactive) {
     disclosure = generated("span", "margin-entry-gallery-disclosure", specimen.reveals);
     disclosure.id = `${key}-disclosure`;
-    disclosure.hidden = !specimen.expanded;
-    control.setAttribute("aria-controls", disclosure.id);
+  }
+  const paint = () => {
+    if (disclosure) disclosure.hidden = !expanded;
+    presentMarginEntry(
+      control,
+      marginEntry({
+        key,
+        label: specimen.name,
+        ...(specimen.icon ? { icon: specimen.icon } : { glyph: specimen.glyph }),
+        context: specimen.context,
+        behavior,
+        tone: specimen.tone ?? "neutral",
+        rank: specimen.rank ?? "primary",
+        state: specimen.state ?? "idle",
+        count: specimen.count ?? 1,
+        disabled: !specimen.interactive,
+        workflowReceipt: specimen.workflowStage
+          ? {
+              id: key,
+              target: { kind: "widget", id: key },
+              phase:
+                specimen.workflowStage === "working"
+                  ? "active"
+                  : specimen.workflowStage,
+            }
+          : null,
+        relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
+      }),
+      { selected: specimen.selected ?? false },
+    );
+  };
+  paint();
+  if (specimen.showLabel) control.dataset.marginEntryLabelLive = "";
+  if (disclosure) {
     control.addEventListener("click", () => {
-      const open = disclosure.hidden;
-      disclosure.hidden = !open;
-      control.setAttribute("aria-expanded", String(open));
+      expanded = !expanded;
+      paint();
     });
-  } else {
-    if (control instanceof HTMLButtonElement) control.disabled = true;
-    if (behavior !== "status") control.setAttribute("aria-disabled", "true");
   }
 
   const copy = generated("span", "margin-entry-gallery-copy");
@@ -311,7 +319,7 @@ customElements.define(
         const result = generated(
           "p",
           "margin-entry-gallery-projection-result",
-          "The same contributed control owns both projections.",
+          "The same contributed action serves both projections.",
         );
         result.id = `${this.id}-projection-result`;
         result.hidden = true;
@@ -329,27 +337,28 @@ customElements.define(
     #registerProjection() {
       if (this.#projection) return;
       const result = this.querySelector(".margin-entry-gallery-projection-result");
-      const control = marginEntry(offer("button", ""), {
-        key: "inspect-projection",
-        icon: "question",
-        label: "Inspect projection",
-        context: "Compact face · full row",
-        behavior: "disclosure",
-        rank: "reading",
-      });
-      control.setAttribute("aria-controls", result.id);
-      control.setAttribute("aria-expanded", String(!result.hidden));
-      control.addEventListener("click", () => {
-        const open = result.hidden;
-        result.hidden = !open;
-        control.setAttribute("aria-expanded", String(open));
-        this.#projection.update({ immediate: true });
-      });
       this.#projection = registerMarginContribution({
         key: `gallery-projection:${this.id}`,
         target: () => this,
-        subject: "Margin entry projection",
-        controls: control,
+        read: () => ({
+          subject: "Margin entry projection",
+          entries: [
+            {
+              key: "inspect-projection",
+              icon: "question",
+              label: "Inspect projection",
+              context: "Compact face · full row",
+              behavior: "disclosure",
+              rank: "reading",
+              relation: { kind: "element", id: result.id, expanded: !result.hidden },
+            },
+          ],
+          readings: [],
+        }),
+        activate: () => {
+          result.hidden = !result.hidden;
+          this.#projection.update({ immediate: true });
+        },
       });
     }
   },

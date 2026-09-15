@@ -1,48 +1,32 @@
-/* The public grammar and registry for controls contributed to a page target's margin.
+/* The immutable public grammar and registry for controls contributed to a page target's
+   margin.
 
-   Contributors own their verbs, events, and semantic engagement state. This module owns
-   the shared control anatomy, validates stable identities within each contribution, and
-   retains registrations while live documents and widgets reconnect. The margin projection
-   consumes that registry to choose and place controls; contributors never place RHS rows.
+   Contributors publish one complete frozen reading. Margin and Page Map independently
+   render that reading; neither inspects, moves, or activates contributor-owned DOM. A
+   registration owns the sole activation capability for its entries, so package commands
+   and both projections invoke the same current action. Updating replaces the whole
+   reading and stable identity is the registration plus entry key.
 
    Behavior, tone, rank, and interaction state are independent contributor axes. Reader
-   selection and agent workflow are independent projection-owned axes. An action performs
-   an immediate effect, a disclosure reveals context, and a status reports a move already
-   made without offering a press. Tone changes the icon color without changing the ring or
-   surface. Busy dims an in-flight press after the shared delay; engaged and failed controls
-   stand beside words that already state their condition. Interaction state otherwise
-   orders controls and keeps an active contribution open rather than becoming a
-   product-facing visual taxonomy.
-   A disclosure's visible label ends in an ellipsis because it opens context; action and
-   status labels do not. Every axis has a default, so an option outside this grammar is
-   refused rather than ignored: a caller stating a rank under a name this module does not
-   know would otherwise get the default and no word about it.
+   selection and agent workflow are independent presentation fields. Ordering follows
+   interaction state, then rank, contribution key, and entry key. Registration and DOM
+   order never decide which unrelated action becomes primary. */
 
-   Ordering follows interaction state, then rank, contribution key, and control key. Failed,
-   busy, and engaged contributions precede idle ones; completion and escape controls
-   precede primary, secondary, reading, and overflow controls. Registration and DOM order
-   never decide which unrelated action becomes primary.
-
-   A disclosure owns `aria-expanded` by default, and every element owns its tab seat by
-   default. `writesRelation: false` or `writesSeat: false` declares another sole writer.
-   Two relation writers add and remove the same attribute each heartbeat; the disclosure
-   watch reads that as news and repaints an untouched page's keys. Two seat writers make
-   the element's `tabindex` alternate after each roving-seat pass. The retained record
-   carries relation ownership into proxies, which forward transient native state while
-   activation remains with the contributor's original control.
-
-   A failed mutation leaves Failed, Retry, and Cancel at its target. Retry follows only a
-   definitive refusal; an ambiguous transport result remains busy while delivery retries
-   the same attempt. Reversible actions act immediately and may offer Undo. Confirmation
-   is reserved for irreversible effects. */
-
+import { html, render } from "../vendor/browser-runtime.js";
 import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
-import { keeps } from "./widget-elements.js";
+import { keeps, offer } from "./widget-elements.js";
 import { agentWorkflowStage } from "./updates.js";
+import { focused, isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 const contributions = new Set();
 const listeners = new Set();
+const presented = new WeakMap();
+const records = new WeakMap();
+const controlContributions = new WeakMap();
+const iconNodes = new WeakMap();
+const contributorClasses = new WeakMap();
+const entryRecords = new WeakSet();
 
 export const MARGIN_ENTRY_SCHEMA = Object.freeze({
   tones: Object.freeze(["neutral", "positive", "negative"]),
@@ -77,56 +61,226 @@ const RANK_PRIORITY = new Map([
   ["overflow", 5],
 ]);
 
-const RECORD = Symbol("Leaf margin entry record");
-const FORWARDED_ATTRIBUTES = [
-  "aria-busy",
-  "aria-controls",
-  "aria-disabled",
-  "aria-expanded",
-  "aria-haspopup",
-  "aria-pressed",
-  "data-lf-agent-workflow",
-  "data-lf-target-selected",
-];
+const ENTRY_OPTIONS = new Set([
+  "key",
+  "glyph",
+  "icon",
+  "label",
+  "accessibleLabel",
+  "staticLabel",
+  "context",
+  "description",
+  "behavior",
+  "tone",
+  "rank",
+  "state",
+  "visible",
+  "disabled",
+  "count",
+  "pressed",
+  "workflowReceipt",
+  "relation",
+  "activation",
+  "title",
+  "className",
+  "scope",
+]);
+const READING_OPTIONS = new Set([
+  "subject",
+  "state",
+  "side",
+  "claim",
+  "reserve",
+  "notice",
+  "entries",
+  "readings",
+]);
 
 const changed = () => {
   for (const listener of listeners) listener();
 };
 
-export const marginContributionEntries = () => contributions.values();
+const text = (value) => String(value ?? "").trim();
+const unknownOptions = (offered, allowed, kind) => {
+  const unknown = Object.keys(offered).filter((key) => !allowed.has(key));
+  if (unknown.length)
+    throw new TypeError(`Unknown margin ${kind} option: ${unknown.sort().join(", ")}`);
+};
+const freezeRelation = (relation) => {
+  if (relation == null) return null;
+  if (typeof relation !== "object")
+    throw new TypeError("A margin entry relation must be an object");
+  if (relation.kind === "entries") {
+    const keys = relation.keys?.map(text).filter(Boolean) ?? [];
+    if (!keys.length)
+      throw new TypeError("A margin entry relation needs at least one entry key");
+    return Object.freeze({
+      kind: "entries",
+      keys: Object.freeze(keys),
+      expanded: Boolean(relation.expanded),
+    });
+  }
+  if (relation.kind === "element") {
+    const id = text(relation.id);
+    if (!id) throw new TypeError("A margin element relation needs an id");
+    return Object.freeze({
+      kind: "element",
+      id,
+      expanded: Boolean(relation.expanded),
+      popup: relation.popup == null ? null : text(relation.popup),
+    });
+  }
+  throw new TypeError(`Unknown margin entry relation: ${String(relation.kind)}`);
+};
 
-export const marginEntryStateRank = (state) => STATE_PRIORITY.get(state);
+export function marginEntry(offered) {
+  if (!offered || typeof offered !== "object")
+    throw new TypeError("A margin entry needs an options object");
+  unknownOptions(offered, ENTRY_OPTIONS, "entry");
+  const {
+    key,
+    glyph = null,
+    icon = null,
+    label,
+    accessibleLabel = null,
+    staticLabel = null,
+    context = null,
+    description = null,
+    behavior = "action",
+    tone = "neutral",
+    rank = "primary",
+    state = "idle",
+    visible = true,
+    disabled = false,
+    count = 1,
+    pressed = null,
+    workflowReceipt = undefined,
+    relation = null,
+    activation = key,
+    title = null,
+    className = null,
+    scope = null,
+  } = offered;
+  if (!text(key)) throw new TypeError("A margin entry needs a key");
+  if (Boolean(text(glyph)) === Boolean(icon))
+    throw new TypeError("A margin entry needs exactly one glyph or icon");
+  if (!text(label)) throw new TypeError("A margin entry needs a label");
+  if (!TONES.has(tone)) throw new TypeError(`Unknown margin entry tone: ${tone}`);
+  if (!BEHAVIORS.has(behavior))
+    throw new TypeError(`Unknown margin entry behavior: ${behavior}`);
+  if (!RANKS.has(rank)) throw new TypeError(`Unknown margin entry rank: ${rank}`);
+  if (!STATES.has(state)) throw new TypeError(`Unknown margin entry state: ${state}`);
+  if (!Number.isSafeInteger(count) || count < 0)
+    throw new TypeError("A margin entry count must be a non-negative integer");
+  if (behavior !== "status" && !text(activation))
+    throw new TypeError("An actionable margin entry needs an activation");
+  if (behavior === "status" && scope != null)
+    throw new TypeError("A status margin entry cannot have a command scope");
+  if (scope != null && !isCommandScope(scope))
+    throw new TypeError("A margin entry scope needs a commandScope capability");
+  const record = Object.freeze({
+    key: text(key),
+    glyph: glyph == null ? null : String(glyph),
+    icon,
+    label: text(label),
+    accessibleLabel: text(accessibleLabel) || text(label),
+    staticLabel: text(staticLabel) || null,
+    context: text(context) || null,
+    description: text(description) || null,
+    behavior,
+    tone,
+    rank,
+    state,
+    visible: Boolean(visible),
+    disabled: Boolean(disabled),
+    count,
+    pressed: pressed == null ? null : Boolean(pressed),
+    workflowReceipt,
+    relation: freezeRelation(relation),
+    activation: behavior === "status" ? null : text(activation),
+    title: text(title) || null,
+    className: text(className) || null,
+    scope,
+  });
+  entryRecords.add(record);
+  return record;
+}
 
-export function marginContributionState(offered) {
-  const state = typeof offered.state === "function" ? offered.state() : offered.state;
+function normalizeReading(reading, owner) {
+  if (!reading || typeof reading !== "object")
+    throw new TypeError("A margin contribution must read an object");
+  unknownOptions(reading, READING_OPTIONS, "contribution");
+  const {
+    subject = null,
+    state = "idle",
+    side = "before",
+    claim = true,
+    reserve = 0,
+    notice = null,
+    entries = [],
+    readings = [],
+  } = reading;
   if (!STATES.has(state))
     throw new TypeError(`Unknown margin contribution state: ${state}`);
-  return state;
+  if (side !== "before" && side !== "after")
+    throw new TypeError(`Unknown margin contribution side: ${side}`);
+  if (!Number.isFinite(reserve) || reserve < 0)
+    throw new TypeError("A margin contribution reserve must be non-negative");
+  if (!Array.isArray(entries))
+    throw new TypeError("A margin contribution's entries must be an array");
+  if (!Array.isArray(readings))
+    throw new TypeError("A margin contribution's readings must be an array");
+  const keys = new Set();
+  const normalizedEntries = entries.map((entry) => {
+    const normalized = entryRecords.has(entry) ? entry : marginEntry(entry);
+    if (keys.has(normalized.key))
+      throw new TypeError(
+        `Duplicate margin entry key "${normalized.key}" in margin contribution "${owner}"`,
+      );
+    keys.add(normalized.key);
+    const owned = Object.freeze({ ...normalized, owner });
+    entryRecords.add(owned);
+    return owned;
+  });
+  const normalizedNotice =
+    notice == null
+      ? null
+      : Object.freeze({
+          text: text(notice.text),
+          tone: text(notice.tone) || "negative",
+        });
+  return Object.freeze({
+    subject: text(subject) || null,
+    state,
+    side,
+    claim: Boolean(claim),
+    reserve,
+    notice: normalizedNotice,
+    entries: Object.freeze(normalizedEntries),
+    readings: Object.freeze(readings.map((item) => Object.freeze({ ...item }))),
+  });
 }
+
+export const marginContributionEntries = () => contributions.values();
+export const marginEntryStateRank = (state) => STATE_PRIORITY.get(state);
+export const marginContributionState = (offered) => offered.reading.state;
 
 export function compareMarginContributions(left, right) {
   const state =
-    STATE_PRIORITY.get(marginContributionState(left)) -
-    STATE_PRIORITY.get(marginContributionState(right));
+    STATE_PRIORITY.get(left.reading.state) - STATE_PRIORITY.get(right.reading.state);
   return state || left.key.localeCompare(right.key);
 }
 
 export function compareMarginEntryRecords(left, right) {
   const state =
-    STATE_PRIORITY.get(marginContributionState(left.offered)) -
-    STATE_PRIORITY.get(marginContributionState(right.offered));
+    STATE_PRIORITY.get(left.offered.reading.state) -
+    STATE_PRIORITY.get(right.offered.reading.state);
   if (state) return state;
   const rank =
-    RANK_PRIORITY.get(marginEntryRecord(left.control).rank) -
-    RANK_PRIORITY.get(marginEntryRecord(right.control).rank);
+    RANK_PRIORITY.get(left.record.rank) - RANK_PRIORITY.get(right.record.rank);
   if (rank) return rank;
   const contribution = left.offered.key.localeCompare(right.offered.key);
-  return (
-    contribution ||
-    marginEntryRecord(left.control).key.localeCompare(
-      marginEntryRecord(right.control).key,
-    )
-  );
+  return contribution || left.record.key.localeCompare(right.record.key);
 }
 
 export function watchMarginContributions(listener) {
@@ -137,42 +291,32 @@ export function watchMarginContributions(listener) {
 export const visibleMarginEntryLabel = ({ behavior, label }) =>
   behavior !== "disclosure" || label.endsWith("…") ? label : `${label}…`;
 
+/** Create the native host for one generated margin entry reading. */
+export function createMarginEntryControl(record, className = "") {
+  return offer(record.behavior === "status" ? "span" : "button", className);
+}
+
+export const marginEntryControlMatches = (control, record) =>
+  record.behavior === "status"
+    ? control instanceof HTMLSpanElement
+    : control instanceof HTMLButtonElement;
+
 export function marginEntryRecord(control) {
-  const record = control?.[RECORD];
-  if (!record) throw new TypeError("A contributed margin entry must use marginEntry");
+  const record = records.get(control);
+  if (!record)
+    throw new TypeError("A presented margin control needs a margin entry record");
   return record;
 }
 
-export function marginEntries(controls) {
-  if (!(controls instanceof Element)) return [];
-  if (controls.matches(".lf-margin-entry")) return [controls];
-  return [...controls.querySelectorAll(".lf-margin-entry")];
+export function marginEntrySource(control) {
+  const offered = controlContributions.get(control);
+  if (!offered) return null;
+  return typeof offered.source === "function" ? offered.source() : offered.source;
 }
 
-function validateMarginEntries(offered) {
-  const keys = new Set();
-  for (const control of marginEntries(offered.controls)) {
-    const record = marginEntryRecord(control);
-    if (keys.has(record.key))
-      throw new TypeError(
-        `Duplicate margin entry key "${record.key}" in margin contribution "${offered.key}"`,
-      );
-    if (record.owner && record.owner !== offered.key)
-      throw new TypeError(
-        `margin entry "${record.key}" already belongs to margin contribution "${record.owner}"`,
-      );
-    keys.add(record.key);
-    record.owner = offered.key;
-    control.dataset.lfMarginEntryOwner = offered.key;
-  }
-}
-
-// Agent workflow is independent of a control's action and delivery state. A semantic
-// carrier keeps its glyph and press while the canonical receipt supplies its stage.
+// Agent workflow is projection state. One claim gets one shared arrival window so the
+// independently rendered Margin and Page Map carriers join rather than replay its pulse.
 const agentWorkflowDescriptions = new WeakMap();
-const forwardedSources = new WeakMap();
-// Every claim gets one arrival window shared by its margin and Page Map carriers.
-// A new carrier can join the remaining pulse, but repainting cannot begin it again.
 const claimArrivals = new Map();
 const controlArrivals = new WeakMap();
 function syncAgentArrival(control, claim, stage) {
@@ -189,27 +333,15 @@ function syncAgentArrival(control, claim, stage) {
   keeps(control, "data-lf-agent-arrival", "1");
   control.addEventListener(
     "animationend",
-    () => {
-      control.removeAttribute("data-lf-agent-arrival");
-    },
+    () => control.removeAttribute("data-lf-agent-arrival"),
     { once: true },
   );
 }
 
-// Both entry reconciliation and activity updates ask this one writer to compose
-// text. Rebuilding a control must not clear a tooltip whose workflow is unchanged.
 function paintAgentDescription(control) {
-  const source = forwardedSources.get(control);
-  if (source) {
-    for (const attribute of ["aria-description", "title"]) {
-      const value = source.getAttribute(attribute);
-      if (value === null) control.removeAttribute(attribute);
-      else keeps(control, attribute, value);
-    }
-    return;
-  }
   const reading = agentWorkflowDescriptions.get(control);
   if (!reading) {
+    control.removeAttribute("aria-description");
     control.removeAttribute("title");
     return;
   }
@@ -226,7 +358,7 @@ function paintAgentDescription(control) {
   const work = [reading.stage === "working" ? "Working" : "Picked up", reading.detail]
     .filter(Boolean)
     .join(" · ");
-  const action = control[RECORD]?.label || control.getAttribute("aria-label");
+  const record = records.get(control);
   keeps(
     control,
     "aria-description",
@@ -235,7 +367,11 @@ function paintAgentDescription(control) {
   keeps(
     control,
     "title",
-    [action, reading.title !== action && reading.title, work]
+    [
+      record?.title ?? record?.label,
+      reading.title !== (record?.title ?? record?.label) && reading.title,
+      work,
+    ]
       .filter(Boolean)
       .join(" · "),
   );
@@ -272,247 +408,238 @@ export function syncMarginAgentWorkflow(control, receipt) {
 }
 
 export function syncMarginEntrySelection(control, selected) {
-  if (selected) keeps(control, "data-lf-target-selected", "");
-  else control.removeAttribute("data-lf-target-selected");
+  control.toggleAttribute("data-lf-target-selected", Boolean(selected));
 }
 
-export function syncForwardedMarginEntryState(projection, source) {
-  forwardedSources.set(projection, source);
-  paintAgentDescription(projection);
-  syncAgentArrival(
-    projection,
-    controlArrivals.get(source),
-    source.dataset.lfAgentWorkflow,
-  );
-  const label = source.getAttribute("aria-label");
-  if (label == null) projection.removeAttribute("aria-label");
-  else keeps(projection, "aria-label", label);
-  const disabled = source.disabled || source.getAttribute("aria-disabled") === "true";
-  if (projection.disabled !== disabled) projection.disabled = disabled;
-  for (const attribute of FORWARDED_ATTRIBUTES) {
-    const value = source.getAttribute(attribute);
-    if (value == null) projection.removeAttribute(attribute);
-    else keeps(projection, attribute, value);
+function iconFor(control, icon) {
+  if (!icon) return null;
+  let node = iconNodes.get(control);
+  if (!node || node.dataset.lfIcon !== icon) {
+    node = iconElement(icon);
+    iconNodes.set(control, node);
   }
+  return node;
 }
 
-export function marginEntry(
+export function presentMarginEntryHost(
   control,
-  {
-    glyph = null,
-    icon = null,
-    key,
-    label,
-    context = null,
-    behavior = "action",
-    tone = "neutral",
-    rank = "primary",
-    state = "idle",
-    writesRelation = true,
-    writesSeat = true,
-    // Every axis has a default, so an option this grammar does not know is silently
-    // nothing: the control keeps the default for the axis the caller meant to state.
-    // That is how a rename of this vocabulary reaches a call site — the old name goes
-    // on being accepted and the stated rank stops arriving. What this destructuring
-    // does not name is what the refusal below reports, so the two cannot disagree.
-    ...unknown
-  },
+  offered,
+  { writesRelation = true, writesSeat = true } = {},
 ) {
-  const unnamed = Object.keys(unknown);
-  if (unnamed.length)
-    throw new TypeError(`Unknown margin entry option: ${unnamed.sort().join(", ")}`);
   if (!(control instanceof Element))
-    throw new TypeError("A margin entry needs an Element control");
-  if (!String(key ?? "").trim()) throw new TypeError("A margin entry needs a key");
-  if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
-    throw new TypeError("A margin entry needs exactly one glyph or icon");
-  if (!String(label ?? "").trim()) throw new TypeError("A margin entry needs a label");
-  if (!TONES.has(tone)) throw new TypeError(`Unknown margin entry tone: ${tone}`);
-  if (!BEHAVIORS.has(behavior))
-    throw new TypeError(`Unknown margin entry behavior: ${behavior}`);
-  if (!RANKS.has(rank)) throw new TypeError(`Unknown margin entry rank: ${rank}`);
-  const record = control[RECORD] ?? {};
-  Object.assign(record, {
-    key: String(key),
-    glyph: glyph == null ? null : String(glyph),
-    icon,
-    label: String(label),
-    context: String(context ?? "").trim() || null,
-    behavior,
-    tone,
-    rank,
-    state,
-    writesRelation,
-  });
-  control[RECORD] = record;
-
-  if (!control.classList.contains("lf-margin-entry"))
-    control.classList.add("lf-margin-entry");
-  paintAgentDescription(control);
+    throw new TypeError("A margin presentation needs an Element control");
+  const record = entryRecords.has(offered) ? offered : marginEntry(offered);
+  if (control instanceof HTMLButtonElement && record.behavior === "status")
+    throw new TypeError("A status margin entry needs a stable span host");
+  records.set(control, record);
   keeps(control, "data-lf-margin-entry-key", record.key);
+  if (record.owner) keeps(control, "data-lf-margin-entry-owner", record.owner);
+  else control.removeAttribute("data-lf-margin-entry-owner");
   keeps(control, "data-lf-behavior", record.behavior);
   keeps(control, "data-lf-tone", record.tone);
   keeps(control, "data-lf-rank", record.rank);
-  keeps(control, "data-lf-offer", behavior === "status" ? "" : "button");
-  setMarginEntryState(control, state);
-  const opens = behavior === "disclosure";
-  if (opens && writesRelation && !control.hasAttribute("aria-expanded"))
-    control.setAttribute("aria-expanded", "false");
-  if (!opens) control.removeAttribute("aria-expanded");
-  if (behavior === "status") {
-    keeps(control, "role", "status");
-    if (writesSeat) keeps(control, "tabindex", -1);
-  } else if (!(control instanceof HTMLButtonElement)) {
-    keeps(control, "role", "button");
-    if (writesSeat && control.tabIndex < 0) control.tabIndex = 0;
-  } else if (control.getAttribute("role") === "status") {
-    control.removeAttribute("role");
-    if (writesSeat) control.removeAttribute("tabindex");
-  }
-
-  let glyphNode = control.querySelector(
-    ":scope > :is(.lf-margin-entry-glyph, .lf-margin-entry-icon)",
-  );
-  let spaceNode = control.querySelector(":scope > .lf-margin-entry-space");
-  let labelNode = control.querySelector(":scope > .lf-margin-entry-label");
-  if (icon) {
-    if (!(glyphNode instanceof SVGSVGElement) || glyphNode.dataset.lfIcon !== icon)
-      glyphNode = iconElement(icon);
+  keeps(control, "data-lf-state", record.state);
+  keeps(control, "data-lf-offer", record.behavior === "status" ? "" : "button");
+  if (record.pressed == null) control.removeAttribute("aria-pressed");
+  else keeps(control, "aria-pressed", record.pressed);
+  if (record.state === "busy") {
+    keeps(control, "aria-busy", "true");
   } else {
-    if (!(glyphNode instanceof HTMLSpanElement))
-      glyphNode = document.createElement("span");
-    if (glyphNode.className !== "lf-margin-entry-glyph")
-      glyphNode.className = "lf-margin-entry-glyph";
-    glyphNode.removeAttribute("data-lf-icon");
-    if (glyphNode.textContent !== glyph) glyphNode.textContent = glyph;
+    control.removeAttribute("aria-busy");
   }
-  if (!spaceNode) spaceNode = document.createElement("span");
-  if (!labelNode) labelNode = document.createElement("span");
-  if (glyphNode.getAttribute("aria-hidden") !== "true")
-    glyphNode.setAttribute("aria-hidden", "true");
-  if (spaceNode.className !== "lf-margin-entry-space")
-    spaceNode.className = "lf-margin-entry-space";
-  if (spaceNode.getAttribute("aria-hidden") !== "true")
-    spaceNode.setAttribute("aria-hidden", "true");
-  if (spaceNode.textContent !== " ") spaceNode.textContent = " ";
-  if (labelNode.className !== "lf-margin-entry-label")
-    labelNode.className = "lf-margin-entry-label";
-  if (labelNode.getAttribute("aria-hidden") !== "true")
-    labelNode.setAttribute("aria-hidden", "true");
+  const relation = record.relation;
+  if (writesRelation) {
+    if (record.behavior === "disclosure")
+      keeps(control, "aria-expanded", relation?.expanded ?? false);
+    else control.removeAttribute("aria-expanded");
+    if (relation?.kind === "element") keeps(control, "aria-controls", relation.id);
+    else if (!relation) control.removeAttribute("aria-controls");
+    if (relation?.popup) keeps(control, "aria-haspopup", relation.popup);
+    else control.removeAttribute("aria-haspopup");
+  }
+  if (control instanceof HTMLButtonElement) {
+    const wasStatus = control.getAttribute("role") === "status";
+    control.removeAttribute("role");
+    if (writesSeat && wasStatus) control.removeAttribute("tabindex");
+    if (control.type !== "button") control.type = "button";
+    // A pending action can be the reader's retained place even while it refuses a
+    // second activation. Native disabled buttons cannot hold that place; the immutable
+    // record and registration enforce refusal while aria exposes it to the reader.
+    if (control.disabled) control.disabled = false;
+    keeps(control, "aria-disabled", record.disabled);
+  } else if (record.behavior === "status") {
+    keeps(control, "role", "status");
+    control.removeAttribute("aria-disabled");
+    if (writesSeat) keeps(control, "tabindex", -1);
+  } else {
+    keeps(control, "role", "button");
+    keeps(control, "aria-disabled", record.disabled);
+    if (writesSeat && control.tabIndex < 0) control.tabIndex = 0;
+  }
+  keeps(control, "aria-label", record.accessibleLabel);
+  if (record.staticLabel) keeps(control, "data-lf-static-label", record.staticLabel);
+  else control.removeAttribute("data-lf-static-label");
+  if (record.description) keeps(control, "aria-description", record.description);
+  else if (!agentWorkflowDescriptions.has(control))
+    control.removeAttribute("aria-description");
+  if (record.title) keeps(control, "title", record.title);
+  else if (!agentWorkflowDescriptions.has(control)) control.removeAttribute("title");
+  projectCommandScope(control, record.scope);
+  return record;
+}
 
+export function presentMarginEntry(control, offered, options = {}) {
+  const record = presentMarginEntryHost(control, offered, options);
+  if (Object.hasOwn(options, "selected"))
+    syncMarginEntrySelection(control, options.selected);
+  if (!control.classList.contains("lf-margin-entry"))
+    control.classList.add("lf-margin-entry");
+  const priorClasses = contributorClasses.get(control) ?? [];
+  const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
+  if (
+    priorClasses.length !== nextClasses.length ||
+    priorClasses.some((name, index) => name !== nextClasses[index])
+  ) {
+    control.classList.remove(...priorClasses);
+    if (nextClasses.length) control.classList.add(...nextClasses);
+  }
+  contributorClasses.set(control, nextClasses);
   const visibleLabel = visibleMarginEntryLabel(record);
-  let labelWord = labelNode.querySelector(":scope > .lf-margin-entry-label-word");
-  let contextNode = labelNode.querySelector(":scope > .lf-margin-entry-context");
-  if (!labelWord) labelWord = document.createElement("span");
-  if (labelWord.className !== "lf-margin-entry-label-word")
-    labelWord.className = "lf-margin-entry-label-word";
-  if (labelWord.textContent !== visibleLabel) labelWord.textContent = visibleLabel;
-  if (record.context && !contextNode) contextNode = document.createElement("span");
-  if (!record.context) {
-    contextNode?.remove();
-    contextNode = null;
-  }
-  if (contextNode) {
-    if (contextNode.className !== "lf-margin-entry-context")
-      contextNode.className = "lf-margin-entry-context";
-    if (contextNode.textContent !== record.context)
-      contextNode.textContent = record.context;
-  }
-  const labelParts = [labelWord, ...(contextNode ? [contextNode] : [])];
-  if (
-    labelNode.childNodes.length !== labelParts.length ||
-    labelParts.some((node, index) => labelNode.childNodes[index] !== node)
-  )
-    labelNode.replaceChildren(...labelParts);
-
-  const countNode = control.querySelector(":scope > .lf-margin-count");
-  const anatomy = [glyphNode, spaceNode, labelNode, ...(countNode ? [countNode] : [])];
-  if (
-    control.childNodes.length !== anatomy.length ||
-    anatomy.some((node, index) => control.childNodes[index] !== node)
-  )
-    control.replaceChildren(...anatomy);
-  if (!control.hasAttribute("aria-label"))
-    control.setAttribute("aria-label", record.label);
+  const glyph = record.icon
+    ? iconFor(control, record.icon)
+    : html`<span class="lf-margin-entry-glyph" aria-hidden="true"
+        >${record.glyph}</span
+      >`;
+  render(
+    html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
+      ><span class="lf-margin-entry-label" aria-hidden="true"
+        ><span class="lf-margin-entry-label-word">${visibleLabel}</span>${
+          record.context
+            ? html`<span class="lf-margin-entry-context">${record.context}</span>`
+            : null
+        }</span
+      >${
+        record.count > 1
+          ? html`<span class="lf-margin-count" aria-hidden="true"
+              >${record.count}</span
+            >`
+          : null
+      }`,
+    control,
+  );
+  if (record.workflowReceipt !== undefined)
+    syncMarginAgentWorkflow(control, record.workflowReceipt);
   return control;
 }
 
-export function syncMarginEntryCount(control, count) {
-  let badge = control.querySelector(":scope > .lf-margin-count");
-  if (count <= 1) {
-    badge?.remove();
-    return;
+export function trackMarginEntryControl(offered, surface, key, control) {
+  controlContributions.set(control, offered);
+  let surfaces = presented.get(offered);
+  if (!surfaces) {
+    surfaces = new Map();
+    presented.set(offered, surfaces);
   }
-  if (!badge) badge = document.createElement("span");
-  if (badge.className !== "lf-margin-count") badge.className = "lf-margin-count";
-  if (badge.getAttribute("aria-hidden") !== "true")
-    badge.setAttribute("aria-hidden", "true");
-  if (badge.textContent !== String(count)) badge.textContent = count;
-  if (control.lastChild !== badge) control.append(badge);
+  let controls = surfaces.get(surface);
+  if (!controls) {
+    controls = new Map();
+    surfaces.set(surface, controls);
+  }
+  controls.set(key, control);
 }
 
-export function setMarginEntryState(control, state) {
-  if (!(control instanceof Element) || !control.classList.contains("lf-margin-entry"))
-    throw new TypeError("A margin entry state needs a margin entry");
-  if (!STATES.has(state)) throw new TypeError(`Unknown margin entry state: ${state}`);
-  marginEntryRecord(control).state = state;
-  keeps(control, "data-lf-state", state);
-  if (state === "busy") keeps(control, "aria-busy", "true");
-  else control.removeAttribute("aria-busy");
-  return control;
+export function clearMarginEntryControls(offered, surface, liveKeys) {
+  const controls = presented.get(offered)?.get(surface);
+  if (!controls) return;
+  for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
 }
 
 export function registerMarginContribution({
   key,
   target,
-  controls,
-  items = () => [],
-  subject = null,
-  state = "idle",
-  side = "before",
-  claim = true,
-  reserve = 0,
+  source = target,
+  read,
+  activate,
 }) {
-  if (!String(key ?? "").trim())
-    throw new TypeError("A margin contribution needs a key");
-  if (side !== "before" && side !== "after")
-    throw new TypeError(`Unknown margin contribution side: ${side}`);
-  if (typeof state !== "string" && typeof state !== "function")
-    throw new TypeError("A margin contribution's state must be a string or function");
-  if (subject != null && typeof subject !== "string" && typeof subject !== "function")
-    throw new TypeError("A margin contribution's subject must be a string or function");
-  if (typeof state === "string" && !STATES.has(state))
-    throw new TypeError(`Unknown margin contribution state: ${state}`);
-  if (controls instanceof Element) controls.classList.add("lf-margin-contribution");
-  const offered = {
-    key: String(key),
-    target,
-    controls,
-    items,
-    subject,
-    state,
-    side,
-    claim,
-    reserve,
-  };
-  validateMarginEntries(offered);
+  const owner = text(key);
+  if (!owner) throw new TypeError("A margin contribution needs a key");
+  if (typeof read !== "function")
+    throw new TypeError("A margin contribution needs a read function");
+  if (typeof activate !== "function")
+    throw new TypeError("A margin contribution needs an activate function");
+  const offered = { key: owner, target, source, read, activate, reading: null };
+  offered.reading = normalizeReading(read(), owner);
   contributions.add(offered);
   changed();
-  return {
-    update({ immediate = false } = {}) {
-      validateMarginEntries(offered);
+
+  const entry = (entryKey) =>
+    offered.reading.entries.find((candidate) => candidate.key === entryKey) ?? null;
+  const control = (entryKey, surface = null, visible = false) => {
+    const surfaces = presented.get(offered);
+    const preferred = surface ? [surface] : ["margin", "map", "inline"];
+    for (const name of preferred) {
+      const candidate = surfaces?.get(name)?.get(entryKey);
+      if (candidate?.isConnected && (!visible || candidate.checkVisibility()))
+        return candidate;
+    }
+    return null;
+  };
+  const registration = Object.freeze({
+    entry(entryKey) {
+      return entry(text(entryKey));
+    },
+    control,
+    contains(node) {
+      if (!(node instanceof Node)) return false;
+      const surfaces = presented.get(offered);
+      return [...(surfaces?.values() ?? [])].some((controls) =>
+        [...controls.values()].some(
+          (candidate) => candidate === node || candidate.contains(node),
+        ),
+      );
+    },
+    activate(entryKey, context = {}) {
+      const current = entry(text(entryKey));
+      if (
+        !current ||
+        !current.visible ||
+        current.disabled ||
+        current.behavior === "status"
+      )
+        return false;
+      const originOwnsFocus = context.origin == null || context.origin === focused();
+      const focusCurrentSurface =
+        context.focus ??
+        ((key) => {
+          const destination = control(key, context.surface ?? null, true);
+          if (!destination) return false;
+          destination.focus({ preventScroll: true });
+          return true;
+        });
+      offered.activate(current.activation, {
+        ...context,
+        entry: current,
+        focus: originOwnsFocus ? focusCurrentSurface : () => false,
+      });
+      return true;
+    },
+    focus(entryKey, surface = null) {
+      const destination = control(text(entryKey), surface, true);
+      if (!destination) return false;
+      destination.focus({ preventScroll: true });
+      return true;
+    },
+    update({ immediate = false, focus = null } = {}) {
+      offered.reading = normalizeReading(read(), owner);
       changed();
       if (immediate) layoutMarginRows();
+      if (focus != null) registration.focus(focus);
     },
     unregister() {
       if (!contributions.delete(offered)) return;
+      presented.delete(offered);
       changed();
-      for (const control of marginEntries(controls)) {
-        const record = marginEntryRecord(control);
-        if (record.owner === offered.key) delete record.owner;
-        control.removeAttribute("data-lf-margin-entry-owner");
-      }
-      controls?.remove();
     },
-  };
+  });
+  offered.registration = registration;
+  return registration;
 }

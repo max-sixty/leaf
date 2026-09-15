@@ -585,7 +585,7 @@ DRAWING_PLACEMENT = """() => {
     const col = { left: mb.left + parseFloat(ms.paddingLeft),
                   right: mb.right - parseFloat(ms.paddingRight) };
     col.axis = (col.left + col.right) / 2;
-    const acts = document.querySelector('.lf-sug-actions');
+    const acts = document.querySelector('[data-lf-margin-for="sug-copy"]');
     // The drawing's own rect and the box's. A drawing wider than its box keeps a rect
     // that runs on past it — the layout's answer, not the reader's — so what is painted
     // over the margin is the box's edge and what is lost off the scroll's start edge is
@@ -1060,7 +1060,9 @@ RAIL_BANDS = """() => {
     const bb = body.getBoundingClientRect();
     const m = document.querySelector('main');
     const ms = getComputedStyle(m), mb = m.getBoundingClientRect();
-    return { rows: [...document.querySelectorAll('.lf-sug-actions')].map(r => ({
+    return { rows: [...document.querySelectorAll(
+                 '[data-lf-margin-for="sug-copy"], [data-lf-margin-for="sug-card"]'
+             )].map(r => ({
                  ...box(r), docked: r.classList.contains('lf-docked') })),
              plan: box(document.getElementById('plan')),
              later: box(document.getElementById('later')),

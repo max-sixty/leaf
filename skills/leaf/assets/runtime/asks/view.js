@@ -165,6 +165,7 @@ export function createAskView({
   refreshConversation,
   focusForNavigation,
   presentedControl,
+  projectionTarget,
   readingBlock,
   placeBulkAnswer,
   announce,
@@ -264,12 +265,16 @@ export function createAskView({
   };
   function currentAskAnswer(ask) {
     const source = askSource(ask);
-    const readers = commandScopesWithin(source)
-      .filter(
-        ({ source: commandSource, answer }) =>
-          answer && ownedAskControl(source, commandSource),
-      )
-      .map(({ answer }) => answer);
+    const readers = [
+      ...new Set(
+        commandScopesWithin(source)
+          .filter(
+            ({ source: commandSource, answer }) =>
+              answer && ownedAskControl(source, commandSource),
+          )
+          .map(({ answer }) => answer),
+      ),
+    ];
     if (readers.length > 1)
       throw new TypeError(`Ask ${ask.id} has more than one answer reader`);
     return answerWords(readers[0]?.());
@@ -480,6 +485,8 @@ export function createAskView({
   // the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
   // land on the suggestion the reader is already standing on.
   function askPlace(node) {
+    const projected = projectionTarget(node);
+    if (projected) return projected;
     const at = standsAt(node);
     return (at && elementById(at)) ?? node;
   }
@@ -534,11 +541,8 @@ export function createAskView({
     return !selector || closestAcross(commandSource, selector) === askSource;
   }
   const MAX_ASK_ACTIONS = 9;
-  const availableActions = () => {
-    const ask = standingIn();
-    if (!ask) return [];
-    const source = askSource(ask);
-    const actions = decisionControls(commandsWithin(source), `Ask ${ask.id}`).filter(
+  const actionsFor = (source) =>
+    decisionControls(commandsWithin(source), `Ask ${source.id}`).filter(
       ({ source: commandSource, control }) =>
         ownedAskControl(source, commandSource) &&
         control.isConnected &&
@@ -546,6 +550,11 @@ export function createAskView({
         control.getAttribute("aria-disabled") !== "true" &&
         control.getAttribute("aria-busy") !== "true",
     );
+  const availableActions = () => {
+    const ask = standingIn();
+    if (!ask) return [];
+    const source = askSource(ask);
+    const actions = actionsFor(source);
     const contextual = bindings({
       keys: Array.from({ length: MAX_ASK_ACTIONS }, (_, index) => String(index + 1)),
     });
@@ -888,7 +897,8 @@ export function createAskView({
     const source = askSource(el);
     const control =
       source.querySelector(ASK_CONTROL) ??
-      document.querySelector(`[${ASK_ROW}="${source.id}"] ${ASK_CONTROL}`);
+      document.querySelector(`[${ASK_ROW}="${source.id}"] ${ASK_CONTROL}`) ??
+      actionsFor(source).map(({ control }) => presentedActionControl(control))[0];
     if (!control) lend(source);
     const target = control ?? source;
     if (review) reviewedThrough = target;

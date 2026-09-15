@@ -3056,6 +3056,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # state, and the widths that fold it away — is the authored theme's. The
         # runtime sheet names it only to say which plane it stands on, so the movement
         # the theme's rule causes is that deliberate face rather than a leaked one.
+        "lf-margin-cluster",
         "lf-margin-projection",
         "lf-msg-head",
         "lf-react-open",
@@ -3136,16 +3137,13 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-composer-media-remove",
         "lf-message-media",
         "lf-media-open",
-        # A standing reaction's paint on the page: the element outline, the seat in the
-        # margin and the glyph in it, and the wash a copy carries as a <mark>.
+        # A standing reaction's paint on the page: the element outline, margin glyph,
+        # and the wash a copy carries as a <mark>.
         "lf-react-el",
-        "lf-reacts",
         "lf-react-mark",
         "lf-react",
         # Target actions are contributed outside the chrome scope and share one complete
         # item. These names are the deliberate document-level half of that seam.
-        "lf-margin-cluster",
-        "lf-margin-contribution",
         "lf-margin-options",
         "lf-margin-entry",
         "lf-margin-entry-glyph",
@@ -3655,7 +3653,7 @@ def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
     )
     geometries = (
         "() => [...document.querySelectorAll("
-        "'.lf-sug-actions [data-lf-offer=button]')]"
+        "'.lf-margin-entry[data-lf-margin-entry-owner^=\"suggestion:\"]')]"
         ".map((b) => { const s = getComputedStyle(b); "
         "return [s.width, s.height, s.borderRadius]; })"
     )

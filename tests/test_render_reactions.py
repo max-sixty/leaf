@@ -44,13 +44,16 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+MARGIN_RESPONSES = '[data-lf-margin-entry-owner="responses"]'
+
 # The wash and the glyphs a standing reaction paints, read off the page: the ranges in
 # the highlight registry (their words, whitespace dropped, the way the corpus reads a
-# comment's mark) and every seated glyph by the block it sits in and its token.
+# comment's mark) and every seated glyph by its target and accessible action name.
 PAINTED = """() => ({
   washed: [...(CSS.highlights.get('lf-react') ?? [])].map(r => r.toString().replace(/\\s/g, '')).join(''),
-  glyphs: [...document.querySelectorAll('.lf-reacts > .lf-react-mark')]
-    .map(m => [m.parentElement.dataset.lfFor, m.dataset.token]),
+  glyphs: [...document.querySelectorAll('.lf-margin-cluster .lf-react-mark')]
+    .map(m => [m.closest('[data-lf-margin-for]').dataset.lfMarginFor,
+               m.getAttribute('aria-label')]),
   outlined: [...document.querySelectorAll('.lf-react-el')]
     .map(el => el.id || el.dataset.id),
 })"""
@@ -112,7 +115,10 @@ def painted(page, glyphs):
     comment, so the paint itself is the fact a reaction's arrival states."""
     page.wait_for_function(
         "(want) => JSON.stringify((" + PAINTED + ")().glyphs) === want",
-        arg=json.dumps(glyphs, separators=(",", ":")),
+        arg=json.dumps(
+            [[target, f"{token} reaction actions"] for target, token in glyphs],
+            separators=(",", ":"),
+        ),
     )
     return page.evaluate(PAINTED)
 
@@ -246,18 +252,20 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     level = page.evaluate(
         """() => {
           const p = document.querySelector('#how-store').getBoundingClientRect();
-          const receipt = document.querySelector('.lf-reacts');
+          const receipt = document.querySelector('.lf-margin-cluster .lf-react-mark');
           const item = receipt.closest('.lf-margin-cluster');
           const g = item.getBoundingClientRect();
           return { dy: g.top - p.top, right: g.left - p.right,
-                   target: item.dataset.lfMarginFor, parent: receipt.parentElement === item };
+                   target: item.dataset.lfMarginFor,
+                   clusters: document.querySelectorAll(
+                     '.lf-margin-cluster[data-lf-margin-for="how-store"]').length };
         }"""
     )
     assert (
         -2 <= level["dy"] <= 6
         and level["right"] > 0
         and level["target"] == "how-store"
-        and level["parent"]
+        and level["clusters"] == 1
     ), level
     # A mark, not a thread: nothing in the panel, and nothing in its count.
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
@@ -277,8 +285,8 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     page.keyboard.press("e")
     surface = bar
     expect(receipt_item).to_have_count(1)
-    expect(receipt_item.locator(":scope > .lf-reacts")).to_have_count(1)
-    expect(receipt_item.locator(".lf-margin-reactions")).to_have_count(0)
+    expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
+    expect(receipt_item.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     expect(surface.locator('.lf-react[data-token="shorten"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -288,8 +296,10 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     )
     page.mouse.click(40, 300)  # the bar down, the standing glyph remains
     expect(bar).to_be_hidden()
-    expect(receipt_item.locator(":scope > .lf-reacts")).to_have_count(1)
-    mark = page.locator('.lf-reacts .lf-react-mark[data-token="shorten"]')
+    expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
+    mark = receipt_item.get_by_role(
+        "button", name="shorten reaction actions", exact=True
+    )
     remove = page.locator('[aria-label="Remove shorten reaction"]:visible')
     face = """button => {
       const style = getComputedStyle(button);
@@ -301,9 +311,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     mark.click()
     expect(mark).to_have_attribute("aria-expanded", "true")
     expect(remove).to_be_visible()
-    expect(receipt_item.locator(":scope > .lf-reacts")).to_have_attribute(
-        "aria-keyshortcuts", "Escape"
-    )
+    expect(mark).to_have_attribute("aria-keyshortcuts", "Escape")
     assert mark.evaluate(face) == resting_face
     assert events_model.read_events(serve.page_dir)[-1] == before_reveal
     page.locator("h1").click()
@@ -315,9 +323,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     remove.press("Escape")
     expect(mark).to_be_focused()
     expect(remove).to_be_hidden()
-    expect(receipt_item.locator(":scope > .lf-reacts")).not_to_have_attribute(
-        "aria-keyshortcuts", re.compile(r".+")
-    )
+    expect(mark).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
     mark.click()
     # The dedicated remove press is in the wire before the log is read: behind a bare
     # trip the read answers with the comment this press is taking back, which is the
@@ -332,8 +338,8 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
 def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
     """The shortcut unfolds the comment's reactions before digits become live."""
     page = open_page(browser, serve(FEATURE_GALLERY))
-    settled = page.locator(
-        '[data-lf-margin-for="bg-react-ok"] .lf-react-mark[data-token="keep"]'
+    settled = page.locator('[data-lf-margin-for="bg-react-ok"]').get_by_role(
+        "button", name="keep reaction actions", exact=True
     )
     with sending(page, "the withdrawal the gallery opens on"):
         settled.click()
@@ -459,11 +465,11 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     def open_margin_reactions():
         item.get_by_role("button", name="Edit draft", exact=True).focus()
         page.keyboard.press("e")
-        expect(item.locator(".lf-margin-reactions")).to_be_visible()
+        expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
 
     open_margin_reactions()
     assert_selected_face(
-        item.locator('.lf-react[data-token="keep"]'), open_margin_reactions
+        item.get_by_role("button", name="keep", exact=True), open_margin_reactions
     )
 
 
@@ -579,17 +585,17 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
 
     Existing suggestion actions stay in the complete Page Map inventory instead of
     displacing tokens or adding an overflow detour. Pointer and keyboard activation
-    still press the original reaction with its target intact.
+    still invoke the declared reaction with its target intact.
     """
     page = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, width, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
-    item.locator(".lf-sug-accept").focus()
+    item.locator('[data-lf-margin-entry-key="accept"]').focus()
     page.keyboard.press("e")
-    choices = item.locator(".lf-margin-reactions .lf-react:visible")
+    choices = item.locator(f"{MARGIN_RESPONSES}:visible")
     expect(choices).to_have_count(6)
     expect(item.locator(".lf-margin-spill:visible")).to_have_count(0)
-    expect(item.locator(".lf-sug-accept:visible")).to_have_count(0)
+    expect(item.locator('[data-lf-margin-entry-key="accept"]:visible')).to_have_count(0)
     reaction = choices.nth(1)
     choices.first.focus()
     page.keyboard.press("ArrowRight")
@@ -609,7 +615,7 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
         "change",
         {"section": "sug-refill"},
     )
-    expect(item.locator(".lf-margin-reactions")).to_have_count(0)
+    expect(item.locator(MARGIN_RESPONSES)).to_have_count(0)
 
 
 @pytest.mark.parametrize(
@@ -621,16 +627,17 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     """A target's own action can retire its words without leaving a reaction mode."""
     page = open_page(browser, serve(PROPOSED_PAGE))
     item = page.locator(f'[data-lf-margin-for="{target}"]')
-    item.locator(".lf-sug-accept").focus()
+    item.locator('[data-lf-margin-entry-key="accept"]').focus()
     page.keyboard.press("e")
-    expect(item.locator(".lf-margin-reactions")).to_be_visible()
+    expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
     # The full inventory remains available to Page Map while the focused rail view
     # shows reactions alone. Invoke its standing control directly here: this test is
     # about reconciliation when another owner settles the target, not banner overflow.
     page.locator(".lf-page-map-toggle").evaluate("button => button.click()")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     decision = sheet.locator(
-        f'[data-lf-map-margin-entry="id:{target}:suggestion:{target}:{action}"]'
+        f'[data-lf-margin-entry-owner="suggestion:{target}"]'
+        f'[data-lf-margin-entry-key="{action}"]'
     )
     decision.focus()
     expect(decision).to_be_focused()
@@ -638,7 +645,7 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["widget"], sent["action"]) == ("action", target, action)
-    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    expect(page.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
 
@@ -688,12 +695,12 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     # Nor does the raise that finds the fold already open: standing the choices in a
     # cluster the reader unfolded for themselves borrows it, and `openMarginEntryOptions` is
     # a no-op there, so putting them down leaves the fold where the press found it.
-    item.locator(".lf-sug-accept").focus()
+    item.locator('[data-lf-margin-entry-key="accept"]').focus()
     page.keyboard.press("e")
-    expect(page.locator(".lf-margin-reactions")).to_be_visible()
+    expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
     expect(item).to_have_attribute("data-lf-options-open", "")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    expect(page.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The raise that does unfold a cluster to stand its choices in still folds it back.
@@ -706,8 +713,8 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     # Explicit reaction mode borrows the target's margin cluster and remains
     # responsible for folding that cluster back.
     page.keyboard.press("e")
-    surface = page.locator(".lf-margin-reactions")
-    expect(surface).to_have_class(re.compile("lf-react-open"))
+    surface = item.locator(f"{MARGIN_RESPONSES}:visible")
+    expect(surface).to_have_count(6)
     page.keyboard.press("Escape")
     expect(surface).to_have_count(0)
     expect(more).to_be_visible()
@@ -720,12 +727,12 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
     page = open_page(browser, url)
     refill = page.locator('[data-lf-margin-for="sug-refill"]')
     thistle = page.locator('[data-lf-margin-for="sug-thistle"]')
-    thistle_accept = thistle.locator(".lf-sug-accept")
+    thistle_accept = thistle.locator('[data-lf-margin-entry-key="accept"]')
 
     def raise_choices_on_refill():
         focus_item(page, "#sug-refill")
         page.keyboard.press("e")
-        expect(page.locator(".lf-margin-reactions")).to_be_visible()
+        expect(refill.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
         expect(refill).to_have_attribute("data-lf-options-open", "")
 
     # The choices go when the reader leaves for another target, without pulling focus
@@ -733,7 +740,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
     raise_choices_on_refill()
     thistle_accept.focus()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    expect(page.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(refill.locator(".lf-margin-more")).to_be_visible()
     expect(thistle_accept).to_be_focused()
 

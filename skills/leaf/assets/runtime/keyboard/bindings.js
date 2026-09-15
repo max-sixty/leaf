@@ -314,6 +314,12 @@ export function decisionControls(commands, where = "an Ask") {
       const label = decisionName(contribution, where);
       const bindingBadge = word(contribution.bindingBadge ?? row.bindingBadge) ?? null;
       const active = route ? [route.binding] : bindings(row);
+      // A semantic command may temporarily have no presented control: a compact
+      // margin cluster can give its seat to another contribution, or the owning
+      // widget can replace one state with the next. The Ask projects only controls
+      // that exist in this reading; a non-Element value is still a malformed
+      // declaration and fails at its owner.
+      if (control == null) continue;
       if (!(control instanceof Element))
         throw new TypeError(`leaf: ${contribution.id} in ${where} has no control`);
       if (bindingBadge !== null && !(bindingBadge instanceof Element))

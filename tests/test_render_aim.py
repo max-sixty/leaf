@@ -1343,7 +1343,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
                   [el.matches('.lf-pick') || !!el.closest('lf-option'), 'option click'],
                   [el.matches('lf-draft') || !!el.closest('lf-draft'),
                    'draft mousedown'],
-                  [el.matches('.lf-sug-actions') || !!el.closest('.lf-sug-actions'),
+                  [el.matches('.lf-sug-accept, .lf-sug-reject'),
                    'suggestion control'],
                 ].filter(([reached]) => reached).map(([, name]) => name)"""
             )

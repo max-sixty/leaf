@@ -37,8 +37,8 @@
    complete inline conversation view; the Threads panel remains the complete index and
    takes over when already open.
 
-   Cluster reconciliation preserves each surviving control, proxy, and count badge so a
-   state refresh cannot cancel a held pointer or move focus. A print-media render is
+   Cluster reconciliation retains each projected control by contribution and entry key,
+   so a state refresh cannot cancel a held pointer or move focus. A print-media render is
    deferred until screen media returns because print removes the injected controls and
    cannot supply their geometry.
 
@@ -55,18 +55,21 @@ import {
   updateMarginRow,
 } from "./margin-layout.js";
 import {
+  clearMarginEntryControls,
   compareMarginContributions,
   compareMarginEntryRecords,
+  createMarginEntryControl,
   marginContributionEntries,
   marginContributionState,
   marginEntry,
+  marginEntryControlMatches,
   marginEntryRecord,
-  marginEntries,
+  marginEntrySource,
   marginEntryStateRank,
-  syncForwardedMarginEntryState,
-  syncMarginEntryCount,
+  presentMarginEntry,
   syncMarginAgentWorkflow,
   syncMarginEntrySelection,
+  trackMarginEntryControl,
   watchMarginContributions,
 } from "./margin-entries.js";
 import { mapButton } from "./page-map-dialog.js";
@@ -105,6 +108,7 @@ import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
+import { html, render } from "../vendor/browser-runtime.js";
 import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
 
@@ -125,7 +129,6 @@ export function createMarginProjection({
   openPageMap,
   pageMapDialogContains,
   renderPageMapDialog,
-  standsWith,
   revealConversation,
   renderMarginThread,
   bottomChromeBoxes,
@@ -257,14 +260,6 @@ export function createMarginProjection({
 
   const acknowledgments = () => runtime.activity?.interactions ?? [];
   const renderMargin = clocked(document.body, renderNow);
-  // The margin entry the reader is standing on, or null off one: the press row's words read it.
-  const focusedMarginEntryBehavior = () => {
-    const control = focused();
-    return control?.matches?.(".lf-margin-entry")
-      ? marginEntryRecord(control).behavior
-      : null;
-  };
-
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
@@ -488,7 +483,8 @@ export function createMarginProjection({
   const moreMarginEntries = new Map();
   const spillMarginEntries = new Map();
   const optionGroups = new Map();
-  const controlProxies = new WeakMap();
+  const contributionControls = new WeakMap();
+  const contributionNotices = new WeakMap();
   const readingMarginEntries = new Map();
   const hosts = new Map();
   const inlineHosts = new Map();
@@ -512,11 +508,85 @@ export function createMarginProjection({
   let suppressingOptionsArrival = false;
   let highlighted = null;
   let rovingFrame = 0;
-  const controlsOf = (offered) => marginEntries(offered.controls);
-  const offerReadings = (offered) => {
-    const items = typeof offered.items === "function" ? offered.items() : offered.items;
-    return items ?? [];
-  };
+  function controlsOf(offered, surface = "margin") {
+    let controls = contributionControls.get(offered);
+    if (!controls) {
+      controls = new Map();
+      contributionControls.set(offered, controls);
+    }
+    const entries = offered.reading.entries.filter((entry) => entry.visible);
+    const liveKeys = new Set(entries.map((entry) => entry.key));
+    for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
+    for (const entry of entries) {
+      let control = controls.get(entry.key);
+      if (!control || !marginEntryControlMatches(control, entry)) {
+        const prior = control;
+        control = createMarginEntryControl(entry);
+        controls.set(entry.key, control);
+        presentMarginEntry(control, entry);
+        if (prior?.isConnected) prior.replaceWith(control);
+      } else if (marginEntryRecord(control) !== entry) {
+        presentMarginEntry(control, entry);
+      }
+      control.onclick = (event) => {
+        const consumesFocusedOwner =
+          expandedOptionsKey && expandedOptionsOwner === offered.key;
+        const activated = offered.registration.activate(entry.key, {
+          origin: control,
+          surface,
+          input: event.detail === 0 ? "keyboard" : "pointer",
+          // A contributor can replace the activated entry and ask to retain focus.
+          // That is one semantic destination, not a fresh keyboard arrival that should
+          // disclose the whole cluster again.
+          focus: (key) => {
+            const destination = offered.registration.control(key, surface, true);
+            if (!destination) return false;
+            focusForNavigation(destination);
+            return true;
+          },
+        });
+        // A disclosed contributor is a route to an action, not a mode that survives
+        // that action. Its next immutable reading decides whether the resulting controls
+        // remain open. Consume the explicit owner before repainting so Escape belongs to
+        // the result the reader is now standing on rather than to the route already used.
+        if (activated && consumesFocusedOwner) {
+          expandedOptionsKey = null;
+          expandedOptionsOwner = null;
+          renderMargin.refresh();
+        }
+      };
+      trackMarginEntryControl(offered, surface, entry.key, control);
+    }
+    clearMarginEntryControls(offered, surface, liveKeys);
+    for (const entry of entries) {
+      const control = controls.get(entry.key);
+      if (entry.relation?.kind !== "entries") continue;
+      const related = entry.relation.keys
+        .map((key) => controls.get(key))
+        .filter(Boolean);
+      related.forEach((node, index) => {
+        if (!node.id) node.id = `lf-margin-related-${++optionsOrdinal}-${index + 1}`;
+      });
+      if (related.length)
+        control.setAttribute("aria-controls", related.map((node) => node.id).join(" "));
+      else control.removeAttribute("aria-controls");
+    }
+    return entries.map((entry) => controls.get(entry.key));
+  }
+  const offerReadings = (offered) => offered.reading.readings;
+  const noticeNodes = (entry) =>
+    entry.offers.flatMap((offered) => {
+      const notice = offered.reading.notice;
+      if (!notice) return [];
+      let node = contributionNotices.get(offered);
+      if (!node) {
+        node = el("span", "lf-margin-receipt");
+        contributionNotices.set(offered, node);
+      }
+      keeps(node, "data-lf-margin-receipt", notice.tone);
+      render(html`${notice.text}`, node);
+      return [node];
+    });
   // One target has one lifecycle reading. Failure outranks work in flight, which
   // outranks an open interaction; the ordinary idle state never forces peers open.
   // Generated acknowledgment readings are settled server facts, so only a face that
@@ -546,62 +616,29 @@ export function createMarginProjection({
   const standingAfterOffers = (entry) =>
     entry.offers
       .filter(
-        (offered) => offered.side === "after" && offerReadings(offered).length > 0,
+        (offered) =>
+          offered.reading.side === "after" && offerReadings(offered).length > 0,
       )
       .sort(compareMarginContributions);
   const directOffers = (entry) => [
     ...entry.offers
-      .filter((offered) => offered.side === "before")
+      .filter((offered) => offered.reading.side === "before")
       .sort(compareMarginContributions),
     ...standingAfterOffers(entry),
   ];
   const directControlRecords = (entry) =>
     directOffers(entry)
       .flatMap((offered) =>
-        controlsOf(offered).map((control) => ({ control, offered })),
+        controlsOf(offered).map((control) => ({
+          control,
+          offered,
+          record: marginEntryRecord(control),
+        })),
       )
       .sort(compareMarginEntryRecords);
   const directControls = (entry) =>
     directControlRecords(entry).map(({ control }) => control);
-  const controlsShownByOwner = (controls) => {
-    // The margin hides non-primary controls with `display: none`, so ask how this
-    // batch paints while exempt from that rule. Write every exemption before the first
-    // style read: alternating an attribute write and getComputedStyle would recalculate
-    // the whole page once per margin entry. Contributor-owned `display` and `visibility`
-    // still apply — including the retired half of a settled pair.
-    const wasPrimary = controls.map((control) =>
-      control.hasAttribute("data-lf-margin-entry-primary"),
-    );
-    const wasOverflow = controls.map((control) =>
-      control.hasAttribute("data-lf-margin-entry-overflow"),
-    );
-    for (const control of controls) {
-      control.toggleAttribute("data-lf-margin-entry-primary", true);
-      control.removeAttribute("data-lf-margin-entry-overflow");
-    }
-    let shown;
-    try {
-      shown = controls.filter((control) => {
-        const style = getComputedStyle(control);
-        return (
-          !control.hidden && style.display !== "none" && style.visibility !== "hidden"
-        );
-      });
-    } finally {
-      controls.forEach((control, index) => {
-        control.toggleAttribute("data-lf-margin-entry-primary", wasPrimary[index]);
-        control.toggleAttribute("data-lf-margin-entry-overflow", wasOverflow[index]);
-      });
-    }
-    return shown;
-  };
-  function choosePrimary(entry) {
-    return (
-      directControlRecords(entry).find(({ control }) =>
-        entry.shownControls.has(control),
-      )?.control ?? null
-    );
-  }
+  const choosePrimary = (entry) => directControlRecords(entry)[0]?.control ?? null;
   function syncControlRoles(entry) {
     const primary = choosePrimary(entry);
     for (const control of directControls(entry))
@@ -610,7 +647,9 @@ export function createMarginProjection({
   }
   const markerItems = (entry) => entry.items.filter((item) => item.marker !== false);
   const entryHasMarginHost = (entry) =>
-    entry.offers.length > 0 || markerItems(entry).length > 0;
+    entry.offers.some((offered) =>
+      offered.reading.entries.some((candidate) => candidate.visible),
+    ) || markerItems(entry).length > 0;
   const readingKey = (entry, choice) => `${entry.key}:${choice.key}`;
   const readingChoices = (entry) => {
     const threadList = [];
@@ -656,30 +695,26 @@ export function createMarginProjection({
   }
   const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
   const secondaryControls = (entry, primary) =>
-    directControls(entry).filter(
-      (control) => control !== primary && entry.shownControls.has(control),
-    );
+    directControls(entry).filter((control) => control !== primary);
   const afterOffers = (entry, { claimedOnly = false } = {}) =>
     entry.offers
       .filter(
         (offered) =>
-          offered.side === "after" &&
+          offered.reading.side === "after" &&
           offerReadings(offered).length === 0 &&
-          offered.controls &&
-          (!claimedOnly || offered.claim),
+          offered.reading.entries.some((entry) => entry.visible) &&
+          (!claimedOnly || offered.reading.claim),
       )
       .sort(compareMarginContributions);
   const secondaryCount = (entry, primary, { claimedOnly = false } = {}) => {
     const generated = secondaryReadings(entry, primary).length;
     const contributed = secondaryControls(entry, primary).length;
     const after = afterOffers(entry, { claimedOnly }).reduce(
-      (count, offered) =>
-        count +
-        controlsOf(offered).filter((control) => entry.shownControls.has(control))
-          .length,
+      (count, offered) => count + controlsOf(offered).length,
       0,
     );
-    if (claimedOnly && !entry.offers.some((offered) => offered.claim)) return generated;
+    if (claimedOnly && !entry.offers.some((offered) => offered.reading.claim))
+      return generated;
     return generated + contributed + after;
   };
   // One peer is not overflow. It costs the same second circle as `…`, but the peer says
@@ -728,14 +763,32 @@ export function createMarginProjection({
     return choice.items[0].context ?? null;
   }
 
-  // A reading wears two promises over its life — a margin entry while there is something to
-  // open, a status once the move is made — and only one element may carry both, or the
-  // seat moves under a reader standing in it. A <button> cannot stop being one, so the
-  // seat is a span and `marginEntry` writes whichever promise the reading now makes.
-  // What the platform then does not supply is the press, which the margin's own scope
-  // declares (margin.press) rather than a listener here: a key the register does not
-  // hold is a key no surface can promise.
-  const readingControl = (className) => offer("span", className);
+  // A core reading can change between a disclosure and a status while retaining the
+  // reader's place. Its stable span owns the native-like press it needs while actionable;
+  // ordinary contributed commands remain native buttons.
+  const readingControl = (className) => {
+    const control = offer("span", className);
+    keys(
+      control,
+      "On a margin entry",
+      [
+        {
+          id: "margin.press",
+          keys: PRESS,
+          does: "Open or close what the focused margin entry holds",
+          line: "open / close",
+          run: () => control.click(),
+        },
+      ],
+      {
+        when: () => {
+          const record = marginEntryRecord(control);
+          return record.behavior === "disclosure" && !record.disabled;
+        },
+      },
+    );
+    return control;
+  };
 
   // The one writer over a reading's disclosure relation, settling `aria-controls` and
   // `aria-expanded` together because a control that says it opens something has to say
@@ -1027,6 +1080,9 @@ export function createMarginProjection({
   // a comment on the target and the named control instead of letting the action fire.
   function marginTargetAt(node) {
     const at = node?.nodeType === 1 ? node : node?.parentElement;
+    const control = closestAcross(at, ".lf-margin-entry");
+    const source = control && marginEntrySource(control);
+    if (source) return source;
     return closestAcross(at, "[data-lf-margin-for]")?.lfTarget ?? null;
   }
 
@@ -1285,8 +1341,7 @@ export function createMarginProjection({
           `Duplicate margin contribution key for ${target.id || targetPath(target)}: ${offered.key}`,
         );
       group.offers.push(offered);
-      const subject =
-        typeof offered.subject === "function" ? offered.subject() : offered.subject;
+      const subject = offered.reading.subject;
       if (String(subject ?? "").trim()) {
         if (group.subject && group.subject !== String(subject).trim())
           throw new TypeError(
@@ -1294,9 +1349,7 @@ export function createMarginProjection({
           );
         group.subject = String(subject).trim();
       }
-      const items =
-        typeof offered.items === "function" ? offered.items() : offered.items;
-      for (const item of items ?? []) {
+      for (const item of offered.reading.readings) {
         const kind = item.kind ?? "action";
         if (!KINDS[kind]) throw new TypeError(`Unknown margin reading kind: ${kind}`);
         group.items.push({ marker: false, ...item, owner: offered.key, kind });
@@ -1370,7 +1423,7 @@ export function createMarginProjection({
         if (readingRegionFor(entry.target)) return 0;
         const primary = choosePrimary(entry);
         const stable = [];
-        if (primary && entry.offers.some((offered) => offered.claim))
+        if (primary && entry.offers.some((offered) => offered.reading.claim))
           stable.push(primary);
         const marker = rows.get(entry.key);
         if (!primary && marker && !marker.hidden) stable.push(marker);
@@ -1389,11 +1442,7 @@ export function createMarginProjection({
           .filter(Boolean);
         const reserved = Math.max(
           0,
-          ...entry.offers.map((offered) =>
-            typeof offered.reserve === "function"
-              ? offered.reserve()
-              : offered.reserve || 0,
-          ),
+          ...entry.offers.map((offered) => offered.reading.reserve),
         );
         if (!widths.length && !reserved) return 0;
         const style = getComputedStyle(row);
@@ -1522,7 +1571,7 @@ export function createMarginProjection({
     } = {},
   ) {
     const previousKey = expandedOptionsKey;
-    const previousGroup = previousKey ? optionGroups.get(previousKey) : null;
+    const previousOwner = expandedOptionsOwner;
     const nextKey = open ? (entry?.key ?? null) : null;
     const nextOwner = open ? owner : null;
     if (previousKey === nextKey && expandedOptionsOwner === nextOwner) return;
@@ -1546,7 +1595,7 @@ export function createMarginProjection({
     } finally {
       settlingOptionsFocus = false;
     }
-    if (previousGroup?.querySelector(".lf-margin-reactions"))
+    if (previousOwner === "responses")
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
@@ -1560,13 +1609,22 @@ export function createMarginProjection({
     }
   }
 
-  // A contributed control remains the action's canonical target even when the margin
-  // presents its secondary through a proxy in the unfolded cluster. Geometry belongs to
-  // what the reader can see; dispatch still belongs to the original control.
+  // Ask decisions name a semantic entry through whichever retained projection control
+  // the registration currently exposes. Return the visible margin instance without
+  // consulting contributor DOM.
   function presentedControl(control) {
-    if (control.checkVisibility()) return control;
-    const proxy = controlProxies.get(control);
-    return proxy?.checkVisibility() ? proxy : control;
+    if (control?.checkVisibility()) return control;
+    const key = control?.dataset?.lfMarginEntryKey;
+    const owner = control?.dataset?.lfMarginEntryOwner;
+    if (!key || !owner) return null;
+    return (
+      visibleMarginEntries().find(
+        (candidate) =>
+          candidate.dataset.lfMarginEntryKey === key &&
+          candidate.dataset.lfMarginEntryOwner === owner &&
+          candidate.checkVisibility(),
+      ) ?? null
+    );
   }
 
   function openMarginEntryOptions(target, { owner = null } = {}) {
@@ -1709,39 +1767,6 @@ export function createMarginProjection({
 
   let marginKeysAvailable = false;
   const marginKeys = [
-    // The seat a reading holds is a span, so the platform's own activation is not under
-    // it. Declared here rather than answered by a listener on the control: this is the
-    // register's whole bargain — the line and the reference draw the key off the same row
-    // the press is matched against, so neither can promise what the other does not do.
-    // Only the span-shaped readings, because a native margin entry in this cluster answers its
-    // own press and a second answer here would be two meanings for one key.
-    {
-      id: "margin.press",
-      keys: PRESS,
-      // Said for the margin entry under the reader, not for margin entries in general: "work this
-      // margin entry" over a Change reading promised something, and Enter there scrolls to a
-      // paragraph already on screen. A reading's press goes to what it points at; a
-      // disclosure's opens or closes it; an action's does the verb on its face.
-      // Read off the standing margin entry, and only where there is one: the reference
-      // lists this row's sentence from anywhere on the page.
-      does: () => {
-        const behavior = focusedMarginEntryBehavior();
-        if (behavior === "disclosure")
-          return "Open or close what the focused margin entry holds";
-        if (behavior === "action") return "Press the focused margin entry";
-        if (behavior) return "Go to what the focused margin entry points at";
-        return "Work the focused margin entry";
-      },
-      line: () => {
-        const behavior = focusedMarginEntryBehavior();
-        if (behavior === "disclosure") return "open / close";
-        if (behavior === "action") return "press";
-        if (behavior) return "go to it";
-        return "work this margin entry";
-      },
-      when: () => focused()?.matches?.('.lf-margin-entry[role="button"]'),
-      run: () => focused().click(),
-    },
     {
       id: "margin.controls",
       keys: ["ArrowLeft", "ArrowRight"],
@@ -1795,29 +1820,37 @@ export function createMarginProjection({
     openThreadChoice(marker.lfEntry, marker);
   }
 
-  function paintMarker(row, entry, primary, { suppressed = false } = {}) {
+  function paintMarker(
+    row,
+    entry,
+    primary,
+    { suppressed = false, accessibleLabel = null } = {},
+  ) {
     const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
     const choice = primaryReading(entry);
     const behavior = readingBehavior(face);
     row.lfEntry = entry;
     keepsHidden(row, suppressed || markerKinds.length === 0 || Boolean(primary));
     keeps(row, "data-lf-kinds", markerKinds.map(({ kind }) => kind).join(" "));
-    marginEntry(row, {
-      key: `reading:${choice?.key ?? "none"}`,
-      icon: face.icon,
-      label,
-      context: readingContext(choice),
-      behavior,
-      rank: "reading",
-      state: readingState(choice),
-      writesRelation: false,
-      writesSeat: false,
-    });
-    syncMarginAgentWorkflow(row, workflowReceipt(choice?.items ?? []));
+    presentMarginEntry(
+      row,
+      marginEntry({
+        key: `reading:${choice?.key ?? "none"}`,
+        icon: face.icon,
+        label,
+        accessibleLabel: accessibleLabel ?? label,
+        context: readingContext(choice),
+        behavior,
+        rank: "reading",
+        state: readingState(choice),
+        count: markerCount,
+      }),
+      { writesRelation: false, writesSeat: false },
+    );
     row.onclick = behavior === "status" ? null : pressMarker;
-    syncReadingRelation(row, choice);
     row.removeAttribute("aria-pressed");
-    syncMarginEntryCount(row, markerCount);
+    syncReadingRelation(row, choice);
+    syncMarginAgentWorkflow(row, workflowReceipt(choice?.items ?? []));
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
       (row.hidden ? document.body : row).focus({ preventScroll: true });
@@ -1862,33 +1895,8 @@ export function createMarginProjection({
   }
 
   function optionControlNode(control, entry) {
-    let node = controlProxies.get(control);
-    if (!node) {
-      node = offer("button", "lf-margin-option-proxy");
-      node.type = "button";
-      controlProxies.set(control, node);
-    }
-    const record = marginEntryRecord(control);
-    marginEntry(node, {
-      key: `${record.key}:proxy`,
-      ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
-      label: record.label,
-      context: record.context,
-      behavior: record.behavior,
-      tone: record.tone,
-      rank: record.rank,
-      state: record.state,
-      writesRelation: record.writesRelation,
-    });
-    syncForwardedMarginEntryState(node, control);
-    node.lfForwardedControl = control;
-    // The proxy carries the control's press, so it carries where that control stands.
-    standsWith(node, control);
-    keeps(node, "data-lf-margin-entry-owner", record.owner);
-    node.onclick = () => {
-      control.click();
-    };
-    return node;
+    control.lfEntry = entry;
+    return control;
   }
 
   function readingOptionNode(entry, choice) {
@@ -1902,27 +1910,26 @@ export function createMarginProjection({
     const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
-    marginEntry(node, {
-      key: `reading:${choice.key}`,
-      icon: face.icon,
-      label,
-      context: readingContext(choice),
-      behavior,
-      rank: "reading",
-      state: readingState(choice),
-      writesRelation: false,
-    });
-    syncMarginAgentWorkflow(node, workflowReceipt(choice.items));
+    presentMarginEntry(
+      node,
+      marginEntry({
+        key: `reading:${choice.key}`,
+        icon: face.icon,
+        label,
+        accessibleLabel: `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
+        context: readingContext(choice),
+        behavior,
+        rank: "reading",
+        state: readingState(choice),
+        count,
+      }),
+      { writesRelation: false },
+    );
     node.lfEntry = entry;
     node.lfChoice = choice;
-    syncReadingRelation(node, choice);
     keeps(node, "data-lf-kinds", choice.kind);
-    keeps(
-      node,
-      "aria-label",
-      `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
-    );
-    syncMarginEntryCount(node, count);
+    syncReadingRelation(node, choice);
+    syncMarginAgentWorkflow(node, workflowReceipt(choice.items));
     node.onclick =
       behavior === "status"
         ? null
@@ -1944,12 +1951,9 @@ export function createMarginProjection({
 
   function optionNodes(entry, primary, focusedOffer = null) {
     if (focusedOffer) {
-      const controls = controlsOf(focusedOffer).filter((control) =>
-        entry.shownControls.has(control),
+      return controlsOf(focusedOffer).map((control) =>
+        optionControlNode(control, entry),
       );
-      return focusedOffer.side === "after"
-        ? controls
-        : controls.map((control) => optionControlNode(control, entry));
     }
     return [
       ...secondaryControls(entry, primary).map((control) =>
@@ -1960,10 +1964,13 @@ export function createMarginProjection({
       ),
       ...afterOffers(entry).flatMap((offered) =>
         controlsOf(offered)
-          .filter((control) => entry.shownControls.has(control))
-          .map((control) => ({ control, offered }))
+          .map((control) => ({
+            control,
+            offered,
+            record: marginEntryRecord(control),
+          }))
           .sort(compareMarginEntryRecords)
-          .map(({ control }) => control),
+          .map(({ control }) => optionControlNode(control, entry)),
       ),
     ];
   }
@@ -1997,27 +2004,9 @@ export function createMarginProjection({
     if (forcedThread && direct.length && !direct.includes(forcedThread))
       direct[direct.length - 1] = forcedThread;
     const visible = new Set(direct);
-    const after = focusedOffer
-      ? focusedOffer.side === "after"
-        ? [focusedOffer]
-        : []
-      : afterOffers(entry);
-    const afterControls = new Set(after.flatMap(controlsOf));
-    const wanted = unique.filter(
-      (node) => visible.has(node) && !afterControls.has(node),
-    );
-    // Keep contributor-owned groups intact: their keyboard scopes and event handlers
-    // belong to the real controls. Overflow hides individual margin entries, not the owner.
-    for (const offered of after) {
-      const controls = controlsOf(offered);
-      for (const control of controls)
-        control.toggleAttribute("data-lf-margin-entry-overflow", !visible.has(control));
-      offered.controls.toggleAttribute(
-        "data-lf-margin-entry-overflow",
-        !controls.some((control) => visible.has(control)),
-      );
-      wanted.push(offered.controls);
-    }
+    const wanted = unique.filter((node) => visible.has(node));
+    for (const control of unique)
+      control.toggleAttribute("data-lf-margin-entry-overflow", !visible.has(control));
     let spill = spillMarginEntries.get(entry.key);
     if (needsSpill) {
       if (!spill) {
@@ -2025,14 +2014,17 @@ export function createMarginProjection({
         spill.type = "button";
         spillMarginEntries.set(entry.key, spill);
       }
-      marginEntry(spill, {
-        key: "all-options",
-        icon: "all",
-        label: `Show ${hidden} more in Page Map`,
-        behavior: "disclosure",
-        rank: "overflow",
-        state: "idle",
-      });
+      presentMarginEntry(
+        spill,
+        marginEntry({
+          key: "all-options",
+          icon: "all",
+          label: `Show ${hidden} more in Page Map`,
+          behavior: "disclosure",
+          rank: "overflow",
+          state: "idle",
+        }),
+      );
       keeps(spill, "data-lf-spill-count", hidden);
       spill.lfFirstSpilledOption = unique.find((node) => !visible.has(node));
       keeps(spill, "aria-label", `Show ${hidden} more in Page Map`);
@@ -2060,26 +2052,23 @@ export function createMarginProjection({
   function syncControls(host, marker, more, options, entry) {
     const active = document.activeElement;
     const focusedOption = options.contains(active);
-    const forwardedControl = active?.lfForwardedControl;
+    const focusedRecord = active?.matches?.(".lf-margin-entry")
+      ? marginEntryRecord(active)
+      : null;
     const focusedOffer = focusedOwnerOffer(entry);
     const primary = focusedOffer ? null : syncControlRoles(entry);
     if (focusedOffer)
       for (const control of directControls(entry))
         control.removeAttribute("data-lf-margin-entry-primary");
-    const controls = focusedOffer
-      ? []
-      : directOffers(entry)
-          .filter((offered) => offered.controls)
-          .map((offered) => offered.controls);
-    const wanted = [...controls, marker, more, options];
+    const controls = focusedOffer || !primary ? [] : [primary];
+    const wanted = [...controls, ...noticeNodes(entry), marker, more, options];
     for (const child of [...host.children]) if (!wanted.includes(child)) child.remove();
     wanted.forEach((child, position) => {
       if (host.children[position] !== child)
         host.insertBefore(child, host.children[position] ?? null);
     });
     const secondaries = focusedOffer
-      ? controlsOf(focusedOffer).filter((control) => entry.shownControls.has(control))
-          .length
+      ? controlsOf(focusedOffer).length
       : secondaryCount(entry, primary);
     const hasOptions = focusedOffer ? secondaries > 0 : optionsOffered(entry, primary);
     if (!hasOptions && expandedOptionsKey === entry.key) {
@@ -2095,7 +2084,7 @@ export function createMarginProjection({
     keeps(more, "aria-expanded", optionsOpen);
     host.toggleAttribute("data-lf-options-open", optionsOpen);
     keeps(host, "data-lf-state", entryState(entry));
-    // Replacing a focused proxy fires focusout synchronously. The render already owns
+    // Retiring a focused projection fires focusout synchronously. The render already owns
     // the resulting cluster state and transfers focus below, so do not let that event
     // start a nested render against the same child list.
     const wasSettlingOptionsFocus = settlingOptionsFocus;
@@ -2111,11 +2100,17 @@ export function createMarginProjection({
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else (destination ?? document.body).focus({ preventScroll: true });
     } else if (lostOptionFocus) {
-      // A secondary proxy can become the real primary when its press settles. Keep
+      // A secondary projection can become the primary when its press settles. Keep
       // focus on that same semantic control instead of jumping to the first status
       // reading merely because the cluster stayed engaged and replaced its peers.
       const next =
-        (forwardedControl?.checkVisibility() ? forwardedControl : null) ??
+        (focusedRecord
+          ? clusterMarginEntries(host).find(
+              (candidate) =>
+                candidate.dataset.lfMarginEntryKey === focusedRecord.key &&
+                candidate.dataset.lfMarginEntryOwner === focusedRecord.owner,
+            )
+          : null) ??
         primary ??
         clusterMarginEntries(options)[0] ??
         clusterMarginEntries(host)[0];
@@ -2133,7 +2128,12 @@ export function createMarginProjection({
     for (const offered of marginContributionEntries()) {
       const target =
         typeof offered.target === "function" ? offered.target() : offered.target;
-      if (!target?.isConnected || !inChrome(target) || !offered.controls) continue;
+      if (
+        !target?.isConnected ||
+        !inChrome(target) ||
+        !offered.reading.entries.some((entry) => entry.visible)
+      )
+        continue;
       const offers = grouped.get(target) ?? [];
       offers.push(offered);
       grouped.set(target, offers);
@@ -2152,9 +2152,9 @@ export function createMarginProjection({
       keeps(host, "aria-label", `Actions for ${addressableWord(target)}`);
       const controls = (side) =>
         offers
-          .filter((offered) => offered.side === side)
+          .filter((offered) => offered.reading.side === side)
           .sort(compareMarginContributions)
-          .map((offered) => offered.controls);
+          .flatMap((offered) => controlsOf(offered, "inline"));
       const wanted = [...controls("before"), ...controls("after")];
       for (const child of [...host.children])
         if (!wanted.includes(child)) child.remove();
@@ -2197,12 +2197,11 @@ export function createMarginProjection({
   }
 
   function unfoldOpenThreadOwner(entry) {
-    const previousKey = expandedOptionsKey;
-    const previousGroup = previousKey ? optionGroups.get(previousKey) : null;
+    const previousOwner = expandedOptionsOwner;
     expandedOptionsKey = entry.key;
     expandedOptionsOwner = null;
     renderMargin.refresh();
-    if (previousGroup?.querySelector(".lf-margin-reactions"))
+    if (previousOwner === "responses")
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
@@ -2238,30 +2237,16 @@ export function createMarginProjection({
     measureMargin(mainRect)?.();
     syncInlineOffers();
     pageInventory = collectEntries().filter((entry) => entry.target);
-    // Read contributor visibility once for the whole render, before folding any
-    // controls. Placement and option counts share this reading; probing again
-    // temporarily unfolds controls and forces style/layout work for every row.
-    const shownControls = new Set(
-      controlsShownByOwner([
-        ...new Set(pageInventory.flatMap((entry) => entry.offers.flatMap(controlsOf))),
-      ]),
-    );
-    const nextWorkflowCarriers = new Set();
     for (const entry of pageInventory) {
-      entry.shownControls = shownControls;
       const primary = choosePrimary(entry);
       const receipt = workflowReceipt(entry.items);
       if (primary && receipt) {
-        syncMarginAgentWorkflow(primary, receipt);
-        nextWorkflowCarriers.add(primary);
+        entry.workflowReceipt = receipt;
         entry.items = entry.items.filter(
           (item) => !(item.workflowFace && workflowReceipt([item])),
         );
       }
     }
-    for (const control of workflowCarriers)
-      if (!nextWorkflowCarriers.has(control)) syncMarginAgentWorkflow(control, null);
-    workflowCarriers = nextWorkflowCarriers;
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
     );
@@ -2288,6 +2273,7 @@ export function createMarginProjection({
         hosts.delete(key);
       }
     const externalDocks = new Map();
+    const nextWorkflowCarriers = new Set();
     let corePosition = 0;
     pageInventory.forEach((entry) => {
       if (!entryHasMarginHost(entry)) return;
@@ -2300,25 +2286,30 @@ export function createMarginProjection({
         host = el("div", "lf-ui lf-margin-cluster");
         host.dataset.lfGen = "1";
         host.setAttribute("role", "group");
-        marker = marginEntry(readingControl("lf-margin-marker"), {
-          key: "reading",
-          icon: "dot",
-          label: "Open page details",
-          behavior: "disclosure",
-          rank: "reading",
-          writesRelation: false,
-          writesSeat: false,
-        });
+        marker = presentMarginEntry(
+          readingControl("lf-margin-marker"),
+          marginEntry({
+            key: "reading",
+            icon: "dot",
+            label: "Open page details",
+            behavior: "disclosure",
+            rank: "reading",
+          }),
+          { writesRelation: false, writesSeat: false },
+        );
         keys(host, "In the Page Map", marginKeys, () => marginKeysAvailable);
         host.lfEntry = entry;
         rows.set(entry.key, marker);
-        more = marginEntry(offer("button", "lf-margin-more"), {
-          key: "options",
-          icon: "more",
-          label: "More options",
-          behavior: "disclosure",
-          rank: "overflow",
-        });
+        more = presentMarginEntry(
+          offer("button", "lf-margin-more"),
+          marginEntry({
+            key: "options",
+            icon: "more",
+            label: "More options",
+            behavior: "disclosure",
+            rank: "overflow",
+          }),
+        );
         options = el("div", "lf-margin-options");
         options.id = `lf-margin-options-${++optionsOrdinal}`;
         options.hidden = true;
@@ -2384,7 +2375,7 @@ export function createMarginProjection({
             return;
           setOptionsOpen(current, false);
         });
-        // A direct primary belongs to its owner rather than the generated proxy path.
+        // A direct primary belongs to its contribution rather than the reading marker.
         // Fold only a temporary expansion before that action; an engaged owner keeps
         // its completion actions exposed until its own state actually ends.
         host.addEventListener(
@@ -2421,10 +2412,20 @@ export function createMarginProjection({
           );
         corePosition += 1;
       }
-      paintMarker(marker, entry, primary, {
-        suppressed: Boolean(focusedOwnerOffer(entry)),
-      });
+      entry.primaryMarginEntry = primary;
+      if (primary && entry.workflowReceipt) {
+        entry.workflowCarrier = {
+          key: primary.dataset.lfMarginEntryKey,
+          owner: primary.dataset.lfMarginEntryOwner || null,
+          receipt: entry.workflowReceipt,
+        };
+        syncMarginAgentWorkflow(primary, entry.workflowReceipt);
+        nextWorkflowCarriers.add(primary);
+      }
     });
+    for (const control of workflowCarriers)
+      if (!nextWorkflowCarriers.has(control)) syncMarginAgentWorkflow(control, null);
+    workflowCarriers = nextWorkflowCarriers;
     // Geometry is one read-only batch after every row has reconciled. Reading a target
     // between two marker writes forced one full document layout per Page Map entry —
     // including on the two-second heartbeat. The spoken positions use the main rect
@@ -2444,7 +2445,10 @@ export function createMarginProjection({
     walked.forEach(({ entry, position }, index) => {
       const marker = rows.get(entry.key);
       const name = markerName(entry, index, walked.length, position);
-      keeps(marker, "aria-label", name);
+      paintMarker(marker, entry, entry.primaryMarginEntry, {
+        suppressed: Boolean(focusedOwnerOffer(entry)),
+        accessibleLabel: name,
+      });
     });
     renderPageMapDialog(pageInventory);
     keepsHidden(nav, pageInventory.length === 0);
@@ -2710,7 +2714,15 @@ export function createMarginProjection({
         out: () => closePreview(true),
       };
     const optionsHost = atFocus ? host : hosts.get(expandedOptionsKey);
-    if (optionsHost?.lfEntry?.key === expandedOptionsKey)
+    // Once a contribution is engaged, its complete/escape controls are open because
+    // of semantic state rather than because the reader disclosed the secondary tray.
+    // That state consumes the earlier disclosure rung: Escape leaves the action the
+    // reader is standing on instead of first pretending to close controls that remain
+    // open by contract.
+    if (
+      optionsHost?.lfEntry?.key === expandedOptionsKey &&
+      !entryEngaged(optionsHost.lfEntry)
+    )
       return {
         root: optionsHost,
         does: "Fold the secondary page actions",

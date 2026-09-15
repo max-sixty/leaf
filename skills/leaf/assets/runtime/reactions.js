@@ -12,7 +12,7 @@
    local list. Arrow keys wrap through the visible margin entries in the active list.
    Tab and Shift-Tab follow that same order. The Page Map dialog remains part of the
    response's target context but owns its native keyboard walk and Escape while open.
-   Closing it restores its exact opener; selecting overflow presses the original margin entry
+   Closing it restores its exact opener; selecting overflow invokes the declared margin entry
    before its temporary target is released. Enter or Space presses the focused choice,
    digits remain optional reaction accelerators in declaration order, and a stray key
    closes the list before keeping its ordinary meaning.
@@ -32,7 +32,7 @@
    capabilities; conversation views receive its surface builder as a semantic
    callback. mount installs the mode teardown listeners after composition. */
 
-import { marginEntry, registerMarginContribution } from "./margin-entries.js";
+import { registerMarginContribution } from "./margin-entries.js";
 import { runtime } from "./context.js";
 import { CONTROL_WORD_CAP } from "./design-readings.js";
 import { registry } from "./registry.js";
@@ -50,7 +50,8 @@ import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { iconElement } from "./icons.js";
-import { paintReactionStanding } from "./reaction-standing.js";
+import { reactionsAt } from "./conversation/model.js";
+import { allThreads } from "./conversation/state.js";
 import { watchProjection } from "./projection-watch.js";
 
 // Standing tokens wear their emoji wherever they stand, and `aria-pressed` is the whole
@@ -69,30 +70,15 @@ export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 // control; a layer may add an explanation without making prose part of the platform's
 // vocabulary. The compact face stays the declared mark. Digits remain keyboard
 // accelerators without changing the shape of every chip.
-function reactionChip(
-  name,
-  entry,
-  pressed,
-  { margin = false, response = false, ordinal = 0 } = {},
-) {
-  const chip = offer("button", `${margin || response ? "" : "lf-chip "}lf-react`);
+function reactionChip(name, entry, pressed, { response = false } = {}) {
+  const chip = offer("button", `${response ? "" : "lf-chip "}lf-react`);
   const meaning = entry.means ? `${name} — ${entry.means}` : name;
   chip.dataset.token = name;
-  if (margin) {
-    chip.setAttribute("aria-label", meaning);
-    marginEntry(chip, {
-      key: `reaction:${String(ordinal).padStart(4, "0")}:${name}`,
-      glyph: entry.glyph,
-      label: meaning,
-      rank: "secondary",
-    });
-  } else {
-    chip.title = meaning;
-    chip.setAttribute("aria-label", meaning);
-    if (response)
-      responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
-    else chip.append(el("span", "lf-react-glyph", entry.glyph));
-  }
+  chip.title = meaning;
+  chip.setAttribute("aria-label", meaning);
+  if (response)
+    responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
+  else chip.append(el("span", "lf-react-glyph", entry.glyph));
   chip.onclick = () => pressed(name, chip);
   return chip;
 }
@@ -117,14 +103,14 @@ export function createReactionController({
 }) {
   const surfaces = new WeakMap();
   let surfaceOrdinal = 0;
-  let marginSurface = null;
+  const marginSurface = Symbol("margin reactions");
   let marginOffer = null;
   let marginTarget = null;
-  function buildReactSurface(
-    surface,
-    pressed,
-    { label, target, marginActions = false, triggerLabel = null },
-  ) {
+  let marginAnchor = null;
+  let pageCommands = null;
+  const marginReactionKey = (name, ordinal) =>
+    `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
+  function buildReactSurface(surface, pressed, { label, target, triggerLabel = null }) {
     if (!reactionTokens().length) return surface;
     surface.classList.add("lf-react-surface");
     const trigger = offer("button", "lf-react-trigger");
@@ -138,13 +124,8 @@ export function createReactionController({
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", label);
     trigger.setAttribute("aria-controls", palette.id);
-    for (const [ordinal, [name, entry]] of reactionTokens().entries())
-      palette.append(
-        reactionChip(name, entry, pressed, {
-          margin: marginActions,
-          ordinal,
-        }),
-      );
+    for (const [name, entry] of reactionTokens())
+      palette.append(reactionChip(name, entry, pressed));
     surface.append(trigger, palette);
     surfaces.set(surface, { palette, target, trigger });
     trigger.onclick = () =>
@@ -153,30 +134,18 @@ export function createReactionController({
   }
 
   function buildReactBar(commands) {
+    pageCommands = commands;
     const palette = el("span", "lf-react-palette");
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", "Reactions for this selection or element");
-    for (const [ordinal, [name, entry]] of reactionTokens().entries())
+    for (const [name, entry] of reactionTokens())
       palette.append(
         reactionChip(name, entry, (token, chip) => reactHere(token, chip, commands), {
           response: true,
-          ordinal,
         }),
       );
     fabOptions.append(palette);
     syncResponseOptions();
-    marginSurface = el("div", "lf-margin-reactions");
-    marginSurface.setAttribute("role", "group");
-    marginSurface.setAttribute("aria-label", "Other responses");
-    buildReactSurface(
-      marginSurface,
-      (token, chip) => reactHere(token, chip, commands),
-      {
-        label: "Reactions for this selection or element",
-        target: () => anchorWord(fabAnchorAt()),
-        marginActions: true,
-      },
-    );
   }
 
   const anchorWord = (anchor) => {
@@ -188,16 +157,21 @@ export function createReactionController({
     return addressableWord(addressable) || "the element";
   };
 
-  async function reactHere(name, chip, commands) {
-    const anchor = fabAnchorAt();
+  async function reactHere(
+    name,
+    chip,
+    commands,
+    standing = chip?.lfReaction,
+    anchor = fabAnchorAt(),
+  ) {
     const returnTo = fabReturnTo();
     const restoreTargetFocus = () => {
       const destination = returnTo?.isConnected ? returnTo : visualActionAnchor(anchor);
       destination?.focus({ preventScroll: true });
     };
     if (!anchor) return;
-    if (chip.lfReaction) {
-      await commands.withdrawReaction(chip.lfReaction);
+    if (standing) {
+      await commands.withdrawReaction(standing);
       hideComposer();
       showFab(null);
       setReact(false);
@@ -249,41 +223,55 @@ export function createReactionController({
   function raiseMarginSurface() {
     const anchor = fabAnchorAt();
     const target = anchor && fabTargetAt();
-    if (!marginSurface || !target) return false;
+    if (!pageCommands || !target) return false;
     // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
     const standing = unfoldedMarginEntries()?.lfTarget === target;
-    // Register the response surface in the state it is about to show. Registering its
-    // collapsed face first makes the projection treat the six choices as hidden owner
-    // content; a fast `e` can then arm their digit shortcuts while only the old floating
-    // ellipsis remains on screen.
-    marginSurface.classList.add("lf-react-open");
-    paintReactionStanding(
-      marginSurface,
-      [...fabBar.querySelectorAll(".lf-react[aria-pressed='true']")]
-        .map((chip) => chip.lfReaction)
-        .filter(Boolean),
-    );
+    marginAnchor = structuredClone(anchor);
     marginOffer = registerMarginContribution({
       key: "responses",
       target,
-      controls: marginSurface,
-      side: "after",
-      // The choices borrow whatever RHS is available and dock as one margin entry when it is
-      // not. Reserving their temporary width would move the page the first time `e`
-      // opened and leave that larger rail behind after the choices closed.
-      claim: false,
+      read: () => {
+        const standing = new Set(
+          reactionsAt(allThreads(), marginAnchor).map((reaction) => reaction.token),
+        );
+        return {
+          side: "after",
+          // Temporary response choices use existing room; they never widen the page rail.
+          claim: false,
+          entries: reactionTokens().map(([name, entry], ordinal) => ({
+            key: marginReactionKey(name, ordinal),
+            activation: name,
+            glyph: entry.glyph,
+            label: entry.means ? `${name} — ${entry.means}` : name,
+            rank: "secondary",
+            className: "lf-react",
+            pressed: standing.has(name),
+          })),
+          readings: [],
+        };
+      },
+      activate: (name) =>
+        reactHere(
+          name,
+          null,
+          pageCommands,
+          reactionsAt(allThreads(), marginAnchor).find(
+            (reaction) => reaction.token === name,
+          ),
+          marginAnchor,
+        ),
     });
     marginTarget = target;
     if (openMarginEntryOptions(target, { owner: "responses" })) {
       marginUnfolded = !standing;
       return true;
     }
-    marginSurface.classList.remove("lf-react-open");
     marginOffer.unregister();
     marginOffer = null;
     marginTarget = null;
+    marginAnchor = null;
     return false;
   }
 
@@ -291,6 +279,7 @@ export function createReactionController({
     marginOffer?.unregister();
     marginOffer = null;
     marginTarget = null;
+    marginAnchor = null;
     delete fabBar.dataset.lfMarginRaised;
     // A raise that unfolded the target's margin entries to stand these choices in puts that fold
     // back, so cancelling leaves the cluster as the press found it rather than an empty
@@ -303,6 +292,7 @@ export function createReactionController({
   }
 
   function closeSurface(surface) {
+    if (surface === marginSurface) return;
     surface?.classList.remove("lf-react-open");
     pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
   }
@@ -316,16 +306,12 @@ export function createReactionController({
 
   function setReact(on, { surface = null } = {}) {
     if (!on && !reactArmed) {
-      const residue =
-        marginOffer ||
-        fabBar.hasAttribute("data-lf-margin-raised") ||
-        marginSurface?.classList.contains("lf-react-open");
+      const residue = marginOffer || fabBar.hasAttribute("data-lf-margin-raised");
       if (!residue) return;
       // Off is also the invariant repair path. A projection can retire the target and
       // its option group before the response scope observes the close; remove any
       // contributed surface that outlived that ordering.
       closeSurface(reactSurface);
-      closeSurface(marginSurface);
       lowerMarginSurface();
       repaint();
       return;
@@ -369,24 +355,25 @@ export function createReactionController({
           return;
         }
       }
-      if (!pickerFor(reactSurface)) {
+      if (reactSurface !== marginSurface && !pickerFor(reactSurface)) {
         reactSurface = null;
         reactFrom = null;
         return;
       }
       reactArmed = true;
-      reactSurface.classList.add("lf-react-open");
-      pickerFor(reactSurface).trigger.setAttribute("aria-expanded", "true");
-      const firstChoice = pickerFor(reactSurface).palette.querySelector(".lf-react");
-      if (surface && reactFrom === pickerFor(reactSurface).trigger)
-        firstChoice?.focus({
-          preventScroll: true,
-        });
+      if (reactSurface !== marginSurface) {
+        reactSurface.classList.add("lf-react-open");
+        const picker = pickerFor(reactSurface);
+        picker.trigger.setAttribute("aria-expanded", "true");
+        if (surface && reactFrom === picker.trigger)
+          picker.palette.querySelector(".lf-react")?.focus({ preventScroll: true });
+      }
       announce(`React — ${saying(REACT.rows)}`);
     } else {
       const from = reactFrom;
       const trigger = pickerFor(reactSurface)?.trigger;
       const active = closingActive;
+      const stoodInMargin = marginOffer?.contains(active);
       reactArmed = false;
       reactSurface = null;
       reactFrom = null;
@@ -396,6 +383,7 @@ export function createReactionController({
       if (fabAnchorAt()) showFab(fabAnchorAt());
       if (
         fabBar.contains(from) ||
+        stoodInMargin ||
         active === document.body ||
         active?.closest?.(".lf-react-palette")
       ) {
@@ -455,9 +443,11 @@ export function createReactionController({
   }
 
   const reactTargetWord = () =>
-    typeof pickerFor(reactSurface)?.target === "function"
-      ? pickerFor(reactSurface).target()
-      : (pickerFor(reactSurface)?.target ?? "the target");
+    reactSurface === marginSurface
+      ? anchorWord(marginAnchor)
+      : typeof pickerFor(reactSurface)?.target === "function"
+        ? pickerFor(reactSurface).target()
+        : (pickerFor(reactSurface)?.target ?? "the target");
 
   const REACT = {
     title: "With reactions open",
@@ -486,6 +476,17 @@ export function createReactionController({
             .join(", ")}`,
         line: "react",
         run: (binding) => {
+          if (reactSurface === marginSurface) {
+            const ordinal = +binding - 1;
+            const token = reactionTokens()[ordinal]?.[0];
+            if (token)
+              marginOffer?.activate(marginReactionKey(token, ordinal), {
+                origin: focused(),
+                input: "keyboard",
+                surface: "margin",
+              });
+            return;
+          }
           pickerFor(reactSurface)
             ?.palette.querySelectorAll(".lf-react")
             [+binding - 1]?.click();
@@ -536,9 +537,15 @@ export function createReactionController({
         (!marginTarget?.isConnected || fabTargetAt() !== marginTarget)
       )
         setReact(false);
+      else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
     });
     document.addEventListener("lf-thread-hidden", (event) => {
-      if (reactArmed && event.detail.node.contains(reactSurface)) setReact(false);
+      if (
+        reactArmed &&
+        reactSurface instanceof Node &&
+        event.detail.node.contains(reactSurface)
+      )
+        setReact(false);
     });
   }
   return {
@@ -555,13 +562,13 @@ export function createReactionController({
 }
 
 export async function sendReaction(event, chip, where, postReaction) {
-  chip.setAttribute("aria-busy", "true");
+  chip?.setAttribute("aria-busy", "true");
   try {
     const sent = await postReaction(event);
     if (sent) announce(`${event.token} on ${where}`);
     return sent;
   } finally {
-    chip.removeAttribute("aria-busy");
+    chip?.removeAttribute("aria-busy");
   }
 }
 function reactionPlace(event) {

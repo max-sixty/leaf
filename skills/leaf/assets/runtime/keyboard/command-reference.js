@@ -37,7 +37,7 @@ import {
   neutralStates,
 } from "./presentation.js";
 import { restoreReturnPlace } from "./return-stack.js";
-import { el } from "../widget-elements.js";
+import { el, keeps } from "../widget-elements.js";
 import {
   coveringAuxiliaryFocus,
   coveringAuxiliarySurface,
@@ -79,8 +79,8 @@ export function presentCommandReferenceClose(returningToMore) {
     ? "Back to more shortcuts"
     : "Close the command reference";
   render(label, commandReferenceClose);
-  commandReferenceClose.dataset.lfKeyTitle = title;
-  commandReferenceClose.setAttribute("aria-label", title);
+  keeps(commandReferenceClose, "data-lf-key-title", title);
+  keeps(commandReferenceClose, "aria-label", title);
 }
 presentCommandReferenceClose(false);
 

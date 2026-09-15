@@ -79,6 +79,7 @@ AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 STREAM_SILENCE = 120.0
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_REPLY_PATH = "/_leaf/agent/reply"
+STARTUP_REPORT_PATH = "/api/performance"
 RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
 CODEX_SOCKET = RUNTIME_DIRECTORY / "leaf-website-codex.sock"
 CODEX_LOG = RUNTIME_DIRECTORY / "leaf-website-codex.log"
@@ -1341,6 +1342,15 @@ class WebsitePageHandler(Handler):
 
     def _post(self) -> None:
         path = urlsplit(self.path).path
+        if path == STARTUP_REPORT_PATH:
+            # Every document the runtime delivers with a release carries the public
+            # startup beacon, and the deployed site answers it at the edge, where the
+            # observability record belongs. This adapter has no Worker in front of it,
+            # so it owes the browser the same "recorded, nothing to read back" answer
+            # the edge gives — otherwise every page served here loads with a 404 in its
+            # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
+            self._send(204, "application/json", b"")
+            return
         if path not in {AGENT_START_PATH, AGENT_REPLY_PATH}:
             super()._post()
             return

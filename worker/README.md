@@ -166,6 +166,11 @@ browser paint, and Leaf startup time. The payload contains no page content, URL 
 cookies, IP addresses, or private session id. Filter Observability by the public session
 reference, route, browser, or `loadId`.
 
+The deployed site answers that beacon at the edge, so the container never sees it. A site
+served straight from `server.py` — the test suite, a local preview — has no edge in front
+of it, so the adapter acknowledges the report itself and keeps no record of it. Startup
+profiles exist only for the deployed release.
+
 Workers Observability is the operational log store. Request-path records carry the
 canonical `eventId`; Worker-side records also carry the public `reference` and `route`.
 The public reference finds every request from one reader session, and the event id

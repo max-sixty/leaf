@@ -4,6 +4,7 @@ import json
 import math
 import re
 import threading
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -5076,3 +5077,61 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
         assert (
             data_model.read_data(page_dir)["sources"]["reading-patch"]["value"] == value
         )
+
+
+def test_a_state_read_never_materializes_a_historical_revision_bundle(
+    page_dir, monkeypatch
+):
+    """One request must not re-read the whole page history to answer.
+
+    `GET /` and `GET /api/state` both activate the source under the page's exclusive
+    lock, and that validation asks every revision in the history what its own
+    document and registry said. A revision bundle holds a couple of hundred resource
+    files, so answering through `read_artifact` made one request cost the revision
+    count times the bundle: seconds per request where the page directory is on a
+    network filesystem, with every other reader queued behind the lock.
+
+    The active revision and its predecessor are the two this reading does
+    materialize, and they are the control here — a counter that never saw a bundle
+    would pass the historical assertion on its own.
+    """
+    for edit in range(12):
+        (page_dir / "index.html").write_text(
+            PAGE.replace("</main>", f"<p>edit {edit}</p></main>")
+        )
+        activated = revisioning_model.activate_source(page_dir, [])
+        assert activated.error is None, activated.error
+    revisions = files_model.list_revisions(page_dir)
+    assert len(revisions) == 12  # more revisions than any bundle cache retains
+
+    for cache in (
+        artifact_model._read_stamped,
+        artifact_model._read_artifact_stamped,
+        artifact_model._read_manifest_stamped,
+        artifact_model._capture_artifact_stamped,
+        artifact_model._read_registry_stamped,
+        artifact_model._shared_registry,
+    ):
+        cache.cache_clear()
+    structure_model._revisions.clear()
+
+    opens = Counter()
+    native_open = Path.open
+
+    def counted_open(self, *args, **kwargs):
+        if found := re.search(r"/revisions/r([1-9][0-9]*)-", str(self)):
+            opens[int(found.group(1))] += 1
+        return native_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", counted_open)
+    activated = revisioning_model.activate_source(page_dir, [])
+    monkeypatch.undo()
+    assert activated.error is None, activated.error
+    assert not activated.created
+
+    *history, predecessor, active = revisions
+    assert min(opens[active], opens[predecessor]) > 100
+    # One document and one registry apiece: the only two resources this reading reads.
+    assert {revision: opens[revision] for revision in history} == {
+        revision: 2 for revision in history
+    }

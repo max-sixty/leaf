@@ -7,7 +7,7 @@ from leaf.data import read_data
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
-from leaf.revision_artifact import read_artifact
+from leaf.revision_artifact import read_registry
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_structure
 
@@ -61,7 +61,7 @@ def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> lis
     failures: dict[str, list[int]] = {}
     revisions = list_revisions(page_dir)
     for revision in revisions[:-1]:
-        registry = read_artifact(page_dir, revision).registry
+        registry = read_registry(page_dir, revision)
         for error in thread_markup_contract_errors(fragment, registry):
             failures.setdefault(error, []).append(revision)
     return [

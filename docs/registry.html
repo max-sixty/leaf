@@ -141,6 +141,7 @@
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-outline"><code>x-outline</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
+          <a href="#x-page-navigation"><code>x-page-navigation</code></a>
           <a href="#x-paints"><code>x-paints</code></a>
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
@@ -428,6 +429,27 @@
                   Read from an owner, this defines which direct child Leaf elements are
                   its members rather than nested elements it merely contains; a gesture
                   the owner takes on its whole box stops at those members.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-page-navigation">
+            <h3><code>x-page-navigation</code></h3>
+            <div class="reference-copy">
+              <p>
+                The element becomes the page's view navigation when it is the final
+                substantive child of main and the only substantive content before it is
+                one native header or nothing.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-page-navigation contract">
+                  Full contract
+                </summary>
+                <p>
+                  <code>version check</code> then treats that composition as the page's
+                  outline instead of advising an aside.sidebar that would take it out of
+                  root placement. Other placements retain the element's embedded
+                  presentation.
                 </p>
               </details>
             </div>

@@ -136,11 +136,22 @@ def missing_outline(parser: SourceDocument, registry: dict) -> list:
                 and node["tag"] not in {"script", "style", "template"}
             )
         ]
-        if (
+        workspace = (
             len(roots) == 1
             and isinstance(roots[0], dict)
             and registry.get(roots[0]["tag"], {}).get("x-reading-role") == "workspace"
-        ):
+        )
+        page_navigation = (
+            roots
+            and len(roots) <= 2
+            and isinstance(roots[-1], dict)
+            and registry.get(roots[-1]["tag"], {}).get("x-page-navigation") is True
+            and (
+                len(roots) == 1
+                or (isinstance(roots[0], dict) and roots[0]["tag"] == "header")
+            )
+        )
+        if workspace or page_navigation:
             return []
     outline = sorted(
         # Widgets only — a $ entry is a layer-wide namespace, not a tag a page can

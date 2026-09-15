@@ -82,15 +82,7 @@ export const THREAD_PANEL_PROP = "--lf-thread-panel-width";
 
 export function createChromeLayout({
   panelIsOpen,
-  elements: {
-    panel,
-    closeBtn,
-    panelFoot,
-    threadsBox,
-    shortcutBarEl,
-    bottomStatusEl,
-    chromeRoot,
-  },
+  elements: { panel, closeBtn, panelFoot, threadsBox, shortcutBarEl, bottomStatusEl },
   foldBannerRow,
   scheduleThreadPreviewPosition,
   bottomChromeBoxes,
@@ -181,14 +173,6 @@ export function createChromeLayout({
         right: document.documentElement.clientWidth,
         bottom: document.documentElement.clientHeight,
       }) ?? "0px";
-    // The document's, taken as the chrome container's own box rather than as padding on
-    // body. The container is in the flow, holds nothing but out-of-flow chrome, and is
-    // watched by nobody, so what it takes is room the document has and no measurement's
-    // business.
-    const boundedWorkspace = document.querySelector(
-      "body > main > .lf-workspace-reading[data-lf-workspace-context='root'][data-lf-reading-posture='bounded']",
-    );
-    chromeRoot.style.paddingBottom = boundedWorkspace ? "0px" : clear;
     // Flow room lets the document reach past the line; scroll padding tells native focus
     // navigation where the visible edge actually is. Keep both on the same measured band
     // so a Tab stop already inside the viewport cannot be accepted underneath the line.

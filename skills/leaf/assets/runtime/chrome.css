@@ -626,6 +626,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    marked itself lf-live — this block's name for the visually-hidden live region —
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
+  /* The flow document can scroll its last line above the bottom chrome. A bounded
+     composition withdraws this room synchronously, before scroll restoration reads
+     the new document height; the measured chrome band itself remains available. */
+  :scope { padding-bottom: var(--lf-document-end-room, var(--lf-bottom-chrome-clear, 0px)); }
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container
      itself, which is why this can't be written at document level without widening

@@ -10,6 +10,7 @@ import {
 } from "./reading-regions.js";
 import { LAYOUT, layoutChanged } from "./widget-elements.js";
 import { once } from "./widget-upgrade.js";
+import { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 
 const generated = (className) => {
   const node = document.createElement("div");
@@ -17,17 +18,38 @@ const generated = (className) => {
   return node;
 };
 
+const substantiveChildren = (owner) =>
+  [...owner.childNodes].filter(
+    (child) =>
+      (child.nodeType === Node.ELEMENT_NODE &&
+        !child.matches("script, style, template")) ||
+      (child.nodeType === Node.TEXT_NODE && child.textContent.trim()),
+  );
+
+/* A root arrangement may stand directly in the content frame or in a package-owned
+   root slot. The marker is the open capability: core does not need to know whether the
+   slot is a tab panel, a disclosure, or another structural composition. A slot grants
+   root posture only to its sole substantive child, so wrapping a workspace in ordinary
+   prose keeps it embedded. */
+const rootReadingSlot = (owner) => {
+  const main = owner.closest("body > main");
+  if (!main) return null;
+  if (owner.parentElement === main && substantiveChildren(main).length === 1)
+    return owner;
+  const slot = owner.parentElement?.closest("[data-lf-root-reading]");
+  return slot &&
+    substantiveChildren(slot).length === 1 &&
+    substantiveChildren(slot)[0] === owner
+    ? slot
+    : null;
+};
+
 const syncWorkspaceContext = (owner) => {
   if (!owner.classList.contains("lf-workspace-reading")) {
     owner.removeAttribute("data-lf-workspace-context");
     return;
   }
-  const main = owner.parentElement;
-  const isRoot =
-    main?.matches("body > main") &&
-    [...main.children].filter((child) => !child.matches("script, style, template"))
-      .length === 1;
-  owner.dataset.lfWorkspaceContext = isRoot ? "root" : "embedded";
+  owner.dataset.lfWorkspaceContext = rootReadingSlot(owner) ? "root" : "embedded";
 };
 
 export function arrangeReadingElement({
@@ -141,31 +163,51 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
   let active = true;
   let scheduled = null;
   let resize = null;
+  const onLayout = (event) => {
+    // Composition markers change synchronously with their panel. Publish that context
+    // before the queued fit so page-level constraints and native history restoration
+    // see the new allocation immediately.
+    syncWorkspaceContext(owner);
+    const ready = update();
+    event.detail?.present?.(ready);
+  };
 
   /* A root's fit is a reading of its live layout. Read both the room and the minimum
      inside the bounded candidate so scrollbar allocation, wrapping furniture, nested
      partitions, and package posture rules cannot make the same window answer
      differently based on the posture currently drawn. The temporary style and posture
-     writes are restored in the same task, before anything can paint. Height stays
-     pinned because temporarily shortening a flow document would otherwise clamp a
-     reader's scroll position. */
+     writes are restored in the same task, before anything can paint. The root, main,
+     and owner heights stay pinned because temporarily removing document-end room or
+     shortening a flow document would otherwise clamp a reader's scroll position. */
   const readBoundedFit = () => {
-    const main = owner.parentElement;
+    const main = owner.closest("body > main");
+    const slot = rootReadingSlot(owner);
     const root = document.documentElement;
     const styles = new Map(
-      [main, owner].map((element) => [element, element.getAttribute("style")]),
+      [root, main, owner].map((element) => [element, element.getAttribute("style")]),
     );
+    setRuntimeRootStyle(root, "min-height", `${root.scrollHeight}px`);
     main.style.height = `${main.getBoundingClientRect().height}px`;
     owner.style.height = `${owner.getBoundingClientRect().height}px`;
     try {
       return readReadingArrangementAt(readingArrangement, "bounded", () => {
         const rootStyle = getComputedStyle(root);
         const mainStyle = getComputedStyle(main);
+        const mainBox = main.getBoundingClientRect();
+        const slotBox = (slot ?? owner).getBoundingClientRect();
+        const slotOffset = Math.max(
+          0,
+          slotBox.top -
+            mainBox.top -
+            (Number.parseFloat(mainStyle.borderTopWidth) || 0) -
+            (Number.parseFloat(mainStyle.paddingTop) || 0),
+        );
         const availableHeight =
           innerHeight -
           (Number.parseFloat(getComputedStyle(document.body, "::before").height) || 0) -
           (Number.parseFloat(rootStyle.getPropertyValue("--lf-bottom-chrome-clear")) ||
             0) -
+          slotOffset -
           (Number.parseFloat(mainStyle.paddingTop) || 0) -
           (Number.parseFloat(mainStyle.paddingBottom) || 0) -
           (Number.parseFloat(mainStyle.borderTopWidth) || 0) -
@@ -180,6 +222,7 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
         return { availableHeight, availableWidth, minimum: minimumSize() };
       });
     } finally {
+      removeRuntimeRootStyle(root, "min-height");
       for (const [element, style] of styles) {
         if (style === null) element.removeAttribute("style");
         else element.setAttribute("style", style);
@@ -189,6 +232,7 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
 
   const choosePosture = async () => {
     if (!active || !owner.isConnected) return;
+    syncWorkspaceContext(owner);
     if (owner.dataset.lfWorkspaceContext !== "root") {
       await readingArrangement.setReadingPosture("flow");
       return;
@@ -223,12 +267,13 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
     return scheduled;
   };
 
-  if (owner.dataset.lfWorkspaceContext === "root") {
-    resize = new ResizeObserver(update);
-    resize.observe(document.body);
-    window.addEventListener("resize", update);
-    owner.addEventListener(LAYOUT, update);
-  }
+  // A package composition can promote or retire this arrangement as its active root
+  // slot without reconnecting the workspace. Keep the same layout doors in either
+  // context; update synchronizes the context before it chooses a posture.
+  resize = new ResizeObserver(update);
+  resize.observe(document.body);
+  window.addEventListener("resize", update);
+  owner.addEventListener(LAYOUT, onLayout);
 
   return {
     update,
@@ -237,7 +282,7 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
       resize?.disconnect();
       resize = null;
       window.removeEventListener("resize", update);
-      owner.removeEventListener(LAYOUT, update);
+      owner.removeEventListener(LAYOUT, onLayout);
     },
   };
 }

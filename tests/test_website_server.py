@@ -1937,6 +1937,143 @@ def test_a_completed_final_is_recovered_after_the_turn_stream_disconnects(
     assert resumed_socket.closed
 
 
+def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_the_bound():
+    """Separate an App Server that is thinking from one that stopped delivering.
+
+    `recv` reports every idle second the same way, so the reading that tells the two
+    apart is how long the silence has run.
+    """
+
+    class Socket:
+        def recv(self, timeout):
+            raise TimeoutError
+
+    socket = Socket()
+    assert website_server.recv_notification(socket, time.monotonic()) is None
+    with pytest.raises(TimeoutError):
+        website_server.recv_notification(
+            socket, time.monotonic() - website_server.STREAM_SILENCE - 1
+        )
+
+
+def test_a_stream_that_goes_silent_recovers_its_turn_like_a_dropped_one(
+    page_dir, monkeypatch
+):
+    """A subscription that stops delivering owes its turn the same recovery a dropped
+    one gets. Nothing else reaches the reader: the container answers every state read,
+    so the page keeps reporting the activity the follower set before its first
+    notification until the resumed thread supplies the terminal status.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    prepared = website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = accept_codex_delivery("hosted-thread", turn="app-server-turn")
+    monkeypatch.setattr(website_server, "STREAM_SILENCE", 0.0)
+
+    class Socket:
+        def __init__(self):
+            self.closed = False
+
+        def recv(self, timeout):
+            raise TimeoutError
+
+        def close(self):
+            self.closed = True
+
+    silent = Socket()
+    resumed = Socket()
+    recovered = {
+        "id": "app-server-turn",
+        "status": "completed",
+        "items": [
+            {
+                "id": "answer",
+                "type": "agentMessage",
+                "phase": "final_answer",
+                "text": "Recovered answer.",
+            }
+        ],
+    }
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host,
+        "_resume_turn_stream",
+        lambda thread_id: (resumed, {"id": thread_id, "turns": [recovered]}),
+    )
+
+    host._follow_turn(
+        silent,
+        page_dir,
+        "hosted-thread",
+        "app-server-turn",
+        delivery["turn"],
+        delivery["events"],
+        website_server.stream_reply_target(prepared.payload),
+        prepared.payload["id"],
+    )
+
+    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [(reply["responds"], reply["text"]) for reply in replies] == [
+        (comment["id"], "Recovered answer.")
+    ]
+    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    assert silent.closed
+
+
+def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(page_dir):
+    """The follower owes its turn an outcome for every fault, not a listed few.
+
+    A fault the stream handler does not name would otherwise leave the claim open with
+    the activity its first line set, which is a page that reads working for as long as
+    the container lives and never reaches a receipt.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = accept_codex_delivery("hosted-thread")
+
+    class Socket:
+        closed = False
+
+        def recv(self, timeout):
+            raise KeyError("params")
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    website_server.WebsiteCodexHost("codex")._follow_turn(
+        socket,
+        page_dir,
+        "hosted-thread",
+        "app-server-turn",
+        delivery["turn"],
+        delivery["events"],
+    )
+
+    events = read_events(page_dir)
+    assert not any(event["kind"] == "reply" for event in events)
+    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    activity = website_server.full_state(page_dir, events)["activity"]
+    assert activity["kind"] != "working"
+    assert [obligation["event"] for obligation in activity["obligations"]] == [
+        comment["id"]
+    ]
+    assert socket.closed
+
+
 def test_an_empty_final_is_not_logged_as_visible_reply(page_dir, capsys):
     comment = append_event(
         page_dir,

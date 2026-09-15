@@ -227,7 +227,12 @@ Once App Server reports a terminal turn, the container closes that exact Leaf tu
 The bound final-answer message, a page revision closed with `leaf resolve`, or a `leaf
 receipt` settles accepted input.
 A failed, interrupted, or completed-but-unanswered provider turn closes its active
-claim turn without inventing a reply; its reader obligation remains unanswered.
+claim turn without inventing a reply; its reader obligation remains unanswered. The
+follower owes that outcome for every way it can stop, so a fault of any shape closes
+the turn, and a subscription that goes quiet for longer than a running turn ever does
+is recovered like a dropped one: `thread/resume` reads the authoritative turn, which
+carries the terminal status a stream that stopped delivering never sent. Neither a
+stalled stream nor a follower fault can leave a page reading working with no receipt.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the

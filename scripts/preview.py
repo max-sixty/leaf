@@ -174,7 +174,7 @@ def checkout(parser: argparse.ArgumentParser, value: Path) -> tuple[Path, Path]:
     if not launcher.is_file():
         parser.error(f"{runtime} has no bin/leaf launcher")
     result = subprocess.run(
-        [str(launcher), "--version"],
+        [str(launcher), "--root"],
         cwd=runtime,
         capture_output=True,
         check=False,

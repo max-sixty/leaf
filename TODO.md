@@ -113,6 +113,10 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Prefer a release tag when Leaf adopts named versions.** When the running payload's
+  commit has an exact Git tag, report that tag as its version and retain the commit hash
+  as the fallback for untagged builds.
+
 - **Finish the Lit rendering cutover for Leaf-owned generated UI.** Move the remaining
   banner shelf/menu, thread-panel narrowing, anchor note marks, and target-chooser status
   one at a time onto Lit elements or templates fed only by read-only application

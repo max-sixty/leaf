@@ -370,6 +370,28 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
             context=context,
         )
         expect(ordinary.locator(".lf-preview")).to_have_count(0)
+        layer = json.loads((serve.page_dir / "registry.json").read_text())["$layer"]
+        producer = layer.get("producer", {})
+        identity = (
+            producer["commit"][:8]
+            if producer.get("commit")
+            else "sha256:" + layer["fingerprint"].removeprefix("sha256:")[:12]
+        )
+        reference = ordinary.locator(".lf-layer-reference")
+        expect(reference).to_have_text(
+            f"Leaf {identity}{'+' if producer.get('dirty') else ''}"
+        )
+        expect(reference.locator("code")).to_have_text(
+            f"{identity}{'+' if producer.get('dirty') else ''}"
+        )
+        ordinary.get_by_role("button", name="More page controls", exact=True).click()
+        expect(reference).to_be_visible()
+        reference.click()
+        expect(ordinary.locator(".lf-notice")).to_have_text("Copied Leaf version")
+        diagnostics = ordinary.evaluate("() => navigator.clipboard.readText()")
+        assert f"fingerprint: {layer['fingerprint']}" in diagnostics
+        if producer.get("commit"):
+            assert f"commit: {producer['commit']}" in diagnostics
         ordinary.close()
     finally:
         context.close()

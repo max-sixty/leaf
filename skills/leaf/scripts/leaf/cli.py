@@ -24,7 +24,22 @@ def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
     return page_dir
 
 
-def _which_leaf(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
+def _leaf_version(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
+    """Print the source identity of the Leaf payload running this command."""
+    if not value or ctx.resilient_parsing:
+        return
+    from leaf.layer import payload_provenance
+
+    producer = payload_provenance()
+    commit = producer.get("commit")
+    identity = (
+        f"{commit}{'+' if producer.get('dirty') else ''}" if commit else "unknown"
+    )
+    click.echo(f"leaf {identity}")
+    ctx.exit()
+
+
+def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
     """Print which copy of leaf this is, and stop.
 
     A host session runs the payload its plugin cache holds, not the checkout,
@@ -47,7 +62,15 @@ def _which_leaf(ctx: click.Context, _param: click.Parameter, value: bool) -> Non
     is_flag=True,
     expose_value=False,
     is_eager=True,
-    callback=_which_leaf,
+    callback=_leaf_version,
+    help="Print this running Leaf payload's source version.",
+)
+@click.option(
+    "--root",
+    is_flag=True,
+    expose_value=False,
+    is_eager=True,
+    callback=_leaf_root,
     help="Print the payload directory this leaf runs from.",
 )
 def cli() -> None:

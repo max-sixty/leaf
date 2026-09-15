@@ -36,7 +36,10 @@ init records two deliberately different identities under `$layer`:
 - `fingerprint` is the SHA-256 identity of the complete composed layer before that
   epoch is stamped. Identical runtime, theme, registry, widget, vendor, icon, and
   guidance bytes have the same fingerprint across repeated vendoring. `producer`
-  records the Git commit and dirty bit when the payload came from a checkout.
+  records the Git commit and dirty bit when the payload came from a checkout or from
+  Claude Code's Git-versioned plugin cache. The page exposes that identity in its
+  low-frequency banner controls; a press copies the full layer diagnostics. A host can
+  ask its running payload for the same source identity with `leaf --version`.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. A served
 page's inline, CSP-hashed bootstrap supervises startup before the module graph

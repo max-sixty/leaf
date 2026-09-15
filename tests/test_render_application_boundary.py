@@ -19,6 +19,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    reported_browser_errors,
     round_trip,
     stamp_page,
     take_browser_errors,
@@ -1122,13 +1123,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
     assert "conversation" in page.evaluate("window.readLeafPresentation().pending")
-    assert take_browser_errors(page) == [
-        (
-            "leaf: Presentation failed: Thread list presentation retry failed: "
-            "injected complete-list failure; injected complete-list failure"
-        ),
-        "leaf: State presentation failed: Thread list presentation retry failed",
-    ]
 
     # The retry paints the whole candidate again and then reaches the independently
     # held frozen-widget preparation. Only that complete reading may commit.
@@ -1168,9 +1162,20 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
     expect(editor).to_have_value("draft survives sibling rollback")
-    assert take_browser_errors(page) == [
-        "leaf: read failed: Thread list presentation retry failed"
-    ]
+    # One failed candidate, named by each boundary that carried it: the presentation
+    # publisher, the reading that was applying it, and the feed that asked for that
+    # reading. The feed's word waits on the queued projection retry the failed
+    # application left behind, so the whole report is accounted for here rather than
+    # split across the rollback, where its last line has no settled arrival.
+    reported_browser_errors(
+        page,
+        (
+            "leaf: Presentation failed: Thread list presentation retry failed: "
+            "injected complete-list failure; injected complete-list failure"
+        ),
+        "leaf: State presentation failed: Thread list presentation retry failed",
+        "leaf: read failed: Thread list presentation retry failed",
+    )
     page.close()
 
 

@@ -1534,15 +1534,21 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     assert page.evaluate("() => window.lfScrolledPart") == "new"
 
 
-def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, serve):
-    """A provider can update one part's current label without replacing the proxy for
-    that stable anchor. The focused control changes its name and remains focused."""
+def test_a_visual_proxy_keeps_reader_standing_across_provider_updates(browser, serve):
+    """A keyed proxy retains a held press and focus while its label and order change."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.locator(".lf-visual-action").filter(
         has_text=re.compile(r"^Respond to Start request$")
     )
     control.focus()
     control.evaluate("control => { window.lfRetainedVisualControl = control; }")
+    bounds = control.bounding_box()
+    assert bounds is not None
+    page.mouse.move(
+        bounds["x"] + bounds["width"] / 2,
+        bounds["y"] + bounds["height"] / 2,
+    )
+    page.mouse.down()
     page.evaluate(
         """() => {
           const diagram = document.querySelector('#flow');
@@ -1558,6 +1564,40 @@ def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, s
     assert page.evaluate(
         """() => window.lfRetainedVisualControl.isConnected &&
           document.activeElement === window.lfRetainedVisualControl"""
+    )
+    page.mouse.up()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.press("Escape")
+    assert page.evaluate(
+        "() => document.activeElement === window.lfRetainedVisualControl"
+    )
+
+    page.evaluate(
+        """() => {
+          const diagram = document.querySelector('#flow');
+          diagram.setAttribute('parts', 'node:H node:S');
+          diagram.visualPartRegistration.update();
+        }"""
+    )
+    page.wait_for_function(
+        """() => JSON.stringify(
+          [...document.querySelectorAll('.lf-visual-action')]
+            .filter(node => node.lfAnchor.section === 'flow')
+            .map(node => node.lfAnchor.visual ?? null)
+        ) === JSON.stringify([null, 'node:H', 'node:S'])"""
+    )
+    order = page.evaluate(
+        """() => [...document.querySelectorAll('.lf-visual-action')]
+                .filter(node => node.lfAnchor.section === 'flow')
+                .map(node => node.lfAnchor.visual ?? null)"""
+    )
+    assert order == [None, "node:H", "node:S"]
+    assert page.evaluate(
+        """() => window.lfRetainedVisualControl.isConnected &&
+          document.activeElement === window.lfRetainedVisualControl &&
+          [...document.querySelectorAll('.lf-visual-action')]
+            .filter(node => node.lfAnchor.section === 'flow').at(-1) ===
+              window.lfRetainedVisualControl"""
     )
 
 

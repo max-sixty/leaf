@@ -16,6 +16,7 @@ class ThreadListView extends LitElement {
   #views = new Map();
   #committedModel = EMPTY_MODEL;
   #failure = null;
+  #focusListAfterPaint = false;
   #generation = 0;
   #rows = [];
   #retaining = false;
@@ -94,6 +95,7 @@ class ThreadListView extends LitElement {
 
   willUpdate(changed) {
     if (!changed.has("model") || !this.#commands) return;
+    this.#focusListAfterPaint ||= this.contains(focused());
     const rows = [];
     const wanted = new Set();
     let group = null;
@@ -147,7 +149,10 @@ class ThreadListView extends LitElement {
 
   updated() {
     const active = focused();
-    if (active?.closest?.(".lf-thread[hidden]")) this.focus({ preventScroll: true });
+    const recover = this.#focusListAfterPaint;
+    this.#focusListAfterPaint = false;
+    if ((recover && !this.contains(active)) || active?.closest?.(".lf-thread[hidden]"))
+      this.focus({ preventScroll: true });
     this.#commands?.presentSummary(this.model);
   }
 

@@ -102,7 +102,7 @@ function reportFailure({ owner }, error) {
   );
 }
 
-function clearRegistration(registration, commands) {
+function clearRegistration(registration) {
   if (registration.outlets.has(registration.composition.outlet()))
     registration.composition.restore();
   try {
@@ -111,8 +111,7 @@ function clearRegistration(registration, commands) {
   } catch (error) {
     reportFailure(registration, error);
   }
-  if (commands) clearOutlets(registration.outlets, commands);
-  else for (const outlet of registration.outlets) clearThreadSurface(outlet);
+  clearOutlets(registration.outlets);
   registration.outlets.clear();
 }
 
@@ -125,7 +124,7 @@ export function renderSurfaces(threads, placedAt, commands) {
     if (registrations.get(owner) !== registration) continue;
     if (!owner.isConnected) {
       registrations.delete(owner);
-      clearRegistration(registration, commands);
+      clearRegistration(registration);
       continue;
     }
     const byOutlet = new Map();
@@ -188,15 +187,12 @@ export function renderSurfaces(threads, placedAt, commands) {
         compositionOutlet === commands.composition.outlet()
       )
         commands.composition.restore();
-      clearOutlets(registration.outlets, commands);
+      clearOutlets(registration.outlets);
       registration.outlets.clear();
       reportFailure(registration, error);
       continue;
     }
-    clearOutlets(
-      [...registration.outlets].filter((outlet) => !byOutlet.has(outlet)),
-      commands,
-    );
+    clearOutlets([...registration.outlets].filter((outlet) => !byOutlet.has(outlet)));
     registration.outlets = new Set(byOutlet.keys());
     for (const [outlet, localThreads] of byOutlet) {
       outlet.dataset.lfThreadSurface = "";

@@ -14,7 +14,7 @@ import {
 } from "./messages.js";
 import { reactionReading } from "./reaction-strips.js";
 import { messageReceipts } from "./acknowledgments.js";
-import { el, offer, reachedForWords, measure, reserve } from "../widget-elements.js";
+import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
@@ -365,7 +365,7 @@ export class ThreadView {
       : null;
     const input = offer("textarea");
     input.name = "reply";
-    const send = el(
+    const send = offer(
       "button",
       panel ? "lf-btn primary lf-thread-send" : "lf-btn primary",
       "Send",

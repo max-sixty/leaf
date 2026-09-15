@@ -1149,7 +1149,10 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     before = page.locator(".lf-threads > .lf-thread").count()
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the general send")
-    expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(1)
+    pending = page.locator('.lf-thread[data-id^="pending:"]')
+    expect(pending).to_have_count(1)
+    pending.focus()
+    expect(pending).to_be_focused()
 
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
@@ -1164,6 +1167,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         )
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(before)
+    expect(page.locator(".lf-threads")).to_be_focused()
     expect(box).to_have_value(words)
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert page.evaluate(STORED_DRAFT_TEXT, "general") == words

@@ -675,7 +675,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     assert behind[1600] < behind[900], (
         f"a widening window did not hand controls back to the row: {behind}"
     )
-    # Take the crowd away and the row takes every one of its own back, door and all.
+    # Take the crowd away and the row takes every ordinary control back. The Leaf
+    # version remains deliberately behind the door at every width.
     page.evaluate(
         """() => {
           for (const control of document.querySelectorAll('.lf-btn'))
@@ -684,8 +685,9 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         }"""
     )
     resized(page, 1600, 844)
-    expect(page.locator(".lf-banner-more")).to_be_hidden()
-    expect(page.locator(".lf-banner-menu")).to_be_empty()
+    expect(page.locator(".lf-banner-more")).to_be_visible()
+    expect(page.locator(".lf-banner-menu > .lf-layer-reference")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu > *")).to_have_count(1)
 
     # The covering Threads panel locks the page behind it, and the row is no longer a
     # side door around that lock: a wheel over it reaches the document scrollport, which

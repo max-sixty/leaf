@@ -701,7 +701,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      .lf-chip is halved on how it is spelled, because the class dresses a standing chip
      as well as a press and a chip is not something to aim at. */
   :is(.lf-btn, .lf-chip:is(button, [role="button"]), .lf-thread-action,
-    .lf-preview, .lf-react, .lf-version-diff, .lf-version-row, .lf-command-reference-command,
+    .lf-preview, .lf-layer-reference, .lf-react, .lf-version-diff, .lf-version-row,
+    .lf-command-reference-command,
     .lf-quote, .lf-margin-entry) { min-height: var(--aim-floor); min-width: var(--aim-floor); }
   /* Page paint belongs under a covering auxiliary surface. Paint whose target is inside the
      chrome belongs above that auxiliary surface, including when the same aim or response bar moves
@@ -780,12 +781,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      the overflow door at every width. It stays here in the shared key-badge vocabulary
      because the menu moves the same node rather than constructing a second diagnostic.
      A press copies the diagnostics, so its text is one line however long the name is. */
-  .lf-preview { padding: 2px 7px;
+  :is(.lf-preview, .lf-layer-reference) { padding: 2px 7px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font: inherit; font-size: var(--t-6);
     cursor: pointer; }
-  .lf-preview:hover { color: var(--ink); }
-  .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  :is(.lf-preview, .lf-layer-reference):hover { color: var(--ink); }
+  .lf-layer-version { font-family: var(--mono); font-size: inherit; }
+  :is(.lf-preview, .lf-layer-reference):focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; }
   /* The quiet summary is a native disclosure; complete activity wording remains
      reachable by keyboard and touch without consuming the reading row. */
   .lf-status-button { display: flex; align-items: center; gap: var(--lf-banner-gap);

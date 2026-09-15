@@ -4,7 +4,8 @@ Usage: leaf [OPTIONS] COMMAND [ARGS]...
   Build and run interactive pages a session shares with its user.
 
 Options:
-  --version  Print the payload directory this leaf runs from.
+  --version  Print this running Leaf payload's source version.
+  --root     Print the payload directory this leaf runs from.
   --help     Show this message and exit.
 
 Commands:

@@ -493,12 +493,13 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     ]
 
 
-def test_the_version_flag_names_the_payload_this_leaf_ran_out_of(tmp_path):
+def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tmp_path):
     """Which copy of leaf answered is otherwise unknowable from outside it. A
     host session runs the payload its plugin cache holds and a checkout stands
     beside it; `bin/leaf` is identical across versions and nothing the CLI
-    prints says where it came from. So `--version` prints the payload directory
-    rather than a number, which is what tells a stale cache from a checkout.
+    prints says where it came from. `--version` prints the running source identity
+    for reports and harnesses, while `--root` retains the exact payload directory
+    needed to distinguish a stale cache from a checkout.
 
     Two copies asked the same question, because either half alone is satisfied
     by a flag that prints a constant, or the directory the command was typed in.
@@ -510,16 +511,17 @@ def test_the_version_flag_names_the_payload_this_leaf_ran_out_of(tmp_path):
     Eager and page-free, so it answers with no page named and nothing written
     where it ran, which is the whole of what a session asking the question has.
     """
-    cached = tmp_path / "cache" / "leaf"
+    cached_commit = "123456789abc"
+    cached = tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
     scripts = cached / "skills" / "leaf" / "scripts"
     scripts.mkdir(parents=True)
     shutil.copytree(SKILL_ROOT / "scripts" / "leaf", scripts / "leaf")
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
 
-    def asked(**environment):
+    def asked(flag, **environment):
         return subprocess.run(
-            [*LEAF_COMMAND, "--version"],
+            [*LEAF_COMMAND, flag],
             cwd=elsewhere,
             env=os.environ | environment,
             capture_output=True,
@@ -527,13 +529,17 @@ def test_the_version_flag_names_the_payload_this_leaf_ran_out_of(tmp_path):
             check=False,
         )
 
-    here = asked()
+    here = asked("--root")
     assert here.returncode == 0, here.stderr
     assert here.stdout.strip() == str(PLUGIN_ROOT.resolve())
 
-    there = asked(PYTHONPATH=str(scripts))
+    there = asked("--root", PYTHONPATH=str(scripts))
     assert there.returncode == 0, there.stderr
     assert there.stdout.strip() == str(cached.resolve())
+
+    version = asked("--version", PYTHONPATH=str(scripts))
+    assert version.returncode == 0, version.stderr
+    assert version.stdout.strip() == f"leaf {cached_commit}"
 
     assert list(elsewhere.iterdir()) == []
 
@@ -677,7 +683,10 @@ def test_claude_and_codex_read_the_same_repository_skills():
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_path):
-    installed = install_payload(tmp_path / "host" / "leaf")
+    commit = "4cb17dc60870"
+    installed = install_payload(
+        tmp_path / "host" / ".claude" / "plugins" / "cache" / "leaf" / "leaf" / commit
+    )
 
     conflicts = []
     for path in installed.rglob("*"):
@@ -728,6 +737,10 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     installed_registry = json.loads((page / "registry.json").read_text())
     assert "lf-command" in installed_registry
     assert installed_registry["$layer"]["packages"] == list(PAGE_PACKAGES)
+    assert installed_registry["$layer"]["producer"] == {
+        "commit": commit,
+        "dirty": False,
+    }
     (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
         [
@@ -1109,6 +1122,31 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
         "dirty": True,
     }
     assert index.stat().st_mtime_ns == before
+
+
+def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
+    tmp_path, monkeypatch
+):
+    """Claude's copied payload retains its source SHA in the documented cache path."""
+    commit = "4cb17dc60870"
+    plugin = tmp_path / ".claude" / "plugins" / "cache" / "leaf" / "leaf" / commit
+    plugin.mkdir(parents=True)
+    # A marketplace refresh may leave a newer sibling cached while an existing
+    # session still runs this copy. Provenance follows this module's root, not the
+    # newest directory available globally.
+    (plugin.parent / "ffffffffffff").mkdir()
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", plugin)
+    monkeypatch.setattr(
+        layer_model.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("a cached payload should not invoke Git"),
+    )
+
+    assert layer_model.payload_provenance(include_path=True) == {
+        "path": str(plugin),
+        "commit": commit,
+        "dirty": False,
+    }
 
 
 def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):

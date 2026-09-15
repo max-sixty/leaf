@@ -231,9 +231,12 @@ export function bake() {
   // spends the surplus on the free side: the exported board stood 35px outside the
   // page's box at a laptop's width and 47px at a narrow one, off the left, where
   // overflow scrolls nothing and the columns are not cut off with a way to reach
-  // them but simply gone. `test_a_copy_keeps_the_rail_a_decided_change_left` is
-  // that, and it is what a sweep of every inline custom property on the root ran
-  // into: read as a stale number, the rail is the one that is not.
+  // them but simply gone.
+  // `test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail` is that, and
+  // it is what a sweep of every inline custom property on the root ran into: read as a
+  // stale number, the rail is the one that is not. It asks the copy for the width the
+  // live page measured rather than for a non-zero strip, because the cascade leaves a
+  // floor under `--rail` and a copy that lost the measurement still reports one.
   for (const stale of [
     "--lf-thread-panel-width",
     "--lf-tray-slot-width",

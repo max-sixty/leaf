@@ -1,12 +1,19 @@
 /* Retained controls derived from anchor paint.
  *
  * This view owns visual comment proxies, accessible comment notes, standing reaction
- * controls, and message fragment state. A standing reaction first reveals its dedicated
- * removal action; only that action withdraws the reaction. Commands enter only through
- * the constructor.
+ * controls, and message fragment state. Visual proxies are keyed Lit controls inside
+ * stable authored-target holders; their holder placement remains mechanical page state.
+ * A standing reaction first reveals its dedicated removal action; only that action
+ * withdraws the reaction. Commands enter only through the constructor.
  */
 
 import { sameAnchor } from "./anchor-coordinate.js";
+import {
+  html,
+  nothing,
+  render as renderTemplate,
+  repeat,
+} from "../vendor/browser-runtime.js";
 import {
   declaredVisualParts,
   fragmentId,
@@ -40,7 +47,7 @@ export function createAnchorControls({
   focused,
   paintKeys,
 }) {
-  const visualActionHolders = new WeakMap();
+  const visualActionHolders = new Map();
   const reactionSeats = new Map();
   let mounted = false;
   let invalidationQueued = false;
@@ -81,7 +88,7 @@ export function createAnchorControls({
 
   function visualActionPlan() {
     const groups = new Map();
-    const claimed = [];
+    const claimed = new Set();
     for (const candidate of pageQueryAll(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
@@ -100,75 +107,91 @@ export function createAnchorControls({
       const seat = visualActionSeat(candidate);
       const group = groups.get(seat) ?? [];
       groups.set(seat, group);
-      for (const target of targets)
-        if (!claimed.some((anchor) => sameAnchor(anchor, target.anchor))) {
-          claimed.push(target.anchor);
-          group.push(target);
+      for (const target of targets) {
+        const key = JSON.stringify([
+          target.anchor.section,
+          target.anchor.visual ?? null,
+        ]);
+        if (!claimed.has(key)) {
+          claimed.add(key);
+          group.push({ ...target, key });
         }
+      }
     }
     return groups;
   }
 
-  function publishVisualActions() {
-    const groups = pendingVisualActions;
-    pendingVisualActions = new Map();
+  function focusVisualAction(event) {
+    const control = event.currentTarget;
+    let current = resolveAnchor(control.lfAnchor, pageText());
+    let element = targetParts(current)[0] ?? targetElement(current);
+    if (!element) return;
+    reveal(element);
+    current = resolveAnchor(control.lfAnchor, pageText());
+    element = targetParts(current)[0] ?? targetElement(current);
+    element?.scrollIntoView({
+      behavior: "instant",
+      block: "nearest",
+      inline: "nearest",
+    });
+  }
+
+  function activateVisualAction(event) {
+    const control = event.currentTarget;
+    commentOnTarget({ anchor: control.lfAnchor }, { origin: control });
+  }
+
+  const visualActionTemplate = ({ anchor, label }) => html`
+    <button
+      type="button"
+      class="lf-visual-action lf-quiet lf-ui"
+      data-lf-gen="1"
+      data-lf-offer="button"
+      .lfAnchor=${anchor}
+      .textContent=${`Respond to ${label}`}
+      @focus=${focusVisualAction}
+      @click=${activateVisualAction}
+    ></button>
+  `;
+
+  function reconcileVisualActions(groups) {
     const kept = new Set();
     for (const [seat, targets] of groups) {
       if (!targets.length) continue;
-      let record = visualActionHolders.get(seat);
-      if (!record?.holder.isConnected) {
-        record = { holder: offer("span", "lf-visual-actions") };
-        visualActionHolders.set(seat, record);
+      let holder = visualActionHolders.get(seat);
+      if (!holder?.isConnected) {
+        if (holder) renderTemplate(nothing, holder);
+        holder = offer("span", "lf-visual-actions");
+        visualActionHolders.set(seat, holder);
       }
-      const { holder } = record;
-      const unused = new Set(holder.children);
-      const controls = targets.map(({ anchor, label }) => {
-        let control = [...unused].find((child) => sameAnchor(child.lfAnchor, anchor));
-        if (!control) {
-          control = offer("button", "lf-visual-action lf-quiet");
-          control.onfocus = () => {
-            let current = resolveAnchor(control.lfAnchor, pageText());
-            let element = targetParts(current)[0] ?? targetElement(current);
-            if (!element) return;
-            reveal(element);
-            current = resolveAnchor(control.lfAnchor, pageText());
-            element = targetParts(current)[0] ?? targetElement(current);
-            element?.scrollIntoView({
-              behavior: "instant",
-              block: "nearest",
-              inline: "nearest",
-            });
-          };
-          control.onclick = () =>
-            commentOnTarget({ anchor: control.lfAnchor }, { origin: control });
-        }
-        unused.delete(control);
-        control.lfAnchor = anchor;
-        const name = `Respond to ${label}`;
-        if (control.textContent !== name) control.textContent = name;
-        return control;
-      });
-      for (const control of unused) control.remove();
-      controls.forEach((control, index) => {
-        if (holder.children[index] !== control)
-          holder.insertBefore(control, holder.children[index] ?? null);
-      });
+      kept.add(seat);
+      const current = focused();
+      const standing = holder.contains(current) ? current : null;
+      renderTemplate(
+        html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`,
+        holder,
+      );
       // Margin contributions and visual proxies share the authored seat. Keep a stable
       // order and preserve focus when reconciliation has to move a retained holder.
       let after = seat;
       while (after.nextSibling?.matches?.(".lf-margin-cluster[data-lf-external]"))
         after = after.nextSibling;
-      if (after.nextSibling !== holder) {
-        const held = holder.contains(document.activeElement)
-          ? document.activeElement
-          : null;
-        after.after(holder);
-        if (held?.isConnected) held.focus({ preventScroll: true });
-      }
-      kept.add(holder);
+      if (after.nextSibling !== holder) after.after(holder);
+      if (standing?.isConnected && focused() !== standing)
+        standing.focus({ preventScroll: true });
     }
-    for (const holder of pageQueryAll(".lf-visual-actions"))
-      if (!kept.has(holder)) holder.remove();
+    for (const [seat, holder] of visualActionHolders)
+      if (!kept.has(seat)) {
+        renderTemplate(nothing, holder);
+        holder.remove();
+        visualActionHolders.delete(seat);
+      }
+  }
+
+  function publishVisualActions() {
+    const groups = pendingVisualActions;
+    pendingVisualActions = new Map();
+    reconcileVisualActions(groups);
   }
 
   function prepareVisualActions() {
@@ -391,7 +414,7 @@ export function createAnchorControls({
     for (const record of reactionSeats.values()) record.margin.unregister();
     reactionSeats.clear();
     pendingVisualActions = new Map();
-    for (const holder of pageQueryAll(".lf-visual-actions")) holder.remove();
+    reconcileVisualActions(new Map());
     for (const note of pageQueryAll(`.${NOTE}`)) note.remove();
   }
 

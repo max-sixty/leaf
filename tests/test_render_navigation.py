@@ -3615,12 +3615,17 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
 
 
 def test_reader_news_interrupts_and_then_restores_background_news(browser, serve):
-    """The visible queue is local state; repainting it neither moves nor re-announces."""
+    """The queue is local state; its complete Lit surface stays synchronous and retained."""
     page = open_page(browser, serve(NOTED_PAGE))
     page.locator(".lf-threads-toggle").focus()
     page.evaluate(
         """async () => {
-          window.__lfNoticeNode = document.querySelector('.lf-notice');
+          window.__lfStatusNodes = Object.fromEntries([
+            '.lf-go-to-status',
+            '.lf-walk-position',
+            '.lf-notice',
+            '.lf-live',
+          ].map(selector => [selector, document.querySelector(selector)]));
           window.__lfNoticeFocus = document.activeElement;
           window.__lfLiveChanges = [];
           new MutationObserver(() => {
@@ -3631,13 +3636,31 @@ def test_reader_news_interrupts_and_then_restores_background_news(browser, serve
             subtree: true,
           });
           const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
-          notice('Agent replied — open Threads', {background: true});
+          addEventListener('lf-test-notice', () => {
+            notice('Agent replied — open Threads', {background: true});
+            const shown = document.querySelector('.lf-notice');
+            window.__lfSynchronousNotice = {
+              message: shown.textContent,
+              visible: shown.classList.contains('show'),
+            };
+          }, {once: true});
+          dispatchEvent(new Event('lf-test-notice'));
         }"""
     )
     live = page.locator(".lf-live")
     notice = page.locator(".lf-notice")
+    assert page.evaluate("() => window.__lfSynchronousNotice") == {
+        "message": "Agent replied — open Threads",
+        "visible": True,
+    }
     expect(live).to_have_text("Agent replied — open Threads")
     expect(notice).to_have_text("Agent replied — open Threads")
+    page.evaluate(RENDERED)
+    assert page.evaluate(
+        """() => Object.entries(window.__lfStatusNodes).every(
+          ([selector, node]) => document.querySelector(selector) === node
+        )"""
+    ), "a shared repaint replaced part of the retained bottom status surface"
 
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/notifications.js'))"
@@ -3653,10 +3676,16 @@ def test_reader_news_interrupts_and_then_restores_background_news(browser, serve
         )
         == 1
     ), "restoring background news announced it again"
-    assert page.evaluate(
-        """() => document.querySelector('.lf-notice') === window.__lfNoticeNode
-          && document.activeElement === window.__lfNoticeFocus"""
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/notifications.js'))"
+        ".setNoticeContext(true)"
     )
+    expect(notice).to_be_hidden()
+    assert page.evaluate(
+        """() => Object.entries(window.__lfStatusNodes).every(
+          ([selector, node]) => document.querySelector(selector) === node
+        ) && document.activeElement === window.__lfNoticeFocus"""
+    ), "notice transitions replaced retained status or live-region nodes"
 
 
 def test_overlapping_identical_live_announcements_are_fresh_changes(browser, serve):

@@ -319,6 +319,20 @@ export function marginEntrySource(control) {
 const agentWorkflowDescriptions = new WeakMap();
 const claimArrivals = new Map();
 const controlArrivals = new WeakMap();
+function agentWorkflowDescription(control) {
+  let reading = agentWorkflowDescriptions.get(control);
+  if (!reading) {
+    reading = {
+      description: control.getAttribute("aria-description"),
+      title: control.getAttribute("title"),
+      stage: null,
+      detail: null,
+    };
+    agentWorkflowDescriptions.set(control, reading);
+  }
+  return reading;
+}
+
 function syncAgentArrival(control, claim, stage) {
   if (stage !== "working") {
     control.removeAttribute("data-lf-agent-arrival");
@@ -377,6 +391,11 @@ function paintAgentDescription(control) {
   );
 }
 
+function syncAgentDescriptionBase(control, description, title) {
+  Object.assign(agentWorkflowDescription(control), { description, title });
+  paintAgentDescription(control);
+}
+
 export function syncMarginAgentWorkflow(control, receipt) {
   const workflowStage = agentWorkflowStage(receipt);
   const stage = ["picked_up", "working"].includes(workflowStage) ? workflowStage : null;
@@ -385,26 +404,15 @@ export function syncMarginAgentWorkflow(control, receipt) {
     receipt && JSON.stringify([receipt.target.kind, receipt.target.id, receipt.id]),
     stage,
   );
+  const reading = agentWorkflowDescription(control);
   if (stage) {
-    if (!agentWorkflowDescriptions.has(control))
-      agentWorkflowDescriptions.set(control, {
-        description: control.getAttribute("aria-description"),
-        title: control.getAttribute("title"),
-      });
-    Object.assign(agentWorkflowDescriptions.get(control), {
-      stage,
-      detail: receipt.detail,
-    });
+    Object.assign(reading, { stage, detail: receipt.detail });
     keeps(control, "data-lf-agent-workflow", stage);
-    paintAgentDescription(control);
   } else {
     control.removeAttribute("data-lf-agent-workflow");
-    if (agentWorkflowDescriptions.has(control)) {
-      agentWorkflowDescriptions.get(control).stage = null;
-      paintAgentDescription(control);
-      agentWorkflowDescriptions.delete(control);
-    }
+    Object.assign(reading, { stage: null, detail: null });
   }
+  paintAgentDescription(control);
 }
 
 export function syncMarginEntrySelection(control, selected) {
@@ -424,7 +432,12 @@ function iconFor(control, icon) {
 export function presentMarginEntryHost(
   control,
   offered,
-  { writesRelation = true, writesSeat = true } = {},
+  {
+    accessibleLabel = null,
+    relatedControlIds = [],
+    writesRelation = true,
+    writesSeat = true,
+  } = {},
 ) {
   if (!(control instanceof Element))
     throw new TypeError("A margin presentation needs an Element control");
@@ -453,7 +466,9 @@ export function presentMarginEntryHost(
       keeps(control, "aria-expanded", relation?.expanded ?? false);
     else control.removeAttribute("aria-expanded");
     if (relation?.kind === "element") keeps(control, "aria-controls", relation.id);
-    else if (!relation) control.removeAttribute("aria-controls");
+    else if (relation?.kind === "entries" && relatedControlIds.length)
+      keeps(control, "aria-controls", relatedControlIds.join(" "));
+    else control.removeAttribute("aria-controls");
     if (relation?.popup) keeps(control, "aria-haspopup", relation.popup);
     else control.removeAttribute("aria-haspopup");
   }
@@ -476,14 +491,10 @@ export function presentMarginEntryHost(
     keeps(control, "aria-disabled", record.disabled);
     if (writesSeat && control.tabIndex < 0) control.tabIndex = 0;
   }
-  keeps(control, "aria-label", record.accessibleLabel);
+  keeps(control, "aria-label", accessibleLabel ?? record.accessibleLabel);
   if (record.staticLabel) keeps(control, "data-lf-static-label", record.staticLabel);
   else control.removeAttribute("data-lf-static-label");
-  if (record.description) keeps(control, "aria-description", record.description);
-  else if (!agentWorkflowDescriptions.has(control))
-    control.removeAttribute("aria-description");
-  if (record.title) keeps(control, "title", record.title);
-  else if (!agentWorkflowDescriptions.has(control)) control.removeAttribute("title");
+  syncAgentDescriptionBase(control, record.description || null, record.title || null);
   projectCommandScope(control, record.scope);
   return record;
 }

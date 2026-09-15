@@ -516,6 +516,7 @@ export function createMarginProjection({
     }
     const entries = offered.reading.entries.filter((entry) => entry.visible);
     const liveKeys = new Set(entries.map((entry) => entry.key));
+    const changedControls = new Set();
     for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
     for (const entry of entries) {
       let control = controls.get(entry.key);
@@ -523,11 +524,9 @@ export function createMarginProjection({
         const prior = control;
         control = createMarginEntryControl(entry);
         controls.set(entry.key, control);
-        presentMarginEntry(control, entry);
+        changedControls.add(control);
         if (prior?.isConnected) prior.replaceWith(control);
-      } else if (marginEntryRecord(control) !== entry) {
-        presentMarginEntry(control, entry);
-      }
+      } else if (marginEntryRecord(control) !== entry) changedControls.add(control);
       control.onclick = (event) => {
         const consumesFocusedOwner =
           expandedOptionsKey && expandedOptionsOwner === offered.key;
@@ -560,16 +559,17 @@ export function createMarginProjection({
     clearMarginEntryControls(offered, surface, liveKeys);
     for (const entry of entries) {
       const control = controls.get(entry.key);
-      if (entry.relation?.kind !== "entries") continue;
-      const related = entry.relation.keys
-        .map((key) => controls.get(key))
-        .filter(Boolean);
+      const related =
+        entry.relation?.kind === "entries"
+          ? entry.relation.keys.map((key) => controls.get(key)).filter(Boolean)
+          : [];
       related.forEach((node, index) => {
         if (!node.id) node.id = `lf-margin-related-${++optionsOrdinal}-${index + 1}`;
       });
-      if (related.length)
-        control.setAttribute("aria-controls", related.map((node) => node.id).join(" "));
-      else control.removeAttribute("aria-controls");
+      if (changedControls.has(control))
+        presentMarginEntry(control, entry, {
+          relatedControlIds: related.map((node) => node.id),
+        });
     }
     return entries.map((entry) => controls.get(entry.key));
   }

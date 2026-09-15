@@ -2,6 +2,8 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
+import { html } from "../vendor/browser-runtime.js";
+
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
 // weight and baseline stable across systems.
@@ -37,14 +39,31 @@ const ICONS = {
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
 };
 
+const iconMarkup = (icon) => {
+  const markup = ICONS[icon];
+  if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
+  return markup;
+};
+
+/** Render a keyed Lit icon without replacing its SVG during a parent refresh. */
+export function iconTemplate(icon, className = "lf-margin-entry-icon") {
+  return html`<svg
+    viewBox="0 0 16 16"
+    focusable="false"
+    aria-hidden="true"
+    class=${className}
+    data-lf-icon=${icon}
+    .innerHTML=${iconMarkup(icon)}
+  ></svg>`;
+}
+
 export function iconElement(icon, className = "lf-margin-entry-icon") {
-  if (!ICONS[icon]) throw new TypeError(`Unknown Leaf icon: ${icon}`);
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 16 16");
   svg.setAttribute("focusable", "false");
   svg.setAttribute("aria-hidden", "true");
   svg.classList.add(className);
   svg.dataset.lfIcon = icon;
-  svg.innerHTML = ICONS[icon];
+  svg.innerHTML = iconMarkup(icon);
   return svg;
 }

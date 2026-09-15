@@ -1912,8 +1912,12 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     assert action.evaluate("node => node.tagName") == "BUTTON"
     expect(action).not_to_have_attribute("role", re.compile(".+"))
     expect(action).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
-    action.focus()
-    page.keyboard.press(" ")
+    icon = action.locator(":scope > .lf-margin-kind")
+    box = icon.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    page.evaluate("() => window.lfCanonicalMarginEntry.update()")
+    page.mouse.up()
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => window.lfCanonicalActivations") == ["inspect-source"]
 
@@ -1983,6 +1987,9 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     assert slash_relation.get_attribute("aria-controls") == slash_target.get_attribute(
         "id"
     )
+    colon_relation.click()
+    expect(dialog).to_be_visible()
+    expect(colon_target).to_be_focused()
 
     first.click()
     expect(dialog).to_be_hidden()
@@ -1991,6 +1998,114 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     second.click()
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => window.lfIdentityActivations") == ["c", "b:c"]
+
+
+def test_page_map_keyed_reconciliation_preserves_reader_standing(browser, serve):
+    """A synchronous inventory reorder retains its control, query, scroll, and scope."""
+    fixture = leaf_page(
+        "Keyed Page Map",
+        "".join(f'<p id="keyed-{index}">Target {index}</p>' for index in range(15)),
+    )
+    page = open_page(browser, serve(fixture))
+    page.evaluate(
+        """async () => {
+          const {commandScope, marginEntry, registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          let swapped = false;
+          window.lfKeyedCommandRuns = 0;
+          const scope = commandScope('On the retained Page Map action', [{
+            id: 'fixture.retained', keys: ['x'],
+            does: 'Run the retained action', line: 'run retained',
+            run: () => window.lfKeyedCommandRuns += 1,
+          }]);
+          const ordinary = index => registerMarginContribution({
+            key: `keyed-${index}`,
+            target: document.querySelector(`#keyed-${index}`),
+            read: () => ({entries: [marginEntry({
+              key: 'action', icon: 'dot', label: `Action ${index}`,
+            })]}),
+            activate: () => {},
+          });
+          const registrations = Array.from({length: 13}, (_, offset) =>
+            ordinary(offset + 1));
+          const retained = registrations[11];
+          retained.unregister();
+          const reordered = registerMarginContribution({
+            key: 'keyed-12', target: document.querySelector('#keyed-12'),
+            read: () => ({entries: [
+              marginEntry({key: 'keep', icon: 'dot', label: 'Action 12',
+                rank: swapped ? 'secondary' : 'primary', scope}),
+              marginEntry({key: 'peer', icon: 'dot', label: 'Action 12 peer',
+                rank: swapped ? 'primary' : 'secondary'}),
+            ]}), activate: () => {},
+          });
+          let movingTarget = 14;
+          registerMarginContribution({
+            key: 'moving-group',
+            target: () => document.querySelector(`#keyed-${movingTarget}`),
+            read: () => ({entries: [marginEntry({
+              key: 'action', icon: 'dot', label: 'Moving action',
+            })]}), activate: () => {},
+          });
+          window.lfKeyedMap = {
+            reordered,
+            change() {
+              movingTarget = 0;
+              swapped = true;
+              reordered.update({immediate: true});
+            },
+          };
+        }"""
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    search = dialog.get_by_role(
+        "searchbox", name="Find an action, status, or location in Page Map"
+    )
+    search.fill("Action")
+    retained = dialog.get_by_role("button", name="Action 12", exact=True)
+    retained.focus()
+    retained.evaluate("node => window.lfRetainedMapNode = node")
+    dialog.locator(".lf-page-map-list").evaluate(
+        "list => { list.scrollTop = list.scrollHeight - list.clientHeight; "
+        "window.lfRetainedMapScroll = list.scrollTop; }"
+    )
+
+    result = page.evaluate(
+        """() => {
+          window.lfKeyedMap.change();
+          const current = window.lfKeyedMap.reordered.control('keep', 'map', true);
+          const actions = [...current.parentElement.children]
+            .map(node => node.lfMapRecord?.key);
+          const words = [...document.querySelectorAll(
+            '.lf-page-map-list .lf-page-map-action-label-word')]
+            .map(node => node.textContent);
+          return {
+            sameNode: current === window.lfRetainedMapNode,
+            focused: document.activeElement === current,
+            connected: current.isConnected,
+            actions,
+            firstWord: words[0],
+            query: document.querySelector('.lf-page-map-search').value,
+            scroll: document.querySelector('.lf-page-map-list').scrollTop,
+            expectedScroll: window.lfRetainedMapScroll,
+          };
+        }"""
+    )
+    assert result == {
+        "sameNode": True,
+        "focused": True,
+        "connected": True,
+        "actions": ["peer", "keep"],
+        "firstWord": "Moving action",
+        "query": "Action",
+        "scroll": result["expectedScroll"],
+        "expectedScroll": result["expectedScroll"],
+    }
+    assert result["expectedScroll"] > 0
+    page.keyboard.press("x")
+    assert page.evaluate("() => window.lfKeyedCommandRuns") == 1
 
 
 def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_page_map(

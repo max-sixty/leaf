@@ -10,7 +10,7 @@
  * `renderVersions` supplies one immutable chooser reading from a state,
  * `prepareActivation` prepares navigation to the revision a state names; the arrival
  * landing; the menu readings the composing surface and the
- * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
+ * margin take (`closeVersionMenu`, `comparisonBase`,
  * `comparisonChanges`, and the pair the margin's Change reading discloses with,
  * `inlineComparison` and `toggleInlineComparison`); `readingBlock`, the block the decision
  * walk and the command reference start from; and `captureReturnPlace`, the control or
@@ -230,9 +230,11 @@ const versionedHeadNode = (node) =>
 // applies the difference between two revisions, so it needs the revision the page is
 // standing on as source — not the page, which by then carries a tokenizer's spans, a
 // reader's open disclosure, a tab stop the runtime lent, and whatever a page module
-// built. Cloned here because this module evaluates before any of that: the copy and the
-// page are the same tree for exactly this long, which is also what makes the pairing
-// below a plain walk of the two together.
+// built. The module graph can define chrome-only elements before this clone, but authored
+// markup cannot contain those tags, so the authored main is still untouched. Runtime-owned
+// head nodes carry `data-lf-runtime` and are excluded from the separate head baseline above.
+// The source and live main are therefore the same tree, which makes the pairing below a
+// plain walk of the two together.
 const pairSources = (source, live, pairs) => {
   pairs.set(source, live);
   const held = source.localName === "template" ? source.content : source;
@@ -356,25 +358,6 @@ export function createVersionController({
   function closeVersionMenu() {
     versionChooser.close();
   }
-
-  // The press is the popover's declared invoker rather than a click handler that toggles by
-  // reading the state: a press on the invoker of a standing auto popover is a light dismissal
-  // *and* a press, so a handler asking whether the menu is open is asked after the dismissal
-  // and opens it straight back — the menu could be pressed shut and never was. The browser
-  // knows the two are one gesture. `lfInvoker` is the same relationship read from the other
-  // end, which is the end anything standing a layer back up has: it holds the layer and needs
-  // the control, and the platform offers no way back along its own link.
-
-  // The newest-version chip. Its hidden pinned slot carries representative words as well
-  // as a measured width: an empty button is shorter, so its first real label would still
-  // move vertically. Its press goes through the chooser's one door (goActive): at the
-  // live root an explicit release of the composition hold, on an immutable page
-  // ordinary version travel.
-
-  // The one control on this row whose arrival a reader must not miss: what they are
-  // reading has been replaced. Every other control is standing information, and being
-  // behind the row's menu costs it nothing; this one is news, so the menu's door says so
-  // while it holds it (banner-shelf.js, paintDoor).
 
   const numberedVersionRoutes = () => versionChooser.numberedRoutes();
   const OPEN_NUMBER = {

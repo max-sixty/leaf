@@ -58,8 +58,15 @@ class VersionChooserView {
     this.menu.setAttribute("popover", "auto");
     this.menu.setAttribute("role", "menu");
     this.menu.setAttribute("aria-label", "Versions");
+    // Use the platform's invoker relationship rather than toggling from a click handler.
+    // A press on an open auto-popover's invoker is both a light dismissal and a press;
+    // reading the state from a handler would see the dismissal and reopen it. `lfInvoker`
+    // exposes the same relationship from the popover end to owners restoring a layer.
     this.button.popoverTargetElement = this.menu;
     this.menu.lfInvoker = this.button;
+    // This is the one banner control whose arrival a reader must not miss: the document
+    // being read has been replaced. The shelf therefore keeps its news on the menu door
+    // while the chip is folded (banner-shelf.js, paintDoor).
     this.latestChip.dataset.lfUrgent = "1";
 
     this.menu.addEventListener("toggle", (event) => {
@@ -73,6 +80,9 @@ class VersionChooserView {
       }
       this.#toggle?.();
     });
+    // The semantic owner supplies its one latest-version command: it releases the
+    // composition hold at the live root and performs ordinary travel on an immutable
+    // page. The view retains the native control without duplicating that decision.
     this.latestChip.onclick = () => this.#latest?.();
     this.present(INITIAL);
   }
@@ -140,20 +150,13 @@ class VersionChooserView {
   }
 
   reserve() {
+    // Hidden pinned slots need representative words as well as a measured width: an
+    // empty button is shorter, so its first real label would still move vertically.
     reserve(this.latestChip, LATEST_LABELS);
     reserve(this.button, VERSION_LABELS);
   }
 
   present(model) {
-    if (
-      !Object.isFrozen(model) ||
-      !Object.isFrozen(model.chooser) ||
-      !Object.isFrozen(model.latest) ||
-      !Object.isFrozen(model.rows) ||
-      !Object.isFrozen(model.selection) ||
-      model.rows.some((row) => !Object.isFrozen(row))
-    )
-      throw new Error("Version chooser presentation models must be immutable");
     this.#model = model;
     const { chooser, latest } = model;
     if (!chooser.offered) this.close();

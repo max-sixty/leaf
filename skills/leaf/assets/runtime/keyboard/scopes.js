@@ -47,6 +47,9 @@ const unpainted = new Set();
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 export const elementScopes = new WeakMap();
 const projectedScopes = new WeakMap();
+const commandScopeCapabilities = new WeakSet();
+export const isCommandScope = (capability) =>
+  capability != null && commandScopeCapabilities.has(capability);
 export const scopesAt = (element) =>
   [elementScopes.get(element), projectedScopes.get(element)].filter(Boolean);
 // The weak map is the dispatcher's lookup. The reference also has to enumerate every
@@ -167,7 +170,8 @@ function attachScope(where, declaration, { validateAtPaint = true } = {}) {
 }
 
 export function keys(where, title, rows, options) {
-  if (title?.scope && rows === undefined) return attachScope(where, title.scope);
+  if (rows === undefined && isCommandScope(title))
+    return attachScope(where, title.scope);
   const configuration =
     typeof options === "function" ? { when: options } : (options ?? {});
   if (typeof configuration !== "object")
@@ -219,7 +223,9 @@ export function commandScope(title, rows, options) {
     escape,
   };
   validateRows(scope.rows, title ?? "a scope");
-  return Object.freeze({ scope });
+  const capability = Object.freeze({ scope });
+  commandScopeCapabilities.add(capability);
+  return capability;
 }
 
 export function projectCommandScope(control, capability = null) {
@@ -231,7 +237,7 @@ export function projectCommandScope(control, capability = null) {
     reflectElementShortcuts(control);
     return;
   }
-  if (!capability.scope)
+  if (!isCommandScope(capability))
     throw new TypeError("A projected command scope needs a commandScope capability");
   projectedScopes.set(control, capability.scope);
   rememberScopedElement(control);

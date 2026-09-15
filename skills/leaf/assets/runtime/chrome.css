@@ -320,7 +320,7 @@
 }
 .lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
-.lf-margin-receipt[data-lf-margin-receipt="failed"] { color: var(--danger-ink); }
+.lf-margin-receipt[data-lf-margin-receipt="negative"] { color: var(--danger-ink); }
 /* A gesture the log has not answered yet, in the platform's own word for it, which
    is why no tag is named here: any widget that says aria-busy is painted, and
    lf-draft was saying it to screen readers alone before this rule existed.

@@ -5755,7 +5755,7 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
 ):
     """A changed span may cross a nested widget without painting its generated UI."""
     page = open_page(browser, serve(FEATURE_GALLERY))
-    page.locator('[data-lf-margin-for="bg-route-ask"] [role="button"]').click()
+    page.locator('[data-lf-margin-for="bg-route-ask"] .lf-margin-entry').click()
     badges = page.locator("#bg-route > lf-option > .lf-key-badge")
     expect(badges).to_have_text(["1", "2"])
 
@@ -6036,7 +6036,18 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
         ),
     )
     row.get_by_role("button", name=re.compile(r"^Undo rejecting")).click()
-    expect(row.locator(".lf-margin-receipt")).to_have_text("Undo failed · Rejected")
+    receipt = row.locator(".lf-margin-receipt")
+    expect(receipt).to_have_text("Undo failed · Rejected")
+    assert receipt.evaluate(
+        """element => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--danger-ink)';
+          document.body.append(probe);
+          const matches = getComputedStyle(element).color === getComputedStyle(probe).color;
+          probe.remove();
+          return matches;
+        }"""
+    )
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "reject")
     item = row.locator("xpath=..")
     expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()

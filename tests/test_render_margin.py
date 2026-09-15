@@ -962,7 +962,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
             const box = node.getBoundingClientRect();
             return {x: box.left + box.width / 2, y: box.top + box.height / 2};
           });
-          const controls = [...item.querySelectorAll('[role="button"]')].filter((button) => {
+          const controls = [...item.querySelectorAll('.lf-margin-entry')].filter((button) => {
             const box = button.getBoundingClientRect();
             return box.width && /^(Accept|Reject) the /.test(button.ariaLabel);
           });
@@ -1034,8 +1034,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         round_trip(page)
         expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
         page.locator(
-            f'[role="button"][data-lf-margin-entry-owner="suggestion:{target}"]'
-            '[aria-label^="Undo "]'
+            f'[data-lf-margin-entry-owner="suggestion:{target}"][aria-label^="Undo "]'
         ).click()
         round_trip(page)
         expect(
@@ -1697,6 +1696,44 @@ def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
     assert refusal == "Unknown margin entry option: role"
 
 
+def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
+    """Only the keyboard owner can mint a scope projected onto shared controls."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    refusal = page.evaluate(
+        """async () => {
+          const {marginEntry} = await import('/runtime/widget-api.js');
+          try {
+            marginEntry({
+              key: 'cancel', icon: 'cross', label: 'Cancel',
+              scope: {scope: {title: 'Counterfeit'}}
+            });
+          } catch (error) {
+            return error.message;
+          }
+          return null;
+        }"""
+    )
+    assert refusal == "A margin entry scope needs a commandScope capability"
+
+    status = page.evaluate(
+        """async () => {
+          const {commandScope, marginEntry} = await import('/runtime/widget-api.js');
+          const scope = commandScope('Status command', [{
+            id: 'fixture.status', keys: ['x'], does: 'Act from status',
+            line: 'act from status', run: () => {}
+          }]);
+          try {
+            marginEntry({key: 'sent', icon: 'sent', label: 'Sent',
+              behavior: 'status', scope});
+          } catch (error) {
+            return error.message;
+          }
+          return null;
+        }"""
+    )
+    assert status == "A status margin entry cannot have a command scope"
+
+
 def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, serve):
     """One owner plus one margin entry key must identify one activation source."""
     page = open_page(browser, serve(PANEL_PAGE))
@@ -1733,15 +1770,13 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
         """async () => {
           const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
-          let state = {
-            state: 'engaged', expanded: true, popup: 'dialog', pressed: true,
-            selected: true, disabled: false, behavior: 'disclosure'
-          };
+          let state = {state: 'engaged', expanded: true, popup: 'dialog',
+            pressed: true, disabled: false, behavior: 'disclosure'};
           const read = () => ({entries: [marginEntry({
             key: 'inspect', icon: 'question', label: 'Inspect source',
             context: 'Patch ready', behavior: state.behavior, tone: 'negative',
             rank: 'reading', state: state.state, disabled: state.disabled,
-            selected: state.selected, pressed: state.pressed,
+            pressed: state.pressed,
             relation: state.behavior === 'disclosure'
               ? {kind: 'element', id: 'how-cap', expanded: state.expanded,
                   popup: state.popup}
@@ -1758,7 +1793,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
             registration,
             update() {
               state = {...state, state: 'busy', expanded: false, popup: 'menu',
-                pressed: null, selected: false};
+                pressed: null};
               registration.update({immediate: true});
             },
             disable(disabled) {
@@ -1767,7 +1802,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
             },
             behavior(behavior) {
               state = {...state, behavior, state: 'idle', disabled: false,
-                pressed: null, selected: false};
+                pressed: null};
               registration.update({immediate: true});
             },
             recordProof() {
@@ -1798,7 +1833,6 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
           pressed: button.getAttribute('aria-pressed'),
           popup: button.getAttribute('aria-haspopup'),
           controls: button.getAttribute('aria-controls'),
-          selected: button.hasAttribute('data-lf-target-selected'),
         })"""
     ) == {
         "behavior": "disclosure",
@@ -1811,7 +1845,6 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
         "pressed": "true",
         "popup": "dialog",
         "controls": "how-cap",
-        "selected": True,
     }
 
     proxy.evaluate("button => button.dataset.stableProof = 'same-proxy'")
@@ -1831,8 +1864,6 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     expect(proxy).to_have_attribute("aria-expanded", "false")
     expect(proxy).to_have_attribute("aria-haspopup", "menu")
     expect(proxy).not_to_have_attribute("aria-pressed", re.compile(".+"))
-    expect(proxy).not_to_have_attribute("data-lf-target-selected", re.compile(".*"))
-
     page.evaluate("() => window.lfCanonicalMarginEntry.disable(true)")
     expect(proxy).to_be_disabled()
     page.evaluate("() => window.lfCanonicalMarginEntry.disable(false)")
@@ -1843,20 +1874,26 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
         ).count()
         == 0
     ), "the contribution left a hidden source control beside its projections"
+    proxy.evaluate("button => window.lfPriorMapControl = button")
     page.evaluate("() => window.lfCanonicalMarginEntry.behavior('status')")
-    retained = dialog.locator('[data-stable-proof="same-proxy"]')
-    expect(retained).to_be_focused()
-    expect(retained).to_have_attribute("role", "status")
-    expect(retained).to_have_attribute("tabindex", "-1")
-    expect(retained).not_to_have_attribute("aria-disabled", re.compile(".+"))
-    expect(retained).not_to_have_attribute("aria-expanded", re.compile(".+"))
-    expect(retained).not_to_have_attribute("aria-controls", re.compile(".+"))
-    expect(retained).not_to_have_attribute("aria-haspopup", re.compile(".+"))
-    expect(retained).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    status = dialog.locator(
+        '[data-lf-margin-entry-owner="fixture"][data-lf-margin-entry-key="inspect"]'
+    )
+    expect(status).to_have_attribute("role", "status")
+    expect(status).to_have_attribute("tabindex", "-1")
+    expect(status).not_to_have_attribute("aria-disabled", re.compile(".+"))
+    expect(status).not_to_have_attribute("aria-expanded", re.compile(".+"))
+    expect(status).not_to_have_attribute("aria-controls", re.compile(".+"))
+    expect(status).not_to_have_attribute("aria-haspopup", re.compile(".+"))
+    expect(status).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    assert status.evaluate("node => node.tagName") == "SPAN"
+    assert page.evaluate("() => !window.lfPriorMapControl.isConnected")
+    expect(dialog.get_by_role("searchbox")).to_be_focused()
     page.keyboard.press("Enter")
     page.keyboard.press(" ")
     expect(dialog).to_be_visible()
     assert page.evaluate("() => window.lfCanonicalActivations") == []
+    status.focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.get_by_role("dialog", name="Command reference", exact=True)
@@ -1866,13 +1903,16 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     )
     expect(press).to_have_attribute("data-lf-available", "false")
     page.keyboard.press("Escape")
-    expect(retained).to_be_focused()
+    expect(status).to_be_focused()
 
     page.evaluate("() => window.lfCanonicalMarginEntry.behavior('action')")
-    expect(retained).to_be_focused()
-    expect(retained).to_have_attribute("role", "button")
-    expect(retained).to_have_attribute("tabindex", "0")
-    expect(retained).to_have_attribute("aria-keyshortcuts", "Enter Space")
+    action = dialog.get_by_role(
+        "button", name="Inspect source, Patch ready", exact=True
+    )
+    assert action.evaluate("node => node.tagName") == "BUTTON"
+    expect(action).not_to_have_attribute("role", re.compile(".+"))
+    expect(action).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    action.focus()
     page.keyboard.press(" ")
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => window.lfCanonicalActivations") == ["inspect-source"]

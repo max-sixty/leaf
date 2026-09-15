@@ -62,6 +62,7 @@ import {
   marginContributionEntries,
   marginContributionState,
   marginEntry,
+  marginEntryControlMatches,
   marginEntryRecord,
   marginEntrySource,
   marginEntryStateRank,
@@ -76,7 +77,7 @@ import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
-import { clampedRow } from "./keyboard/bindings.js";
+import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
@@ -518,10 +519,12 @@ export function createMarginProjection({
     for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
     for (const entry of entries) {
       let control = controls.get(entry.key);
-      if (!control) {
-        control = createMarginEntryControl();
+      if (!control || !marginEntryControlMatches(control, entry)) {
+        const prior = control;
+        control = createMarginEntryControl(entry);
         controls.set(entry.key, control);
         presentMarginEntry(control, entry);
+        if (prior?.isConnected) prior.replaceWith(control);
       } else if (marginEntryRecord(control) !== entry) {
         presentMarginEntry(control, entry);
       }
@@ -771,12 +774,35 @@ export function createMarginProjection({
     return choice.items[0].context ?? null;
   }
 
-  // A reading wears two promises over its life — a margin entry while there is something to
-  // open, a status once the move is made — and only one element may carry both, or the
-  // seat moves under a reader standing in it. A <button> cannot stop being one, so the
-  // shared entry host is a span and writes whichever promise the reading now makes,
-  // including the declared margin.press route while it remains actionable.
-  const readingControl = createMarginEntryControl;
+  // A core reading can change between a disclosure and a status while retaining the
+  // reader's place. Its stable span owns the native-like press it needs while actionable;
+  // ordinary contributed commands remain native buttons.
+  const readingControl = (className) => {
+    const control = offer("span", className);
+    keys(
+      control,
+      "On a margin entry",
+      [
+        {
+          id: "margin.press",
+          keys: PRESS,
+          does: () =>
+            marginEntryRecord(control).behavior === "disclosure"
+              ? "Open or close what the focused margin entry holds"
+              : "Go to what the focused margin entry points at",
+          line: () =>
+            marginEntryRecord(control).behavior === "disclosure"
+              ? "open / close"
+              : "go to it",
+          run: () => control.click(),
+        },
+      ],
+      {
+        when: () => control.matches('[role="button"]:not([aria-disabled="true"])'),
+      },
+    );
+    return control;
+  };
 
   // The one writer over a reading's disclosure relation, settling `aria-controls` and
   // `aria-expanded` together because a control that says it opens something has to say

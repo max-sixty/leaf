@@ -243,7 +243,6 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
         tone: specimen.tone ?? "neutral",
         rank: specimen.rank ?? "primary",
         state: specimen.state ?? "idle",
-        selected: specimen.selected ?? false,
         count: specimen.count ?? 1,
         disabled: !specimen.interactive,
         workflowReceipt: specimen.workflowStage
@@ -258,6 +257,7 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
           : null,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
       }),
+      { selected: specimen.selected ?? false },
     );
   };
   paint();

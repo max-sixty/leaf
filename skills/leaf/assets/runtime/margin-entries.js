@@ -17,8 +17,7 @@ import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
 import { keeps, offer } from "./widget-elements.js";
 import { agentWorkflowStage } from "./updates.js";
-import { PRESS } from "./keyboard/bindings.js";
-import { commandScope, keys, projectCommandScope } from "./keyboard/scopes.js";
+import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 const contributions = new Set();
 const listeners = new Set();
@@ -78,7 +77,6 @@ const ENTRY_OPTIONS = new Set([
   "visible",
   "disabled",
   "count",
-  "selected",
   "pressed",
   "workflowReceipt",
   "relation",
@@ -155,7 +153,6 @@ export function marginEntry(offered) {
     visible = true,
     disabled = false,
     count = 1,
-    selected = false,
     pressed = null,
     workflowReceipt = undefined,
     relation = null,
@@ -177,6 +174,10 @@ export function marginEntry(offered) {
     throw new TypeError("A margin entry count must be a non-negative integer");
   if (behavior !== "status" && !text(activation))
     throw new TypeError("An actionable margin entry needs an activation");
+  if (behavior === "status" && scope != null)
+    throw new TypeError("A status margin entry cannot have a command scope");
+  if (scope != null && !isCommandScope(scope))
+    throw new TypeError("A margin entry scope needs a commandScope capability");
   const record = Object.freeze({
     key: text(key),
     glyph: glyph == null ? null : String(glyph),
@@ -193,7 +194,6 @@ export function marginEntry(offered) {
     visible: Boolean(visible),
     disabled: Boolean(disabled),
     count,
-    selected: Boolean(selected),
     pressed: pressed == null ? null : Boolean(pressed),
     workflowReceipt,
     relation: freezeRelation(relation),
@@ -291,42 +291,15 @@ export function watchMarginContributions(listener) {
 export const visibleMarginEntryLabel = ({ behavior, label }) =>
   behavior !== "disclosure" || label.endsWith("…") ? label : `${label}…`;
 
-const marginEntryCommands = (control) =>
-  commandScope(
-    "On a margin entry",
-    [
-      {
-        id: "margin.press",
-        keys: PRESS,
-        does: () =>
-          records.get(control)?.behavior === "disclosure"
-            ? "Open or close what the focused margin entry holds"
-            : "Press the focused margin entry",
-        line: () =>
-          records.get(control)?.behavior === "disclosure" ? "open / close" : "press",
-        run: () => control.click(),
-      },
-    ],
-    {
-      when: () => {
-        const record = records.get(control);
-        return Boolean(record && record.behavior !== "status" && !record.disabled);
-      },
-    },
-  );
-
-/** Create the stable semantic host for a generated margin entry.
- *
- * A contribution key plus entry key names one reader place even when its current
- * reading changes between an action and a status. A native button cannot shed its
- * button semantics, so projections retain this span and the shared presenter changes
- * its ARIA role, tab seat, and command capability in place.
- */
-export function createMarginEntryControl(className = "") {
-  const control = offer("span", className);
-  keys(control, marginEntryCommands(control));
-  return control;
+/** Create the native host for one generated margin entry reading. */
+export function createMarginEntryControl(record, className = "") {
+  return offer(record.behavior === "status" ? "span" : "button", className);
 }
+
+export const marginEntryControlMatches = (control, record) =>
+  record.behavior === "status"
+    ? control instanceof HTMLSpanElement
+    : control instanceof HTMLButtonElement;
 
 export function marginEntryRecord(control) {
   const record = records.get(control);
@@ -467,7 +440,6 @@ export function presentMarginEntryHost(
   keeps(control, "data-lf-rank", record.rank);
   keeps(control, "data-lf-state", record.state);
   keeps(control, "data-lf-offer", record.behavior === "status" ? "" : "button");
-  control.toggleAttribute("data-lf-target-selected", record.selected);
   if (record.pressed == null) control.removeAttribute("aria-pressed");
   else keeps(control, "aria-pressed", record.pressed);
   if (record.state === "busy") {
@@ -518,6 +490,8 @@ export function presentMarginEntryHost(
 
 export function presentMarginEntry(control, offered, options = {}) {
   const record = presentMarginEntryHost(control, offered, options);
+  if (Object.hasOwn(options, "selected"))
+    syncMarginEntrySelection(control, options.selected);
   if (!control.classList.contains("lf-margin-entry"))
     control.classList.add("lf-margin-entry");
   const priorClasses = contributorClasses.get(control) ?? [];
@@ -632,15 +606,17 @@ export function registerMarginContribution({
         current.behavior === "status"
       )
         return false;
+      const retainsFocus = context.origin === document.activeElement;
       offered.activate(current.activation, {
         ...context,
         entry: current,
-        focus:
-          context.focus ??
-          ((key) =>
-            control(key, context.surface ?? null, true)?.focus({
-              preventScroll: true,
-            })),
+        focus: retainsFocus
+          ? (context.focus ??
+            ((key) =>
+              control(key, context.surface ?? null, true)?.focus({
+                preventScroll: true,
+              })))
+          : null,
       });
       return true;
     },

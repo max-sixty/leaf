@@ -25,6 +25,7 @@ import {
   clearMarginEntryControls,
   compareMarginEntryRecords,
   createMarginEntryControl,
+  marginEntryControlMatches,
   presentMarginEntryHost,
   syncMarginAgentWorkflow,
   trackMarginEntryControl,
@@ -236,8 +237,8 @@ export function createPageMapDialog({
       contributionControls.set(offered, controls);
     }
     let control = controls.get(record.key);
-    if (!control) {
-      control = createMarginEntryControl("lf-page-map-action");
+    if (!control || !marginEntryControlMatches(control, record)) {
+      control = createMarginEntryControl(record, "lf-page-map-action");
       control.id = `lf-page-map-entry-${++contributionControlOrdinal}`;
       controls.set(record.key, bindSheetAction(control));
     }

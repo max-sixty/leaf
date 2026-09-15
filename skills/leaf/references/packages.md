@@ -325,14 +325,16 @@ command.
 page-edge actions. `read()` returns the contribution's complete current reading,
 including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
 those same records independently in the target's Margin cluster and in Page Map,
-retaining each projected control by the opaque contribution key and entry key. The same
-host survives action, disclosure, and status readings for that identity; Leaf changes
-its role, tab seat, and Enter/Space capability in place. `target` is an
+retaining each projected control by the opaque contribution key and entry key while its
+native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
+so crossing that semantic boundary replaces the host instead of emulating a button.
+`target` is an
 element or a function returning the element that currently anchors the action. `source`
 defaults to that target and may separately name the semantic owner when presentation has
 to move to a surviving ancestor.
 `activate(token, context)` is the sole effect path and receives the projected origin,
-surface, input kind, current entry, and a focus capability. The returned registration
+surface, input kind, current entry, and a focus capability only when that origin held
+focus at activation. The returned registration
 exposes `entry`, `control`, `contains`, `activate`, `focus`, `update`, and `unregister`;
 `update()` replaces the whole reading and may synchronously lay it out or focus a
 surviving key. Keep text fields, history, and other mechanical editing state in the

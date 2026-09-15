@@ -432,7 +432,7 @@ function postPaint({ count, narrowing }, commands) {
   commands.refreshAnchorHover();
 }
 
-async function prepareFrozenWidgets(current) {
+async function prepareFrozenWidgets(current, commands) {
   // Frozen markup has the same initial-value boundary as a page: connected and fully
   // presented, before its first projection. Later list reconciles retain the first
   // capture instead of adopting a reader's live value.
@@ -447,8 +447,12 @@ async function prepareFrozenWidgets(current) {
     .map((descriptor) => descriptor.id);
   await whenWidgetsPresented(uncaptured);
   if (!current()) return;
-  captureAuthoredFacets(threadsBox);
+  const captured = captureAuthoredFacets(threadsBox);
   reachScrollers(threadsBox);
+  // Capture publishes a new semantic epoch after the widget's initial connection.
+  // Present that authored baseline through the application again; the controller's
+  // earlier connection invalidation could only describe the pre-capture reading.
+  if (captured) commands.authoredCaptured();
 }
 
 async function retainCommitted(current, candidate, reason) {
@@ -529,7 +533,7 @@ export async function renderThreads(all, commands) {
     // fail-soft preparation contract.
     finishScrollHold(hold, commands.panelIsOpen);
     held = false;
-    await prepareFrozenWidgets(current);
+    await prepareFrozenWidgets(current, commands);
   } catch (error) {
     if (!current()) return;
     await retainCommitted(current, reading, error);

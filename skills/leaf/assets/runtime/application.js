@@ -332,6 +332,7 @@ export function mountApplication(dependencies) {
   };
   const listView = {
     card: cardView,
+    authoredCaptured: invalidateDom,
     isMarked: dependencies.anchorPaint.isMarked,
     placedAt: dependencies.anchorPaint.placedAt,
     panelIsOpen: dependencies.panelIsOpen,

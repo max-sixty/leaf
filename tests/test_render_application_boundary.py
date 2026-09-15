@@ -862,6 +862,25 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
             "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
         },
     )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "id": "frozen-widget-choice",
+            "author": "user",
+            "revision": 1,
+            "widget": "thread-local",
+            "action": "choose",
+            "detail": {"choice": "chosen"},
+            "generated": [],
+            "meaning": {
+                "document": {"kind": "thread"},
+                "coordinate": ["thread-local", "thread-local", "choice"],
+                "depends": ["live-reading", "thread-local"],
+                "answer": None,
+            },
+        },
+    )
     page.wait_for_function(
         """() => {
           const pending = readLeafPresentation().pending;
@@ -881,6 +900,10 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
     assert page.evaluate("conversationReady") is False
     page.evaluate("threadPreparation.release('thread')")
     page.wait_for_function("conversationReady", timeout=3000)
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
+    expect(page.locator("#thread-local")).to_have_attribute(
+        "data-rendered-choice", "chosen"
+    )
     assert page.evaluate("allReady") is False
     assert "widget:page-local:preparation" in page.evaluate(
         "readLeafPresentation().pending"

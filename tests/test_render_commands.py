@@ -345,49 +345,59 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
     for the reason the named-browser case gives: export is the fallback when no
     network route reaches the page, so a host losing one loses the page twice over.
 
-    No traceback is half the subject. The three shapes asserted away are the three
-    the reader sees today: the raised private, the out-of-order asyncio block, and
-    any traceback at all."""
+    A third host names a Node it does not have, so the driver never runs at all and
+    the spawn fails a step earlier than the silence above. It owes the same line,
+    and it is where cleaning up after a failed start goes wrong: Playwright's stop
+    asserts a transport handle that spawn never assigned, so a manager exited after
+    a failed entry answers with a private of its own instead of the missing file.
+
+    No traceback is half the subject. The four shapes asserted away are the ones the
+    reader sees where a gate raises instead of answering: either private, the
+    out-of-order asyncio block, and any traceback at all."""
     serve(LONG_PAGE)
     d = serve.page_dir
-    stub = tmp_path / "not-a-node"
-    stub.write_text("#!/bin/sh\nexit 1\n")
-    stub.chmod(0o755)
-    broken = os.environ | {browser_model.DRIVER_VARIABLE: str(stub)}
+    silent = tmp_path / "not-a-node"
+    silent.write_text("#!/bin/sh\nexit 1\n")
+    silent.chmod(0o755)
+    missing = tmp_path / "no-node-here"
 
-    def answered(result):
+    def answered(result, node, reason):
         assert result.returncode == 1, result.stdout + result.stderr
         assert browser_model.DRIVER_VARIABLE in result.stderr
-        assert str(stub) in result.stderr
-        assert "Connection closed while reading from the driver" in result.stderr
+        assert str(node) in result.stderr
+        assert reason in result.stderr
         assert "Traceback" not in result.stderr
         assert "_playwright" not in result.stderr
+        assert "_output" not in result.stderr
         assert "Task exception was never retrieved" not in result.stderr
 
-    answered(
-        subprocess.run(
-            [*LEAF_COMMAND, "version", "check", str(d), "--render"],
+    def ran(node, *command):
+        return subprocess.run(
+            [*LEAF_COMMAND, *command],
             capture_output=True,
             text=True,
             check=False,
-            env=broken,
+            env=os.environ | {browser_model.DRIVER_VARIABLE: str(node)},
         )
+
+    ended = "Connection closed while reading from the driver"
+    answered(ran(silent, "version", "check", str(d), "--render"), silent, ended)
+    answered(
+        ran(
+            silent,
+            "version",
+            "export",
+            str(d),
+            "--out",
+            str(tmp_path / "standalone.html"),
+        ),
+        silent,
+        ended,
     )
     answered(
-        subprocess.run(
-            [
-                *LEAF_COMMAND,
-                "version",
-                "export",
-                str(d),
-                "--out",
-                str(tmp_path / "standalone.html"),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-            env=broken,
-        )
+        ran(missing, "version", "check", str(d), "--render"),
+        missing,
+        "No such file or directory",
     )
 
 

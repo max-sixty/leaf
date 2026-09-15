@@ -32,9 +32,9 @@ The variables carry a path and nothing else: the launch takes no other argument
 from the host.
 
 Under every one of those readings sits Playwright's driver, a Node process that
-leaf neither names nor sees. Where that process ends at startup no launch is
-reached at all, so `playwright_driver()` reports it beside the failures above
-rather than through them.
+leaf neither names nor sees. Where that process ends at startup, or never runs
+at all, no launch is reached, so `playwright_driver()` reports it beside the
+failures above rather than through them.
 """
 
 import os
@@ -133,18 +133,44 @@ def playwright_driver():
     real cause sits on the connection's init task — printed afterwards, out of
     order, as asyncio's `Task exception was never retrieved`. Reading that task is
     what both names the cause and keeps the second traceback from being printed at
-    all."""
+    all.
+
+    A driver the host named but does not have fails one step earlier, in the spawn,
+    and that OSError names the file. It reads as the same DriverNotStarted, so both
+    hosts get one line — but its manager is left unentered and unexited, which is
+    what `with` did too: Playwright's stop asserts a transport handle the failed
+    spawn never assigned, so exiting a failed entry replaces the reason with a
+    private of its own."""
     from playwright.sync_api import sync_playwright
 
     manager = sync_playwright()
     try:
-        try:
-            playwright = manager.start()
-        except AttributeError as error:
-            raise DriverNotStarted(_driver_failure(manager)) from error
+        playwright = manager.start()
+    except AttributeError as error:
+        # The driver ran and stayed silent, so the connection stands: its reason is
+        # readable, and stopping it is what reaps the process and the loop.
+        reason = _driver_failure(manager)
+        manager.__exit__()
+        raise DriverNotStarted(reason) from error
+    except OSError as error:
+        raise DriverNotStarted(_spawn_failure(manager, error)) from error
+    try:
         yield playwright
     finally:
         manager.__exit__()
+
+
+def _spawn_failure(manager, error: OSError) -> str:
+    """Why the driver never ran, in one line.
+
+    The spawn's own error says it. Reading the transport's error future as well is
+    what keeps asyncio from printing that same error a second time as an
+    unretrieved future, the way reading the init task does for a driver that ran."""
+    transport = getattr(getattr(manager, "_connection", None), "_transport", None)
+    future = getattr(transport, "on_error_future", None)
+    if future is not None and future.done() and not future.cancelled():
+        future.exception()
+    return str(error).strip().splitlines()[0]
 
 
 def _driver_failure(manager) -> str:

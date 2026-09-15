@@ -1,286 +1,184 @@
-/* This module owns conversation seats rendered into the page, outside the retained
- * Threads list. */
-import { SAY_BOX } from "./selectors.js";
-import { ago } from "../presence.js";
-import { renderMessageMarkdown, syncEdited, syncStreamState } from "./messages.js";
-import { markdownReady } from "../markdown.js";
-import { el, offer } from "../widget-elements.js";
-import { seatRoot, threadKey, turns } from "./model.js";
-import { settlementControl } from "./folding.js";
-import { wireReply } from "./replies.js";
-import { focused } from "../keyboard/scopes.js";
-import { setChildren } from "../dom-children.js";
-import { paintReactStrips, removeConversationNode } from "./reaction-strips.js";
+/* Keyed synchronous Lit conversation seats outside the panel. Descriptors contain
+   values; native first-message and response editors remain explicit capabilities. */
+import { render, repeat } from "../../vendor/browser-runtime.js";
+import { seatRoot } from "./model.js";
+import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";
+import { focused } from "../keyboard/scopes.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
-import { paintAcknowledgmentsNow } from "./acknowledgments.js";
+import { runtime } from "../context.js";
 
-/* Textual conversation views rendered outside the retained Threads list.
+const seats = new WeakMap();
+const activeSeats = new Set();
+const EMPTY = Object.freeze({ threads: Object.freeze([]), response: false });
+let activeBatch = null;
 
-   A thread margin entry uses an already-open panel; with the panel closed, its comment opens
-   inline at every width and the card overlays the page where no beside posture fits. An
-   interactive reply embedded in a message explicitly opens the complete panel view. */
-function paintConversationBody(body, message) {
-  const words = message.text ?? "";
-  if (message.suggestion) body.textContent = words;
-  else body.innerHTML = renderMessageMarkdown(words);
-  if (message.drawing)
-    body.append(el("span", "lf-drawing-reference", "Drawing comment"));
-}
+class ConversationSeat {
+  #views = new Map();
+  #model = EMPTY;
+  #committed = EMPTY;
+  #commands = null;
+  #response = () => null;
+  #focus = null;
+  #connected = false;
 
-// What a painted body was made from: the event and prose revisions, and whether the Markdown
-// renderer had arrived when it was painted. A message the reader sends paints in their
-// gesture, before the lazy import it needs has necessarily landed.
-const inlineRevision = (message) =>
-  `${message.id}:${message.edited?.id ?? ""}:${message.stream_state ? message.text : ""}:${markdownReady() ? "md" : "raw"}`;
-
-function conversationMessageNode(thread, message, commands) {
-  // By its event, or — while the log is still answering for words the reader just sent —
-  // by the attempt both the pending record and the server's event carry. Found that way,
-  // the node the send drew is renamed rather than replaced, so the reader keeps the
-  // caret, focus and selection they have in it.
-  let node =
-    thread.querySelector(`:scope > .lf-conversation-msg[data-event="${message.id}"]`) ??
-    (message.attempt
-      ? thread.querySelector(
-          `:scope > .lf-conversation-msg[data-attempt="${message.attempt}"]`,
-        )
-      : null);
-  if (node) {
-    if (node.dataset.event !== message.id) node.dataset.event = message.id;
-    if (message.pending) node.setAttribute("aria-busy", "true");
-    else node.removeAttribute("aria-busy");
-    const time = node.querySelector("time");
-    const when = ago(message.ts);
-    if (time.textContent !== when) time.textContent = when;
-    const head = node.querySelector(":scope > .lf-conversation-head");
-    syncEdited(head, message);
-    syncStreamState(node, head, message);
-    const body = node.querySelector(":scope > .lf-conversation-body");
-    const revision = inlineRevision(message);
-    if (node.lfRevision !== revision) {
-      paintConversationBody(body, message);
-      node.lfRevision = revision;
-    }
-    return node;
+  constructor(node) {
+    this.node = node;
   }
-  node = offer("div", `lf-conversation-msg ${message.author}`);
-  node.dataset.event = message.id;
-  if (message.attempt) node.dataset.attempt = message.attempt;
-  if (message.pending) node.setAttribute("aria-busy", "true");
-  const head = el("div", "lf-conversation-head");
-  head.append(
-    el("b", "", message.author === "claude" ? message.agent || "Agent" : "You"),
-    el("time", "", ago(message.ts)),
-  );
-  syncEdited(head, message);
-  syncStreamState(node, head, message);
-  const body = el("div", "lf-conversation-body");
-  paintConversationBody(body, message);
-  node.lfRevision = inlineRevision(message);
-  node.append(head, body);
-  if (message.markup) {
-    const open = offer(
-      "button",
-      "lf-btn lf-conversation-open",
-      "Open interactive reply in Threads",
+  configure(commands, response) {
+    this.#commands ??= commands;
+    this.#response = response;
+  }
+
+  present(model) {
+    activeBatch?.seats.add(this);
+    const standing = focused();
+    const held = this.node.contains(standing);
+    this.#focus ??= held ? standing : null;
+    this.#model = model;
+    const wanted = new Set(model.threads.map((thread) => thread.key));
+    for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
+    const nodes = model.threads.map((descriptor) => {
+      let view = this.#views.get(descriptor.key);
+      if (!view)
+        this.#views.set(
+          descriptor.key,
+          (view = new ThreadView(descriptor.surface, this.#commands)),
+        );
+      view.present(descriptor);
+      return { key: descriptor.key, node: view.node };
+    });
+    const selection =
+      held && standing.localName === "textarea"
+        ? [standing.selectionStart, standing.selectionEnd, standing.selectionDirection]
+        : null;
+    render(
+      [
+        repeat(
+          nodes,
+          (item) => item.key,
+          (item) => item.node,
+        ),
+        model.response ? this.#response() : null,
+      ],
+      this.node,
     );
-    open.onclick = () => commands.showThread(message.id);
-    node.append(open);
-  }
-  return node;
-}
-
-function conversationThreadNode(
-  host,
-  t,
-  collapsible,
-  commands,
-  { compactReply = false } = {},
-) {
-  const removeNode = (node) =>
-    removeConversationNode(node, commands.reaction.closeReactionMode);
-  let thread =
-    host.querySelector(
-      `:scope > .lf-conversation-thread[data-thread="${CSS.escape(t.root.id)}"]`,
-    ) ??
-    (t.root.attempt
-      ? host.querySelector(
-          `:scope > .lf-conversation-thread[data-attempt="${CSS.escape(t.root.attempt)}"]`,
-        )
-      : null);
-  const wantedTag = collapsible ? "DETAILS" : "DIV";
-  if (thread && thread.tagName !== wantedTag) {
-    removeNode(thread);
-    thread = null;
-  }
-  if (!thread) {
-    thread = offer(collapsible ? "details" : "div", "lf-conversation-thread");
-    if (t.root.attempt) thread.dataset.attempt = t.root.attempt;
-    thread.tabIndex = -1;
-  }
-  if (thread.dataset.thread !== t.root.id) thread.dataset.thread = t.root.id;
-  // Read at use, not captured: the log answering for a comment the reader just sent
-  // renames this node rather than replacing it, and the controls below outlive that.
-  const liveId = () => thread.dataset.thread;
-  let summary = null;
-  if (collapsible) {
-    summary = thread.querySelector(":scope > .lf-conversation-summary");
-    if (!summary) summary = offer("summary", "lf-conversation-summary");
-    const resolved = Boolean(t.resolved);
-    if (thread.lfResolved !== resolved) thread.open = !resolved;
-    thread.lfResolved = resolved;
-    summary.hidden = !resolved;
-    summary.textContent = `Resolved · ${turns(t).length} message${
-      turns(t).length === 1 ? "" : "s"
-    }`;
-  }
-  // Turns only: a reaction on a message is the panel's strip to show, and the seat is
-  // the textual projection of the exchange.
-  const messages = turns(t).map((message) =>
-    conversationMessageNode(thread, message, commands),
-  );
-  const standing = focused();
-  const heldFocus = thread.contains(standing);
-  let tail;
-  let resolve;
-  let actions;
-  if (t.resolved) {
-    thread.querySelector(":scope > .lf-thread-head")?.remove();
-    tail = thread.querySelector(":scope > .lf-conversation-resolved");
-    const settledBy =
-      t.resolved.author === "claude"
-        ? `✓ Resolved by ${t.resolved.agent || "Agent"}`
-        : "✓ Resolved";
-    if (!tail) {
-      tail = offer("div", "lf-conversation-resolved");
-      tail.append(el("span"), settlementControl(t, { liveId, ...commands.settlement }));
+    if (
+      held &&
+      standing.isConnected &&
+      !this.node.contains(focused()) &&
+      this.node.contains(standing)
+    ) {
+      standing.focus({ preventScroll: true });
+      if (selection) standing.setSelectionRange(...selection);
     }
-    if (tail.firstChild.textContent !== settledBy)
-      tail.firstChild.textContent = settledBy;
-  } else {
-    resolve =
-      thread.querySelector(":scope > .lf-thread-head > .lf-resolve") ??
-      settlementControl(t, { liveId, ...commands.settlement });
-    actions = thread.querySelector(":scope > .lf-thread-head");
-    if (!actions) actions = offer("header", "lf-thread-head");
-    // Reconcile rather than append: appending the retained control to the parent it
-    // already sits in still detaches and reinserts it, which drops the reader's focus
-    // to the body. Every repaint of an open card runs this line — a clock tick alone
-    // is enough — so an appended control could not be held long enough to press.
-    setChildren(actions, [resolve]);
-    if (t.root.response?.kind !== "version") {
-      tail = thread.querySelector(":scope > .lf-say");
-      if (!tail) {
-        tail = offer("div", "lf-say");
-        const reply = compactReply
-          ? offer("button", "lf-btn lf-reply-disclosure", "Reply")
-          : null;
-        const input = offer("textarea");
-        input.name = "reply";
-        const send = offer("button", "lf-btn primary", "Send");
-        if (reply) tail.append(reply);
-        tail.append(input, send);
-        let replySync = null;
-        const hasReplyDraft = () => loadDraft("reply:" + threadKey(t)) !== null;
-        const revealReply = () => {
-          if (!reply) return;
-          tail.classList.remove("lf-reply-collapsed");
-          reply.hidden = true;
-          reply.setAttribute("aria-expanded", "true");
-        };
-        const collapseReply = () => {
-          if (!reply || hasReplyDraft()) return;
-          tail.classList.add("lf-reply-collapsed");
-          reply.hidden = false;
-          reply.setAttribute("aria-expanded", "false");
-        };
-        if (reply) {
-          input.lfRevealReply = revealReply;
-          input.lfCollapseReply = collapseReply;
-          reply.setAttribute("aria-expanded", "false");
-          reply.onclick = () => commands.landInConversation(input);
-        }
-        replySync = wireReply(t, input, send, {
-          liveId,
-          createReply: commands.reply.createReply,
-          revealReplyEditor: commands.reply.revealReplyEditor,
-          wireInput: commands.reply.wireInput,
-          onDraftLoaded: () => {
-            if (hasReplyDraft()) revealReply();
-          },
-        });
-        collapseReply();
+    if (!activeBatch) this.commit();
+  }
+
+  commit() {
+    this.#committed = this.#model;
+    const wanted = new Set(this.#model.threads.map((thread) => thread.key));
+    for (const [key, view] of this.#views) {
+      if (wanted.has(key)) view.commit();
+      else {
+        view.dispose();
+        this.#views.delete(key);
       }
     }
+    this.#focus = null;
+    this.#connected ||= this.node.isConnected;
   }
-  setChildren(
-    thread,
-    [
-      ...(summary ? [summary] : []),
-      ...(actions ? [actions] : []),
-      ...messages,
-      ...(tail ? [tail] : []),
-    ],
-    removeNode,
-  );
-  // Settlement replaces the focused controls in either tail shape. Transfer only
-  // that removed focus; a later gesture elsewhere remains where the reader put it.
-  if (heldFocus && !thread.contains(standing))
-    commands.landInConversation(thread.querySelector(SAY_BOX) ?? thread);
-  if (collapsible) paintReactStrips(thread, t, commands.reaction);
-  return thread;
+  retain() {
+    this.present(this.#committed);
+    if (this.#focus?.isConnected) this.#focus.focus({ preventScroll: true });
+    this.#focus = null;
+  }
+  prune() {
+    if (!this.#connected || this.node.isConnected) return false;
+    for (const view of this.#views.values()) view.dispose();
+    this.#views.clear();
+    return true;
+  }
+}
+
+function seatFor(host, commands, response = () => null) {
+  let seat = seats.get(host);
+  if (!seat) {
+    seat = new ConversationSeat(host);
+    seats.set(host, seat);
+    activeSeats.add(seat);
+  }
+  seat.configure(commands, response);
+  return seat;
+}
+function seatReading(threads, surface, commands, response) {
+  return Object.freeze({
+    threads: Object.freeze(
+      threads.map((thread) =>
+        threadReading(thread, surface, commands, {
+          interactions: runtime.activity?.interactions ?? [],
+          revision: runtime.currentRevision,
+        }),
+      ),
+    ),
+    response: Boolean(response),
+  });
 }
 
 export function renderThreadSurface(host, threads, commands, response = null) {
-  const removeNode = (node) =>
-    removeConversationNode(node, commands.reaction.closeReactionMode);
-  setChildren(
-    host,
-    [
-      ...threads.map((thread) => conversationThreadNode(host, thread, true, commands)),
-      ...(response ? [response] : []),
-    ],
-    removeNode,
+  const editor = () =>
+    commands.composition.outlet() === host ? commands.composition.node() : null;
+  seatFor(host, commands, editor).present(
+    seatReading(threads, "outlet", commands, response),
   );
 }
 
+export function clearThreadSurface(host) {
+  seats.get(host)?.present(EMPTY);
+}
+
+export function mountFirstMessage(host, editor) {
+  const seat = seatFor(host, null, () => editor);
+  seat.present(Object.freeze({ threads: Object.freeze([]), response: true }));
+  seat.commit();
+}
+
 export function renderConversations(threads, commands) {
-  const removeNode = (node) =>
-    removeConversationNode(node, commands.reaction.closeReactionMode);
   for (const host of document.querySelectorAll(
     ".lf-conversation[data-lf-conversation]",
   )) {
     const owner = elementById(host.dataset.lfConversation);
     const owned = threads.filter((thread) => seatRoot(thread) === owner.id);
-    // Before the first comment, conversationBox's first-message composer is already
-    // the complete view. An externally arriving root may find unsent first-message
-    // words here, so the root does not get to take their only box. A hold-capable seat
-    // stays reachable after every root so an ordinary conversation cannot remove the
-    // stronger send route.
-    const first = host.lfFirstMessage;
     const hold = registry[owner.localName]?.["x-conversation"]?.hold;
-    const pending =
-      !owned.length || hold || loadDraft("say:" + owner.id) !== null ? first : null;
-    setChildren(
-      host,
-      [
-        ...owned.map((thread) => conversationThreadNode(host, thread, false, commands)),
-        ...(pending ? [pending] : []),
-      ],
-      removeNode,
+    const response = !owned.length || hold || loadDraft("say:" + owner.id) !== null;
+    seatFor(host, commands, () => host.lfFirstMessage).present(
+      seatReading(owned, "page", commands, response),
     );
   }
 }
 
 export function renderMarginThread(host, thread, commands) {
-  const node = conversationThreadNode(host, thread, false, commands, {
-    compactReply: true,
-  });
-  setChildren(host, [node], (removed) =>
-    removeConversationNode(removed, commands.reaction.closeReactionMode),
-  );
-  paintAcknowledgmentsNow(host);
-  return node;
+  seatFor(host, commands).present(seatReading([thread], "margin", commands, false));
+  return host.querySelector(":scope > .lf-conversation-thread");
+}
+
+export function beginConversationSeats() {
+  activeBatch = { seats: new Set() };
+  return activeBatch;
+}
+export function commitConversationSeats(batch) {
+  if (activeBatch !== batch) return;
+  for (const seat of batch.seats) seat.commit();
+  activeBatch = null;
+  for (const seat of activeSeats)
+    if (seat.prune()) {
+      activeSeats.delete(seat);
+      seats.delete(seat.node);
+    }
+}
+export function retainConversationSeats(batch) {
+  if (activeBatch !== batch) return;
+  for (const seat of batch.seats) seat.retain();
+  activeBatch = null;
 }

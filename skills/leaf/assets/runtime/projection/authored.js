@@ -143,8 +143,10 @@ export function captureAuthoredFacets(root = document) {
       });
     }
   }
-  if (captured.size || !Object.keys(readApplication().document.registry).length)
-    applicationState.captureAuthored(captured, runtime.registry);
+  const published =
+    captured.size > 0 || !Object.keys(readApplication().document.registry).length;
+  if (published) applicationState.captureAuthored(captured, runtime.registry);
+  return published;
 }
 
 // Comparison is deliberately lossy (body whitespace and position indexes), while

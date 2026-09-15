@@ -1,26 +1,13 @@
-/* Server-projected interaction receipts and explicit work claims.
+/* Immutable interaction-receipt readings and their retained Lit presentation.
 
-   Each retained Lit receipt owns its generated words and semantic paint, while
-   `paintAcknowledgmentsNow` routes that element to the source message's existing
-   metadata row. An eventless thread claim belongs to the root message that identifies
-   the thread, while an event-backed widget frozen into conversation chrome uses the
-   metadata row of the message that owns it. Inline page conversations and page widgets
-   use their target's existing margin cluster instead; an explicit page-widget claim is
-   the cluster's **Working** reading. Every receipt wears `lf-ui` and `data-lf-gen`: it is
-   an account of the conversation, not authored words, so selection and diff readings
-   skip it. Reconcile widget state first and paint receipts afterward, so each receipt
-   describes the state the widget now displays. Keep surviving nodes across state
-   applications, and in their place, so an unchanged phase is not re-announced: a node
-   taken out of the document and put back replays every animation it wears and
-   re-announces its live region. A phase change updates words and semantic color with no
-   motion. The visible state may update its rounded age; a separate clipped live region
-   omits that clock and changes only with semantic phase or detail. A newly constructed
-   margin card uses the same writer on its detached subtree before display. */
+   Thread receipts belong to their displayed source message, falling back to the root;
+   event-backed widget receipts use membership captured from that message's validated
+   authored fragment. Page-widget receipts remain with the page's margin projection.
+   Message templates exclusively place keyed receipt nodes. Visible wording may age,
+   while the separate live region changes only with semantic phase or detail. */
 import { ago } from "../presence.js";
-import { runtime } from "../context.js";
 import { agentWorkflowStage } from "../updates.js";
-import { elementById, inChrome, pageQueryAll } from "../passages.js";
-import { threadList } from "./state.js";
+import { turns } from "./model.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 
 const phaseText = (receipt, includeAge = true) => {
@@ -83,83 +70,42 @@ class InteractionReceipt extends LitElement {
 if (!customElements.get(RECEIPT_TAG))
   customElements.define(RECEIPT_TAG, InteractionReceipt);
 
-// One retained node follows one reader move through every semantic phase. Only a
-// phase or detail change touches its live region, so the heartbeat does not make a
-// screen reader repeat an unchanged state as the visible rounded age advances. A semantic
-// change is a change of words and paint and nothing else: motion here would answer
-// a question the reader already asked, and an animation the line wore would replay
-// on any move the heartbeat made (below).
-function paintReceipt(host, receipt, wanted) {
-  if (!host) return;
-  let line = [...host.children].find(
-    (child) => child.matches(".lf-receipt") && child.dataset.receiptId === receipt.id,
-  );
-  if (!line) {
-    line = document.createElement(RECEIPT_TAG);
-    line.className = "lf-receipt lf-ui lf-message-receipt";
-    line.dataset.lfGen = "1";
-    line.dataset.receiptId = receipt.id;
-  }
-  // Leave a receipt already at the end of its metadata row where it stands. Removing
-  // and reinserting it would restart any animation and re-announce its live region.
-  if (line.parentElement !== host || line.nextSibling !== null) host.append(line);
-  wanted.add(line);
+export const receiptReading = (receipt) =>
+  Object.freeze({
+    id: receipt.id,
+    announced: phaseText(receipt, false),
+    dropped: Boolean(receipt.dropped),
+    phase: receipt.phase,
+    semantic: phaseText(receipt),
+    workflowStage: agentWorkflowStage(receipt),
+  });
 
-  const semantic = phaseText(receipt);
-  const announced = phaseText(receipt, false);
-  const workflowStage = agentWorkflowStage(receipt);
-  line.present(
-    Object.freeze({
-      announced,
-      dropped: Boolean(receipt.dropped),
-      phase: receipt.phase,
-      semantic,
-      workflowStage,
-    }),
+// Membership comes from the gate-validated frozen fragment, never from the live DOM.
+export function messageReceipts(thread, message, widgets, interactions, revision) {
+  return Object.freeze(
+    interactions
+      .filter((receipt) => {
+        if (receipt.target.kind === "thread") {
+          if (thread.resolved || receipt.target.id !== thread.root.id) return false;
+          const source = turns(thread).some((item) => item.id === receipt.event)
+            ? receipt.event
+            : thread.root.id;
+          return source === message.id;
+        }
+        return (
+          receipt.target.kind === "widget" &&
+          receipt.event &&
+          receipt.revision <= revision &&
+          widgets.includes(receipt.target.id)
+        );
+      })
+      .map(receiptReading),
   );
 }
 
-export function paintAcknowledgmentsNow(root = document) {
-  const query = (selector) =>
-    root === document ? pageQueryAll(selector) : [...root.querySelectorAll(selector)];
-  const wanted = new Set();
-  const receipts = runtime.activity?.interactions ?? [];
-  for (const receipt of receipts) {
-    const { kind, id } = receipt.target;
-    if (kind === "thread") {
-      const thread = threadList().find((candidate) => candidate.root.id === id);
-      if (!thread || thread.resolved) continue;
-      const views = query(
-        `.lf-thread[data-id="${CSS.escape(id)}"], ` +
-          `.lf-conversation-thread[data-thread="${CSS.escape(id)}"]`,
-      );
-      for (const view of views) {
-        const message = (event) =>
-          view.querySelector(
-            `:scope > :is(.lf-msg[data-mid="${CSS.escape(event)}"], ` +
-              `.lf-conversation-msg[data-event="${CSS.escape(event)}"])`,
-          );
-        const source = (receipt.event ? message(receipt.event) : null) ?? message(id);
-        const messageHead = source?.querySelector(
-          ":scope > :is(.lf-msg-head, .lf-conversation-head)",
-        );
-        paintReceipt(messageHead, receipt, wanted);
-      }
-      continue;
-    }
-    if (kind !== "widget") continue;
-    if (receipt.revision > runtime.currentRevision) continue;
-    const owner =
-      root === document ? elementById(id) : root.querySelector(`#${CSS.escape(id)}`);
-    // A frozen widget sent in a message has no page edge of its own, so its event-backed
-    // receipt uses that message's metadata. A page widget uses its existing target margin
-    // entry; standalone claims in chrome remain unsupported claim subjects.
-    const message = owner?.closest(":is(.lf-msg, .lf-conversation-msg)");
-    const messageHead = message?.querySelector(
-      ":scope > :is(.lf-msg-head, .lf-conversation-head)",
-    );
-    if (owner && receipt.event && inChrome(owner))
-      paintReceipt(messageHead, receipt, wanted);
-  }
-  for (const line of query(".lf-receipt")) if (!wanted.has(line)) line.remove();
+export function createReceipt() {
+  const node = document.createElement(RECEIPT_TAG);
+  node.className = "lf-receipt lf-ui lf-message-receipt";
+  node.dataset.lfGen = "1";
+  return node;
 }

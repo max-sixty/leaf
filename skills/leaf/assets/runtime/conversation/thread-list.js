@@ -4,8 +4,8 @@
    under the pointer while the pointer is in the list, then the card containing focus,
    then the topmost visible card. It records later visible cards before the mutation
    and refreshes their baselines after each correction, so a live successor can take
-   over if the first leaves or becomes hidden. The held `paintAcknowledgments` call
-   covers claim-only mutations too. The list follows changes in the card's content
+   over if the first leaves or becomes hidden. Receipt updates share the same hold.
+   The list follows changes in the card's content
    position, keeping reflow out from under the pointer without fighting an intentional
    scroll. Browser scroll anchoring is disabled only for the life of a hold so those two
    authorities cannot compensate the same change; outside a held mutation the browser
@@ -81,14 +81,18 @@ import { focused } from "../keyboard/scopes.js";
 import { conversational, threadKey } from "./model.js";
 import { runtime } from "../context.js";
 import { ago } from "../presence.js";
-import { retireConversationNode } from "./reaction-strips.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { captureAuthoredFacets } from "../projection/authored.js";
 import { reachScrollers } from "../reach.js";
-import { foldOut, hasFolding, isFolding } from "./folding.js";
+import { hasFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
-import { inFilter, noMatchText, paintNarrowing } from "./narrowing.js";
-import { paintThreadQuotes, threadNode } from "./thread-card.js";
+import {
+  inFilter,
+  noMatchText,
+  narrowingReading,
+  paintNarrowing,
+} from "./narrowing.js";
+import { threadReading } from "./thread-card.js";
 
 // The open threads, in the order t/T walk either surface. The panel's children are the
 // canonical list: folding a settled thread renames it out of this list in that frame.
@@ -302,22 +306,9 @@ function finishScrollHold(hold, panelIsOpen) {
   else releaseScrollHold(hold);
 }
 
-export function holdScrollPosition(mutate, panelIsOpen) {
-  const hold = takeScrollHold(panelIsOpen);
-  try {
-    return mutate();
-  } finally {
-    finishScrollHold(hold, panelIsOpen);
-  }
-}
-
-// The DOM is the one record of what's rendered, reconciled against the log: nodes the
-// list already holds are kept, and only what the log changed is added, moved, or
-// dropped. The rebuild this replaced destroyed every node on every render and then
-// hand-restored the reader's place — scroll offset, focused thread, caret — and what
-// no restore could give back was identity: nothing could animate, one send route kept
-// focus and the other dropped it, and a user's own comment landed below the fold
-// of a list put back exactly where it was. Nodes surviving is what deleted all of it.
+// One immutable presentation reading contains the rows, count, and narrowing paint.
+// The list checkpoints it only when the whole conversation batch commits; retention
+// restores that reading through the same owners while preserving native identities.
 let renderGeneration = 0;
 
 // A failed candidate may still leave one coherent list on screen. The list returns
@@ -387,10 +378,14 @@ const rowModel = (all, commands) => {
       Object.freeze({
         kind: "thread",
         key: `thread:${threadKey(t)}`,
-        thread: t,
+        descriptor: threadReading(t, "panel", commands.card, {
+          interactions: runtime.activity?.interactions ?? [],
+          revision: runtime.currentRevision,
+          visible: visible.has(t),
+          grow,
+          outline,
+        }),
         group: Object.freeze({ ...group.get(t) }),
-        grow,
-        visible: visible.has(t),
       }),
     );
   }
@@ -403,72 +398,41 @@ const rowModel = (all, commands) => {
         text: `✓ Approved ${ago(e.ts)}`,
       }),
     );
-  return {
-    model: Object.freeze({ rows: Object.freeze(rows) }),
-    groups: group,
-    open,
-    shown,
-    threads,
-  };
+  return Object.freeze({
+    rows: Object.freeze(rows),
+    count: open.length,
+    narrowing: narrowingReading(threads, shown, group),
+  });
 };
 
-function materializeThread(row, commands) {
-  const t = row.thread;
-  // Under the default Open state, a newly resolved card gives its room back where it
-  // stood before becoming a retained hidden card. Under the Resolved state it is an
-  // ordinary visible result and changes directly to its resolved shape.
-  const prior = t.resolved
-    ? threadsBox.querySelector(
-        `:scope > .lf-thread[data-id="${CSS.escape(t.root.id)}"]`,
-      )
-    : null;
-  if (t.resolved && isFolding(t.root.id))
-    return foldOut(t, commands.repaintConversation);
-  if (
-    t.resolved &&
-    !row.visible &&
-    prior &&
-    !prior.hidden &&
-    prior.dataset.resolved === "false"
-  )
-    return foldOut(t, commands.repaintConversation);
-  return threadNode(t, row.grow, {
-    reply: commands.card.reply,
-    settlement: commands.card.settlement,
-    reaction: commands.card.reaction,
-    travel: commands.card.travel,
-    anchors: commands.card.anchors,
-    openThreads,
-  });
-}
-
 function configureList(commands) {
-  threadsBox.configure({
-    activateGroup: (target) =>
-      commands.scrollToElement(target, scrollBehavior(), "start"),
-    materialize: (row) => materializeThread(row, commands),
-    retire: (node) => retireConversationNode(node, commands.closeReactionMode),
-  });
+  threadsBox.configure(
+    {
+      activateGroup: (target) =>
+        commands.scrollToElement(target, scrollBehavior(), "start"),
+      card: { ...commands.card, openThreads, listRoot: threadsBox },
+      repaintConversation: commands.repaintConversation,
+      presentSummary: (model) => postPaint(model, commands),
+    },
+    Object.freeze({
+      rows: Object.freeze([]),
+      count: null,
+      narrowing: narrowingReading([], []),
+    }),
+  );
 }
 
-function postPaint({ groups, open, shown, threads }, commands) {
+function postPaint({ count, narrowing }, commands) {
   paintHeadRoom(commands.panelIsOpen);
-  commands.setThreadCount(open.length);
-  paintNarrowing(threads, shown, groups);
-  // The anchor pass wrote its record before this list existed, and this reconcile may have
-  // built the nodes that wear it. Both passes therefore repaint it: the one that changes
-  // the record, and the one that changes what the record is painted on.
-  paintThreadQuotes({
-    placedAt: commands.placedAt,
-    isMarked: commands.isMarked,
-  });
+  commands.setThreadCount(count);
+  paintNarrowing(narrowing);
   commands.onListChanged();
   // Narrowing and reconciliation can move another card under a pointer that did not
   // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
   commands.refreshAnchorHover();
 }
 
-async function prepareFrozenWidgets(current) {
+async function prepareFrozenWidgets(current, commands) {
   // Frozen markup has the same initial-value boundary as a page: connected and fully
   // presented, before its first projection. Later list reconciles retain the first
   // capture instead of adopting a reader's live value.
@@ -483,8 +447,12 @@ async function prepareFrozenWidgets(current) {
     .map((descriptor) => descriptor.id);
   await whenWidgetsPresented(uncaptured);
   if (!current()) return;
-  captureAuthoredFacets(threadsBox);
+  const captured = captureAuthoredFacets(threadsBox);
   reachScrollers(threadsBox);
+  // Capture publishes a new semantic epoch after the widget's initial connection.
+  // Present that authored baseline through the application again; the controller's
+  // earlier connection invalidation could only describe the pre-capture reading.
+  if (captured) commands.authoredCaptured();
 }
 
 async function retainCommitted(current, candidate, reason) {
@@ -532,31 +500,52 @@ async function presentList(model, current) {
 export async function renderThreads(all, commands) {
   const generation = ++renderGeneration;
   const current = () => generation === renderGeneration;
-  const reading = rowModel(all, commands);
+  let reading = rowModel(all, commands);
   configureList(commands);
   const hold = takeScrollHold(commands.panelIsOpen);
   let held = true;
   let recovered = null;
   try {
-    const candidate = await presentList(reading.model, current);
+    const candidate = await presentList(reading, current);
     if (!candidate) return;
     recovered = candidate.recovered;
-    postPaint(reading, commands);
-    // The keyed list and its count/narrowing/quote readings are one committed candidate.
-    // Frozen descendants remain inside the conversation ticket below, but their own
-    // fail-soft settlement cannot roll this coherent parent reading back by itself.
-    threadsBox.commit(reading.model);
+    // Newly connected frozen markup can supply the words a different thread's
+    // quote names. Re-derive that batch reading through the same descriptor owner.
+    const connected = rowModel(all, commands);
+    const changedQuotes = connected.rows.some((row, index) => {
+      if (row.kind !== "thread") return false;
+      const prior = reading.rows[index];
+      return (
+        prior?.key !== row.key ||
+        prior.group.label !== row.group.label ||
+        prior.group.target !== row.group.target ||
+        JSON.stringify(prior.descriptor.quote) !== JSON.stringify(row.descriptor.quote)
+      );
+    });
+    if (changedQuotes) {
+      reading = connected;
+      const refreshed = await presentList(reading, current);
+      if (!refreshed) return;
+      recovered ??= refreshed.recovered;
+    }
+    // The surrounding conversation batch commits this complete list with its sibling
+    // seats. Frozen descendants settle inside that same ticket with their existing
+    // fail-soft preparation contract.
     finishScrollHold(hold, commands.panelIsOpen);
     held = false;
-    await prepareFrozenWidgets(current);
+    await prepareFrozenWidgets(current, commands);
   } catch (error) {
     if (!current()) return;
-    await retainCommitted(current, reading.model, error);
+    await retainCommitted(current, reading, error);
     throw error;
   } finally {
     if (held) finishScrollHold(hold, commands.panelIsOpen);
   }
-  return { recovered, proof: threadsBox };
+  return {
+    recovered,
+    proof: threadsBox,
+    commit: () => threadsBox.commit(reading),
+  };
 }
 
 export async function renderThreadListUnavailable(text, commands) {
@@ -565,6 +554,8 @@ export async function renderThreadListUnavailable(text, commands) {
   configureList(commands);
   const model = Object.freeze({
     rows: Object.freeze([Object.freeze({ kind: "empty", key: "unavailable", text })]),
+    count: null,
+    narrowing: narrowingReading([], []),
   });
   const hold = takeScrollHold(commands.panelIsOpen);
   let recovered = null;
@@ -572,13 +563,16 @@ export async function renderThreadListUnavailable(text, commands) {
     const candidate = await presentList(model, current);
     if (!candidate) return;
     recovered = candidate.recovered;
-    paintHeadRoom(commands.panelIsOpen);
-    threadsBox.commit(model);
   } catch (error) {
     await retainCommitted(current, model, error);
     throw error;
   } finally {
     finishScrollHold(hold, commands.panelIsOpen);
   }
-  return { recovered, proof: threadsBox };
+  return { recovered, proof: threadsBox, commit: () => threadsBox.commit(model) };
+}
+
+export async function restoreThreadList() {
+  ++renderGeneration;
+  await threadsBox.retainCommitted(threadsBox.model);
 }

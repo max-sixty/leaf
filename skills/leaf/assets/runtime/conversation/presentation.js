@@ -7,17 +7,21 @@
 import { clocked } from "../presence.js";
 import { elementById, inChrome } from "../passages.js";
 import { conversationState } from "./state.js";
-import { renderConversations } from "./inline.js";
 import {
-  holdScrollPosition,
+  renderConversations,
+  beginConversationSeats,
+  commitConversationSeats,
+  retainConversationSeats,
+} from "./inline.js";
+import {
   RetainedThreadListError,
   retainedThreadListProof,
   renderThreadListUnavailable,
   renderThreads,
+  restoreThreadList,
 } from "./thread-list.js";
 import { threadsBox } from "./panel-elements.js";
-import { paintAcknowledgmentsNow } from "./acknowledgments.js";
-import { paintNarrowing, revealThread } from "./narrowing.js";
+import { revealThread } from "./narrowing.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -36,9 +40,6 @@ function renderHolds(threads) {
 
 export function createConversationPresentation({
   available = true,
-  panelIsOpen,
-  setThreadCount,
-  onConversationChanged,
   listView,
   inlineView,
   surfaceView,
@@ -58,7 +59,7 @@ export function createConversationPresentation({
     return presentationHandle;
   };
 
-  // Accepted and optimistic conversation changes owe a fresh imperative rendering.
+  // Accepted and optimistic conversation changes owe a fresh generated presentation.
   // Register that obligation before publication seals; apply() may run later behind
   // a serialized state application. Unchanged values can retain their prior proof.
   applicationState
@@ -104,59 +105,64 @@ export function createConversationPresentation({
     return ready;
   }
 
-  const paintAcknowledgments = (...args) =>
-    holdScrollPosition(() => paintAcknowledgmentsNow(...args), panelIsOpen);
-
   function finishListRecovery(candidate) {
     if (candidate?.recovered)
       throw new RetainedThreadListError(candidate.recovered, candidate.proof);
   }
 
-  async function setUnavailable(phase) {
-    paintCurrent.stop();
-    const note =
-      phase === "offline"
-        ? "Current threads are unavailable while the server is offline."
-        : "Loading current threads…";
-    const prepared = renderThreadListUnavailable(note, listView);
-    setThreadCount(null);
-    paintNarrowing([], []);
-    const painted = anchorPaint.paint({
-      threads: [],
-      draft: readDraft(),
-      actionAnchor: activeActionAnchor(),
-    });
-    if (painted) anchorControls.render(painted);
-    drawingPaint.paint([]);
-    renderSurfaces([], anchorPaint.placedAt, surfaceView);
-    renderConversations([], inlineView);
-    renderMargin();
-    const candidate = await prepared;
-    paintAcknowledgments();
-    onConversationChanged();
-    pageGeometry.pageShifted();
-    finishListRecovery(candidate);
+  let surfaceGeneration = 0;
+  async function renderReading(phase = "ready") {
+    const generation = ++surfaceGeneration;
+    const current = () => generation === surfaceGeneration;
+    const batch = beginConversationSeats();
+    let prepared = null;
+    try {
+      const { all, listed } = conversationState();
+      const threads = phase === "ready" ? all : [];
+      const conversations = phase === "ready" ? listed : [];
+      renderHolds(threads);
+      const painted = anchorPaint.paint({
+        threads,
+        draft: readDraft(),
+        actionAnchor: activeActionAnchor(),
+      });
+      if (painted) anchorControls.render(painted);
+      drawingPaint.paint(threads);
+      renderSurfaces(conversations, anchorPaint.placedAt, surfaceView);
+      prepared =
+        phase === "ready"
+          ? renderThreads(threads, listView)
+          : renderThreadListUnavailable(
+              phase === "offline"
+                ? "Current threads are unavailable while the server is offline."
+                : "Loading current threads…",
+              listView,
+            );
+      void prepared.catch(() => {});
+      renderConversations(conversations, inlineView);
+      renderMargin();
+      const candidate = await prepared;
+      if (!current()) return;
+      candidate?.commit();
+      commitConversationSeats(batch);
+      pageGeometry.pageShifted();
+      finishListRecovery(candidate);
+    } catch (error) {
+      if (!current() || error instanceof RetainedThreadListError) throw error;
+      // A synchronous sibling failure may leave the panel's widget preparation in
+      // flight. Invalidate its private generation before restoring the whole reading.
+      await restoreThreadList();
+      if (!current()) return;
+      retainConversationSeats(batch);
+      throw error;
+    }
   }
 
-  async function renderCurrent() {
-    const { all: threads, listed: conversations } = conversationState();
-    renderHolds(threads);
-    const painted = anchorPaint.paint({
-      threads,
-      draft: readDraft(),
-      actionAnchor: activeActionAnchor(),
-    });
-    if (painted) anchorControls.render(painted);
-    drawingPaint.paint(threads);
-    renderSurfaces(conversations, anchorPaint.placedAt, surfaceView);
-    const prepared = renderThreads(threads, listView);
-    renderConversations(conversations, inlineView);
-    renderMargin();
-    const candidate = await prepared;
-    paintAcknowledgments();
-    pageGeometry.pageShifted();
-    finishListRecovery(candidate);
+  function setUnavailable(phase) {
+    paintCurrent.stop();
+    return renderReading(phase);
   }
+  const renderCurrent = () => renderReading();
 
   // Each clock tick reads the current semantic root, never a retained presentation
   // input that could omit later local gestures or a newer accepted reading.
@@ -188,7 +194,7 @@ export function createConversationPresentation({
       const threads = conversationState().all;
       const prepared = renderThreads(threads, listView);
       return Promise.resolve(prepared).then((candidate) => {
-        paintAcknowledgments();
+        candidate?.commit();
         finishListRecovery(candidate);
       });
     });
@@ -205,7 +211,6 @@ export function createConversationPresentation({
   return {
     apply,
     mount,
-    paintAcknowledgments,
     refreshNarrowing,
     repaintCurrent,
   };

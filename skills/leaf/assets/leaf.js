@@ -73,7 +73,6 @@ import { createPanelComposer } from "./runtime/conversation/panel.js";
 import { focusSurface } from "./runtime/conversation/surfaces.js";
 import { focusedThreadOf } from "./runtime/conversation/focus.js";
 import { mountThreadList } from "./runtime/conversation/thread-list.js";
-import { wireThreadCards } from "./runtime/conversation/thread-card.js";
 import {
   retainNarrowing,
   revealThread,
@@ -391,8 +390,7 @@ app = mountApplication({
   setThreadCount: (count) => {
     toggleBtn.textContent = count === null ? "Threads" : `Threads (${count})`;
   },
-  buildReactSurface: (...args) => reactions.buildReactSurface(...args),
-  closeReactionMode: () => reactions.setReact(false),
+  registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
   updateFab: (...args) => responseSurface.updateFab(...args),
   createMarginProjection,
@@ -818,7 +816,6 @@ if (!offlineInteractive) {
   app.mountConversation();
   mountThreadList(panelIsOpen);
   wireThreadLanding();
-  wireThreadCards();
   wireNarrowing(app.refreshNarrowing);
   trays.mountTrays();
   threadPanelController.mountThreadPanel();

@@ -7897,8 +7897,11 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     expect(panel.locator(".lf-edited")).to_have_text("edited")
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
-        "() => window.__editedInline.isConnected && window.__editedPanel.isConnected"
-        " && window.__editedWidget.isConnected"
+        f"""() => window.__editedInline === document.querySelector(
+          '#cd-q .lf-conversation-msg[data-event="{message["id"]}"]')
+          && window.__editedPanel === document.querySelector(
+            '.lf-msg[data-mid="{message["id"]}"]')
+          && window.__editedWidget === document.querySelector('#edited-message-choice')"""
     ), "the edit replaced a standing message or its frozen widget"
     assert events_model.read_events(d)[-2]["text"] == "The north bracket fit."
 

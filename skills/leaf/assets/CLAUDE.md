@@ -145,8 +145,8 @@ disclosed, and inline child order;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
 vertical packing, collision bands for wide page content, and transient margin-entry
 label placement;
-`runtime/reactions.js` owns reaction vocabulary, lists and their standing paint,
-sending, keyboard mode, and reaction-specific undo wording;
+`runtime/reactions.js` owns reaction vocabulary, composer choices, sending, keyboard
+mode, registered conversation-control mechanics, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/design-readings.js` owns its passive names and constants;
 `runtime/data.js` owns external-data acceptance, readiness, and source-contract
@@ -277,26 +277,33 @@ before resolving its current node and scrolling to it;
 as values; it reads no runtime store or DOM. `conversation/identity.js` owns pending
 message identity. `conversation/state.js` holds the one derived conversation reading,
 written by conversation presentation and consumed by its surfaces;
-`runtime/conversation/messages.js` owns message rendering;
-`runtime/conversation/replies.js` owns reply drafts and invokes its supplied reply command;
-`runtime/conversation/inline.js` owns conversation seats rendered into the page;
+`runtime/conversation/messages.js` owns immutable message readings and their synchronous
+Lit presentation, including retained frozen authored islands;
+`runtime/conversation/replies.js` owns reply drafts, retained editor subscription
+lifetimes, and its supplied reply command;
+`runtime/conversation/inline.js` owns keyed Lit conversation seats outside the panel
+and their presentation-batch checkpoints;
 `runtime/conversation/box.js` owns page-seated first-message boxes;
-`runtime/conversation/folding.js` owns shared Resolve/Reopen controls and resolution-fold
-state and motion;
+`runtime/conversation/folding.js` owns settlement continuations and mechanical
+resolution-fold state and motion;
 `runtime/conversation/landing.js` owns conversation input discovery, focus travel,
 and panel arrival;
 `runtime/conversation/narrowing.js` owns comment-panel search and the lifecycle,
 scope, subject, and detached-placement facet state;
 `runtime/conversation/placement.js` owns document-order grouping;
-`runtime/conversation/reaction-strips.js` owns the panel's message reaction surfaces
-and disarms reaction keyboard mode before a conversation surface is removed;
+`runtime/conversation/reaction-strips.js` projects and Lit-renders complete message
+reaction surfaces, retiring their registered keyboard mode before removal;
 `runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
 threads they claim from the margin-projection fallback;
-`runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
-state, and their reply, resolve, and reopen controls;
-`runtime/conversation/thread-list.js` owns retained panel list reconciliation;
-`runtime/conversation/acknowledgments.js` routes server-projected interaction receipts
-to conversation seats, while each retained Lit receipt owns its words and semantic paint;
+`runtime/conversation/thread-card.js` owns the shared immutable thread descriptor and
+complete synchronous Lit tree across retained native panel, page, widget-outlet, and
+margin cards; native editors remain opaque mechanical islands;
+`runtime/conversation/thread-list-view.js` owns keyed panel placement and committed
+descriptor restoration; `conversation/thread-list.js` owns its grouping, scroll holds,
+and newly connected frozen-widget preparation;
+`runtime/conversation/acknowledgments.js` derives immutable message-receipt readings
+from canonical activity and captured fragment membership; message owners place retained
+Lit receipts, which own their words and semantic paint;
 and
 `runtime/conversation/presentation.js` composes retained conversation rendering;
 `runtime/conversation/panel.js` owns the panel composer, and `panel-elements.js` owns the
@@ -341,7 +348,7 @@ Each mutable fact has one writer:
 | thread-panel visibility | the panel controller's constructed visibility reading | `setPanel` writes the reading and projects it to the panel class and body attribute |
 | the narrowing on the thread list | the reader's find words and lifecycle, scope, subject, and detached-placement facets | `renarrow`, `revealThread`, and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
-| the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
+| the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` preserves it through generated presentation, receipt updates, provisional work, and resolution folds |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |
 | tray visibility | `trayIsOpenKey` | `setOpenTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |

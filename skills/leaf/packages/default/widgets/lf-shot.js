@@ -18,6 +18,7 @@
  * Commentary about the change belongs in authored prose around the widget. */
 import {
   PRESS,
+  commandScope,
   once,
   offer,
   failSoft,
@@ -38,6 +39,7 @@ customElements.define(
     #box;
     #alt;
     #margin;
+    #flip;
 
     static observedAttributes = ["data-lf-shot-controls"];
 
@@ -114,7 +116,12 @@ customElements.define(
         paintKeys();
       };
       box.addEventListener("change", paint);
-      commands(box, "On a screenshot", [
+      // One declaration, two controls: the native checkbox the reader stands on inside
+      // the widget, and the margin entry the same flip is projected onto. A margin entry
+      // is generated elsewhere, so ancestry cannot find this row for it — the capability
+      // is how the flip keeps its name on both (`runtime/keyboard/scopes.js`,
+      // `commandScope`).
+      this.#flip = commandScope("On a screenshot", [
         {
           id: "screenshot.toggle",
           keys: [" "],
@@ -124,6 +131,7 @@ customElements.define(
           run: () => this.#margin?.activate("toggle"),
         },
       ]);
+      commands(box, this.#flip);
       paint();
       this.append(box);
       this.#offer();
@@ -174,6 +182,7 @@ customElements.define(
                 accessibleLabel: `${label} — ${this.#alt}`,
                 activation: "toggle",
                 className: "lf-shot-toggle",
+                scope: this.#flip,
               }),
             ],
             readings: [],

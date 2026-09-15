@@ -29,7 +29,7 @@
    draws the panel narrower and a heading wraps — a drag posts no event, so a reconcile
    never comes. Without it a walk lands threads under the heading with the opening
    words of the comment behind it, which is what
-   `test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered` holds.
+   `test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel` holds.
 
    The measurement is taken only while the panel is open, and this is a rule rather
    than an optimization. Shut, the panel is `display: none` and every heading measures
@@ -66,7 +66,7 @@
    reveals its composer and actions together; an editor too tall to fit with its
    actions reveals the focused control itself.
 
-   `test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered`,
+   `test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered`,
    `test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading`, and
    `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` hold this
    for the panel's own walk, for a press inside its list, and for every shipped page's

@@ -30,9 +30,14 @@ import {
   word,
 } from "./bindings.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
-import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
+import {
+  completeRowSteps,
+  keySequenceModel,
+  keySequenceTemplate,
+  neutralStates,
+} from "./presentation.js";
 import { restoreReturnPlace } from "./return-stack.js";
-import { el } from "../widget-elements.js";
+import { el, keeps } from "../widget-elements.js";
 import {
   coveringAuxiliaryFocus,
   coveringAuxiliarySurface,
@@ -67,9 +72,17 @@ commandReferenceDialog.tabIndex = -1;
 // metadata. The reference template only seats it.
 export const commandReferenceClose = el("button", "lf-btn lf-command-reference-close");
 commandReferenceClose.type = "button";
-commandReferenceClose.title = "Close the command reference";
-commandReferenceClose.setAttribute("aria-label", "Close the command reference");
-render("Close", commandReferenceClose);
+
+export function presentCommandReferenceClose(returningToMore) {
+  const label = returningToMore ? "Back to more shortcuts" : "Close";
+  const title = returningToMore
+    ? "Back to more shortcuts"
+    : "Close the command reference";
+  render(label, commandReferenceClose);
+  keeps(commandReferenceClose, "data-lf-key-title", title);
+  keeps(commandReferenceClose, "aria-label", title);
+}
+presentCommandReferenceClose(false);
 
 // Every scope the page has, gathered by title, for the reference. This is not the current
 // stack: the catalog answers what the reader could do here, so it includes a card grip's
@@ -144,11 +157,11 @@ let commandReferenceBoundary = null;
 let commandReferenceInvoke = null;
 let commandReferenceCaptureOrigin = null;
 
-const EMPTY_CATALOG = {
+const EMPTY_CATALOG = Object.freeze({
   total: 0,
-  entries: [],
-  sections: [],
-};
+  entries: Object.freeze([]),
+  sections: Object.freeze([]),
+});
 let commandReferenceCatalog = EMPTY_CATALOG;
 let commandReferenceState = {
   query: "",
@@ -158,8 +171,9 @@ let commandReferenceState = {
 let commandReferenceView = {
   shown: 0,
   metadata: "",
-  bindingMatches: [],
-  sections: [],
+  bindingHeading: null,
+  sectionHeadings: [],
+  entryPresentations: [],
   visibleCommands: [],
   selectedCommandId: null,
   tabStopCommandId: null,
@@ -269,21 +283,23 @@ function captureCommandReferenceCatalog() {
         const steps = [...rowInfo.sequence, ...completeRowSteps(rowInfo.row, route)];
         const alternatives = route ? [route.binding] : rowInfo.rowBindings;
         const isAvailable = available(rowInfo, route);
-        const entry = {
+        const spokenSteps = spokenReferenceSteps(
+          rowInfo.row,
+          route,
+          steps,
+          rowInfo.declared,
+        );
+        const entry = Object.freeze({
           id,
           rowId: `lf-command-reference-row-${entryIndex}`,
           keyId: `lf-command-reference-key-${entryIndex}`,
+          sectionId: `lf-command-reference-section-${sectionOrder}`,
           sectionTitle,
           order: sectionEntries.length,
           sequenceControl: Boolean(rowInfo.row.sequenceControl),
           keyLabel: rowInfo.declared.length === 0 && rowInfo.row.decision !== undefined,
-          steps,
-          spokenSteps: spokenReferenceSteps(
-            rowInfo.row,
-            route,
-            steps,
-            rowInfo.declared,
-          ),
+          steps: Object.freeze(steps),
+          keySequence: keySequenceModel(steps, neutralStates(steps), spokenSteps),
           action,
           actionable: Boolean(
             (rowInfo.row.run || routedCommand(route)) &&
@@ -291,10 +307,14 @@ function captureCommandReferenceCatalog() {
           ),
           available: isAvailable,
           unavailableMessage: availableWhere(rowInfo.row, sectionTitle, scope.reach),
-          bindingForms: alternatives.map((binding) => ({
-            display: [...rowInfo.sequence, spell(binding)].join(" "),
-            spoken: [...rowInfo.sequence, spokenBinding(binding)].join(" "),
-          })),
+          bindingForms: Object.freeze(
+            alternatives.map((binding) =>
+              Object.freeze({
+                display: [...rowInfo.sequence, spell(binding)].join(" "),
+                spoken: [...rowInfo.sequence, spokenBinding(binding)].join(" "),
+              }),
+            ),
+          ),
           directWords: commandReferenceWords(
             `${id} ${sectionTitle} ${steps.join(" ")} ${action} ${word(
               route?.line ?? rowInfo.row.line,
@@ -303,25 +323,27 @@ function captureCommandReferenceCatalog() {
           familyWords: commandReferenceWords(
             `${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseDoes}`,
           ),
-        };
+        });
         entryIndex += 1;
         entries.push(entry);
         sectionEntries.push(entry);
       }
     }
-    sections.push({
-      id: `lf-command-reference-section-${sectionOrder}`,
-      title: sectionTitle,
-      words: commandReferenceWords(sectionTitle),
-      order: sectionOrder,
-      entries: sectionEntries,
-    });
+    sections.push(
+      Object.freeze({
+        id: `lf-command-reference-section-${sectionOrder}`,
+        title: sectionTitle,
+        words: commandReferenceWords(sectionTitle),
+        order: sectionOrder,
+        entries: Object.freeze(sectionEntries),
+      }),
+    );
   }
-  return {
+  return Object.freeze({
     total: entries.length,
-    entries,
-    sections,
-  };
+    entries: Object.freeze(entries),
+    sections: Object.freeze(sections),
+  });
 }
 
 // Rank the frozen catalog without reading or moving its rendered rows.
@@ -412,11 +434,33 @@ function projectCommandReference(catalog, state) {
     (query
       ? `${shown} of ${catalog.total} commands · ↑↓ choose · ⏎ activate`
       : `${catalog.total} commands · ↑↓ choose · ⏎ activate`);
+  let presentationOrder = 0;
+  const bindingHeading = bindingMatches.length
+    ? Object.freeze({ order: presentationOrder++ })
+    : null;
+  const entryPresentations = bindingMatches.map(({ entry }) =>
+    Object.freeze({ entry, promoted: true, order: presentationOrder++ }),
+  );
+  const sectionHeadings = sections.map((section) => {
+    const heading = Object.freeze({
+      id: section.id,
+      title: section.title,
+      shown: section.entries.length > 0,
+      order: section.entries.length > 0 ? presentationOrder++ : -1,
+    });
+    entryPresentations.push(
+      ...section.entries.map((entry) =>
+        Object.freeze({ entry, promoted: false, order: presentationOrder++ }),
+      ),
+    );
+    return heading;
+  });
   return {
     shown,
     metadata,
-    bindingMatches: bindingMatches.map(({ entry }) => entry),
-    sections,
+    bindingHeading,
+    sectionHeadings,
+    entryPresentations,
     visibleCommands,
     selectedCommandId,
     tabStopCommandId: selectedCommandId ?? visibleCommands[0]?.entry.id ?? null,
@@ -435,24 +479,6 @@ function updateCommandReferenceView() {
     view = projectCommandReference(commandReferenceCatalog, commandReferenceState);
   }
   commandReferenceView = view;
-}
-
-// The existing key presentation primitive returns a DOM subtree. Catalog entries are
-// replaced at each opening, so a weak view cache keeps those unchanged nodes through
-// local Lit renders without putting DOM into the catalog or retaining stale entries.
-const commandKeySequences = new WeakMap();
-function commandKeySequence(entry) {
-  const retained = commandKeySequences.get(entry);
-  if (retained) return retained;
-  const sequence = keySequence(
-    entry.steps,
-    neutralStates(entry.steps),
-    entry.spokenSteps,
-  );
-  sequence.id = entry.keyId;
-  if (entry.keyLabel) sequence.classList.add("lf-key-label");
-  commandKeySequences.set(entry, sequence);
-  return sequence;
 }
 
 function activateCommandEntry(entry) {
@@ -480,7 +506,7 @@ function activateCommandEntry(entry) {
   });
 }
 
-function commandEntryTemplate(entry, promoted = false) {
+function commandEntryTemplate(entry, promoted = false, shown = true) {
   const selected = commandReferenceView.selectedCommandId === entry.id;
   const tabStop = commandReferenceView.tabStopCommandId === entry.id;
   const action = entry.actionable
@@ -511,43 +537,101 @@ function commandEntryTemplate(entry, promoted = false) {
       class=${entry.sequenceControl ? "lf-sequence-command" : ""}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
+      ?hidden=${!shown}
     >
-      <td role="gridcell">${commandKeySequence(entry)}</td>
+      <td role="gridcell">
+        ${keySequenceTemplate(entry.keySequence, {
+          id: entry.keyId,
+          label: entry.keyLabel,
+        })}
+      </td>
       ${actionCell}
     </tr>
   `;
 }
 
-const headingRow = (id, title) => html`
-  <div role="row">
-    <div role="gridcell"><h3 id=${id}>${title}</h3></div>
-  </div>
+const headingRow = (id, title, hidden = false) => html`
+  <tbody ?hidden=${hidden}>
+    <tr role="row">
+      <th role="gridcell" colspan="2"><h3 id=${id}>${title}</h3></th>
+    </tr>
+  </tbody>
 `;
 
-function commandSectionTemplate(section) {
-  return html`
-    <section
-      class="lf-command-reference-section"
-      role="rowgroup"
-      aria-labelledby=${section.id}
-      ?hidden=${section.entries.length === 0}
-    >
-      ${headingRow(section.id, section.title)}
-      <table role="presentation">
-        ${repeat(
-          section.entries,
-          (entry) => entry.id,
-          (entry) => commandEntryTemplate(entry),
-        )}
-      </table>
-    </section>
-  `;
+const commandReferenceItems = () => {
+  const visible = [];
+  if (commandReferenceView.bindingHeading)
+    visible.push({
+      kind: "heading",
+      key: "heading:bindings",
+      id: "lf-command-reference-binding-matches",
+      title: "Binding matches",
+      order: commandReferenceView.bindingHeading.order,
+    });
+  for (const heading of commandReferenceView.sectionHeadings)
+    if (heading.shown)
+      visible.push({
+        kind: "heading",
+        key: `heading:${heading.id}`,
+        id: heading.id,
+        title: heading.title,
+        order: heading.order,
+      });
+  for (const presentation of commandReferenceView.entryPresentations)
+    visible.push({
+      kind: "entry",
+      key: `entry:${presentation.entry.id}`,
+      ...presentation,
+    });
+  visible.sort((left, right) => left.order - right.order);
+
+  // Keep every catalog row under this one keyed parent. Filtering and binding promotion
+  // then reorder retained rows instead of recreating their native controls and keycaps.
+  const visibleKeys = new Set(visible.map(({ key }) => key));
+  const hidden = [
+    {
+      kind: "heading",
+      key: "heading:bindings",
+      id: "lf-command-reference-binding-matches",
+      title: "Binding matches",
+    },
+    ...commandReferenceCatalog.sections.map((section) => ({
+      kind: "heading",
+      key: `heading:${section.id}`,
+      id: section.id,
+      title: section.title,
+    })),
+    ...commandReferenceCatalog.sections.flatMap((section) =>
+      section.entries.map((entry) => ({
+        kind: "entry",
+        key: `entry:${entry.id}`,
+        entry,
+        promoted: false,
+      })),
+    ),
+  ].filter(({ key }) => !visibleKeys.has(key));
+  return [...visible, ...hidden.map((item) => ({ ...item, hidden: true }))];
+};
+
+function commandReferenceItemTemplate(item) {
+  if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
+  return html`<tbody
+    role="rowgroup"
+    aria-labelledby=${
+      item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId
+    }
+    class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
+    ?hidden=${item.hidden}
+  >
+    ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
+  </tbody>`;
 }
 
 function commandReferenceTemplate() {
   const selected = commandReferenceView.visibleCommands.find(
     ({ entry }) => entry.id === commandReferenceView.selectedCommandId,
   );
+  const items = commandReferenceItems();
   return html`
     <div class="lf-command-reference-head">
       <div class="lf-command-reference-title">Command reference</div>
@@ -580,26 +664,13 @@ function commandReferenceTemplate() {
       role="grid"
       aria-label="Command reference"
     >
-      <section
-        class="lf-command-reference-section lf-command-reference-binding-matches"
-        role="rowgroup"
-        aria-labelledby="lf-command-reference-binding-matches"
-        ?hidden=${commandReferenceView.bindingMatches.length === 0}
-      >
-        ${headingRow("lf-command-reference-binding-matches", "Binding matches")}
-        <table role="presentation">
-          ${repeat(
-            commandReferenceView.bindingMatches,
-            (entry) => entry.id,
-            (entry) => commandEntryTemplate(entry, true),
-          )}
-        </table>
-      </section>
-      ${repeat(
-        commandReferenceView.sections,
-        (section) => section.id,
-        commandSectionTemplate,
-      )}
+      <table role="presentation">
+        <colgroup>
+          <col class="lf-command-reference-key-column" />
+          <col />
+        </colgroup>
+        ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
+      </table>
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
         <div class="lf-command-reference-empty" role="gridcell">
           No matching commands

@@ -1,6 +1,8 @@
 /* This module owns how a binding is drawn: the steps a row's sequence or label breaks
  * into, which leading steps match presses the active interaction has accepted, and the
- * key-sequence element every surface renders them as. */
+ * immutable key-sequence reading every keyboard surface renders through one Lit template. */
+import { html, nothing, repeat } from "../../vendor/browser-runtime.js";
+
 import { labelOf, spell, word } from "./bindings.js";
 
 const STATES = new Set(["neutral", "pressed"]);
@@ -32,29 +34,42 @@ export const progressStates = (steps, pressed) => {
   });
 };
 
-export function keySequence(steps, states = neutralStates(steps), spokenSteps = steps) {
+export function keySequenceModel(
+  steps,
+  states = neutralStates(steps),
+  spokenSteps = steps,
+) {
   if (
     !steps.length ||
     states.length !== steps.length ||
     spokenSteps.length !== steps.length
   )
     throw new Error("leaf: a key sequence needs one state and spoken label per step");
-
-  const sequence = document.createElement("span");
-  sequence.className = "lf-binding-sequence";
-  sequence.setAttribute("role", "group");
-  sequence.setAttribute(
-    "aria-label",
-    spokenSteps.map((step) => step.replaceAll(" / ", " or ")).join(" then "),
-  );
-  steps.forEach((step, i) => {
-    const state = states[i];
+  const reading = steps.map((text, index) => {
+    const state = states[index];
+    const spoken = spokenSteps[index];
     if (!STATES.has(state)) throw new Error(`leaf: unknown key state ${String(state)}`);
-    const key = document.createElement("kbd");
-    key.dataset.lfSequenceStepState = state;
-    key.setAttribute("aria-hidden", "true");
-    key.textContent = step;
-    sequence.append(key);
+    return Object.freeze({ text, spoken, state });
   });
-  return sequence;
+  return Object.freeze({
+    label: reading.map(({ spoken }) => spoken.replaceAll(" / ", " or ")).join(" then "),
+    steps: Object.freeze(reading),
+  });
+}
+
+export function keySequenceTemplate(model, { id = null, label = false } = {}) {
+  return html`<span
+    id=${id ?? nothing}
+    class=${`lf-binding-sequence${label ? " lf-key-label" : ""}`}
+    role="group"
+    aria-label=${model.label}
+    >${repeat(
+      model.steps,
+      (_step, index) => index,
+      (step) =>
+        html`<kbd data-lf-sequence-step-state=${step.state} aria-hidden="true"
+          >${step.text}</kbd
+        >`,
+    )}</span
+  >`;
 }

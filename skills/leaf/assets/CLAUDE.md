@@ -112,7 +112,9 @@ by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry, addressable-element comment entry,
 and page-click routing;
-`runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text search;
+`runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text
+search, including their synchronous keyed Lit overlay and the mechanical geometry applied
+to its retained hint and match nodes;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
 `runtime/composing/drawing.js` owns one-stroke pointer capture and drawing commands;
 `composing/drawing-record.js` owns drawing payload shape and validation; `composing/drawing-paint.js` owns their

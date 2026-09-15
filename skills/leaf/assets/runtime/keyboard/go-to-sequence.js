@@ -66,7 +66,12 @@
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
-import { keySequence, progressStates } from "./presentation.js";
+import {
+  keySequenceModel,
+  keySequenceTemplate,
+  progressStates,
+} from "./presentation.js";
+import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
@@ -450,22 +455,47 @@ export function createGoToSequence({
   const sequencePrefix = () => [labelOf(OPEN_GO_TO)].filter(Boolean);
   const sequenceKeys = () =>
     [...sequencePrefix(), targetFilter?.key, ...prefix].filter(Boolean);
-  const goToHint = (candidate) => {
+  const hintRenderKeys = new WeakMap();
+  let nextHintRenderKey = 1;
+  // Lit sees only an opaque primitive. The native row or target remains controller state,
+  // while an unchanged owner retains its hint and keycaps across paint-only updates.
+  const hintRenderKey = (owner) => {
+    if (!hintRenderKeys.has(owner)) hintRenderKeys.set(owner, nextHintRenderKey++);
+    return hintRenderKeys.get(owner);
+  };
+  const goToHintModel = (candidate, current) => {
     const steps = [...candidate.code];
-    const chip = el("span", "lf-key-badge lf-key-hint lf-go-to-hint");
-    chip.dataset.lfHintCode = candidate.code;
-    chip.dataset.lfGoToKind = candidate.kind;
     const marginEntryKey = candidate.member.dataset?.lfMarginEntryKey;
-    if (marginEntryKey) chip.dataset.lfGoToMarginEntry = marginEntryKey;
     const targetId =
       closestAcross(candidate.member, "[data-lf-margin-for]")?.dataset.lfMarginFor ||
       candidate.member.id ||
       candidate.member.dataset.lfMarginFor ||
       candidate.member.getAttribute("aria-controls");
-    if (targetId) chip.dataset.lfGoToTarget = targetId;
-    chip.append(keySequence(steps, progressStates(steps, [...prefix])));
-    return chip;
+    return Object.freeze({
+      key: hintRenderKey(candidate.member),
+      className: `lf-key-badge lf-key-hint lf-go-to-hint${current ? " lf-current" : ""}`,
+      hintCode: candidate.code,
+      kind: candidate.kind,
+      marginEntryKey: marginEntryKey || null,
+      targetId: targetId || null,
+      commandId: null,
+      address: null,
+      sequence: keySequenceModel(steps, progressStates(steps, [...prefix])),
+    });
   };
+
+  const goToHintTemplate = (model) => html`
+    <span
+      class=${model.className}
+      data-lf-hint-code=${model.hintCode ?? nothing}
+      data-lf-go-to-kind=${model.kind ?? nothing}
+      data-lf-go-to-margin-entry=${model.marginEntryKey ?? nothing}
+      data-lf-go-to-target=${model.targetId ?? nothing}
+      data-lf-go-to-command=${model.commandId ?? nothing}
+      data-lf-go-to-address=${model.address ?? nothing}
+      >${keySequenceTemplate(model.sequence)}</span
+    >
+  `;
 
   // Named destinations in the banner use the same detached chip and key sequence as page
   // targets. The shared placement pass centers the hint in the open space below and keeps
@@ -485,19 +515,43 @@ export function createGoToSequence({
     const box = control.getBoundingClientRect();
     if (!box.width || !box.height) return null;
     const steps = [...sequencePrefix(), labelOf(row)].filter(Boolean);
-    const chip = el("span", "lf-key-badge lf-key-hint lf-go-to-hint");
-    chip.dataset.lfGoToCommand = row.id;
-    chip.dataset.lfGoToAddress = steps.join(" ");
-    chip.append(keySequence(steps, progressStates(steps, sequenceKeys())));
-    chip.style.left = `${box.left}px`;
-    chip.style.top = `${box.top}px`;
-    return { chip, target: box, belowTarget: true };
+    const model = Object.freeze({
+      key: hintRenderKey(row),
+      className: "lf-key-badge lf-key-hint lf-go-to-hint",
+      hintCode: null,
+      kind: null,
+      marginEntryKey: null,
+      targetId: null,
+      commandId: row.id,
+      address: steps.join(" "),
+      sequence: keySequenceModel(steps, progressStates(steps, sequenceKeys())),
+    });
+    return { model, target: box, belowTarget: true, left: box.left, top: box.top };
   };
   const directDestinationHints = () =>
     GO_TO_SCOPE.rows.map(directDestinationHint).filter(Boolean);
-  const placeGoToHints = (controlPlaced, chips = []) => {
-    goToHintLayer.replaceChildren(...controlPlaced.map(({ chip }) => chip), ...chips);
-    return spreadHints(controlPlaced);
+  const renderGoToHints = (controlPlans, targetPlans = []) => {
+    const plans = [...controlPlans, ...targetPlans];
+    render(
+      html`${repeat(
+        plans,
+        ({ model }) => model.key,
+        ({ model }) => goToHintTemplate(model),
+      )}`,
+      goToHintLayer,
+    );
+    const chips = [...goToHintLayer.children];
+    const placed = plans.map((plan, index) => {
+      const chip = chips[index];
+      chip.style.left = `${plan.left}px`;
+      chip.style.top = `${plan.top}px`;
+      return { chip, target: plan.target, belowTarget: plan.belowTarget };
+    });
+    const controls = placed.slice(0, controlPlans.length);
+    return {
+      controlBoxes: spreadHints(controls),
+      targets: placed.slice(controlPlans.length),
+    };
   };
 
   // The armed window owns every key wherever focus sits. Generated candidates stay stable
@@ -617,10 +671,11 @@ export function createGoToSequence({
 
   // The layer is chrome rather than authored markup: a generated label over an inline link
   // must not become a span the passage walk then has to understand. Candidates are measured
-  // together, attached once, and then spread without dropping any opaque route.
+  // together, synchronously rendered through retained Lit nodes, and then spread without
+  // dropping any opaque route.
   function paintGoToHints() {
     if (!goToActive) {
-      goToHintLayer.replaceChildren();
+      render(nothing, goToHintLayer);
       return;
     }
     const controlPlaced = directDestinationHints();
@@ -628,7 +683,7 @@ export function createGoToSequence({
     // map until the scene settles, then regenerate it once. Fixed banner destinations stay
     // put, so their overlays remain visible throughout the scroll.
     if (scrolling) {
-      placeGoToHints(controlPlaced);
+      renderGoToHints(controlPlaced);
       return;
     }
     const wasActive = hintActive >= 0;
@@ -654,8 +709,7 @@ export function createGoToSequence({
       Boolean(targetFilter) && emptyBeforeRefresh !== (candidates.length === 0);
     const activeCandidate = hinted()[hintActive];
     const placement = keyBadgePlacement();
-    const chips = [];
-    const placed = [];
+    const plans = [];
     const drawn = new Set();
     for (const candidate of hinted()) {
       const r = placement.visibleBox(candidate.member);
@@ -665,17 +719,18 @@ export function createGoToSequence({
         !exposed(candidate.member, r, candidate.exposure)
       )
         continue;
-      const chip = goToHint(candidate);
-      if (activeCandidate === candidate) chip.classList.add("lf-current");
-      chip.style.left = `${r.left}px`;
-      chip.style.top = `${r.top}px`;
-      chips.push(chip);
-      placed.push({ chip, target: r });
+      plans.push({
+        model: goToHintModel(candidate, activeCandidate === candidate),
+        target: r,
+        belowTarget: false,
+        left: r.left,
+        top: r.top,
+      });
       drawn.add(candidate);
     }
     if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
-    const controlBoxes = placeGoToHints(controlPlaced, chips);
-    spreadHints(placed, {
+    const { controlBoxes, targets } = renderGoToHints(controlPlaced, plans);
+    spreadHints(targets, {
       barriers: [...controlBoxes, ...standingStatusBoxes()],
       lineBox: shortcutBarEl.getBoundingClientRect(),
       viewportTop: banner.getBoundingClientRect().bottom,

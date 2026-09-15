@@ -93,6 +93,13 @@ def draft_control(page, key, draft_id):
     )
 
 
+def command_reference_rows(page, heading):
+    heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
+        "id"
+    )
+    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
+
+
 READING_REGIONS_PAGE = leaf_page(
     "reading region navigation",
     """
@@ -3372,9 +3379,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    goto = page.locator(
-        ".lf-command-reference-section", has=page.get_by_role("heading", name="Go to")
-    )
+    goto = command_reference_rows(page, "Go to")
     filters = goto.locator('tr[data-lf-command^="navigation.target.filter."]')
     assert filters.evaluate_all(
         """rows => rows.map(row => ({
@@ -3800,9 +3805,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # live continuation reaches dispatch and help but not the visible sequence menu.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    goto = page.locator(
-        ".lf-command-reference-section", has=page.get_by_role("heading", name="Go to")
-    )
+    goto = command_reference_rows(page, "Go to")
     reference_commands = set(
         goto.locator("tr[data-lf-command]").evaluate_all(
             "rows => rows.map(row => row.dataset.lfCommand)"
@@ -4050,12 +4053,12 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    asks_help = page.locator(".lf-command-reference-section").filter(
-        has=page.get_by_role("heading", name="In the Asks tray", exact=True)
-    )
+    asks_help = command_reference_rows(page, "In the Asks tray")
     expect(asks_help.get_by_text("Previous ask", exact=True)).to_have_count(1)
     expect(asks_help.get_by_text("Next ask", exact=True)).to_have_count(1)
-    expect(asks_help).not_to_contain_text(re.compile(r"decision", re.IGNORECASE))
+    expect(asks_help.get_by_text(re.compile(r"decision", re.IGNORECASE))).to_have_count(
+        0
+    )
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
@@ -5056,6 +5059,8 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
             '.lf-command-reference-results');
           window.__resolutionCommandKeys = document.querySelector(
             '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence');
+          window.__resolutionCommandFirstKey = window.__resolutionCommandKeys.querySelector(
+            'kbd');
         }"""
     )
 
@@ -5081,7 +5086,9 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
           window.__commandReferenceResults === document.querySelector(
             '.lf-command-reference-results') &&
           window.__resolutionCommandKeys === document.querySelector(
-            '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence')"""
+            '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence') &&
+          window.__resolutionCommandFirstKey === document.querySelector(
+            '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence kbd')"""
     )
 
     search.fill("no command has these words")
@@ -5092,7 +5099,9 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
     assert page.evaluate(
         """() =>
           window.__resolutionCommandKeys === document.querySelector(
-            '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence')"""
+            '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence') &&
+          window.__resolutionCommandFirstKey === document.querySelector(
+            '[data-lf-command="thread.resolution.toggle"] .lf-binding-sequence kbd')"""
     )
 
 
@@ -5458,6 +5467,17 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     assert len(branched) == 7 and len({code[0] for code in branched}) == 1
 
     prefix = branched[0][0]
+    continuing_hint = page.locator(
+        f'{CHIPS}[data-lf-hint-code="{branched[0]}"] .lf-binding-sequence'
+    )
+    sequence_size = continuing_hint.evaluate(
+        """sequence => {
+          window.__lfContinuingHint = sequence;
+          window.__lfContinuingKey = sequence.querySelector('kbd');
+          const box = sequence.getBoundingClientRect();
+          return {width: box.width, height: box.height};
+        }"""
+    )
     page.keyboard.press(prefix)
     assert address_codes(page) == branched, {
         "codes": address_codes(page),
@@ -5485,6 +5505,18 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     continued_hint = page.locator(
         f'{CHIPS}[data-lf-hint-code="{branched[0]}"] .lf-binding-sequence'
     )
+    assert continued_hint.evaluate(
+        """sequence =>
+          sequence === window.__lfContinuingHint &&
+          sequence.querySelector('kbd') === window.__lfContinuingKey"""
+    ), "progress repaint replaced an unchanged hint or its first keycap"
+    continued_size = continued_hint.evaluate(
+        """sequence => {
+          const box = sequence.getBoundingClientRect();
+          return {width: box.width, height: box.height};
+        }"""
+    )
+    assert continued_size == pytest.approx(sequence_size, abs=0.1)
     assert continued_hint.locator("kbd").evaluate_all(
         "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
     ) == [[prefix, "pressed"], [branched[0][1], "neutral"]]
@@ -5993,10 +6025,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     expect(help_el).to_be_visible()
-    returning = help_el.locator(
-        "section",
-        has=page.get_by_role("heading", name="After entering a surface", exact=True),
-    )
+    returning = command_reference_rows(page, "After entering a surface")
     expect(returning.locator('[data-lf-command="navigation.return"]')).to_contain_text(
         "Return from Threads panel"
     )
@@ -7457,20 +7486,19 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(help_el).not_to_contain_text("With more keyboard shortcuts")
 
     search.fill("Close the target chooser")
-    expect(help_el.locator("tr:not([hidden])")).to_have_count(1)
-    expect(help_el.locator("tr:not([hidden])").first).to_contain_text(
-        "Close the target chooser"
-    )
+    visible_commands = help_el.locator("tr[data-lf-command]:not([hidden])")
+    expect(visible_commands).to_have_count(1)
+    expect(visible_commands.first).to_contain_text("Close the target chooser")
 
     search.fill("thread panel")
     expect(
         help_el.get_by_role("heading", name="In the thread panel", exact=True)
     ).to_be_visible()
-    expect(help_el.locator("tr:not([hidden])")).not_to_have_count(0)
+    expect(visible_commands).not_to_have_count(0)
 
     search.fill("no such shortcut")
     expect(help_el.locator(".lf-command-reference-empty")).to_be_visible()
-    expect(help_el.locator("tr:not([hidden])")).to_have_count(0)
+    expect(visible_commands).to_have_count(0)
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
     expect(line).to_have_attribute("data-lf-shelf-open", "true")
@@ -7847,6 +7875,23 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
     expect(page.locator(".lf-shortcut-more")).to_be_focused()
     page.evaluate(RENDERED)
     expect(page.locator(".lf-shortcut-more")).to_be_focused()
+    page.evaluate(
+        """() => {
+          const line = document.querySelector('.lf-shortcut-bar');
+          window.__lfRetainedShortcut = line.querySelector('.lf-shortcut:not([hidden])');
+          window.__lfRetainedShortcutKey = window.__lfRetainedShortcut.querySelector('kbd');
+          dispatchEvent(new Event('resize'));
+        }"""
+    )
+    page.evaluate(RENDERED)
+    assert page.evaluate(
+        """() => {
+          const line = document.querySelector('.lf-shortcut-bar');
+          const shortcut = line.querySelector('.lf-shortcut:not([hidden])');
+          return shortcut === window.__lfRetainedShortcut &&
+            shortcut.querySelector('kbd') === window.__lfRetainedShortcutKey;
+        }"""
+    ), "an unchanged shortcut repaint replaced its chip or first keycap"
 
 
 def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser, serve):
@@ -8637,9 +8682,7 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text("On a focused thread")
-    focused_section = page.locator(".lf-command-reference-section").filter(
-        has=page.get_by_role("heading", name="On a focused thread", exact=True)
-    )
+    focused_section = command_reference_rows(page, "On a focused thread")
     expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(1)
     page.keyboard.press("Escape")
 

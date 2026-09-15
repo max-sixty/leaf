@@ -1644,16 +1644,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-command-reference-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
   .lf-command-reference-meta { min-height: 1.2em; margin-top: 6px; color: var(--muted);
     font-size: var(--t-6); }
-  .lf-command-reference-results { min-height: 0; overflow-y: auto; }
+  .lf-command-reference-results { --lf-command-key-column: 104px;
+    min-height: 0; overflow-y: auto; }
   .lf-command-reference-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
   .lf-command-reference h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;
     text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-  .lf-command-reference table { display: table; width: 100%; table-layout: auto;
+  .lf-command-reference table { display: table; width: 100%; table-layout: fixed;
     border-collapse: collapse; }
+  .lf-command-reference-key-column { width: var(--lf-command-key-column); }
+  .lf-command-reference th { padding: 0; text-align: left; }
   .lf-command-reference td { padding: 3px 0; vertical-align: top; }
   .lf-command-reference tr.lf-sequence-command td { padding-top: 8px;
     border-top: 1px solid var(--rule); }
-  .lf-command-reference td:first-child { width: 104px; padding-right: 8px; white-space: nowrap; }
+  .lf-command-reference td:first-child { padding-right: 8px; white-space: nowrap; }
+  .lf-command-reference .lf-binding-sequence > kbd { max-width: calc(var(--lf-command-key-column) - 8px);
+    height: auto; min-height: var(--lf-key-badge-size); padding-block: 1px;
+    line-height: 1.3; white-space: normal; }
   .lf-command-reference-binding-matches .lf-command-reference-action {
     display: flex; align-items: baseline;
     justify-content: space-between; gap: 8px; }
@@ -1664,12 +1670,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-command-reference-binding-matches .lf-command-reference-command { width: 100%; }
     .lf-command-reference-binding-matches .lf-command-reference-scope {
       display: block; margin-top: 1px; }
-  }
-  @media (max-width: 360px) {
-    .lf-command-reference .lf-key-label > kbd {
-      width: max-content; max-width: 132px; height: auto;
-      min-height: var(--lf-key-badge-size); padding-block: 1px; line-height: 1.3;
-      white-space: normal; }
   }
   .lf-command-reference-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
     border: 0; border-radius: 4px; background: transparent; color: inherit;
@@ -1901,6 +1901,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-shortcut-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
     pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
     border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
+  .lf-shortcut-more[hidden] { display: none; }
   .lf-shortcut-more:hover { color: var(--ink-2); }
   /* Inside, because the line clips: the button pulls itself out of the row by 3px so
      its own padding does not grow the line, and a ring drawn a further pixel out lands

@@ -1,8 +1,10 @@
-/* This module owns the target chooser and whole-page text search. */
+/* This module owns the target chooser and whole-page text search. Its transient hints
+ * and search marks are one synchronously keyed Lit layer over native controller state. */
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { bindings } from "../keyboard/bindings.js";
 import { el, LAYOUT } from "../widget-elements.js";
+import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
   blockAt,
@@ -18,7 +20,11 @@ import { shownParts, shownRect } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "../keyboard/hints.js";
-import { keySequence, progressStates } from "../keyboard/presentation.js";
+import {
+  keySequenceModel,
+  keySequenceTemplate,
+  progressStates,
+} from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
 import { beginWalk, listWalkPosition, walkPosition } from "../walk-position.js";
 
@@ -100,6 +106,17 @@ export function createTargetChooser({
   let repeatedSearch = null;
   const matchNodeIds = new WeakMap();
   let nextMatchNodeId = 1;
+  const hintRenderKeys = new WeakMap();
+  let nextHintRenderKey = 1;
+
+  // Target elements and text coordinates stay outside the immutable readings. Lit receives
+  // only opaque primitive identities, retaining unchanged hint and keycap nodes on repaint.
+  const hintRenderKey = (element) => {
+    if (!hintRenderKeys.has(element)) hintRenderKeys.set(element, nextHintRenderKey++);
+    return hintRenderKeys.get(element);
+  };
+
+  const matchRenderKey = (identity, index) => `${identity}\u0000${index}`;
 
   const clips = () => new Map();
   const covered = () => banner.getBoundingClientRect().bottom;
@@ -294,7 +311,7 @@ export function createTargetChooser({
       }
     } else if (!on) {
       candidates = [];
-      targetChooserHintLayer.replaceChildren();
+      render(nothing, targetChooserHintLayer);
       opener = null;
     } else {
       candidates = [];
@@ -570,19 +587,44 @@ export function createTargetChooser({
     announce("Target chooser closed.");
   }
 
-  function hintChip(target) {
-    const chip = el("span", "lf-key-badge lf-key-hint lf-target-chooser-hint");
-    chip.dataset.lfHintCode = target.code;
-    if (hinted()[hintActive] === target) chip.classList.add("lf-current");
+  function hintModel(target) {
     const steps = [...target.code];
-    chip.append(keySequence(steps, progressStates(steps, [...prefix])));
-    return chip;
+    return Object.freeze({
+      key: hintRenderKey(target.element),
+      kind: "hint",
+      className: `lf-key-badge lf-key-hint lf-target-chooser-hint${
+        hinted()[hintActive] === target ? " lf-current" : ""
+      }`,
+      hintCode: target.code,
+      sequence: keySequenceModel(steps, progressStates(steps, [...prefix])),
+    });
+  }
+
+  const hintLayerTemplate = (model) =>
+    model.kind === "hint"
+      ? html`<span class=${model.className} data-lf-hint-code=${model.hintCode}
+          >${keySequenceTemplate(model.sequence)}</span
+        >`
+      : html`<span class="lf-page-search-match"></span>`;
+
+  function renderHintLayer(plans) {
+    render(
+      html`${repeat(
+        plans,
+        ({ model }) => model.key,
+        ({ model }) => hintLayerTemplate(model),
+      )}`,
+      targetChooserHintLayer,
+    );
+    return plans.map((plan, index) => ({
+      ...plan,
+      node: targetChooserHintLayer.children[index],
+    }));
   }
 
   function paintTargetChooserHints() {
     if (!chooserOpen) {
-      if (targetChooserHintLayer.childElementCount)
-        targetChooserHintLayer.replaceChildren();
+      render(nothing, targetChooserHintLayer);
       return;
     }
     const wasActive = hintActive >= 0;
@@ -598,7 +640,7 @@ export function createTargetChooser({
         : -1;
       hintActive = still;
     }
-    const drawn = [];
+    const plans = [];
     const hints = [];
     const drawnTargets = new Set();
     if (!pageSearchOpen) {
@@ -610,33 +652,58 @@ export function createTargetChooser({
           ? target.rect
           : visibleRect(shownRect(target.element, cache));
         if (!exposed(rect)) continue;
-        const chip = hintChip(target);
-        chip.style.left = `${Math.max(10, rect.left + target.nesting * HINT_INDENT)}px`;
-        chip.style.top = `${Math.max(covered(), rect.top)}px`;
-        if (rect.clippedTop || rect.top < covered()) chip.classList.add("lf-in");
-        drawn.push(chip);
-        hints.push({ chip, target: rect });
+        const model = hintModel(target);
+        plans.push({
+          model: Object.freeze({
+            ...model,
+            className: `${model.className}${
+              rect.clippedTop || rect.top < covered() ? " lf-in" : ""
+            }`,
+          }),
+          left: Math.max(10, rect.left + target.nesting * HINT_INDENT),
+          top: Math.max(covered(), rect.top),
+          rect,
+        });
         drawnTargets.add(target);
       }
     } else if (matches[active] && matchIsRangeable(matches[active])) {
       const owner = matchOwner(matches[active]);
       const clip = owner ? shownRect(owner, clips()) : null;
       if (clip)
-        for (const box of rangeOf(matches[active]).getClientRects()) {
+        for (const [index, box] of [
+          ...rangeOf(matches[active]).getClientRects(),
+        ].entries()) {
           const rect = clippedRect(box, clip);
           if (!exposed(rect)) continue;
-          const mark = el("span", "lf-page-search-match");
-          mark.style.left = `${rect.left}px`;
-          mark.style.top = `${rect.top}px`;
-          mark.style.width = `${rect.width}px`;
-          mark.style.height = `${rect.height}px`;
-          drawn.push(mark);
+          plans.push({
+            model: Object.freeze({
+              key: matchRenderKey(
+                matchIdentity(pageSearchInput.value.trim(), matches[active]),
+                index,
+              ),
+              kind: "match",
+            }),
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+          });
         }
     }
     if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
     // The shortcut bar was painted before geometry retired the browsed hint.
     if (wasActive && hintActive < 0) repaint();
-    targetChooserHintLayer.replaceChildren(...drawn);
+    const rendered = renderHintLayer(plans);
+    for (const plan of rendered) {
+      plan.node.style.left = `${plan.left}px`;
+      plan.node.style.top = `${plan.top}px`;
+      if (plan.model.kind === "hint")
+        hints.push({ chip: plan.node, target: plan.rect });
+      else {
+        plan.node.style.width = `${plan.width}px`;
+        plan.node.style.height = `${plan.height}px`;
+      }
+    }
     if (!pageSearchOpen)
       spreadHints(hints, {
         barriers: standingStatusBoxes(),

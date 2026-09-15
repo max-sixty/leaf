@@ -83,9 +83,10 @@ preview or a queue beside its detail. Both use the same widgets, Asks, comments,
 and revisions; packages supply the vocabulary and guidance for the task.
 
 Use page tabs for project-scale views that belong to one artifact and share one
-history, Threads panel, Ask inventory, and revision sequence. Put an optional shared
-header and then `lf-tabs` directly inside `main`, with no substantive content after the
-tab set. Each `lf-tab` contains an ordinary document view or one `lf-workspace`; views
+history, Threads panel, Ask inventory, and revision sequence. Make `lf-tabs` the last
+substantive child of `main`; the only substantive content before it may be one native
+`header` carrying the shared title and lede. Any other substantive content in `main`,
+before or after the set, leaves it a framed tabbed section. Each `lf-tab` contains an ordinary document view or one `lf-workspace`; views
 in the same set may use either form. The tab strip becomes the page's top navigation,
 and links, comment anchors, Ask travel, search, and reading-position restoration open
 the view containing their destination.

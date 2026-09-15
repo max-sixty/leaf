@@ -345,7 +345,13 @@ def test_root_tab_targets_remain_global_and_export_in_authored_order(
     )
 
     out = tmp_path / "root-tabs-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    # Export from the bounded panel: copy mode must still stack every panel in authored
+    # order after it removes the live page grid.
+    out.write_text(
+        exporting_model.export_page(
+            browser, url + "#workbench-tab", serve.page_dir, "v1.html"
+        )
+    )
     copy = browser.new_page(viewport={"width": 900, "height": 800})
     copy.goto(out.as_uri(), wait_until="load")
     for panel in ("plan-tab", "evidence-tab", "workbench-tab"):

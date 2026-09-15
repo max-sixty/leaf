@@ -234,6 +234,43 @@ html.lf-copy body > main:has(> .lf-workspace-reading[data-lf-workspace-context="
   padding: 72px var(--col-pad) 96px;
   left: 0;
 }
+/* A root tab set can enter copy mode while its active panel holds a bounded workspace.
+ * The live grid then still matches, but a copy reveals every panel in authored order.
+ * Remove that live allocation synchronously instead of depending on its fit observer. */
+html.lf-copy
+  body
+  > main:has(
+    > lf-tabs[data-lf-tabs-context="root"]
+      > lf-tab[data-lf-root-reading]
+      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+  ) {
+  height: auto;
+  display: block;
+}
+html.lf-copy
+  body
+  > main:has(
+    > lf-tabs[data-lf-tabs-context="root"]
+      > lf-tab[data-lf-root-reading]
+      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+  )
+  > lf-tabs[data-lf-tabs-context="root"] {
+  height: auto;
+  display: block;
+}
+html.lf-copy
+  body
+  > main:has(
+    > lf-tabs[data-lf-tabs-context="root"]
+      > lf-tab[data-lf-root-reading]
+      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+  )
+  > lf-tabs[data-lf-tabs-context="root"]
+  > lf-tab {
+  grid-row: auto;
+  grid-column: auto;
+  height: auto;
+}
 @media print {
   :is(.lf-workspace-reading, .lf-pane-reading, .lf-partition-reading),
   :is(.lf-reading-content, .lf-pane-content, .lf-partition-content) {

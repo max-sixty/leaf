@@ -4812,6 +4812,30 @@ def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir)
         '<lf-pane id="outline-region" label="Proposal">',
     ).replace("</main>", "</lf-pane></lf-workspace></main>")
     assert outline_advice(workspace) == []
+    page_tabs = PAGE.replace(
+        "<main>",
+        "<main><header><h1>Project views</h1></header>"
+        '<lf-tabs id="project-views"><lf-tab id="plan-view" label="Plan">',
+    ).replace("</main>", "</lf-tab></lf-tabs></main>")
+    assert outline_advice(page_tabs) == []
+    assert (
+        outline_advice(
+            page_tabs.replace(
+                '<lf-tabs id="project-views">',
+                '<p>Context outside the tabs.</p><lf-tabs id="project-views">',
+            )
+        )
+        != []
+    )
+    assert (
+        outline_advice(
+            page_tabs.replace(
+                '<lf-tabs id="project-views">',
+                'Context outside the tabs.<lf-tabs id="project-views">',
+            )
+        )
+        != []
+    )
     assert (
         outline_advice(
             PAGE.replace(

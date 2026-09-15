@@ -214,6 +214,12 @@ required string enum, and the child admits the container through `x-owners`. `ve
 check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
 package contract without adding their tags or vocabulary to Leaf.
 
+An element that supplies whole-page view navigation declares `x-page-navigation: true`.
+It becomes that composition when it is the final substantive child of `main` and the
+only substantive content before it is one native `header` or nothing. In that placement
+`version check` does not advise adding the page-wide outline that would displace it. The
+element's module and theme own its root and embedded presentations.
+
 A structural element declares `x-reading-role` as `workspace`, `pane`, or `partition` and keeps
 `x-content: markup`. Every role requires `id`; a pane also requires a string `label`, and
 a partition requires `direction` with the complete `columns`/`rows` enum. A workspace has

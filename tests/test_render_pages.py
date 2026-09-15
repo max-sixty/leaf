@@ -1997,10 +1997,7 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
             },
         },
     )
-    live = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(live)
-    live.goto(url, wait_until="load")
-    live.wait_for_function("() => document.body.dataset.lfPresented === '1'")
+    live = open_page(browser, url)
     measured = live.evaluate(
         "() => document.documentElement.style.getPropertyValue('--rail')"
     )

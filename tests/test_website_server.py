@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import pytest
 import verify_site
 from click.testing import CliRunner
-from interact_support import running_http_server
+from interact_support import STATED_TIMEOUT, running_http_server
 from leaf.codex import _queues as codex_queues
 from leaf.codex import accept_codex_delivery
 from leaf.codex import delivery_pointer_prompt as delivery_prompt
@@ -1009,7 +1009,7 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
         calls.append(None)
         if len(calls) == 1:
             prewarm_started.set()
-            fail_prewarm.wait(timeout=2)
+            fail_prewarm.wait(timeout=STATED_TIMEOUT)
             raise RuntimeError("startup failed")
         return process
 
@@ -1029,7 +1029,7 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     )
 
     prewarm = host.prewarm()
-    assert prewarm_started.wait(timeout=2)
+    assert prewarm_started.wait(timeout=STATED_TIMEOUT)
     attached = []
     request = threading.Thread(
         target=lambda: attached.append(host.attach(page_dir, "reader-event"))
@@ -1037,8 +1037,8 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     request.start()
     assert calls == [None]
     fail_prewarm.set()
-    prewarm.join(timeout=2)
-    request.join(timeout=2)
+    prewarm.join(timeout=STATED_TIMEOUT)
+    request.join(timeout=STATED_TIMEOUT)
 
     assert attached == ["hosted-thread"]
     assert calls == [None, None]
@@ -1065,7 +1065,7 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
     def start_thread(*args):
         start_calls.append(None)
         started.set()
-        release.wait(timeout=2)
+        release.wait(timeout=STATED_TIMEOUT)
         accepted.append("hosted-thread")
         return "hosted-thread"
 
@@ -1081,12 +1081,12 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
 
     second = threading.Thread(target=attach_second)
     first.start()
-    assert started.wait(timeout=2)
+    assert started.wait(timeout=STATED_TIMEOUT)
     second.start()
-    assert second_called.wait(timeout=2)
+    assert second_called.wait(timeout=STATED_TIMEOUT)
     release.set()
-    first.join(timeout=2)
-    second.join(timeout=2)
+    first.join(timeout=STATED_TIMEOUT)
+    second.join(timeout=STATED_TIMEOUT)
 
     assert attached == ["hosted-thread", "hosted-thread"]
     assert start_calls == [None]
@@ -1104,11 +1104,11 @@ def test_the_website_host_prewarms_app_server_and_leaf_cli_in_the_background(
 
     def ensure_server():
         app_started.set()
-        release_app.wait(timeout=2)
+        release_app.wait(timeout=STATED_TIMEOUT)
 
     def warm_leaf_cli():
         leaf_started.set()
-        release_leaf.wait(timeout=2)
+        release_leaf.wait(timeout=STATED_TIMEOUT)
         leaf_finished.set()
 
     monkeypatch.setattr(host, "_ensure_server", ensure_server)
@@ -1116,14 +1116,14 @@ def test_the_website_host_prewarms_app_server_and_leaf_cli_in_the_background(
 
     thread = host.prewarm()
 
-    assert app_started.wait(timeout=2)
-    assert leaf_started.wait(timeout=2)
+    assert app_started.wait(timeout=STATED_TIMEOUT)
+    assert leaf_started.wait(timeout=STATED_TIMEOUT)
     assert thread.is_alive()
     release_app.set()
-    thread.join(timeout=2)
+    thread.join(timeout=STATED_TIMEOUT)
     assert not thread.is_alive()
     release_leaf.set()
-    assert leaf_finished.wait(timeout=2)
+    assert leaf_finished.wait(timeout=STATED_TIMEOUT)
 
 
 def test_the_leaf_cli_prewarm_runs_the_installed_command(monkeypatch):
@@ -1542,7 +1542,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         == "hosted-thread"
     )
 
-    assert completed.wait(timeout=2)
+    assert completed.wait(timeout=STATED_TIMEOUT)
     assert finished == [
         (
             page_dir,
@@ -2256,7 +2256,7 @@ def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
             {"pid": process.pid},
         )
         turn_started.set()
-        record_acceptance.wait(timeout=2)
+        record_acceptance.wait(timeout=STATED_TIMEOUT)
         accept_codex_delivery("hosted-thread")
         return "hosted-thread"
 
@@ -2264,7 +2264,7 @@ def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         attached = pool.submit(host.attach, page_dir, comment["id"])
-        assert turn_started.wait(timeout=2)
+        assert turn_started.wait(timeout=STATED_TIMEOUT)
         settled = pool.submit(
             host.fallback_reply,
             page_dir,
@@ -2273,10 +2273,10 @@ def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
             "startup_failed",
         )
 
-        assert fallback_waiting.wait(timeout=2)
+        assert fallback_waiting.wait(timeout=STATED_TIMEOUT)
         record_acceptance.set()
-        assert attached.result(timeout=2) == "hosted-thread"
-        assert settled.result(timeout=2) is None
+        assert attached.result(timeout=STATED_TIMEOUT) == "hosted-thread"
+        assert settled.result(timeout=STATED_TIMEOUT) is None
     assert not any(
         event["kind"] == "reply" and event.get("parent") == comment["id"]
         for event in read_events(page_dir)

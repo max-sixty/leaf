@@ -1046,7 +1046,6 @@ def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
     published = page.evaluate(
         """() => {
           window.__lfStatusSurface.owner.present(Object.freeze({
-            kind: 'unattended',
             tone: '',
             summary: '',
             explanation: 'Published copy Install Leaf',
@@ -1081,7 +1080,6 @@ def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
     ordinary = page.evaluate(
         """() => {
           window.__lfStatusSurface.owner.present(Object.freeze({
-            kind: 'unreachable',
             tone: 'offline',
             summary: 'Server offline',
             explanation: 'Server offline detail',
@@ -1112,7 +1110,6 @@ def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
     published_again = page.evaluate(
         """() => {
           window.__lfStatusSurface.owner.present(Object.freeze({
-            kind: 'unattended',
             tone: '',
             summary: '',
             explanation: 'Published copy Install Leaf',

@@ -157,7 +157,6 @@ const presentStatus = ({ kind, tone, summary, explanation, publication = null })
   }
   bannerStatus.present(
     Object.freeze({
-      kind,
       tone,
       summary,
       explanation,

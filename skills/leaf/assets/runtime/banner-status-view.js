@@ -10,7 +10,6 @@ import { el } from "./widget-elements.js";
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
 const INITIAL = Object.freeze({
-  kind: "connecting",
   tone: "",
   summary: "Connecting…",
   explanation: "Connecting…",
@@ -74,10 +73,7 @@ class BannerStatusView extends HTMLElement {
       // publication row. Returning to it can then claim them afresh rather than
       // trusting a part whose nodes another container has moved.
       render(nothing, this.#button);
-      render(
-        html`${this.#dot}${this.#text}${this.#detail}`,
-        this,
-      );
+      render(html`${this.#dot}${this.#text}${this.#detail}`, this);
       render(
         html`<span class="lf-publication-copy">${model.publication.copy}</span
           ><a class="lf-publication-install" href=${model.publication.installUrl}

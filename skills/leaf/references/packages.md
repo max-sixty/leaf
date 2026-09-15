@@ -333,8 +333,9 @@ element or a function returning the element that currently anchors the action. `
 defaults to that target and may separately name the semantic owner when presentation has
 to move to a surviving ancestor.
 `activate(token, context)` is the sole effect path and receives the projected origin,
-surface, input kind, current entry, and a focus capability only when that origin held
-focus at activation. The returned registration
+surface, input kind, current entry, and a focus capability. That capability moves the
+current surface only when activation owned keyboard standing and otherwise returns
+false. The returned registration
 exposes `entry`, `control`, `contains`, `activate`, `focus`, `update`, and `unregister`;
 `update()` replaces the whole reading and may synchronously lay it out or focus a
 surviving key. Keep text fields, history, and other mechanical editing state in the

@@ -3659,6 +3659,8 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
           let visible = {act: true, backup: true, locked: true, details: true};
           window.lfPrimaryClicks = 0;
           window.lfBackupClicks = 0;
+          window.lfMarginFocusResults = [];
+          window.lfRequestedMarginFocus = null;
           const registration = registerMarginContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
             read: () => ({entries: [
@@ -3673,9 +3675,14 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
                 behavior: 'disclosure', rank: 'reading', visible: visible.details,
                 relation: {kind: 'element', id: 'how-cap', expanded: true}}),
             ]}),
-            activate: token => {
+            activate: (token, {focus}) => {
               if (token === 'act') window.lfPrimaryClicks += 1;
               if (token === 'backup') window.lfBackupClicks += 1;
+              if (window.lfRequestedMarginFocus)
+                window.lfMarginFocusResults.push({
+                  capability: typeof focus,
+                  moved: focus(window.lfRequestedMarginFocus),
+                });
             }
           });
           window.lfMarginEntryFixture = {
@@ -3725,6 +3732,32 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     expect(options.get_by_role("button", name="Locked")).to_be_visible()
     expect(more).to_be_hidden()
     expect(primary).to_be_focused()
+
+    page.evaluate(
+        """() => {
+          document.body.focus({preventScroll: true});
+          window.lfRequestedMarginFocus = 'act';
+          window.lfMarginEntryFixture.registration.activate('act');
+        }"""
+    )
+    expect(primary).to_be_focused()
+    assert page.evaluate("() => window.lfMarginFocusResults.at(-1)") == {
+        "capability": "function",
+        "moved": True,
+    }
+
+    primary.evaluate(
+        """button => {
+          document.body.focus({preventScroll: true});
+          window.lfRequestedMarginFocus = 'act';
+          button.click();
+        }"""
+    )
+    expect(page.locator("body")).to_be_focused()
+    assert page.evaluate("() => window.lfMarginFocusResults.at(-1)") == {
+        "capability": "function",
+        "moved": False,
+    }
 
     page.keyboard.press("Escape")
     expect(more).to_be_hidden()

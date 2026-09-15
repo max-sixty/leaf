@@ -638,13 +638,7 @@ export function createMarginProjection({
       .sort(compareMarginEntryRecords);
   const directControls = (entry) =>
     directControlRecords(entry).map(({ control }) => control);
-  function choosePrimary(entry) {
-    return (
-      directControlRecords(entry).find(({ control }) =>
-        entry.shownControls.has(control),
-      )?.control ?? null
-    );
-  }
+  const choosePrimary = (entry) => directControlRecords(entry)[0]?.control ?? null;
   function syncControlRoles(entry) {
     const primary = choosePrimary(entry);
     for (const control of directControls(entry))
@@ -701,9 +695,7 @@ export function createMarginProjection({
   }
   const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
   const secondaryControls = (entry, primary) =>
-    directControls(entry).filter(
-      (control) => control !== primary && entry.shownControls.has(control),
-    );
+    directControls(entry).filter((control) => control !== primary);
   const afterOffers = (entry, { claimedOnly = false } = {}) =>
     entry.offers
       .filter(
@@ -718,10 +710,7 @@ export function createMarginProjection({
     const generated = secondaryReadings(entry, primary).length;
     const contributed = secondaryControls(entry, primary).length;
     const after = afterOffers(entry, { claimedOnly }).reduce(
-      (count, offered) =>
-        count +
-        controlsOf(offered).filter((control) => entry.shownControls.has(control))
-          .length,
+      (count, offered) => count + controlsOf(offered).length,
       0,
     );
     if (claimedOnly && !entry.offers.some((offered) => offered.reading.claim))
@@ -786,19 +775,16 @@ export function createMarginProjection({
         {
           id: "margin.press",
           keys: PRESS,
-          does: () =>
-            marginEntryRecord(control).behavior === "disclosure"
-              ? "Open or close what the focused margin entry holds"
-              : "Go to what the focused margin entry points at",
-          line: () =>
-            marginEntryRecord(control).behavior === "disclosure"
-              ? "open / close"
-              : "go to it",
+          does: "Open or close what the focused margin entry holds",
+          line: "open / close",
           run: () => control.click(),
         },
       ],
       {
-        when: () => control.matches('[role="button"]:not([aria-disabled="true"])'),
+        when: () => {
+          const record = marginEntryRecord(control);
+          return record.behavior === "disclosure" && !record.disabled;
+        },
       },
     );
     return control;
@@ -1965,10 +1951,9 @@ export function createMarginProjection({
 
   function optionNodes(entry, primary, focusedOffer = null) {
     if (focusedOffer) {
-      const controls = controlsOf(focusedOffer).filter((control) =>
-        entry.shownControls.has(control),
+      return controlsOf(focusedOffer).map((control) =>
+        optionControlNode(control, entry),
       );
-      return controls.map((control) => optionControlNode(control, entry));
     }
     return [
       ...secondaryControls(entry, primary).map((control) =>
@@ -1979,7 +1964,6 @@ export function createMarginProjection({
       ),
       ...afterOffers(entry).flatMap((offered) =>
         controlsOf(offered)
-          .filter((control) => entry.shownControls.has(control))
           .map((control) => ({
             control,
             offered,
@@ -2084,8 +2068,7 @@ export function createMarginProjection({
         host.insertBefore(child, host.children[position] ?? null);
     });
     const secondaries = focusedOffer
-      ? controlsOf(focusedOffer).filter((control) => entry.shownControls.has(control))
-          .length
+      ? controlsOf(focusedOffer).length
       : secondaryCount(entry, primary);
     const hasOptions = focusedOffer ? secondaries > 0 : optionsOffered(entry, primary);
     if (!hasOptions && expandedOptionsKey === entry.key) {
@@ -2254,16 +2237,7 @@ export function createMarginProjection({
     measureMargin(mainRect)?.();
     syncInlineOffers();
     pageInventory = collectEntries().filter((entry) => entry.target);
-    // Read contributor visibility once for the whole render, before folding any
-    // controls. Placement and option counts share this reading; probing again
-    // temporarily unfolds controls and forces style/layout work for every row.
-    const shownControls = new Set(
-      pageInventory.flatMap((entry) =>
-        entry.offers.flatMap((offered) => controlsOf(offered)),
-      ),
-    );
     for (const entry of pageInventory) {
-      entry.shownControls = shownControls;
       const primary = choosePrimary(entry);
       const receipt = workflowReceipt(entry.items);
       if (primary && receipt) {

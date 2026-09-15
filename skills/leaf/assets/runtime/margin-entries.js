@@ -17,7 +17,7 @@ import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
 import { keeps, offer } from "./widget-elements.js";
 import { agentWorkflowStage } from "./updates.js";
-import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
+import { focused, isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 const contributions = new Set();
 const listeners = new Set();
@@ -606,17 +606,19 @@ export function registerMarginContribution({
         current.behavior === "status"
       )
         return false;
-      const retainsFocus = context.origin === document.activeElement;
+      const originOwnsFocus = context.origin == null || context.origin === focused();
+      const focusCurrentSurface =
+        context.focus ??
+        ((key) => {
+          const destination = control(key, context.surface ?? null, true);
+          if (!destination) return false;
+          destination.focus({ preventScroll: true });
+          return true;
+        });
       offered.activate(current.activation, {
         ...context,
         entry: current,
-        focus: retainsFocus
-          ? (context.focus ??
-            ((key) =>
-              control(key, context.surface ?? null, true)?.focus({
-                preventScroll: true,
-              })))
-          : null,
+        focus: originOwnsFocus ? focusCurrentSurface : () => false,
       });
       return true;
     },

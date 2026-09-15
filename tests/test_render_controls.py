@@ -5759,6 +5759,22 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 expected = {expected} if isinstance(expected, str) else set(expected)
                 if selector:
                     target = page.locator(selector).first
+                    # A specimen can stand inside a container that is closed on arrival —
+                    # the corpus holds each example in a tab, and only one panel is open.
+                    # Nothing inside a hidden panel is focusable, so the ring would read
+                    # as undrawn for a control that paints it perfectly well. Ask the
+                    # runtime's own disclosure route, so the surface a specimen needs is
+                    # derived from where it sits rather than from the corpus's tab order —
+                    # which follows the examples directory, and moves when one is added.
+                    target.evaluate(
+                        """async node => {
+                          const elements = await window.__lfRuntimeImport(
+                            '/runtime/widget-elements.js'
+                          );
+                          await elements.reveal(node);
+                        }"""
+                    )
+                    page.evaluate(RENDERED)
                     page.keyboard.press("Tab")
                     target.focus(timeout=5_000)
                     assert target.evaluate("node => node.tabIndex >= 0"), (

@@ -135,8 +135,8 @@ has not reached it yet, so it is generous rather than tight. Two workers share
 one runner's cores with a browser, and a stretch of ordinary work there runs
 many times slower than it does on an unloaded host: a wait sized as a small
 multiple of the unloaded duration reddens `main` on the runs where the other
-worker happens to be driving Chrome. `SERVED_TIMEOUT_MS` is the same patience on
-the browser side."""
+worker happens to be driving Chrome. `SERVED_TIMEOUT_MS` is the browser side's
+counterpart, more generous again for the work a page does."""
 
 
 def wait_for(read, accepts, *, failure: str, timeout: float = STATED_TIMEOUT):

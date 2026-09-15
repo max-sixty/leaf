@@ -72,8 +72,9 @@ import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 import { commandReferenceOpen, openCommandReference } from "./command-reference.js";
 import {
   announce,
-  noticeEl,
+  noticeReading,
   noticeVisible,
+  registerNoticePresentation,
   setNoticeContext,
 } from "../notifications.js";
 import { repaint } from "../repaint.js";
@@ -87,7 +88,7 @@ shortcutBarEl.id = "lf-shortcut-bar";
 export const bottomStatusEl = el("div", "lf-ui lf-bottom-status");
 let activateShortcutMore = null;
 
-const EMPTY_STATUS = Object.freeze({ goTo: null, walk: null });
+const EMPTY_STATUS_CONTEXT = Object.freeze({ goTo: null, walk: null });
 const EMPTY_BAR = Object.freeze({
   items: Object.freeze([]),
   more: Object.freeze({
@@ -116,7 +117,9 @@ const bottomStatusTemplate = (model) => html`
     ?data-lf-boundary=${model.walk?.shown ? model.walk.boundary : false}
     >${model.walk?.text ?? nothing}</span
   >
-  ${noticeEl}
+  <span class=${`lf-ui lf-notice${model.notice.visible ? " show" : ""}`}
+    >${model.notice.message || nothing}</span
+  >
 `;
 
 const shortcutBarTemplate = (model) =>
@@ -155,11 +158,20 @@ const shortcutBarTemplate = (model) =>
         : nothing
     }`;
 
-render(bottomStatusTemplate(EMPTY_STATUS), bottomStatusEl);
+let bottomStatusContext = EMPTY_STATUS_CONTEXT;
+const renderBottomStatus = () => {
+  const model = Object.freeze({
+    ...bottomStatusContext,
+    notice: noticeReading(),
+  });
+  render(bottomStatusTemplate(model), bottomStatusEl);
+};
+renderBottomStatus();
 render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
 const walkPositionEl = bottomStatusEl.querySelector(".lf-walk-position");
 const goToStatusEl = bottomStatusEl.querySelector(".lf-go-to-status");
 const shortcutBarMore = shortcutBarEl.querySelector(".lf-shortcut-more");
+registerNoticePresentation(renderBottomStatus);
 
 const boxesOf = (nodes) =>
   nodes
@@ -330,14 +342,13 @@ export function renderShortcutBar(goToStatus) {
   const shown = complete?.rows ?? short;
   const position = walkPosition();
   const goToReading = goToStatus();
-  setNoticeContext(Boolean(goToReading));
   if (position)
     lastWalkPresentation = Object.freeze({
       kind: position.kind,
       text: position.text,
       boundary: position.boundary,
     });
-  const statusModel = Object.freeze({
+  bottomStatusContext = Object.freeze({
     goTo: goToReading,
     // A retired walk hides but keeps its last wording, matching the native status
     // surface's continuity while transient notice text occupies the same seat.
@@ -345,7 +356,8 @@ export function renderShortcutBar(goToStatus) {
       ? Object.freeze({ ...lastWalkPresentation, shown: Boolean(position) })
       : null,
   });
-  render(bottomStatusTemplate(statusModel), bottomStatusEl);
+  setNoticeContext(Boolean(goToReading));
+  renderBottomStatus();
   // Keep the two contextual hints together at the front of the ordinary line.
   // The shelf and a sequence retain registry order because each is a fuller reading of one
   // scene rather than a ranked shortlist.

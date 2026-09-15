@@ -11,10 +11,6 @@ import { nothing, render } from "../vendor/browser-runtime.js";
 
 import { el } from "./widget-elements.js";
 
-// The notice this module writes; the bottom status line seats it.
-export const noticeEl = el("span", "lf-ui lf-notice");
-render(nothing, noticeEl);
-
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 render(nothing, liveEl);
@@ -29,14 +25,24 @@ let showingBackground = false;
 let waitingBackground = null;
 let readerContext = false;
 let readerHoldTimer = 0;
-let noticeMessage = "";
-let noticeIsVisible = false;
+let noticePresentation = Object.freeze({ message: "", visible: false });
+let invalidateNoticePresentation = null;
 
-export const noticeVisible = () => noticeIsVisible;
+export const noticeReading = () => noticePresentation;
+export const noticeVisible = () => noticePresentation.visible;
 
-const setNoticeVisible = (visible) => {
-  noticeIsVisible = visible;
-  noticeEl.classList.toggle("show", visible);
+// The complete bottom-status renderer registers one synchronous invalidation door. A
+// notice acknowledges a gesture before its caller returns; routing this through the
+// shared frame repaint would turn that same-turn contract into eventual feedback.
+export function registerNoticePresentation(invalidate) {
+  if (invalidateNoticePresentation)
+    throw new Error("The notice presentation already has an owner");
+  invalidateNoticePresentation = invalidate;
+}
+
+const presentNotice = (message, visible) => {
+  noticePresentation = Object.freeze({ message, visible });
+  invalidateNoticePresentation?.();
 };
 
 export function announce(msg) {
@@ -56,9 +62,7 @@ export function announce(msg) {
 // foot. A sentence that is also a button for four seconds is a target
 // the reader cannot learn.
 function showNotice(msg, background) {
-  noticeMessage = msg;
-  render(msg, noticeEl);
-  setNoticeVisible(true);
+  presentNotice(msg, true);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
@@ -67,7 +71,7 @@ function showNotice(msg, background) {
       waitingBackground = null;
       return showNotice(waiting, true);
     }
-    setNoticeVisible(false);
+    presentNotice(noticePresentation.message, false);
     showingBackground = false;
   }, NOTICE_MS);
 }
@@ -81,12 +85,12 @@ export function notice(msg, { background = false } = {}) {
   announce(msg);
   if (
     background &&
-    (readerContext || readerHoldTimer || (noticeIsVisible && !showingBackground))
+    (readerContext || readerHoldTimer || (noticeVisible() && !showingBackground))
   ) {
     waitingBackground = msg;
     return;
   }
-  if (!background && showingBackground) waitingBackground = noticeMessage;
+  if (!background && showingBackground) waitingBackground = noticePresentation.message;
   showNotice(msg, background);
 }
 
@@ -94,17 +98,17 @@ export function notice(msg, { background = false } = {}) {
 // ordinal rather than a timed notice. Hold arriving news for one boundary interval;
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
 export function holdStatus(ms) {
-  if (noticeIsVisible) {
-    if (showingBackground) waitingBackground = noticeMessage;
+  if (noticeVisible()) {
+    if (showingBackground) waitingBackground = noticePresentation.message;
     clearTimeout(noticeTimer);
     noticeTimer = 0;
-    setNoticeVisible(false);
+    presentNotice(noticePresentation.message, false);
     showingBackground = false;
   }
   clearTimeout(readerHoldTimer);
   readerHoldTimer = setTimeout(() => {
     readerHoldTimer = 0;
-    if (readerContext || noticeIsVisible || !waitingBackground) return;
+    if (readerContext || noticeVisible() || !waitingBackground) return;
     const waiting = waitingBackground;
     waitingBackground = null;
     showNotice(waiting, true);
@@ -116,12 +120,12 @@ export function holdStatus(ms) {
 export function setNoticeContext(active) {
   readerContext = active;
   if (active && showingBackground) {
-    waitingBackground = noticeMessage;
+    waitingBackground = noticePresentation.message;
     clearTimeout(noticeTimer);
     noticeTimer = 0;
-    setNoticeVisible(false);
+    presentNotice(noticePresentation.message, false);
     showingBackground = false;
-  } else if (!active && !readerHoldTimer && waitingBackground && !noticeIsVisible) {
+  } else if (!active && !readerHoldTimer && waitingBackground && !noticeVisible()) {
     const waiting = waitingBackground;
     waitingBackground = null;
     showNotice(waiting, true);

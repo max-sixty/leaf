@@ -154,8 +154,9 @@ subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/keyboard/CLAUDE.md` owns keyboard binding vocabulary, scope resolution, page
 grammar, and the map of keyboard modules;
-`runtime/notifications.js` owns visual and assistive announcements and the notice
-element the bottom status seats;
+`runtime/notifications.js` owns notice scheduling and its immutable visual reading, plus
+the independent assistive announcement channel; `runtime/keyboard/shortcut-bar.js`
+Lit-renders the complete bottom-status surface from that reading;
 `runtime/restore-state.js` owns the browser-state arrangements the arrival gate exercises;
 `runtime/reading-regions.js` owns reading-region identities, effective scrollers,
 allocation and bounded/flow posture transitions;

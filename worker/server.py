@@ -72,6 +72,11 @@ PAGE_RESOURCE = re.compile(
     r"|^/(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$"
 )
 AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+# A healthy App Server stream is quiet between items, so a running turn says nothing
+# for stretches. Past this bound silence is indistinguishable from a subscription that
+# stopped delivering, and `thread/resume` is the reading that separates them: it
+# recovers the authoritative turn, including a terminal status the stream never sent.
+STREAM_SILENCE = 120.0
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_REPLY_PATH = "/_leaf/agent/reply"
 RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
@@ -252,6 +257,23 @@ def next_unaccepted_agent_event(
             ),
             None,
         )
+
+
+def recv_notification(socket, silent_since: float) -> dict | None:
+    """Read one App Server notification, or nothing while the stream is only quiet.
+
+    `socket.recv` raises `TimeoutError` every second a subscription has nothing to
+    say, and a turn that is thinking or running a command says nothing for a while.
+    `TimeoutError` is an `OSError`, so letting one through once the silence outlasts
+    `STREAM_SILENCE` routes a stream that stopped delivering into the same recovery a
+    dropped stream already takes, rather than waiting on it for the container's life.
+    """
+    try:
+        return json.loads(socket.recv(timeout=1))
+    except TimeoutError:
+        if time.monotonic() - silent_since < STREAM_SILENCE:
+            return None
+        raise
 
 
 class WebsiteCodexHost:
@@ -535,7 +557,9 @@ class WebsiteCodexHost:
         last_stream_update = 0.0
         reply_stream = None
         terminal: dict
+        fault: str | None = None
         started = time.monotonic()
+        last_message = started
         first_notification = True
         first_activity = True
         first_model_message = True
@@ -544,18 +568,22 @@ class WebsiteCodexHost:
         start_rejections = 0
         event_fields = agent_event_fields(event_ids)
         pending = list(initial_messages)
-        if turn_id is not None:
-            _set_stream_activity(thread_id, turn_id, "Starting")
-            if reply_target is not None:
-                assert delivery_id is not None
-                reply_stream = AppServerReplyStream(
-                    thread_id,
-                    turn_id,
-                    delivery_id,
-                    reply_target,
-                )
         log_agent("turn_following_started", **event_fields, turnId=turn_id)
+        # Everything this follower does belongs inside the guard below. The turn is
+        # already running in App Server, so an exception raised here is a turn that no
+        # longer has an observer rather than a turn that stopped — and leaving it
+        # uncaught would strand the claim open with no receipt for the container's life.
         try:
+            if turn_id is not None:
+                _set_stream_activity(thread_id, turn_id, "Starting")
+                if reply_target is not None:
+                    assert delivery_id is not None
+                    reply_stream = AppServerReplyStream(
+                        thread_id,
+                        turn_id,
+                        delivery_id,
+                        reply_target,
+                    )
             while True:
                 if (
                     reconcile_once
@@ -570,9 +598,7 @@ class WebsiteCodexHost:
                     buffered = True
                 else:
                     try:
-                        message = json.loads(socket.recv(timeout=1))
-                    except TimeoutError:
-                        continue
+                        message = recv_notification(socket, last_message)
                     except (OSError, WebSocketException) as error:
                         if reply_stream is not None:
                             reply_stream.disconnect()
@@ -581,6 +607,7 @@ class WebsiteCodexHost:
                             try:
                                 socket, thread = self._resume_turn_stream(thread_id)
                                 reconnect_failures = 0
+                                last_message = time.monotonic()
                                 break
                             except (OSError, WebSocketException) as reconnect_error:
                                 reconnect_failures += 1
@@ -735,7 +762,10 @@ class WebsiteCodexHost:
                             terminal = recovered
                             break
                         continue
+                    if message is None:
+                        continue
                     buffered = False
+                last_message = time.monotonic()
                 if awaiting_delivery_start:
                     update = events.read(message)
                     if update is None:
@@ -862,14 +892,18 @@ class WebsiteCodexHost:
                 ):
                     terminal = message["params"]["turn"]
                     break
-        except (OSError, RuntimeError, ValueError, WebSocketException) as error:
-            detail = str(error) or type(error).__name__
+        except Exception as error:  # noqa: BLE001 - the turn's outcome, any fault
+            # A fault this guard now catches no longer reaches the thread's excepthook,
+            # so its type is only on the record if the outcome carries it. Name it in
+            # both the reader-facing detail and the turn's own log line.
+            fault = type(error).__name__
+            detail = f"{fault}: {error}" if str(error) else fault
             if awaiting_delivery_start:
                 log_agent(
                     "turn_delivery_unbound",
                     **event_fields,
                     deliveryId=delivery_id,
-                    error=type(error).__name__,
+                    error=fault,
                 )
             else:
                 _clear_stream_activity(thread_id, turn_id)
@@ -886,6 +920,7 @@ class WebsiteCodexHost:
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
             status=terminal.get("status"),
+            **({"error": fault} if fault is not None else {}),
         )
         with self.lock:
             reply_error = None

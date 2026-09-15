@@ -344,24 +344,40 @@ def test_root_tab_targets_remain_global_and_export_in_authored_order(
         "data-lf-reading-posture", "bounded"
     )
 
-    out = tmp_path / "root-tabs-copy.html"
-    # Export from the bounded panel: copy mode must still stack every panel in authored
-    # order after it removes the live page grid.
-    out.write_text(
-        exporting_model.export_page(
-            browser, url + "#workbench-tab", serve.page_dir, "v1.html"
+    copies = []
+    for entry in ("plan-tab", "workbench-tab"):
+        out = tmp_path / f"root-tabs-copy-{entry}.html"
+        out.write_text(
+            exporting_model.export_page(
+                browser, url + f"#{entry}", serve.page_dir, "v1.html"
+            )
         )
-    )
-    copy = browser.new_page(viewport={"width": 900, "height": 800})
-    copy.goto(out.as_uri(), wait_until="load")
-    for panel in ("plan-tab", "evidence-tab", "workbench-tab"):
-        expect(copy.locator(f"#{panel}")).to_be_visible()
-    positions = copy.locator("#root-tabs > lf-tab").evaluate_all(
-        "panels => panels.map(panel => panel.getBoundingClientRect().top)"
-    )
-    assert positions == sorted(positions) and len(set(positions)) == 3, positions
-    expect(copy.locator(".lf-tabstrip")).to_be_hidden()
-    copy.close()
+        copy = browser.new_page(viewport={"width": 900, "height": 800})
+        copy.goto(out.as_uri(), wait_until="load")
+        for panel in ("plan-tab", "evidence-tab", "workbench-tab"):
+            expect(copy.locator(f"#{panel}")).to_be_visible()
+        positions = copy.locator("#root-tabs > lf-tab").evaluate_all(
+            "panels => panels.map(panel => panel.getBoundingClientRect().top)"
+        )
+        assert positions == sorted(positions) and len(set(positions)) == 3, positions
+        expect(copy.locator(".lf-tabstrip")).to_be_hidden()
+        copies.append(
+            copy.locator("main").evaluate("""main => {
+              const box = main.getBoundingClientRect();
+              const style = getComputedStyle(main);
+              return {width: box.width, marginLeft: style.marginLeft,
+                      marginRight: style.marginRight,
+                      paddingBottom: style.paddingBottom};
+            }""")
+        )
+        copy.close()
+    assert copies[0] == copies[1]
+    assert copies[0] == {
+        "width": 900,
+        "marginLeft": "0px",
+        "marginRight": "0px",
+        "paddingBottom": "96px",
+    }
 
 
 # A root whose furniture answers the width it is given: four fixed badges stand on one

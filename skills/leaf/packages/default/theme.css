@@ -234,9 +234,11 @@ html.lf-copy body > main:has(> .lf-workspace-reading[data-lf-workspace-context="
   padding: 72px var(--col-pad) 96px;
   left: 0;
 }
-/* A root tab set can enter copy mode while its active panel holds a bounded workspace.
- * The live grid then still matches, but a copy reveals every panel in authored order.
- * Remove that live allocation synchronously instead of depending on its fit observer. */
+/* A root tab set copies at the full page width because its panels may mix documents
+ * and workspaces. State that box from root placement alone, so it cannot depend on
+ * which panel was active at export. The second selector outranks the live bounded
+ * layout while that posture marker remains in the baked document. */
+html.lf-copy body > main:has(> lf-tabs[data-lf-tabs-context="root"]),
 html.lf-copy
   body
   > main:has(
@@ -244,7 +246,13 @@ html.lf-copy
       > lf-tab[data-lf-root-reading]
       > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
   ) {
+  box-sizing: border-box;
+  width: 100cqi;
+  max-width: none;
   height: auto;
+  margin: 0;
+  padding: 72px var(--col-pad) 96px;
+  left: 0;
   display: block;
 }
 html.lf-copy

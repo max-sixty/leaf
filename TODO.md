@@ -28,6 +28,44 @@ remain in git history.
   spacing, framing, control hierarchy, and responsive behavior; avoid playful consumer-app
   ornament.
 
+## Architecture simplification
+
+- **#1 — Keep the semantic application root thin.** Let the application publisher own
+  ordering, adoption, and publication while pure Ask, conversation, projection, and widget
+  models retain their own modules. Do not replace DOM authority with one module containing
+  every domain rule.
+
+- **#2 — Replace manual presentation choreography with epoch presenters.** Have each
+  presenter consume one immutable semantic epoch and report completion to the presentation
+  coordinator. Remove hand-maintained renderer ordering and repeated conversation passes.
+
+- **#3 — Make revision activation one explicit transaction.** Bound document fetch,
+  reconciliation, widget capture, semantic adoption, and reader continuity behind one
+  input and result. Give every stateful captured widget a stable identity.
+
+- **#4 — Prove Python and browser semantic parity.** Let the server provide the complete
+  accepted projection and keep the browser fold to explicit pending-event deltas. Run one
+  shared corpus of Ask, conversation, retirement, and rollback cases against both
+  implementations.
+
+- **#5 — Separate the pure margin model from stateful presentation.** Produce the complete
+  cluster and Page Map reading as immutable data, then let retained-control presentation
+  and placement consume it independently.
+
+- **#6 — Separate Codex delivery protocol, durable state, and process supervision.** Keep
+  App Server message interpretation, the queue and receipt ledger, and adapter process and
+  lease management in distinct layers if hosted-agent delivery remains a product priority.
+
+- **#7 — Test model rules without rebuilding whole browser journeys.** Keep browser tests
+  for focus, selection, pointer identity, layout, accessibility, and synchronous
+  presentation. Cover pure folds and cross-runtime parity with compact model fixtures, and
+  express runtime dependency policy in a small declarative layer manifest.
+
+- **#8 — Decentralize keyboard feature knowledge when another change proves the need.** If
+  a feature declaring commands locally must still modify the page keyboard coordinator,
+  have feature owners contribute explicit capabilities at boot and leave the dispatcher
+  generic.
+
 ## General reader continuity
 
 - **#11 — [Let newer navigation win over revision

@@ -1239,7 +1239,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
        disclosure level with a note. Asking which elements have room needs the element's
        own value and a style query answers for its container, so the alternative is a
        second reading of the room rather than a tighter rule. */
-    & [data-lf-space] { clear: right; }
+    & [data-lf-space]:not([data-lf-space="column"]) { clear: right; }
   }
   /* The pull reaches the page's margin through any box between that doesn't clip, which
      is a section, a tab panel, a disclosure. Through one that does — a choose group, a

@@ -462,9 +462,12 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     expect(page.locator(".lf-banner-actions > *").last).to_have_class(
         re.compile(r"\blf-threads-toggle\b")
     )
-    assert page.locator(".lf-signoff").count() == 0
-    # Approval takes the slot beside Threads where a page asks for one, so the absence
-    # above is the whole fact: the row is a control short rather than a control longer.
+    approval = page.locator(".lf-signoff")
+    expect(approval).to_have_count(1)
+    expect(approval).to_be_hidden()
+    # The Lit-faced native island stays connected for its lifetime, but approval takes
+    # the slot beside Threads only where a page asks for one. The visible row is a control
+    # short rather than a control longer.
 
 
 @pytest.mark.parametrize("resident", ["sidebar", "sidenote"])
@@ -650,17 +653,20 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
 
     # Every control a busy row cannot hold is behind the door, in the row's own order, and
     # the row itself still has nothing to scroll. The identities do not matter to the
-    # layout contract; the product controls all carry this same class and can arrive
-    # asynchronously as comments, asks and page news do.
+    # layout contract; register them through the shelf's internal contribution boundary,
+    # just as asynchronous Ask and Page Map owners do.
     page.evaluate(
-        """() => {
-          const actions = document.querySelector('.lf-banner-actions');
-          const last = document.querySelector('.lf-signoff');
-          for (let i = 0; i < 5; i++) {
+        """async () => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          for (let i = 0; i < 7; i++) {
             const button = document.createElement('button');
-            button.className = 'lf-ui lf-btn';
+            button.className = 'lf-ui lf-btn lf-secondary-destination';
             button.textContent = `Secondary destination ${i + 1}`;
-            actions.insertBefore(button, last);
+            shelf.registerBannerControl({
+              key: `test-secondary-${i}`,
+              control: button,
+              rank: shelf.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
+            });
           }
         }"""
     )
@@ -677,10 +683,10 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     # Take the crowd away and the row takes every one of its own back, door and all.
     page.evaluate(
-        """() => {
-          for (const control of document.querySelectorAll('.lf-btn'))
-            if (control.textContent.startsWith('Secondary destination'))
-              control.remove();
+        """async () => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          for (const control of document.querySelectorAll('.lf-secondary-destination'))
+            shelf.showBannerControl(control, false);
         }"""
     )
     resized(page, 1600, 844)
@@ -1213,9 +1219,36 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
         f"the preview chip's reservation is under the wider of its two spellings, so it "
         f"was measured while the chip was folded away: {swap}"
     )
+    # A caller may temporarily unfold retained controls to measure one. Refolding a
+    # wide row must still commit the shelf's normalized partition: permanent overflow
+    # is a policy fact even when geometry would not make the fold loop move anything.
+    page.evaluate(
+        """async () => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          shelf.measureBannerControls(() => {});
+        }"""
+    )
+    expect(page.locator(".lf-banner-menu > .lf-preview")).to_have_count(1)
     page.locator(".lf-banner-more").click()
     expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
+    page.evaluate(
+        """async () => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          window.__lfDeferredBannerMeasurement = null;
+          shelf.measureBannerControls(() => {
+            const chip = document.querySelector('.lf-preview');
+            window.__lfDeferredBannerMeasurement = chip.parentElement.className;
+          });
+        }"""
+    )
+    assert page.evaluate("() => window.__lfDeferredBannerMeasurement") is None
+    expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
     page.keyboard.press("Escape")
+    page.wait_for_function("() => window.__lfDeferredBannerMeasurement !== null")
+    assert page.evaluate("() => window.__lfDeferredBannerMeasurement") == (
+        "lf-banner-actions"
+    )
+    expect(page.locator(".lf-banner-menu > .lf-preview")).to_have_count(1)
     page.close()
 
     # A published page uses the same one-line status and complete hover text.
@@ -1502,6 +1535,82 @@ def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
     expect(page.locator(".lf-banner-more")).to_be_focused()
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
     assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
+    order = page.evaluate(
+        """() => [...document.querySelector('.lf-banner-menu').children,
+                    ...document.querySelector('.lf-banner-actions').children]
+          .map(control => control.matches('.lf-page-map-toggle') ? 'map' :
+                          control.matches('.lf-answer-all') ? 'blanket' : null)
+          .filter(Boolean)"""
+    )
+    assert order == ["map", "blanket"], (
+        f"the shelf changed the established Map-before-blanket order: {order}"
+    )
+
+    page.evaluate(
+        """async () => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          for (let i = 0; i < 3; i++) {
+            const control = document.createElement('button');
+            control.className = `lf-ui lf-btn lf-focus-candidate-${i}`;
+            control.textContent = `Focus candidate ${i + 1}`;
+            control.disabled = i === 1;
+            shelf.registerBannerControl({
+              key: `test-focus-candidate-${i}`,
+              control,
+              rank: shelf.BANNER_CONTROL_RANK.blanket + i + 1,
+              alwaysFolded: true,
+            });
+          }
+        }"""
+    )
+    page.locator(".lf-banner-more").click()
+    retiring = page.locator(".lf-focus-candidate-0")
+    retiring.focus()
+    page.evaluate(
+        """async control => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          shelf.showBannerControl(control, false);
+        }""",
+        retiring.element_handle(),
+    )
+    expect(page.locator(".lf-focus-candidate-2")).to_be_focused()
+
+    # Semantic presence can change while the reader is inside the overflow without
+    # repartitioning the list under them or stranding focus on the retired control.
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    answer_all.focus()
+    page.evaluate(
+        """async button => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          shelf.showNews(button, false);
+        }""",
+        answer_all.element_handle(),
+    )
+    expect(answer_all).to_be_hidden()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    assert answer_all.evaluate(
+        "button => button.parentElement.matches('.lf-banner-menu')"
+    )
+    assert page.evaluate(
+        "() => Boolean(document.activeElement.closest('.lf-banner-menu'))"
+    )
+    page.evaluate(
+        """async () => {
+          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
+          for (const control of document.querySelectorAll('.lf-banner-menu > *'))
+            shelf.showBannerControl(control, false);
+          shelf.measureBannerControls(() => {
+            window.__lfMeasuredEmptyBannerMenu = true;
+          });
+        }"""
+    )
+    page.keyboard.press("Escape")
+    page.wait_for_function("() => window.__lfMeasuredEmptyBannerMenu === true")
+    expect(page.locator(".lf-banner-more")).to_be_hidden()
+    assert page.evaluate(
+        """() => document.activeElement !== document.body &&
+          Boolean(document.activeElement.closest('.lf-banner-actions'))"""
+    ), "closing an emptied overflow lost focus when its door retired"
     page.close()
 
 
@@ -1698,14 +1807,17 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         )
         actions = page.locator(".lf-banner-actions")
         page.evaluate(
-            """() => {
-              const actions = document.querySelector('.lf-banner-actions');
-              const last = document.querySelector('.lf-signoff');
+            """async () => {
+              const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
               for (let i = 0; i < 3; i++) {
                 const button = document.createElement('button');
                 button.className = 'lf-ui lf-btn';
                 button.textContent = `Secondary touch destination ${i + 1}`;
-                actions.insertBefore(button, last);
+                shelf.registerBannerControl({
+                  key: `test-touch-secondary-${i}`,
+                  control: button,
+                  rank: shelf.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
+                });
               }
             }"""
         )

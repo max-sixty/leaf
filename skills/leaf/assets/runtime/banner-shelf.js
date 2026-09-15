@@ -1,84 +1,234 @@
+/* The banner shelf owns the complete generated control run.
+ *
+ * Contributors register one stable native control with an explicit rank and policy.
+ * This synchronous light-DOM Lit owner is then the only code that decides inventory,
+ * order, presence, row-versus-overflow placement, and the overflow door's state. The
+ * native controls are retained islands: their own owners keep commands, words, and
+ * local state while this owner moves the same nodes between its two Lit lists.
+ *
+ * Geometry remains mechanical browser state. The owner measures the live row, moves
+ * whole controls until it fits, freezes that partition while the disclosure is open,
+ * and restores focus after a move. It does not publish application state or join the
+ * application presentation transaction.
+ */
+import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
-// Generated rows that switch views keep the same outer box. Controls may give up ink
-// while retaining their cells. A status item that can appear later reserves its place for
-// the page's life. When a row runs out of room it gives up whole controls before it gives
-// up any control's words, and it gives them up to somewhere a reader can still reach: the
-// banner's row folds the controls it cannot hold into one menu (`foldShelf`) rather than
-// clipping them or scrolling them off its own edge. The status sentence keeps a stable
-// floor stated by --lf-status-floor in chrome.css and ellipsizes beyond it. The cap
-// this fold reads is the row's share of what is left. The row reads in one order at
-// every width, and a folded control keeps its place in that order.
 
-// How many controls stay on the row whatever the width. The last two are the page's
-// reading loop — approval and the conversation — and a reader must never open a menu to
-// find them. Everything before them is a destination, and a destination is what a menu
-// is for.
+// The final two offered controls stay on the row. They are the page's reading loop at
+// the end of the complete run (approval and Threads on sign-off pages; Versions and
+// Threads otherwise), matching the shelf's established narrow-layout contract.
 const KEPT = 2;
+const EMPTY = Object.freeze([]);
+
+export const BANNER_CONTROL_RANK = Object.freeze({
+  session: 10,
+  preview: 20,
+  leaves: 30,
+  latest: 40,
+  asks: 50,
+  map: 60,
+  blanket: 70,
+  versions: 80,
+  approval: 90,
+  threads: 100,
+});
 
 export const bannerActions = el("div", "lf-banner-actions");
-
-// The controls that do not fit, in one menu, behind one press. They are the row's own
-// nodes moved rather than copied, so a folded control keeps its accessible name, its
-// state paint, its title, its press and its own page key: nothing about it changes
-// except where it stands. That is also why there is no second order to keep in step —
-// the menu's contents followed by the row's are the row's one order, read straight
-// through.
-//
-// A disclosure rather than a menu, which is what it is: the same buttons, in the same
-// order, somewhere else. The version chooser next door really is a menu — a walk over
-// rows that are a list to read down — and says so in its roles. Claiming those roles
-// here would mean giving these controls menuitem semantics for as long as the fold
-// holds them and taking them away again when the window widens, which is the same
-// control describing itself two ways.
-export const overflowBtn = el("button", "lf-btn lf-banner-more", "⋯");
-overflowBtn.type = "button";
-overflowBtn.setAttribute("aria-expanded", "false");
-overflowBtn.setAttribute("aria-label", "More page controls");
-overflowBtn.title = "More page controls";
-// The row's first child for the page's whole life, shown only once there is something
-// behind it. Standing there rather than being added and removed is what lets a fold
-// hand the reader the door without the door itself having just left the document.
-overflowBtn.hidden = true;
-bannerActions.append(overflowBtn);
 export const overflowMenu = el("div", "lf-ui lf-banner-menu");
 overflowMenu.setAttribute("popover", "auto");
 overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
-// The press is the popover's declared invoker rather than a click handler reading the
-// state, for the reason the version chooser states: a press on a standing auto
-// popover's invoker is a light dismissal *and* a press, so a handler that asks whether
-// the menu is open opens it straight back. The browser knows the two are one gesture.
+
+const controls = new Map();
+let sequence = 0;
+let row = EMPTY;
+let menu = EMPTY;
+let folding = false;
+let newsFoldQueued = false;
+const pendingMeasurements = new Set();
+
+const ordered = () =>
+  [...controls.values()].sort(
+    (left, right) => left.rank - right.rank || left.sequence - right.sequence,
+  );
+const visible = (entry) => entry.present && (!entry.conditional || entry.offered);
+
+function rowTemplate() {
+  return html`
+    <button
+      class="lf-btn lf-banner-more"
+      type="button"
+      aria-expanded="false"
+      aria-label="More page controls"
+      title="More page controls"
+      hidden
+    >
+      ⋯
+    </button>
+    ${repeat(
+      row,
+      (entry) => entry.key,
+      (entry) => entry.control,
+    )}
+  `;
+}
+
+function menuTemplate() {
+  return html`${repeat(
+    menu,
+    (entry) => entry.key,
+    (entry) => entry.control,
+  )}`;
+}
+
+render(rowTemplate(), bannerActions);
+render(menuTemplate(), overflowMenu);
+
+export const overflowBtn = bannerActions.querySelector(".lf-banner-more");
 overflowBtn.popoverTargetElement = overflowMenu;
 overflowMenu.lfInvoker = overflowBtn;
+
+function paintControl(entry) {
+  entry.control.classList.toggle("lf-news-shown", entry.conditional && entry.offered);
+  // These are paint only. The owner's entry is the value read by layout and door
+  // decisions; neither class nor style is read back as authority.
+  entry.control.style.display =
+    visible(entry) || (entry.reserved && row.includes(entry)) ? "" : "none";
+  entry.control.style.visibility = visible(entry) ? "" : "hidden";
+}
+
+function paintDoor() {
+  const hasMenu = menu.some(visible);
+  const news = menu.some((entry) => entry.urgent && visible(entry));
+  // Keep the native invoker standing until its open popover has closed. A semantic
+  // update can retire the last visible item while the reader is inside the frozen
+  // partition; closing then lets the ordinary fold remove the empty door.
+  overflowBtn.hidden = !hasMenu && !overflowMenu.matches(":popover-open");
+  overflowBtn.toggleAttribute("data-lf-news", news);
+  const name = news ? "More page controls, new" : "More page controls";
+  overflowBtn.setAttribute("aria-label", name);
+  overflowBtn.title = name;
+}
+
+function paint() {
+  render(rowTemplate(), bannerActions);
+  render(menuTemplate(), overflowMenu);
+  for (const entry of controls.values()) paintControl(entry);
+  paintDoor();
+}
+
+const focusable = (entry) =>
+  visible(entry) &&
+  entry.control.tabIndex >= 0 &&
+  !entry.control.matches(":disabled, [aria-disabled='true']") &&
+  !entry.control.closest("[inert]") &&
+  entry.control.checkVisibility();
+const canRetainFocus = (entry) =>
+  visible(entry) &&
+  !entry.control.matches(":disabled") &&
+  !entry.control.closest("[inert]") &&
+  entry.control.checkVisibility();
+
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   overflowBtn.setAttribute("aria-expanded", String(open));
-  // A reader opening the disclosure lands on its first control. Toggle is deferred:
-  // returning through a folded destination can already have moved focus elsewhere.
   if (open && document.activeElement === overflowBtn)
-    folded()
-      .find((control) => control.getClientRects().length)
-      ?.focus();
-  // Whatever the row asked for while the menu stood open is asked again now it has not.
-  if (!open) foldShelf();
+    menu.find(focusable)?.control.focus();
+  if (!open) {
+    const measurements = [...pendingMeasurements];
+    pendingMeasurements.clear();
+    if (measurements.length)
+      measureBannerControls(() => measurements.forEach((run) => run()));
+    else foldShelf();
+  }
   repaint();
 });
 
-// The controls the banner's news arrives as, each present only while it has something
-// to say. What being absent costs differs by where the control stands, so this is one
-// writer stating the whole outcome for both places, per showComposer and showFab.
-//
-// On the row, room a control has once taken is room it keeps for the rest of the page's
-// life. A live root pays nothing for news it may never get. A pinned version is
-// different: falling behind is part of its contract, so it reserves the future chip
-// before publication can move approval or Threads under a reaching pointer.
-//
-// A menu row has no neighbours to hold still for and no width to hold open, so an
-// control with nothing to say is simply not in the menu. That is not a second rule: it
-// is the same rule asked of a place where taking room costs nothing to give back.
-const newsControls = new Set();
-let newsFoldQueued = false;
+function normalizePartition() {
+  const run = ordered();
+  const known = new Set(run);
+  row = row.filter((entry) => known.has(entry) && !entry.alwaysFolded);
+  menu = menu.filter((entry) => known.has(entry));
+  const placed = new Set([...row, ...menu]);
+  for (const entry of run) {
+    if (placed.has(entry)) continue;
+    (entry.alwaysFolded ? menu : row).push(entry);
+  }
+  for (const entry of [...row]) {
+    if (!entry.alwaysFolded) continue;
+    row = row.filter((candidate) => candidate !== entry);
+    menu.push(entry);
+  }
+  row = run.filter((entry) => row.includes(entry));
+  menu = run.filter((entry) => menu.includes(entry));
+}
+
+function replaceEntry(prior, next) {
+  controls.set(next.control, next);
+  row = row.map((entry) => (entry === prior ? next : entry));
+  menu = menu.map((entry) => (entry === prior ? next : entry));
+  normalizePartition();
+}
+
+/** Register one internal banner contribution and synchronously seat its native node. */
+export function registerBannerControl({
+  key,
+  control,
+  rank,
+  alwaysFolded = false,
+  conditional = false,
+  present = true,
+  offered = !conditional,
+  reserved = false,
+  urgent = false,
+}) {
+  if (!key || !(control instanceof Element) || !Number.isFinite(rank))
+    throw new TypeError(
+      "A banner control needs a key, native control, and numeric rank",
+    );
+  const byKey = [...controls.values()].find((entry) => entry.key === key);
+  if (byKey && byKey.control !== control)
+    throw new TypeError(`Banner control key ${key} is already registered`);
+  const prior = controls.get(control);
+  if (prior) return prior.control;
+  controls.set(
+    control,
+    Object.freeze({
+      key,
+      control,
+      rank,
+      sequence: sequence++,
+      alwaysFolded: Boolean(alwaysFolded),
+      conditional: Boolean(conditional),
+      present: Boolean(present),
+      offered: Boolean(offered),
+      reserved: Boolean(reserved),
+      urgent: Boolean(urgent),
+    }),
+  );
+  normalizePartition();
+  paint();
+  if (bannerActions.isConnected) foldShelf();
+  return control;
+}
+
+/** Show or hide one retained contribution without changing its registered identity. */
+export function showBannerControl(control, shown) {
+  let entry = controls.get(control);
+  if (!entry) throw new TypeError("Banner control is not registered");
+  shown = Boolean(shown);
+  if (entry.present === shown) return;
+  const heldFocus = document.activeElement === control;
+  const wasInMenu = menu.includes(entry);
+  const prior = entry;
+  entry = Object.freeze({ ...entry, present: shown });
+  replaceEntry(prior, entry);
+  paint();
+  foldShelf();
+  if (heldFocus && !shown) focusAfterRemoval(entry, wasInMenu);
+}
+
 function queueNewsFold() {
   if (newsFoldQueued) return;
   newsFoldQueued = true;
@@ -87,98 +237,93 @@ function queueNewsFold() {
     foldShelf();
   });
 }
-// The presence those two facts state, read as a value rather than written straight
-// out, so the same rule answers what the control should look like and whether it
-// already looks like that.
-function presence(control) {
-  const speaking = control.classList.contains("lf-news-shown");
-  const holds = control.parentElement === bannerActions && control.dataset.lfReserved;
-  return {
-    display: speaking || holds ? "" : "none",
-    visibility: speaking ? "" : "hidden",
-  };
-}
-function paintPresence(control) {
-  const { display, visibility } = presence(control);
-  control.style.display = display;
-  control.style.visibility = visibility;
-}
-// Whether this reading leaves the row exactly as it found it: the same news, the slot
-// showing it has already reserved, and the presence both of those paint.
-function newsStands(control, on) {
-  if (!newsControls.has(control)) return false;
-  if (control.classList.contains("lf-news-shown") !== on) return false;
-  if (on && !control.dataset.lfReserved) return false;
-  const { display, visibility } = presence(control);
-  return control.style.display === display && control.style.visibility === visibility;
-}
 
 export function showNews(control, on) {
+  let entry = controls.get(control);
+  if (!entry) throw new TypeError("Banner news control is not registered");
   on = Boolean(on);
-  // Most calls are a poll restating the news the row already carries — a page whose
-  // asks are all answered says so on every refresh, once per widget that repaints in
-  // it. Folding on that reading measures the row against a set of controls nothing
-  // moved, and a measurement after a write is a forced layout, so the heartbeat's cost
-  // grew with the page rather than with what changed on it. A reading that moves
-  // nothing therefore stops here; every fact the fold reads is either written below or
-  // watched by the mutation observer that follows this row's children.
-  if (newsStands(control, on)) return;
-  newsControls.add(control);
-  // News can arrive while a deferred activation leaves the reader working in this live
-  // banner, and a control that settles its own decisions goes away while it still owns
-  // focus. Hand the reader to the next standing control rather than dropping them on
-  // body. The row packs against its end, so a control arriving or leaving moves only
-  // what stands before it: a control the reader is holding keeps its coordinate
-  // without anyone spending a scroll to put it back.
-  const focused = bannerActions.contains(document.activeElement)
-    ? document.activeElement
-    : null;
-  const siblings = [...bannerActions.children];
-  const focusedIndex = siblings.indexOf(control);
-  const focusTransfer =
-    focused === control && !on
-      ? [
-          ...siblings.slice(focusedIndex + 1),
-          ...siblings.slice(0, focusedIndex).reverse(),
-        ].find((candidate) => {
-          const style = getComputedStyle(candidate);
-          return (
-            candidate.getClientRects().length &&
-            style.display !== "none" &&
-            style.visibility !== "hidden" &&
-            !candidate.matches(":disabled, [aria-disabled='true']")
-          );
-        })
-      : null;
-  if (on) reserveNewsSlot(control);
-  control.classList.toggle("lf-news-shown", on);
-  paintPresence(control);
-  // One state application can refresh Asks, blanket answers, Requests, and live
-  // leaves in succession. They all change the same row; fold it once after that write
-  // batch, against the final words and presence of every control.
+  if (entry.conditional && entry.offered === on && (!on || entry.reserved)) return;
+  const focused = document.activeElement === control;
+  const wasInMenu = menu.includes(entry);
+  const prior = entry;
+  entry = Object.freeze({
+    ...entry,
+    conditional: true,
+    offered: on,
+    reserved: entry.reserved || on,
+  });
+  replaceEntry(prior, entry);
+  paint();
   queueNewsFold();
-  if (focusTransfer) focusTransfer.focus({ preventScroll: true });
+  if (focused && !on) {
+    focusAfterRemoval(entry, wasInMenu);
+  }
 }
 
 export function reserveNewsSlot(control) {
-  control.dataset.lfReserved = "1";
+  let entry = controls.get(control);
+  if (!entry) throw new TypeError("Banner news control is not registered");
+  if (entry.reserved) return;
+  const prior = entry;
+  entry = Object.freeze({ ...entry, reserved: true });
+  replaceEntry(prior, entry);
+  paint();
 }
 
-const folded = () => [...overflowMenu.children];
-// Every control back on the row, for a caller that needs one to have a box. A control
-// measures its own words in its own live face (`reserve`), and inside a shut popover
-// every word measures zero — so the banner's reservations are taken with the whole run
-// standing, and the fold is asked again once they are.
-export function unfoldShelf() {
-  const back = folded();
-  if (!back.length) return;
-  overflowBtn.after(...back);
-  for (const control of back) if (newsControls.has(control)) paintPresence(control);
-  overflowBtn.hidden = true;
+function focusAfterRemoval(entry, wasInMenu) {
+  const run = wasInMenu ? menu : ordered();
+  const at = Math.max(
+    0,
+    run.findIndex((candidate) => candidate === entry),
+  );
+  const next = [...run.slice(at), ...run.slice(0, at).reverse()].find(focusable);
+  (next?.control ?? overflowBtn).focus({ preventScroll: true });
 }
 
-// An auxiliary surface can close while its banner destination is folded into a popover
-// that light dismissal has just hidden. Restore that destination's own surface before returning focus.
+function heldShelfFocus() {
+  const focused = document.activeElement;
+  return focused === overflowBtn || controls.has(focused) ? focused : null;
+}
+
+function restoreShelfFocus(focused) {
+  if (!focused) return;
+  let target = null;
+  if (focused === overflowBtn) {
+    if (!overflowBtn.hidden && overflowBtn.checkVisibility()) target = overflowBtn;
+  } else {
+    const entry = controls.get(focused);
+    if (entry && canRetainFocus(entry)) target = focused;
+    else if (entry && menu.includes(entry) && !overflowBtn.hidden) target = overflowBtn;
+  }
+  target ??= row.find(focusable)?.control;
+  if (target && document.activeElement !== target)
+    target.focus({ preventScroll: true });
+}
+
+function unfoldShelf() {
+  const run = ordered();
+  row = run;
+  menu = EMPTY;
+  paint();
+}
+
+/** Measure retained controls on the live row without disturbing an open disclosure. */
+export function measureBannerControls(measure) {
+  if (typeof measure !== "function")
+    throw new TypeError("Banner control measurement needs a function");
+  if (overflowMenu.matches(":popover-open")) {
+    pendingMeasurements.add(measure);
+    return;
+  }
+  const focused = heldShelfFocus();
+  unfoldShelf();
+  try {
+    measure();
+  } finally {
+    foldShelfFrom(focused);
+  }
+}
+
 export function focusBannerControl(control) {
   const menu = control.closest("[popover]");
   if (menu && !menu.matches(":popover-open")) menu.showPopover();
@@ -188,131 +333,57 @@ export function focusBannerControl(control) {
 export function dismissBannerControls() {
   if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
 }
-// The controls this row may fold, in the row's own order: everything before the
-// reading loop at its end.
+
 function foldable() {
-  const run = [...bannerActions.children].filter((control) => control !== overflowBtn);
-  return run.slice(0, Math.max(0, run.length - KEPT));
+  const present = row.filter((entry) => visible(entry) || entry.reserved);
+  return present.slice(0, Math.max(0, present.length - KEPT));
 }
 
-// A low-priority diagnostic can belong to this control order without spending the
-// banner's resting row. It is still moved, not copied, and unfoldShelf still seats it
-// temporarily when the banner measures its widest label. The attribute states the
-// control's priority; the shelf remains the one owner of where that priority puts it.
-const alwaysFolded = () =>
-  [...bannerActions.children].filter((control) => control.dataset.lfAlwaysFold);
-
-// What the row keeps and what the menu takes, decided by measuring the row rather than
-// by counting controls or naming a width. The stylesheet caps the row at the room the
-// status sentence's floor leaves; anything past that cap overflows, and overflowing is
-// the whole of the question this asks. So the two facts this rests on are ones the
-// banner already keeps true: everything that rewrites its own words holds room for the
-// widest it may say — the `reserve` calls where the banner is built — and the
-// sentence keeps a fixed floor independent of its current words. A count turning over,
-// or a status ageing from "is working" to "last checked in", therefore moves nothing.
-//
-// It moves the one control whose place has changed and no others. Emptying the menu and
-// refilling it on every layout pass answers the same question, and takes every node out
-// of the document and puts it back to do it — which blurs whatever the reader was
-// standing on, replays every animation those nodes wear, and re-announces anything live
-// inside them. Room is handed back before it is taken, newest fold first, so a window
-// widening returns controls in the order a window narrowing took them.
-//
-// Nothing is refolded while the menu stands open. It is a transient reading of the row,
-// and re-deciding its contents under the hands of a reader walking it is a list that
-// changes while being read; closing it asks again.
-let folding = false;
-export function foldShelf() {
-  if (folding || overflowMenu.matches(":popover-open")) return;
+function foldShelfFrom(focused) {
+  if (folding || overflowMenu.matches(":popover-open") || !bannerActions.isConnected)
+    return;
   folding = true;
   try {
-    refold();
+    refold(focused);
   } finally {
     folding = false;
   }
 }
-// The row is an open layer. A registry-declared blanket answer joins it when the
-// registry lands, and a project's own control can join it later still; neither knows
-// about the fold, and a row that refolded only when the window moved would seat a new
-// control in a row that no longer has room for it. The fold's own moves are what this
-// must not answer, and it does not try to tell one mutation from another: it compares
-// which controls are on the row with which ones the last fold decided about, and a
-// fold moving them between the row and the menu leaves that answer alone.
-let seats = 0;
-const runKey = () =>
-  [...overflowMenu.children, ...bannerActions.children]
-    .map((control) => (control.dataset.lfSeat ||= String(++seats)))
-    .sort()
-    .join(" ");
-let lastRun = null;
-new MutationObserver(() => {
-  if (runKey() !== lastRun) foldShelf();
-}).observe(bannerActions, { childList: true });
-function refold() {
-  const focused =
-    bannerActions.contains(document.activeElement) ||
-    overflowMenu.contains(document.activeElement)
-      ? document.activeElement
-      : null;
-  // The door costs room of its own, so its presence is part of every reading here. It
-  // is hidden rather than taken out: a door removed and put back is a node the reader
-  // can be standing on leaving the document, which is the loss this whole function is
-  // written to avoid.
-  const fits = () => {
-    overflowBtn.hidden = overflowMenu.children.length === 0;
-    return bannerActions.scrollWidth <= bannerActions.clientWidth;
-  };
-  // Permanent overflow keeps the same front-to-back order as the complete control
-  // run. Put it at the menu's front before considering which other controls fit.
-  overflowMenu.prepend(...alwaysFolded());
-  for (let back = overflowMenu.lastElementChild; back;) {
-    if (back.dataset.lfAlwaysFold) break;
-    overflowBtn.after(back);
-    if (newsControls.has(back)) paintPresence(back);
-    if (fits()) {
-      back = overflowMenu.lastElementChild;
-      continue;
-    }
-    overflowMenu.append(back);
-    if (newsControls.has(back)) paintPresence(back);
-    fits();
-    break;
-  }
-  while (!fits()) {
-    const [first] = foldable();
-    // A row whose reading loop alone outgrows it has nothing left to fold. It keeps what
-    // it has and clips, which is the honest end of a row two controls wide in a window
-    // narrower than two controls.
-    if (!first) break;
-    overflowMenu.append(first);
-    if (newsControls.has(first)) paintPresence(first);
-  }
-  paintDoor();
-  lastRun = runKey();
-  if (focused?.isConnected && document.activeElement !== focused)
-    (overflowMenu.contains(focused) ? overflowBtn : focused).focus({
-      preventScroll: true,
-    });
+
+export function foldShelf() {
+  foldShelfFrom(heldShelfFocus());
 }
 
-// News behind the door. A control the fold has taken is one whose arrival the
-// reader cannot see, and the page they are reading having been replaced is exactly the
-// arrival they are owed — so the door says there is something, in ink and in its own
-// name, and the control behind it goes on saying what. State is paint here as it is
-// everywhere else on this row: no metric changes, so nothing beside the door moves for
-// news arriving behind it.
-//
-// Which news is worth a door saying so is the control's own claim (data-lf-urgent), not
-// this module's guess. Every folded control has something to say — that is what a
-// banner control is — and a door lit whenever it holds one is a light that is always
-// on, which says nothing at all.
-function paintDoor() {
-  const news = folded().some(
-    (control) =>
-      control.dataset.lfUrgent && control.classList.contains("lf-news-shown"),
-  );
-  overflowBtn.toggleAttribute("data-lf-news", news);
-  const name = news ? "More page controls, new" : "More page controls";
-  overflowBtn.setAttribute("aria-label", name);
-  overflowBtn.title = name;
+function refold(focused) {
+  normalizePartition();
+  // Normalization is a state transition too: in particular, unfolding temporarily
+  // seats always-folded diagnostics on the row, and refolding must move those retained
+  // nodes back before geometry is measured. Keep the two Lit roots in lockstep with
+  // the typed partition before either fold loop decides there is no work to do.
+  paint();
+
+  // Permanent overflow is always a prefix. Hand ordinary controls back in reverse
+  // fold order, then take the earliest foldable control until the row fits.
+  for (let back = menu.at(-1); back && !back.alwaysFolded; back = menu.at(-1)) {
+    menu = menu.filter((entry) => entry !== back);
+    row.push(back);
+    normalizePartition();
+    paint();
+    if (bannerActions.scrollWidth <= bannerActions.clientWidth) continue;
+    row = row.filter((entry) => entry !== back);
+    menu.push(back);
+    normalizePartition();
+    paint();
+    break;
+  }
+  while (bannerActions.scrollWidth > bannerActions.clientWidth) {
+    const [first] = foldable();
+    if (!first) break;
+    row = row.filter((entry) => entry !== first);
+    menu.push(first);
+    normalizePartition();
+    paint();
+  }
+  paintDoor();
+  restoreShelfFocus(focused);
 }

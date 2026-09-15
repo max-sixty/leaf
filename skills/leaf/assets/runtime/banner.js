@@ -4,12 +4,15 @@ import { ago, clocked } from "./presence.js";
 import { el, reserve } from "./widget-elements.js";
 import { agentName, runtime, runtimeResource } from "./context.js";
 import {
+  BANNER_CONTROL_RANK,
   bannerActions,
   foldShelf,
+  measureBannerControls,
   overflowBtn,
   overflowMenu,
+  registerBannerControl,
+  showBannerControl,
   showNews,
-  unfoldShelf,
 } from "./banner-shelf.js";
 import { latestChip, reserveVersionControls, versionBtn } from "./version-chooser.js";
 import { asksBtn, othersBtn } from "./trays.js";
@@ -40,6 +43,44 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // the reader has not seen yet.
 approveBtn.disabled = true;
 const approvalFace = createBannerApprovalFace(approveBtn);
+
+// The shelf owns this complete order from typed contributions rather than discovering
+// or reconstructing it from whichever nodes happen to be in the row.
+registerBannerControl({
+  key: "leaves",
+  control: othersBtn,
+  rank: BANNER_CONTROL_RANK.leaves,
+  conditional: true,
+});
+registerBannerControl({
+  key: "latest",
+  control: latestChip,
+  rank: BANNER_CONTROL_RANK.latest,
+  conditional: true,
+  urgent: true,
+});
+registerBannerControl({
+  key: "asks",
+  control: asksBtn,
+  rank: BANNER_CONTROL_RANK.asks,
+  conditional: true,
+});
+registerBannerControl({
+  key: "versions",
+  control: versionBtn,
+  rank: BANNER_CONTROL_RANK.versions,
+});
+registerBannerControl({
+  key: "approval",
+  control: approveBtn,
+  rank: BANNER_CONTROL_RANK.approval,
+  present: false,
+});
+registerBannerControl({
+  key: "threads",
+  control: toggleBtn,
+  rank: BANNER_CONTROL_RANK.threads,
+});
 
 // ---------- banner ----------
 const TONE = {
@@ -207,7 +248,6 @@ function renderPreview(state) {
   if (!previewMarginEntry) {
     previewMarginEntry = el("button", "lf-btn lf-preview", label);
     previewMarginEntry.type = "button";
-    previewMarginEntry.dataset.lfAlwaysFold = "1";
     previewMarginEntry.setAttribute("aria-label", "Copy preview diagnostics");
     previewMarginEntry.addEventListener("click", async () => {
       try {
@@ -217,18 +257,13 @@ function renderPreview(state) {
         notice("Couldn't copy preview diagnostics");
       }
     });
-    // Seated by the same writer that seats every other control, so the row reads in one
-    // order and the fold knows about it; then measured with the whole run standing, then
-    // folded against what it measured. The unfold is the measurement's precondition, not
-    // tidiness: `arrangeBannerControls` ends in a fold, this chip is seated first so it
-    // is the first thing folded, and inside a shut popover every word measures zero — so
-    // reserving here without it sets a floor of 0px and the chip grows by a glyph, on the
-    // row, the first time the checkout goes dirty. `reserveBannerControls` opens with the
-    // same call for the same reason.
-    arrangeBannerControls();
-    unfoldShelf();
-    reserve(previewMarginEntry, previewLabels);
-    foldShelf();
+    registerBannerControl({
+      key: "preview",
+      control: previewMarginEntry,
+      rank: BANNER_CONTROL_RANK.preview,
+      alwaysFolded: true,
+    });
+    reserveBannerControls();
   }
   previewMarginEntry.textContent = label;
   previewMarginEntry.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
@@ -327,7 +362,6 @@ function renderSessionReference() {
       sessionReferenceLabel,
     );
     sessionReferenceElement.type = "button";
-    sessionReferenceElement.dataset.lfAlwaysFold = "1";
     sessionReferenceElement.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(runtime.sessionReference);
@@ -336,7 +370,12 @@ function renderSessionReference() {
         notice("Couldn't copy session reference");
       }
     });
-    arrangeBannerControls();
+    registerBannerControl({
+      key: "session",
+      control: sessionReferenceElement,
+      rank: BANNER_CONTROL_RANK.session,
+      alwaysFolded: true,
+    });
   }
   sessionReferenceElement.textContent = sessionReferenceLabel;
   sessionReferenceElement.setAttribute(
@@ -412,7 +451,7 @@ function renderStatusNow(state) {
 
 export const renderStatus = clocked(document.body, renderStatusNow);
 
-// Sign-off is the page's decision, not standing chrome: the approve button exists only
+// Sign-off is the page's decision, not standing chrome: the approve button is offered only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
 // proposed change seeking assent. An informational page takes comments only, and
 // nothing stands in the button's place there. A neutral "End leaf" did once, and it
@@ -426,70 +465,15 @@ export const isSignoffDeclared = () =>
 
 let signoff = false;
 
-// One order, at every width. An edge's control sits at that edge: All leaves is the first
-// control beside the tray it opens on the left, and approval and Threads finish beside the
-// panel they open on the right. The row used to turn round at the covering breakpoint,
-// which carried Threads from one end of the banner to the other and swapped the page's one
-// committing press across it — so a reader who learned this row on a laptop had to learn
-// it again on a phone, and a press they were reaching for was somewhere else. What a
-// narrow window changes now is how many of these controls stand on the row at once; the
-// rest fold into the row's own menu, in this same order (`foldShelf`).
-//
-// Low-frequency identifiers stand first in the complete control order and always behind
-// its door. A checkout appears only in a developer preview; a session reference appears
-// only on the public website.
-//
-// This is DOM order rather than CSS `order`, so the tab route says the same thing the row
-// draws. Reordering existing nodes can briefly drop native focus; put it back without
-// moving the page, and hand it to the menu's door where the fold has taken the control
-// the reader was standing on.
-function arrangeBannerControls() {
-  const focused = document.activeElement;
-  const edges = new Set([
-    toggleBtn,
-    approveBtn,
-    othersBtn,
-    sessionReferenceElement,
-    previewMarginEntry,
-  ]);
-  // Registry-declared blanket answers can join the middle of this row after boot, and a
-  // folded control is still on it. Preserve every such control in its standing relative
-  // order while moving only the edge-owned controls.
-  const middle = [...overflowMenu.children, ...bannerActions.children].filter(
-    (control) => control !== overflowBtn && !edges.has(control),
-  );
-  const controls = [
-    ...(sessionReferenceElement ? [sessionReferenceElement] : []),
-    ...(previewMarginEntry ? [previewMarginEntry] : []),
-    othersBtn,
-    ...middle,
-    ...(signoff ? [approveBtn] : []),
-    toggleBtn,
-  ];
-  bannerActions.append(...controls);
-  foldShelf();
-  if (
-    focused?.isConnected &&
-    controls.includes(focused) &&
-    document.activeElement !== focused
-  )
-    (overflowMenu.contains(focused) ? overflowBtn : focused).focus({
-      preventScroll: true,
-    });
-}
-
-// The banner's row, mounted once the version chooser and the trays exist: the invariant
-// middle first, then the edge families around it (arrangeBannerControls).
+// The banner's row mounts after the version chooser and trays exist. Its complete
+// inventory and order already belong to the shelf's explicit registrations above.
 export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared() && runtime.currentStamp !== null;
+  showBannerControl(approveBtn, signoff);
   watchProjection(document.body, paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
-  // Seed the invariant middle once; arrangeBannerControls puts the two edge families
-  // around it and later preserves any registry-declared controls added among these three.
-  bannerActions.append(latestChip, asksBtn, versionBtn);
-
-  arrangeBannerControls();
   banner.append(bannerStatus, bannerActions);
+  foldShelf();
   approveBtn.onclick = async () => {
     if (approving) return;
     approving = true;
@@ -513,8 +497,7 @@ export function stateSignoff(next, syncLayout, paintApproval) {
   const shown = next && runtime.currentStamp !== null;
   if (shown === signoff) return;
   signoff = shown;
-  if (!signoff) approveBtn.remove();
-  arrangeBannerControls();
+  showBannerControl(approveBtn, signoff);
   if (signoff) {
     reserve(approveBtn, ["Approve version", "✓ Version approved"]);
     paintApproval();
@@ -541,16 +524,7 @@ let coveringRow = null;
 const covering = () => (coveringRow ??= matchMedia(COVERING));
 // The breakpoint the reservations were last measured at, so a crossing renews them.
 let reservedCovering = null;
-let reserveAfterMenuCloses = false;
-export function reserveBannerControls() {
-  // The shelf is a stable reading while it stands open. A breakpoint can cross under
-  // it, but measuring requires moving every control back onto the row; defer that move
-  // until the reader closes the shelf, then renew before its next opening.
-  if (overflowMenu.matches(":popover-open")) {
-    reserveAfterMenuCloses = true;
-    return;
-  }
-  unfoldShelf();
+function reserveBannerControlWidths() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
   if (sessionReferenceElement)
     reserve(sessionReferenceElement, [sessionReferenceLabel]);
@@ -561,14 +535,11 @@ export function reserveBannerControls() {
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(asksBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
-  foldShelf();
   reservedCovering = covering().matches;
 }
-overflowMenu.addEventListener("toggle", (event) => {
-  if (event.newState !== "closed" || !reserveAfterMenuCloses) return;
-  reserveAfterMenuCloses = false;
-  reserveBannerControls();
-});
+export function reserveBannerControls() {
+  measureBannerControls(reserveBannerControlWidths);
+}
 
 // The fold chrome-layout.js asks for: renew the reservations for the breakpoint the row
 // is at, then fold what the row cannot hold.

@@ -557,6 +557,7 @@ class WebsiteCodexHost:
         last_stream_update = 0.0
         reply_stream = None
         terminal: dict
+        fault: str | None = None
         started = time.monotonic()
         last_message = started
         first_notification = True
@@ -892,13 +893,17 @@ class WebsiteCodexHost:
                     terminal = message["params"]["turn"]
                     break
         except Exception as error:  # noqa: BLE001 - the turn's outcome, any fault
-            detail = str(error) or type(error).__name__
+            # A fault this guard now catches no longer reaches the thread's excepthook,
+            # so its type is only on the record if the outcome carries it. Name it in
+            # both the reader-facing detail and the turn's own log line.
+            fault = type(error).__name__
+            detail = f"{fault}: {error}" if str(error) else fault
             if awaiting_delivery_start:
                 log_agent(
                     "turn_delivery_unbound",
                     **event_fields,
                     deliveryId=delivery_id,
-                    error=type(error).__name__,
+                    error=fault,
                 )
             else:
                 _clear_stream_activity(thread_id, turn_id)
@@ -915,6 +920,7 @@ class WebsiteCodexHost:
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
             status=terminal.get("status"),
+            **({"error": fault} if fault is not None else {}),
         )
         with self.lock:
             reply_error = None

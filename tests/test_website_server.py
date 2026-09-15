@@ -2026,12 +2026,15 @@ def test_a_stream_that_goes_silent_recovers_its_turn_like_a_dropped_one(
     assert silent.closed
 
 
-def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(page_dir):
+def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(
+    page_dir, capsys
+):
     """The follower owes its turn an outcome for every fault, not a listed few.
 
     A fault the stream handler does not name would otherwise leave the claim open with
     the activity its first line set, which is a page that reads working for as long as
-    the container lives and never reaches a receipt.
+    the container lives and never reaches a receipt. Catching it takes the traceback
+    the excepthook used to print, so the turn's own record has to name the fault.
     """
     comment = append_event(
         page_dir,
@@ -2072,6 +2075,11 @@ def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(page_dir)
         comment["id"]
     ]
     assert socket.closed
+    logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    [completed] = [
+        record for record in logs if record["event"] == "turn_stream_completed"
+    ]
+    assert (completed["status"], completed["error"]) == ("failed", "KeyError")
 
 
 def test_an_empty_final_is_not_logged_as_visible_reply(page_dir, capsys):

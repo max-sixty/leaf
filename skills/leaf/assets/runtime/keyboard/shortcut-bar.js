@@ -60,8 +60,8 @@ import {
   word,
 } from "./bindings.js";
 import {
-  completeRowSteps,
-  keySequence,
+  keySequenceModel,
+  keySequenceTemplate,
   neutralStates,
   progressStates,
   rowSteps,
@@ -85,18 +85,81 @@ import { walkPosition } from "../walk-position.js";
 export const shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
 shortcutBarEl.id = "lf-shortcut-bar";
 export const bottomStatusEl = el("div", "lf-ui lf-bottom-status");
-const walkPositionEl = el("span", "lf-walk-position");
-walkPositionEl.hidden = true;
-walkPositionEl.setAttribute("aria-hidden", "true");
-const goToStatusEl = el("span", "lf-go-to-status");
-goToStatusEl.hidden = true;
-goToStatusEl.setAttribute("aria-hidden", "true");
-bottomStatusEl.append(goToStatusEl, walkPositionEl, noticeEl);
-const shortcutBarMore = el("button", "lf-shortcut-more");
-shortcutBarMore.type = "button";
-shortcutBarMore.title = "More keyboard shortcuts";
-shortcutBarMore.setAttribute("aria-label", "? more");
-render(html`<kbd hidden></kbd><span>more</span>`, shortcutBarMore);
+let activateShortcutMore = null;
+
+const EMPTY_STATUS = Object.freeze({ goTo: null, walk: null });
+const EMPTY_BAR = Object.freeze({
+  items: Object.freeze([]),
+  more: Object.freeze({
+    hidden: false,
+    binding: null,
+    line: "more",
+    title: "More keyboard shortcuts",
+    expanded: false,
+    ariaLabel: "More keyboard shortcuts",
+    ariaShortcuts: null,
+  }),
+  tail: null,
+  shelf: false,
+  multiline: false,
+});
+
+const bottomStatusTemplate = (model) => html`
+  <span class="lf-go-to-status" aria-hidden="true" ?hidden=${!model.goTo}
+    >${model.goTo ?? nothing}</span
+  >
+  <span
+    class="lf-walk-position"
+    aria-hidden="true"
+    ?hidden=${!model.walk?.shown}
+    data-kind=${model.walk?.shown ? model.walk.kind : nothing}
+    ?data-lf-boundary=${model.walk?.shown ? model.walk.boundary : false}
+    >${model.walk?.text ?? nothing}</span
+  >
+  ${noticeEl}
+`;
+
+const shortcutBarTemplate = (model) =>
+  html`${repeat(
+      model.items,
+      (item) => item.key,
+      (item) => html`
+        <span
+          class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
+          aria-hidden="true"
+          data-lf-command-ids=${item.commandIds}
+          >${keySequenceTemplate(item.sequence)}${
+            item.said ? html`<span>${item.said}</span>` : nothing
+          }</span
+        >
+      `,
+    )}<button
+      type="button"
+      class="lf-shortcut-more"
+      title=${model.more.title}
+      aria-label=${model.more.ariaLabel}
+      aria-expanded=${String(model.more.expanded)}
+      aria-keyshortcuts=${model.more.ariaShortcuts ?? nothing}
+      ?hidden=${model.more.hidden}
+      @click=${() => activateShortcutMore?.()}
+    >
+      <kbd ?hidden=${!model.more.binding}>${model.more.binding ?? nothing}</kbd
+      ><span>${model.more.line}</span></button
+    >${
+      model.tail
+        ? html`<span class="lf-shortcut" aria-hidden="true"
+            >${keySequenceTemplate(model.tail.sequence)}<span
+              >${model.tail.said}</span
+            ></span
+          >`
+        : nothing
+    }`;
+
+render(bottomStatusTemplate(EMPTY_STATUS), bottomStatusEl);
+render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
+const walkPositionEl = bottomStatusEl.querySelector(".lf-walk-position");
+const goToStatusEl = bottomStatusEl.querySelector(".lf-go-to-status");
+const shortcutBarMore = shortcutBarEl.querySelector(".lf-shortcut-more");
 
 const boxesOf = (nodes) =>
   nodes
@@ -132,6 +195,14 @@ export const fixedChromeBoxes = bottomChromeBoxes;
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;
+const rowPresentationKeys = new WeakMap();
+let nextRowPresentationKey = 1;
+const rowPresentationKey = (row) => {
+  const source = sourceRow(row);
+  if (!rowPresentationKeys.has(source))
+    rowPresentationKeys.set(source, nextRowPresentationKey++);
+  return rowPresentationKeys.get(source);
+};
 const effectiveRow = (row, declared, active) => {
   if (active.length === declared.length) return row;
   const routes = commandRoutes(row).filter((route) => active.includes(route.binding));
@@ -182,6 +253,7 @@ function lineRows(scopes) {
   return rows;
 }
 let shortcutShelfIsOpen = false;
+let lastWalkPresentation = null;
 const shortcutHelpAvailable = () => bindings(SHORTCUT_HELP).length > 0;
 const arrange = (rows) => {
   const referenceAt = rows.findIndex((row) => sourceRow(row) === SHORTCUT_HELP);
@@ -259,20 +331,21 @@ export function renderShortcutBar(goToStatus) {
   const position = walkPosition();
   const goToReading = goToStatus();
   setNoticeContext(Boolean(goToReading));
-  goToStatusEl.textContent = goToReading ?? "";
-  goToStatusEl.hidden = !goToReading;
-  if (position) {
-    walkPositionEl.dataset.kind = position.kind;
-    walkPositionEl.textContent = position.text;
-    walkPositionEl.hidden = false;
-    walkPositionEl.toggleAttribute("data-lf-boundary", position.boundary);
-  } else {
-    walkPositionEl.hidden = true;
-    walkPositionEl.removeAttribute("data-kind");
-    walkPositionEl.removeAttribute("data-lf-boundary");
-  }
-  shortcutBarEl.dataset.lfShelfOpen = String(shelf);
-  shortcutBarEl.dataset.lfMultiline = String(shelf || Boolean(complete));
+  if (position)
+    lastWalkPresentation = Object.freeze({
+      kind: position.kind,
+      text: position.text,
+      boundary: position.boundary,
+    });
+  const statusModel = Object.freeze({
+    goTo: goToReading,
+    // A retired walk hides but keeps its last wording, matching the native status
+    // surface's continuity while transient notice text occupies the same seat.
+    walk: lastWalkPresentation
+      ? Object.freeze({ ...lastWalkPresentation, shown: Boolean(position) })
+      : null,
+  });
+  render(bottomStatusTemplate(statusModel), bottomStatusEl);
   // Keep the two contextual hints together at the front of the ordinary line.
   // The shelf and a sequence retain registry order because each is a fuller reading of one
   // scene rather than a ranked shortlist.
@@ -294,24 +367,6 @@ export function renderShortcutBar(goToStatus) {
   const referenceBinding = reference ? bindings(reference)[0] : null;
   const referenceDoes = word(SHORTCUT_HELP.does);
   const referenceLine = word(SHORTCUT_HELP.line);
-  render(
-    html`<kbd ?hidden=${!referenceBinding}
-        >${referenceBinding ? spell(referenceBinding) : nothing}</kbd
-      ><span>${referenceLine}</span>`,
-    shortcutBarMore,
-  );
-  shortcutBarMore.title = referenceDoes;
-  shortcutBarMore.setAttribute("aria-expanded", String(shelf));
-  shortcutBarMore.setAttribute(
-    "aria-label",
-    referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceDoes,
-  );
-  if (referenceBinding)
-    shortcutBarMore.setAttribute(
-      "aria-keyshortcuts",
-      ariaShortcuts([reference], false),
-    );
-  else shortcutBarMore.removeAttribute("aria-keyshortcuts");
   // Read where it is painted, like every other cell. Every destination keeps its complete
   // sequence while the reader advances through it: completed keys change face, but no key is
   // added, removed, or moved. A sequence control such as Escape is a way out of the interaction, not
@@ -323,56 +378,55 @@ export function renderShortcutBar(goToStatus) {
     const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const active = bindings(row);
-    return {
-      row,
-      steps,
-      states,
+    return Object.freeze({
+      key: rowPresentationKey(row),
+      sequenceControl: Boolean(row.sequenceControl),
+      sequence: keySequenceModel(steps, states),
       said: word(row.line),
       commandIds: commandPresentations(row, active)
         .map(({ id }) => id)
         .join(" "),
-    };
+      hidden: sourceRow(row) === SHORTCUT_HELP || (!shelf && !shown.has(row)),
+    });
   });
   // The door is not useful behind the room it opens. While the reference stands, its
-  // own Escape row is the short line and More leaves the focus order with the page. This
-  // is the one removal that is meant: a reader standing on the door when the room opens
-  // is a state change rather than a repaint, and the command reference takes focus anyway.
-  const tailSteps = shelf && tail ? rowSteps(tail) : null;
-  render(
-    html`${repeat(
-      presentations,
-      ({ row }) => sourceRow(row),
-      ({ row, steps, states, said, commandIds }) => html`
-        <span
-          class=${`lf-shortcut${row.sequenceControl ? " lf-sequence-command" : ""}`}
-          aria-hidden="true"
-          data-lf-command-ids=${commandIds}
-          >${keySequence(steps, states)}${
-            said ? html`<span>${said}</span>` : nothing
-          }</span
-        >
-      `,
-    )}${commandReferenceOpen() ? nothing : shortcutBarMore}${
-      tailSteps
-        ? html`<span class="lf-shortcut" aria-hidden="true"
-            >${keySequence(tailSteps, neutralStates(tailSteps))}<span
-              >${word(tail.line)}</span
-            ></span
-          >`
-        : nothing
-    }`,
-    shortcutBarEl,
-  );
+  // own Escape row is the short line and More remains retained but leaves layout and the
+  // focus order. The reference takes focus before this state is painted.
+  const model = Object.freeze({
+    items: Object.freeze(presentations),
+    more: Object.freeze({
+      hidden: commandReferenceOpen(),
+      binding: referenceBinding ? spell(referenceBinding) : null,
+      line: referenceLine,
+      title: referenceDoes,
+      expanded: shelf,
+      ariaLabel: referenceBinding
+        ? `${spell(referenceBinding)} ${referenceLine}`
+        : referenceDoes,
+      ariaShortcuts: referenceBinding ? ariaShortcuts([reference], false) : null,
+    }),
+    tail:
+      shelf && tail
+        ? Object.freeze({
+            sequence: keySequenceModel(rowSteps(tail), neutralStates(rowSteps(tail))),
+            said: word(tail.line),
+          })
+        : null,
+    shelf,
+    multiline: shelf || Boolean(complete),
+  });
+  shortcutBarEl.dataset.lfShelfOpen = String(model.shelf);
+  shortcutBarEl.dataset.lfMultiline = String(model.multiline);
+  render(shortcutBarTemplate(model), shortcutBarEl);
   const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
-  const drawn = presentations.map((presentation, index) => ({
-    ...presentation,
+  const drawn = model.items.map((presentation, index) => ({
+    presentation,
     span: rowSpans[index],
   }));
   // Fitting is the sole owner of visibility. Lit leaves `hidden` alone; every frame
   // first restores semantic eligibility, then this synchronous measurement may hide
   // lower-priority chips to fit the current width.
-  for (const { row, span } of drawn)
-    span.hidden = sourceRow(row) === SHORTCUT_HELP || (!shelf && !shown.has(row));
+  for (const { presentation, span } of drawn) span.hidden = presentation.hidden;
 
   const visible = () =>
     [...shortcutBarEl.children].filter(
@@ -421,7 +475,7 @@ export const shortcutShelfOpen = () => shortcutShelfIsOpen && shortcutHelpAvaila
 // Boot supplies the two transient interactions More closes. The shelf renderer and its
 // reference rows never import those command owners to draw their current declarations.
 export function mountShortcutBar({ setGoToSequence, setReact, captureReturnPlace }) {
-  shortcutBarMore.onclick = () => {
+  activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);
     advanceShortcutHelp(captureReturnPlace);

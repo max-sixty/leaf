@@ -64,10 +64,13 @@ binding invoke the original command through its stable identity and source scope
   physical input lifecycle; `text-entry.js` owns native editing claims.
 - `return-stack.js` owns the inverse of commands that enter temporary layers.
 - `page.js` declares core's scopes and rows.
-- `shortcut-bar.js`, `command-reference.js`, and `presentation.js` project registered
-  commands into their persistent surfaces.
-- `go-to-sequence.js`, `hints.js`, and `key-badge-placement.js` own generated routes and
-  their placement.
+- `presentation.js` projects immutable key-sequence readings through the shared Lit
+  template. `shortcut-bar.js` and `command-reference.js` synchronously derive and
+  Lit-render their complete persistent surfaces from evaluated command readings; their
+  controllers retain native focus, disclosure, fitting, and dispatch mechanics.
+- `go-to-sequence.js` owns generated routes and the complete keyed Lit hint layer, then
+  applies placement to its retained hint nodes in the same input frame. `hints.js` owns
+  the route calculation; `key-badge-placement.js` owns shared badge placement.
 - `disclosure.js` owns the shared native disclosure reading and bindings.
 
 Before changing a binding, inspect the complete register for conflicting meanings,

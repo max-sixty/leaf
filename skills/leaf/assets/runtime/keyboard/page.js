@@ -1,5 +1,3 @@
-import { render } from "../../vendor/browser-runtime.js";
-
 import { focusedThread } from "../conversation/focus.js";
 import { takesLetters, letGo } from "../focus.js";
 import { EVERYTHING, TEXT_ENTRY } from "./text-entry.js";
@@ -47,6 +45,7 @@ import {
   commandReferenceCommandActive,
   commandReferenceOpen,
   activateSelectedCommand,
+  presentCommandReferenceClose,
 } from "./command-reference.js";
 import { shortcutShelfOpen } from "./shortcut-bar.js";
 import { pagePresented } from "../presentation.js";
@@ -1283,14 +1282,7 @@ export function createPageKeys({
   // watches.
   function paintCoreControls() {
     const returningToMore = Boolean(shortcutShelfOpen());
-    const closeSays = returningToMore ? "Back to more shortcuts" : "Close";
-    const closeTitle = returningToMore
-      ? "Back to more shortcuts"
-      : "Close the command reference";
-    render(closeSays, commandReferenceClose);
-    if (commandReferenceClose.dataset.lfKeyTitle !== closeTitle)
-      commandReferenceClose.dataset.lfKeyTitle = closeTitle;
-    keeps(commandReferenceClose, "aria-label", closeTitle);
+    presentCommandReferenceClose(returningToMore);
     const controlShortcut = (scope, row) =>
       [...(word(scope.sequencePrefix ?? scope.sequence) ?? []), labelOf(row)]
         .filter(Boolean)

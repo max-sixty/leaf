@@ -27,6 +27,13 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+def command_reference_rows(page, heading):
+    heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
+        "id"
+    )
+    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
+
+
 def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):
     """Moving the widget restores comparison updates without duplicating its row."""
     page = open_page(browser, serve(SETTLED_PAGE))
@@ -78,13 +85,13 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     row.focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
-    settled_help = page.locator(".lf-command-reference-section").filter(
-        has=page.get_by_role("heading", name="In a settled ask", exact=True)
-    )
+    settled_help = command_reference_rows(page, "In a settled ask")
     expect(
         settled_help.get_by_text("Open or close the settled ask", exact=True)
     ).to_have_count(1)
-    expect(settled_help).not_to_contain_text(re.compile(r"decision", re.IGNORECASE))
+    expect(
+        settled_help.get_by_text(re.compile(r"decision", re.IGNORECASE))
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
 

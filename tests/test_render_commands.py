@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import playwright
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
@@ -325,6 +326,88 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
         assert answered.returncode == 1, answered.stdout + answered.stderr
         assert variable in answered.stderr and str(missing) in answered.stderr
         assert "LEAF_BROWSER_EXECUTABLE" not in answered.stderr
+
+
+def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_path):
+    """Under the browser both gates launch sits Playwright's driver, a Node process
+    leaf never names. Where it ends at startup, no launch is reached, so the guard
+    that answers for a browser cannot: `sync_playwright()`'s context entry dies on an
+    AttributeError naming a Playwright private, and the connection's own reason
+    arrives afterwards, out of order, as asyncio's unretrieved task. A page author
+    reading that has been handed a leaf bug where the host has an old Node.
+
+    Two hosts reach it — a glibc older than the bundled Node needs, and a
+    PLAYWRIGHT_NODEJS_PATH naming a Node older than the driver bundle needs — and
+    both end at the same observable point, which a stub that exits without answering
+    stands in for. What each gate owes is its own one line: the connection's reason,
+    the Node that ran, and the variable that chooses one, since neither real failure
+    names that variable and it is the whole of what settles them. Both gates answer,
+    for the reason the named-browser case gives: export is the fallback when no
+    network route reaches the page, so a host losing one loses the page twice over.
+
+    No traceback is half the subject. The three shapes asserted away are the three
+    the reader sees today: the raised private, the out-of-order asyncio block, and
+    any traceback at all."""
+    serve(LONG_PAGE)
+    d = serve.page_dir
+    stub = tmp_path / "not-a-node"
+    stub.write_text("#!/bin/sh\nexit 1\n")
+    stub.chmod(0o755)
+    broken = os.environ | {browser_model.DRIVER_VARIABLE: str(stub)}
+
+    def answered(result):
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert browser_model.DRIVER_VARIABLE in result.stderr
+        assert str(stub) in result.stderr
+        assert "Connection closed while reading from the driver" in result.stderr
+        assert "Traceback" not in result.stderr
+        assert "_playwright" not in result.stderr
+        assert "Task exception was never retrieved" not in result.stderr
+
+    answered(
+        subprocess.run(
+            [*LEAF_COMMAND, "version", "check", str(d), "--render"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=broken,
+        )
+    )
+    answered(
+        subprocess.run(
+            [
+                *LEAF_COMMAND,
+                "version",
+                "export",
+                str(d),
+                "--out",
+                str(tmp_path / "standalone.html"),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=broken,
+        )
+    )
+
+
+def test_an_unnamed_driver_node_is_the_installed_wheels_own(monkeypatch):
+    """The other half of that hint, which the subprocess above cannot reach: with the
+    variable unset the driver runs the Node bundled in the installed wheel, and the
+    line has to name that file and then the variable that would replace it. The
+    glibc host is exactly this arm — it named nothing and the bundled binary is the
+    one that would not load."""
+    monkeypatch.delenv(browser_model.DRIVER_VARIABLE, raising=False)
+    node = Path(browser_model.driver_node())
+    assert node == Path(playwright.__file__).parent / "driver" / "node"
+    hint = browser_model.driver_hint()
+    assert str(node) in hint and browser_model.DRIVER_VARIABLE in hint
+
+    monkeypatch.setenv(browser_model.DRIVER_VARIABLE, "/elsewhere/node")
+    assert browser_model.driver_node() == "/elsewhere/node"
+    assert browser_model.driver_hint() == (
+        f"{browser_model.DRIVER_VARIABLE} named /elsewhere/node."
+    )
 
 
 def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(

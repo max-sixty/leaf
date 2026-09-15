@@ -1,6 +1,7 @@
 """Joint browser proof for immutable page inputs and fresh revision activation."""
 
 import json
+import re
 
 from leaf import event_log as events_model
 from playwright.sync_api import expect
@@ -166,6 +167,12 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
         ),
     )
 
+    # The order is read in the turn that sends the gesture, where the claim lives: the
+    # widget clears it in `choose`, and the optimistic publication renders the owner and
+    # then runs its subscribers before the click returns. Waiting for it afterwards reads
+    # a state the page passes through, because the delivery outcome, the admitted event,
+    # and the cleared ledger each publish a further reading of their own; the
+    # single-pair window closes as soon as the round trip lands.
     installed = page.evaluate(
         """() => {
           const owner = document.querySelector('#page-local');
@@ -175,17 +182,23 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
             defined: customElements.get('lf-local') === owner.constructor,
             connected: owner.dataset.pageWidget,
             gestures: owner.dataset.gestures,
+            order: owner.dataset.renderOrder,
           };
         }"""
     )
-    assert installed == {"defined": True, "connected": "ready", "gestures": "1"}
+    assert installed == {
+        "defined": True,
+        "connected": "ready",
+        "gestures": "1",
+        "order": "render,subscribe,",
+    }
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
-    expect(page.locator("#page-local")).to_have_attribute(
-        "data-render-order", "render,subscribe,"
-    )
     expect(page.locator("#page-local")).to_have_attribute(
         "data-subscriber-choice", "chosen"
     )
+    round_trip(page)
+    order = page.locator("#page-local").get_attribute("data-render-order")
+    assert re.fullmatch(r"(?:render,subscribe,)+", order), order
     page.close()
 
 

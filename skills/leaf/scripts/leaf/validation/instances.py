@@ -52,6 +52,8 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
         props = entry.get("properties", {})
         instance = {}
         for name, value in rec["attrs"].items():
+            if name == "data-width":
+                continue
             prop = props.get(name)
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")

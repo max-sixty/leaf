@@ -33,6 +33,7 @@ from leaf.validation.instances import (
     widget_errors,
 )
 from leaf.validation.markup import (
+    authored_width_errors,
     id_errors,
     media_errors,
     missing_outline,
@@ -87,6 +88,7 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
 
     errors.extend(structure_errors(parser))
     errors.extend(page_boundary_errors(parser))
+    errors.extend(authored_width_errors(parser))
 
     for script in parser.external_scripts:
         if (

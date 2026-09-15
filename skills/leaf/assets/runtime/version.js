@@ -1352,7 +1352,10 @@ export function createVersionController({
         },
         same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
         sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
-        touched: (element) => touched.push(element),
+        touched: (element) => {
+          markDeclared(element, MARKED_IN_PAGE);
+          touched.push(element);
+        },
         // An element going is not the same as its name going, and the name is what
         // these readings are kept under. A widget the revision moved under an earlier
         // parent is inserted and read there before this parent's removal reaches the

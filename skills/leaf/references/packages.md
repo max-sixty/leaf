@@ -174,6 +174,9 @@ runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`, 
 `[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
 tags. `x-space: wide` requests the shared capped evidence width; `x-space: available`
 requests all room left after enclosing frames, chrome, and actual margin residents.
+This is the package default. A page occurrence may choose `data-width="column"`,
+`data-width="wide"`, or `data-width="available"`; the authored value wins, including
+`column` when the page deliberately keeps a normally wide widget with its prose.
 Neither value chooses the widget's internal layout; the package arranges its own content
 inside the allocation. A package whose available surface preserves a drawing's natural
 inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can

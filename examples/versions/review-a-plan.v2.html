@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Review a plan: sandbox Tend’s agents</title>
+    <meta
+      name="description"
+      content="A plan to isolate agent execution from Tend’s trusted runner: prepare the workspace, sandbox setup and execution, then stop every process before collecting outputs."
+    />
+    <meta name="lf-review" content="sign-off" />
+    <!-- Maintainer provenance: based on max-sixty/tend#1173, merged as
+         5bafcda71967d8bad4a3819f1dcf5be625ab2c7b. The planning versions and
+         conversation are authored fixtures, not quotations from the PR. -->
+    <style>
+      .plan-outline > li {
+        margin-block: 26px;
+      }
+      .plan-outline h3 {
+        margin-block: 0 10px;
+      }
+      .plan-outline ul {
+        border-left: 1px solid var(--border-2);
+        padding-left: 24px;
+      }
+      .plan-outline li li {
+        margin-block: 7px;
+      }
+      .plan-status {
+        color: var(--ink-2);
+        font: 500 var(--t-5) / 1.5 var(--sans);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header id="plan-top">
+        <p class="eyebrow">Tend · sandboxing · implementation plan</p>
+        <h1>Move Tend’s agent runs into one sandbox</h1>
+        <p class="lede" id="plan-lede">
+          I’ll replace the workflow’s in-place PR checkout and separate setup step with
+          a disposable working copy and one sandboxed execution path for Claude and
+          Codex.
+        </p>
+        <p class="plan-status" id="plan-status">
+          Repository setup is now inside the sandbox. Shutdown ordering and self-hosted
+          support still need agreement.
+        </p>
+      </header>
+
+      <section id="plan-context">
+        <h2>What needs to change</h2>
+        <p id="plan-current">
+          The workflows currently replace the Actions working tree with PR code after
+          trusted setup. Cleanup then needs local-action paths repaired. Repository
+          setup runs separately from the agent, and Claude and Codex have different
+          sandbox and shutdown paths.
+        </p>
+        <p id="plan-result">
+          I’ll keep the runner checkout fixed, move repository code into a disposable
+          clone, and give a trusted supervisor control of the whole run: setup, agent
+          execution, process shutdown, then output collection.
+        </p>
+      </section>
+
+      <section id="plan-implementation">
+        <h2>Implementation order</h2>
+        <ol class="steps plan-outline" id="plan-steps">
+          <li id="plan-prepare">
+            <h3>Replace the in-place checkout</h3>
+            <ul>
+              <li id="plan-runner">
+                <strong>Change the workflows.</strong> In
+                <code>review.yaml.j2</code> and <code>mention.yaml.j2</code>, remove the
+                second checkout and <code>gh pr checkout</code>. Keep the reviewed
+                runner tree for orchestration and POST cleanup; remove
+                <code>_restore_local_actions_run</code> from <code>workflows.py</code>.
+              </li>
+              <li id="plan-checkout">
+                <strong>Add workspace preparation.</strong> Create
+                <code>prepare_agent_workspace.py</code> to resolve the event’s exact
+                commit and clone it into a disposable directory. Pass checkout mode and
+                base branch through the workflow macro and both actions.
+              </li>
+              <li id="plan-config">
+                <strong>Separate trusted inputs.</strong> Restore sensitive startup
+                configuration from the exact base commit. Point the agent’s
+                <code>GITHUB_WORKSPACE</code> at the clone; keep runner Git
+                configuration and GitHub command files outside its access.
+              </li>
+            </ul>
+          </li>
+          <li id="plan-execute">
+            <h3>Put setup and both harnesses through one entry point</h3>
+            <ul>
+              <li id="plan-harness">
+                <strong>Add the shared lifecycle.</strong> Introduce
+                <code>agent_lifecycle.py</code>, launched by
+                <code>sandbox_runtime.mjs</code> inside Anthropic Sandbox Runtime. It
+                will check the boundary, run repository setup, then dispatch to Claude
+                or Codex.
+              </li>
+              <li id="plan-setup">
+                <strong>Repository setup.</strong> Move <code>sandbox_setup</code> out
+                of the separate action step and into that lifecycle. Dependency
+                installation can execute PR code, so it must run inside the same
+                boundary as the agent.
+              </li>
+              <li id="plan-access">
+                <strong>Adapt the launchers.</strong> Update
+                <code>setup_sandbox.py</code> to assign the clone to the sandbox user.
+                Change <code>run_claude.py</code> to launch inside the existing sandbox.
+                Require the outer sandbox in <code>codex/runner.py</code> and disable
+                Codex’s nested sandbox there. Preserve sandbox-local test-server access
+                while denying direct host loopback.
+              </li>
+            </ul>
+            <details id="plan-network">
+              <summary>Scope of the network change</summary>
+              <p>
+                The credential broker still accepts arbitrary destinations. This work
+                isolates runner files and processes; it does not prevent exfiltration of
+                files the agent can read. Destination restrictions require a separate
+                design.
+              </p>
+            </details>
+          </li>
+          <li id="plan-finish">
+            <h3>Move final shutdown and export into the supervisor</h3>
+            <ul>
+              <li id="plan-stop">
+                <strong>Stop and verify.</strong> The trusted supervisor owns shutdown.
+                Add <code>launch_sandbox_runtime.py</code> to wait for the agent CLI to
+                exit, then collect its outputs. Leave child-process cleanup with the
+                individual harnesses.
+              </li>
+              <li id="plan-export">
+                <strong>Bound the export.</strong> Add
+                <code>read_regular_nofollow</code> in <code>_safe_files.py</code>. Read
+                only named outputs, reject symlink path components and non-regular
+                files, and enforce size limits before copying anything back to the
+                runner.
+              </li>
+              <li id="plan-dispose">
+                <strong>Make disposal explicit.</strong> Stop the Codex model proxy,
+                then call <code>dispose_sandbox_resources.py</code> to remove the
+                dedicated clone and runtime directories. Refuse deletion if sandbox
+                processes remain; restore temporary host policy afterward.
+              </li>
+            </ul>
+            <details id="plan-export-detail">
+              <summary>Shutdown ownership</summary>
+              <p>
+                Claude already cleans up its child processes. I’ll use CLI completion as
+                the point to collect outputs and then dispose of the workspace.
+              </p>
+            </details>
+          </li>
+        </ol>
+      </section>
+
+      <section id="plan-validation">
+        <h2>How I’ll verify the change</h2>
+        <p id="plan-test-order">
+          I’ll add regression coverage alongside each step, regenerate the workflows,
+          and run the lifecycle probes against both harnesses before handing over the
+          implementation.
+        </p>
+        <table id="plan-checks">
+          <thead>
+            <tr>
+              <th>Exercise</th>
+              <th>Required result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Review and mention workflows</th>
+              <td>
+                The runner stays at its original commit; the agent clone has the
+                expected event commit and base configuration.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">
+                Setup attempts runner-file access; tests start a local server
+              </th>
+              <td>
+                Runner access fails. Sandbox-local connections work; direct host
+                loopback fails.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">CLI exits or is cancelled with a background child</th>
+              <td>
+                The CLI exits and its outputs are collected; check each harness’s
+                cleanup behavior.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Output is a symlink or exceeds its size limit</th>
+              <td>
+                The export refuses it without reading the target or copying the file.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="plan-final">
+        <lf-ask id="plan-rollout">
+          <h2>Include self-hosted runners in this rollout?</h2>
+          <p id="plan-rollout-premise">
+            I’ll add the Linux namespace prerequisite check before launching the
+            sandbox. On disposable GitHub-hosted VMs, the launcher can temporarily
+            adjust and later restore host policy. Self-hosted Linux runners need
+            administrator-configured namespace and AppArmor support.
+          </p>
+          <lf-options id="plan-platforms" choose>
+            <lf-option id="plan-admin"
+              ><strong>Include them with an explicit prerequisite</strong> Check support
+              before setup; stop with an actionable error when host policy blocks the
+              sandbox.
+              <em
+                >I recommend this: it preserves support without changing
+                administrator-owned policy.</em
+              ></lf-option
+            >
+            <lf-option id="plan-hosted"
+              ><strong>Start with GitHub-hosted runners</strong> Refuse self-hosted
+              execution for now and add it after a separate validation pass.</lf-option
+            >
+          </lf-options>
+        </lf-ask>
+        <p id="plan-close">
+          After we settle shutdown and the rollout, I’ll implement the steps in order,
+          update the runner requirements in the docs, and regenerate the action
+          workflows. The handoff will include the diff and results from both harnesses.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

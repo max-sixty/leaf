@@ -6,9 +6,8 @@
  * activation captures the reading landmark before navigating. Those
  * are local calls here rather than callbacks across a seam nothing else could stand at.
  *
- * The surface is its key rows; the chooser's nodes (control, menu, newest-version
- * chip) and the labels the banner reserves width for (`versionLabels`); the two calls
- * state application drives — `renderVersions` paints the chooser from a state,
+ * The surface is its key rows; the two calls state application drives —
+ * `renderVersions` supplies one immutable chooser reading from a state,
  * `prepareActivation` prepares navigation to the revision a state names; the arrival
  * landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
@@ -109,13 +108,16 @@
  * mount binds chooser/intent listeners and paints the initial version reading.
  * installArrival remains the later geometry-ready continuity boundary.
  */
-import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
-
 import { revisionLabel, runtime } from "./context.js";
+import {
+  documentWidgetDigests,
+  servedExecutable,
+  servedWidgets,
+} from "./document-identity.js";
 
 import { patchTree } from "./dom-children.js";
 import { clippedRect, shownBox } from "./geometry.js";
-import { PRESS, walkRows } from "./keyboard/bindings.js";
+import { PRESS } from "./keyboard/bindings.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
@@ -146,14 +148,7 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import {
-  LIVE_ROOT,
-  PAGE_PATH,
-  PAGE_SCOPE,
-  tabStore,
-  VERSION_PATH,
-  versionUrl,
-} from "./storage.js";
+import { LIVE_ROOT, PAGE_SCOPE, tabStore, versionUrl } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
@@ -164,13 +159,13 @@ import { reportPageError, sameDelivery } from "./layer-client.js";
 import { projectView } from "./semantic-state.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { beginWalk } from "./walk-position.js";
 import {
   domFacet,
   rememberAuthoredParents,
   stateCoordinate,
 } from "./projection/authored.js";
-import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
+import { whenApplicationRegionsPresented } from "./semantic-state.js";
 import { MARKED_IN_PAGE, markDeclared, settlePageInterface } from "./presentation.js";
 import { runtimeRootState } from "./root-state.js";
 import {
@@ -178,49 +173,21 @@ import {
   forgetWidgetDescriptors,
 } from "./widget-descriptors.js";
 import {
+  latestChip,
+  latestVersionLabel,
+  versionBtn,
+  versionChooser,
+  versionMenu,
+  versionMenuIsOpen,
+} from "./version-chooser.js";
+import {
   importWidgets,
   patchDocument,
   reindexPassageOwners,
   rememberPassageParts,
 } from "./widget-loader.js";
 
-// Which document this is, read off the served page before anything else asks: the
-// revision the server rendered, the stamp a pinned version URL or its marker names, and
-// the label that stamp wears.
-const VERSION_MATCH = PAGE_PATH.match(VERSION_PATH);
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
-const servedRevision = document.querySelector(
-  'meta[name="lf-revision"][data-lf-runtime]',
-)?.content;
-const servedStampMarker = document.querySelector(
-  'meta[name="lf-version"][data-lf-runtime]',
-);
-applicationState.identify(
-  servedRevision ? parseInt(servedRevision, 10) : null,
-  servedStampMarker
-    ? parseInt(servedStampMarker.content, 10)
-    : VERSION_MATCH
-      ? parseInt(VERSION_MATCH[1], 10)
-      : null,
-  LIVE_ROOT,
-);
-servedStampMarker?.remove();
-// What this document is as running code: the digest the capture took over the registry,
-// the module graph, and every inline module body. A revision whose digest matches can
-// be taken on by this document; one whose digest differs needs a fresh one, because a
-// live document cannot re-evaluate a module graph or redefine a custom element.
-export const servedExecutable = document.querySelector(
-  'meta[name="lf-executable"][data-lf-runtime]',
-)?.content;
-// What each declared widget in this document's page was written as, one digest per id,
-// decided by the capture that wrote the revision. A patch keeps the widgets whose
-// digest the arriving revision repeats, and the arriving revision's map is in the head
-// of the document a patch already fetches, so neither reading costs a request.
-const widgetDigests = (doc) => {
-  const stated = doc.querySelector('meta[name="lf-widgets"][data-lf-runtime]')?.content;
-  return stated ? JSON.parse(stated) : {};
-};
-export const servedWidgets = widgetDigests(document);
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
@@ -292,23 +259,6 @@ const initialPairs = servedMain
   ? pairSources(initialDocument.source, servedMain, new WeakMap())
   : new WeakMap();
 
-/* Passive version destinations shared with banner and layout. */
-export const versionLabels = () => ["Draft", "v999"];
-export const versionBtn = el("button", "lf-btn lf-version");
-render("Draft", versionBtn);
-export const versionMenu = el("div", "lf-ui lf-version-menu");
-versionMenu.id = "lf-versions";
-versionMenu.setAttribute("popover", "auto");
-versionMenu.setAttribute("role", "menu");
-versionMenu.setAttribute("aria-label", "Versions");
-export const versionMenuIsOpen = () => versionMenu.matches(":popover-open");
-versionBtn.popoverTargetElement = versionMenu;
-versionMenu.lfInvoker = versionBtn;
-const INITIAL_LATEST = "New page available → open v999";
-export const latestChip = el("button", "lf-ui lf-btn lf-latest-chip");
-render(INITIAL_LATEST, latestChip);
-latestChip.dataset.lfUrgent = "1";
-
 export function createVersionController({
   midComposition,
   hasPending,
@@ -363,7 +313,7 @@ export function createVersionController({
   // Keep it to one stable version token (or Draft) through disclosure and comparison;
   // those states remain in the menu, class, title, and accessible name. A state arriving
   // on the poll therefore cannot resize this control and displace controls to its left.
-  // `versionLabels` names the compact token range the banner reserves once at load.
+  // The chooser view reserves this compact token range once at load.
   const currentVersionToken = () =>
     runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 
@@ -386,30 +336,11 @@ export function createVersionController({
     runtime.currentRevision !== null &&
     runtime.active.revision !== runtime.currentRevision;
   let offeredBefore = null;
-  // The walk is the versions, not every press in the menu.
-  const versionRows = () => [...versionMenu.querySelectorAll(".lf-version-row")];
-  const versionStops = () =>
-    [...versionMenu.querySelectorAll("button:not(:disabled)")].filter(
-      (control) => control.getClientRects().length,
-    );
   // A menu is a transient reading of the chooser, not a layer over the next control a
   // reader Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
   // exit only from the boundary control in the direction being travelled. The native row
   // below closes the menu first and then leaves the browser to complete that same Tab.
-  const atVersionBoundary = (end) => {
-    const stops = versionStops();
-    return document.activeElement === stops.at(end);
-  };
-  function focusVersionRow() {
-    const base = selectedBase();
-    (
-      versionRows().find(
-        (r) =>
-          (base !== null && r.dataset.lfVersion === String(base)) ||
-          (base === null && r.dataset.lfRevision === String(runtime.currentRevision)),
-      ) ?? versionRows()[0]
-    )?.focus();
-  }
+  const atVersionBoundary = (end) => versionChooser.atBoundary(end);
 
   // The browser owns top-layer state, light dismissal, Escape, and the handback. What it
   // restores focus to on a hide is the element that had it when the popover showed — not
@@ -423,7 +354,7 @@ export function createVersionController({
   // into the page is left where they pressed rather than moved to the chooser they pressed
   // away from. Leaf is left with the close, which is the only end state it asks for.
   function closeVersionMenu() {
-    if (versionMenuIsOpen()) versionMenu.hidePopover();
+    versionChooser.close();
   }
 
   // The press is the popover's declared invoker rather than a click handler that toggles by
@@ -445,19 +376,7 @@ export function createVersionController({
   // behind the row's menu costs it nothing; this one is news, so the menu's door says so
   // while it holds it (banner-shelf.js, paintDoor).
 
-  const arriving = (label) => `New page available → open ${label}`;
-  const numberedVersionRoutes = () =>
-    versionRows()
-      .map((control) => ({ control, version: +control.dataset.lfVersion }))
-      .filter(({ version }) => version >= 1 && version <= 9)
-      .sort((left, right) => left.version - right.version)
-      .map(({ control, version }) => ({
-        id: `version.open-v${version}`,
-        binding: String(version),
-        does: `Open v${version}`,
-        line: `open v${version}`,
-        control,
-      }));
+  const numberedVersionRoutes = () => versionChooser.numberedRoutes();
   const OPEN_NUMBER = {
     id: "version.open-number",
     keys: () => numberedVersionRoutes().map(({ binding }) => binding),
@@ -524,11 +443,9 @@ export function createVersionController({
     when: versionsToWalk,
     run: (binding) => {
       const was = document.activeElement;
-      const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
+      const row = versionChooser.walk(binding === "ArrowDown" ? 1 : -1);
       if (!row) return;
-      beginWalk("version", "Version", () =>
-        listWalkPosition(versionRows(), document.activeElement),
-      );
+      beginWalk("version", "Version", () => versionChooser.walkPosition());
       // A press at either end lands on the row it started from, and now that the walk
       // states a comparison, landing is not free — it would re-fetch the base and say
       // its count again for a press that moved nothing.
@@ -648,7 +565,6 @@ export function createVersionController({
     run: () => versionBtn.click(),
   };
 
-  let displayedMenuRows = Object.freeze([]);
   let versionsWalkable = false;
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
@@ -706,125 +622,82 @@ export function createVersionController({
     );
     return Object.freeze(entries.map((entry) => Object.freeze(entry)));
   }
-  function renderVersionMenu() {
-    // Dismissal can land while state application awaits a thread widget's upgrade.
-    // Read its rendered facts without reinstalling an older accepted state.
-    const notes = runtime.browser?.version_notes ?? {};
-    // The immutable displayed rows are the one deliberate presentation snapshot. A
-    // version arriving under an open menu must not replace the focused row mid-walk;
-    // dismissal refreshes the snapshot from the accepted application reading.
-    if (!versionMenuIsOpen())
-      displayedMenuRows =
-        runtime.active === null ? Object.freeze([]) : menuRows(runtime, notes);
-    const baseRevision = stamped(diffBase)?.revision;
-    render(
-      html`${repeat(
-        displayedMenuRows,
-        // A tab that began as an unstamped draft can later stand beside the stamped
-        // version of that same revision after a newer draft arrives. They are two
-        // destinations, so their keyed row identity includes which kind each is.
-        (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-        (entry) => {
-          const compared =
-            diffOn &&
-            baseRevision !== undefined &&
-            entry.revision >= baseRevision &&
-            entry.revision <= runtime.currentRevision;
-          const pending = entry.version === diffPendingBase;
-          return html`
-            <button
-              class=${`lf-version-row${compared ? " lf-compared" : ""}`}
-              role="menuitem"
-              data-lf-revision=${entry.revision}
-              data-lf-version=${entry.version ?? nothing}
-              aria-current=${entry.current ? "true" : nothing}
-              @click=${() => {
-                closeVersionMenu();
-                if (entry.version !== null) goVersion(entry.version);
-                else if (entry.active) goActive();
-              }}
-            >
-              <span class="lf-version-num">${entry.name}</span>
-              ${
-                entry.note
-                  ? html`<span class="lf-version-note">${entry.note}</span>`
-                  : nothing
-              }
-            </button>
-            ${
-              entry.comparable
-                ? html`<button
-                    class="lf-version-diff"
-                    role="menuitemcheckbox"
-                    data-lf-version=${entry.version}
-                    aria-label=${`Compare with v${entry.version}`}
-                    title=${`Mark what changed since v${entry.version}`}
-                    aria-checked=${String(
-                      pending || (diffOn && entry.version === diffBase),
-                    )}
-                    aria-busy=${pending ? "true" : nothing}
-                    @click=${() => {
-                      closeVersionMenu();
-                      pressComparison(entry.version);
-                    }}
-                  >
-                    Compare
-                  </button>`
-                : nothing
-            }
-          `;
-        },
-      )}`,
-      versionMenu,
-    );
+  // One immutable, complete presentation reading for the native chooser surfaces. The
+  // view deliberately retains the rows it is already showing while its popover stands;
+  // the candidate rows below keep advancing, so dismissal can commit them without
+  // replaying an accepted state or consulting the rendered DOM as authority.
+  function chooserModel(state) {
+    const offered = state !== null && versionsOffered();
+    const behind = behindCurrent();
+    const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
+    const currentLabel = runtime.currentLabel ?? "Draft";
+    const newer = behind ? `; ${runtime.active.label} available` : "";
+    return Object.freeze({
+      chooser: Object.freeze({
+        offered,
+        token: currentVersionToken(),
+        compared: diffOn || diffPendingBase !== null,
+        news: behind,
+        keyTitle: offered
+          ? diffPendingBase !== null
+            ? `${currentLabel}: loading a comparison with v${diffPendingBase}${newer}`
+            : diffOn
+              ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press Compare again to stop${newer}`
+              : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
+          : currentLabel,
+        ariaLabel: offered
+          ? diffPendingBase !== null
+            ? `${currentLabel}: loading comparison with v${diffPendingBase}; open versions${newer}`
+            : diffOn
+              ? `${currentLabel}: comparing with v${diffBase}; open versions${newer}`
+              : `${currentLabel}: open versions${newer}`
+          : currentLabel,
+      }),
+      latest: Object.freeze({
+        disabled: sourceFailed,
+        keyTitle: sourceFailed ? state.source_error : "Open the current page",
+        label: latestVersionLabel({
+          failed: sourceFailed,
+          activeLabel: behind ? runtime.active.label : null,
+        }),
+        news: sourceFailed || behind,
+      }),
+      rows:
+        state === null || runtime.active === null
+          ? Object.freeze([])
+          : menuRows(state, runtime.browser?.version_notes ?? {}),
+      selection: Object.freeze({
+        base: diffPendingBase ?? (diffOn ? diffBase : null),
+        currentRevision: runtime.currentRevision,
+        on: diffOn,
+        pendingBase: diffPendingBase,
+        baseRevision: stamped(diffBase)?.revision ?? null,
+      }),
+    });
+  }
+
+  function presentChooser(state = runtime.state) {
+    const model = chooserModel(state);
+    versionChooser.present(model);
+    showNews(latestChip, model.latest.news);
+    repaint();
+    return model;
   }
 
   // `null` is the page before its first accepted state. Version controls read the
   // immutable document revision and the accepted root.
   function renderVersions(state) {
-    // Nothing to open until the log says what versions there are, and a control that
-    // answers nothing is a way in painted where there is no layer behind it — the same
-    // reason the page's own approve button waits for the page. `versionsOffered` is what
-    // the key and the menu already read; this is the pointer's half of it.
-    const offered = state !== null && versionsOffered();
-    if (!offered) closeVersionMenu();
-    versionBtn.disabled = !offered;
-    if (offered) {
-      versionBtn.setAttribute("aria-haspopup", "menu");
-      versionBtn.setAttribute("aria-expanded", String(versionMenuIsOpen()));
-    } else {
-      versionBtn.removeAttribute("aria-haspopup");
-      versionBtn.removeAttribute("aria-expanded");
-    }
+    const model = presentChooser(state);
+    const offered = model.chooser.offered;
     const walkable = versionsToWalk();
     if (walkable !== versionsWalkable) {
       versionsWalkable = walkable;
       paintKeys();
     }
-    paintDiff(); // the label may change even when an open menu defers its new rows
     if (state !== null && offered !== offeredBefore) {
       offeredBefore = offered;
       foldShelf();
     }
-    // The keyboard reaches the chip through the chooser rather than past it — g V opens the
-    // menu, and its local v takes the current page; the banner spells that motion
-    // onto this title.
-    const behind = behindCurrent();
-    const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
-    latestChip.disabled = sourceFailed;
-    latestChip.dataset.lfKeyTitle = sourceFailed
-      ? state.source_error
-      : "Open the current page";
-    latestChip.title = latestChip.dataset.lfKeyTitle;
-    render(
-      sourceFailed
-        ? "Latest edit couldn't be shown"
-        : behind
-          ? arriving(runtime.active.label)
-          : INITIAL_LATEST,
-      latestChip,
-    );
-    showNews(latestChip, sourceFailed || behind);
   }
 
   // ---------- version diff ----------
@@ -873,7 +746,7 @@ export function createVersionController({
     ].join(",");
   // What is being compared, and whether the comparison is standing. Every rendering of
   // the pair — the chooser's word and paint, each row's press, the rail down the span —
-  // is written by paintDiff and read back by nothing.
+  // comes from the immutable chooser model and is read back by nothing.
   let diffBase = null;
   let diffOn = false;
   let diffPendingBase = null;
@@ -1176,47 +1049,6 @@ export function createVersionController({
       base.revision < runtime.currentRevision
     );
   };
-  // Every rendering of the pair above, written in one place: the chooser's word, its
-  // paint and what it says it will do, the checked state of each row's Compare control, and the rail
-  // down the rows the comparison spans. Called by the setter, by every chooser render —
-  // the other thing that can leave a rendering behind the state — and so once at load,
-  // where what the chooser says it will do is written from the start rather than
-  // standing as a second copy of these sentences up where the control is built.
-  function paintDiff() {
-    render(currentVersionToken(), versionBtn);
-    versionBtn.classList.toggle("on", diffOn || diffPendingBase !== null);
-    versionBtn.toggleAttribute("data-lf-news", behindCurrent());
-    const currentLabel = runtime.currentLabel ?? "Draft";
-    const newer = behindCurrent() ? `; ${runtime.active.label} available` : "";
-    // Rewritten on every diff change, so the key it names is taken from the row each time
-    // rather than typed into one of the two branches and forgotten in the other. The
-    // closed face is deliberately compact, so its hover and accessible name keep the
-    // full draft-after-version context that the open menu also spells out.
-    versionBtn.dataset.lfKeyTitle = versionsOffered()
-      ? diffPendingBase !== null
-        ? `${currentLabel}: loading a comparison with v${diffPendingBase}${newer}`
-        : diffOn
-          ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press Compare again to stop${newer}`
-          : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
-      : currentLabel;
-    versionBtn.setAttribute(
-      "aria-label",
-      versionsOffered()
-        ? diffPendingBase !== null
-          ? `${currentLabel}: loading comparison with v${diffPendingBase}; open versions${newer}`
-          : diffOn
-            ? `${currentLabel}: comparing with v${diffBase}; open versions${newer}`
-            : `${currentLabel}: open versions${newer}`
-        : currentLabel,
-    );
-    // paintCoreControls adds the complete route. Keeping the base title here lets the
-    // keyboard register project a sequence without this owner reconstructing one.
-    versionBtn.title = versionBtn.dataset.lfKeyTitle;
-    renderVersionMenu();
-    // The base title changed above; the shared projection adds the complete shortcut
-    // after this paint, including when a comparison changes without moving focus.
-    repaint();
-  }
   // Whether the comparison is standing and what against — the only thing that decides
   // it, the marks and the paint being renderings rather than a second copy.
   function setDiff(on, base) {
@@ -1232,7 +1064,7 @@ export function createVersionController({
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.length = 0;
     }
-    paintDiff();
+    presentChooser();
     // Consumers read the settled comparison projection: on/off and its marks move
     // together, rather than announcing an applied DOM diff before it is standing.
     document.dispatchEvent(new CustomEvent("lf-comparison"));
@@ -1253,11 +1085,11 @@ export function createVersionController({
     setDiff(false);
     const mine = ++diffRequest;
     diffPendingBase = base;
-    paintDiff();
+    presentChooser();
     const baseRevision = stamped(base)?.revision;
     if (baseRevision == null) {
       diffPendingBase = null;
-      paintDiff();
+      presentChooser();
       notice(`Couldn't load v${base}`);
       return;
     }
@@ -1279,7 +1111,7 @@ export function createVersionController({
     } catch {
       if (mine === diffRequest) {
         diffPendingBase = null;
-        paintDiff();
+        presentChooser();
         notice(`Couldn't load v${base}`);
       }
       return;
@@ -1464,7 +1296,7 @@ export function createVersionController({
     if (comparedFrom !== null) setDiff(false);
     const live = document.querySelector("body > main");
     const source = doc.querySelector("body > main");
-    const arrivingWidgets = widgetDigests(doc);
+    const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = artifactRoot(doc);
     const heldKeys = widgetKeys(authoredSource);
     const arrivingKeys = widgetKeys(source);
@@ -2040,18 +1872,15 @@ export function createVersionController({
   }
 
   function mount() {
-    versionMenu.addEventListener("toggle", (event) => {
-      const open = event.newState === "open";
-      versionBtn.setAttribute("aria-expanded", String(open));
-      // Focus is the menu's own only where nothing else has claimed it. An open lands on the
-      // row the comparison stands on — unless the reader is already inside, which is where the
-      // reference's restore puts them when it hands the menu back, and moving them off it
-      // would undo the whole point of the exemption.
-      if (open && !versionMenu.contains(document.activeElement)) focusVersionRow();
-      if (!open) renderVersionMenu();
-      repaint();
+    versionChooser.configure({
+      activate: (entry) => {
+        if (entry.version !== null) goVersion(entry.version);
+        else if (entry.active) goActive();
+      },
+      compare: pressComparison,
+      latest: goActive,
+      toggle: repaint,
     });
-    latestChip.onclick = () => goActive();
     if (!LIVE_ROOT) reserveNewsSlot(latestChip);
     keys(
       versionMenu,

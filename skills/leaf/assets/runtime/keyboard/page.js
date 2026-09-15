@@ -52,7 +52,7 @@ import { shortcutShelfOpen } from "./shortcut-bar.js";
 import { pagePresented } from "../presentation.js";
 import { runtime } from "../context.js";
 import { DISCLOSE } from "./disclosure.js";
-import { latestChip } from "../version.js";
+import { latestChip } from "../version-chooser.js";
 import { narrowed, needsYou, threadSearchActive } from "../conversation/narrowing.js";
 import { awaitsReader } from "../conversation/model.js";
 import { keeps } from "../widget-elements.js";

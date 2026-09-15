@@ -8,6 +8,7 @@ from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     SUGGESTION_PAGE,
+    live_url,
     panel_comment,
 )
 from render_cases_layout import (
@@ -16,9 +17,7 @@ from render_cases_layout import (
     button_radius,
     token_colour,
 )
-from render_cases_navigation import (
-    _publish,
-)
+from render_cases_navigation import _publish
 from render_harness import (
     LONG_PAGE,
     clean_browser,
@@ -27,6 +26,7 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
+    told,
     watched,
 )
 
@@ -61,6 +61,79 @@ def test_consuming_browser_problems_accounts_for_every_entry():
         watched(page).extend(["expected fault", "unrelated fault"])
         with pytest.raises(AssertionError, match="unrelated fault"):
             consume_browser_errors(page, "expected fault")
+
+
+def test_version_reservation_retains_the_lit_controls(browser, serve):
+    """Sizing and folding retain the exact native controls and their Lit parts."""
+    page = open_page(browser, serve(LONG_PAGE))
+    version = page.locator(".lf-version")
+    version.focus()
+    retained = page.evaluate(
+        """async () => {
+          const entry = document.querySelector('script[data-lf-entry]');
+          const owner = await import(new URL(
+            'runtime/version-chooser.js',
+            new URL(entry.dataset.lfEntry, location.href),
+          ));
+          const button = owner.versionBtn;
+          const latest = owner.latestChip;
+          window.__lfVersionControls = {
+            button,
+            latest,
+            buttonParts: [...button.childNodes],
+            latestParts: [...latest.childNodes],
+          };
+          owner.reserveVersionControls();
+          return {
+            focus: document.activeElement === button,
+            buttonParts: button.childNodes.length,
+            latestParts: latest.childNodes.length,
+          };
+        }"""
+    )
+    assert retained["focus"], "measuring the chooser took its native focus"
+    assert retained["buttonParts"] and retained["latestParts"]
+    assert page.evaluate(
+        """() => {
+          const held = window.__lfVersionControls;
+          return held.button === document.querySelector('.lf-version') &&
+            held.latest === document.querySelector('.lf-latest-chip') &&
+            held.buttonParts.every((node, index) => held.button.childNodes[index] === node) &&
+            held.latestParts.every((node, index) => held.latest.childNodes[index] === node);
+        }"""
+    ), "version reservation replaced a retained Lit part"
+
+    resized(page, 390, 900)
+    resized(page, 1200, 900)
+    assert page.evaluate(
+        """() => {
+          const held = window.__lfVersionControls;
+          return held.button === document.querySelector('.lf-version') &&
+            held.latest === document.querySelector('.lf-latest-chip') &&
+            held.buttonParts.every((node, index) => held.button.childNodes[index] === node) &&
+            held.latestParts.every((node, index) => held.latest.childNodes[index] === node);
+        }"""
+    ), "responsive reservation or folding replaced a version control"
+    version.click()
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    expect(page.locator(".lf-version-row")).to_be_focused()
+
+
+def test_live_revision_retains_the_runtime_favicon(browser, serve):
+    """In-place activation keeps the banner's runtime-owned tab status surface."""
+    second = LONG_PAGE.replace("<title>long</title>", "<title>second</title>")
+    page = open_page(browser, live_url(serve(LONG_PAGE)))
+    page.evaluate(
+        "() => { window.__lfFavicon = document.querySelector('link[rel=icon]'); }"
+    )
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("second")
+    assert page.evaluate(
+        """() => window.__lfFavicon ===
+          document.querySelector('link[rel=icon][data-lf-runtime]')"""
+    ), "in-place activation replaced or removed the runtime favicon"
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])

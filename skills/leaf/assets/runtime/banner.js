@@ -11,7 +11,7 @@ import {
   showNews,
   unfoldShelf,
 } from "./banner-shelf.js";
-import { latestChip, versionBtn, versionLabels } from "./version.js";
+import { latestChip, reserveVersionControls, versionBtn } from "./version-chooser.js";
 import { asksBtn, othersBtn } from "./trays.js";
 import { COVERING } from "./chrome-layout.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -75,6 +75,7 @@ const tabLink = Object.assign(document.createElement("link"), {
   type: "image/svg+xml",
   href: runtimeResource("/icon.svg"),
 });
+tabLink.dataset.lfRuntime = "";
 document.head.append(tabLink);
 let iconMark = null;
 const iconUrls = new Map();
@@ -423,7 +424,7 @@ export const renderStatus = clocked(document.body, renderStatusNow);
 export const isSignoffDeclared = () =>
   document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
 
-let signoff = isSignoffDeclared() && runtime.currentStamp !== null;
+let signoff = false;
 
 // One order, at every width. An edge's control sits at that edge: All leaves is the first
 // control beside the tray it opens on the left, and approval and Threads finish beside the
@@ -480,6 +481,7 @@ function arrangeBannerControls() {
 // The banner's row, mounted once the version chooser and the trays exist: the invariant
 // middle first, then the edge families around it (arrangeBannerControls).
 export function mountBanner({ approveVersion, paintApproval }) {
+  signoff = isSignoffDeclared() && runtime.currentStamp !== null;
   watchProjection(document.body, paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   // Seed the invariant middle once; arrangeBannerControls puts the two edge families
@@ -555,11 +557,7 @@ export function reserveBannerControls() {
   if (previewMarginEntry) reserve(previewMarginEntry, previewLabels);
   // News keeps one readable control while it changes words. The row folds rather than
   // clips, so no control has to collapse into an illegible pressure release.
-  reserve(latestChip, [
-    "New page available → open v999",
-    "Latest edit couldn't be shown",
-  ]);
-  reserve(versionBtn, versionLabels());
+  reserveVersionControls();
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(asksBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);

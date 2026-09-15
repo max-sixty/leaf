@@ -440,12 +440,14 @@ export function bake() {
   // child the item still has, so an item holding nothing else is no longer `:empty` and
   // kept the rail open on the strength of a shell. Take the emptied fold first, then ask
   // the item.
+  const holdsNothing = (shell) =>
+    !shell.querySelector("*") && !shell.textContent.trim();
   document
-    .querySelectorAll(".lf-margin-options:empty")
-    .forEach((fold) => fold.remove());
+    .querySelectorAll(".lf-margin-options")
+    .forEach((fold) => holdsNothing(fold) && fold.remove());
   document
-    .querySelectorAll(".lf-margin-cluster:empty")
-    .forEach((item) => item.remove());
+    .querySelectorAll(".lf-margin-cluster")
+    .forEach((item) => holdsNothing(item) && item.remove());
   // And the reservation the live page wrote on the root goes the same way, asked after
   // the shells above are gone so the question is about what survived. The reservation
   // exists because a margin entry can arrive on a gesture and the reader must not pay a reflow

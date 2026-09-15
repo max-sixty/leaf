@@ -2581,7 +2581,7 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
     assert [
         finding
         for finding in visible_chrome
-        if "<div id=visible-leaf-chrome>" in finding
+        if "<leaf-margin-cluster id=visible-leaf-chrome>" in finding
     ], visible_chrome
     assert overflow > 1, "the true page spill did not reach the root scrollport"
 

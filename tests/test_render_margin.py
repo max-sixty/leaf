@@ -858,6 +858,207 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     expect(marker).to_have_attribute("data-test-clicks", "1")
 
 
+def test_lit_margin_projection_reorders_retained_controls_without_moving_the_reader(
+    browser, serve
+):
+    """One keyed Lit owner moves native controls across direct, option, and dock seats."""
+    fixture = leaf_page("Retained margin controls", '<p id="target">Review this.</p>')
+    page = open_page(browser, serve(fixture))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """async () => {
+          const {marginEntry, registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          let swapped = false;
+          let changed = false;
+          const registration = registerMarginContribution({
+            key: 'retained', target: document.querySelector('#target'),
+            read: () => ({entries: [
+              marginEntry({key: 'a', glyph: 'A', label: changed ? 'Action A now' : 'Action A',
+                rank: swapped ? 'secondary' : 'primary'}),
+              marginEntry({key: 'b', glyph: 'B', label: 'Action B',
+                rank: swapped ? 'primary' : 'secondary'}),
+              marginEntry({key: 'c', glyph: 'C', label: 'Action C', rank: 'secondary'}),
+            ]}),
+            activate: key => {
+              window.lfRetainedMarginClicks.push(key);
+            },
+          });
+          window.lfRetainedMarginClicks = [];
+          window.lfRetainedMargin = {
+            registration,
+            swap() {
+              swapped = true;
+              registration.update({immediate: true});
+            },
+            change() {
+              changed = true;
+              registration.update({immediate: true});
+            },
+          };
+        }"""
+    )
+    host = page.locator('[data-lf-margin-for="target"]')
+    more = host.locator(":scope > .lf-margin-more")
+    more.click()
+    option_b = host.get_by_role("button", name="Action B", exact=True)
+    option_b.focus()
+    host.evaluate("node => window.lfRetainedMarginHost = node")
+    option_b.evaluate("node => window.lfRetainedMarginB = node")
+
+    reading = page.evaluate(
+        """() => {
+          window.lfRetainedMargin.swap();
+          const host = document.querySelector('[data-lf-margin-for="target"]');
+          const b = window.lfRetainedMargin.registration.control('b', 'margin', true);
+          return {
+            sameHost: host === window.lfRetainedMarginHost,
+            sameControl: b === window.lfRetainedMarginB,
+            focused: document.activeElement === b,
+            open: host.hasAttribute('data-lf-options-open'),
+            direct: host.querySelector(':scope > [data-lf-margin-entry-primary]')
+              ?.dataset.lfMarginEntryKey,
+            options: [...host.querySelectorAll(
+              ':scope > .lf-margin-options > .lf-margin-entry')]
+              .map(node => node.dataset.lfMarginEntryKey),
+          };
+        }"""
+    )
+    assert reading == {
+        "sameHost": True,
+        "sameControl": True,
+        "focused": True,
+        "open": True,
+        "direct": "b",
+        "options": ["a", "c"],
+    }
+
+    action_a = host.locator('[data-lf-margin-entry-key="a"]')
+    expect(action_a).to_have_accessible_name("Action A")
+    action_a.evaluate("node => window.lfRetainedMarginA = node")
+    box = action_a.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    page.evaluate("() => window.lfRetainedMargin.change()")
+    expect(action_a).to_have_accessible_name("Action A now")
+    assert action_a.evaluate("node => node === window.lfRetainedMarginA")
+    page.mouse.up()
+    assert page.evaluate("() => window.lfRetainedMarginClicks") == ["a"]
+
+    action_a.focus()
+    resized(page, 820, 900)
+    resized(page, 1440, 900)
+    assert host.evaluate("node => node === window.lfRetainedMarginHost")
+    assert action_a.evaluate("node => node === window.lfRetainedMarginA")
+    expect(action_a).to_be_focused()
+    expect(host).to_have_attribute("data-lf-options-open", "")
+
+
+def test_lit_inline_margin_projection_keys_controls_inside_conversation_chrome(
+    browser, serve
+):
+    """The inline Lit seat reorders one retained control tree and completes its press."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate(
+        """async () => {
+          const {marginEntry, registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          let target = document.createElement('span');
+          target.id = 'inline-margin-target';
+          target.textContent = 'Inline decision';
+          const nextTarget = document.createElement('span');
+          nextTarget.id = 'inline-margin-next';
+          nextTarget.textContent = 'Next inline decision';
+          document.querySelector('.lf-threads').prepend(target, nextTarget);
+          let swapped = false;
+          let changed = false;
+          const registration = registerMarginContribution({
+            key: 'inline-retained', target: () => target,
+            read: () => ({entries: (swapped ? ['b', 'a'] : ['a', 'b']).map(key =>
+              marginEntry({key, glyph: key.toUpperCase(),
+                label: key === 'a' && changed ? 'Inline A now' : `Inline ${key.toUpperCase()}`}))}),
+            activate: key => window.lfInlineMarginClicks.push(key),
+          });
+          window.lfInlineMarginClicks = [];
+          window.lfInlineMargin = {
+            registration,
+            swap() {
+              swapped = true;
+              registration.update({immediate: true});
+            },
+            change() {
+              changed = true;
+              registration.update({immediate: true});
+            },
+            retarget() {
+              target = nextTarget;
+              registration.update({immediate: true});
+            },
+          };
+        }"""
+    )
+    host = page.locator('[data-lf-margin-for="inline-margin-target"]')
+    action_a = host.locator('[data-lf-margin-entry-key="a"]')
+    expect(action_a).to_have_accessible_name("Inline A")
+    action_a.focus()
+    host.evaluate("node => window.lfInlineMarginHost = node")
+    action_a.evaluate("node => window.lfInlineMarginA = node")
+
+    reading = page.evaluate(
+        """() => {
+          window.lfInlineMargin.swap();
+          const host = document.querySelector(
+            '[data-lf-margin-for="inline-margin-target"]');
+          const a = window.lfInlineMargin.registration.control('a', 'inline', true);
+          return {
+            sameHost: host === window.lfInlineMarginHost,
+            sameControl: a === window.lfInlineMarginA,
+            focused: document.activeElement === a,
+            order: [...host.querySelectorAll(':scope > .lf-margin-entry')]
+              .map(node => node.dataset.lfMarginEntryKey),
+          };
+        }"""
+    )
+    assert reading == {
+        "sameHost": True,
+        "sameControl": True,
+        "focused": True,
+        "order": ["b", "a"],
+    }
+
+    box = action_a.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    page.evaluate("() => window.lfInlineMargin.change()")
+    expect(action_a).to_have_accessible_name("Inline A now")
+    assert action_a.evaluate("node => node === window.lfInlineMarginA")
+    page.mouse.up()
+    assert page.evaluate("() => window.lfInlineMarginClicks") == ["a"]
+
+    moved = page.evaluate(
+        """() => {
+          window.lfInlineMargin.retarget();
+          const host = document.querySelector('[data-lf-margin-for="inline-margin-next"]');
+          const a = window.lfInlineMargin.registration.control('a', 'inline', true);
+          return {
+            oldRetired: !document.querySelector(
+              '[data-lf-margin-for="inline-margin-target"]'),
+            newPresented: Boolean(host),
+            sameControl: a === window.lfInlineMarginA,
+            registered: Boolean(a),
+          };
+        }"""
+    )
+    assert moved == {
+        "oldRetired": True,
+        "newPresented": True,
+        "sameControl": True,
+        "registered": True,
+    }
+
+
 def resized_shell(page, inline_size, height):
     """Resize by the container's own width, independent of scrollbar posture."""
     viewport_width = page.viewport_size["width"]
@@ -1759,6 +1960,40 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
         == 'Duplicate margin entry key "same" in margin contribution "ambiguous"'
     )
     expect(page.locator('[data-lf-margin-for="how-cap"]')).to_have_count(0)
+
+
+def test_margin_projection_keeps_opaque_owner_and_entry_identities_distinct(
+    browser, serve
+):
+    """Owner and entry keys are a coordinate, not a delimiter-encoded string."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    readings = page.evaluate(
+        """async () => {
+          const {marginEntry, registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const target = document.querySelector('#how-cap');
+          const first = registerMarginContribution({
+            key: 'a:b', target,
+            read: () => ({entries: [marginEntry({
+              key: 'c', glyph: '1', label: 'First opaque action'
+            })]}), activate: () => {}
+          });
+          const second = registerMarginContribution({
+            key: 'a', target,
+            read: () => ({entries: [marginEntry({
+              key: 'b:c', glyph: '2', label: 'Second opaque action'
+            })]}), activate: () => {}
+          });
+          return {
+            first: Boolean(first.control('c', 'margin', true)),
+            second: Boolean(second.control('b:c', 'margin', true)),
+          };
+        }"""
+    )
+    assert readings == {"first": True, "second": True}
+    host = page.locator('[data-lf-margin-for="how-cap"]')
+    expect(host.get_by_role("button", name="First opaque action")).to_be_visible()
+    expect(host.get_by_role("button", name="Second opaque action")).to_be_visible()
 
 
 def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(

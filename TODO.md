@@ -76,9 +76,9 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 ## Later
 
 - **Finish the Lit rendering cutover for Leaf-owned generated UI.** Move the remaining
-  imperative chrome, inline-conversation, margin, and retained suggestion-control paint
-  one surface at a time onto Lit elements or templates fed only by read-only application
-  projections. For each surface, preserve authored child nodes and local focus,
+  imperative chrome and inline-conversation surfaces one at a time onto Lit elements or
+  templates fed only by read-only application projections. For each surface, preserve
+  authored child nodes and local focus,
   selection, disclosure, drag, and animation state, then delete its imperative renderer
   and reconciliation adapter before moving to the next. Plain-JavaScript package modules
   remain supported through the same public widget API.

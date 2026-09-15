@@ -1832,6 +1832,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * the whole width of a line the reader is trying to select in (pointer-events above). */
 .lf-margin-cluster.lf-docked { position: static; display: flex; width: fit-content;
     max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
+.lf-margin-inline { display: block; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }

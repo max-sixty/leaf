@@ -132,6 +132,9 @@ projected actions, filtering, modal lifecycle, and focus return;
 `runtime/margin-projection.js` projects those contributions with page readings into the page
 margin, supplies the Page Map entries, and owns anchored margin threads, the design-mode
 exclusion of its top-layer preview, and one aggregated cluster for each page target;
+`runtime/margin-cluster-view.js` consumes each frozen page or conversation margin model,
+materializes its retained native controls, and exclusively Lit-renders their direct,
+disclosed, and inline child order;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
 vertical packing, collision bands for wide page content, and transient margin-entry
 label placement;

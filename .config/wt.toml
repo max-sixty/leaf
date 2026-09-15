@@ -6,13 +6,27 @@
 #
 # Two blocks rather than one table, because a table runs its commands together and the
 # lint rewrites the tree the suite reads.
+#
+# `uv run` synchronizes the Python environment on every command, so the suite never meets
+# a stale one. Its node half had no such step: `tests/test_live_shell_artifact.py` runs
+# `worker/bundle-runtime.mjs`, which imports esbuild from an install git does not carry,
+# and a worktree that never ran setup failed the gate on a test its branch never touched.
+# `npm ci` gives the node side the same guarantee for a third of a second against a warm
+# npm cache. It writes only the ignored `node_modules/`, so it runs beside the lint.
 [[pre-merge]]
 checks = "uv run pre-commit run -a"
+node = "npm ci"
 
 # Broad discovery keeps the local gate quick. CI adds the nightly browser and
 # published-site integration suites after main moves.
 [[pre-merge]]
 tests = "uv run pytest tests"
+
+# A new worktree has no `node_modules`, so an ordinary `uv run pytest tests` fails before
+# anyone reaches a merge. Install in the background rather than blocking the switch; the
+# merge gate above installs again for the worktrees that predate this hook.
+[post-start]
+node = "npm ci"
 
 # The marketplace follows the remote default branch. Manual post-merge hooks still
 # name the source branch and its pre-squash commit, so read the landed default branch
@@ -51,6 +65,13 @@ chromium = "uv run --frozen playwright install chromium --only-shell"
 
 [[aliases.setup]]
 chrome = "uv run --frozen playwright install chrome"
+
+# The root install carries the browser framework's build and the esbuild the Python suite
+# reaches through `worker/bundle-runtime.mjs`; `post-start` repeats it for every worktree
+# after this one, and only the first clone needs it from here. The worker install is an
+# order of magnitude larger and only the website gate reads it.
+[[aliases.setup]]
+browser = "npm ci"
 
 [[aliases.setup]]
 worker = "npm ci --prefix worker"

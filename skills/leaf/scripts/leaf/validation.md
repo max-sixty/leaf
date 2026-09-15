@@ -54,6 +54,12 @@ end-to-end render-check tests run the launches used here — the installed Chrom
 channel, and the headless shell handed over under each variable that names one —
 and a unit reading covers the PATH search, which is only reached where the channel
 misses. `version export` launches through the same helper, so the two move together.
+Under every one of those launches sits Playwright's driver, a Node process the
+wheel bundles and `PLAYWRIGHT_NODEJS_PATH` replaces. Where that process ends at
+startup, or never runs at all, no launch is reached, so both gates report it as
+one line of their own — why the driver stopped, the Node that ran, and the
+variable that chooses one — rather than letting Playwright's context entry, or
+its cleanup after one, raise a private attribute.
 
 The browser's authored-state conflict check considers only surviving reader actions
 made before the revision being checked. Actions made on that revision already saw

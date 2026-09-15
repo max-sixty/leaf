@@ -6,7 +6,13 @@ from pathlib import Path
 from leaf.revision_artifact import RevisionArtifact
 from leaf.structure import SourceDocument
 
-from .browser import browser_hint, launch_browser
+from .browser import (
+    DriverNotStarted,
+    browser_hint,
+    driver_hint,
+    launch_browser,
+    playwright_driver,
+)
 from .preview import preview_server
 from .version import RENDER_VIEWPORTS, render_version
 
@@ -23,31 +29,38 @@ def render_check(
     invariants on it. A browser is part of this gate: if it cannot launch, the
     gate fails."""
     from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import sync_playwright
 
-    with (
-        preview_server(
-            page_dir,
-            document,
-            revision,
-            transition_held=transition_held,
-            artifact=artifact,
-        ) as url,
-        sync_playwright() as p,
-    ):
-        try:
-            browser, browser_name = launch_browser(p)
-        except PlaywrightError as error:
-            print(
-                "✗ render check failed — no browser launched: "
-                f"{str(error).strip().splitlines()[0]}. {browser_hint()}",
-                file=sys.stderr,
-            )
-            return 1
-        try:
-            failures = render_version(browser, url)
-        finally:
-            browser.close()
+    try:
+        with (
+            preview_server(
+                page_dir,
+                document,
+                revision,
+                transition_held=transition_held,
+                artifact=artifact,
+            ) as url,
+            playwright_driver() as p,
+        ):
+            try:
+                browser, browser_name = launch_browser(p)
+            except PlaywrightError as error:
+                print(
+                    "✗ render check failed — no browser launched: "
+                    f"{str(error).strip().splitlines()[0]}. {browser_hint()}",
+                    file=sys.stderr,
+                )
+                return 1
+            try:
+                failures = render_version(browser, url)
+            finally:
+                browser.close()
+    except DriverNotStarted as error:
+        print(
+            f"✗ render check failed — Playwright's driver did not start: {error}. "
+            f"{driver_hint()}",
+            file=sys.stderr,
+        )
+        return 1
     if failures:
         print(
             f"✗ index.html: renders broken — {len(failures)} issue(s)",

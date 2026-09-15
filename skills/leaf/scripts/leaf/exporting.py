@@ -31,9 +31,12 @@ from leaf.render_checks import (
 )
 from leaf.render_gate.browser import (
     EXPORT_FLOOR,
+    DriverNotStarted,
     below_export_floor,
     browser_hint,
+    driver_hint,
     launch_browser,
+    playwright_driver,
 )
 from leaf.render_gate.preview import preview_server
 from leaf.revision_artifact import (
@@ -581,7 +584,6 @@ def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False)
     copy packages the captured inputs so that same drawing happens when the file opens;
     its embedded authoritative reading has no host command or transport capability."""
     from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import sync_playwright
 
     events = read_events(page_dir)
     published = published_versions(page_dir, events)
@@ -619,22 +621,28 @@ def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False)
             artifact, state, snapshot.data, revision, version
         )
     else:
-        with (
-            preview_server(page_dir, document, revision, version=version) as url,
-            sync_playwright() as p,
-        ):
-            try:
-                browser, _ = launch_browser(p)
-            except PlaywrightError as e:
-                sys.exit(
-                    "export needs a browser, and none launched "
-                    f"({str(e).strip().splitlines()[0]}). A copy is the drawn page, so "
-                    f"there is nothing to write without one. {browser_hint()}"
-                )
-            try:
-                html = export_page(browser, url, page_dir, name)
-            finally:
-                browser.close()
+        try:
+            with (
+                preview_server(page_dir, document, revision, version=version) as url,
+                playwright_driver() as p,
+            ):
+                try:
+                    browser, _ = launch_browser(p)
+                except PlaywrightError as e:
+                    sys.exit(
+                        "export needs a browser, and none launched "
+                        f"({str(e).strip().splitlines()[0]}). A copy is the drawn page, "
+                        f"so there is nothing to write without one. {browser_hint()}"
+                    )
+                try:
+                    html = export_page(browser, url, page_dir, name)
+                finally:
+                    browser.close()
+        except DriverNotStarted as error:
+            sys.exit(
+                f"export needs a browser, and Playwright's driver did not start "
+                f"({error}), so none was ever asked for. {driver_hint()}"
+            )
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")

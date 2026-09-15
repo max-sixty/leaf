@@ -30,14 +30,26 @@ where its programs are before it guesses. Three readings, in order:
 
 The variables carry a path and nothing else: the launch takes no other argument
 from the host.
+
+Under every one of those readings sits Playwright's driver, a Node process that
+leaf neither names nor sees. Where that process ends at startup, or never runs
+at all, no launch is reached, so `playwright_driver()` reports it beside the
+failures above rather than through them.
 """
 
 import os
 import re
 import shutil
+from contextlib import contextmanager
+from pathlib import Path
 
 VARIABLE = "LEAF_BROWSER_EXECUTABLE"
 VARIABLES = (VARIABLE, "CHROME_PATH", "CHROME_BIN")
+
+# Playwright runs its driver under Node, and reads this for the executable. It is
+# not leaf's namespace, but it is the only knob over the process whose failure
+# `playwright_driver()` reports, so the message that reports one names it.
+DRIVER_VARIABLE = "PLAYWRIGHT_NODEJS_PATH"
 
 # Chrome first, so discovery reaching a host that also has a Chrome would land
 # where the channel already does.
@@ -73,6 +85,108 @@ def discovered_executable() -> str | None:
         if found := shutil.which(command):
             return found
     return None
+
+
+class DriverNotStarted(Exception):
+    """Playwright's driver ended before it answered the connection, so no browser
+    was ever asked for. Carries that connection's own first line, which each gate
+    reports in its own words as it does a failed launch."""
+
+
+def driver_node() -> str:
+    """The Node that Playwright runs its driver under: whichever DRIVER_VARIABLE
+    names, else the one bundled in the installed wheel.
+
+    Both readings are Playwright's, made here from the package's own location
+    rather than through `playwright._impl._driver`: this runs only on the path
+    where the driver already failed, and a private that moved would put the
+    traceback back."""
+    if named := os.environ.get(DRIVER_VARIABLE):
+        return named
+    import playwright
+
+    return str(Path(playwright.__file__).parent / "driver" / "node")
+
+
+def driver_hint() -> str:
+    """The line each gate appends when the driver never started.
+
+    The two hosts this reaches are a glibc older than the bundled Node needs and a
+    DRIVER_VARIABLE naming a Node older than the driver bundle needs. The first
+    fails in the loader naming the binary, the second inside the bundle naming
+    nothing, and neither says which Node ran or what chooses it — so the hint says
+    both."""
+    node = driver_node()
+    if os.environ.get(DRIVER_VARIABLE):
+        return f"{DRIVER_VARIABLE} named {node}."
+    return f"Playwright ran its bundled {node}; {DRIVER_VARIABLE} names another."
+
+
+@contextmanager
+def playwright_driver():
+    """Playwright, with a driver that never started raised as DriverNotStarted
+    rather than as a Playwright private.
+
+    `sync_playwright().__enter__` returns `self._playwright`, which the connection
+    callback assigns. A driver that exits at startup never runs that callback, so
+    the context entry dies on an AttributeError naming that attribute while the
+    real cause sits on the connection's init task — printed afterwards, out of
+    order, as asyncio's `Task exception was never retrieved`. Reading that task is
+    what both names the cause and keeps the second traceback from being printed at
+    all.
+
+    A driver the host named but does not have fails one step earlier, in the spawn,
+    and that OSError names the file. It reads as the same DriverNotStarted, so both
+    hosts get one line — but its manager is left unentered and unexited, which is
+    what `with` did too: Playwright's stop asserts a transport handle the failed
+    spawn never assigned, so exiting a failed entry replaces the reason with a
+    private of its own."""
+    from playwright.sync_api import sync_playwright
+
+    manager = sync_playwright()
+    try:
+        playwright = manager.start()
+    except AttributeError as error:
+        # The driver ran and stayed silent, so the connection stands: its reason is
+        # readable, and stopping it is what reaps the process and the loop.
+        reason = _driver_failure(manager)
+        manager.__exit__()
+        raise DriverNotStarted(reason) from error
+    except OSError as error:
+        raise DriverNotStarted(_spawn_failure(manager, error)) from error
+    try:
+        yield playwright
+    finally:
+        manager.__exit__()
+
+
+def _spawn_failure(manager, error: OSError) -> str:
+    """Why the driver never ran, in one line.
+
+    The spawn's own error says it. Reading the transport's error future as well is
+    what keeps asyncio from printing that same error a second time as an
+    unretrieved future, the way reading the init task does for a driver that ran."""
+    transport = getattr(getattr(manager, "_connection", None), "_transport", None)
+    future = getattr(transport, "on_error_future", None)
+    if future is not None and future.done() and not future.cancelled():
+        future.exception()
+    return str(error).strip().splitlines()[0]
+
+
+def _driver_failure(manager) -> str:
+    """Why the connection ended, in one line.
+
+    The reason is an exception on the connection's init task, reachable only
+    through Playwright privates. Every reading is optional here and a plain
+    sentence stands in for a missing one, because this runs on the path whose
+    whole point is that an attribute error stops being what the reader sees."""
+    task = getattr(getattr(manager, "_connection", None), "_init_task", None)
+    if task is None or not task.done() or task.cancelled():
+        return "the driver ended before answering"
+    error = task.exception()
+    if error is None:
+        return "the driver ended before answering"
+    return str(error).strip().splitlines()[0]
 
 
 def launch_browser(p):

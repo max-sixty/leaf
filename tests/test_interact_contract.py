@@ -3952,6 +3952,21 @@ def test_check_takes_column_width_from_vendored_theme(page_dir):
     assert "exceeds column (720px)" in result.output
 
 
+def test_check_rejects_an_unknown_authored_width(page_dir):
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><table data-width="full"><tr><td>A</td></tr></table>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert (
+        "invalid authored width; expected one of available, column, wide"
+        in result.output
+    )
+
+
 def test_activation_rechecks_changed_css_while_the_document_stays_identical(page_dir):
     """Reused CSS readings must follow theme bytes, including tokens and diagnostics."""
     theme = page_dir / "theme.css"

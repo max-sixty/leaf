@@ -24,14 +24,15 @@ const EMPTY = Object.freeze([]);
 export const BANNER_CONTROL_RANK = Object.freeze({
   session: 10,
   preview: 20,
-  leaves: 30,
-  latest: 40,
-  asks: 50,
-  map: 60,
-  blanket: 70,
-  versions: 80,
-  approval: 90,
-  threads: 100,
+  layer: 30,
+  leaves: 40,
+  latest: 50,
+  asks: 60,
+  map: 70,
+  blanket: 80,
+  versions: 90,
+  approval: 100,
+  threads: 110,
 });
 
 export const bannerActions = el("div", "lf-banner-actions");

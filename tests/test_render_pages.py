@@ -1884,6 +1884,81 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     assert narrow["sideways"] == 0, "nor scroll sideways on a narrow window"
 
 
+def test_authored_blocks_choose_column_wide_or_available_space(
+    browser, serve, tmp_path
+):
+    """One authored width contract applies to native and package blocks. An occurrence
+    wins over a package default, and column remains the prose measure when nested in a
+    wider section rather than inheriting its containing block's allocation."""
+    source = leaf_page(
+        "Authored block widths",
+        """
+<h1 id="title">Authored block widths</h1>
+<p id="prose">Standard prose.</p>
+<section id="wide" data-width="wide">
+  <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
+    <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
+  <p id="nested-column" data-width="column">Narrow prose within wide evidence.</p>
+</section>
+<lf-board id="board" data-width="column">
+  <lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
+</lf-board>
+""",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    resized(page, 1726, 900)
+    at = page.evaluate("""() => {
+      const result = {};
+      for (const id of ['prose', 'wide', 'table', 'nested-column', 'board']) {
+        const el = document.getElementById(id), box = el.getBoundingClientRect();
+        result[id] = {width: box.width, left: box.left,
+          space: el.getAttribute('data-lf-space'), role: el.getAttribute('role')};
+      }
+      return result;
+    }""")
+    assert at["wide"]["space"] == "wide"
+    assert at["table"]["space"] == "available"
+    assert at["board"]["space"] == "column"
+    assert at["wide"]["width"] > at["prose"]["width"]
+    assert at["table"]["width"] == pytest.approx(at["wide"]["width"], abs=1)
+    assert at["nested-column"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
+    assert at["nested-column"]["left"] > at["wide"]["left"]
+    assert at["board"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
+    assert page.locator("#table").evaluate("el => el.tagName") == "TABLE"
+    assert page.evaluate("document.documentElement.scrollWidth") == page.evaluate(
+        "document.documentElement.clientWidth"
+    )
+
+    exported = exporting_model.export_page(browser, page.url, serve.page_dir, "v1.html")
+    assert 'data-width="wide"' in exported
+    assert 'data-lf-space="wide"' in exported
+    copy_path = tmp_path / "authored-widths.html"
+    copy_path.write_text(exported)
+    copy = browser.new_page(viewport={"width": 1726, "height": 900})
+    copy.goto(copy_path.as_uri(), wait_until="load")
+    expect(copy.locator("#wide")).to_have_attribute("data-lf-space", "wide")
+    assert copy.locator("#wide").evaluate("el => el.getBoundingClientRect().width") > (
+        copy.locator("#nested-column").evaluate(
+            "el => el.getBoundingClientRect().width"
+        )
+    )
+    copy.close()
+
+    next_source = source.replace(' data-width="wide"', "", 1)
+    stamp_page(serve.page_dir, next_source, "remove an authored width")
+    wait_for_revision(page, 2)
+    expect(page.locator("#wide")).not_to_have_attribute("data-lf-space", "wide")
+
+    resized(page, 540, 720)
+    narrow = page.locator("#wide").evaluate(
+        "el => ({box: el.getBoundingClientRect().width, viewport: innerWidth})"
+    )
+    assert narrow["box"] < narrow["viewport"]
+    assert page.evaluate("document.documentElement.scrollWidth") == page.evaluate(
+        "document.documentElement.clientWidth"
+    )
+
+
 def test_paper_keeps_the_column(browser, serve):
     """Paper has no window to take room from: a printed page is the column's width,
     whatever the screen it was sent from was showing. The rule that grants the room is

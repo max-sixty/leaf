@@ -11,7 +11,7 @@ from leaf.registry.validation import validate_registry
 from leaf.requests import (
     declared_request_error,
 )
-from leaf.revision_artifact import read_artifact
+from leaf.revision_artifact import read_registry
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_structure
 
@@ -82,7 +82,7 @@ def candidate_vocabulary_gaps(
 
     def registry(revision):
         if revision not in registries:
-            registries[revision] = read_artifact(page_dir, revision).registry
+            registries[revision] = read_registry(page_dir, revision)
         return registries[revision]
 
     def page_event_participates(event):

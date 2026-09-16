@@ -806,13 +806,12 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     resized(page, 390, 900)
     page.evaluate("scrollTo(0, 0)")
     expect(page.locator("#bg-sidebar")).to_be_hidden()
-    expect(
-        page.get_by_role(
-            "heading",
-            name="Asks: decisions and answers",
-            exact=True,
-        )
-    ).to_be_in_viewport()
+    # A phone drops the contents spine out of the flow rather than stacking it above
+    # the reading, so the page's first section still opens within the first screen;
+    # left in the flow it lands a screen below the fold. Which section that is belongs
+    # to the gallery's authored order: naming one heading here made a section added
+    # above it read as a layout failure.
+    expect(page.locator("main > section").first).to_be_in_viewport()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
@@ -1384,6 +1383,65 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     page.keyboard.type(code)
     page.wait_for_url(re.compile(rf"{re.escape(prepare_href)}$"))
     expect(page.get_by_role("heading", name="Prepare", exact=True)).to_be_focused()
+
+
+@pytest.mark.parametrize(
+    "embedded",
+    [False, "element", "text"],
+    ids=["page-tabs", "tabbed-section", "following-text"],
+)
+def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
+    browser, serve, embedded
+):
+    """The same tab vocabulary has page or section scope from its authored placement."""
+    specimen = re.search(
+        r'<lf-tabs id="bg-tabs">.*?</lf-tabs>', FEATURE_GALLERY.read_text(), re.DOTALL
+    )
+    assert specimen is not None
+    heading = "<header><h1>Project views</h1></header>"
+    after = {
+        False: "",
+        "element": "<p>This conclusion follows the tabbed section.</p>",
+        "text": "This conclusion follows the tabbed section.",
+    }[embedded]
+    page = open_page(
+        browser,
+        live_url(serve(leaf_page("Root tab gallery", heading + specimen[0] + after))),
+    )
+    tabs = page.locator("#bg-tabs")
+    expect(tabs).to_have_css("border-left-width", "1px" if embedded else "0px")
+    choices = tabs.get_by_role("tab")
+    expect(choices).to_have_count(2)
+    choices.nth(1).click()
+    expect(choices.nth(1)).to_have_attribute("aria-selected", "true")
+    if not embedded:
+        page.wait_for_url(re.compile(r"#bg-tab-context$"))
+        page.go_back()
+        expect(choices.first).to_have_attribute("aria-selected", "true")
+        page.go_forward()
+        expect(choices.nth(1)).to_have_attribute("aria-selected", "true")
+    page.reload()
+    expect(tabs.get_by_role("tab").nth(1)).to_have_attribute("aria-selected", "true")
+    if not embedded:
+        page.evaluate("window.__retainedTabs = document.querySelector('#bg-tabs')")
+        source = serve.page_dir / "index.html"
+        original = source.read_text()
+        stamp_page(
+            serve.page_dir,
+            original.replace("</main>", "<p>Shared closing context.</p></main>"),
+            "Add shared closing context",
+        )
+        wait_for_revision(page, 2)
+        expect(tabs).to_have_css("border-left-width", "1px")
+        assert page.evaluate(
+            "window.__retainedTabs === document.querySelector('#bg-tabs')"
+        )
+        stamp_page(serve.page_dir, original, "Restore page tabs")
+        wait_for_revision(page, 3)
+        expect(tabs).to_have_css("border-left-width", "0px")
+        expect(tabs.get_by_role("tab").nth(1)).to_have_attribute(
+            "aria-selected", "true"
+        )
 
 
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
@@ -3985,7 +4043,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
             """() => {
               const line = document.querySelector('.lf-shortcut-bar');
               const chrome = document.querySelector('.lf-chrome');
-              return parseFloat(chrome.style.paddingBottom) >= line.offsetHeight + 19;
+                  return parseFloat(getComputedStyle(chrome).paddingBottom) >= line.offsetHeight + 19;
             }"""
         )
         geometry = line.evaluate(

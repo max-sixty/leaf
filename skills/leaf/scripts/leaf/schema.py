@@ -489,6 +489,9 @@ EXTENSION_SCHEMA = {
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
         "x-measured": MEASURED_SCHEMA,
+        # Whole-page view navigation when the element is the last root after no more
+        # than one native header. The outline advice recognizes this authored shape.
+        "x-page-navigation": {"const": True},
         # The element that lists the page's own headings. `version check` advises a
         # page with two or more headings and no such element (missing_outline).
         "x-outline": {"const": True},

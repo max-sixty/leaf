@@ -460,12 +460,19 @@ function* elementsIn(root, selector) {
 // `markDeclared` exposes a declaration such as x-space as paint, and CSS computes the
 // room after chrome strips and claimed margins.
 export function markDeclared(root, painted) {
+  if (painted["x-space"]) {
+    for (const el of elementsIn(root, `[${PAGE_PAINT_ATTRIBUTE.space}]`))
+      el.removeAttribute(PAGE_PAINT_ATTRIBUTE.space);
+  }
   for (const [key, attr] of Object.entries(painted))
     for (const tag of tagsDeclaring((entry) => entry[key])) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag))
         el.setAttribute(attr, declared === true ? "" : declared);
     }
+  if (painted["x-space"])
+    for (const el of elementsIn(root, "[data-width]"))
+      el.setAttribute(PAGE_PAINT_ATTRIBUTE.space, el.dataset.width);
 }
 
 // Words a widget says through an attribute — a metric's number, a chronology entry's time, an

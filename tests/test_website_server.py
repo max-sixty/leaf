@@ -2495,6 +2495,20 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert headers["Content-Security-Policy"] == "frame-ancestors 'none'"
         assert headers["Leaf-Session"] == "active"
 
+        # A released document sends the public startup beacon, which the deployed site
+        # answers at the edge. Nothing stands in front of this adapter, so it owes the
+        # browser the same empty acknowledgement — a 404 here is a console error on
+        # every page the site serves.
+        assert b'data-lf-release="' in document
+        beacon = urllib.request.Request(
+            f"{root}/examples/decision/api/performance",
+            data=json.dumps({"version": 1, "outcome": "presented"}).encode(),
+            headers={"Content-Type": "text/plain;charset=UTF-8"},
+        )
+        with urllib.request.urlopen(beacon) as recorded:
+            assert recorded.status == 204
+            assert recorded.read() == b""
+
         raw_state, headers = get(f"{root}/examples/decision/api/state")
         state = json.loads(raw_state)
         assert state["publication"] == {

@@ -174,6 +174,9 @@ runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`, 
 `[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
 tags. `x-space: wide` requests the shared capped evidence width; `x-space: available`
 requests all room left after enclosing frames, chrome, and actual margin residents.
+This is the package default. A page occurrence may choose `data-width="column"`,
+`data-width="wide"`, or `data-width="available"`; the authored value wins, including
+`column` when the page deliberately keeps a normally wide widget with its prose.
 Neither value chooses the widget's internal layout; the package arranges its own content
 inside the allocation. A package whose available surface preserves a drawing's natural
 inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can
@@ -213,6 +216,12 @@ An owned-members container that needs one member for every semantic role declare
 required string enum, and the child admits the container through `x-owners`. `version
 check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
 package contract without adding their tags or vocabulary to Leaf.
+
+An element that supplies whole-page view navigation declares `x-page-navigation: true`.
+It becomes that composition when it is the final substantive child of `main` and the
+only substantive content before it is one native `header` or nothing. In that placement
+`version check` does not advise adding the page-wide outline that would displace it. The
+element's module and theme own its root and embedded presentations.
 
 A structural element declares `x-reading-role` as `workspace`, `pane`, or `partition` and keeps
 `x-content: markup`. Every role requires `id`; a pane also requires a string `label`, and
@@ -271,6 +280,12 @@ runtime-reserved stable id with `compoundReadingRegionId(owner, localName)`.
 `watchReadingRegionTransitions(listener)` receives a `before` reading while old geometry
 is intact and an `after` reading on settled new geometry; a newer posture change cancels
 the obsolete `after`. The continuity owner decides what to capture and restore.
+Use `preserveReadingRegions(owner, change)` when a composition hides or reveals regions.
+It invokes `change` immediately and awaits its returned layout promise before restoring
+the visible regions through the same continuity owner. Its notifications have null
+`from` and `to`: visibility changed, not necessarily posture. A superseding change marks
+its `before` as `retained`; a failed or disconnected change marks its `after` as
+`cancelled`. Enclosing composition transitions own continuity over nested posture changes.
 
 When a position action completes an Ask only after its own move empties a queue,
 declare `completion: {empty: {within: "CONTAINER-TAG", when: {ATTRIBUTE: [VALUE]}}}`
@@ -380,7 +395,8 @@ What the module owes:
 a total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a
 detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
 `relabel()` on anything injected, with its room reserved from inside `measure` and
-`layoutChanged` called after a view swap; asynchronous visible preparation is registered
+`layoutChanged` called after a view swap (await its returned promise before restoring
+scroll against the resulting layout); asynchronous visible preparation is registered
 through `controller.present(promise)`; box-derived apparatus takes its first visible
 reading synchronously from `PRESENTATION` and observes later changes through the normal
 layout signals (each helper's header under `runtime/` says why); `keeps(node, name,

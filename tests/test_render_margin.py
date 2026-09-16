@@ -60,6 +60,32 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+
+def test_column_width_does_not_clear_a_sidenote(browser, serve):
+    """Column is the ordinary prose measure, so explicitly naming it must not move a
+    paragraph below a sidenote that ordinary neighboring paragraphs flow beside."""
+    source = leaf_page(
+        "Column beside sidenote",
+        """
+<h1 id="title">Column beside sidenote</h1>
+<aside class="sidenote" id="note"><p>Supporting context in the margin.</p></aside>
+<p id="before">The first line of ordinary prose.</p>
+<p id="column" data-width="column">The explicitly column-width line.</p>
+<p id="after">The following line of ordinary prose.</p>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    tops = page.evaluate(
+        """() => Object.fromEntries(['before', 'column', 'after'].map(id => [
+          id, document.getElementById(id).getBoundingClientRect().top
+        ]))"""
+    )
+    assert tops["column"] - tops["before"] == pytest.approx(
+        tops["after"] - tops["column"], abs=1
+    )
+
+
 COMMENT_ON_ASK = {
     "kind": "comment",
     "author": "user",

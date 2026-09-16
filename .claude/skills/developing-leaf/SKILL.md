@@ -6,7 +6,7 @@ description: Develops Leaf itself from the current checkout, including its runti
 # Develop Leaf from this checkout
 
 Resolve the repository root three directories above this `SKILL.md`, then resolve
-`<root>/bin/leaf` to an absolute path. Run that launcher with `--version` and
+`<root>/bin/leaf` to an absolute path. Run that launcher with `--root` and
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 

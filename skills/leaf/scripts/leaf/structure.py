@@ -222,6 +222,8 @@ class SourceDocument:
         self.css = ""
         self.inline_styles = []  # each style="" declaration list
         self.attr_widths = []  # (tag, value) per width="" that counts as pixels
+        # {tag, line, value} per authored responsive allocation request.
+        self.authored_widths = []
         self.title = ""  # what <title> says, for the transcript's heading
         # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
@@ -462,6 +464,10 @@ class SourceDocument:
             self.inline_styles.append(attrs["style"])
         if tag in PIXEL_WIDTH_TAGS and attrs.get("width"):
             self.attr_widths.append((tag, attrs["width"]))
+        if "data-width" in attrs:
+            self.authored_widths.append(
+                {"tag": tag, "line": line, "value": attrs["data-width"]}
+            )
         markers = sorted(name for name in attrs if name.startswith("data-lf-"))
         markers += sorted(
             name

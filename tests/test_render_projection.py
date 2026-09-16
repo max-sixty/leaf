@@ -3,6 +3,7 @@
 import json
 import re
 import threading
+from copy import deepcopy
 from datetime import datetime, timedelta
 
 import pytest
@@ -48,6 +49,8 @@ from render_cases_interaction import (
     RING,
     ROSTER_PAGE,
     SCROLL_SETTLED,
+    SEATED_ASK_ENTRY,
+    SEATED_ASK_MODULE,
     STANDING_ACTIONS,
     STANDING_PAGE,
     SUGGESTION_PAGE,
@@ -2598,6 +2601,224 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     expect(page.locator("#wd-keep .lf-pick")).to_be_focused()
     page.keyboard.press("1")
     expect(page.locator("#wd-keep")).to_have_attribute("chosen", "")
+    page.locator("#wd-never .lf-pick").click()
+    round_trip(page)
+    expect(page.locator("#wd-never")).to_have_attribute("chosen", "")
+
+
+def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
+    """Plain declared elements leave the semantic document with their upgraded owner."""
+    first = leaf_page(
+        "Ask first",
+        """<h1>One question</h1>
+<lf-ask id="gone-ask"><h2>Keep it?</h2>
+  <lf-options id="gone-options" choose>
+    <lf-option id="gone-yes">Yes</lf-option>
+  </lf-options>
+</lf-ask>""",
+    )
+    second = leaf_page(
+        "Ask removed", "<h1>No question</h1><p>The decision is gone.</p>"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+
+    stamp_page(serve.page_dir, second, "remove the question")
+    wait_for_revision(page, 2)
+    expect(page.locator(".lf-asks")).to_be_hidden()
+    descriptors = page.evaluate(
+        """async () => {
+          const {readApplication} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return [...readApplication().document.descriptors.keys()];
+        }"""
+    )
+    assert not {"gone-ask", "gone-options", "gone-yes"} & set(descriptors)
+
+
+def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, serve):
+    """Retained Ask descriptors follow the incoming document's order."""
+
+    def question(identity, label):
+        return f"""<lf-ask id="{identity}-ask"><h2>{label}?</h2>
+  <lf-options id="{identity}-options" choose>
+    <lf-option id="{identity}-yes">Yes</lf-option>
+  </lf-options>
+</lf-ask>"""
+
+    first_question = question("first", "First")
+    second_question = question("second", "Second")
+    first = leaf_page(
+        "Ask order first",
+        f"<h1>Two questions</h1>{first_question}{second_question}",
+    )
+    second = leaf_page(
+        "Ask order second",
+        f"<h1>Two questions</h1>{second_question}{first_question}",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.locator(".lf-asks").click()
+    rows = page.locator(".lf-asks-row")
+    expect(rows).to_have_count(2)
+
+    def identities(selector, attribute):
+        return page.locator(selector).evaluate_all(
+            "(nodes, attribute) => nodes.map(node => node.getAttribute(attribute))",
+            attribute,
+        )
+
+    assert identities("main > lf-ask", "id") == ["first-ask", "second-ask"]
+    assert identities(".lf-asks-row", "data-lf-at") == [
+        "first-ask",
+        "second-ask",
+    ]
+
+    stamp_page(serve.page_dir, second, "reverse the questions")
+    wait_for_revision(page, 2)
+
+    assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
+    assert identities(".lf-asks-row", "data-lf-at") == [
+        "second-ask",
+        "first-ask",
+    ]
+
+
+def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
+    browser, serve
+):
+    """Predicate operands survive upgrade even when the Ask starts closed."""
+    entry = {
+        "description": "A test-owned conditional Ask.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "phase": {"enum": ["closed", "open"]},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id", "phase"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-upgrade": True,
+        "x-state": {
+            phase: {
+                "detail": {
+                    "type": "object",
+                    "properties": {"phase": {"enum": ["closed", "open"]}},
+                    "required": ["phase"],
+                    "additionalProperties": False,
+                },
+                "facet": "visibility",
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "phase", "value": "phase"},
+            }
+            for phase in ("open", "close")
+        }
+        | {
+            "answer": {
+                "detail": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": False,
+                },
+                "facet": "decision",
+                "unit": "widget",
+            }
+        },
+        "x-awaits": {"when": {"phase": ["open"]}, "answers": ["answer"]},
+        "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
+    }
+    module = """\
+import { once, widgetController } from "/runtime/widget-api.js";
+customElements.define("lf-conditional", class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
+  renderState(state) { this.setAttribute("phase", state.visibility.value); }
+});
+"""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Conditional Ask",
+                '<lf-conditional id="question" phase="closed">Choose.</lf-conditional>',
+            ),
+            layer_registry={"lf-conditional": entry},
+            layer_widgets={"lf-conditional.js": module},
+        ),
+    )
+    expect(page.locator(".lf-asks")).to_be_hidden()
+
+    for action, phase, count in (("open", "open", 1), ("close", "closed", 0)):
+        append_command(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "question",
+                "action": action,
+                "detail": {"phase": phase},
+            },
+        )
+        told(page)
+        if count:
+            expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+            page.locator(".lf-asks").click()
+        expect(page.locator(".lf-asks-row")).to_have_count(count)
+
+
+def test_a_live_revision_reapplies_the_authored_conversation_seat_predicate(
+    browser, serve
+):
+    """An old seated thread cannot hide an Ask from a revision with no seat."""
+    entry = deepcopy(SEATED_ASK_ENTRY)
+    entry["properties"]["talk"] = {"type": "boolean"}
+    entry["x-conversation"]["when"] = {"talk": [True]}
+    entry["x-example"] = (
+        '<lf-verdict id="verdict-example" asks talk>Ship it?</lf-verdict>'
+    )
+    module = SEATED_ASK_MODULE.replace(
+        'const seat = conversationBox(this, "Say something about this");',
+        'const seat = this.hasAttribute("talk") '
+        '? conversationBox(this, "Say something about this") : null;',
+    )
+    first = leaf_page(
+        "Conditional conversation seat",
+        '<lf-verdict id="question" asks talk>Ship it?</lf-verdict>',
+    )
+    second = leaf_page(
+        "Conditional conversation seat",
+        '<lf-verdict id="question" asks>Ship it?</lf-verdict>',
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                first,
+                layer_registry={"lf-verdict": entry},
+                layer_widgets={"lf-verdict.js": module},
+            )
+        ),
+    )
+    composer = page.locator("#question > .lf-conversation > .lf-say")
+    composer.get_by_role("textbox").fill("Please check the premise first.")
+    with sending(page, "the seated question"):
+        composer.get_by_role("button", name="Send", exact=True).click()
+
+    def reader_asks():
+        return page.evaluate(
+            """async () => {
+              const {openAsks} = await window.__lfRuntimeImport('/runtime/application.js');
+              return openAsks().map(ask => ask.sourceId);
+            }"""
+        )
+
+    assert reader_asks() == []
+    stamp_page(serve.page_dir, second, "remove the conversation seat")
+    wait_for_revision(page, 2)
+    assert reader_asks() == ["question"]
 
 
 def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser, serve):
@@ -5445,11 +5666,12 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     assert failures == []
 
 
-def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):
-    """A widget may use the runtime's namespace for state without making that state
-    runtime paint. Replaying a suggestion changes only data-lf-state on its authored
-    element, so its signature must change; runtime attributes and generated chrome
-    must not change the signature."""
+def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, serve):
+    """A rendered settlement cannot become authored state through a DOM signature.
+
+    The application snapshot owns the outcome; data-lf-state and the other runtime
+    attributes only make that publication visible and must not replace a retained node.
+    """
     url = serve(SUGGESTION_PAGE)
     append_command(
         serve.page_dir,
@@ -5479,8 +5701,8 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     assert signatures["decided"] == signatures["painted"], (
         "runtime-owned pending paint became authored state in the replay signature"
     )
-    assert signatures["decided"] != signatures["undecided"], (
-        "widget-owned data-lf-state disappeared with the runtime's private attributes"
+    assert signatures["decided"] == signatures["undecided"], (
+        "rendered settlement paint became authored state in the replay signature"
     )
     positions = page.evaluate("""async () => {
         const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
@@ -6329,8 +6551,10 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
 
 
 @pytest.mark.parametrize("asynchronous", [False, True], ids=["draft", "async-body"])
-def test_thread_body_initial_state_waits_for_upgrade(browser, serve, asynchronous):
-    """Frozen widgets start and undo to their upgraded body, including async capture."""
+def test_thread_body_initial_state_comes_from_source_before_upgrade(
+    browser, serve, asynchronous
+):
+    """Frozen widgets undo to source even when presentation rewrites its body."""
     tag = "lf-delayed-body" if asynchronous else "lf-draft"
     layer = {}
     if asynchronous:
@@ -6373,7 +6597,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
   connectedCallback() {
     if (once(this)) {
       this.#controller.present(new Promise(resolve => requestAnimationFrame(() => {
-        this.querySelector('pre').textContent = 'First line.\\nSecond line.';
+        this.querySelector('pre').textContent = 'Presentation-only rewrite.';
         resolve();
       })));
     }
@@ -6412,7 +6636,9 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     widget = page.locator("#reply-body")
     original = widget.element_handle()
     body = widget.locator("pre" if asynchronous else ".lf-draft-body")
-    assert body.text_content() == "First line.\nSecond line."
+    assert body.text_content() == (
+        "Presentation-only rewrite." if asynchronous else "First line.\nSecond line."
+    )
     response = post_event(
         page,
         live_url(url).split("?")[0] + "api/event",
@@ -6430,6 +6656,54 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     undo(page)
     assert body.text_content() == "First line.\nSecond line."
     assert original.evaluate("node => node === document.getElementById('reply-body')")
+
+
+def test_live_revision_drafts_wait_for_the_complete_controller_publication(
+    browser, serve
+):
+    """Replacement drafts recover only after the arriving document is complete."""
+    first = leaf_page(
+        "Drafts first",
+        """<h1>Drafts</h1>
+<lf-draft id="revised-draft"><pre>
+    The first revision's existing body.
+</pre></lf-draft>""",
+    )
+    second = leaf_page(
+        "Drafts second",
+        """<h1>Drafts</h1>
+<lf-draft id="revised-draft"><pre>
+    The second revision's replacement body.
+</pre></lf-draft>
+<lf-draft id="arriving-draft"><pre>
+    The second revision's newly inserted body.
+</pre></lf-draft>""",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    revised = page.locator("#revised-draft")
+    expect(revised.locator(".lf-draft-body")).to_have_text(
+        "The first revision's existing body."
+    )
+    revised.locator(".lf-draft-body").click()
+    editor = revised.get_by_role("textbox", name="Edit revised-draft")
+    editor.fill("The reader's unsent replacement.\n")
+    editor.press("Escape")
+    expect(editor).to_have_count(0)
+    assert take_browser_errors(page) == []
+
+    stamp_page(serve.page_dir, second, "replace and insert drafts")
+    wait_for_revision(page, 2)
+
+    expect(revised.locator(".lf-draft-body")).to_have_text(
+        "The second revision's replacement body."
+    )
+    expect(page.locator("#arriving-draft .lf-draft-body")).to_have_text(
+        "The second revision's newly inserted body."
+    )
+    expect(revised.get_by_role("textbox", name="Edit revised-draft")).to_have_value(
+        "The reader's unsent replacement.\n"
+    )
+    assert take_browser_errors(page) == []
 
 
 def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve):
@@ -6472,6 +6746,23 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         )
     holding(page, held, 1, "the frozen draft module")
     assert len(held) == 1
+    frozen_reading = """async () => {
+      const {readApplication} = await window.__lfRuntimeImport(
+        '/runtime/semantic-state.js');
+      const root = readApplication();
+      return {
+        descriptor: root.document.descriptors.has('crossed-draft'),
+        authored: root.document.authored.has('crossed-draft'),
+        body: root.effective.widgets.get('crossed-draft')?.state.body?.value ?? null,
+        mounted: Boolean(document.getElementById('crossed-draft')),
+      };
+    }"""
+    assert page.evaluate(frozen_reading) == {
+        "descriptor": False,
+        "authored": False,
+        "body": None,
+        "mounted": False,
+    }
     with page.expect_response("**/api/event") as newer:
         page.locator("#delivery-now").click()
     assert newer.value.ok
@@ -6481,6 +6772,12 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     held[0].continue_()
     page.unroute("**/widgets/lf-draft.js")
     told(page)
+    assert page.evaluate(frozen_reading) == {
+        "descriptor": True,
+        "authored": True,
+        "body": "First line.\nSecond line.",
+        "mounted": True,
+    }
     page.locator(".lf-threads-toggle").click()
     widget = page.locator("#crossed-draft")
     original = widget.element_handle()
@@ -6508,8 +6805,9 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     a poll, after that render, and an action naming a widget it doesn't find is
     one no version will ever hold (an honored suggestion, whose id the honoring
     version dropped) rather than one to look for again on the next poll. Its authored
-    record is captured after the connected reply has upgraded, so withdrawing the action
-    restores that baseline without authored version markup for the chrome widget."""
+    record is captured from frozen source before the reply is admitted, so withdrawing
+    the action restores that baseline without authored version markup for the chrome
+    widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -7715,6 +8013,68 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     )
 
 
+def test_command_hub_reads_one_publication_before_worker_presentation_commits(
+    browser, serve
+):
+    """The hub cannot combine a new semantic epoch with a child's old attributes."""
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    worker = page.locator("#w-1")
+    head = page.locator("#hub-plan > .lf-command-head")
+    expect(worker).to_have_attribute("state", "working")
+    expect(head).to_contain_text("3 running")
+    page.evaluate(
+        """() => {
+          const worker = document.querySelector('#w-1');
+          const present = worker.renderState.bind(worker);
+          let reading;
+          let release;
+          worker.updateComplete = new Promise(resolve => { release = resolve; });
+          worker.renderState = state => { reading = state; };
+          window.releaseCommandWorker = () => {
+            present(reading);
+            release();
+          };
+        }"""
+    )
+
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "report",
+            str(serve.page_dir),
+            "w-1",
+            "state",
+            "state=waiting",
+            "doing=ready for review",
+        ],
+    )
+    assert sent.exit_code == 0, sent.output
+    try:
+        page.wait_for_function(
+            """async () => {
+              const {widgetController} = await window.__lfRuntimeImport(
+                '/runtime/widget-api.js');
+              return widgetController(document.querySelector('#w-1'))
+                .read().state.activity.value === 'waiting';
+            }"""
+        )
+        expect(worker).to_have_attribute("state", "working")
+        expect(head).to_contain_text("2 running")
+        assert "widget:w-1:render" in page.evaluate(
+            """async () => {
+              const {readApplicationPresentation} = await window.__lfRuntimeImport(
+                '/runtime/semantic-state.js');
+              return readApplicationPresentation().pending;
+            }"""
+        )
+    finally:
+        page.evaluate("releaseCommandWorker()")
+
+    told(page)
+    expect(worker).to_have_attribute("state", "waiting")
+    expect(head).to_contain_text("2 running")
+
+
 def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     """A roster row names its target in the target's own words, which makes the name a
     route rather than a second place the page says it: two fenced passages carrying the
@@ -8282,13 +8642,33 @@ def test_project_widget_can_join_the_orchestration_projection(
             "properties": {
                 "id": {"type": "string"},
                 "phase": {"enum": ["active", "blocked", "done"]},
+                "overruled": {"type": "boolean"},
             },
             "required": ["id", "phase"],
             "additionalProperties": False,
             "x-owners": ["lf-command", "lf-area"],
             "x-content": "markup",
             "x-awaits": {"rollup": True},
-            "x-upgrade": False,
+            "x-report": {
+                "phase": {
+                    "detail": {
+                        "type": "object",
+                        "properties": {
+                            "phase": {"enum": ["active", "blocked", "done"]}
+                        },
+                        "required": ["phase"],
+                        "additionalProperties": False,
+                    },
+                    "facet": "phase",
+                    "unit": "widget",
+                    "record": {
+                        "kind": "value",
+                        "attr": "phase",
+                        "value": "phase",
+                    },
+                }
+            },
+            "x-upgrade": True,
         },
         "$command": {
             "widgets": {
@@ -8297,6 +8677,7 @@ def test_project_widget_can_join_the_orchestration_projection(
                     "state": "phase",
                     "done": ["done"],
                     "stopped": ["blocked"],
+                    "report": "phase",
                 }
             }
         },
@@ -8317,7 +8698,24 @@ def test_project_widget_can_join_the_orchestration_projection(
 </lf-command>
 """,
     )
-    url = serve(command, layer_registry=registry)
+    url = serve(
+        command,
+        layer_registry=registry,
+        layer_widgets={
+            "lf-area.js": """import { once, widgetController } from \"/runtime/widget-api.js\";
+customElements.define(\"lf-area\", class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() {
+    once(this);
+    this.#stop ??= this.#controller.subscribe(() => {});
+  }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
+  renderState(state) { this.setAttribute(\"phase\", state.phase.value); }
+});
+"""
+        },
+    )
 
     page = open_page(browser, url)
 

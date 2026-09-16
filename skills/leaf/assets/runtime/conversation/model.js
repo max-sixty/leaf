@@ -77,8 +77,16 @@ export function foldThreads(threads, messages, reactions, settlements) {
     opened.push(thread);
     byName.set(root.id, thread);
   }
-  for (const reply of [...messages, ...reactions])
-    if (reply.kind === "reply") byName.get(reply.parent)?.msgs.push(reply);
+  for (const reply of [...messages, ...reactions]) {
+    if (reply.kind !== "reply") continue;
+    const thread = byName.get(reply.parent);
+    if (!thread) continue;
+    thread.msgs.push(reply);
+    if (!isReaction(reply)) {
+      thread.awaits_agent = true;
+      thread.awaits_reader = false;
+    }
+  }
   for (const thread of opened) {
     const said = spoken(thread);
     thread.bare_reaction = isReaction(thread.root) && !said.length;

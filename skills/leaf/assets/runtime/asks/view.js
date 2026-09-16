@@ -123,7 +123,6 @@ import { registry, tagsDeclaring } from "../registry.js";
 import {
   allAsks as readAllAsks,
   askEntry,
-  askSource,
   openAsks as readOpenAsks,
   unansweredAsks as readUnansweredAsks,
 } from "./model.js";
@@ -156,7 +155,6 @@ import {
 // focus and the dispatch stack leave the contributed action row reachable.
 export function createAskView({
   panelIsOpen,
-  pendingRequests,
   setPanel,
   setOpenTray,
   trayCovers,
@@ -171,8 +169,29 @@ export function createAskView({
   repaint,
 }) {
   const allAsks = readAllAsks;
-  const openAsks = () => readOpenAsks(pendingRequests());
-  const unansweredAsks = () => readUnansweredAsks(pendingRequests());
+  const openAsks = readOpenAsks;
+  const unansweredAsks = readUnansweredAsks;
+  const askNode = (ask) => (ask ? elementById(ask.id) : null);
+  const sourceNode = (ask) => (ask ? elementById(ask.sourceId) : null);
+  const hasAsk = (asks, candidate) =>
+    Boolean(candidate && asks.some((ask) => ask.id === candidate.id));
+  const unansweredIds = () => new Set(unansweredAsks().map(({ id }) => id));
+
+  // A thread Ask is part of the application reading before its frozen markup has a
+  // live panel node. Navigation and activation are the two boundaries that need that
+  // node, so materialize the existing conversation projection there rather than
+  // narrowing the semantic inventory to what happens to be in the DOM.
+  async function materializeAsk(ask) {
+    let target = askNode(ask);
+    let source = sourceNode(ask);
+    if ((!target || !source) && ask.thread) {
+      if (!panelIsOpen()) setPanel(true);
+      await refreshConversation();
+      target = askNode(ask);
+      source = sourceNode(ask);
+    }
+    return { target, source };
+  }
   const presentedActionControl = (control) => presentedControl(control) ?? control;
   const answeringAll = new Set();
   const bulkAnswers = new Map();
@@ -184,8 +203,9 @@ export function createAskView({
       // Resolve the current open inventory at activation. A control can survive several
       // publications and shelf moves; it never captures an earlier Ask or DOM node.
       for (const ask of openAsks()) {
-        const source = askSource(ask);
-        if (askEntry(source)?.all === verb) await source[verb]?.();
+        if (askEntry(ask)?.all !== verb) continue;
+        const { source } = await materializeAsk(ask);
+        await source?.[verb]?.();
       }
     } finally {
       answeringAll.delete(verb);
@@ -235,7 +255,7 @@ export function createAskView({
   // which verbs exist is the registry's answer.
   function blanketAnswers(asks) {
     return [...bulkAnswers].map(([verb, label]) => {
-      const n = asks.filter((ask) => askEntry(askSource(ask))?.all === verb).length;
+      const n = asks.filter((ask) => askEntry(ask)?.all === verb).length;
       return Object.freeze({
         busy: answeringAll.has(verb),
         offered: Boolean(n),
@@ -245,10 +265,8 @@ export function createAskView({
       });
     });
   }
-  // The banner's reading of that one list. Refreshed from every signal that can change
-  // it: a widget saying it has just taken an answer (lf-answered, which is also when the
-  // page's own words change), and every semantic publication, which is where the fold
-  // moves and where a send that failed has its optimism taken back.
+  // The banner's reading of that one list. Every semantic publication refreshes it:
+  // that is where both the fold and a send whose optimism was taken back change.
   let shortcutsOffered = false;
   let rowWalkOffered = false;
   const ANSWER_CAP = 120;
@@ -262,7 +280,8 @@ export function createAskView({
     return (at > ANSWER_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
   };
   function currentAskAnswer(ask) {
-    const source = askSource(ask);
+    const source = sourceNode(ask);
+    if (!source) return "";
     const readers = [
       ...new Set(
         commandScopesWithin(source)
@@ -278,9 +297,10 @@ export function createAskView({
     return answerWords(readers[0]?.());
   }
   const rowModel = (ask, unanswered) => {
-    const kind = addressableWord(ask);
-    const says = addressableSays(ask) || ask.id;
-    const answered = !unanswered.has(ask);
+    const node = askNode(ask);
+    const kind = addressableWord(node) || ask.tag.replace(/^lf-/, "");
+    const says = addressableSays(node) || ask.id;
+    const answered = !unanswered.has(ask.id);
     const answer = answered ? currentAskAnswer(ask) : "";
     return Object.freeze({
       id: ask.id,
@@ -297,8 +317,8 @@ export function createAskView({
     const current = () => generation === askPaintGeneration;
     const asks = openAsks();
     const all = allAsks();
-    const unanswered = new Set(unansweredAsks());
-    const completed = all.filter((ask) => !unanswered.has(ask)).length;
+    const unanswered = unansweredIds();
+    const completed = all.filter((ask) => !unanswered.has(ask.id)).length;
     const offered = asksOffered();
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. The list owner receives an explicit closed model
@@ -488,6 +508,23 @@ export function createAskView({
     const at = standsAt(node);
     return (at && elementById(at)) ?? node;
   }
+  // Resolve a mechanical standing back to one record from the publisher-owned
+  // inventory. DOM containment says where focus is; it never decides whether the Ask
+  // belongs to that inventory.
+  function askAt(asks, node) {
+    const named = standsAt(node);
+    if (named) {
+      const record = asks.findLast((ask) => ask.id === named);
+      if (record) return record;
+    }
+    const place = askPlace(node);
+    return (
+      asks.findLast((ask) => {
+        const candidate = askNode(ask);
+        return candidate && (candidate === place || containsAcross(candidate, place));
+      }) ?? null
+    );
+  }
   // The ask the reader is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides. The innermost of them, an ask being able to hold
   // another (a question inside a suggestion's lf-new) — the list answers in document order,
@@ -507,24 +544,24 @@ export function createAskView({
   // Document focus rather than the inner control, for the reason askPosition gives: a
   // control staged in a shadow tree retargets to its host, and the host is the place in the
   // document this wants.
-  function standingIn() {
+  function standingAsk() {
     const held = documentFocused();
     if (!held || held === document.body) return null;
-    const place = askPlace(held);
-    const unanswered = unansweredAsks().findLast(
-      (ask) => ask === place || ask.contains(place),
-    );
+    const unanswered = askAt(unansweredAsks(), held);
     if (unanswered) return unanswered;
     // An answered Ask is standing only on the explicit review route: its tray row or
     // the ask element that row lands on. A widget host can be the document's
     // retargeted focus without being the ask itself; treating that as an arrival
     // would make an ordinary click on a chosen option steal the option's own semantics.
-    const answered = allAsks().findLast((ask) => ask === place || ask.contains(place));
+    const answered = askAt(allAsks(), held);
     if (!answered) return null;
-    return held === answered || held.closest(".lf-asks-row") || hasReviewedFocus()
+    return held === askNode(answered) ||
+      held.closest(".lf-asks-row") ||
+      hasReviewedFocus()
       ? answered
       : null;
   }
+  const standingIn = () => askNode(standingAsk());
 
   // The Ask-local action map. A package contributes exact controls through the same
   // command scopes dispatch and Help already consume. Each action receives a contextual
@@ -532,11 +569,11 @@ export function createAskView({
   // moves into the Ask; each route points back to the contributed command, while nearer
   // local scopes still own the keys they declare and the dispatcher's ordinary shadowing
   // keeps an unavailable digit out of every projection.
-  function ownedAskControl(askSource, commandSource) {
+  function ownedAskControl(source, commandSource) {
     const selector = tagsDeclaring(
       (entry) => entry["x-awaits"] || entry["x-request"]?.ask,
     ).join(",");
-    return !selector || closestAcross(commandSource, selector) === askSource;
+    return !selector || closestAcross(commandSource, selector) === source;
   }
   const MAX_ASK_ACTIONS = 9;
   const actionsFor = (source) =>
@@ -549,9 +586,10 @@ export function createAskView({
         control.getAttribute("aria-busy") !== "true",
     );
   const availableActions = () => {
-    const ask = standingIn();
+    const ask = standingAsk();
     if (!ask) return [];
-    const source = askSource(ask);
+    const source = sourceNode(ask);
+    if (!source) return [];
     const actions = actionsFor(source);
     const contextual = bindings({
       keys: Array.from({ length: MAX_ASK_ACTIONS }, (_, index) => String(index + 1)),
@@ -792,8 +830,9 @@ export function createAskView({
   // stylesheet is written against the attribute, not against the page), so wearing the
   // attribute is the whole of what the row needs.
   function markHere() {
-    const here = standingIn();
-    const row = here && asksPanel.querySelector(`[${ASK_AT}="${here.id}"]`);
+    const record = standingAsk();
+    const here = askNode(record);
+    const row = record && asksPanel.querySelector(`[${ASK_AT}="${record.id}"]`);
     const wearing = new Set(
       here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
     );
@@ -805,7 +844,7 @@ export function createAskView({
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
     // A control-less request can borrow its own tab stop while the broader x-ask-surface
     // region wears the ring. Keep that stop until the reader leaves the region.
-    const holder = here && askSource(here);
+    const holder = sourceNode(record);
     if (askLent && askLent !== here && askLent !== holder) lend(null);
     for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
     paintActionProjections();
@@ -826,10 +865,8 @@ export function createAskView({
   const walkPlace = (node) => {
     const place = askPlace(node);
     if (!inChrome(place)) return place;
-    const holding = allAsks().some(
-      (ask) => ask === place || containsAcross(ask, place),
-    );
-    return holding ? place : null;
+    const holding = askAt(allAsks(), node);
+    return holding ? (askNode(holding) ?? place) : null;
   };
   // Where the walk measures from: where the reader is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the reader had not made with
@@ -871,10 +908,17 @@ export function createAskView({
   function askStep(asks, dir) {
     const here = askPosition();
     if (!here) return dir > 0 ? asks[0] : asks.at(-1);
+    const standing = askAt(asks, here);
+    if (standing) {
+      const index = asks.findIndex((ask) => ask.id === standing.id);
+      return asks[Math.max(0, Math.min(index + dir, asks.length - 1))];
+    }
     const side =
       dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
     const reach = asks.filter((ask) => {
-      const rel = here.compareDocumentPosition(ask);
+      const node = askNode(ask);
+      if (!node) return false;
+      const rel = here.compareDocumentPosition(node);
       return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
     });
     return dir > 0 ? (reach[0] ?? asks.at(-1)) : (reach.at(-1) ?? asks[0]);
@@ -891,8 +935,9 @@ export function createAskView({
   // stood at 54px and the pick the walk focused ran from 847 to 1107 in a 900px window. So
   // the reader was told to look at one thing and stood on another, off the bottom of the
   // screen, and their next local action could have worked a control they could not see.
-  function standOn(el, review = false) {
-    const source = askSource(el);
+  function standOn(ask, review = false) {
+    const source = sourceNode(ask);
+    if (!source) return;
     const control =
       source.querySelector(ASK_CONTROL) ??
       document.querySelector(`[${ASK_ROW}="${source.id}"] ${ASK_CONTROL}`) ??
@@ -908,7 +953,9 @@ export function createAskView({
   // keeps its place in document order and everything inside an ask comes after it.
   // The ask's exact action routes remain active as Tab moves into its controls;
   // nearer widget scopes still own their local mechanics.
-  function arriveAt(ask, review = false) {
+  function arriveAt(record, review = false) {
+    const ask = askNode(record);
+    if (!ask) return;
     reviewedThrough = review ? ask : null;
     ask.focus({ preventScroll: true });
     if (ask.matches(":focus")) return;
@@ -919,7 +966,7 @@ export function createAskView({
     // does not change that. There the control that answers it is the only place the
     // reader can be, which is where every arrival used to land.
     lend(null);
-    standOn(ask, review);
+    standOn(record, review);
   }
 
   // The screen the reader can use, and the distance two boxes stand apart in it. The
@@ -1053,25 +1100,37 @@ export function createAskView({
   async function goToAskNow(next, asks) {
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.
-    if (inChrome(next) && !panelIsOpen()) setPanel(true);
+    let { target, source } = await materializeAsk(next);
+    if (!target) return false;
+    if (inChrome(target) && !panelIsOpen()) {
+      setPanel(true);
+      await refreshConversation();
+      target = askNode(next);
+      source = sourceNode(next);
+      if (!target) return false;
+    }
     // A tray beside the page stays standing as a working index. A covering tray has
     // become the whole visible surface, so selecting a page destination closes it
     // before the reveal and focus land; otherwise the correct navigation happens
     // invisibly behind the very sheet that offered it.
-    if (!inChrome(next) && trayIsOpen("asks") && trayCovers()) setOpenTray(null);
+    if (!inChrome(target) && trayIsOpen("asks") && trayCovers()) setOpenTray(null);
     const mayArrive = retainReaderIntent({
       source: focused(),
-      available: () => next.isConnected,
+      available: () => hasAsk(allAsks(), next) && Boolean(askNode(next)?.isConnected),
     });
-    await reveal(next); // a settled group or an inactive tab has no geometry until it opens
+    await reveal(target); // a settled group or an inactive tab has no geometry until it opens
     if (!mayArrive()) return false;
-    const source = askSource(next);
-    if (source !== next) await reveal(source); // let the answering widget settle its own chrome
+    target = askNode(next);
+    source = sourceNode(next);
+    if (!target || !source) return false;
+    if (next.sourceId !== next.id) await reveal(source); // let the answering widget settle its own chrome
     if (!mayArrive() || !source.isConnected) return false;
-    landed = next;
+    target = askNode(next);
+    if (!target) return false;
+    landed = target;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the reader is standing, rather than both saying the second.
-    arriveAt(next, !unansweredAsks().includes(next));
+    arriveAt(next, !unansweredIds().has(next.id));
     // A page Ask starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. A thread
@@ -1081,11 +1140,11 @@ export function createAskView({
     //
     // A page arrival the reader already has is left alone. The ring and the focus have
     // moved to the next ask, which is the whole of what this press had left to say.
-    if (inChrome(next)) scrollToElement(next, scrollBehavior(), "center");
+    if (inChrome(target)) scrollToElement(target, scrollBehavior(), "center");
     else {
-      const box = scrollerFor(next);
-      const region = arrivalRegion(next, box);
-      if (!framed(region, next, box, readableDestination)) {
+      const box = scrollerFor(target);
+      const region = arrivalRegion(target, box);
+      if (!framed(region, target, box, readableDestination)) {
         // The ask's own box first, which is the only pass that moves a scroller
         // other than the page's: the placement below moves whichever box scrolls the
         // region, and for a region out on the page that is never the board's own
@@ -1093,12 +1152,13 @@ export function createAskView({
         // card unscrolled in its card, with the ring and focus on a change the reader
         // could not see. `nearest` is a request to reveal only, which is exactly
         // what this needs and what the placement then builds on.
-        scrollToElement(next, "instant", "nearest");
+        scrollToElement(target, "instant", "nearest");
         scrollToElement(region, scrollBehavior(), "start");
       }
     }
-    const state = unansweredAsks().includes(next) ? "waiting on you" : "answered";
-    announce(walkPositionLabel("Ask", asks.indexOf(next) + 1, asks.length, state));
+    const state = unansweredIds().has(next.id) ? "waiting on you" : "answered";
+    const index = asks.findIndex((ask) => ask.id === next.id);
+    announce(walkPositionLabel("Ask", index + 1, asks.length, state));
     return true;
   }
 
@@ -1128,10 +1188,6 @@ export function createAskView({
     void ready.catch(() => {});
   }
 
-  const answered = () => {
-    void syncAsks();
-    refreshConversation();
-  };
   let mounted = false;
   let stopActionChanges = null;
   const actionsChanged = () => mounted && void syncAsks();
@@ -1141,7 +1197,6 @@ export function createAskView({
     if (mounted) return;
     mounted = true;
     stopActionChanges = watchSemantic(actionsChanged);
-    document.addEventListener("lf-answered", answered);
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("scroll", pageScrolled, { capture: true, passive: true });
     addEventListener("resize", repaint);
@@ -1152,7 +1207,6 @@ export function createAskView({
       mounted = false;
       stopActionChanges?.();
       stopActionChanges = null;
-      document.removeEventListener("lf-answered", answered);
       document.removeEventListener(PRESENTATION, actionsChanged);
       globalThis.removeEventListener("scroll", pageScrolled, { capture: true });
       globalThis.removeEventListener("resize", repaint);

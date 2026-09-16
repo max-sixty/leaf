@@ -85,7 +85,7 @@
     }
   },
   "$command": {
-    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
+    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in x-state or x-report and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
     "widgets": {
       "lf-command": {
         "role": "command"

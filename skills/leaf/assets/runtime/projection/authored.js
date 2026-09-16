@@ -1,24 +1,21 @@
-/* This module owns typed authored initial values and anchor parentage: the authored
- * initial condition, read once after upgrade and before projection. Those values are
- * inputs to the complete widget projection; no cloned DOM, inverse action, or
- * restoration statement is retained. */
+/* This module owns typed authored initial values and anchor parentage. It decodes the
+ * authored initial condition once from validated source markup, before content modules
+ * upgrade or render it. Those values are inputs to the complete widget projection; no
+ * cloned DOM, inverse action, or restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { COLLAPSE, quoteFrom, textNodesUnder } from "../passages.js";
-import { applicationState, readApplication } from "../semantic-state.js";
-import { runtime } from "../context.js";
+import { readApplication } from "../semantic-state.js";
 
-/* The authored initial condition, read once after upgrade and before projection.
+/* The authored initial condition, read once from validated source before upgrade.
    These typed values are inputs to the complete widget projection; no cloned DOM,
    inverse action, or restoration statement is retained.
 
    `rememberAuthoredParents` records parent identities before imports for anchor
-   ownership. `captureAuthoredFacets` runs after upgrade because widgets may arrange
-   authored state in `connectedCallback`. It records typed initial values before
-   projection changes them. The first server answer stays buffered until these initial
-   readings exist. Frozen thread widgets use the same boundary: the list connects them,
-   waits for their registered upgrades, and captures initial values before the state
-   application projects any winners. Concurrent applications wait for this whole
-   boundary.
+   ownership. `stageAuthoredFacets` decodes source elements while their validated
+   attributes, member order, and data bodies are intact. The complete staged document
+   enters the application publisher before its content modules render. Page revisions
+   and frozen thread markup use the same boundary, so presentation never becomes a
+   semantic input.
 
    `authoredStates` holds the one typed initial condition per owner. Comparison readings
    come from those same values, collapsing body whitespace and omitting position indexes
@@ -30,7 +27,7 @@ import { runtime } from "../context.js";
    - `value`: the attribute string, or `null` when absent;
    - `position`: ordered id lists per container; an individual widget also names its
      containing id and index;
-   - `body`: uncollapsed authored words from `textNodesUnder`;
+   - `body`: the data body's exact words, with source-layout indentation removed;
    - no record: `null` for a widget facet, an empty unit map otherwise.
 
    Ownership of record members stops at `recordedOwner`, the nearest widget with a
@@ -70,6 +67,23 @@ export function rememberAuthoredParents(root = document, parent = root.parentEle
       authoredParents.set(element, element.parentElement);
 }
 
+// A body record is licensed only for x-content: data, whose validated source is one
+// direct <pre>. Keep the source's words while removing the layout its surrounding HTML
+// needed: one opening newline, trailing whitespace, and the common indentation of its
+// nonblank lines.
+function decodeBodyRecord(widget) {
+  const raw = widget
+    .querySelector(":scope > pre")
+    .textContent.replace(/^\n/, "")
+    .replace(/\s+$/, "");
+  const lines = raw.split("\n");
+  const indents = lines
+    .filter((line) => line.trim())
+    .map((line) => line.match(/^[ \t]*/)[0].length);
+  const cut = indents.length ? Math.min(...indents) : 0;
+  return lines.map((line) => line.slice(cut)).join("\n");
+}
+
 function initialFacet(widget, spec) {
   const record = spec.record;
   if (spec.unit !== "widget") {
@@ -102,14 +116,11 @@ function initialFacet(widget, spec) {
           : 0,
       },
     };
-  } else if (record?.kind === "body")
-    value = textNodesUnder(widget)
-      .map(({ node, start, end }) => node.data.slice(start, end))
-      .join("");
+  } else if (record?.kind === "body") value = decodeBodyRecord(widget);
   return { action: null, value, detail: record ? { [record.value]: value } : {} };
 }
 
-export function captureAuthoredFacets(root = document) {
+export function stageAuthoredFacets(root = document, existing = authoredStates()) {
   const captured = new Map();
   const byTag = new Map();
   for (const { tag, spec } of stateSpecs()) {
@@ -122,7 +133,7 @@ export function captureAuthoredFacets(root = document) {
     const widgets = [...root.querySelectorAll(tag)];
     if (root.nodeType === Node.ELEMENT_NODE && root.matches(tag)) widgets.unshift(root);
     for (const widget of widgets) {
-      if (!widget.id || authoredStates().has(widget.id)) continue;
+      if (!widget.id || existing.has(widget.id)) continue;
       for (const spec of specs.values())
         if (spec.unit === "widget" && spec.record?.kind === "position")
           for (const container of [
@@ -143,10 +154,7 @@ export function captureAuthoredFacets(root = document) {
       });
     }
   }
-  const published =
-    captured.size > 0 || !Object.keys(readApplication().document.registry).length;
-  if (published) applicationState.captureAuthored(captured, runtime.registry);
-  return published;
+  return captured;
 }
 
 // Comparison is deliberately lossy (body whitespace and position indexes), while

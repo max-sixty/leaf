@@ -2129,7 +2129,9 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
     thread = copy.locator(selector)
     expect(thread).to_have_count(1)
     expect(thread.locator("button, textarea, .lf-receipt")).to_have_count(0)
-    expect(copy.locator("script, .lf-chrome, .lf-mark-note")).to_have_count(0)
+    expect(
+        copy.locator("script, .lf-chrome, leaf-anchor-note, .lf-mark-note")
+    ).to_have_count(0)
     if resolved:
         expect(thread.locator(".lf-conversation-body")).to_be_hidden()
         thread.locator("summary").click()

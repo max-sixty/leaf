@@ -7,7 +7,6 @@
    replace a widget node while preserving its authored id; that replacement reuses the
    same revision-bound descriptor and target boundary. */
 import { runtime } from "./context.js";
-import { applicationState } from "./semantic-state.js";
 import { authoredParents } from "./projection/authored.js";
 import {
   captureTargetReference,
@@ -71,33 +70,73 @@ const quotedBy = (element) => {
   return false;
 };
 
-const conditionMatches = (element, when = {}) =>
+// An Ask or other declared descendant can stand inside an unnamed retiring slot. The
+// slot itself needs no global identity: capture the semantic edge from the descendant
+// to the identified owner and declared outcome while authored ancestry is intact.
+const retirementAncestors = (element) => {
+  const captured = [];
+  for (let member = element; member; member = parentOf(member)) {
+    const declaration = runtime.registry[member.localName];
+    const outcome = declaration?.["x-retired-when"];
+    if (!outcome) continue;
+    const owners = new Set(declaration["x-owners"] ?? []);
+    for (let owner = parentOf(member); owner; owner = parentOf(owner)) {
+      if (!owners.has(owner.localName)) continue;
+      if (owner.id) captured.push({ ownerId: owner.id, outcome });
+      break;
+    }
+  }
+  return captured;
+};
+
+const conditionMatches = (attributes, when = {}) =>
   Object.entries(when).every(([attribute, values]) =>
     values.some((value) =>
       typeof value === "boolean"
-        ? element.hasAttribute(attribute) === value
-        : element.getAttribute(attribute) === value,
+        ? (attributes[attribute] !== null) === value
+        : attributes[attribute] === value,
+    ),
+  );
+
+const predicateAttributes = (element, ...conditions) =>
+  Object.fromEntries(
+    [...new Set(conditions.flatMap((condition) => Object.keys(condition ?? {})))].map(
+      (attribute) => [attribute, element.getAttribute(attribute)],
     ),
   );
 
 function askDescriptor(element, declaration, documentContext) {
   const ask = declaration["x-awaits"];
-  if (!ask || ask.rollup || !conditionMatches(element, ask.when)) return null;
+  if (!ask || ask.rollup) return null;
   const until = documentContext.kind === "thread" && ask.until;
-  const answers =
-    until && conditionMatches(element, until.when) ? [until.verb] : ask.answers;
+  const completionVerbs = [
+    ...new Set([...(ask.answers ?? []), until?.verb].filter(Boolean)),
+  ];
   return {
-    answers,
+    authored: predicateAttributes(element, ask.when, until?.when),
+    when: structuredClone(ask.when ?? {}),
+    answers: structuredClone(ask.answers ?? []),
+    until: until ? structuredClone(until) : null,
     empty: Object.fromEntries(
-      answers.flatMap((verb) => {
+      completionVerbs.flatMap((verb) => {
         const empty = declaration["x-state"][verb].completion?.empty;
         if (!empty) return [];
         const containers = [...element.querySelectorAll(empty.within)].filter(
-          (container) => conditionMatches(container, empty.when),
+          (container) =>
+            conditionMatches(predicateAttributes(container, empty.when), empty.when),
         );
         return [[verb, containers.length === 1 ? containers[0].id : null]];
       }),
     ),
+  };
+}
+
+function conversationDescriptor(element, declaration) {
+  const conversation = declaration["x-conversation"];
+  if (!conversation) return null;
+  return {
+    authored: predicateAttributes(element, conversation.when),
+    when: structuredClone(conversation.when ?? {}),
   };
 }
 
@@ -107,12 +146,13 @@ function askDescriptor(element, declaration, documentContext) {
 // the incoming revision off an inert copy so each widget's declaration is captured
 // before a controller can rewrite it, while the references those widgets capture belong
 // to the `main` they are about to be patched into.
-export function captureWidgetDescriptors(
+export function stageWidgetDescriptors(
   root = document,
   documentContext = { kind: "page", revision: runtime.currentRevision },
   boundary = null,
 ) {
   const captured = new Map();
+  const bindings = [];
   const referenceBoundary =
     boundary ??
     (documentContext.kind === "thread"
@@ -121,7 +161,17 @@ export function captureWidgetDescriptors(
         ? root
         : root.querySelector("main"));
   for (const element of candidates(root)) {
-    if (!element.id || byElement.has(element)) continue;
+    if (!element.id) continue;
+    const standing = byElement.get(element);
+    if (
+      standing &&
+      standing.document.kind === documentContext.kind &&
+      (documentContext.kind === "thread" ||
+        standing.document.revision === documentContext.revision)
+    ) {
+      captured.set(element.id, standing);
+      continue;
+    }
     const declaration = structuredClone(runtime.registry[element.localName]);
     const ancestors = declaredAncestors(element);
     const descriptor = {
@@ -132,17 +182,32 @@ export function captureWidgetDescriptors(
       parent: ancestors[0] ?? null,
       ancestors,
       quoted: quotedBy(element),
+      retiredBy: retirementAncestors(element),
       ask: askDescriptor(element, declaration, documentContext),
+      conversation: conversationDescriptor(element, declaration),
       bindings: requestBindings(element, declaration),
       offers: requestOffers(element, declaration),
     };
-    byElement.set(element, descriptor);
-    referenceBoundaryByElement.set(element, referenceBoundary);
-    byId.set(element.id, descriptor);
-    referenceBoundaryById.set(element.id, referenceBoundary);
+    bindings.push({ element, descriptor, referenceBoundary });
     captured.set(element.id, descriptor);
   }
-  if (captured.size) applicationState.captureDescriptors(captured);
+  return Object.freeze({
+    descriptors: captured,
+    bindings: Object.freeze(bindings),
+  });
+}
+
+export function commitWidgetDescriptors(stage, retired = new Set()) {
+  for (const id of retired) {
+    byId.delete(id);
+    referenceBoundaryById.delete(id);
+  }
+  for (const { element, descriptor, referenceBoundary } of stage.bindings) {
+    byElement.set(element, descriptor);
+    referenceBoundaryByElement.set(element, referenceBoundary);
+    byId.set(descriptor.id, descriptor);
+    referenceBoundaryById.set(descriptor.id, referenceBoundary);
+  }
 }
 
 // A revision that rewrites a widget's authored markup retires the descriptor taken from

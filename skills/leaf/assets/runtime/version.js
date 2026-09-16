@@ -156,21 +156,22 @@ import { allButCommandReference } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
 import { reportPageError, sameDelivery } from "./layer-client.js";
-import { projectView } from "./semantic-state.js";
+import { projectView, readApplication } from "./semantic-state.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
 import { beginWalk } from "./walk-position.js";
 import {
   domFacet,
   rememberAuthoredParents,
+  stageAuthoredFacets,
   stateCoordinate,
 } from "./projection/authored.js";
 import { whenApplicationRegionsPresented } from "./semantic-state.js";
 import { MARKED_IN_PAGE, markDeclared, settlePageInterface } from "./presentation.js";
 import { runtimeRootState } from "./root-state.js";
 import {
-  captureWidgetDescriptors,
-  forgetWidgetDescriptors,
+  commitWidgetDescriptors,
+  stageWidgetDescriptors,
 } from "./widget-descriptors.js";
 import {
   latestChip,
@@ -1298,6 +1299,17 @@ export function createVersionController({
     // to a controller. The nodes read here are the nodes that end up in the page, and the
     // roots among them are what the install dresses.
     const arrived = [];
+    const descriptorStages = [];
+    const prior = readApplication().document;
+    // The arriving revision's source is the complete page baseline. Capture it before
+    // insertion can connect a custom element and turn authored input into presentation.
+    rememberAuthoredParents(source);
+    const sourceAuthored = stageAuthoredFacets(source, new Map());
+    const sourceDescriptors = stageWidgetDescriptors(
+      source,
+      { kind: "page", revision: target.revision },
+      live,
+    );
     // Elements whose attributes the patch rewrote in place. What a dressing pass reads
     // off an attribute — a word an element says, the language of a code block — is
     // owed again, and these are the roots the install dresses beside the arrivals.
@@ -1312,11 +1324,17 @@ export function createVersionController({
         // which declared elements enclose it.
         rememberAuthoredParents(arriving, parent);
         markDeclared(arriving, MARKED_IN_PAGE);
-        captureWidgetDescriptors(
+        const descriptors = stageWidgetDescriptors(
           arriving,
           { kind: "page", revision: target.revision },
           live,
         );
+        descriptorStages.push(descriptors);
+        // Bind the actual arrival before insertion can synchronously connect its
+        // custom element. The publisher still holds the outgoing document until the
+        // patch and matching server reading are admitted together, so this descriptor
+        // cannot borrow the old widget's semantic state during preparation.
+        commitWidgetDescriptors(descriptors);
         arrived.push(arriving);
       }
       return arriving;
@@ -1353,18 +1371,14 @@ export function createVersionController({
         same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
         sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
         touched: (element) => touched.push(element),
-        // An element going is not the same as its name going, and the name is what
-        // these readings are kept under. A widget the revision moved under an earlier
-        // parent is inserted and read there before this parent's removal reaches the
-        // element it left behind, so forgetting on the element alone would drop the
-        // descriptor its arrival had just captured. Ask the page instead: a name
-        // something still answers to is a name nothing may retire.
+        // An element going is not the same as its name going. Authored facet capture
+        // still needs to forget removed upgraded owners here; the complete incoming
+        // descriptor inventory below decides which identities actually retired.
         retire: (element) => {
-          if (!element.id || !upgraded(element)) return;
+          if (!element.id || !registry[element.localName]) return;
           for (const claimant of live.querySelectorAll(`#${CSS.escape(element.id)}`))
             if (claimant !== element) return;
-          forgetAuthoredOwners(new Set([element.id]));
-          forgetWidgetDescriptors([element.id]);
+          if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
         },
       });
       // After the patch, over the document the patch left: an owner's number is its
@@ -1400,6 +1414,43 @@ export function createVersionController({
     // Named from the descriptor rather than the current label, which still reads the
     // revision this document is a statement away from leaving.
     notice(`Updated to ${target.label}`, { background: true });
+    const authoredFacets = new Map(
+      [...prior.authored].filter(
+        ([id]) => prior.descriptors.get(id)?.document.kind === "thread",
+      ),
+    );
+    for (const [id, value] of sourceAuthored) authoredFacets.set(id, value);
+    const arrivedDescriptors = new Map();
+    for (const stage of descriptorStages)
+      for (const [id, value] of stage.descriptors) arrivedDescriptors.set(id, value);
+    // The incoming source owns page order. Retained controllers keep the descriptor
+    // identity captured with their live node; new or rewritten nodes use their arrival
+    // capture. Frozen thread documents follow the page in their standing log order.
+    const descriptors = new Map();
+    for (const [id, incoming] of sourceDescriptors.descriptors)
+      descriptors.set(
+        id,
+        arrivedDescriptors.get(id) ?? prior.descriptors.get(id) ?? incoming,
+      );
+    for (const [id, descriptor] of prior.descriptors)
+      if (descriptor.document.kind === "thread") descriptors.set(id, descriptor);
+    const retired = new Set(
+      [...prior.descriptors]
+        .filter(
+          ([id, descriptor]) =>
+            descriptor.document.kind === "page" &&
+            !sourceDescriptors.descriptors.has(id),
+        )
+        .map(([id]) => id),
+    );
+    commitWidgetDescriptors({ bindings: [] }, retired);
+    return {
+      ...prior,
+      revision: target.revision,
+      stamp: target.version ?? null,
+      authored: authoredFacets,
+      descriptors,
+    };
   }
 
   // The move a state asks of the live root, prepared ahead of the commit that makes it.

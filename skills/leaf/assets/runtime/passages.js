@@ -136,7 +136,7 @@ function retiredSlots() {
     .filter(([, entry]) => entry["x-retired-when"])
     .flatMap(([tag, entry]) =>
       entry["x-owners"].map(
-        (owner) => `${owner}[data-lf-state="${entry["x-retired-when"]}"] > ${tag}`,
+        (owner) => `${owner} > ${tag}[${PAGE_PAINT_ATTRIBUTE.retired}]`,
       ),
     )
     .join(", ");
@@ -162,22 +162,21 @@ export function settlementSlots() {
 }
 
 // The rendering of a settlement, in one place for the two occasions that paint it —
-// replay (markSettled) and a module saying its own gesture (lf-suggestion's #settle):
-// reads the owner's mark and paints data-lf-retired onto the members the standing
-// outcome retires, clearing it from the rest. One static theme rule hides the marked
+// replay and a module saying its own gesture (lf-suggestion's #settle). The semantic
+// outcome is passed in from the application reading; the owner's data-lf-state is only
+// corresponding paint and is never read back. One static theme rule hides the marked
 // slots, so a family a project declares hides what a settlement removes the day it
 // declares it — by-name rules in theme.css were the closed list wearing CSS's
 // clothes — and the same pair of marker and rule is what carries the disappearance
 // into an exported copy, which keeps markup and stylesheet and drops every module.
-export function renderRetired(el) {
+export function renderRetired(el, outcome) {
   const outcomes = settlementSlots()[el.localName];
   if (!outcomes) return;
-  const mark = el.getAttribute("data-lf-state");
-  for (const [outcome, tags] of Object.entries(outcomes))
+  for (const [candidate, tags] of Object.entries(outcomes))
     for (const tag of tags)
       for (const root of [el, ...(el.shadowRoot ? [el.shadowRoot] : [])])
         for (const slot of root.querySelectorAll(`:scope > ${tag}`))
-          slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, outcome === mark);
+          slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, candidate === outcome);
 }
 // What no label can speak through, however it is marked: an inline script, the
 // stylesheet a rendered diagram carries inside its <svg>, and a slot the user's

@@ -3,7 +3,6 @@
  * one answer about progress and workers. */
 import {
   PRESS,
-  clocked,
   clockValue,
   conversationBox,
   declarationFor,
@@ -15,7 +14,7 @@ import {
   projectData,
   relabel,
   selectableOffer,
-  watchAsks,
+  watchUpdates,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -479,15 +478,7 @@ function renderFleet(snapshot) {
   return true;
 }
 
-const timedRenders = new WeakMap();
-function render(plan) {
-  if (!timedRenders.has(plan))
-    timedRenders.set(
-      plan,
-      clocked(plan, () => paint(plan)),
-    );
-  return timedRenders.get(plan)();
-}
+const render = (plan) => paint(plan);
 
 function paint(plan) {
   const restoreFocus = projectionFocus(plan);
@@ -507,33 +498,16 @@ function paint(plan) {
 customElements.define(
   "lf-command",
   class extends HTMLElement {
-    #observer;
     #stop;
 
     connectedCallback() {
       once(this);
-      this.#stop = watchAsks(this, () => render(this));
-      this.#observer = new MutationObserver((changes) => {
-        if (
-          changes.some((change) => {
-            if (
-              ["data-lf-held", "data-lf-reader-override"].includes(change.attributeName)
-            )
-              return true;
-            return Boolean(commandRole(change.target));
-          })
-        )
-          render(this);
-      });
-      this.#observer.observe(this, { attributes: true, subtree: true });
+      this.#stop ??= watchUpdates(this, () => render(this));
     }
 
     disconnectedCallback() {
-      timedRenders.get(this)?.stop();
       this.#stop?.();
       this.#stop = null;
-      this.#observer?.disconnect();
-      this.#observer = null;
     }
   },
 );

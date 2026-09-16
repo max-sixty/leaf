@@ -1,5 +1,5 @@
-/* This module owns the target chooser and whole-page text search. Its transient hints
- * and search marks are one synchronously keyed Lit layer over native controller state. */
+/* This module owns the target chooser and whole-page text search. Its transient hints,
+ * search marks, and status are synchronous Lit projections over native controller state. */
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { bindings } from "../keyboard/bindings.js";
@@ -327,7 +327,7 @@ export function createTargetChooser({
     pageSearchSurface.hidden = !on;
     if (on) {
       pageSearchInput.focus({ preventScroll: true });
-      pageSearchStatus.textContent = "";
+      presentSearchStatus();
       announce("Search the page.");
     } else {
       pageSearchInput.value = "";
@@ -364,10 +364,14 @@ export function createTargetChooser({
     return next === -1 ? 0 : next;
   }
 
-  function syncStatus() {
-    if (!pageSearchInput.value.trim()) pageSearchStatus.textContent = "";
-    else if (!matches.length) pageSearchStatus.textContent = "No matches";
-    else pageSearchStatus.textContent = `${active + 1} of ${matches.length}`;
+  function presentSearchStatus() {
+    const query = pageSearchInput.value.trim();
+    const status = !query
+      ? nothing
+      : matches.length
+        ? `${active + 1} of ${matches.length}`
+        : "No matches";
+    render(html`${status}`, pageSearchStatus);
   }
 
   function sameMatch(left, right) {
@@ -445,7 +449,7 @@ export function createTargetChooser({
     active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
     matches = found;
     if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
-    if (pageSearchOpen) syncStatus();
+    if (pageSearchOpen) presentSearchStatus();
     repaint();
   }
 
@@ -453,7 +457,7 @@ export function createTargetChooser({
     const query = pageSearchInput.value.trim();
     matches = query ? findText(pageText(), query) : [];
     active = matches.length ? startingMatch(matches) : -1;
-    syncStatus();
+    presentSearchStatus();
     showMatch();
     repaint();
   }
@@ -467,7 +471,7 @@ export function createTargetChooser({
   function moveMatch(direction) {
     if (!matches.length) return;
     active = (active + direction + matches.length) % matches.length;
-    syncStatus();
+    presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
     beginWalk("page-search", "Match", () => matchWalkPosition(query));

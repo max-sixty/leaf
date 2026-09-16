@@ -3179,6 +3179,10 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
         "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
     ), "the hidden line is painting on screen"
     note = page.locator("#p1 .lf-mark-note")
+    page.evaluate("""() => {
+        window.__lfAnchorNoteHost = document.querySelector('#p1 > leaf-anchor-note');
+        window.__lfAnchorNoteButton = window.__lfAnchorNoteHost.querySelector('button');
+    }""")
     inline1 = page.locator(
         f'.lf-margin-preview .lf-conversation-thread[data-thread="{c1}"]'
     )
@@ -3205,8 +3209,14 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
 
     # Once the first thread resolves, the same control enters the next one.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": c1})
+    note.focus()
     told(page)
     expect(note).to_have_text("1 comment")
+    expect(note).to_be_focused()
+    assert page.evaluate("""() =>
+        window.__lfAnchorNoteHost === document.querySelector('#p1 > leaf-anchor-note') &&
+        window.__lfAnchorNoteButton === document.querySelector('#p1 .lf-mark-note')
+    """), "a count change replaced the note owner or its retained native button"
     note.press("Enter")
     expect(inline2).to_be_focused()
     # An element anchor has no text to paint, and the element it names holds the line.

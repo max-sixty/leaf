@@ -302,10 +302,15 @@ published pages while the source retains its canonical path.
 
 `widgetController(owner)` is the one semantic interface. Leaf captures the owner's id,
 tag, document, revision-bound declaration, authored ownership and exhibit fences,
-request bindings, and direct offers before upgrade; callers supply no options. Author
+Ask and conversation predicates, request bindings, and direct offers before upgrade;
+callers supply no options. Author
 changes to those facts fail closed, while Leaf's own physical reparenting does not alter
-the descriptor. `read()` returns an immutable `{state, provenance, actions, requests,
-request, delivery}` snapshot. Each command entry carries its availability and exact
+the descriptor. `read()` returns an immutable `{authored, state, conversation,
+provenance, actions, requests, request, delivery}` snapshot. `authored` is the typed
+baseline decoded from validated source markup before upgrade; `state` is that baseline
+with admitted and unresolved records folded over it; `conversation.heldBy` is the
+unresolved admitted hold root naming this widget, or `null`. Each command entry carries
+its availability and exact
 history or Undo candidates. `subscribe(callback)` invokes immediately from the same
 publisher, returns cleanup, and should be stopped on disconnect; reconnecting subscribes
 again. For each complete reading the controller invokes the module's total
@@ -510,9 +515,11 @@ option is not an answer, and a shared-margin entry may sit outside the Ask sourc
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
 Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
-immediately, invokes it again after a complete Ask projection reconciles, binds the
-subscription lifetime to `owner`, and returns an explicit cleanup function. Package
-semantic behavior subscribes only through its controller.
+immediately, invokes it again after one complete Ask projection replaces another, binds
+the subscription lifetime to `owner`, and returns an explicit cleanup function. Each
+Ask is an immutable `{id, tag, sourceId, sourceTag, thread}` record; resolve a node only
+to present or focus it, never to decide membership or answered state. Package semantic
+behavior subscribes only through its controller.
 
 `x-visual` exposes stable Comment targets on a rendered picture. The value `whole` uses
 the widget's authored id and the widget itself as the visual surface, so aim and marks

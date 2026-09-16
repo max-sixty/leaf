@@ -13,49 +13,73 @@
    banner counts keep reading the whole log. No narrowing is stored: returning to a
    page should not silently hide conversation. Cards remain in the document while
    filtered so reply widgets keep their identity and the rest of the runtime can still
-   read them by id. The list checkpoints this owner's immutable summary and facet
-   reading with its rows; repainting a retained reading does not change reader intent. */
+   read them by id. The list captures one immutable reader intent and checkpoints the
+   resulting summary and facets with its rows; repainting that reading does not change
+   native editing or disclosure state. */
+import { runtime } from "../context.js";
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsReader } from "./model.js";
-import {
-  filterControls,
-  findInput,
-  goneBtn,
-  filterToggle,
-  resetFilters,
-  viewSummary,
-  viewRow,
-  scopeButtons,
-  stateButtons,
-  subjectButtons,
-  threadsBox,
-} from "./panel-elements.js";
-import { runtime } from "../context.js";
+import { narrowingView, threadsBox } from "./panel-elements.js";
 import { threadList } from "./state.js";
 
-let finding = "";
-let state = "open";
-let scope = null;
-let subject = null;
-let onlyGone = false;
-export const threadSearchActive = () => Boolean(finding);
+const choice = (kind, value, label, className = "") =>
+  Object.freeze({ kind, value, label, className });
+const group = (kind, label, choices) =>
+  Object.freeze({ kind, label, choices: Object.freeze(choices) });
 
-export const needsYou = () => state === "reader";
+// Labels and choices are declarations, not facts recovered from rendered buttons.
+const FACETS = Object.freeze([
+  group("state", "Thread state", [
+    choice("state", "open", "Open"),
+    choice("state", "reader", "On you", "lf-needs"),
+    choice("state", "agent", "On agent"),
+    choice("state", "resolved", "Resolved"),
+  ]),
+  group("scope", "Thread scope", [
+    choice("scope", "page", "Page"),
+    choice("scope", "local", "Anchored"),
+  ]),
+  group("subject", "Thread subject", [
+    choice("subject", "content", "Content"),
+    choice("subject", "design", "Design"),
+  ]),
+  group("gone", "Thread placement", [choice("gone", "gone", "No longer here")]),
+]);
+
+const DEFAULT_INTENT = Object.freeze({
+  words: "",
+  finding: "",
+  state: "open",
+  scope: null,
+  subject: null,
+  onlyGone: false,
+});
+let intent = DEFAULT_INTENT;
+
+export const threadSearchActive = () => Boolean(intent.finding);
+export const needsYou = () => intent.state === "reader";
 export const narrowed = () =>
-  Boolean(finding) || state !== "open" || Boolean(scope || subject || onlyGone);
+  Boolean(intent.finding) ||
+  intent.state !== "open" ||
+  Boolean(intent.scope || intent.subject || intent.onlyGone);
 
-const threadWords = (thread, group) =>
+const labelFor = (kind, value) =>
+  FACETS.find((facet) => facet.kind === kind)?.choices.find(
+    (candidate) => candidate.value === value,
+  )?.label;
+
+const threadWords = (thread, threadGroup) =>
   [
     anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about),
-    group.label,
+    threadGroup.label,
     ...thread.msgs.map((message) => message.text ?? message.token),
   ]
     .join("\n")
     .toLowerCase();
 
-const matchesSearch = (thread, group) =>
-  !finding || threadWords(thread, group).includes(finding);
-const matchesState = (thread, value = state) =>
+const matchesSearch = (reading, thread, threadGroup) =>
+  !reading.finding || threadWords(thread, threadGroup).includes(reading.finding);
+const matchesState = (reading, thread, value = reading.state) =>
   value === "resolved"
     ? Boolean(thread.resolved)
     : !thread.resolved &&
@@ -64,163 +88,155 @@ const matchesState = (thread, value = state) =>
         : value === "agent"
           ? awaitsAgent(thread)
           : true);
-const matchesScope = (thread, value = scope) =>
+const matchesScope = (reading, thread, value = reading.scope) =>
   !value ||
   (value === "page"
     ? !thread.anchor && !thread.detached_from
     : Boolean(thread.anchor) || Boolean(thread.detached_from));
-const matchesSubject = (thread, value = subject) =>
+const matchesSubject = (reading, thread, value = reading.subject) =>
   !value || (value === "design") === (thread.root.about === "design");
-const matchesGone = (_thread, group, value = onlyGone) =>
-  !value || group.key === "gone";
+const matchesGone = (reading, _thread, threadGroup, value = reading.onlyGone) =>
+  !value || threadGroup.key === "gone";
 
-export const inFilter = (thread, group) =>
-  matchesSearch(thread, group) &&
-  matchesState(thread) &&
-  matchesScope(thread) &&
-  matchesSubject(thread) &&
-  matchesGone(thread, group);
+const includesThread = (reading, thread, threadGroup) =>
+  matchesSearch(reading, thread, threadGroup) &&
+  matchesState(reading, thread) &&
+  matchesScope(reading, thread) &&
+  matchesSubject(reading, thread) &&
+  matchesGone(reading, thread, threadGroup);
 
-export function noMatchText() {
-  return finding
-    ? `No shown thread matches “${finding}”.`
-    : scope || subject || onlyGone
-      ? "No threads match these filters."
-      : state === "reader"
-        ? "Nothing is waiting on you."
-        : state === "agent"
-          ? "Nothing is waiting on the agent."
-          : state === "resolved"
-            ? "No resolved threads."
-            : "No open threads.";
-}
-
-const entries = (threads, groups) =>
-  threads.map((thread) => ({ thread, group: groups.get(thread) }));
 const count = (rows, predicate) => rows.filter(predicate).length;
-const setButton = (button, { selected, amount, disabled }) => {
-  button.setAttribute("aria-pressed", String(selected));
-  button.classList.toggle("on", selected);
-  const label = button.dataset.filterLabel;
-  button.textContent = amount ? `${label} (${amount})` : label;
-  button.disabled = disabled;
-};
+const entryReading = (declaration, selected, amount, disabled, hidden = false) =>
+  Object.freeze({ ...declaration, selected, amount, disabled, hidden });
 
 // Counts are faceted: each chip answers how many results switching that facet to its
 // value would show while every other standing filter remains. A static all-page count
 // on "Page" would promise threads the selected Open/Resolved state then hid.
-export function narrowingReading(threads, shown, groups = new Map()) {
-  const rows = entries(threads, groups);
+function presentationReading(reading, threads, shown, groups) {
+  const rows = threads.map((thread) => ({ thread, group: groups.get(thread) }));
   const baseline = threads.filter((thread) =>
-    state === "resolved" ? thread.resolved : !thread.resolved,
+    reading.state === "resolved" ? thread.resolved : !thread.resolved,
   ).length;
-  const lifecycle = state === "resolved" ? "resolved" : "open";
+  const lifecycle = reading.state === "resolved" ? "resolved" : "open";
   const amount =
     shown.length === baseline ? `${shown.length}` : `${shown.length} of ${baseline}`;
-  const facets = [
+  const summary = [
     `${amount} ${lifecycle} ${baseline === 1 ? "thread" : "threads"}`,
-    state === "reader" || state === "agent"
-      ? stateButtons[state].dataset.filterLabel
+    reading.state === "reader" || reading.state === "agent"
+      ? labelFor("state", reading.state)
       : null,
-    scope ? scopeButtons[scope].dataset.filterLabel : null,
-    subject ? subjectButtons[subject].dataset.filterLabel : null,
-    onlyGone ? goneBtn.dataset.filterLabel : null,
-  ].filter(Boolean);
-  const states = {};
-  for (const value of Object.keys(stateButtons)) {
-    const amount = count(
+    reading.scope ? labelFor("scope", reading.scope) : null,
+    reading.subject ? labelFor("subject", reading.subject) : null,
+    reading.onlyGone ? labelFor("gone", "gone") : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const stateAmounts = new Map();
+  for (const declaration of FACETS[0].choices) {
+    const switched = count(
       rows,
       ({ thread, group }) =>
-        matchesSearch(thread, group) &&
-        matchesState(thread, value) &&
-        matchesScope(thread) &&
-        matchesSubject(thread) &&
-        matchesGone(thread, group),
+        matchesSearch(reading, thread, group) &&
+        matchesState(reading, thread, declaration.value) &&
+        matchesScope(reading, thread) &&
+        matchesSubject(reading, thread) &&
+        matchesGone(reading, thread, group),
     );
-    states[value] = Object.freeze({
-      selected: state === value,
-      amount,
-      disabled: state !== value && !amount,
-    });
+    stateAmounts.set(declaration.value, switched);
   }
-  const scopes = {};
-  for (const value of Object.keys(scopeButtons)) {
-    const amount = count(
-      rows,
-      ({ thread, group }) =>
-        matchesSearch(thread, group) &&
-        matchesState(thread) &&
-        matchesScope(thread, value) &&
-        matchesSubject(thread) &&
-        matchesGone(thread, group),
-    );
-    scopes[value] = Object.freeze({
-      selected: scope === value,
-      amount,
-      disabled: scope !== value && !amount,
+  const facetAmount = (kind, value) =>
+    count(rows, ({ thread, group }) => {
+      if (!matchesSearch(reading, thread, group) || !matchesState(reading, thread))
+        return false;
+      if (kind !== "scope" && !matchesScope(reading, thread)) return false;
+      if (kind !== "subject" && !matchesSubject(reading, thread)) return false;
+      if (kind !== "gone" && !matchesGone(reading, thread, group)) return false;
+      if (kind === "scope") return matchesScope(reading, thread, value);
+      if (kind === "subject") return matchesSubject(reading, thread, value);
+      return matchesGone(reading, thread, group, true);
     });
-  }
-  const subjects = {};
-  for (const value of Object.keys(subjectButtons)) {
-    const amount = count(
-      rows,
-      ({ thread, group }) =>
-        matchesSearch(thread, group) &&
-        matchesState(thread) &&
-        matchesScope(thread) &&
-        matchesSubject(thread, value) &&
-        matchesGone(thread, group),
-    );
-    subjects[value] = Object.freeze({
-      selected: subject === value,
-      amount,
-      disabled: subject !== value && !amount,
-    });
-  }
-  const gone = count(
-    rows,
-    ({ thread, group }) =>
-      matchesSearch(thread, group) &&
-      matchesState(thread) &&
-      matchesScope(thread) &&
-      matchesSubject(thread) &&
-      matchesGone(thread, group, true),
+
+  const renderedGroups = FACETS.map((facet) =>
+    Object.freeze({
+      kind: facet.kind,
+      label: facet.label,
+      choices: Object.freeze(
+        facet.choices.map((declaration) => {
+          if (facet.kind === "state") {
+            const switched = stateAmounts.get(declaration.value);
+            const selected = reading.state === declaration.value;
+            return entryReading(
+              declaration,
+              selected,
+              switched,
+              !selected && !switched,
+            );
+          }
+          const switched = facetAmount(facet.kind, declaration.value);
+          const selected =
+            facet.kind === "gone"
+              ? reading.onlyGone
+              : reading[facet.kind] === declaration.value;
+          return entryReading(
+            declaration,
+            selected,
+            switched,
+            !selected && !switched,
+            facet.kind === "gone" && !switched && !selected,
+          );
+        }),
+      ),
+    }),
+  );
+  const reader = renderedGroups[0].choices.find(
+    (candidate) => candidate.value === "reader",
   );
   return Object.freeze({
-    summary: facets.join(" · "),
-    hidden: !narrowed(),
-    states: Object.freeze(states),
-    scopes: Object.freeze(scopes),
-    subjects: Object.freeze(subjects),
-    gone: Object.freeze({
-      hidden: !gone && !onlyGone,
-      selected: onlyGone,
-      amount: gone,
-      disabled: !onlyGone && !gone,
-    }),
-    readerTitle: needsYou()
-      ? "Show open threads"
-      : states.reader.disabled
-        ? "Nothing is waiting on you"
-        : "Show threads waiting on you",
+    summary,
+    hidden:
+      !reading.finding &&
+      reading.state === "open" &&
+      !reading.scope &&
+      !reading.subject &&
+      !reading.onlyGone,
+    groups: Object.freeze(renderedGroups),
+    readerTitle:
+      reading.state === "reader"
+        ? "Show open threads"
+        : reader.disabled
+          ? "Nothing is waiting on you"
+          : "Show threads waiting on you",
   });
 }
 
-export function paintNarrowing(reading) {
-  viewSummary.textContent = reading.summary;
-  viewRow.hidden = reading.hidden;
-  for (const [value, button] of Object.entries(stateButtons))
-    setButton(button, reading.states[value]);
-  for (const [value, button] of Object.entries(scopeButtons))
-    setButton(button, reading.scopes[value]);
-  for (const [value, button] of Object.entries(subjectButtons))
-    setButton(button, reading.subjects[value]);
-  goneBtn.hidden = reading.gone.hidden;
-  setButton(goneBtn, reading.gone);
+function emptyReading(reading) {
+  return reading.finding
+    ? `No shown thread matches “${reading.finding}”.`
+    : reading.scope || reading.subject || reading.onlyGone
+      ? "No threads match these filters."
+      : reading.state === "reader"
+        ? "Nothing is waiting on you."
+        : reading.state === "agent"
+          ? "Nothing is waiting on the agent."
+          : reading.state === "resolved"
+            ? "No resolved threads."
+            : "No open threads.";
+}
 
-  // Through the key-title seat paintCoreControls appends `w` while the panel owns it.
-  stateButtons.reader.dataset.lfKeyTitle = reading.readerTitle;
-  stateButtons.reader.title = reading.readerTitle;
+// Capture reader intent once for the list candidate. Its rows, empty state, summary,
+// counts, selections, availability, and keyboard title all derive from this one value.
+export function narrowingModel(threads, groups = new Map()) {
+  const reading = intent;
+  const shown = Object.freeze(
+    threads.filter((thread) => includesThread(reading, thread, groups.get(thread))),
+  );
+  return Object.freeze({
+    intent: reading,
+    shown,
+    emptyText: emptyReading(reading),
+    presentation: presentationReading(reading, threads, shown, groups),
+  });
 }
 
 function renarrow(refreshNarrowing) {
@@ -236,44 +252,42 @@ function renarrow(refreshNarrowing) {
   return ready;
 }
 
-const choose = (kind, value, refreshNarrowing) => {
-  if (kind === "state") state = state === value && value !== "open" ? "open" : value;
-  else if (kind === "scope") scope = scope === value ? null : value;
-  else if (kind === "subject") subject = subject === value ? null : value;
-  else if (kind === "gone") onlyGone = !onlyGone;
+function replaceIntent(changes) {
+  intent = Object.freeze({ ...intent, ...changes });
+}
+
+const chooseFacet = (kind, value, refreshNarrowing) => {
+  if (kind === "state")
+    replaceIntent({
+      state: intent.state === value && value !== "open" ? "open" : value,
+    });
+  else if (kind === "scope")
+    replaceIntent({ scope: intent.scope === value ? null : value });
+  else if (kind === "subject")
+    replaceIntent({ subject: intent.subject === value ? null : value });
+  else if (kind === "gone") replaceIntent({ onlyGone: !intent.onlyGone });
   renarrow(refreshNarrowing);
 };
 
-export function wireNarrowing(refreshNarrowing) {
-  filterToggle.onclick = () => {
-    filterControls.hidden = !filterControls.hidden;
-    filterToggle.setAttribute("aria-expanded", String(!filterControls.hidden));
-  };
-  resetFilters.onclick = () => {
-    // Reset retires its own control; keep the reader at the surviving disclosure.
-    if (document.activeElement === resetFilters) filterToggle.focus();
-    widen(refreshNarrowing);
-  };
-  findInput.addEventListener("input", () => {
-    finding = findInput.value.trim().toLowerCase();
-    renarrow(refreshNarrowing);
+export function mountNarrowing(refreshNarrowing) {
+  narrowingView.configure({
+    initial: narrowingModel([], new Map()).presentation,
+    changeWords: (words) => {
+      replaceIntent({ words, finding: words.trim().toLowerCase() });
+      renarrow(refreshNarrowing);
+    },
+    chooseFacet: (kind, value) => chooseFacet(kind, value, refreshNarrowing),
+    reset: () => widen(refreshNarrowing),
   });
-  for (const button of filterControls.querySelectorAll(".lf-thread-filter"))
-    button.onclick = () => {
-      if (!button.disabled)
-        choose(button.dataset.filterKind, button.dataset.filterValue, refreshNarrowing);
-    };
 }
 
 function clearNarrowing(nextState = "open") {
   const changed =
-    Boolean(finding) || state !== nextState || Boolean(scope || subject || onlyGone);
-  finding = "";
-  state = nextState;
-  scope = null;
-  subject = null;
-  onlyGone = false;
-  findInput.value = "";
+    Boolean(intent.finding) ||
+    intent.state !== nextState ||
+    Boolean(intent.scope || intent.subject || intent.onlyGone);
+  intent = Object.freeze({ ...DEFAULT_INTENT, state: nextState });
+  narrowingView.setSearchWords("");
   return changed;
 }
 
@@ -282,30 +296,27 @@ function clearNarrowing(nextState = "open") {
 // put back the exact list the reader was operating rather than merely selecting the
 // thread's lifecycle again.
 export function retainNarrowing(refreshNarrowing) {
-  const reading = () => ({
-    finding,
-    words: findInput.value,
-    state,
-    scope,
-    subject,
-    onlyGone,
-  });
-  const same = (left, right) =>
-    right && Object.keys(left).every((key) => left[key] === right[key]);
-  const retained = reading();
+  const retained = intent;
   let replacement = null;
   return {
     replaced: () => {
-      replacement = reading();
+      replacement = intent;
     },
     // Restore only while the direct arrival's view still stands. Typing in the
     // optimistic reply box does not change this reading and must not strand a refused
     // Reopen under the Open filter; changing the search or facets deliberately does.
     restore: async (before = null) => {
-      if (!same(reading(), replacement)) return false;
-      await before?.();
-      ({ finding, state, scope, subject, onlyGone } = retained);
-      findInput.value = retained.words;
+      if (intent !== replacement) return false;
+      // The supplied arrival may synchronously reveal the refused thread before its
+      // first await, replacing the optimistic intent with another transition-owned one.
+      // Renew the lease after that synchronous work, then reject any reader change that
+      // lands while the arrival is waiting.
+      const preparing = before?.();
+      const prepared = intent;
+      await preparing;
+      if (intent !== prepared) return false;
+      intent = retained;
+      narrowingView.setSearchWords(retained.words);
       await renarrow(refreshNarrowing);
       return true;
     },

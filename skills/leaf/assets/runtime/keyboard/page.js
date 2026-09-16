@@ -14,7 +14,7 @@ import {
   findInput,
   generalInput,
   generalRow,
-  needsBtn,
+  narrowingView,
   panel,
   threadsBox,
 } from "../conversation/panel-elements.js";
@@ -1039,17 +1039,17 @@ export function createPageKeys({
               ? "Show every thread again"
               : "Show only the threads waiting on you",
           line: () => (needsYou() ? "all threads" : "waiting on you"),
-          control: () => needsBtn,
+          control: () => narrowingView.readerControl,
           when: () =>
             runtime.statePhase === "ready" &&
             (needsYou() || threadList().some((...args) => awaitsReader(...args))),
           returnFrame: () => ({
             active: () => panelIsOpen() && needsYou(),
-            close: () => needsBtn.click(),
+            close: () => narrowingView.readerControl.click(),
             does: "Show every thread again",
             line: "show all",
           }),
-          run: () => needsBtn.click(),
+          run: () => narrowingView.readerControl.click(),
         },
         {
           id: "thread.find",

@@ -158,7 +158,6 @@ export function createProjectionPresentation({ onDeferredReady }) {
   function forgetAuthoredOwners(owners) {
     for (const coordinate of [...committedProjection.keys()])
       if (owners.has(JSON.parse(coordinate)[0])) committedProjection.delete(coordinate);
-    applicationState.forgetAuthored(owners);
   }
 
   // The coverage stamp says how much of the log the last complete projection covered,

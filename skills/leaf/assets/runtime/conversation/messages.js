@@ -9,8 +9,11 @@ import { loadMarkdown, markdownReady, renderMarkdown } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
 import { isReaction } from "./model.js";
 import { tokenEntry } from "../registry.js";
-import { rememberAuthoredParents } from "../projection/authored.js";
-import { captureWidgetDescriptors } from "../widget-descriptors.js";
+import {
+  rememberAuthoredParents,
+  stageAuthoredFacets,
+} from "../projection/authored.js";
+import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import {
   markDeclared,
   MARKED_ANYWHERE,
@@ -67,8 +70,10 @@ function messageHtml(message) {
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.
 const authoredMessages = new Map();
-function authoredMessage(message) {
+export function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
+  if (typeof thread !== "string" || !thread)
+    throw new TypeError("an authored message needs its canonical thread root");
   if (!authoredMessages.has(key)) {
     const template = document.createElement("template");
     template.innerHTML = message.markup ?? "";
@@ -76,13 +81,37 @@ function authoredMessage(message) {
       [...template.content.querySelectorAll("[id]")].map((node) => node.id),
     );
     rememberAuthoredParents(template.content);
-    captureWidgetDescriptors(template.content, { kind: "thread" });
+    const descriptors = stageWidgetDescriptors(template.content, {
+      kind: "thread",
+      thread,
+      message: message.id,
+    });
+    const authored = stageAuthoredFacets(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
     const nodes = Object.freeze([...template.content.childNodes]);
-    authoredMessages.set(key, { nodes, widgets });
+    authoredMessages.set(key, {
+      authored,
+      descriptors,
+      nodes,
+      root: template.content,
+      widgets,
+    });
   }
-  return authoredMessages.get(key);
+  const prepared = authoredMessages.get(key);
+  for (const descriptor of prepared.descriptors.descriptors.values())
+    if (
+      descriptor.document.thread !== thread ||
+      descriptor.document.message !== message.id
+    )
+      throw new TypeError("an authored message changed its frozen document identity");
+  return prepared;
 }
+const authoredMessage = (message) => {
+  const prepared = authoredMessages.get(message.attempt ?? message.id);
+  if (!prepared)
+    throw new Error("authored message presentation preceded semantic preparation");
+  return prepared;
+};
 export const messageWidgetIds = (message) =>
   message.markup ? authoredMessage(message).widgets : Object.freeze([]);
 

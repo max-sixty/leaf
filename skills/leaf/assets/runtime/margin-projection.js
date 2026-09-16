@@ -1129,10 +1129,12 @@ export function createMarginProjection({
     const asks = openAsks();
     for (const ask of asks) {
       const id = ask.id;
-      add(groups, ask, {
+      const target = elementById(id);
+      if (!target) continue;
+      add(groups, target, {
         kind: "ask",
         id: `ask:${id}`,
-        text: trimmed(`${addressableWord(ask)} · ${addressableSays(ask) || id}`),
+        text: trimmed(`${addressableWord(target)} · ${addressableSays(target) || id}`),
         activate: () => {
           const standing = openAsks();
           const next = standing.find((candidate) => candidate.id === id);
@@ -2978,7 +2980,6 @@ export function createMarginProjection({
       paintKeys();
     });
     watchProjection(document.body, renderMargin);
-    document.addEventListener("lf-answered", renderMargin);
     document.addEventListener("lf-comparison", renderMargin);
     document.addEventListener("lf-margin-layout", () => {
       placeThreadPreview();

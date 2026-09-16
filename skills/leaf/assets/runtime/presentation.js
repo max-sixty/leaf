@@ -81,16 +81,14 @@ import { highlightBlocks } from "./syntax.js";
 // Attributes the runtime itself may paint onto elements the page owns. This is the
 // replay signature's one exclusion vocabulary as well as the source each writer uses:
 // a new kind of paint therefore has one place to join. The rest of data-lf-* is not
-// implicitly ours — a widget can carry real state there, and replay must see it. The
-// settlement mark (data-lf-state) is deliberately in that rest: the layer paints it
-// (markSettled), but a module may paint it too as its own gesture's state, and the
-// replay signature must keep seeing it — its own gate is RETIRED_SLOTS, not the sigs.
+// implicitly ours — a widget can carry real state there, and replay must see it.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
   ask: "data-lf-ask",
   done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",
+  settlement: "data-lf-state",
   applied: "data-lf-applied",
   reading: "data-lf-reading",
   dataRevision: "data-lf-data-revision",

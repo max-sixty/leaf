@@ -2,7 +2,12 @@
    buttons and may move them between its row and overflow menu; these light-DOM Lit
    owners move with those buttons and paint one frozen Ask presentation reading. */
 import { LitElement, html } from "../../vendor/browser-runtime.js";
-import { foldShelf, showNews } from "../banner-shelf.js";
+import {
+  BANNER_CONTROL_RANK,
+  foldShelf,
+  registerBannerControl,
+  showNews,
+} from "../banner-shelf.js";
 import { el } from "../widget-elements.js";
 
 const FACE_TAG = "lf-ask-banner-face";
@@ -106,6 +111,12 @@ export function createAskBannerControls(progress, activateBulk) {
     });
     owner.model = initial;
     owner.commit();
+    registerBannerControl({
+      key: `blanket:${verb}`,
+      control,
+      rank: BANNER_CONTROL_RANK.blanket,
+      conditional: true,
+    });
     showNews(control, false);
     bulk.set(verb, { control, owner });
     return control;

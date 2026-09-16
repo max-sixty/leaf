@@ -320,7 +320,10 @@ def test_deferred_projection_keeps_approval_behind_admission(browser, serve):
     )
 
     page.evaluate("document.body.classList.remove('lf-dragging')")
-    expect(approval).to_be_disabled()
+    expect(approval).to_be_enabled()
+    expect(approval).to_have_attribute(
+        "title", "Approve this work; the page stays open for follow-up"
+    )
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)

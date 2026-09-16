@@ -690,12 +690,6 @@ test("a pending prose reply preserves a frozen structural Ask", () => {
   };
   const app = setup([[frozenChoice.id, frozenChoice]]);
   const accepted = state(2);
-  accepted.browser.conversation.asks = {
-    all: [{ id: "frozen-choice", tag: "lf-choice", thread: root.id }],
-    reader: [{ id: "frozen-choice", tag: "lf-choice", thread: root.id }],
-    unanswered: [{ id: "frozen-choice", tag: "lf-choice", thread: root.id }],
-    awaiting: { "frozen-choice": true },
-  };
   accepted.browser.conversation.threads = [
     {
       root,
@@ -745,16 +739,7 @@ test("one publisher reading owns Ask inventory, source identity, and pending ans
     [surface.id, surface],
     [source.id, source],
   ]);
-  const accepted = state(2);
-  const item = { id: surface.id, tag: surface.tag, thread: null };
-  accepted.browser.views[1].document.asks = {
-    all: [item],
-    reader: [item],
-    unanswered: [item],
-    awaiting: { [source.id]: true },
-    unanswered_awaiting: { [source.id]: true },
-  };
-  app.adopt(accepted);
+  app.adopt(state(2));
   assert.deepEqual(app.read().effective.asks, {
     all: [
       {
@@ -790,6 +775,7 @@ test("one publisher reading owns Ask inventory, source identity, and pending ans
   const pending = app.enqueue(action("answer"), "now");
   assert.deepEqual(app.read().effective.asks.reader, []);
   assert.deepEqual(app.read().effective.asks.unanswered, []);
+  assert.equal(app.read().effective.admittedUnansweredAsks[0].sourceId, source.id);
   assert.equal(app.read().effective.asks.unansweredAwaiting[source.id], false);
   assert.throws(() => {
     app.read().effective.asks.all[0].sourceId = "other";
@@ -1239,14 +1225,6 @@ test("a report on an answer facet does not answer an Ask", () => {
     reports: [report.id],
     desired: [report.id],
   };
-  const item = { id: source.id, tag: source.tag, thread: null };
-  accepted.browser.views[1].document.asks = {
-    all: [item],
-    reader: [item],
-    unanswered: [item],
-    awaiting: { [source.id]: true },
-    unanswered_awaiting: { [source.id]: true },
-  };
 
   app.adopt(accepted);
   assert.equal(
@@ -1277,13 +1255,6 @@ test("superseding an outer settlement restores a nested Ask from captured ancest
   const app = setup([[source.id, source]]);
   const settlement = { ...action("settle"), id: "settled", seq: 1 };
   const accepted = state(2, [settlement]);
-  accepted.browser.views[1].document.asks = {
-    all: [],
-    reader: [],
-    unanswered: [],
-    awaiting: {},
-    unanswered_awaiting: {},
-  };
   app.adopt(accepted);
   assert.deepEqual(app.read().effective.asks.all, []);
 
@@ -1329,14 +1300,6 @@ test("a pending reply moves the Ask worklist in the same publication as its thre
     ts: "now",
   };
   const accepted = state(2);
-  const item = { id: source.id, tag: source.tag, thread: null };
-  accepted.browser.views[1].document.asks = {
-    all: [item],
-    reader: [item],
-    unanswered: [item],
-    awaiting: { [source.id]: true },
-    unanswered_awaiting: { [source.id]: true },
-  };
   accepted.browser.conversation.threads = [
     {
       root,

@@ -20,7 +20,6 @@ def browser_document(
                 within=document.within,
                 floors=document.floors,
             ),
-            "asks": document.asks,
             "requests": document.requests,
         },
         document.projection,

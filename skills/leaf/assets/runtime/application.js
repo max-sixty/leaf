@@ -141,6 +141,10 @@ export function mountApplication(dependencies) {
       return false;
     }
     invalidateDom();
+    // Projection deferral is mechanical browser state, so resuming it publishes no
+    // semantic epoch. Repaint the approval gate explicitly after the committed
+    // projection has made its effective Ask selection visible.
+    dependencies.state.paintApproval();
     return true;
   };
 

@@ -44,7 +44,7 @@ const state = (taken, events = []) => ({
           projection: {
             entries: events.map((event) => ({
               event,
-              coordinate,
+              coordinate: [event.widget, event.widget, "decision"],
               spec,
               scope: "page",
               value: event.action,
@@ -58,11 +58,16 @@ const state = (taken, events = []) => ({
     },
   },
 });
-const setup = () => {
+const setup = (extraDescriptors = [], extraAuthored = []) => {
   const app = createSemanticApplication();
   app.identify(1);
-  app.captureAuthored(
-    new Map([
+  app.captureDocument({
+    ...app.read().document,
+    registry: Object.fromEntries([
+      ["lf-choice", { "x-state": { accept: spec, reject: spec } }],
+      ...extraDescriptors.map(([, captured]) => [captured.tag, captured.declaration]),
+    ]),
+    authored: new Map([
       [
         "choice",
         {
@@ -72,10 +77,10 @@ const setup = () => {
           state: { decision: { action: null, value: null, detail: {} } },
         },
       ],
+      ...extraAuthored,
     ]),
-    { "lf-choice": { "x-state": { accept: spec, reject: spec } } },
-  );
-  app.captureDescriptors(new Map([[descriptor.id, descriptor]]));
+    descriptors: new Map([[descriptor.id, descriptor], ...extraDescriptors]),
+  });
   app.adopt(state(1));
   return app;
 };
@@ -172,7 +177,9 @@ test("one widget selection publishes optimistic state and delivery without writa
   const seen = [];
   const stop = selected.subscribe((reading) => seen.push(reading));
   assert.equal(selected.read().actions.accept.available, true);
+  assert.equal(selected.read().authored.decision.action, null);
   app.enqueue(action("first"), "now");
+  assert.equal(selected.read().authored.decision.action, null);
   assert.equal(selected.read().state.decision.action, "accept");
   assert.deepEqual(selected.read().delivery, [
     {
@@ -187,20 +194,11 @@ test("one widget selection publishes optimistic state and delivery without writa
   assert.throws(() => {
     selected.read().actions.accept.available = false;
   }, TypeError);
+  assert.throws(() => {
+    selected.read().authored.decision.value = "corrupt";
+  }, TypeError);
   const beforeUnrelated = seen.length;
-  app.captureDescriptors(
-    new Map([
-      [
-        "other",
-        {
-          ...descriptor,
-          id: "other",
-          tag: "lf-other",
-          declaration: {},
-        },
-      ],
-    ]),
-  );
+  app.acceptData({ revision: 0, sources: { unrelated: { value: true } } });
   assert.equal(seen.length, beforeUnrelated);
   app.reject("first");
   assert.equal(selected.read().state.decision.action, null);
@@ -208,7 +206,6 @@ test("one widget selection publishes optimistic state and delivery without writa
 });
 
 test("an offline document publishes every host command as unavailable", () => {
-  const app = setup();
   const commands = {
     ...descriptor,
     declaration: {
@@ -217,7 +214,7 @@ test("an offline document publishes every host command as unavailable", () => {
     },
     offers: [{ tag: "lf-command", attribute: "verb", verb: "run" }],
   };
-  app.captureDescriptors(new Map([[commands.id, commands]]));
+  const app = setup([[commands.id, commands]]);
   const pending = app.enqueue(action("first"), "now");
   assert.equal(app.selectWidget(commands).read().actions.accept.available, true);
   assert.equal(app.selectWidget(commands).read().requests.run.available, true);
@@ -237,14 +234,24 @@ test("an offline document publishes every host command as unavailable", () => {
 });
 
 test("an owner requirement follows publisher-projected position with authored fallback", () => {
-  const app = setup();
   const oldOwner = {
     ...descriptor,
     id: "old-column",
     tag: "lf-column",
-    declaration: {},
+    declaration: { "x-awaits": { rollup: true } },
   };
   const newOwner = { ...oldOwner, id: "new-column" };
+  const required = {
+    ...descriptor,
+    id: "required-choice",
+    parent: { id: newOwner.id, tag: newOwner.tag },
+    ancestors: [{ id: newOwner.id, tag: newOwner.tag }],
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { answers: ["accept", "reject"] },
+    },
+    ask: { answers: ["accept", "reject"], empty: {} },
+  };
   const child = {
     ...descriptor,
     id: "card",
@@ -261,13 +268,12 @@ test("an owner requirement follows publisher-projected position with authored fa
       },
     },
   };
-  app.captureDescriptors(
-    new Map([
-      [oldOwner.id, oldOwner],
-      [newOwner.id, newOwner],
-      [child.id, child],
-    ]),
-  );
+  const app = setup([
+    [oldOwner.id, oldOwner],
+    [newOwner.id, newOwner],
+    [required.id, required],
+    [child.id, child],
+  ]);
   const moved = {
     ...action("move", "move"),
     id: "e-move",
@@ -281,9 +287,6 @@ test("an owner requirement follows publisher-projected position with authored fa
     record: { kind: "position", value: "parent" },
   };
   const read = state(2, [moved]);
-  read.browser.views[1].document.asks = {
-    unanswered_awaiting: { [oldOwner.id]: false, [newOwner.id]: true },
-  };
   read.browser.views[1].document.projection = {
     entries: [
       {
@@ -327,15 +330,18 @@ test("the selected revision keeps carried action history from earlier revisions"
     ...descriptor,
     document: { kind: "page", revision: 2 },
   };
-  app.identify(2);
-  app.captureDescriptors(new Map([[current.id, current]]));
+  const nextDocument = {
+    ...app.read().document,
+    revision: 2,
+    descriptors: new Map([[current.id, current]]),
+  };
   const carried = { ...action("old"), id: "e-old", seq: 1, revision: 1 };
   const read = state(2, [carried]);
   read.active.revision = 2;
   read.browser.views[2] = read.browser.views[1];
   read.browser.views[2].basis.revision = 2;
   delete read.browser.views[1];
-  app.adopt(read);
+  app.adopt(read, nextDocument);
   assert.deepEqual(
     app
       .selectWidget(current)
@@ -348,15 +354,97 @@ test("the selected revision keeps carried action history from earlier revisions"
 test("an adopted live revision retains its stamp while a newer revision waits", () => {
   const app = createSemanticApplication();
   app.identify(1, 1, true);
+  const nextDocument = {
+    ...app.read().document,
+    revision: 2,
+    stamp: 2,
+    descriptors: new Map([
+      [descriptor.id, { ...descriptor, document: { kind: "page", revision: 2 } }],
+    ]),
+  };
   const read = state(2);
   read.active = { revision: 2, version: 2 };
   read.browser.views[2] = read.browser.views[1];
   read.browser.views[2].basis.revision = 2;
   delete read.browser.views[1];
 
-  assert.equal(app.adopt(read, 2), true);
+  assert.equal(app.adopt(read, nextDocument), true);
   assert.equal(app.read().document.revision, 2);
   assert.equal(app.read().document.stamp, 2);
+});
+
+test("a frozen descriptor capture cannot relabel the shown document", () => {
+  const app = createSemanticApplication();
+  app.identify(1, 1, true);
+  const capture = {
+    ...app.read().document,
+    descriptors: new Map([[descriptor.id, descriptor]]),
+  };
+  const read = state(2);
+  read.active = { revision: 1, version: 2 };
+
+  assert.equal(app.adopt(read, capture), true);
+  assert.equal(app.read().document.revision, 1);
+  assert.equal(app.read().document.stamp, 1);
+});
+
+test("document capture and its matching admitted reading publish atomically", () => {
+  const app = setup();
+  const seen = [];
+  app
+    .select((root) => [
+      root.document.revision,
+      root.authoritative?.active.revision ?? null,
+      root.document.descriptors.get("next")?.document.revision ?? null,
+      root.document.authored.has("next"),
+      root.effective.widgets.get("next")?.state.decision.action ?? null,
+    ])
+    .subscribe((tuple) => seen.push(tuple));
+  const nextDescriptor = {
+    ...descriptor,
+    id: "next",
+    document: { kind: "page", revision: 2 },
+  };
+  const nextDocument = {
+    ...app.read().document,
+    revision: 2,
+    authored: new Map([
+      [
+        "next",
+        {
+          tag: "lf-choice",
+          specs: new Map([["decision", spec]]),
+          positions: {},
+          state: { decision: { action: null, value: null, detail: {} } },
+        },
+      ],
+    ]),
+    descriptors: new Map([[nextDescriptor.id, nextDescriptor]]),
+  };
+  const read = state(2, [
+    {
+      ...action("next-action"),
+      id: "e-next",
+      seq: 1,
+      revision: 2,
+      widget: "next",
+    },
+  ]);
+  read.active = { revision: 2, version: 2 };
+  read.browser.views[2] = read.browser.views[1];
+  read.browser.views[2].basis.revision = 2;
+  delete read.browser.views[1];
+
+  assert.equal(app.canAdopt(read, nextDocument), true);
+  assert.equal(app.adopt(read, nextDocument), true);
+  assert.deepEqual(seen, [
+    [1, 1, null, false, null],
+    [2, 2, 2, true, "accept"],
+  ]);
+
+  const staleDocument = { ...nextDocument, revision: 3 };
+  assert.equal(app.adopt(read, staleDocument), false);
+  assert.deepEqual(seen.at(-1), [2, 2, 2, true, "accept"]);
 });
 
 test("accepted reading order includes non-event activity and independent source revisions", () => {
@@ -487,4 +575,794 @@ test("conversation acceptance is semantic before presentation can retire its loc
   app.accountPresented([accepted]);
   assert.equal(app.read().unresolved.length, 0);
   assert.equal(app.read().effective.conversation.all[0].root.id, "e1");
+});
+
+test("widget selections publish the canonical held conversation", () => {
+  const app = setup();
+  const selected = app.selectWidget(descriptor);
+  const root = {
+    kind: "comment",
+    id: "hold-choice",
+    author: "user",
+    text: "Pause here.",
+    holds: descriptor.id,
+    ts: "now",
+  };
+  const accepted = state(2);
+  accepted.browser.conversation.threads = [
+    {
+      root,
+      anchor: null,
+      msgs: [root],
+      resolved: null,
+      awaits_agent: true,
+      awaits_reader: false,
+      bare_reaction: false,
+      seat: descriptor.id,
+    },
+  ];
+  app.adopt(accepted);
+  assert.equal(selected.read().conversation.heldBy, root.id);
+
+  const released = state(3);
+  released.browser.conversation.threads = [
+    { ...accepted.browser.conversation.threads[0], resolved: { author: "user" } },
+  ];
+  app.adopt(released);
+  assert.equal(selected.read().conversation.heldBy, null);
+});
+
+test("a pending reader reply hands an accepted question to the agent until it leaves", () => {
+  const app = setup();
+  const root = {
+    kind: "comment",
+    id: "question",
+    author: "claude",
+    text: "Which one?",
+    ts: "now",
+  };
+  const accepted = state(2);
+  accepted.browser.conversation.threads = [
+    {
+      root,
+      anchor: null,
+      msgs: [root],
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: true,
+      bare_reaction: false,
+      seat: null,
+    },
+  ];
+  app.adopt(accepted);
+  const turn = () => {
+    const thread = app.read().effective.conversation.all[0];
+    return [thread.awaits_agent, thread.awaits_reader];
+  };
+  assert.deepEqual(turn(), [false, true]);
+
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: root.id,
+      attempt: "answer",
+      text: "The first one.",
+      revision: 1,
+    },
+    "now",
+  );
+  assert.deepEqual(turn(), [true, false]);
+  app.remove(new Set(["answer"]));
+  assert.deepEqual(turn(), [false, true]);
+
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: root.id,
+      attempt: "retry",
+      text: "Still the first one.",
+      revision: 1,
+    },
+    "now",
+  );
+  assert.deepEqual(turn(), [true, false]);
+  app.reject("retry");
+  assert.deepEqual(turn(), [false, true]);
+});
+
+test("a pending prose reply preserves a frozen structural Ask", () => {
+  const root = {
+    kind: "comment",
+    id: "question",
+    author: "claude",
+    text: "Choose in the options below.",
+    ts: "now",
+  };
+  const frozenChoice = {
+    ...descriptor,
+    id: "frozen-choice",
+    document: { kind: "thread", thread: root.id, message: root.id },
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { answers: ["accept", "reject"] },
+    },
+    ask: { answers: ["accept", "reject"], empty: {} },
+  };
+  const app = setup([[frozenChoice.id, frozenChoice]]);
+  const accepted = state(2);
+  accepted.browser.conversation.asks = {
+    all: [{ id: "frozen-choice", tag: "lf-choice", thread: root.id }],
+    reader: [{ id: "frozen-choice", tag: "lf-choice", thread: root.id }],
+    unanswered: [{ id: "frozen-choice", tag: "lf-choice", thread: root.id }],
+    awaiting: { "frozen-choice": true },
+  };
+  accepted.browser.conversation.threads = [
+    {
+      root,
+      anchor: null,
+      msgs: [root],
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: true,
+      bare_reaction: false,
+      seat: null,
+    },
+  ];
+  app.adopt(accepted);
+
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: root.id,
+      attempt: "context",
+      text: "One more detail before I choose.",
+      revision: 1,
+    },
+    "now",
+  );
+  const thread = app.read().effective.conversation.all[0];
+  assert.deepEqual([thread.awaits_agent, thread.awaits_reader], [true, true]);
+});
+
+test("one publisher reading owns Ask inventory, source identity, and pending answers", () => {
+  const surface = {
+    ...descriptor,
+    id: "question",
+    tag: "lf-ask",
+    declaration: { "x-ask-surface": true },
+  };
+  const source = {
+    ...descriptor,
+    parent: { id: surface.id, tag: surface.tag },
+    ancestors: [{ id: surface.id, tag: surface.tag }],
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { answers: ["accept", "reject"], all: "accept" },
+    },
+    ask: { answers: ["accept", "reject"], empty: {} },
+  };
+  const app = setup([
+    [surface.id, surface],
+    [source.id, source],
+  ]);
+  const accepted = state(2);
+  const item = { id: surface.id, tag: surface.tag, thread: null };
+  accepted.browser.views[1].document.asks = {
+    all: [item],
+    reader: [item],
+    unanswered: [item],
+    awaiting: { [source.id]: true },
+    unanswered_awaiting: { [source.id]: true },
+  };
+  app.adopt(accepted);
+  assert.deepEqual(app.read().effective.asks, {
+    all: [
+      {
+        id: surface.id,
+        tag: surface.tag,
+        sourceId: source.id,
+        sourceTag: source.tag,
+        thread: null,
+      },
+    ],
+    reader: [
+      {
+        id: surface.id,
+        tag: surface.tag,
+        sourceId: source.id,
+        sourceTag: source.tag,
+        thread: null,
+      },
+    ],
+    unanswered: [
+      {
+        id: surface.id,
+        tag: surface.tag,
+        sourceId: source.id,
+        sourceTag: source.tag,
+        thread: null,
+      },
+    ],
+    awaiting: { [source.id]: true },
+    unansweredAwaiting: { [source.id]: true },
+  });
+
+  const pending = app.enqueue(action("answer"), "now");
+  assert.deepEqual(app.read().effective.asks.reader, []);
+  assert.deepEqual(app.read().effective.asks.unanswered, []);
+  assert.equal(app.read().effective.asks.unansweredAwaiting[source.id], false);
+  assert.throws(() => {
+    app.read().effective.asks.all[0].sourceId = "other";
+  }, TypeError);
+
+  app.enqueue({ kind: "undo", undoes: pending.localId, attempt: "undo-answer" }, "now");
+  assert.equal(app.read().effective.asks.reader[0].sourceId, source.id);
+  assert.equal(app.read().effective.asks.unansweredAwaiting[source.id], true);
+});
+
+test("request Asks cross local Ask ancestors into their nearest rollup", () => {
+  const plan = {
+    ...descriptor,
+    id: "plan",
+    tag: "lf-plan",
+    declaration: { "x-awaits": { rollup: true } },
+  };
+  const local = {
+    ...descriptor,
+    id: "local-choice",
+    parent: { id: plan.id, tag: plan.tag },
+    ancestors: [{ id: plan.id, tag: plan.tag }],
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { answers: ["accept", "reject"] },
+    },
+    ask: { answers: ["accept", "reject"], empty: {} },
+  };
+  const request = {
+    ...descriptor,
+    id: "run-request",
+    tag: "lf-request",
+    parent: { id: local.id, tag: local.tag },
+    ancestors: [
+      { id: local.id, tag: local.tag },
+      { id: plan.id, tag: plan.tag },
+    ],
+    declaration: { "x-request": { ask: true, verbs: { run: {} } } },
+    ask: null,
+  };
+  const app = setup(
+    [
+      [plan.id, plan],
+      [local.id, local],
+      [request.id, request],
+    ],
+    [
+      [
+        local.id,
+        {
+          tag: local.tag,
+          specs: new Map([["decision", spec]]),
+          positions: {},
+          state: { decision: { action: null, value: null, detail: {} } },
+        },
+      ],
+    ],
+  );
+
+  app.enqueue({ ...action("answer-local"), widget: local.id }, "now");
+  assert.deepEqual(
+    app.read().effective.asks.reader.map(({ sourceId }) => sourceId),
+    [request.id],
+  );
+  assert.equal(app.read().effective.asks.awaiting[local.id], false);
+  assert.equal(app.read().effective.asks.awaiting[plan.id], true);
+});
+
+test("quoted and retired Asks are absent from their rollup's effective reading", () => {
+  const plan = {
+    ...descriptor,
+    id: "plan",
+    tag: "lf-plan",
+    declaration: { "x-awaits": { rollup: true } },
+  };
+  const ask = (id, extra = {}) => ({
+    ...descriptor,
+    id,
+    parent: { id: plan.id, tag: plan.tag },
+    ancestors: [{ id: plan.id, tag: plan.tag }],
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { answers: ["accept", "reject"] },
+    },
+    ask: { answers: ["accept", "reject"], empty: {} },
+    ...extra,
+  });
+  const quoted = ask("quoted-choice", { quoted: true });
+  const retired = ask("retired-choice", {
+    retiredBy: [{ ownerId: descriptor.id, outcome: "accept" }],
+  });
+  const app = setup([
+    [plan.id, plan],
+    [quoted.id, quoted],
+    [retired.id, retired],
+  ]);
+  app.enqueue(action("retire-child"), "now");
+
+  assert.deepEqual(app.read().effective.asks.all, []);
+  assert.equal(app.read().effective.asks.awaiting[quoted.id], false);
+  assert.equal(app.read().effective.asks.awaiting[retired.id], false);
+  assert.equal(app.read().effective.asks.awaiting[plan.id], false);
+});
+
+test("a pending frozen-widget answer updates its thread obligation immediately", () => {
+  const root = {
+    kind: "comment",
+    id: "thread-root",
+    author: "user",
+    text: "Please propose a choice.",
+    ts: "now",
+  };
+  const reply = {
+    kind: "reply",
+    id: "choice-reply",
+    parent: root.id,
+    author: "claude",
+    text: "Choose one.",
+    ts: "now",
+  };
+  const frozen = {
+    ...descriptor,
+    id: "frozen-choice",
+    document: { kind: "thread", thread: root.id, message: reply.id },
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { answers: ["accept", "reject"] },
+    },
+    ask: { answers: ["accept", "reject"], empty: {} },
+  };
+  const authored = {
+    tag: "lf-choice",
+    specs: new Map([["decision", spec]]),
+    positions: {},
+    state: { decision: { action: null, value: null, detail: {} } },
+  };
+  const app = setup([[frozen.id, frozen]], [[frozen.id, authored]]);
+  const accepted = state(2);
+  accepted.browser.conversation.threads = [
+    {
+      root,
+      anchor: null,
+      msgs: [root, reply],
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: true,
+      bare_reaction: false,
+      seat: null,
+    },
+  ];
+  app.adopt(accepted);
+  assert.equal(app.read().effective.conversation.all[0].awaits_reader, true);
+
+  app.enqueue({ ...action("answer-frozen"), widget: frozen.id }, "now");
+  assert.deepEqual(app.read().effective.asks.reader, []);
+  assert.equal(app.read().effective.conversation.all[0].awaits_reader, false);
+});
+
+test("a reaction root is not a spoken turn awaiting the reader", () => {
+  const app = setup();
+  const root = {
+    kind: "comment",
+    id: "reaction-root",
+    author: "claude",
+    token: "ack",
+    parent: "passage",
+    ts: "now",
+  };
+  const accepted = state(2);
+  accepted.browser.conversation.threads = [
+    {
+      root,
+      anchor: null,
+      msgs: [root],
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: false,
+      bare_reaction: true,
+      seat: null,
+    },
+  ];
+
+  app.adopt(accepted);
+  assert.equal(app.read().effective.conversation.all[0].awaits_reader, false);
+});
+
+test("projected value records open and restore a conditional Ask", () => {
+  const phaseSpec = {
+    unit: "widget",
+    facet: "phase",
+    record: { kind: "value", attr: "phase", value: "phase" },
+  };
+  const closeSpec = { unit: "widget", facet: "decision" };
+  const conditional = {
+    ...descriptor,
+    id: "conditional-choice",
+    tag: "lf-conditional-choice",
+    declaration: {
+      "x-state": { open: phaseSpec, close: closeSpec },
+      "x-awaits": { when: { phase: ["open"] }, answers: ["close"] },
+    },
+    ask: {
+      authored: { phase: "closed" },
+      when: { phase: ["open"] },
+      answers: ["close"],
+      until: null,
+      empty: {},
+    },
+  };
+  const authored = {
+    tag: conditional.tag,
+    specs: new Map([
+      ["phase", phaseSpec],
+      ["decision", closeSpec],
+    ]),
+    positions: {},
+    state: {
+      phase: { action: null, value: "closed", detail: {} },
+      decision: { action: null, value: null, detail: {} },
+    },
+  };
+  const app = setup([[conditional.id, conditional]], [[conditional.id, authored]]);
+  const sources = () =>
+    app.read().effective.asks.reader.map(({ sourceId }) => sourceId);
+  const event = (attempt) => ({
+    kind: "action",
+    widget: conditional.id,
+    action: "open",
+    detail: { phase: "open" },
+    revision: 1,
+    attempt,
+  });
+
+  assert.deepEqual(sources(), []);
+  app.enqueue(event("open"), "now");
+  assert.deepEqual(sources(), [conditional.id]);
+  app.reject("open");
+  assert.deepEqual(sources(), []);
+
+  const pending = app.enqueue(event("open-again"), "now");
+  assert.deepEqual(sources(), [conditional.id]);
+  app.enqueue({ kind: "undo", undoes: pending.localId, attempt: "undo" }, "now");
+  assert.deepEqual(sources(), []);
+  app.reject("undo");
+  assert.deepEqual(sources(), [conditional.id]);
+});
+
+test("a live revision's authored conversation predicate controls Ask handoff", () => {
+  const decisionSpec = { unit: "widget", facet: "decision" };
+  const source = {
+    ...descriptor,
+    id: "conditional-seat",
+    tag: "lf-conditional-seat",
+    declaration: {
+      "x-state": { settle: decisionSpec },
+      "x-awaits": { when: { asks: [true] }, answers: ["settle"] },
+      "x-conversation": { when: { talk: [true] } },
+    },
+    ask: {
+      authored: { asks: "" },
+      when: { asks: [true] },
+      answers: ["settle"],
+      until: null,
+      empty: {},
+    },
+    conversation: {
+      authored: { talk: "" },
+      when: { talk: [true] },
+    },
+  };
+  const app = setup([[source.id, source]]);
+  const accepted = state(2);
+  accepted.browser.conversation.threads = [
+    {
+      root: { kind: "comment", id: "seated", author: "user", text: "Why?" },
+      anchor: null,
+      msgs: [],
+      resolved: null,
+      awaits_agent: true,
+      awaits_reader: false,
+      bare_reaction: false,
+      seat: source.id,
+    },
+  ];
+  app.adopt(accepted);
+  const readerSources = () =>
+    app.read().effective.asks.reader.map(({ sourceId }) => sourceId);
+
+  assert.deepEqual(readerSources(), []);
+  const revised = {
+    ...source,
+    document: { kind: "page", revision: 2 },
+    conversation: {
+      authored: { talk: null },
+      when: { talk: [true] },
+    },
+  };
+  const revisedState = structuredClone(accepted);
+  revisedState.taken = 3;
+  revisedState.active.revision = 2;
+  revisedState.browser.views[2] = structuredClone(revisedState.browser.views[1]);
+  revisedState.browser.views[2].basis.revision = 2;
+  app.adopt(revisedState, {
+    ...app.read().document,
+    revision: 2,
+    descriptors: new Map([[revised.id, revised]]),
+  });
+  assert.deepEqual(readerSources(), [source.id]);
+});
+
+test("a frozen Ask selects its completion verb from projected values", () => {
+  const phaseSpec = {
+    unit: "widget",
+    facet: "phase",
+    record: { kind: "value", attr: "phase", value: "phase" },
+  };
+  const chooseSpec = { unit: "widget", facet: "decision" };
+  const finishSpec = {
+    unit: "widget",
+    facet: "completion",
+    record: { kind: "value", attr: "choice", value: "choice" },
+  };
+  const root = {
+    kind: "comment",
+    id: "batch-question",
+    author: "claude",
+    text: "Choose the batch.",
+    ts: "now",
+  };
+  const frozen = {
+    ...descriptor,
+    id: "batch-choice",
+    tag: "lf-batch-choice",
+    document: { kind: "thread", thread: root.id, message: root.id },
+    declaration: {
+      "x-state": {
+        batch: phaseSpec,
+        choose: chooseSpec,
+        finish: finishSpec,
+      },
+      "x-awaits": {
+        answers: ["choose"],
+        until: { verb: "finish", when: { phase: ["batch"] } },
+      },
+    },
+    ask: {
+      authored: { phase: "single" },
+      when: {},
+      answers: ["choose"],
+      until: { verb: "finish", when: { phase: ["batch"] } },
+      empty: {},
+    },
+  };
+  const authored = {
+    tag: frozen.tag,
+    specs: new Map([
+      ["phase", phaseSpec],
+      ["decision", chooseSpec],
+      ["completion", finishSpec],
+    ]),
+    positions: {},
+    state: {
+      phase: { action: null, value: "single", detail: {} },
+      decision: { action: null, value: null, detail: {} },
+      completion: { action: null, value: "already", detail: { choice: "already" } },
+    },
+  };
+  const app = setup([[frozen.id, frozen]], [[frozen.id, authored]]);
+  const accepted = state(2);
+  accepted.browser.conversation.threads = [
+    {
+      root,
+      anchor: null,
+      msgs: [root],
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: true,
+      bare_reaction: false,
+      seat: null,
+    },
+  ];
+  app.adopt(accepted);
+  const isOpen = () =>
+    app.read().effective.asks.reader.some(({ sourceId }) => sourceId === frozen.id);
+  const send = (attempt, action, detail = {}) =>
+    app.enqueue(
+      {
+        kind: "action",
+        widget: frozen.id,
+        action,
+        detail,
+        revision: 1,
+        attempt,
+      },
+      "now",
+    );
+
+  assert.equal(isOpen(), true);
+  send("batch", "batch", { phase: "batch" });
+  send("choose", "choose");
+  assert.equal(isOpen(), true);
+  send("finish", "finish", { choice: "" });
+  assert.equal(isOpen(), false);
+});
+
+test("a report on an answer facet does not answer an Ask", () => {
+  const valueSpec = {
+    unit: "widget",
+    facet: "decision",
+    record: { kind: "value", attr: "choice", value: "choice" },
+  };
+  const source = {
+    ...descriptor,
+    declaration: {
+      "x-state": { accept: valueSpec },
+      "x-report": { preview: valueSpec },
+      "x-awaits": { answers: ["accept"] },
+    },
+    ask: { answers: ["accept"], empty: {} },
+  };
+  const app = setup([[source.id, source]]);
+  const accepted = state(2);
+  const report = {
+    kind: "report",
+    widget: source.id,
+    action: "preview",
+    detail: { choice: "reported" },
+    revision: 1,
+    id: "report-1",
+    seq: 1,
+  };
+  accepted.events = [report];
+  accepted.browser.basis.through_seq = 1;
+  accepted.browser.receipts = [report];
+  accepted.browser.views[1].basis.through_seq = 1;
+  accepted.browser.views[1].document.projection = {
+    entries: [
+      {
+        event: report,
+        coordinate,
+        spec: valueSpec,
+        scope: "page",
+        value: "reported",
+      },
+    ],
+    actions: [],
+    reports: [report.id],
+    desired: [report.id],
+  };
+  const item = { id: source.id, tag: source.tag, thread: null };
+  accepted.browser.views[1].document.asks = {
+    all: [item],
+    reader: [item],
+    unanswered: [item],
+    awaiting: { [source.id]: true },
+    unanswered_awaiting: { [source.id]: true },
+  };
+
+  app.adopt(accepted);
+  assert.equal(
+    app.read().effective.widgets.get(source.id).state.decision.action,
+    "preview",
+  );
+  assert.deepEqual(
+    app.read().effective.asks.reader.map(({ id }) => id),
+    [source.id],
+  );
+  assert.deepEqual(
+    app.read().effective.asks.unanswered.map(({ id }) => id),
+    [source.id],
+  );
+});
+
+test("superseding an outer settlement restores a nested Ask from captured ancestry", () => {
+  const source = {
+    ...descriptor,
+    id: "nested-choice",
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { answers: ["accept", "reject"] },
+    },
+    retiredBy: [{ ownerId: descriptor.id, outcome: "accept" }],
+    ask: { answers: ["accept", "reject"], empty: {} },
+  };
+  const app = setup([[source.id, source]]);
+  const settlement = { ...action("settle"), id: "settled", seq: 1 };
+  const accepted = state(2, [settlement]);
+  accepted.browser.views[1].document.asks = {
+    all: [],
+    reader: [],
+    unanswered: [],
+    awaiting: {},
+    unanswered_awaiting: {},
+  };
+  app.adopt(accepted);
+  assert.deepEqual(app.read().effective.asks.all, []);
+
+  app.enqueue(action("choose-other", "reject"), "now");
+  assert.deepEqual(
+    app.read().effective.asks.all.map(({ id }) => id),
+    [source.id],
+  );
+  app.remove(new Set(["choose-other"]));
+  assert.deepEqual(app.read().effective.asks.all, []);
+
+  app.enqueue(
+    { kind: "undo", undoes: settlement.id, attempt: "restore-nested" },
+    "now",
+  );
+  assert.deepEqual(
+    app.read().effective.asks.all.map(({ id }) => id),
+    [source.id],
+  );
+  assert.deepEqual(
+    app.read().effective.asks.reader.map(({ id }) => id),
+    [source.id],
+  );
+});
+
+test("a pending reply moves the Ask worklist in the same publication as its thread", () => {
+  const source = {
+    ...descriptor,
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { answers: ["accept", "reject"] },
+      "x-conversation": { when: {} },
+    },
+    ask: { answers: ["accept", "reject"], empty: {} },
+    conversation: { authored: {}, when: {} },
+  };
+  const app = setup([[source.id, source]]);
+  const root = {
+    kind: "comment",
+    id: "question",
+    author: "claude",
+    text: "Which one?",
+    ts: "now",
+  };
+  const accepted = state(2);
+  const item = { id: source.id, tag: source.tag, thread: null };
+  accepted.browser.views[1].document.asks = {
+    all: [item],
+    reader: [item],
+    unanswered: [item],
+    awaiting: { [source.id]: true },
+    unanswered_awaiting: { [source.id]: true },
+  };
+  accepted.browser.conversation.threads = [
+    {
+      root,
+      anchor: null,
+      msgs: [root],
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: true,
+      bare_reaction: false,
+      seat: source.id,
+    },
+  ];
+  app.adopt(accepted);
+  assert.equal(app.read().effective.asks.reader.length, 1);
+
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: root.id,
+      attempt: "answer-in-words",
+      text: "The first one.",
+      revision: 1,
+    },
+    "now",
+  );
+  assert.equal(app.read().effective.conversation.all[0].awaits_agent, true);
+  assert.deepEqual(app.read().effective.asks.reader, []);
+  assert.equal(app.read().effective.asks.unanswered.length, 1);
 });

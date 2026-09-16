@@ -495,8 +495,83 @@ function cyclicComponents(graph) {
   return components;
 }
 
+export const semanticStoreOwnershipRule = {
+  meta: { type: "problem", schema: [] },
+  create(context) {
+    const file = runtimeName(context.filename ?? context.getFilename());
+    const publisherExports = new Set([
+      "createApplicationPublisher",
+      "createSemanticApplication",
+    ]);
+    const browserFrameworkSource = (source) =>
+      typeof source?.value === "string" &&
+      /(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value);
+    const report = (node, name) =>
+      context.report({
+        node,
+        message:
+          name === "createApplicationPublisher"
+            ? "The raw publisher is private to the semantic application."
+            : "Only semantic-state.js may construct the application publisher.",
+      });
+    return {
+      ImportDeclaration(node) {
+        if (!browserFrameworkSource(node.source)) return;
+        for (const specifier of node.specifiers) {
+          if (specifier.type === "ImportNamespaceSpecifier") {
+            context.report({
+              node: specifier,
+              message:
+                "Import named browser framework capabilities so semantic publisher ownership remains statically visible.",
+            });
+            continue;
+          }
+          const name = specifier.imported?.name;
+          if (
+            publisherExports.has(name) &&
+            (name === "createApplicationPublisher" || file !== "semantic-state.js")
+          )
+            report(specifier, name);
+        }
+      },
+      ExportNamedDeclaration(node) {
+        if (!browserFrameworkSource(node.source)) return;
+        for (const specifier of node.specifiers) {
+          if (specifier.type === "ExportNamespaceSpecifier") {
+            context.report({
+              node: specifier,
+              message:
+                "Reexport browser framework capabilities by name so semantic publisher ownership remains statically visible.",
+            });
+            continue;
+          }
+          const name = specifier.local?.name;
+          if (publisherExports.has(name)) report(specifier, name);
+        }
+      },
+      ImportExpression(node) {
+        if (!browserFrameworkSource(node.source)) return;
+        context.report({
+          node,
+          message:
+            "Import browser framework capabilities statically so semantic publisher ownership remains visible.",
+        });
+      },
+      ExportAllDeclaration(node) {
+        if (!browserFrameworkSource(node.source)) return;
+        context.report({
+          node,
+          message:
+            "Reexport browser framework capabilities by name so semantic publisher ownership remains statically visible.",
+        });
+      },
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
+    "semantic-store-ownership": semanticStoreOwnershipRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -1054,6 +1129,7 @@ export default [
       ...ownerBoundary,
       "architecture/root-state-ownership": "error",
       "architecture/runtime-graph": "error",
+      "architecture/semantic-store-ownership": "error",
     },
   },
   {

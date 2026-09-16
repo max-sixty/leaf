@@ -7,14 +7,15 @@
    accounting untouched, so another reading can retry from that same semantic root. */
 import { LIVE_ROOT } from "./storage.js";
 import { runtime } from "./context.js";
-import { applicationState } from "./semantic-state.js";
+import { applicationState, readApplication } from "./semantic-state.js";
 import { reportPageError, sameLayer } from "./layer-client.js";
 import { importWidgets } from "./widget-loader.js";
 import { observeServerNow } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { notice } from "./notifications.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
-import { loadMarked } from "./conversation/messages.js";
+import { loadMarked, prepareAuthoredMessage } from "./conversation/messages.js";
+import { commitWidgetDescriptors } from "./widget-descriptors.js";
 
 export function createStateApplication({
   prepareActivation,
@@ -79,6 +80,12 @@ export function createStateApplication({
       return;
     }
 
+    const frozenDocuments = [];
+    const threadRoots = new Map(
+      (state.browser.conversation.threads ?? []).flatMap((thread) =>
+        thread.msgs.map((message) => [message.id, thread.root.id]),
+      ),
+    );
     const preparations = [
       prepareActivation(state),
       state.events.some((event) => event.kind === "comment" || event.kind === "reply")
@@ -86,11 +93,12 @@ export function createStateApplication({
         : null,
     ];
     for (const event of state.events) {
-      if (!event.markup || markupRead.has(event.id)) continue;
-      const frozen = document.createElement("template");
-      frozen.innerHTML = event.markup;
+      if (!event.markup) continue;
+      const authored = prepareAuthoredMessage(event, threadRoots.get(event.id));
+      frozenDocuments.push(authored);
+      if (markupRead.has(event.id)) continue;
       preparations.push(
-        importWidgets(frozen.content).then(() => markupRead.add(event.id)),
+        importWidgets(authored.root).then(() => markupRead.add(event.id)),
       );
     }
     const [activation] = await Promise.all(preparations);
@@ -116,16 +124,27 @@ export function createStateApplication({
       // A reload never returns to install this candidate in the old realm. A patch
       // does, and adoption is where the revision it installed becomes current, so the
       // document and the state that speaks for it reach the page in one reading.
-      if (following !== null) await activation.install();
-      if (!applicationState.adopt(state, following)) {
+      let documentCapture = following !== null ? await activation.install() : null;
+      if (frozenDocuments.length) {
+        const prior = documentCapture ?? readApplication().document;
+        const authored = new Map(prior.authored);
+        const descriptors = new Map(prior.descriptors);
+        for (const frozen of frozenDocuments) {
+          for (const [id, baseline] of frozen.authored) authored.set(id, baseline);
+          for (const [id, descriptor] of frozen.descriptors.descriptors)
+            descriptors.set(id, descriptor);
+        }
+        documentCapture = { ...prior, authored, descriptors };
+      }
+      for (const frozen of frozenDocuments) commitWidgetDescriptors(frozen.descriptors);
+      if (!applicationState.adopt(state, documentCapture)) {
         await notifyChangedData();
         return;
       }
       observeServerNow(state.now);
       stateApplying = true;
-      // Frozen thread preparation can publish newly captured authored state before
-      // projection runs. Hold chrome presentation now so the adopted epoch cannot
-      // inherit an older commit while that asynchronous boundary is open.
+      // Hold chrome presentation while every renderer consumes the newly adopted
+      // document and server reading as one semantic epoch.
       const preparedProjection = prepareProjection();
       try {
         settleAcceptedDrafts();
@@ -134,14 +153,13 @@ export function createStateApplication({
         stateSignoff(isSignoffDeclared());
         paintApproval();
         renderOthers(state);
-        // Frozen thread widgets join the document here. Their authored capture
-        // republishes the same semantic root before widget rendering reads it.
+        // Frozen thread widgets join the already-adopted document here; connection is
+        // presentation only because their authored semantics were captured above.
         await applyConversation();
         presentProjection(preparedProjection);
         await applyConversation();
-        // Frozen thread markup can introduce a new Ask only after conversation
-        // presentation has mounted and captured its widgets. Present that derived
-        // inventory before recording this accepted reading on the document.
+        // Present the already-derived Ask inventory before recording this accepted
+        // reading on the document.
         await renderAsks();
         await notifyDataSubscribers();
         if (runtime.reading !== null)

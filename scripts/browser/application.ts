@@ -37,7 +37,7 @@ type Event = Thread["root"];
 interface ActionSpec {
   facet: string;
   unit: string;
-  record?: { kind: string; value: string };
+  record?: { kind: string; value: string; attr?: string };
 }
 
 interface WireProjection {
@@ -52,6 +52,28 @@ interface WireProjection {
   actions: string[];
   reports: string[];
   desired: string[];
+}
+
+interface WireAsk {
+  id: string;
+  tag: string;
+  thread?: string | null;
+}
+
+interface WireAsks {
+  all?: WireAsk[];
+  reader?: WireAsk[];
+  unanswered?: WireAsk[];
+  awaiting?: Record<string, boolean>;
+  unanswered_awaiting?: Record<string, boolean>;
+}
+
+export interface AskRecord {
+  id: string;
+  tag: string;
+  sourceId: string;
+  sourceTag: string;
+  thread: string | null;
 }
 
 export interface SemanticDocument {
@@ -73,12 +95,28 @@ export interface SemanticDocument {
 export interface WidgetDescriptor {
   id: string;
   tag: string;
-  document: { kind: "page"; revision: number } | { kind: "thread" };
+  document:
+    | { kind: "page"; revision: number }
+    | { kind: "thread"; thread?: string; message?: string };
   declaration: Record<string, unknown>;
   parent: { id: string; tag: string } | null;
   ancestors: readonly { id: string; tag: string }[];
   quoted: boolean;
-  ask?: { answers: readonly string[]; empty: Readonly<Record<string, string | null>> } | null;
+  retiredBy: readonly { ownerId: string; outcome: string }[];
+  conversation?: {
+    authored: Readonly<Record<string, string | null>>;
+    when: Readonly<Record<string, readonly (string | boolean)[]>>;
+  } | null;
+  ask?: {
+    authored?: Readonly<Record<string, string | null>>;
+    when?: Readonly<Record<string, readonly (string | boolean)[]>>;
+    answers: readonly string[];
+    until?: {
+      verb: string;
+      when: Readonly<Record<string, readonly (string | boolean)[]>>;
+    } | null;
+    empty: Readonly<Record<string, string | null>>;
+  } | null;
   bindings: Readonly<Record<string, string | null>>;
   offers: readonly { tag: string; attribute: string; verb: string }[];
 }
@@ -97,10 +135,7 @@ export interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          asks?: {
-            awaiting?: Record<string, boolean>;
-            unanswered_awaiting?: Record<string, boolean>;
-          };
+          asks?: WireAsks;
           requests?: { seat: { widget: string }; phase: string }[];
         };
         undo?: { event: Event }[];
@@ -112,7 +147,7 @@ export interface AuthoritativeState {
     conversation: {
       threads: Thread[];
       projection: WireProjection;
-      asks?: { awaiting?: Record<string, boolean> };
+      asks?: WireAsks;
       requests?: { seat: { widget: string }; phase: string }[];
     };
     receipts: Event[];
@@ -169,68 +204,388 @@ const emptyLifecycle = (descriptor: WidgetDescriptor) => ({
 const appliesTo = (descriptor: WidgetDescriptor, event: Event) =>
   event.widget === descriptor.id;
 
-function awaitingValue(
-  root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,
+const projectedPosition = (projection: any, id: string) =>
+  [...projection.desired.values()].find(
+    ({ unit, spec }: any) => unit === id && spec.record?.kind === "position",
+  );
+
+const projectedParent = (
+  descriptors: ReadonlyMap<string, WidgetDescriptor>,
+  projection: any,
+  child: WidgetDescriptor,
+) => {
+  const moved = projectedPosition(projection, child.id);
+  const parentId = moved ? moved.e.detail[moved.spec.record.value] : child.parent?.id;
+  return typeof parentId === "string" ? descriptors.get(parentId) : undefined;
+};
+
+const localAsk = (descriptor: WidgetDescriptor) => {
+  const awaits = descriptor.declaration["x-awaits"] as { rollup?: boolean } | undefined;
+  return Boolean(
+    (awaits && !awaits.rollup) ||
+    (descriptor.declaration["x-request"] as { ask?: boolean } | undefined)?.ask,
+  );
+};
+
+function surfaceFor(
+  descriptors: ReadonlyMap<string, WidgetDescriptor>,
+  projection: any,
+  source: WidgetDescriptor,
+) {
+  let holder: WidgetDescriptor | undefined = source;
+  const seen = new Set<string>();
+  while (holder && !seen.has(holder.id)) {
+    seen.add(holder.id);
+    if (holder.declaration["x-ask-surface"]) return holder;
+    holder = projectedParent(descriptors, projection, holder);
+  }
+  return source;
+}
+
+const nonempty = (value: unknown) =>
+  Array.isArray(value)
+    ? value.length > 0
+    : value !== null && value !== undefined && value !== "";
+
+function actionAskAnswered(
+  document: SemanticDocument,
+  projection: any,
   descriptor: WidgetDescriptor,
-): boolean {
-  const projection = root.effective.projection;
-  const descriptors = root.document.descriptors;
-  const position = (id: string) =>
-    [...projection.desired.values()].find(
-      ({ unit, spec }) => unit === id && spec.record?.kind === "position",
-    );
-  const parent = (child: WidgetDescriptor) => {
-    const moved = position(child.id);
-    return moved ? moved.e.detail[moved.spec.record.value] : child.parent?.id;
-  };
+  reading: { answers: readonly string[]; explicit: boolean },
+) {
   const ask = descriptor.ask;
-  if (ask) {
-    const changed =
-      [...projection.pendingWithdrawals.values()].some(
-        ({ e }) => e.widget === descriptor.id,
-      ) ||
-      [...projection.actions.values()].some(
-        ({ e }) => e.widget === descriptor.id && String(e.id).startsWith(PENDING),
+  if (!ask) return false;
+  return reading.answers.some((verb) => {
+    const spec = (descriptor.declaration["x-state"] as Record<string, ActionSpec>)[
+      verb
+    ];
+    if (!spec) return false;
+    const held = [...projection.actions.values()].find(
+      ({ e }: any) => e.widget === descriptor.id && e.action === verb,
+    );
+    // A frozen Ask's matching `until` verb is a completion gesture, not a value
+    // declaration. Its action must stand even when authored state already carries a
+    // nonempty value, and it completes even when the posted record clears that value.
+    if (reading.explicit) return Boolean(held);
+    if (
+      spec.unit === "widget" &&
+      ["attribute", "value"].includes(spec.record?.kind ?? "")
+    )
+      return nonempty(
+        held?.value ?? document.authored.get(descriptor.id)?.state[spec.facet]?.value,
       );
-    if (changed) {
-      return !ask.answers.some((verb) => {
-        const spec = (descriptor.declaration["x-state"] as Record<string, ActionSpec>)[verb]!;
-        const held = [...projection.actions.values()].some(
-          ({ e }) => e.widget === descriptor.id && e.action === verb,
+    if (!held) return false;
+    if (!(verb in ask.empty)) return true;
+    const container = ask.empty[verb];
+    return (
+      container !== null &&
+      ![...document.descriptors.values()].some(
+        (child) =>
+          projectedParent(document.descriptors, projection, child)?.id === container,
+      )
+    );
+  });
+}
+
+const conditionMatches = (
+  attributes: Readonly<Record<string, string | boolean | null>>,
+  when: Readonly<Record<string, readonly (string | boolean)[]>> = {},
+) =>
+  Object.entries(when).every(([attribute, values]) =>
+    values.some((value) =>
+      typeof value === "boolean"
+        ? (attributes[attribute] !== null) === value
+        : attributes[attribute] === value,
+    ),
+  );
+
+function effectiveActionAsk(
+  descriptor: WidgetDescriptor,
+  widgets: ReturnType<typeof foldWidgetStates>,
+) {
+  const ask = descriptor.ask;
+  if (!ask) return null;
+  const attributes: Record<string, string | boolean | null> = {
+    ...(ask.authored ?? {}),
+  };
+  const widget = widgets.get(descriptor.id) as
+    | { entries?: { e: Event; spec: ActionSpec }[] }
+    | undefined;
+  for (const { e, spec } of widget?.entries ?? []) {
+    const record = spec.record;
+    if (record?.kind === "value" && record.attr && record.attr in attributes)
+      attributes[record.attr] = foldedFacet(e, record) as string | boolean | null;
+  }
+  const until = descriptor.document.kind === "thread" ? ask.until : null;
+  const explicit = Boolean(until && conditionMatches(attributes, until.when));
+  return {
+    local: conditionMatches(attributes, ask.when),
+    answers: explicit ? [until!.verb] : ask.answers,
+    explicit,
+  };
+}
+
+function requestPhase(
+  descriptor: WidgetDescriptor,
+  lifecycle: { page: any; conversation: any },
+  pendingRequestEvents: Event[],
+) {
+  if (pendingRequestEvents.some((event) => event.widget === descriptor.id))
+    return "pending";
+  const requests =
+    descriptor.document.kind === "thread"
+      ? lifecycle.conversation.requests
+      : lifecycle.page.requests;
+  return (
+    requests?.find((item: any) => item.seat.widget === descriptor.id)?.phase ?? "ready"
+  );
+}
+
+const retirementStands = (
+  projection: any,
+  relation: { ownerId: string; outcome: string },
+) =>
+  [...projection.actions.values()].some(
+    ({ e }: any) => e.widget === relation.ownerId && e.action === relation.outcome,
+  );
+
+const retiredByAnother = (descriptor: WidgetDescriptor, projection: any) =>
+  (descriptor.retiredBy ?? []).some(
+    (relation) =>
+      relation.ownerId !== descriptor.id && retirementStands(projection, relation),
+  );
+
+function deriveAsks(
+  document: SemanticDocument,
+  projection: any,
+  widgets: ReturnType<typeof foldWidgetStates>,
+  threads: Thread[],
+  lifecycle: { page: any; conversation: any },
+  pendingRequestEvents: Event[],
+) {
+  const descriptors = document.descriptors;
+  const actionAsks = new Map(
+    [...descriptors.values()].flatMap((descriptor) => {
+      const reading = effectiveActionAsk(descriptor, widgets);
+      return reading ? [[descriptor.id, reading] as const] : [];
+    }),
+  );
+  const activeThreads = new Set(
+    threads
+      .filter((thread: any) => !thread.resolved)
+      .map((thread: any) => thread.root.id),
+  );
+  const exists = (descriptor: WidgetDescriptor) =>
+    !descriptor.quoted &&
+    !retiredByAnother(descriptor, projection) &&
+    (descriptor.document.kind === "page" ||
+      (typeof descriptor.document.thread === "string" &&
+        activeThreads.has(descriptor.document.thread)));
+
+  // Authored descriptors are the complete Ask inventory. The effective projection
+  // decides which captured retirement edges stand, and the effective thread fold
+  // decides which frozen documents remain active. This one existence reading drives
+  // both visible inventory and rollups; accepted and pending gestures take the same
+  // path instead of patching deltas onto the server's previous list.
+  const inventory: AskRecord[] = [];
+  for (const descriptor of descriptors.values()) {
+    const requestAsk = Boolean(
+      (descriptor.declaration["x-request"] as { ask?: boolean } | undefined)?.ask,
+    );
+    const actionAsk = actionAsks.get(descriptor.id);
+    if (
+      !exists(descriptor) ||
+      !localAsk(descriptor) ||
+      (!actionAsk?.local && !requestAsk)
+    )
+      continue;
+    const surface = surfaceFor(descriptors, projection, descriptor);
+    inventory.push({
+      id: surface.id,
+      tag: surface.tag,
+      sourceId: descriptor.id,
+      sourceTag: descriptor.tag,
+      thread:
+        descriptor.document.kind === "thread"
+          ? (descriptor.document.thread ?? null)
+          : null,
+    });
+  }
+  const documentOrder = new Map(
+    [...descriptors.keys()].map((id, index) => [id, index]),
+  );
+  const all = [
+    ...new Map(
+      inventory
+        .sort(
+          (left, right) =>
+            (documentOrder.get(left.id) ??
+              documentOrder.get(left.sourceId) ??
+              Infinity) -
+            (documentOrder.get(right.id) ??
+              documentOrder.get(right.sourceId) ??
+              Infinity),
+        )
+        .map((record) => [`${record.thread ?? ""}:${record.id}`, record]),
+    ).values(),
+  ];
+  const unansweredAwaiting: Record<string, boolean> = {};
+  const awaiting: Record<string, boolean> = {};
+  const unansweredBySource = new Map<string, boolean>();
+
+  for (const descriptor of descriptors.values()) {
+    const awaits = descriptor.declaration["x-awaits"] as
+      | { rollup?: boolean }
+      | undefined;
+    if (awaits && !awaits.rollup) {
+      const actionAsk = actionAsks.get(descriptor.id);
+      const open =
+        exists(descriptor) &&
+        Boolean(actionAsk?.local) &&
+        !actionAskAnswered(
+          document,
+          projection,
+          descriptor,
+          actionAsk ?? { answers: [], explicit: false },
         );
-        if (spec.unit === "widget" && ["attribute", "value"].includes(spec.record?.kind ?? "")) {
-          const value = root.effective.widgets.get(descriptor.id)?.state[spec.facet]?.value;
-          return Array.isArray(value) ? value.length > 0 : value !== null && value !== undefined && value !== "";
-        }
-        if (!held) return false;
-        if (!(verb in ask.empty)) return true;
-        const container = ask.empty[verb];
-        return container !== null && ![...descriptors.values()].some(
-          (child) => parent(child) === container,
+      unansweredBySource.set(descriptor.id, open);
+      unansweredAwaiting[descriptor.id] = open;
+      awaiting[descriptor.id] =
+        open &&
+        !(
+          descriptor.document.kind === "page" &&
+          descriptor.conversation !== null &&
+          descriptor.conversation !== undefined &&
+          conditionMatches(
+            descriptor.conversation.authored,
+            descriptor.conversation.when,
+          ) &&
+          threads.some(
+            (thread: any) =>
+              thread.seat === descriptor.id && thread.awaits_agent && !thread.resolved,
+          )
         );
-      });
+    } else if (
+      (descriptor.declaration["x-request"] as { ask?: boolean } | undefined)?.ask
+    ) {
+      const open =
+        exists(descriptor) &&
+        requestPhase(descriptor, lifecycle, pendingRequestEvents) === "ready";
+      unansweredBySource.set(descriptor.id, open);
+      unansweredAwaiting[descriptor.id] = open;
+      awaiting[descriptor.id] = open;
     }
   }
-  if ((descriptor.declaration["x-awaits"] as { rollup?: boolean } | undefined)?.rollup) {
-    const children = [...descriptors.values()].filter((child) => {
-      if (!child.declaration["x-awaits"]) return false;
-      let holder = descriptors.get(parent(child));
-      const seen = new Set([child.id]);
-      while (holder && !seen.has(holder.id)) {
-        if (holder.declaration["x-awaits"]) return holder.id === descriptor.id;
-        seen.add(holder.id);
-        holder = descriptors.get(parent(holder));
+
+  const direct = new Map<string, WidgetDescriptor[]>();
+  for (const candidate of descriptors.values()) {
+    const candidateAwaits = candidate.declaration["x-awaits"] as
+      | { rollup?: boolean }
+      | undefined;
+    if (!localAsk(candidate) && !candidateAwaits?.rollup) continue;
+    let holder = projectedParent(descriptors, projection, candidate);
+    const seen = new Set([candidate.id]);
+    while (holder && !seen.has(holder.id)) {
+      seen.add(holder.id);
+      const holderAwaits = holder.declaration["x-awaits"] as
+        | { rollup?: boolean }
+        | undefined;
+      if (holderAwaits?.rollup) {
+        const children = direct.get(holder.id) ?? [];
+        children.push(candidate);
+        direct.set(holder.id, children);
+        break;
       }
-      return false;
-    });
-    return children.some((child) => awaitingValue(root, child));
+      holder = projectedParent(descriptors, projection, holder);
+    }
   }
-  const page = root.effective.lifecycle.page;
-  const conversation = root.effective.lifecycle.conversation;
-  return Boolean(
-    page?.asks?.unanswered_awaiting?.[descriptor.id] ??
-      conversation?.asks?.awaiting?.[descriptor.id],
+
+  const rollup = new Map<string, boolean>();
+  const rollupValue = (owner: WidgetDescriptor, stack = new Set<string>()): boolean => {
+    if (rollup.has(owner.id)) return rollup.get(owner.id)!;
+    if (stack.has(owner.id) || !exists(owner)) return false;
+    const nextStack = new Set(stack).add(owner.id);
+    const value = (direct.get(owner.id) ?? []).some((candidate) => {
+      if (!exists(candidate)) return false;
+      const candidateAwaits = candidate.declaration["x-awaits"] as
+        | { rollup?: boolean }
+        | undefined;
+      return candidateAwaits?.rollup
+        ? rollupValue(candidate, nextStack)
+        : Boolean(unansweredBySource.get(candidate.id));
+    });
+    rollup.set(owner.id, value);
+    return value;
+  };
+  for (const descriptor of descriptors.values())
+    if (
+      (descriptor.declaration["x-awaits"] as { rollup?: boolean } | undefined)?.rollup
+    ) {
+      const open = rollupValue(descriptor);
+      unansweredAwaiting[descriptor.id] = open;
+      awaiting[descriptor.id] = open;
+    }
+
+  const unanswered = all.filter((ask) => unansweredBySource.get(ask.sourceId) ?? false);
+  const reader = all.filter((ask) => awaiting[ask.sourceId] ?? false);
+  return { all, reader, unanswered, awaiting, unansweredAwaiting };
+}
+
+const isReaction = (message: any) => Boolean(message.token);
+
+function deriveThreadReaderObligations(
+  document: SemanticDocument,
+  threads: Thread[],
+  asks: ReturnType<typeof deriveAsks>,
+) {
+  const openAskThreads = new Set(
+    asks.reader
+      .map((ask) => ask.thread)
+      .filter((thread): thread is string => Boolean(thread)),
   );
+  const asksByMessage = new Map<string, WidgetDescriptor[]>();
+  for (const descriptor of document.descriptors.values()) {
+    if (descriptor.document.kind !== "thread" || !localAsk(descriptor)) continue;
+    const message = descriptor.document.message;
+    if (typeof message !== "string") continue;
+    const existing = asksByMessage.get(message) ?? [];
+    existing.push(descriptor);
+    asksByMessage.set(message, existing);
+  }
+  const settlingTokens = (document.registry["$reactions"]?.tokens ?? {}) as Record<
+    string,
+    { settles?: boolean }
+  >;
+  return threads.map((thread: any) => {
+    let awaitsReader = false;
+    if (!thread.resolved) {
+      if (openAskThreads.has(thread.root.id)) awaitsReader = true;
+      else {
+        const turns = thread.msgs.filter((message: any) => !isReaction(message));
+        const last = turns.at(-1);
+        if (last?.author === "claude") {
+          const declared =
+            last.kind === "reply" ? (asksByMessage.get(last.id) ?? []) : [];
+          const structuralAnswered =
+            declared.length > 0 &&
+            !declared.some((descriptor) => asks.awaiting[descriptor.id]);
+          const expectsReply =
+            last.kind !== "reply" || declared.length > 0 || Boolean(last.awaits);
+          const settledByReaction = thread.msgs.some(
+            (message: any) =>
+              isReaction(message) &&
+              message.author === "user" &&
+              message.parent === last.id &&
+              settlingTokens[message.token]?.settles,
+          );
+          awaitsReader = expectsReply && !structuralAnswered && !settledByReaction;
+        }
+      }
+    }
+    return thread.awaits_reader === awaitsReader
+      ? thread
+      : { ...thread, awaits_reader: awaitsReader };
+  });
 }
 
 function requirementMatches(
@@ -239,7 +594,10 @@ function requirementMatches(
   requirement: { target: "self" | "owner"; awaiting: boolean },
 ) {
   if (requirement.target === "self")
-    return awaitingValue(root, descriptor) === requirement.awaiting;
+    return (
+      Boolean(root.effective.asks.unansweredAwaiting[descriptor.id]) ===
+      requirement.awaiting
+    );
   const declaredOwners = (descriptor.declaration["x-owners"] ?? []) as string[];
   let child: WidgetDescriptor | undefined = descriptor;
   const visited = new Set([descriptor.id]);
@@ -257,7 +615,10 @@ function requirementMatches(
       | undefined;
     if (!parent) return false;
     if (declaredOwners.includes(parent.tag))
-      return awaitingValue(root, parent) === requirement.awaiting;
+      return (
+        Boolean(root.effective.asks.unansweredAwaiting[parent.id]) ===
+        requirement.awaiting
+      );
     child = parent;
   }
   return false;
@@ -268,7 +629,16 @@ function widgetReading(
   descriptor: WidgetDescriptor,
 ) {
   const registered = root.document.descriptors.get(descriptor.id);
-  const current = root.effective.widgets.get(descriptor.id);
+  const currentDescriptor = JSON.stringify(registered) === JSON.stringify(descriptor);
+  // A live revision connects and prepares replacement nodes before their complete
+  // document capture is adopted. An id shared with the outgoing node must not lend the
+  // replacement its old semantic facets during that preparation window.
+  const current = currentDescriptor
+    ? root.effective.widgets.get(descriptor.id)
+    : undefined;
+  const authored = currentDescriptor
+    ? root.document.authored.get(descriptor.id)?.state
+    : undefined;
   const declaration = descriptor.declaration;
   const actionSpecs = (declaration["x-state"] ?? {}) as Record<
     string,
@@ -279,8 +649,7 @@ function widgetReading(
   const projection = root.effective.projection;
   const classified = [...projection.classified.values()]
     .filter(
-      ({ e, terminal }) =>
-        !terminal && e.kind === "action" && appliesTo(descriptor, e),
+      ({ e, terminal }) => !terminal && e.kind === "action" && appliesTo(descriptor, e),
     )
     .sort((left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0));
   const desired = [...projection.actions.values()].filter(({ e }) =>
@@ -303,7 +672,7 @@ function widgetReading(
       verb,
       {
         available:
-          JSON.stringify(registered) === JSON.stringify(descriptor) &&
+          currentDescriptor &&
           root.effective.hostAvailable &&
           root.phase !== "waiting" &&
           !descriptor.quoted &&
@@ -322,11 +691,12 @@ function widgetReading(
     ]),
   );
 
-  const request = (declaration["x-request"] ?? null) as
-    | { verbs?: Record<string, unknown> }
-    | null;
-  const projectedRequest = pending.find((entry) => entry.event.kind === "request")
-    ?.event;
+  const request = (declaration["x-request"] ?? null) as {
+    verbs?: Record<string, unknown>;
+  } | null;
+  const projectedRequest = pending.find(
+    (entry) => entry.event.kind === "request",
+  )?.event;
   const lifecycles =
     descriptor.document.kind === "thread"
       ? root.effective.lifecycle.conversation.requests
@@ -346,7 +716,7 @@ function widgetReading(
       verb,
       {
         available:
-          JSON.stringify(registered) === JSON.stringify(descriptor) &&
+          currentDescriptor &&
           root.effective.hostAvailable &&
           root.phase !== "waiting" &&
           !descriptor.quoted &&
@@ -370,8 +740,16 @@ function widgetReading(
       { event: e, unit, value },
     ]),
   );
+  const holdingThread = root.effective.conversation.all.find(
+    (thread: any) =>
+      !thread.resolved &&
+      !thread.root.pending &&
+      thread.root.holds === descriptor.id,
+  );
   return {
+    authored: authored ?? {},
     state: current?.state ?? {},
+    conversation: { heldBy: holdingThread?.root.id ?? null },
     provenance,
     actions,
     requests,
@@ -457,14 +835,27 @@ export function createSemanticApplication({
           }
         : entry,
     );
+    const admitted = normalizedProjection(
+      state?.browser.views[String(document.revision)],
+      state?.browser.conversation,
+    );
     const projection = foldProjection({
-      ...normalizedProjection(
-        state?.browser.views[String(document.revision)],
-        state?.browser.conversation,
-      ),
+      ...admitted,
       pendingEntries: pendingProjectionEntries(pending, receipts),
     });
-    const threads =
+    const active = state?.browser.views[String(document.revision)];
+    const lifecycle = {
+      page: {
+        asks: active?.document.asks ?? {},
+        requests: active?.document.requests ?? [],
+      },
+      conversation: {
+        asks: state?.browser.conversation.asks ?? {},
+        requests: state?.browser.conversation.requests ?? [],
+      },
+      undo: active?.undo ?? [],
+    };
+    let threads =
       phase === "ready"
         ? foldThreads(
             state?.browser.conversation.threads ?? [],
@@ -473,12 +864,23 @@ export function createSemanticApplication({
             pendingSettlements(unresolved, receipts),
           )
         : [];
-    const active = state?.browser.views[String(document.revision)];
+    const widgets = foldWidgetStates(document.authored, projection);
+    const projectedRequests = pendingRequests(unresolved, receipts);
+    const asks = deriveAsks(
+      document,
+      projection,
+      widgets,
+      threads,
+      lifecycle,
+      projectedRequests,
+    );
+    threads = deriveThreadReaderObligations(document, threads, asks);
     return {
       hostAvailable,
       projection,
-      widgets: foldWidgetStates(document.authored, projection),
+      widgets,
       conversation: { all: threads, listed: threads.filter(conversational) },
+      asks,
       // These are semantic inputs to package rendering, not transport metadata.
       // A worker row with no report dates its claim from the active revision, while
       // report-backed rows render the accepted update sequence. Keep both inside the
@@ -487,20 +889,10 @@ export function createSemanticApplication({
       updates: active?.updates ?? [],
       publishedAt: active?.published_at ?? null,
       pendingApprovals: pendingApprovals(unresolved, receipts),
-      pendingRequests: pendingRequests(unresolved, receipts),
+      pendingRequests: projectedRequests,
       delivery: unresolvedAttempts(unresolved),
       activity: state?.activity ?? null,
-      lifecycle: {
-        page: {
-          asks: active?.document.asks ?? {},
-          requests: active?.document.requests ?? [],
-        },
-        conversation: {
-          asks: state?.browser.conversation.asks ?? {},
-          requests: state?.browser.conversation.requests ?? [],
-        },
-        undo: active?.undo ?? [],
-      },
+      lifecycle,
     };
   }
 
@@ -547,7 +939,10 @@ export function createSemanticApplication({
 
   // An answer this document can take on with `revision` showing: not overtaken by one
   // already adopted, and holding a view of the revision that would be current.
-  const adoptable = (state: AuthoritativeState, revision: number | null) => {
+  const adoptable = (
+    state: AuthoritativeState,
+    candidate: SemanticDocument | number | null,
+  ) => {
     const prior = publisher.read();
     if (
       prior.authoritative &&
@@ -557,7 +952,16 @@ export function createSemanticApplication({
         state.active.revision < prior.authoritative.active.revision)
     )
       return false;
-    return Boolean(state.browser.views[String(revision ?? prior.document.revision)]);
+    const revision =
+      typeof candidate === "number"
+        ? candidate
+        : (candidate?.revision ?? prior.document.revision);
+    const view = state.browser.views[String(revision)];
+    return Boolean(
+      view &&
+      view.basis.revision === revision &&
+      view.basis.through_seq === state.browser.basis.through_seq,
+    );
   };
 
   const entry = (attempt: string) =>
@@ -618,43 +1022,21 @@ export function createSemanticApplication({
     },
     entry,
     identify(revision: number | null, stamp: number | null = null, live = false) {
-      return publish({ document: { ...publisher.read().document, revision, stamp, live } });
+      return publish({
+        document: { ...publisher.read().document, revision, stamp, live },
+      });
     },
     setHostAvailable(hostAvailable: boolean) {
       return publish({ hostAvailable });
     },
-    captureAuthored(values: AuthoredMap, registry: SemanticDocument["registry"]) {
+    captureDocument(document: SemanticDocument) {
+      if (publisher.read().authoritative)
+        throw new Error("an admitted document changes only through adopt");
       return publish({
         document: {
-          ...publisher.read().document,
-          registry: structuredClone(registry),
-          authored: new Map([...publisher.read().document.authored, ...values]),
-        },
-      });
-    },
-    captureDescriptors(values: ReadonlyMap<string, WidgetDescriptor>) {
-      return publish({
-        document: {
-          ...publisher.read().document,
-          descriptors: new Map([
-            ...publisher.read().document.descriptors,
-            ...structuredClone(values),
-          ]),
-        },
-      });
-    },
-    forgetAuthored(owners: Set<string>) {
-      return publish({
-        document: {
-          ...publisher.read().document,
-          authored: new Map(
-            [...publisher.read().document.authored].filter(([id]) => !owners.has(id)),
-          ),
-          descriptors: new Map(
-            [...publisher.read().document.descriptors].filter(
-              ([id]) => !owners.has(id),
-            ),
-          ),
+          ...structuredClone(document),
+          authored: new Map(structuredClone(document.authored)),
+          descriptors: new Map(structuredClone(document.descriptors)),
         },
       });
     },
@@ -672,8 +1054,11 @@ export function createSemanticApplication({
     // touched. One definition read from two places, because two would be one edit away
     // from a document patched to a revision the answer it was patched for declines to
     // speak for.
-    canAdopt(state: AuthoritativeState, revision: number | null = null) {
-      return adoptable(state, revision);
+    canAdopt(
+      state: AuthoritativeState,
+      document: SemanticDocument | number | null = null,
+    ) {
+      return adoptable(state, document);
     },
     // `revision` is the revision a live activation has just installed into this
     // document, and adopting the answer that named it is where its revision and stamp
@@ -682,12 +1067,15 @@ export function createSemanticApplication({
     // state holding no view of the revision the document now shows — an empty
     // projection, indistinguishable for many widgets from their authored condition,
     // so the second publication changes nothing and never reaches them.
-    adopt(state: AuthoritativeState, revision: number | null = null) {
+    adopt(state: AuthoritativeState, document: SemanticDocument | null = null) {
       const prior = publisher.read();
-      if (!adoptable(state, revision)) return false;
-      const shown = revision ?? prior.document.revision;
+      if (!adoptable(state, document)) return false;
+      const shown = document?.revision ?? prior.document.revision;
       const basis = state.browser.views[String(shown)]!.basis;
-      if (basis.revision !== shown || basis.through_seq !== state.browser.basis.through_seq)
+      if (
+        basis.revision !== shown ||
+        basis.through_seq !== state.browser.basis.through_seq
+      )
         throw new TypeError("state browser has no matching revision view");
       const authoritative = structuredClone(state);
       const unresolved = prior.unresolved.map((item) => {
@@ -697,14 +1085,14 @@ export function createSemanticApplication({
         return receipt ? { ...item, readEvent: receipt } : item;
       });
       publish({
-        document:
-          shown === prior.document.revision
-            ? prior.document
-            : {
-                ...prior.document,
-                revision: shown,
-                stamp: state.active.version ?? null,
-              },
+        document: document
+          ? {
+              ...structuredClone(document),
+              stamp: document.stamp ?? state.active.version ?? null,
+              authored: new Map(structuredClone(document.authored)),
+              descriptors: new Map(structuredClone(document.descriptors)),
+            }
+          : prior.document,
         authoritative,
         unresolved,
         phase: "ready",

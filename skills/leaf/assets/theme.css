@@ -1306,6 +1306,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    because document selectors cannot cross into a declared widget tree. Its transparent
    pixel remains a real pointer target, while keyboard focus gives it the same visible
    skip-link face as the document copy. */
+leaf-anchor-note { display: contents; }
 .lf-mark-note { appearance: none; box-sizing: border-box; position: absolute;
           width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden;
           border: 0; background: none; color: inherit; font: inherit;

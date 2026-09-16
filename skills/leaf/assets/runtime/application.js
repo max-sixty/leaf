@@ -70,10 +70,10 @@ export function mountApplication(dependencies) {
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
   const pendingRequests = () => readApplication().effective.pendingRequests;
-  const openAsks = () => readOpenAsks(pendingRequests());
-  const unansweredAsks = () => readUnansweredAsks(pendingRequests());
-  const approvalBlockingAsks = () => readApprovalBlockingAsks(pendingRequests());
-  const watchAsks = (owner, callback) => observeAsks(owner, pendingRequests, callback);
+  const openAsks = readOpenAsks;
+  const unansweredAsks = readUnansweredAsks;
+  const approvalBlockingAsks = readApprovalBlockingAsks;
+  const watchAsks = observeAsks;
 
   const releasableActions = () =>
     ledger
@@ -332,7 +332,6 @@ export function mountApplication(dependencies) {
   };
   const listView = {
     card: cardView,
-    authoredCaptured: invalidateDom,
     isMarked: dependencies.anchorPaint.isMarked,
     placedAt: dependencies.anchorPaint.placedAt,
     panelIsOpen: dependencies.panelIsOpen,

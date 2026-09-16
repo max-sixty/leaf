@@ -291,7 +291,7 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     url = serve(JOURNEY_V1, anchored=[(section, "Run the migration before deploying.")])
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    assert page.locator("#draft-ops > .lf-mark-note").count() == 1, (
+    assert page.locator("#draft-ops > leaf-anchor-note > .lf-mark-note").count() == 1, (
         "the line landed inside the draft's body rather than beside it"
     )
     page.locator("#draft-ops .lf-draft-body").dblclick()

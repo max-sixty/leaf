@@ -92,8 +92,8 @@ reading, document-bound target-reference capture, declared-role dispatch validat
 subscription lifetime, total state rendering before auxiliary subscribers, generic
 settlement paint, and the widget presentation ticket through `updateComplete`;
 `runtime/widget-descriptors.js` captures each revision-bound widget's declaration,
-authored ancestry, request offers, and stable target boundary before content modules
-upgrade or move its node;
+authored ancestry, Ask and conversation predicates, retirement edges, request offers,
+and stable target boundary before content modules upgrade or move its node;
 `runtime/target-references.js` owns stable id and structural target records, exact
 resolution, immutable page and frozen-fragment boundaries, and the shared pointer and
 keyboard candidate walk;
@@ -102,8 +102,9 @@ match before it may move focus or scroll the reader;
 `runtime/application.js` owns typed action, undo, and one-shot request transport;
 `runtime/request-elements.js` owns the controller-backed request-control adapter while
 each package supplies its words and bound detail;
-`runtime/asks/model.js` owns request discovery, folding, and the semantic Ask
-subscription;
+`runtime/asks/model.js` exposes immutable Ask selectors and the semantic subscription
+from the application publisher; inventory, answer state, retirement, and thread
+obligations are folded by that publisher;
 `runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and
 Ask-local contextual command projection; `asks/view-elements.js` owns its passive paint
 host and control selector;
@@ -269,7 +270,9 @@ conversion from viewport boxes to document-positioned chrome;
 `runtime/navigation.js` owns reader travel; `reading-regions.js` selects its scroller;
 `runtime/anchor-resolution.js` resolves anchors without importing paint or travel;
 `runtime/anchor-paint.js` owns their placed readings and marks;
-`runtime/anchor-controls.js` routes presses on those marks;
+`runtime/anchor-note-view.js` Lit-renders the native accessibility control beside each
+authored block carrying comments; `runtime/anchor-controls.js` routes presses on marks
+and owns the remaining visual and reaction controls;
 `runtime/anchor-travel.js` owns anchor and projected-datum travel, revealing a destination
 before resolving its current node and scrolling to it;
 `runtime/page-geometry.js` coordinates page movement and anchor, drawing, and aim paint;
@@ -288,8 +291,11 @@ and their presentation-batch checkpoints;
 resolution-fold state and motion;
 `runtime/conversation/landing.js` owns conversation input discovery, focus travel,
 and panel arrival;
-`runtime/conversation/narrowing.js` owns comment-panel search and the lifecycle,
-scope, subject, and detached-placement facet state;
+`runtime/conversation/narrowing.js` owns the immutable comment-panel search and lifecycle,
+scope, subject, and detached-placement intent and derives one complete narrowing reading;
+`runtime/conversation/narrowing-view.js` synchronously Lit-renders that reading as the
+complete search, disclosure, summary, Reset, and facet surface while retaining the native
+search input and local disclosure state;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/reaction-strips.js` projects and Lit-renders complete message
 reaction surfaces, retiring their registered keyboard mode before removal;
@@ -300,16 +306,17 @@ complete synchronous Lit tree across retained native panel, page, widget-outlet,
 margin cards; native editors remain opaque mechanical islands;
 `runtime/conversation/thread-list-view.js` owns keyed panel placement and committed
 descriptor restoration; `conversation/thread-list.js` owns its grouping, scroll holds,
-and newly connected frozen-widget preparation;
+and connected presentation proof for already-admitted frozen widgets;
 `runtime/conversation/acknowledgments.js` derives immutable message-receipt readings
 from canonical activity and captured fragment membership; message owners place retained
 Lit receipts, which own their words and semantic paint;
 and
 `runtime/conversation/presentation.js` composes retained conversation rendering;
 `runtime/conversation/panel.js` owns the panel composer, and `panel-elements.js` owns the
-passive panel elements and geometry readings;
-`runtime/projection/authored.js` owns typed authored initial values and anchor
-parentage; `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
+passive panel elements, its one narrowing-view seat, and geometry readings;
+`runtime/projection/authored.js` decodes typed authored initial values from validated
+source markup before upgrade and owns authored parentage;
+`runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
 `runtime/projection/model.js` folds authored, canonical, and pending records without DOM;
 `runtime/projection/state.js` selects the publisher's desired semantic reading and holds
 only deferred projection-chrome state; `runtime/projection/presentation.js` records
@@ -329,7 +336,7 @@ Each mutable fact has one writer:
 
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
-| authored widget state | markup after widget upgrade, before projection | `captureAuthoredFacets` reads typed initial values; `rememberAuthoredParents` preserves pre-upgrade anchor parentage |
+| authored widget state | validated source markup before widget upgrade | `stageAuthoredFacets` decodes typed initial values; the application admits them atomically with descriptors, revision identity, and a matching server reading |
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision whose executable identity is this document's is patched onto the authored page in place; one whose differs navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
@@ -360,6 +367,9 @@ attribute as another source for one of these facts. A rendering may expose state
 but callers do not read the rendering to recover it. For example,
 `style.display` does not answer whether the composer is open, and a focus ring
 does not remember where an Ask walk last landed.
+`data-lf-state` and `data-lf-retired` are settlement output for CSS, export, and render
+checks. Controllers and retirement painters receive the publisher's explicit outcome;
+they never read either attribute back as semantic input.
 
 ## Startup and presentation
 
@@ -373,14 +383,14 @@ Startup order is load-bearing:
 2. Begin the first state read without applying its answer.
 3. Restore the reader's arrangement from storage, and let focus go to the page.
 4. Fetch and validate the registry.
-5. Index passage fences, authored parent identities, and each widget's immutable
-   descriptor before upgrade changes the DOM.
-6. Import the modules declared by `x-upgrade` for the tags this document
-   contains, and no others.
-7. Start the shared dressing passes and wait for the current coordinator publication,
+5. Index passage fences and authored parent identities, then capture each widget's
+   immutable descriptor and typed authored facets from the source DOM.
+6. Publish that complete document contract once. No component is connected because
+   Leaf still needs it to discover semantic input.
+7. Import the modules declared by `x-upgrade` for the tags this document contains, and
+   no others.
+8. Start the shared dressing passes and wait for the current coordinator publication,
    including controller-registered widget preparation and the dressing region.
-8. Capture authored record facets from the upgraded authored state, then wait for
-   subscribers to present that semantic publication.
 9. Present the optional runtime-owned page-interface region that composes those widgets.
 10. Mark `body` `data-lf-upgraded="1"`.
 11. Start the state feed; its first answer is applied and reconciled, then current
@@ -451,8 +461,10 @@ record answers the Ask, so no private completion flag can diverge from the durab
 arrangement. An answer or thread-completion verb cannot require its own awaiting value, or
 an aggregate parent's awaiting value, to be false: either prerequisite is circular
 while the Ask stands. `x-awaits.rollup` carries the logical OR of its nearest
-local Asks and child roll-ups in Python; the aggregate owner never originates
-or surfaces an Ask. The
+local Asks and child roll-ups in both the admitted server projection and the
+application publisher's pending overlay; the aggregate owner never originates or
+surfaces an Ask. Quoted, retired, and resolved-thread sources are absent from the
+inventory and the rollup through the same captured-descriptor existence reading. The
 browser receives the resulting ids and awaiting values.
 
 Python's `state_projection` is the durable derived view. Under the same page
@@ -467,7 +479,10 @@ conversation coordinates use the unbounded frozen-markup window.
 
 `awaitsReader` first reads any standing local `x-awaits` or `x-request.ask`
 Ask carried anywhere in the unresolved thread; a later plain turn does not hide
-an earlier structural Ask. With no such Ask, it reads the latest spoken turn:
+an earlier structural Ask. The publisher derives that obligation from its effective
+Ask reading, so a pending answer or Undo changes the thread and Ask list in one
+publication. Frozen descriptors name both their canonical thread root and containing
+message. With no such Ask, the obligation reads the latest spoken turn:
 an agent comment is a question and an agent reply's explicit `awaits` field marks a
 prose request. A `settles` token standing on that latest prose request answers it
 without closing the thread.

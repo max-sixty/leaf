@@ -125,6 +125,7 @@ customElements.define(
     #commandScope = null;
     #stopReading = null;
     #controller = null;
+    #presentedOutcome = null;
 
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one — must
@@ -134,14 +135,15 @@ customElements.define(
         this.#watchReading();
         return;
       }
-      // Presentation, not input, so an exhibited pending change gets it too:
-      // quoting gates the action channel, never what a change looks like.
+      this.#controller = widgetController(this);
+      // Presentation, not input, so an exhibited pending change gets it too: quoting
+      // gates the action channel, never what a change looks like. Both consume the
+      // controller's application selection; painted attributes are output only.
       this.#emphasize();
       this.#voice();
       // Quoted material is exhibited, not offered: a suggestion inside an
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
-      this.#controller = widgetController(this);
       if (quoted(this)) {
         this.#watchReading();
         return;
@@ -163,7 +165,7 @@ customElements.define(
         if (quoted(this) || !this.#margin) return;
         if (
           this.#margin.contains(document.activeElement) &&
-          (reading.state.settlement.value ?? null) !== (this.dataset.lfState || null)
+          (reading.state.settlement.value ?? null) !== this.#presentedOutcome
         ) {
           // Signals publish before the projection adapter. Keep the currently focused
           // entry until that adapter applies the new state: the next complete reading can
@@ -193,8 +195,7 @@ customElements.define(
         // suggestion itself leaves layout. Undo still belongs to the containing passage,
         // so that passage becomes its perch while the gesture can be withdrawn.
         target: () =>
-          !this.dataset.lfState ||
-          shownParts(this).some((part) => part.checkVisibility())
+          !this.#outcome() || shownParts(this).some((part) => part.checkVisibility())
             ? this
             : this.parentElement,
         source: () => this,
@@ -210,7 +211,7 @@ customElements.define(
     }
 
     #entries() {
-      const outcome = this.dataset.lfState;
+      const outcome = this.#outcome();
       if (outcome && !this.#failed) {
         const pending = Boolean(this.#staging || this.#deciding);
         if (!pending && !this.#undoable(outcome)) return [];
@@ -273,7 +274,7 @@ customElements.define(
     }
 
     #readMargin() {
-      const outcome = this.dataset.lfState;
+      const outcome = this.#outcome();
       const entries = this.#entries();
       return {
         // The slots use tint and strike/insert paint to carry their relationship on the
@@ -318,7 +319,7 @@ customElements.define(
 
     #focusKey() {
       if (this.#failed) return "retry";
-      return this.dataset.lfState ? "undo" : "accept";
+      return this.#outcome() ? "undo" : "accept";
     }
 
     #refreshMargin({ immediate = false, focus = null } = {}) {
@@ -354,8 +355,9 @@ customElements.define(
         })),
         {
           answer: () => {
-            if (!this.dataset.lfState) return "";
-            return this.dataset.lfState === "accept" ? "Accepted" : "Rejected";
+            const outcome = this.#outcome();
+            if (!outcome) return "";
+            return outcome === "accept" ? "Accepted" : "Rejected";
           },
         },
       );
@@ -437,7 +439,7 @@ customElements.define(
         // still owed if another part of that state failed to render, but not if the
         // same event list also carried a later undo: authored state then stands.
         if (this.#acceptedStillStands(accepted)) {
-          if (this.dataset.lfState === outcome) {
+          if (this.#presentedOutcome === outcome) {
             this.#refreshMargin();
           } else this.#settle(outcome);
           announce(
@@ -474,7 +476,7 @@ customElements.define(
       this.#deciding = decision;
       // Optimistic content already says what the press did. Busy belongs to its disabled
       // Undo margin entry, not as a dimming veil over the settled prose.
-      if (decision && !this.dataset.lfState) this.setAttribute("aria-busy", "true");
+      if (decision && !this.#outcome()) this.setAttribute("aria-busy", "true");
       else this.removeAttribute("aria-busy");
       this.#refreshMargin({ immediate: Boolean(focus) });
       focus?.("undo");
@@ -524,25 +526,24 @@ customElements.define(
     }
 
     #settle(outcome) {
-      // TODO(2026-09-13): Move the retained controls and fold animation into one
-      // controller-driven rendering; data-lf-state remains only the painted outcome.
       // A settle that changes nothing does nothing, which is what makes the poll's
       // replay of this tab's own decision the no-op an absolute action promises to be.
-      // The attribute was idempotent on its own and the fold is not: replayed, it
-      // folded a slot that had already folded, from a height it no longer had.
-      if (this.dataset.lfState === outcome) return;
+      // The private presented outcome owns that idempotence; the attribute is CSS and
+      // export paint and never feeds the component's semantic decisions back in.
+      if (this.#presentedOutcome === outcome) return;
       // Read before the state moves: deciding retires the slot, and its words leave
       // the page's reading with it.
       const fold = this.#fold(outcome);
       this.#failed = null;
       this.#deciding = null;
       this.removeAttribute("aria-busy");
+      this.#presentedOutcome = outcome;
       this.dataset.lfState = outcome;
       // The retired slot's marker is the layer's rendering of that state, and the
       // theme's one hide rule reads it. The accepted response replays through this
       // method on the gesture's own tab, so it hides the slot in the frame the
       // decision lands; the layer then writes the same mark unconditionally.
-      renderRetired(this);
+      renderRetired(this, outcome);
       // The only remaining circle is Undo, which still acts; the fold and surviving
       // content carry the outcome without leaving another status beside them.
       this.#refreshMargin();
@@ -553,9 +554,6 @@ customElements.define(
       repaintEmphasis();
       this.#voice();
       fold?.();
-      // The banner's count of what the page is still asking is derived from the page,
-      // so tell it the page changed rather than making it poll the DOM.
-      document.dispatchEvent(new CustomEvent("lf-answered"));
     }
 
     // The retired slot's room, given back as motion rather than taken in a frame. Only
@@ -631,7 +629,7 @@ customElements.define(
     // listener heard a change announced as made while the page was still asking. The
     // theme shows this word wherever the ✓/✗ row is not there to say the same thing.
     #voice() {
-      const decided = Boolean(this.dataset.lfState);
+      const decided = Boolean(this.#outcome());
       for (const [tag, word] of [
         ["lf-old", "proposed deletion"],
         ["lf-new", "proposed insertion"],
@@ -644,7 +642,7 @@ customElements.define(
     // those are, and whether the pair shares enough ink to be worth marking at all,
     // is `movedWords`.
     #emphasize() {
-      if (this.dataset.lfState) return;
+      if (this.#outcome()) return;
       const oldSlot = this.querySelector(":scope > lf-old");
       const newSlot = this.querySelector(":scope > lf-new");
       if (!oldSlot || !newSlot) return; // insert- or delete-only: the tint is the story
@@ -683,17 +681,22 @@ customElements.define(
     renderState(state) {
       const outcome = state.settlement.value;
       if (outcome) return this.#settle(outcome);
-      if (!this.hasAttribute("data-lf-state")) return;
+      if (!this.#presentedOutcome) return;
       for (const slot of this.querySelectorAll(":scope > lf-old, :scope > lf-new"))
         for (const animation of slot.getAnimations()) animation.cancel();
+      this.#presentedOutcome = null;
       this.removeAttribute("data-lf-state");
-      renderRetired(this);
+      renderRetired(this, null);
       this.#failed = null;
       this.#deciding = null;
       this.removeAttribute("aria-busy");
       this.#refreshMargin();
       this.#voice();
       this.#emphasize();
+    }
+
+    #outcome() {
+      return this.#controller?.read().state?.settlement?.value ?? null;
     }
   },
 );

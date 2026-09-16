@@ -1140,6 +1140,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-quote, .lf-msg-body, .lf-conversation-body) { user-select: text; -webkit-user-select: text; }
   /* Search and filter disclosure share one toolbar. A nondefault view keeps its
      criteria and result count visible even while the filter choices are folded. */
+  leaf-thread-narrowing { display: contents; }
   .lf-find { display: flex; gap: 8px; align-items: center; padding: 12px 16px; }
   /* type=search, so the platform's own clear control does that work: an ✕ of the
      runtime's own would be a second way to say the same thing, drawn worse. */

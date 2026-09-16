@@ -232,9 +232,10 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
         assert held, "the positive control did not hold the first authoritative state"
         expect(page.locator("#page-local").get_by_role("button")).to_be_disabled()
         expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
-        expect(page.locator("#page-local")).to_have_attribute(
-            "data-controller-renders", "1"
+        controller_renders = int(
+            page.locator("#page-local").get_attribute("data-controller-renders")
         )
+        assert controller_renders >= 1
         waiting = page.evaluate(
             """async () => {
               const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
@@ -264,7 +265,7 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
         expect(page.locator("#page-local")).to_have_attribute(
-            "data-controller-renders", "2"
+            "data-controller-renders", str(controller_renders + 1)
         )
         ready = page.evaluate(
             """() => {

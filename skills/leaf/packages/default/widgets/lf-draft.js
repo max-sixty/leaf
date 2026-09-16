@@ -20,10 +20,10 @@
  *    line lands on the nearest one, so keeping it puts that line inside the words the
  *    editor is seeded from — the exact failure the marker rules exist for. The textarea
  *    exists only while an edit is open, and its result is written back as text. Read
- *    mode is the resting state; comments and Δ work there. The capture also strips the
- *    indentation the HTML source gave every line, so an agent can indent a draft like
- *    any other child content without the indentation becoming part of the draft's
- *    text.
+ *    mode is the resting state; comments and Δ work there. Leaf's authored-body
+ *    decoder strips the indentation the HTML source gave every line, so an agent can
+ *    indent a draft like any other child content without the indentation becoming part
+ *    of the draft's text.
  * 2. renderState states absolute values — the whole body, never a patch — so replay is
  *    idempotent and two tabs converge on the last write. Reader edits remain effective
  *    across revisions. The runtime marks an effective body that differs from authored
@@ -81,7 +81,6 @@
 import {
   commandScope,
   DISCLOSE,
-  dataBody,
   once,
   offer,
   paintKeys,
@@ -137,25 +136,11 @@ function caretAt(body, x, y) {
   return [pos.offset, pos.offset];
 }
 
-// What the agent wrote, verbatim, minus what the HTML source needed: the leading
-// newline after the open tag, trailing whitespace before the close tag, and the
-// common indentation the source gave every line.
-function capture(el) {
-  const raw = dataBody(el).replace(/^\n/, "").replace(/\s+$/, "");
-  const lines = raw.split("\n");
-  const indents = lines
-    .filter((l) => l.trim())
-    .map((l) => l.match(/^[ \t]*/)[0].length);
-  const cut = indents.length ? Math.min(...indents) : 0;
-  return lines.map((l) => l.slice(cut)).join("\n");
-}
-
 customElements.define(
   "lf-draft",
   class extends HTMLElement {
     #controller = widgetController(this);
     #body;
-    #raw;
     #history = null;
     #historyKey = "";
     #alignments = new Map();
@@ -164,9 +149,10 @@ customElements.define(
     #failed = false;
     #margin = null;
     #commandScope = null;
-    #stopActions = null;
+    #stopReading = null;
     #stopDraft = null;
     #resumeProjection = null;
+    #recovered = false;
 
     connectedCallback() {
       if (!once(this)) {
@@ -177,19 +163,19 @@ customElements.define(
         return;
       }
 
-      const raw = capture(this);
-      this.#raw = raw;
       this.textContent = "";
 
       this.#body = document.createElement("div");
       this.#body.className = "lf-draft-body"; // NOT .lf-ui: anchoring and Δ must see this
-      this.#body.textContent = raw;
       this.append(this.#body);
 
       // A quoted draft is an exhibit: the same dedented text, none of the doors —
       // no pencil, no press on the box, no edit keys in the command reference dialog. Quoting
       // gates the action channel, not presentation.
-      if (quoted(this)) return;
+      if (quoted(this)) {
+        this.#watchReading();
+        return;
+      }
 
       this.#offer();
 
@@ -236,17 +222,11 @@ customElements.define(
       // so an open box holding them has nothing left to hold, and closing it lets replay
       // paint whatever the log ends up saying.
       this.#watchDraft();
-
-      // A recovered edit outranks the authored text: the user typed it and never
-      // got it sent, so it must survive exactly as the composer's drafts do.
-      const pending = loadEdit(this.id);
-      if (pending !== null && pending !== raw) this.#open(pending);
-      else if (pending === raw) clearEdit(this.id);
     }
 
     disconnectedCallback() {
-      this.#stopActions?.();
-      this.#stopActions = null;
+      this.#stopReading?.();
+      this.#stopReading = null;
       this.#stopDraft?.();
       this.#stopDraft = null;
       this.#margin?.unregister();
@@ -256,19 +236,36 @@ customElements.define(
     }
 
     #watchReading() {
-      if (quoted(this) || !this.#margin) return;
+      const interactive = !quoted(this);
       if (
+        interactive &&
         this.#ta &&
         !this.#resumeProjection &&
         this.#controller.read().actions.edit.available
       )
         this.#resumeProjection = this.#controller.defer();
-      this.#stopActions ??= this.#controller.subscribe((reading) => {
-        this.#renderHistory(reading.actions.edit.history);
+      this.#stopReading ??= this.#controller.subscribe((reading) => {
+        if (!interactive) return;
+        this.#renderHistory(reading);
         this.#paintAvailability();
+        this.#recoverEdit(reading);
         if (this.#ta && !this.#resumeProjection && reading.actions.edit.available)
           this.#resumeProjection = this.#controller.defer();
       });
+    }
+
+    #recoverEdit(reading) {
+      if (this.#recovered) return;
+      this.#recovered = true;
+      // A recovered edit outranks the authored text: the user typed it and never got
+      // it sent, so it must survive exactly as the composer's drafts do. This runs in
+      // the first complete controller publication, after renderState established the
+      // source-authored body. A live revision's replacement nodes connect before their
+      // atomic document adoption and deliberately receive no partial semantic reading.
+      const pending = loadEdit(this.id);
+      const authored = reading.authored.body.value;
+      if (pending !== null && pending !== authored) this.#open(pending);
+      else if (pending === authored) clearEdit(this.id);
     }
 
     #watchDraft() {
@@ -341,7 +338,7 @@ customElements.define(
             run: () => this.#close(false),
           },
         ],
-        { answer: () => this.#body?.textContent?.trim() || "Empty" },
+        { answer: () => this.#controller.read().state.body.value.trim() || "Empty" },
       );
       commands(this, this.#commandScope);
     }
@@ -494,18 +491,20 @@ customElements.define(
       return item;
     }
 
-    #renderHistory(actions) {
+    #renderHistory(reading) {
       this.#paintAvailability();
       if (this.#sending) return;
-      const standing = this.#body.textContent;
+      const authored = reading.authored.body.value;
+      const actions = reading.actions.edit.history;
+      const standing = reading.state.body.value;
       const key = JSON.stringify([
-        this.#raw,
+        authored,
         standing,
         actions.map((event) => [event.seq, event.revision, event.detail.text]),
       ]);
       if (key === this.#historyKey) return;
       this.#historyKey = key;
-      if (!actions.length && standing === this.#raw) {
+      if (!actions.length && standing === authored) {
         this.#history?.remove();
         this.#history = null;
         return;
@@ -522,19 +521,18 @@ customElements.define(
       current.className = "lf-draft-current";
       const currentLabel = document.createElement("strong");
       currentLabel.textContent =
-        standing === this.#raw
+        standing === authored
           ? "Standing text matches this version"
           : "This version → standing text";
       current.append(currentLabel);
       // This pair changes with every standing edit. Recomputing it once for the new
       // history render is cheaper than retaining every obsolete full-body comparison;
       // adjacent log revisions below are stable and remain worth caching.
-      if (standing !== this.#raw)
-        current.append(this.#delta(this.#raw, standing, false));
+      if (standing !== authored) current.append(this.#delta(authored, standing, false));
 
       const list = document.createElement("ol");
       list.className = "lf-draft-revisions";
-      list.append(this.#snapshot("Version text", this.#raw, null, standing));
+      list.append(this.#snapshot("Version text", authored, null, standing));
       let previous = null;
       actions.forEach((event, index) => {
         const text = event.detail.text;
@@ -580,16 +578,15 @@ customElements.define(
         notice("Save or cancel the open edit before restoring history");
         return;
       }
-      if (text === this.#body.textContent) return;
+      if (text === this.#controller.read().state.body.value) return;
       this.#sending = true;
       this.setAttribute("aria-busy", "true");
       this.#refreshMargin();
-      this.#body.textContent = text;
       const ok = await this.#dispatch(text)?.delivery;
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#refreshMargin();
-      this.#renderHistory(this.#controller.read().actions.edit.history);
+      this.#renderHistory(this.#controller.read());
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
@@ -603,7 +600,8 @@ customElements.define(
       const ta = offer("textarea", "lf-draft-edit");
       ta.name = "edit";
       // A set-aside edit outranks the authored text here too: reopening resumes it.
-      ta.value = seed ?? loadEdit(this.id) ?? this.#body.textContent;
+      const effective = this.#controller.read().state.body.value;
+      ta.value = seed ?? loadEdit(this.id) ?? effective;
       ta.setAttribute("aria-label", `Edit ${this.id}`);
       ta.addEventListener("input", () => {
         saveEdit(this.id, ta.value);
@@ -626,7 +624,7 @@ customElements.define(
       // caret where focus put it, at the start of the text. The range was measured
       // in the body's text, so it names a word only in a box holding that text — a
       // resumed edit opens with different words at those offsets.
-      if (at && ta.value === this.#body.textContent) ta.setSelectionRange(at[0], at[1]);
+      if (at && ta.value === effective) ta.setSelectionRange(at[0], at[1]);
     }
 
     #close(discard) {
@@ -656,11 +654,10 @@ customElements.define(
       if (!this.#ta || this.#sending) return;
       if (!this.#available()) return;
       const text = this.#ta.value;
-      if (text === this.#body.textContent) {
+      if (text === this.#controller.read().state.body.value) {
         this.#close(true);
         return;
       }
-      this.#body.textContent = text;
       this.#sending = true;
       this.#close(false);
       this.setAttribute("aria-busy", "true");
@@ -672,7 +669,7 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#refreshMargin();
-      this.#renderHistory(this.#controller.read().actions.edit.history);
+      this.#renderHistory(this.#controller.read());
       if (ok) {
         notice(`Edited “${this.id}” — sent`);
       } else {

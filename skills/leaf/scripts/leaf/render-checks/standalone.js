@@ -205,7 +205,7 @@ export function bake() {
   // someone then publishes, it would name a route that copy has nothing to do with.
   all(
     'script, link[rel="canonical"], .lf-chrome, .lf-receipt, .lf-say, ' +
-      '.lf-mark-note, iframe[data-lf-contained], [data-lf-behavior="status"]',
+      'leaf-anchor-note, iframe[data-lf-contained], [data-lf-behavior="status"]',
   ).forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule

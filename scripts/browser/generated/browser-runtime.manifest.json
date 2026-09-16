@@ -44,7 +44,6 @@
   "publicImport": "/runtime/widget-api.js",
   "exports": [
     "LitElement",
-    "createApplicationPublisher",
     "createPresentationCoordinator",
     "createSemanticApplication",
     "describeFailure",
@@ -57,12 +56,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 42904,
-      "sha256": "a61da39bfb5cef5ca060d6297da0a99cbcb22b6a6db12cb9188db19e29887682"
+      "bytes": 46463,
+      "sha256": "73b2eea195e8426ef533d0f600e1eca0d81daadc3fe516a8db3bf3fa506e5450"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 374960,
-      "sha256": "be818dc562a63767e9e656ed8c00b51c9d33d0fc6756ff1e255e3b2704142c03"
+      "bytes": 394938,
+      "sha256": "94116cb68947656cfd59bcf2efc77caa701ab7028a89eea3771bd45a275d22b4"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 7267,

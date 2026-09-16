@@ -2,16 +2,15 @@
  * document, log, Asks, and report folds; this package owns the meaning of Command's tags.
  * Later packages may replace or add role entries under `$command.widgets`. */
 import {
-  askSource,
   declarationFor,
   elementsDeclaring,
   layerFact,
-  matchesWhen,
   openAsks,
   quietSince,
   quoted,
   saidAt,
   updateSequence,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 const widgets = layerFact("$command")?.widgets ?? {};
@@ -58,14 +57,34 @@ function stateReport(element, role) {
   return report ? [spec.report, report] : [null, null];
 }
 
+function stateFacet(element, role) {
+  const attribute = commandRole(element, role)?.state;
+  const matches = ["x-state", "x-report"].flatMap((channel) =>
+    Object.values(declarationFor(element, channel) ?? {}).filter(
+      (spec) =>
+        spec.unit === "widget" &&
+        spec.record?.kind === "value" &&
+        spec.record.attr === attribute,
+    ),
+  );
+  if (matches.length !== 1)
+    throw new Error(
+      `leaf: $command ${role} <${element.localName}> state ${attribute} needs one recorded widget facet`,
+    );
+  return matches[0].facet;
+}
+
+const roleState = (element, role, read) =>
+  read(element).state[stateFacet(element, role)]?.value ?? null;
+
 const reportUpdates = (element, action) =>
   updateSequence(element).filter(
     (update) => update.source === "report" && update.action === action,
   );
 
-function workerView(worker) {
+function workerView(worker, read) {
   const role = commandRole(worker, "worker");
-  const state = worker.getAttribute(role.state);
+  const state = roleState(worker, "worker", read);
   const focus = role.on && worker.getAttribute(role.on);
   const [reportVerb] = stateReport(worker, "worker");
   const reports = reportVerb ? reportUpdates(worker, reportVerb) : [];
@@ -96,12 +115,12 @@ function workerView(worker) {
   };
 }
 
-const done = (goal) => {
+const done = (goal, read) => {
   const role = commandRole(goal, "goal");
-  return role.done.includes(goal.getAttribute(role.state));
+  return role.done.includes(roleState(goal, "goal", read));
 };
 
-function interventions(goal) {
+function interventions(goal, open) {
   const command = closestCommandRole(goal, "command");
   return elementsDeclaring(goal, "x-awaits").filter(
     (item) =>
@@ -110,31 +129,31 @@ function interventions(goal) {
       closestCommandRole(item, "command") === command &&
       closestCommandRole(item.parentElement, "goal") === goal &&
       !quoted(item) &&
-      matchesWhen(item, declarationFor(item, "x-awaits").when),
+      open.has(item.id),
   );
 }
 
-function stopped(goal, open, nested) {
+function stopped(goal, open, nested, read) {
   const role = commandRole(goal, "goal");
-  if (goal.hasAttribute("data-lf-held")) return true;
-  if (nested.length) return nested.some((item) => open.has(item));
-  if (!role.stopped.includes(goal.getAttribute(role.state))) return false;
-  if (open.has(goal)) return true;
+  if (read(goal).conversation.heldBy) return true;
+  if (nested.length) return true;
+  if (!role.stopped.includes(roleState(goal, "goal", read))) return false;
+  if (open.has(goal.id)) return true;
   const children = directCommandRole(goal, "goal");
   return children.length
-    ? children.some((child) => stopped(child, open, interventions(child)))
+    ? children.some((child) => stopped(child, open, interventions(child, open), read))
     : true;
 }
 
-function goalView(goal, open) {
+function goalView(goal, open, read) {
   const descendants = elementsWithCommandRole(goal, "goal");
   const leaves = descendants.filter((item) => !directCommandRole(item, "goal").length);
   const progressLeaves = leaves.length ? leaves : [goal];
   const liveWorkers = directCommandRole(goal, "worker")
-    .map(workerView)
+    .map((worker) => workerView(worker, read))
     .filter((worker) => !worker.retired);
   const role = commandRole(goal, "goal");
-  const state = goal.getAttribute(role.state);
+  const state = roleState(goal, "goal", read);
   const [reportVerb, reportSpec] = stateReport(goal, "goal");
   const reports = reportVerb ? reportUpdates(goal, reportVerb) : [];
   const latestReport = reports.at(-1);
@@ -143,31 +162,39 @@ function goalView(goal, open) {
     role.stopped.includes(latestReport.detail[reportSpec.record.value])
       ? latestReport.ts
       : null;
-  const nested = interventions(goal);
+  const nested = interventions(goal, open);
+  const held = Boolean(read(goal).conversation.heldBy);
   return {
     element: goal,
     role,
     state,
     title: goal.querySelector(":scope > strong")?.textContent.trim() || goal.id,
-    done: done(goal),
-    stopped: stopped(goal, open, nested),
-    held: goal.hasAttribute("data-lf-held"),
+    done: done(goal, read),
+    stopped: stopped(goal, open, nested, read),
+    held,
     leaves: progressLeaves,
-    finished: progressLeaves.filter(done).length,
+    finished: progressLeaves.filter((leaf) => done(leaf, read)).length,
     liveWorkers,
-    openInterventions: nested.filter((item) => open.has(item)),
+    openInterventions: nested.filter((item) => open.has(item.id)),
     stoppedAt:
       reportedStoppedAt ?? (role.stoppedAt ? goal.getAttribute(role.stoppedAt) : null),
   };
 }
 
 export function commandSnapshot(plan) {
-  const open = new Set(openAsks().map(askSource));
+  const readings = new Map();
+  const read = (element) => {
+    if (!readings.has(element)) readings.set(element, widgetController(element).read());
+    return readings.get(element);
+  };
+  const open = new Set(openAsks().map((ask) => ask.sourceId));
   const goals = elementsWithCommandRole(plan, "goal").map((goal) =>
-    goalView(goal, open),
+    goalView(goal, open, read),
   );
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
-  const workers = elementsWithCommandRole(plan, "worker").map(workerView);
+  const workers = elementsWithCommandRole(plan, "worker").map((worker) =>
+    workerView(worker, read),
+  );
   const liveWorkers = workers.filter((worker) => !worker.retired);
   const leaves = goals.filter(
     (goal) => !directCommandRole(goal.element, "goal").length,

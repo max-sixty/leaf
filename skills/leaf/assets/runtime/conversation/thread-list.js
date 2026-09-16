@@ -75,23 +75,17 @@
    that is a fact about where it was put — and neither is a box too tall for the region
    it is in. */
 import { scrollBehavior } from "../motion.js";
-import { threadsBox } from "./panel-elements.js";
+import { narrowingView, threadsBox } from "./panel-elements.js";
 import { pointerAt } from "../pointer.js";
 import { focused } from "../keyboard/scopes.js";
 import { conversational, threadKey } from "./model.js";
 import { runtime } from "../context.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
-import { captureAuthoredFacets } from "../projection/authored.js";
 import { reachScrollers } from "../reach.js";
 import { hasFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
-import {
-  inFilter,
-  noMatchText,
-  narrowingReading,
-  paintNarrowing,
-} from "./narrowing.js";
+import { narrowingModel } from "./narrowing.js";
 import { threadReading } from "./thread-card.js";
 
 // The open threads, in the order t/T walk either surface. The panel's children are the
@@ -348,12 +342,15 @@ const rowModel = (all, commands) => {
   // marks, the inline conversation seats and the banner's count are readings of the log
   // and go on saying what the log says. What the panel shows is the panel's business.
   const ordered = inPageOrder(threads, commands.placedAt);
-  const shown = ordered.filter((t) => inFilter(t, group.get(t)));
+  const narrowing = narrowingModel(ordered, group);
+  const shown = narrowing.shown;
   const rows = [];
   if (!threads.length)
     rows.push(Object.freeze({ kind: "empty", key: "empty", text: emptyText }));
   else if (!shown.length)
-    rows.push(Object.freeze({ kind: "empty", key: "no-match", text: noMatchText() }));
+    rows.push(
+      Object.freeze({ kind: "empty", key: "no-match", text: narrowing.emptyText }),
+    );
   // Walked in the page's order rather than the log's (inPageOrder), because that is the
   // order every other reading of these threads is in: the marks down the page and the walk
   // t/T makes. A thread on its way out still stands between its
@@ -401,7 +398,7 @@ const rowModel = (all, commands) => {
   return Object.freeze({
     rows: Object.freeze(rows),
     count: open.length,
-    narrowing: narrowingReading(threads, shown, group),
+    narrowing: narrowing.presentation,
   });
 };
 
@@ -417,7 +414,7 @@ function configureList(commands) {
     Object.freeze({
       rows: Object.freeze([]),
       count: null,
-      narrowing: narrowingReading([], []),
+      narrowing: narrowingModel([], new Map()).presentation,
     }),
   );
 }
@@ -425,34 +422,23 @@ function configureList(commands) {
 function postPaint({ count, narrowing }, commands) {
   paintHeadRoom(commands.panelIsOpen);
   commands.setThreadCount(count);
-  paintNarrowing(narrowing);
+  narrowingView.present(narrowing);
   commands.onListChanged();
   // Narrowing and reconciliation can move another card under a pointer that did not
   // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
   commands.refreshAnchorHover();
 }
 
-async function prepareFrozenWidgets(current, commands) {
-  // Frozen markup has the same initial-value boundary as a page: connected and fully
-  // presented, before its first projection. Later list reconciles retain the first
-  // capture instead of adopting a reader's live value.
-  const root = readApplication();
-  const uncaptured = [...root.document.descriptors.values()]
+async function prepareFrozenWidgets(current) {
+  const widgets = [...readApplication().document.descriptors.values()]
     .filter(
       (descriptor) =>
         descriptor.document.kind === "thread" &&
-        !root.document.authored.has(descriptor.id) &&
         threadsBox.querySelector(`#${CSS.escape(descriptor.id)}`),
     )
     .map((descriptor) => descriptor.id);
-  await whenWidgetsPresented(uncaptured);
-  if (!current()) return;
-  const captured = captureAuthoredFacets(threadsBox);
-  reachScrollers(threadsBox);
-  // Capture publishes a new semantic epoch after the widget's initial connection.
-  // Present that authored baseline through the application again; the controller's
-  // earlier connection invalidation could only describe the pre-capture reading.
-  if (captured) commands.authoredCaptured();
+  await whenWidgetsPresented(widgets);
+  if (current()) reachScrollers(threadsBox);
 }
 
 async function retainCommitted(current, candidate, reason) {
@@ -529,11 +515,11 @@ export async function renderThreads(all, commands) {
       recovered ??= refreshed.recovered;
     }
     // The surrounding conversation batch commits this complete list with its sibling
-    // seats. Frozen descendants settle inside that same ticket with their existing
-    // fail-soft preparation contract.
+    // seats. Frozen descendants already entered the application as authored source;
+    // wait only for their connected presentation proof inside this same ticket.
     finishScrollHold(hold, commands.panelIsOpen);
     held = false;
-    await prepareFrozenWidgets(current, commands);
+    await prepareFrozenWidgets(current);
   } catch (error) {
     if (!current()) return;
     await retainCommitted(current, reading, error);
@@ -555,7 +541,7 @@ export async function renderThreadListUnavailable(text, commands) {
   const model = Object.freeze({
     rows: Object.freeze([Object.freeze({ kind: "empty", key: "unavailable", text })]),
     count: null,
-    narrowing: narrowingReading([], []),
+    narrowing: narrowingModel([], new Map()).presentation,
   });
   const hold = takeScrollHold(commands.panelIsOpen);
   let recovered = null;

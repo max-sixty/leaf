@@ -74,9 +74,9 @@ import { focusSurface } from "./runtime/conversation/surfaces.js";
 import { focusedThreadOf } from "./runtime/conversation/focus.js";
 import { mountThreadList } from "./runtime/conversation/thread-list.js";
 import {
+  mountNarrowing,
   retainNarrowing,
   revealThread,
-  wireNarrowing,
   widen,
 } from "./runtime/conversation/narrowing.js";
 import {
@@ -434,7 +434,6 @@ pageMapDialog = createPageMapDialog({
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
   panelIsOpen,
-  pendingRequests: app.pendingRequests,
   readingBlock: version.readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
@@ -810,7 +809,7 @@ if (!offlineInteractive) {
   app.mountConversation();
   mountThreadList(panelIsOpen);
   wireThreadLanding();
-  wireNarrowing(app.refreshNarrowing);
+  mountNarrowing(app.refreshNarrowing);
   trays.mountTrays();
   threadPanelController.mountThreadPanel();
   layout.mountLayoutObservers();

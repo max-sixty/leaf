@@ -1,13 +1,15 @@
 /* Retained controls derived from anchor paint.
  *
- * This view owns visual comment proxies, accessible comment notes, standing reaction
- * controls, and message fragment state. Visual proxies are keyed Lit controls inside
- * stable authored-target holders; their holder placement remains mechanical page state.
- * A standing reaction first reveals its dedicated removal action; only that action
- * withdraws the reaction. Commands enter only through the constructor.
+ * This view owns visual comment proxies, standing reaction controls, and message
+ * fragment state. The dedicated anchor-note projection owns accessible comment notes.
+ * Visual proxies are keyed Lit controls inside stable authored-target holders; their
+ * holder placement remains mechanical page state. A standing reaction first reveals
+ * its dedicated removal action; only that action withdraws the reaction. Commands enter
+ * only through the constructor.
  */
 
 import { sameAnchor } from "./anchor-coordinate.js";
+import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import {
   html,
   nothing,
@@ -32,7 +34,6 @@ import { registry } from "./registry.js";
 import { targetElement, targetParts } from "./resolved-target.js";
 import { el, offer, reveal } from "./widget-elements.js";
 
-const NOTE = "lf-mark-note";
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
 export function createAnchorControls({
@@ -49,6 +50,7 @@ export function createAnchorControls({
 }) {
   const visualActionHolders = new Map();
   const reactionSeats = new Map();
+  const anchorNotes = createAnchorNoteProjection({ openThread });
   let mounted = false;
   let invalidationQueued = false;
   let pendingVisualActions = new Map();
@@ -199,26 +201,6 @@ export function createAnchorControls({
     if (document.body.hasAttribute("data-lf-presented")) publishVisualActions();
   }
 
-  // CSS highlights create no accessibility nodes. One hidden button per containing
-  // block states the number of comments without wrapping or splitting authored text.
-  function noteMarks(notes) {
-    for (const [holder, threadIds] of notes) {
-      const note =
-        holder.querySelector(`:scope > .${NOTE}`) ??
-        holder.appendChild(offer("button", NOTE));
-      note.lfThreads = threadIds;
-      note.onclick = () => {
-        const id = note.lfThreads[0];
-        if (id) openThread(id, { focus: "thread" });
-      };
-      const count = threadIds.length;
-      const said = `${count} comment${count === 1 ? "" : "s"}`;
-      if (note.textContent !== said) note.textContent = said;
-    }
-    for (const note of pageQueryAll(`.${NOTE}`))
-      if (!notes.has(note.parentElement)) note.remove();
-  }
-
   // Each target contributes its complete standing reaction reading. Only the selected
   // removal disclosure is local state; both rendered surfaces read the same entry keys.
   function seatReactions(seats) {
@@ -361,7 +343,7 @@ export function createAnchorControls({
 
   function render(painted) {
     prepareVisualActions();
-    noteMarks(painted.notes);
+    anchorNotes.present(painted.notes);
     seatReactions(painted.reactionSeats);
     paintDraft(painted.draft);
     paintMessageReferences();
@@ -413,9 +395,9 @@ export function createAnchorControls({
     mounted = false;
     for (const record of reactionSeats.values()) record.margin.unregister();
     reactionSeats.clear();
+    anchorNotes.destroy();
     pendingVisualActions = new Map();
     reconcileVisualActions(new Map());
-    for (const note of pageQueryAll(`.${NOTE}`)) note.remove();
   }
 
   // A layout pass repacks existing seats; it does not restate their contribution and

@@ -6263,7 +6263,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Vacuous otherwise: the line has to be inside the slot the label is read from.
-    assert page.locator("lf-new #now > .lf-mark-note").count() == 1
+    assert page.locator("lf-new #now > leaf-anchor-note > .lf-mark-note").count() == 1
     control = page.locator(f"[data-lf-margin-for='sug'] .lf-sug-{outcome}")
     (unfolded_button(control) if folded else control).click()
     expect(page.locator(".lf-live")).to_have_text(
@@ -8258,8 +8258,10 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray keeps its rows"
 
 
-def test_ask_rows_keep_identity_and_activate_the_current_document_order(browser, serve):
-    """A keyed row survives reorder, hands off focus, and resolves its id at press time."""
+def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
+    browser, serve
+):
+    """A keyed row follows the published document, not later presentation DOM edits."""
     page = open_page(browser, serve(ASKS_PAGE))
     page.locator(".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
@@ -8279,19 +8281,17 @@ def test_ask_rows_keep_identity_and_activate_the_current_document_order(browser,
         }"""
     )
     page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
-    assert rows.evaluate_all("items => items.map(item => item.dataset.lfAt)") == [
-        "honored-decision",
-        "live-question-decision",
-        "sug-refill",
-        "t-baffles-decision",
-        "t-bath-decision",
-    ]
+    assert (
+        rows.evaluate_all("items => items.map(item => item.dataset.lfAt)")
+        == ALL_ASKS_IN_ORDER
+    )
     assert rows.evaluate_all(
         "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
     )
     expect(page.locator('.lf-asks-row[data-lf-at="sug-refill"]')).to_be_focused()
 
-    # Removing the focused Ask hands its place to the next surviving keyed row.
+    # Removing a presentation node does not rewrite the application inventory. The
+    # route and its keyed row remain exactly as they were published.
     page.evaluate(
         """() => {
           document.querySelector('#sug-refill').remove();
@@ -8299,16 +8299,17 @@ def test_ask_rows_keep_identity_and_activate_the_current_document_order(browser,
         }"""
     )
     page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
-    expect(
-        page.locator('.lf-asks-row[data-lf-at="t-baffles-decision"]')
-    ).to_be_focused()
+    expect(page.locator('.lf-asks-row[data-lf-at="sug-refill"]')).to_be_focused()
+    assert (
+        rows.evaluate_all("items => items.map(item => item.dataset.lfAt)")
+        == ALL_ASKS_IN_ORDER
+    )
     assert rows.evaluate_all(
         "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
     )
 
-    # Reorder the page again without repainting the list. The existing row resolves its
-    # id through current allAsks(), so its arrival reports its new ordinal rather than
-    # the order or element from the prior row model.
+    # A row still resolves its current presentation node at activation, but its ordinal
+    # comes from the same immutable publication as the route.
     page.evaluate(
         """() => document.querySelector('main').append(
           document.querySelector('#honored-decision'))"""
@@ -8316,8 +8317,8 @@ def test_ask_rows_keep_identity_and_activate_the_current_document_order(browser,
     observe_live_region(page)
     page.locator('.lf-asks-row[data-lf-at="honored-decision"]').click()
     expect(page.locator("#honored-decision")).to_be_focused()
-    expect(page.locator(".lf-live")).to_have_text("Ask 4 of 4 answered")
-    assert "Ask 4 of 4 answered" in page.evaluate("window.__lfLiveRegionChanges")
+    expect(page.locator(".lf-live")).to_have_text("Ask 5 of 5 answered")
+    assert "Ask 5 of 5 answered" in page.evaluate("window.__lfLiveRegionChanges")
     page.close()
 
 
@@ -8431,6 +8432,8 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     page.locator(".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     page.evaluate(
         """async () => {
           const {readApplicationPresentation, whenApplicationPresented} =
@@ -8444,7 +8447,7 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
           window.__lfSawPreparedAskBanner = false;
           progressFace.updated = (...args) => {
             progressUpdated(...args);
-            if (progress.textContent.trim() === 'Asks 0/4')
+            if (progress.textContent.trim() === 'Asks 2/5')
               window.__lfSawPreparedAskBanner = true;
           };
           const render = list.render.bind(list);
@@ -8452,14 +8455,16 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
             list.render = render;
             throw new Error('deliberate Ask list failure');
           };
-          document.querySelector('#honored-decision').remove();
-          document.dispatchEvent(new Event('lf-presentation'));
           window.__lfAskListCurrentReady = false;
-          void whenApplicationPresented().then(() => {
-            window.__lfAskListCurrentReady = true;
-          });
+          window.__lfWaitForAskListCurrent = () =>
+            void whenApplicationPresented().then(() => {
+              window.__lfAskListCurrentReady = true;
+            });
         }"""
     )
+    page.locator("#lq-token").click()
+    holding(page, held, 1, "the semantic answer")
+    page.evaluate("__lfWaitForAskListCurrent()")
     page.wait_for_function("__lfAskListCurrentReady")
     assert page.evaluate("__lfSawPreparedAskBanner") is True
     assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
@@ -8474,6 +8479,9 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: deliberate Ask list failure"
     ]
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     page.close()
 
 
@@ -8489,6 +8497,8 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     progress.click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     page.evaluate(
         """async () => {
           const {readApplicationPresentation, whenApplicationPresented} =
@@ -8505,7 +8515,7 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
           window.__lfSawPartialAskBanner = false;
           progressFace.updated = (...args) => {
             progressUpdated(...args);
-            if (window.__lfAskProgress.textContent.trim() === 'Asks 0/4')
+            if (window.__lfAskProgress.textContent.trim() === 'Asks 2/5')
               window.__lfSawPartialAskBanner = true;
           };
           const bulkFace = window.__lfAskBulk.querySelector('lf-ask-banner-face');
@@ -8514,14 +8524,16 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
             bulkFace.render = render;
             throw new Error('deliberate Ask banner failure');
           };
-          document.querySelector('#honored-decision').remove();
-          document.dispatchEvent(new Event('lf-presentation'));
           window.__lfAskCurrentReady = false;
-          void whenApplicationPresented().then(() => {
-            window.__lfAskCurrentReady = true;
-          });
+          window.__lfWaitForAskCurrent = () =>
+            void whenApplicationPresented().then(() => {
+              window.__lfAskCurrentReady = true;
+            });
         }"""
     )
+    page.locator("#lq-token").click()
+    holding(page, held, 1, "the semantic answer")
+    page.evaluate("__lfWaitForAskCurrent()")
     page.wait_for_function("__lfAskCurrentReady")
     assert page.evaluate("__lfSawPartialAskBanner") is True
     assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
@@ -8538,6 +8550,9 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: deliberate Ask banner failure"
     ]
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     page.close()
 
 

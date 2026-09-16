@@ -647,6 +647,50 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     )
 
 
+def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
+    held_events, serve
+):
+    """Restoration cannot overwrite reader intent that arrives during its own reveal."""
+    browser, held = held_events
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the restoration search in view.")
+    events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    find = page.locator(".lf-find-box")
+    find.fill("restoration search")
+    card = page.locator(f'.lf-thread[data-id="{root}"]:not([hidden])')
+    expect(card).to_be_visible()
+
+    card.get_by_role("button", name="Reopen", exact=True).click()
+    holding(page, held, 1, "the refused reopen whose restoration will wait")
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(find).to_have_value("")
+
+    hold_visible_thread_presentation(page, root)
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    page.wait_for_function(
+        "window.visibleThreadPresentationHeld === true", timeout=3000
+    )
+    find.fill("newer reader search")
+    expect(find).to_be_focused()
+    page.evaluate("releaseVisibleThreadPresentation()")
+    round_trip(page)
+
+    expect(find).to_have_value("newer reader search")
+    expect(find).to_be_focused()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+
+
 def test_settlement_controls_share_one_request_across_page_and_panel(
     held_events, serve
 ):
@@ -1474,6 +1518,90 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
     )
 
 
+def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input(
+    browser, serve
+):
+    """The narrowing face shares the list's checkpoint without owning native editing."""
+    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    view = page.locator("leaf-thread-narrowing")
+    find = page.get_by_role("searchbox", name="Find in threads")
+    page.evaluate(
+        """() => {
+          const view = document.querySelector('leaf-thread-narrowing');
+          const present = view.present.bind(view);
+          let failures = 2;
+          view.present = model => {
+            const result = present(model);
+            if (model.summary === '1 of 2 open threads' && failures-- > 0)
+              throw new Error('injected narrowing-view failure');
+            return result;
+          };
+          window.__lfNarrowingBeforeFailure = {
+            view,
+            input: view.querySelector('.lf-find-box'),
+            toggle: view.querySelector('.lf-thread-filter-toggle'),
+            open: view.querySelector('[data-filter-value="open"]'),
+          };
+        }"""
+    )
+
+    find.evaluate(
+        """input => {
+          input.focus();
+          input.value = 'Comment 0';
+          input.setSelectionRange(2, 7);
+          input.dispatchEvent(new Event('input', {bubbles: true}));
+        }"""
+    )
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("2 open threads")
+    expect(page.locator('[data-filter-value="open"]')).to_have_text("Open (2)")
+    expect(page.locator(".lf-thread-filter-toggle")).to_have_attribute(
+        "aria-expanded", "true"
+    )
+    expect(find).to_have_value("Comment 0")
+    expect(find).to_be_focused()
+    assert find.evaluate("input => [input.selectionStart, input.selectionEnd]") == [
+        2,
+        7,
+    ]
+    assert view.evaluate(
+        """view => {
+          const before = window.__lfNarrowingBeforeFailure;
+          return before.view === view &&
+            before.input === view.querySelector('.lf-find-box') &&
+            before.toggle === view.querySelector('.lf-thread-filter-toggle') &&
+            before.open === view.querySelector('[data-filter-value="open"]');
+        }"""
+    )
+    assert take_browser_errors(page) == [
+        (
+            "leaf: Presentation failed: Thread list presentation retry failed: "
+            "injected narrowing-view failure; injected narrowing-view failure"
+        )
+    ]
+
+    find.fill("")
+    page.wait_for_function(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return !readApplicationPresentation().pending.includes('conversation');
+        }"""
+    )
+
+
 def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, serve):
     """A follow-up presentation fault cannot reject the discarded click handler."""
     browser, held = held_events
@@ -2086,6 +2214,18 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     visible = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    page.evaluate(
+        """() => {
+          const view = document.querySelector('leaf-thread-narrowing');
+          window.__lfNarrowingIdentity = {
+            view,
+            input: view.querySelector('.lf-find-box'),
+            toggle: view.querySelector('.lf-thread-filter-toggle'),
+            reset: view.querySelector('.lf-thread-filter-reset'),
+            choices: [...view.querySelectorAll('.lf-thread-filter')],
+          };
+        }"""
+    )
 
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -2170,6 +2310,19 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
         expect(page.locator(f'[data-filter-value="{value}"]')).to_have_attribute(
             "aria-pressed", "false"
         )
+    assert page.evaluate(
+        """() => {
+          const before = window.__lfNarrowingIdentity;
+          const view = document.querySelector('leaf-thread-narrowing');
+          const choices = [...view.querySelectorAll('.lf-thread-filter')];
+          return before.view === view &&
+            before.input === view.querySelector('.lf-find-box') &&
+            before.toggle === view.querySelector('.lf-thread-filter-toggle') &&
+            before.reset === view.querySelector('.lf-thread-filter-reset') &&
+            before.choices.length === choices.length &&
+            before.choices.every((choice, index) => choice === choices[index]);
+        }"""
+    ), "the narrowing owner replaced a retained native control during presentation"
 
     # Resolved is a state in the same ordered list, not a second list at its foot.
     page.locator('[data-filter-value="resolved"]').click()

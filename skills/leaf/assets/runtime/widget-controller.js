@@ -17,6 +17,7 @@ import {
 } from "./widget-descriptors.js";
 import { failSoft } from "./widget-upgrade.js";
 import { DRAGGING_CHANGED } from "./widget-elements.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
@@ -41,9 +42,9 @@ function renderSettlement(owner, state) {
   if (!outcomes) return;
   const spec = registry[owner.localName]["x-state"][Object.keys(outcomes)[0]];
   const outcome = state[spec.facet].action;
-  if (outcomes[outcome]) owner.setAttribute("data-lf-state", outcome);
-  else owner.removeAttribute("data-lf-state");
-  renderRetired(owner);
+  if (outcomes[outcome]) owner.setAttribute(PAGE_PAINT_ATTRIBUTE.settlement, outcome);
+  else owner.removeAttribute(PAGE_PAINT_ATTRIBUTE.settlement);
+  renderRetired(owner, outcome);
 }
 
 const visitElements = (node, visit) => {

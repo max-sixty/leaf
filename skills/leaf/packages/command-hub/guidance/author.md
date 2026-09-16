@@ -16,8 +16,10 @@ only the worker's current focus.
 Put each Ask or input beside the goal it blocks. The package derives the header, stopped-work
 reading, live-worker view, and action record from the tree and log. A
 project-specific goal or worker widget can join the projection through
-`$command.widgets`. Do not author a role enum, second roster, Asks list, progress
-count, relative report time, or another summary of the same work.
+`$command.widgets`. Its declared `state` attribute must be backed by exactly one
+widget-unit value record in `x-state` or `x-report`, and its module must present the
+`widgetController` reading. Do not author a role enum, second roster, Asks list,
+progress count, relative report time, or another summary of the same work.
 
 The coordinating agent reads `leaf page guidance <page> coordinator` before it
 assigns work.

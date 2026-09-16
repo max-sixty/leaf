@@ -11,15 +11,17 @@ import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
 import {
+  applicationState,
   attachApplicationPresentation,
+  readApplication,
   whenApplicationPresented,
   whenWidgetsPresented,
 } from "./semantic-state.js";
+import { rememberAuthoredParents, stageAuthoredFacets } from "./projection/authored.js";
 import {
-  captureAuthoredFacets,
-  rememberAuthoredParents,
-} from "./projection/authored.js";
-import { captureWidgetDescriptors } from "./widget-descriptors.js";
+  commitWidgetDescriptors,
+  stageWidgetDescriptors,
+} from "./widget-descriptors.js";
 import {
   opaquePassageParts,
   opaquePassageRoots,
@@ -155,7 +157,16 @@ export async function installDocument(scope) {
   try {
     rememberPassageParts(scope);
     rememberAuthoredParents(scope);
-    captureWidgetDescriptors(scope);
+    const descriptors = stageWidgetDescriptors(scope);
+    const authored = stageAuthoredFacets(scope, new Map());
+    const prior = readApplication().document;
+    applicationState.captureDocument({
+      ...prior,
+      registry,
+      authored: new Map([...prior.authored, ...authored]),
+      descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
+    });
+    commitWidgetDescriptors(descriptors);
     markDeclared(scope, MARKED_IN_PAGE);
     watchExternalLinks(scope);
     await importWidgets(scope);
@@ -183,8 +194,9 @@ export async function installDocument(scope) {
 export async function patchDocument(scope, patch) {
   const presentation = attachApplicationPresentation("document:patch", scope);
   try {
-    const { roots, widgets } = patch();
+    const { roots, widgets, ...result } = patch();
     await settle(presentation, scope, roots, () => whenWidgetsPresented(widgets));
+    return result;
   } finally {
     presentation.disconnect();
   }
@@ -192,17 +204,13 @@ export async function patchDocument(scope, patch) {
 
 // What arriving markup owes the document once it stands in it: the dressing passes over
 // each root, then the two readings that are of the document rather than of the markup —
-// where the keyboard can reach, and the authored initial condition of every widget not
-// already holding one. `presented` is the wait each caller owes: the whole application
-// at startup, the widgets it brought for a patch.
+// where the keyboard can reach. Authored state was already captured from source markup
+// before any module could turn that input into presentation. `presented` is the wait
+// each caller owes: the whole application at startup, the widgets it brought for a patch.
 async function settle(presentation, scope, arrived, presented) {
   await presentation.present(scope, Promise.all(arrived.map(dress)));
   await presented();
   reachScrollers(scope);
-  captureAuthoredFacets(scope);
-  // Capturing the authored initial condition is a semantic publication. Wait for
-  // subscribers to paint that newest reading before declaring upgrade complete.
-  await presented();
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {

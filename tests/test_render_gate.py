@@ -2355,7 +2355,7 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
         const table = document.querySelector('#sessions');
         const read = () => {
             const word = n.getBoundingClientRect();
-            const cell = n.parentElement.getBoundingClientRect();
+            const cell = n.closest('td').getBoundingClientRect();
             const shown = table.getBoundingClientRect();
             return {
                 onItsCell: word.left >= Math.floor(cell.left)
@@ -2365,7 +2365,7 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
                 sideways: document.body.scrollWidth - document.body.clientWidth,
             };
         };
-        const out = { holder: n.parentElement.firstChild.data,
+        const out = { holder: n.closest('td').firstChild.data,
                       scrolls: Math.round(table.scrollWidth - table.clientWidth),
                       rest: read() };
         table.scrollLeft = table.scrollWidth;
@@ -2421,14 +2421,14 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     shadow tree where a document rule does not go."""
     url = serve(LOOSE_SCROLLER_PAGE, anchored=[("far", "wider than the box")])
     page = open_page(browser, url)
-    note = page.locator("#far > .lf-mark-note")
+    note = page.locator("#far > leaf-anchor-note > .lf-mark-note")
     expect(note).to_have_count(1)
     measured = note.evaluate(
         """(n) => {
         const box = document.querySelector('#loose');
         const read = () => {
             const word = n.getBoundingClientRect();
-            const row = n.parentElement.getBoundingClientRect();
+            const row = document.getElementById('far').getBoundingClientRect();
             return {
                 rowAt: row.left, offset: word.left - row.right,
                 sideways: document.body.scrollWidth - document.body.clientWidth,

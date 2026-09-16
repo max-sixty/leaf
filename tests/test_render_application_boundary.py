@@ -516,6 +516,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         "resumeLocal(); [once, Number(pageLocal.dataset.readings)]"
     )
     assert resumed_at == [deferred_at + 1, deferred_at + 1]
+    holding(page, held, 1, "the resumed choose")
     assert len(held) == 1
     assert held[0].request.post_data_json["references"] == {
         "source": {"kind": "id", "id": "live-reading"}
@@ -581,6 +582,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         }"""
     )
     assert stale_refused == {"reading": "idle", "objectTarget": True, "stale": True}
+    holding(page, undo, 1, "the undo of the accepted choose")
     assert len(undo) == 1
     undo_attempt = undo[0].request.post_data_json["attempt"]
     undo[0].fulfill(
@@ -717,6 +719,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     assert page.evaluate("readLeafPresentation().pending") == [
         "widget:page-local:render"
     ]
+    holding(page, held_events, 1, "the choose deferred under the drag")
     attempt = held_events[0].request.post_data_json["attempt"]
     held_events[0].fulfill(
         status=200,
@@ -1260,6 +1263,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
             input.value === 'half a thought' && input.selectionStart === 4;
         }"""
     )
+    holding(page, held_events, 1, "the comment made behind the held thread list")
     held_events[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)

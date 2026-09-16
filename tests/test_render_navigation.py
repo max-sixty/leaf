@@ -806,13 +806,12 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     resized(page, 390, 900)
     page.evaluate("scrollTo(0, 0)")
     expect(page.locator("#bg-sidebar")).to_be_hidden()
-    expect(
-        page.get_by_role(
-            "heading",
-            name="Asks: decisions and answers",
-            exact=True,
-        )
-    ).to_be_in_viewport()
+    # A phone drops the contents spine out of the flow rather than stacking it above
+    # the reading, so the page's first section still opens within the first screen;
+    # left in the flow it lands a screen below the fold. Which section that is belongs
+    # to the gallery's authored order: naming one heading here made a section added
+    # above it read as a layout failure.
+    expect(page.locator("main > section").first).to_be_in_viewport()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)

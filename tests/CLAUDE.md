@@ -55,12 +55,12 @@ uv run pytest --regtest-reset -n0 <node-id>
 ```
 
 Before handing over a browser-facing change, run its complete browser file and
-the everyday suite. `wt merge` runs pre-commit and the everyday suite after
-rebasing. Pull requests run pre-commit, the everyday suite, and the website-worker
-checks. Main runs the ordinary gate; `publish-site` runs the website checks before
-deploying a relevant main change. Tend's review chooses the smallest additional
-test selection that covers the product paths a pull request changes. The
-scheduled CI run exercises the complete suite in one job:
+the everyday suite. If the change affects behavior covered by nightly tests, run
+the smallest local nightly selection that covers it too. `wt merge` runs pre-commit
+and the everyday suite after rebasing. Pull requests run pre-commit, the everyday
+suite, and the website-worker checks. Main runs the ordinary gate; `publish-site`
+runs the website checks before deploying a relevant main change. The scheduled CI
+run exercises the complete suite in one job:
 
 ```sh
 uv run pytest tests --run-nightly

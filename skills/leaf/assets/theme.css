@@ -681,12 +681,24 @@ main {
      * intrinsic width; what it holds already scrolls. */
     contain: inline-size;
   }
+  [data-lf-space="column"] {
+    --lf-reach: min(var(--col), var(--lf-room, 0px));
+    --lf-surplus: 0px;
+    width: min(100%, var(--col));
+    margin-inline: auto;
+  }
+  table[data-width][data-lf-space]:not([data-lf-space="column"]) {
+    width: calc(100% + var(--lf-surplus));
+  }
   [data-lf-space="wide"] {
     --lf-reach: min(var(--wide), var(--lf-room, 0px),
       var(--lf-space-bound, 99999px));
   }
   [data-lf-space="available"] {
     --lf-reach: min(var(--lf-room, 0px), var(--lf-space-bound, 99999px));
+  }
+  [data-lf-space] [data-lf-space] {
+    --lf-room: 100%;
   }
   /* A widget whose upgrade failed is showing the message and the source it choked on
    * (failSoft), and prose is the column's. The room it declared was for the drawing it
@@ -1227,7 +1239,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
        disclosure level with a note. Asking which elements have room needs the element's
        own value and a style query answers for its container, so the alternative is a
        second reading of the room rather than a tighter rule. */
-    & [data-lf-space] { clear: right; }
+    & [data-lf-space]:not([data-lf-space="column"]) { clear: right; }
   }
   /* The pull reaches the page's margin through any box between that doesn't clip, which
      is a section, a tab panel, a disclosure. Through one that does — a choose group, a

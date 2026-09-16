@@ -698,9 +698,10 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         "a widening window did not hand controls back past a high-ranked permanent "
         f"overflow contribution: {behind}"
     )
-    # Take the crowd away and the row takes every one of its own back, door and all.
-    # The shelf retains each registered native island in one Lit root; hiding one changes
-    # its presentation, not its identity or connection to the document.
+    # Take the crowd away and the row takes every ordinary control back. The Leaf
+    # version remains deliberately behind the door at every width. The shelf retains
+    # each registered native island in one Lit root; hiding one changes its presentation,
+    # not its identity or connection to the document.
     page.evaluate(
         """async () => {
           const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
@@ -709,8 +710,9 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         }"""
     )
     resized(page, 1600, 844)
-    expect(page.locator(".lf-banner-more")).to_be_hidden()
-    expect(page.locator(".lf-banner-menu > *:visible")).to_have_count(0)
+    expect(page.locator(".lf-banner-more")).to_be_visible()
+    expect(page.locator(".lf-banner-menu > .lf-layer-reference")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu > *")).to_have_count(2)
     expect(page.locator(".lf-permanent-destination")).to_be_attached()
 
     reserved = page.evaluate(
@@ -751,7 +753,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         "returned": 200,
         "retained": True,
     }
-    expect(page.locator(".lf-banner-more")).to_be_hidden()
+    expect(page.locator(".lf-banner-more")).to_be_visible()
 
     # The covering Threads panel locks the page behind it, and the row is no longer a
     # side door around that lock: a wheel over it reaches the document scrollport, which
@@ -5952,6 +5954,22 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 expected = {expected} if isinstance(expected, str) else set(expected)
                 if selector:
                     target = page.locator(selector).first
+                    # A specimen can stand inside a container that is closed on arrival —
+                    # the corpus holds each example in a tab, and only one panel is open.
+                    # Nothing inside a hidden panel is focusable, so the ring would read
+                    # as undrawn for a control that paints it perfectly well. Ask the
+                    # runtime's own disclosure route, so the surface a specimen needs is
+                    # derived from where it sits rather than from the corpus's tab order —
+                    # which follows the examples directory, and moves when one is added.
+                    target.evaluate(
+                        """async node => {
+                          const elements = await window.__lfRuntimeImport(
+                            '/runtime/widget-elements.js'
+                          );
+                          await elements.reveal(node);
+                        }"""
+                    )
+                    page.evaluate(RENDERED)
                     page.keyboard.press("Tab")
                     target.focus(timeout=5_000)
                     assert target.evaluate("node => node.tabIndex >= 0"), (

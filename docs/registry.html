@@ -141,6 +141,7 @@
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-outline"><code>x-outline</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
+          <a href="#x-page-navigation"><code>x-page-navigation</code></a>
           <a href="#x-paints"><code>x-paints</code></a>
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
@@ -432,6 +433,27 @@
               </details>
             </div>
           </section>
+          <section class="reference-entry" id="x-page-navigation">
+            <h3><code>x-page-navigation</code></h3>
+            <div class="reference-copy">
+              <p>
+                The element becomes the page's view navigation when it is the final
+                substantive child of main and the only substantive content before it is
+                one native header or nothing.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-page-navigation contract">
+                  Full contract
+                </summary>
+                <p>
+                  <code>version check</code> then treats that composition as the page's
+                  outline instead of advising an aside.sidebar that would take it out of
+                  root placement. Other placements retain the element's embedded
+                  presentation.
+                </p>
+              </details>
+            </div>
+          </section>
           <section class="reference-entry" id="x-paints">
             <h3><code>x-paints</code></h3>
             <div class="reference-copy">
@@ -638,7 +660,7 @@
             <h3><code>x-space</code></h3>
             <div class="reference-copy">
               <p>
-                The width capacity an element needs beyond the prose measure:
+                The default width capacity an element needs beyond the prose measure:
                 <code>wide</code> takes the vocabulary's shared capped evidence width,
                 while <code>available</code> takes all room the page shell can give
                 after enclosing frames, chrome, and actual margin residents.
@@ -647,9 +669,10 @@
                 <summary aria-label="Full x-space contract">Full contract</summary>
                 <p>
                   The declaration says nothing about how the package arranges content
-                  inside that allocation. Nothing is authored for it and no page asks:
-                  the runtime marks the declared need and the theme grows the element
-                  out of the column into free space without moving the prose axis.
+                  inside that allocation. An authored occurrence may override the
+                  default with data-width=column|wide|available; the runtime resolves
+                  that choice into data-lf-space and the theme allocates it without
+                  moving the prose axis.
                 </p>
               </details>
             </div>

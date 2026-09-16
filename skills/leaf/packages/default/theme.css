@@ -84,9 +84,10 @@
   html[data-lf-live]:has(
       body
         > main
-        > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+        .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
     ) {
     overflow-y: hidden;
+    --lf-document-end-room: 0px;
   }
   body
     > main:has(
@@ -102,6 +103,73 @@
   }
   body
     > main
+    > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"] {
+    height: 100%;
+  }
+  body
+    > main:has(
+      > lf-tabs[data-lf-tabs-context="root"]
+        > lf-tab[data-lf-root-reading]
+        > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+    ) {
+    box-sizing: border-box;
+    width: 100cqi;
+    max-width: none;
+    height: calc(100vh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
+    margin: 0;
+    padding: 72px var(--col-pad) 0;
+    left: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  body
+    > main:has(
+      > lf-tabs[data-lf-tabs-context="root"]
+        > lf-tab[data-lf-root-reading]
+        > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+    )
+    > lf-tabs {
+    min-height: 0;
+    height: 100%;
+    display: grid;
+    grid-row: 2;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  body
+    > main:has(
+      > lf-tabs[data-lf-tabs-context="root"]
+        > lf-tab[data-lf-root-reading]
+        > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+    )
+    > lf-tabs
+    > .lf-tabstrip {
+    grid-row: 1;
+    grid-column: 1;
+  }
+  body
+    > main:has(
+      > lf-tabs[data-lf-tabs-context="root"]
+        > lf-tab[data-lf-root-reading]
+        > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+    )
+    > lf-tabs
+    > lf-tab {
+    grid-row: 2;
+    grid-column: 1;
+  }
+  body
+    > main
+    > lf-tabs[data-lf-tabs-context="root"]
+    > lf-tab[data-lf-root-reading]:has(
+      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+    ) {
+    min-height: 0;
+    height: 100%;
+  }
+  body
+    > main
+    > lf-tabs[data-lf-tabs-context="root"]
+    > lf-tab[data-lf-root-reading]
     > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"] {
     height: 100%;
   }
@@ -165,6 +233,51 @@ html.lf-copy body > main:has(> .lf-workspace-reading[data-lf-workspace-context="
   margin: 0;
   padding: 72px var(--col-pad) 96px;
   left: 0;
+}
+/* A root tab set copies at the full page width because its panels may mix documents
+ * and workspaces. State that box from root placement alone, so it cannot depend on
+ * which panel was active at export. The second selector outranks the live bounded
+ * layout while that posture marker remains in the baked document. */
+html.lf-copy body > main:has(> lf-tabs[data-lf-tabs-context="root"]),
+html.lf-copy
+  body
+  > main:has(
+    > lf-tabs[data-lf-tabs-context="root"]
+      > lf-tab[data-lf-root-reading]
+      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+  ) {
+  box-sizing: border-box;
+  width: 100cqi;
+  max-width: none;
+  height: auto;
+  margin: 0;
+  padding: 72px var(--col-pad) 96px;
+  left: 0;
+  display: block;
+}
+html.lf-copy
+  body
+  > main:has(
+    > lf-tabs[data-lf-tabs-context="root"]
+      > lf-tab[data-lf-root-reading]
+      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+  )
+  > lf-tabs[data-lf-tabs-context="root"] {
+  height: auto;
+  display: block;
+}
+html.lf-copy
+  body
+  > main:has(
+    > lf-tabs[data-lf-tabs-context="root"]
+      > lf-tab[data-lf-root-reading]
+      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
+  )
+  > lf-tabs[data-lf-tabs-context="root"]
+  > lf-tab {
+  grid-row: auto;
+  grid-column: auto;
+  height: auto;
 }
 @media print {
   :is(.lf-workspace-reading, .lf-pane-reading, .lf-partition-reading),
@@ -1416,6 +1529,87 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     /* The boolean-hidden fallback (no until-found support) hides here, because the
      * display:block above outranks the UA's [hidden] rule. */
     lf-tabs.lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
+
+    /* A root tab set is the page's composition rather than a framed widget inside it.
+     * Its shared authored header remains above a sticky horizontal index. Ordinary
+     * panels retain the reading measure; a sole root workspace can spend the page room
+     * and height declared by the structural layout above. */
+    body > main:has(> lf-tabs[data-lf-tabs-context="root"]) {
+      box-sizing: border-box;
+      width: 100cqi;
+      max-width: none;
+      margin-inline: 0;
+      left: 0;
+    }
+    body > main:has(> lf-tabs[data-lf-tabs-context="root"]) > :is(header, lf-tabs) {
+      width: min(var(--wide), var(--lf-room));
+      max-width: var(--wide);
+      margin-inline: auto;
+    }
+    :where(lf-tabs.lf-rendered[data-lf-tabs-context="root"]) {
+      margin-block: 0 32px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      --lf-block-frame: 0;
+    }
+    lf-tabs[data-lf-tabs-context="root"] > .lf-tabstrip {
+      position: sticky;
+      top: var(--lf-banner-h);
+      z-index: 2;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 8px 0 0;
+      border-radius: 0;
+      background: var(--paper);
+    }
+    lf-tabs[data-lf-tabs-context="root"]
+      > .lf-tabstrip
+      .lf-tab-btn
+      > [data-lf-said] {
+      border-bottom: 2px solid transparent;
+      background: transparent;
+    }
+    lf-tabs[data-lf-tabs-context="root"]
+      > .lf-tabstrip
+      .lf-tab-btn[aria-selected="true"]
+      > [data-lf-said] {
+      border-bottom-color: currentColor;
+      background: transparent;
+    }
+    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) {
+      box-sizing: border-box;
+      width: min(var(--col), 100%);
+      max-width: var(--col);
+      margin-inline: auto;
+      padding: var(--sp-4) 0 0;
+    }
+    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab[hidden] {
+      align-self: start;
+      height: 0;
+      min-height: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    lf-tabs.lf-rendered[data-lf-tabs-context="root"]
+      > lf-tab[data-lf-root-reading]:has(
+        > .lf-workspace-reading[data-lf-workspace-context="root"]:only-child
+      ) {
+      width: var(--lf-room);
+      max-width: none;
+      margin-left: calc((100% - var(--lf-room)) / 2);
+      padding: 0;
+    }
+  }
+}
+@media screen {
+  html[data-lf-live]:has(
+      body > main > lf-tabs[data-lf-tabs-context="root"]
+    ) {
+    scroll-padding-top: calc(
+      var(--lf-banner-h) + var(--lf-root-tab-clear, 0px) + 12px
+    );
   }
 }
 /* Paper cannot edit the document the way `version export` does, so inactive panels keep

@@ -1116,6 +1116,30 @@ def take_browser_errors(page):
     return errors
 
 
+def reported_browser_errors(page, *expected, timeout=10):
+    """Wait for the complete report a fault draws, then consume it.
+
+    One fault is reported by every boundary that carried it, and the later words can be
+    separated from the first by whatever the page does on the way: the feed names a read
+    whose application failed only once the queued projection retry that application left
+    behind has finished presenting. A list read at the moment the first word lands is a
+    report still arriving, so an equality assertion over it turns the gap between the
+    boundaries into a race. This waits for the inventory the caller names before taking
+    it, and a problem past that inventory still reaches the browser fixture's own
+    reading.
+
+    The wait is a Playwright call rather than a sleep, because the sync driver hands
+    console messages to this process only while it is inside one."""
+    assert expected, "expected browser problems cannot be empty"
+    wanted = list(expected)
+    deadline = time.monotonic() + timeout
+    while page.lf_errors != wanted and time.monotonic() < deadline:
+        page.wait_for_timeout(25)
+    errors = take_browser_errors(page)
+    assert errors == wanted, errors
+    return errors
+
+
 def consume_browser_errors(page, *expected):
     """Assert and consume intentional problems, accounting for every entry."""
     assert expected, "expected browser-error fragments cannot be empty"

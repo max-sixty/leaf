@@ -268,6 +268,62 @@ function renderPreview(state) {
   previewMarginEntry.textContent = label;
   previewMarginEntry.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
 }
+
+// The vendored layer is the Leaf version this page actually runs. It can remain older
+// than the plugin now installed on the host, so this reads the provenance captured by
+// `page init` rather than a live package or server version. Pages built outside Git
+// retain a stable identity through the composed layer fingerprint.
+let layerReferenceElement = null;
+let layerDiagnostics = "";
+function renderLayerReference(state) {
+  if (state.preview) return;
+  const producer = state.layer.producer ?? {};
+  const fingerprint = state.layer.fingerprint;
+  const fullIdentity = producer.commit
+    ? `${producer.commit}${producer.dirty ? "+" : ""}`
+    : fingerprint && `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}`;
+  if (!fullIdentity) return;
+  const identity = producer.commit
+    ? `${producer.commit.slice(0, 8)}${producer.dirty ? "+" : ""}`
+    : fullIdentity;
+  const safeUrl = new URL(location.href);
+  safeUrl.searchParams.delete("t");
+  layerDiagnostics = [
+    "Leaf layer",
+    ...(producer.commit ? [`commit: ${producer.commit}`] : []),
+    ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
+    ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
+    `generation: ${state.layer.generation}`,
+    ...(state.active ? [`revision: ${state.active.revision}`] : []),
+    `url: ${safeUrl}`,
+  ].join("\n");
+  if (!layerReferenceElement) {
+    layerReferenceElement = el("button", "lf-btn lf-layer-reference");
+    layerReferenceElement.type = "button";
+    layerReferenceElement.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(layerDiagnostics);
+        notice("Copied Leaf version");
+      } catch (_error) {
+        notice("Couldn't copy Leaf version");
+      }
+    });
+    registerBannerControl({
+      key: "layer",
+      control: layerReferenceElement,
+      rank: BANNER_CONTROL_RANK.layer,
+      alwaysFolded: true,
+    });
+  }
+  layerReferenceElement.replaceChildren(
+    "Leaf ",
+    el("code", "lf-layer-version", identity),
+  );
+  layerReferenceElement.title = producer.dirty
+    ? "+ means this layer includes uncommitted changes · copy diagnostics"
+    : "Copy Leaf layer version and diagnostics";
+  layerReferenceElement.setAttribute("aria-label", `Leaf ${identity} · copy version`);
+}
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
   "Server offline — reconnecting. Keep this page open so pending changes can send.";
@@ -405,6 +461,7 @@ function renderStatusNow(state) {
     });
     return;
   }
+  renderLayerReference(state);
   renderPreview(state);
   const publication = state.publication;
   if (publication) {

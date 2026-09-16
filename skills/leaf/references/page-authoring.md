@@ -75,15 +75,31 @@ stands alone, since whoever reads it there has none of the page around it.
 </html>
 ```
 
-## Document or workspace
+## Document, page tabs, or workspace
 
 Use ordinary document flow for material the reader takes in sequence. Use a
 workspace when the task needs regions visible together, such as controls beside a
 preview or a queue beside its detail. Both use the same widgets, Asks, comments,
 and revisions; packages supply the vocabulary and guidance for the task.
 
-For a workspace, make `lf-workspace` the sole content element directly inside
-`main`, with the page title in its optional direct native `header`. Its body is
+Use page tabs for project-scale views that belong to one artifact and share one
+history, Threads panel, Ask inventory, and revision sequence. Make `lf-tabs` the last
+substantive child of `main`; the only substantive content before it may be one native
+`header` carrying the shared title and lede. Any other substantive content in `main`,
+before or after the set, leaves it a framed tabbed section. Each `lf-tab` contains an ordinary document view or one `lf-workspace`; views
+in the same set may use either form. The tab strip becomes the page's top navigation,
+and links, comment anchors, Ask travel, search, and reading-position restoration open
+the view containing their destination.
+Selecting a page tab puts its panel id in the URL, so browser Back and Forward travel
+between views. An explicit fragment opens the tab containing that target.
+
+An `lf-tabs` inside document flow, a pane, or another widget is a tabbed section. Use
+one for local alternatives within the surrounding view. It keeps the framed treatment
+that separates it from adjacent content.
+
+For a root workspace, make `lf-workspace` the sole content element directly inside
+`main`, with the page title in its optional direct native `header`. A workspace used as
+a page tab's sole content element follows the same bounded composition. Its body is
 exactly one element. Put prose in an `lf-pane`; compose multiple named panes with
 one `lf-partition`, where each partition takes two panes or partitions in `columns` or
 `rows`.
@@ -106,6 +122,15 @@ Choose width separately from document or workspace form. Keep prose at a readabl
 measure and let declared visual surfaces use the room their task needs. A wide comparison
 can remain part of a scrolling document. Use a workspace when the reader benefits from
 keeping task regions together, rather than merely to obtain more width.
+
+An individual block or section may request a responsive allocation with
+`data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
+uses the standard prose measure, including inside a wider section. `wide` uses the
+shared capped evidence width. `available` uses all room left by the page shell, frames,
+chrome, and occupied margins. The occurrence overrides a widget's package default, so
+`data-width="column"` can deliberately keep a normally wide widget with the prose.
+Use these names on the semantic block itself, including a native `table`, `lf-code`, or
+`lf-diff`; do not reproduce their responsive widths in page CSS.
 
 Show evidence at the scale needed to judge it. For a local change, supply an aligned
 detail view with the complete object available for context; use whole frames when their

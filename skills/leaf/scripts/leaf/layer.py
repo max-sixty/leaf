@@ -256,8 +256,24 @@ def layer_fingerprint(composition: LayerComposition) -> str:
 
 
 def payload_provenance(*, include_path: bool = False) -> dict:
-    """Describe the Leaf payload that is running this command, when Git can."""
+    """Describe the Leaf payload that is running this command, when its source can."""
     provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
+    # Claude Code copies a marketplace plugin without its .git directory into a cache
+    # whose final component is the resolved plugin version. Leaf leaves its manifest
+    # version unset, so that component is the source commit SHA. PLUGIN_ROOT comes from
+    # this module's own resolved path: an updated sibling cache cannot change the
+    # identity of a session still executing this copy.
+    parents = PLUGIN_ROOT.parents
+    if (
+        len(parents) >= 4
+        and PLUGIN_ROOT.parent.name == "leaf"
+        and parents[2].name == "cache"
+        and parents[3].name == "plugins"
+        and re.fullmatch(r"[0-9a-f]{7,40}", PLUGIN_ROOT.name)
+    ):
+        provenance.update(commit=PLUGIN_ROOT.name, dirty=False)
+        return provenance
+
     git = ["git", "--no-optional-locks", "-C", str(PLUGIN_ROOT)]
     try:
         identity = subprocess.run(
@@ -276,7 +292,15 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     provenance["commit"] = lines[1]
     try:
         dirty = subprocess.run(
-            [*git, "status", "--porcelain"],
+            [
+                *git,
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--",
+                ".",
+                ":(top,exclude).codex-marketplace-install.json",
+            ],
             capture_output=True,
             text=True,
             check=False,

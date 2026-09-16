@@ -1,6 +1,7 @@
 """Joint browser proof for immutable page inputs and fresh revision activation."""
 
 import json
+import re
 
 from leaf import event_log as events_model
 from playwright.sync_api import expect
@@ -18,6 +19,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    reported_browser_errors,
     round_trip,
     stamp_page,
     take_browser_errors,
@@ -166,6 +168,12 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
         ),
     )
 
+    # The order is read in the turn that sends the gesture, where the claim lives: the
+    # widget clears it in `choose`, and the optimistic publication renders the owner and
+    # then runs its subscribers before the click returns. Waiting for it afterwards reads
+    # a state the page passes through, because the delivery outcome, the admitted event,
+    # and the cleared ledger each publish a further reading of their own; the
+    # single-pair window closes as soon as the round trip lands.
     installed = page.evaluate(
         """() => {
           const owner = document.querySelector('#page-local');
@@ -175,17 +183,23 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
             defined: customElements.get('lf-local') === owner.constructor,
             connected: owner.dataset.pageWidget,
             gestures: owner.dataset.gestures,
+            order: owner.dataset.renderOrder,
           };
         }"""
     )
-    assert installed == {"defined": True, "connected": "ready", "gestures": "1"}
+    assert installed == {
+        "defined": True,
+        "connected": "ready",
+        "gestures": "1",
+        "order": "render,subscribe,",
+    }
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
-    expect(page.locator("#page-local")).to_have_attribute(
-        "data-render-order", "render,subscribe,"
-    )
     expect(page.locator("#page-local")).to_have_attribute(
         "data-subscriber-choice", "chosen"
     )
+    round_trip(page)
+    order = page.locator("#page-local").get_attribute("data-render-order")
+    assert re.fullmatch(r"(?:render,subscribe,)+", order), order
     page.close()
 
 
@@ -502,6 +516,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         "resumeLocal(); [once, Number(pageLocal.dataset.readings)]"
     )
     assert resumed_at == [deferred_at + 1, deferred_at + 1]
+    holding(page, held, 1, "the resumed choose")
     assert len(held) == 1
     assert held[0].request.post_data_json["references"] == {
         "source": {"kind": "id", "id": "live-reading"}
@@ -567,6 +582,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         }"""
     )
     assert stale_refused == {"reading": "idle", "objectTarget": True, "stale": True}
+    holding(page, undo, 1, "the undo of the accepted choose")
     assert len(undo) == 1
     undo_attempt = undo[0].request.post_data_json["attempt"]
     undo[0].fulfill(
@@ -703,6 +719,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     assert page.evaluate("readLeafPresentation().pending") == [
         "widget:page-local:render"
     ]
+    holding(page, held_events, 1, "the choose deferred under the drag")
     attempt = held_events[0].request.post_data_json["attempt"]
     held_events[0].fulfill(
         status=200,
@@ -1109,13 +1126,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
     assert "conversation" in page.evaluate("window.readLeafPresentation().pending")
-    assert take_browser_errors(page) == [
-        (
-            "leaf: Presentation failed: Thread list presentation retry failed: "
-            "injected complete-list failure; injected complete-list failure"
-        ),
-        "leaf: State presentation failed: Thread list presentation retry failed",
-    ]
 
     # The retry paints the whole candidate again and then reaches the independently
     # held frozen-widget preparation. Only that complete reading may commit.
@@ -1155,9 +1165,20 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
     expect(editor).to_have_value("draft survives sibling rollback")
-    assert take_browser_errors(page) == [
-        "leaf: read failed: Thread list presentation retry failed"
-    ]
+    # One failed candidate, named by each boundary that carried it: the presentation
+    # publisher, the reading that was applying it, and the feed that asked for that
+    # reading. The feed's word waits on the queued projection retry the failed
+    # application left behind, so the whole report is accounted for here rather than
+    # split across the rollback, where its last line has no settled arrival.
+    reported_browser_errors(
+        page,
+        (
+            "leaf: Presentation failed: Thread list presentation retry failed: "
+            "injected complete-list failure; injected complete-list failure"
+        ),
+        "leaf: State presentation failed: Thread list presentation retry failed",
+        "leaf: read failed: Thread list presentation retry failed",
+    )
     page.close()
 
 
@@ -1242,6 +1263,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
             input.value === 'half a thought' && input.selectionStart === 4;
         }"""
     )
+    holding(page, held_events, 1, "the comment made behind the held thread list")
     held_events[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)

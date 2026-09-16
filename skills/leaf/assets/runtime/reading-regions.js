@@ -9,7 +9,11 @@
    A posture transition notifies watchers before mutation, when old geometry is intact,
    and after the next animation frame, when new geometry can be read. Superseded after
    notifications are dropped. Continuity owners subscribe here; this module stores no
-   landmarks or scroll offsets. Hidden connected regions remain registered and return
+   landmarks or scroll offsets. `preserveReadingRegions` brackets a composition change
+   and its layout completion with the same notifications, including when regions become
+   hidden or visible without changing posture. The enclosing transition owns continuity
+   over any nested posture changes.
+   Hidden connected regions remain registered and return
    null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an id. */
 import { shownBox, shownRect } from "./geometry.js";
 import { containsAcross } from "./passages.js";
@@ -193,6 +197,39 @@ export function watchReadingRegionTransitions(listener) {
 const notify = (detail) => {
   for (const listener of transitionWatchers) listener(detail);
 };
+
+const compositionTransitions = new Map();
+
+export async function preserveReadingRegions(owner, change) {
+  const transition = {
+    owner,
+    from: null,
+    to: null,
+    regions: readingRegions().filter((region) => containsAcross(owner, region.host)),
+  };
+  // A second choice can supersede an unfinished layout. Its intermediate geometry
+  // must not overwrite the reading captured before the first choice.
+  notify({
+    ...transition,
+    phase: "before",
+    retained: compositionTransitions.has(owner),
+  });
+  compositionTransitions.set(owner, transition);
+  let completed = false;
+  try {
+    await change();
+    completed = true;
+  } finally {
+    if (compositionTransitions.get(owner) === transition) {
+      compositionTransitions.delete(owner);
+      notify({
+        ...transition,
+        phase: "after",
+        cancelled: !completed || !owner.isConnected,
+      });
+    }
+  }
+}
 
 const arrangementHandles = new WeakMap();
 

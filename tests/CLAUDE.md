@@ -483,6 +483,10 @@ The causal helpers:
 - `undo(page)` waits until the shortcut bar offers undo, presses `z`, observes the
   new send enter the wire, and waits for its round trip; undo can be refused
   while the preceding gesture is still unresolved.
+- `reported_browser_errors(page, *expected)` waits for the complete report one
+  fault draws before consuming it. A fault is named by every boundary that
+  carried it, and the later words can trail the first by whatever the page does
+  between them, so an equality assertion taken on the first word is a race.
 - `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
   frame. `repaint` coalesces to a `requestAnimationFrame`, so a read taken in
   the same round-trip as the press is a read of the frame before.

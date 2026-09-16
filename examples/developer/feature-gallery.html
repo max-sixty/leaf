@@ -220,6 +220,38 @@
         <kbd>a</kbd> to move through Asks. Changes persist on reload.
       </p>
 
+      <section id="bg-widths" data-width="wide">
+        <p class="eyebrow">data-width</p>
+        <h2><strong>Responsive block widths</strong></h2>
+        <p id="bg-widths-guide" data-width="column">
+          Prose keeps the reading column inside this wide section. Individual evidence
+          blocks can instead use the shared wide measure or all space the shell has
+          left.
+        </p>
+        <table id="bg-width-table" data-width="wide">
+          <thead>
+            <tr>
+              <th>Allocation</th>
+              <th>Use</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Column</td>
+              <td>Explanations and other continuous reading</td>
+            </tr>
+            <tr>
+              <td>Wide</td>
+              <td>Tables, code, and comparisons with a shared cap</td>
+            </tr>
+            <tr>
+              <td>Available</td>
+              <td>Dense evidence that benefits from every free pixel</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <section id="bg-core-surfaces">
         <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
         <h2>
@@ -821,7 +853,10 @@ gallery/
             ><span class="bg-feature-detail">: saved panel selection</span>
           </h3>
           <p id="bg-tabs-guide">
-            Tabs switch between panels and remember the selected panel after reload.
+            This embedded specimen is a framed tabbed section. The browser test also
+            presents this same tab set at the root of a page, where it becomes
+            borderless top navigation for page-scale views. Both forms remember the
+            selected panel after reload.
           </p>
           <lf-tabs id="bg-tabs">
             <lf-tab id="bg-tab-current" label="Current">

@@ -8,9 +8,9 @@ from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
 from .registry.contract import aware_instant, json_validator
-from .revision_artifact import read_artifact
+from .revision_artifact import read_registry
 from .schema import DATA_SOURCE_NAME
-from .structure import SourceDocument
+from .structure import SourceDocument, parse_revision
 
 
 class DataError(click.ClickException):
@@ -182,10 +182,9 @@ def page_data_documents(
     """The immutable page and thread documents that can consume external data."""
     documents = []
     for revision in list_revisions(page_dir):
-        artifact = read_artifact(page_dir, revision)
         documents.append(
             (
-                SourceDocument(artifact.html.decode("utf-8")).lf_elements,
+                parse_revision(page_dir, revision).lf_elements,
                 f"revision r{revision}",
             )
         )
@@ -205,26 +204,24 @@ def page_data_document_readings(
     events: list,
 ) -> list[tuple[list, str, dict]]:
     """Immutable data-consuming documents with their captured registries."""
-    artifacts = {
-        revision: read_artifact(page_dir, revision)
-        for revision in list_revisions(page_dir)
-    }
+    revisions = list_revisions(page_dir)
+    registries = {revision: read_registry(page_dir, revision) for revision in revisions}
     documents = [
         (
-            SourceDocument(artifact.html.decode("utf-8")).lf_elements,
+            parse_revision(page_dir, revision).lf_elements,
             f"revision r{revision}",
-            artifact.registry,
+            registries[revision],
         )
-        for revision, artifact in artifacts.items()
+        for revision in revisions
     ]
     for event in events:
         if markup := event.get("markup"):
-            revision = event.get("revision") or max(artifacts)
+            revision = event.get("revision") or max(registries)
             documents.append(
                 (
                     SourceDocument(markup).lf_elements,
                     f"event {event['id']!r} markup",
-                    artifacts[revision].registry,
+                    registries[revision],
                 )
             )
     return documents

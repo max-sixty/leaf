@@ -134,8 +134,21 @@ export const dragging = (el, on) => {
 // ResizeObserver covers size changes. A view swap can instead keep its outer box while
 // rearranging descendants, so the widget states that geometry change explicitly.
 export const LAYOUT = "lf-layout";
-export const layoutChanged = (el) =>
-  el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
+export const layoutChanged = (el) => {
+  const pending = [];
+  el.dispatchEvent(
+    new CustomEvent(LAYOUT, {
+      bubbles: true,
+      composed: true,
+      detail: {
+        present: (ready) => ready?.then && pending.push(ready),
+      },
+    }),
+  );
+  const ready = Promise.all(pending);
+  void ready.catch(() => {});
+  return ready;
+};
 
 // A number a widget can only read off a box the browser has laid out. Three ship: the
 // room a pick mark's word will need, the room a card keeps clear of its grip, the width

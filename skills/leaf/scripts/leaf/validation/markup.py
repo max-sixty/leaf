@@ -136,11 +136,22 @@ def missing_outline(parser: SourceDocument, registry: dict) -> list:
                 and node["tag"] not in {"script", "style", "template"}
             )
         ]
-        if (
+        workspace = (
             len(roots) == 1
             and isinstance(roots[0], dict)
             and registry.get(roots[0]["tag"], {}).get("x-reading-role") == "workspace"
-        ):
+        )
+        page_navigation = (
+            roots
+            and len(roots) <= 2
+            and isinstance(roots[-1], dict)
+            and registry.get(roots[-1]["tag"], {}).get("x-page-navigation") is True
+            and (
+                len(roots) == 1
+                or (isinstance(roots[0], dict) and roots[0]["tag"] == "header")
+            )
+        )
+        if workspace or page_navigation:
             return []
     outline = sorted(
         # Widgets only — a $ entry is a layer-wide namespace, not a tag a page can
@@ -207,6 +218,17 @@ def page_boundary_errors(parser: SourceDocument) -> list:
     return errors
 
 
+def authored_width_errors(parser: SourceDocument) -> list:
+    """Authored responsive allocations use the layer's three named measures."""
+    allowed = {"column", "wide", "available"}
+    return [
+        f"{at(width, 'data-width=' + repr(width['value']))} has an invalid authored "
+        f"width; expected one of {', '.join(sorted(allowed))}"
+        for width in parser.authored_widths
+        if width["value"] not in allowed
+    ]
+
+
 def fragment_style_errors(parser: SourceDocument) -> list:
     """A message may not dress the document it is put into.
 
@@ -236,7 +258,11 @@ def fragment_style_errors(parser: SourceDocument) -> list:
             "<link rel=stylesheet> in message markup dresses the whole document it is "
             "put into; the page serves the one vendored theme it was reviewed with"
         )
-    return errors + inline_presentation_override_errors(parser)
+    return (
+        errors
+        + authored_width_errors(parser)
+        + inline_presentation_override_errors(parser)
+    )
 
 
 def media_errors(parser: SourceDocument, page_dir: Path) -> list:

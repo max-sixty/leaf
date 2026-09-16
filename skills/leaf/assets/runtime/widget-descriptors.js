@@ -198,6 +198,10 @@ export function stageWidgetDescriptors(
 }
 
 export function commitWidgetDescriptors(stage, retired = new Set()) {
+  // A revision that rewrites a widget's authored markup retires the descriptor taken
+  // from the markup it replaced. The id survives the revision and the element does not,
+  // so the id-keyed readings are the ones that would otherwise answer for a document
+  // nobody is reading; the element-keyed ones leave with their elements.
   for (const id of retired) {
     byId.delete(id);
     referenceBoundaryById.delete(id);
@@ -207,17 +211,6 @@ export function commitWidgetDescriptors(stage, retired = new Set()) {
     referenceBoundaryByElement.set(element, referenceBoundary);
     byId.set(descriptor.id, descriptor);
     referenceBoundaryById.set(descriptor.id, referenceBoundary);
-  }
-}
-
-// A revision that rewrites a widget's authored markup retires the descriptor taken from
-// the markup it replaced. The id survives the revision and the element does not, so the
-// id-keyed readings are the ones that would otherwise answer for a document nobody is
-// reading; the element-keyed ones leave with their elements.
-export function forgetWidgetDescriptors(ids) {
-  for (const id of ids) {
-    byId.delete(id);
-    referenceBoundaryById.delete(id);
   }
 }
 

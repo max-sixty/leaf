@@ -235,7 +235,9 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
         controller_renders = int(
             page.locator("#page-local").get_attribute("data-controller-renders")
         )
-        assert controller_renders >= 1
+        # The synchronous subscription paints once; the widget's deliberate startup
+        # defer/resume invalidation paints the same complete provisional reading once.
+        assert controller_renders == 2
         waiting = page.evaluate(
             """async () => {
               const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
@@ -285,6 +287,45 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
         assert ready["pending"] == []
     finally:
         page.close()
+
+
+def test_deferred_projection_keeps_approval_behind_admission(browser, serve):
+    """An optimistic answer cannot unlock the irreversible approval command."""
+    source = leaf_page(
+        "approval waits for admission",
+        """
+<lf-ask id="release-decision"><h1>Ship this release?</h1>
+  <lf-options id="release-options" choose>
+    <lf-option id="release-ship">Ship it</lf-option>
+    <lf-option id="release-hold">Hold it</lf-option>
+  </lf-options>
+</lf-ask>
+""",
+        head='<meta name="lf-review" content="sign-off">',
+    )
+    page = open_page(browser, serve(source))
+    approval = page.locator(".lf-signoff")
+    expect(approval).to_be_disabled()
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.evaluate("document.body.classList.add('lf-dragging')")
+    page.locator("#release-ship .lf-pick").click()
+    holding(page, held, 1, "the answer held outside the admitted log")
+
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(approval).to_be_disabled()
+    expect(approval).to_have_attribute(
+        "title", "Answer every Ask before approving this work"
+    )
+
+    page.evaluate("document.body.classList.remove('lf-dragging')")
+    expect(approval).to_be_disabled()
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(approval).to_be_enabled()
+    page.close()
 
 
 PAGE_DECLARATION = {

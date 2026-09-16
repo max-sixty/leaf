@@ -7,6 +7,7 @@
    geometry; it cannot change which Asks exist or whether they await the reader. */
 import { applicationState, readApplication } from "../semantic-state.js";
 import { registry } from "../registry.js";
+import { projectionDeferred } from "../projection/state.js";
 
 const reading = () => readApplication().effective.asks;
 
@@ -14,7 +15,12 @@ export const askEntry = (ask) => registry[ask?.sourceTag]?.["x-awaits"];
 export const allAsks = () => reading().all;
 export const openAsks = () => reading().reader;
 export const unansweredAsks = () => reading().unanswered;
-export const approvalBlockingAsks = () => reading().unanswered;
+// A deferred projection has not committed the optimistic answer to the document yet.
+// Approval is irreversible enough to keep reading the admitted selection until it has.
+export const approvalBlockingAsks = () =>
+  projectionDeferred()
+    ? readApplication().effective.admittedUnansweredAsks
+    : reading().unanswered;
 
 // The first reading is synchronous. The owner is a lifetime assertion for the public
 // widget contract; callers still own disconnecting the returned subscription.

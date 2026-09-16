@@ -54,20 +54,6 @@ interface WireProjection {
   desired: string[];
 }
 
-interface WireAsk {
-  id: string;
-  tag: string;
-  thread?: string | null;
-}
-
-interface WireAsks {
-  all?: WireAsk[];
-  reader?: WireAsk[];
-  unanswered?: WireAsk[];
-  awaiting?: Record<string, boolean>;
-  unanswered_awaiting?: Record<string, boolean>;
-}
-
 export interface AskRecord {
   id: string;
   tag: string;
@@ -135,7 +121,6 @@ export interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          asks?: WireAsks;
           requests?: { seat: { widget: string }; phase: string }[];
         };
         undo?: { event: Event }[];
@@ -147,7 +132,6 @@ export interface AuthoritativeState {
     conversation: {
       threads: Thread[];
       projection: WireProjection;
-      asks?: WireAsks;
       requests?: { seat: { widget: string }; phase: string }[];
     };
     receipts: Event[];
@@ -846,11 +830,9 @@ export function createSemanticApplication({
     const active = state?.browser.views[String(document.revision)];
     const lifecycle = {
       page: {
-        asks: active?.document.asks ?? {},
         requests: active?.document.requests ?? [],
       },
       conversation: {
-        asks: state?.browser.conversation.asks ?? {},
         requests: state?.browser.conversation.requests ?? [],
       },
       undo: active?.undo ?? [],
@@ -874,6 +856,20 @@ export function createSemanticApplication({
       lifecycle,
       projectedRequests,
     );
+    let admittedUnansweredAsks = asks.unanswered;
+    if (unresolved.length) {
+      const admittedProjection = foldProjection(admitted);
+      admittedUnansweredAsks = deriveAsks(
+        document,
+        admittedProjection,
+        foldWidgetStates(document.authored, admittedProjection),
+        phase === "ready"
+          ? foldThreads(state?.browser.conversation.threads ?? [], [], [], [])
+          : [],
+        lifecycle,
+        [],
+      ).unanswered;
+    }
     threads = deriveThreadReaderObligations(document, threads, asks);
     return {
       hostAvailable,
@@ -881,6 +877,10 @@ export function createSemanticApplication({
       widgets,
       conversation: { all: threads, listed: threads.filter(conversational) },
       asks,
+      // Approval is irreversible. While projection paint is deferred, its gate uses
+      // this admitted selection instead of an optimistic answer the reader cannot yet
+      // see committed to the document.
+      admittedUnansweredAsks,
       // These are semantic inputs to package rendering, not transport metadata.
       // A worker row with no report dates its claim from the active revision, while
       // report-backed rows render the accepted update sequence. Keep both inside the

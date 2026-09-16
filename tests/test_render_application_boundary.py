@@ -289,8 +289,8 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
         page.close()
 
 
-def test_deferred_projection_keeps_approval_behind_admission(browser, serve):
-    """An optimistic answer cannot unlock the irreversible approval command."""
+def test_deferred_projection_holds_approval_until_its_paint_lands(browser, serve):
+    """Deferred projection paint, not admission, holds the irreversible approval."""
     source = leaf_page(
         "approval waits for admission",
         """

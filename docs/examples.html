@@ -12,19 +12,11 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
-      body.examples-page main {
-        width: min(var(--wide), var(--lf-room));
-        max-width: var(--wide);
-      }
-      .catalog-prose {
-        max-width: var(--col);
-        margin-inline: auto;
-      }
       .catalog {
         margin-top: 56px;
       }
       .developer-galleries {
-        margin: 96px 0 80px;
+        margin-block: 96px 80px;
         padding-top: 36px;
         border-top: 1px solid var(--border-2);
       }
@@ -84,7 +76,9 @@
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 40px 32px;
-        margin: 24px 0 88px;
+        /* Block only: the layer sets the inline margins that grow a wide exhibit
+           out of the column, and a margin shorthand here would reset them. */
+        margin-block: 24px 88px;
         padding: 0;
         list-style: none;
       }
@@ -188,7 +182,7 @@
       }
     </style>
   </head>
-  <body class="site-page examples-page">
+  <body class="site-page">
     <main>
       <nav class="sitenav" aria-label="Site">
         <a class="brand" href="/">leaf</a>
@@ -198,7 +192,7 @@
         <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
-      <header class="hero catalog-prose" id="top">
+      <header class="hero" id="top">
         <p class="eyebrow">examples</p>
         <h1>What Leaf can do</h1>
         <p class="lede" id="lede">
@@ -206,11 +200,13 @@
         </p>
       </header>
 
+      <aside class="sidebar" id="examples-route">
+        <lf-toc id="examples-contents"></lf-toc>
+      </aside>
+
       <section class="catalog" id="pages" aria-labelledby="pages-title">
-        <div class="catalog-prose">
-          <h2 id="pages-title">Everyday work</h2>
-        </div>
-        <ul class="example-catalog">
+        <h2 id="pages-title">Everyday work</h2>
+        <ul class="example-catalog" data-width="wide">
           <li>
             <a class="example-link" href="/examples/review-a-plan/">
               <span class="example-preview">
@@ -382,17 +378,15 @@
       </section>
 
       <section class="catalog" id="specialized" aria-labelledby="specialized-title">
-        <div class="catalog-prose">
-          <h2 id="specialized-title">Specialized examples</h2>
-          <p>
-            Data-backed reports and workspaces for live operations and code review. The
-            <a href="/examples/data-explorer/">release query explorer</a> shows
-            structured filters, while the
-            <a href="/examples/code-comparison/">built code-reader comparison</a>
-            combines controlled A/B settings with exact Targeting references.
-          </p>
-        </div>
-        <ul class="example-catalog specialized-catalog">
+        <h2 id="specialized-title">Specialized examples</h2>
+        <p>
+          Data-backed reports and workspaces for live operations and code review. The
+          <a href="/examples/data-explorer/">release query explorer</a> shows structured
+          filters, while the
+          <a href="/examples/code-comparison/">built code-reader comparison</a> combines
+          controlled A/B settings with exact Targeting references.
+        </p>
+        <ul class="example-catalog specialized-catalog" data-width="wide">
           <li>
             <a class="example-link" href="/examples/live-progress/">
               <span class="example-preview">
@@ -467,7 +461,7 @@
         id="developer-galleries"
         aria-labelledby="developer-galleries-title"
       >
-        <div class="catalog-prose developer-galleries-copy">
+        <div class="developer-galleries-copy">
           <p class="eyebrow">developer tools</p>
           <h2 id="developer-galleries-title">Inspect the product</h2>
           <p>
@@ -495,7 +489,7 @@
         </div>
       </section>
 
-      <footer class="catalog-prose site-footer" id="colophon">
+      <footer class="site-footer" id="colophon">
         <p id="links">
           <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
           <a href="/how-it-works/">How it works</a> ·

@@ -2210,7 +2210,7 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
 
 def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
     """The gutter is the whole marking, and it is the one part of a specimen with
-    a color of its own: a token the dark block forgot would leave the bar
+    a color of its own: a token with no dark half would leave the bar
     transparent and the quoting silently gone. Nothing else catches that — not even
     the sweep that now drives a specimen through render_version in both palettes,
     since a transparent border is not an error, resizes no box, and leaves every

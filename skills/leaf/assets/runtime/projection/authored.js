@@ -3,7 +3,7 @@
  * upgrade or render it. Those values are inputs to the complete widget projection; no
  * cloned DOM, inverse action, or restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
-import { COLLAPSE, quoteFrom, textNodesUnder } from "../passages.js";
+import { quoteFrom, textNodesUnder } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 
 /* The authored initial condition, read once from validated source before upgrade.
@@ -17,9 +17,9 @@ import { readApplication } from "../semantic-state.js";
    and frozen thread markup use the same boundary, so presentation never becomes a
    semantic input.
 
-   `authoredStates` holds the one typed initial condition per owner. Comparison readings
-   come from those same values, collapsing body whitespace and omitting position indexes
-   only where origin/diff checks require those comparisons.
+   `authoredStates` holds the one typed initial condition per owner. The lossy
+   comparison reading provenance origins need is folded from those same values by
+   `projection/model.js`, which owns the one reading of them.
 
    The complete initial value, by record kind:
 
@@ -155,24 +155,6 @@ export function stageAuthoredFacets(root = document, existing = authoredStates()
     }
   }
   return captured;
-}
-
-// Comparison is deliberately lossy (body whitespace and position indexes), while
-// rendering always receives the complete initial value above.
-export function authoredFacet(coordinate) {
-  const [owner, unit, facet] = JSON.parse(coordinate);
-  const authored = authoredStates().get(owner);
-  if (!authored) return undefined;
-  const spec = authored.specs.get(facet);
-  const record = spec.record;
-  const value = authored.state[facet].value;
-  if (record?.kind === "attribute") return value.join(" ");
-  if (record?.kind === "body") return value.replace(COLLAPSE, " ").trim();
-  if (record?.kind === "position" && spec.unit !== "widget")
-    return (
-      Object.keys(value).find((container) => value[container].includes(unit)) ?? null
-    );
-  return value;
 }
 
 export const stateCoordinate = (owner, unit, spec) =>

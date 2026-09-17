@@ -6158,6 +6158,18 @@ ELEVATION_SHADOWS = """() => {
 }"""
 
 
+# A box that spends --shade, since the token itself is the same `light-dark()` text
+# under either scheme.
+PAINTED_SHADE = """() => {
+  const probe = document.createElement('div');
+  probe.style.color = 'var(--shade)';
+  document.body.append(probe);
+  const ink = getComputedStyle(probe).color;
+  probe.remove();
+  return ink;
+}"""
+
+
 def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink(
     browser, serve
 ):
@@ -6190,15 +6202,11 @@ def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink
         f"for them:\n  "
         + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in raw)
     )
-    light = page.evaluate(
-        "() => getComputedStyle(document.documentElement).getPropertyValue('--shade')"
-    )
+    light = page.evaluate(PAINTED_SHADE)
     page.close()
 
     dark = open_page(browser, serve(LONG_PAGE), color_scheme="dark")
-    shade = dark.evaluate(
-        "() => getComputedStyle(document.documentElement).getPropertyValue('--shade')"
-    )
+    shade = dark.evaluate(PAINTED_SHADE)
     assert shade.strip() and shade.strip() != light.strip(), (
         f"both schemes cast their shadows in {shade!r}, so routing them through a token "
         f"bought the dark page nothing it did not already have"

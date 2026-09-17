@@ -132,16 +132,39 @@
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
   --lf-banner-h: calc(42px + var(--lf-safe-top));
+  /* Stacking: one ascending ladder for everything the runtime lifts over the page.
+     A number local to a component's own stacking context stays where it is written. */
+  --lf-z-page-paint: 8890;        /* paint on a page element */
+  --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
+  --lf-z-surface: 8900;           /* a standing tray or thread panel */
+  --lf-z-shortcut-bar: 8940;
+  --lf-z-menu: 8950;              /* a door's menu */
+  --lf-z-banner: 9000;
+  --lf-z-scrim: 9010;             /* the wash under a covering surface */
+  --lf-z-covering-surface: 9020;  /* that surface */
+  --lf-z-bottom-status: 9030;
+  --lf-z-escaped-control: 9050;   /* a focused control that leaves the flow to be seen */
+  --lf-z-chrome-paint: 9060;      /* paint whose target is inside the chrome */
+  --lf-z-key-badges: 9070;
+  --lf-z-page-search: 9080;
+  --lf-z-thread-transition: 9140;
+  --lf-z-margin-preview: 9150;
+  --lf-z-dialog: 9300;            /* the command reference, the page map */
+  --lf-z-media-viewer: 9400;
   /* The document is warm paper. Code uses a white editor canvas and quiet gray chrome
-     to keep source visually distinct from document fields. */
-  --paper: #faf9f5;  --ink: #1c1b18;  --muted: #6f6a60;  --rule: #e7e3d9;
+     to keep source visually distinct from document fields. The dark page keeps its
+     warm ground, and its code canvas stays near-neutral for the same reason. Each
+     colour states both schemes in one `light-dark()`; `color-scheme` picks the half. */
+  --paper: light-dark(#faf9f5, #191815); --ink: light-dark(#1c1b18, #e8e4db);
+  --muted: light-dark(#6f6a60, #a09889); --rule: light-dark(#e7e3d9, #34312b);
   /* The accent marks where the machinery points — a link, the active milestone,
      a focus ring — and so has to stay hue-distinct from the
      three semantic colors it appears beside. That rules out the warm end: a clay
      accent sits a few degrees from --warn, and an accent ring beside a warning dot
      would be a distinction the reader has to measure. Ink blue keeps the link and
      focus conventions and reads as ink on ivory rather than as UI. */
-  --accent: #2f5480; --ok: #3f7d4e;   --warn: #b4741a;   --danger: #b4402f;
+  --accent: light-dark(#2f5480, #8fb0d8); --ok: light-dark(#3f7d4e, #7fb98c);
+  --warn: light-dark(#b4741a, #d8a95c); --danger: light-dark(#b4402f, #d98b7a);
   --r: 6px;
   --chip-r: 3px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
@@ -209,8 +232,8 @@
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --card: #fffefb;   /* raised surfaces: cards, panels, controls */
-  --field: #f4f1e8;  /* tinted fields: details, callouts, notes */
+  --card: light-dark(#fffefb, #201e1a);   /* raised surfaces: cards, panels, controls */
+  --field: light-dark(#f4f1e8, #232019);  /* tinted fields: details, callouts, notes */
   /* The ink every raised surface casts its shadow in. One per scheme, because the two
      grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
      only be right about one of them: at .12 over the light paper a menu lifts 10 L*, and
@@ -225,29 +248,32 @@
      is and a second dial saying the same thing is a second dial to keep in step: a card
      in the hand is 0 8px 24px against its resting 0 2px 8px, which is the whole
      difference and enough of one. */
-  --shade: rgb(0 0 0 / .14);
-  --code-bg: #f6f8fa; --pre-bg: #fff; --code-chrome: #f6f8fa;
-  --code-ink: #24292f; --code-muted: #57606a; --code-border: #d0d7de;
-  --chip: #eeeade;   /* neutral chip */
+  --shade: light-dark(rgb(0 0 0 / .14), rgb(0 0 0 / .55));
+  --code-bg: light-dark(#f6f8fa, #2b2b29); --pre-bg: light-dark(#fff, #1b1b1a);
+  --code-chrome: light-dark(#f6f8fa, #222220);
+  --code-ink: light-dark(#24292f, #e8e7e3); --code-muted: light-dark(#57606a, #9b9992);
+  --code-border: light-dark(#d0d7de, #3b3a37);
+  --chip: light-dark(#eeeade, #2d2922);   /* neutral chip */
   /* Secondary interface ink, held to 4.5:1 against the page surfaces it lands on.
      Code owns a near-neutral value because its canvas no longer follows paper. */
-  --ink-2: #3c3934;  --muted-2: #6d6960; --border-2: #d5cfc2;
+  --ink-2: light-dark(#3c3934, #c9c3b6); --muted-2: light-dark(#6d6960, #988f7f);
+  --border-2: light-dark(#d5cfc2, #453f36);
   /* The banner's translucent backdrop is the paper it floats over, so it is derived
      rather than restated: a project that overrides --paper gets a backdrop that
-     follows it, where a second hex kept the default ivory behind a recoloured page,
-     and the dark block has one fewer token to hold in step. */
+     follows it, where a second hex kept the default ivory behind a recoloured page. */
   --veil: color-mix(in srgb, var(--paper) 93.3%, transparent);
   /* Comments use violet so their marks remain distinct from links, focus, and the
      semantic status colors. One hue at three strengths says posted, hovered, and
      active without changing meaning between page and code surfaces. */
-  --mark: #dfd1ed66; --mark-hover: #dfd1edb3; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
+  --mark: light-dark(#dfd1ed66, #6152a059); --mark-hover: light-dark(#dfd1edb3, #6152a079);
+  --mark-strong: light-dark(#dfd1ed, #6152a099); --mark-ink: light-dark(#4a3b7d, #9d8fd6);
   /* The draft's wash, relative to the accent so one definition serves both schemes; the
      passage highlight (marks.css) and a draft's element mark (chrome.css) read it. */
   --mark-pending: color-mix(in srgb, var(--accent) 20%, transparent);
   /* A reaction's wash: the same hue one step under the resting mark, so a passage
      someone reacted to reads as touched and a passage someone commented on reads as
      annotated, and the two never look alike side by side. */
-  --react: #dfd1ed40;
+  --react: light-dark(#dfd1ed40, #6152a036);
   /* The compact "you are here" ring: a control or bounded decision receiving the
      reader's next press wears one consistent band. A large composite surface would
      turn that band into a second box around the box; it instead uses a quiet ground.
@@ -290,16 +316,20 @@
      chip was when it was measured, and a package redeclaring the ladder grows the chip
      into whatever the column was holding beside it. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
-  --ok-tint: #dfeddf;     --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
-  --ok-ink: #2f6b40;
-  --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
-  --danger-tint: #f7e0da; --danger-ink: #9c3526;
-  --add-tint: #e4efe0; --del-tint: #f7e2dc; --hi-tint: #fff8c5;
+  --ok-tint: light-dark(#dfeddf, #1d2b1f);
+  --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
+  --ok-ink: light-dark(#2f6b40, #97cca3);
+  --warn-tint: light-dark(#f7ecd2, #322715);   --warn-ink: light-dark(#8a5a12, #e2bb75);
+  --danger-tint: light-dark(#f7e0da, #35211b); --danger-ink: light-dark(#9c3526, #e0a091);
+  --add-tint: light-dark(#e4efe0, #1b2a1c); --del-tint: light-dark(#f7e2dc, #33201b);
+  --hi-tint: light-dark(#fff8c5, #342d14);
   /* Six syntax roles are enough to find structure without turning evidence into a
      paint box. Unmapped scopes keep the inherited code ink. Each role clears 4.5:1
      on the code canvas and semantic line tints; the render gate checks the result. */
-  --syn-comment: #696458; --syn-keyword: #a3372c; --syn-string: #1d4f6b;
-  --syn-number: #2f5480;  --syn-name: #6b4a9e;    --syn-type: #8a5a12;
+  --syn-comment: light-dark(#696458, #a59d8e); --syn-keyword: light-dark(#a3372c, #e59a8c);
+  --syn-string: light-dark(#1d4f6b, #9dc4dd);
+  --syn-number: light-dark(#2f5480, #a8c4e2); --syn-name: light-dark(#6b4a9e, #c3a8de);
+  --syn-type: light-dark(#8a5a12, #dcb27e);
 
   /* Series colors, for a chart's marks. Five, and the sixth is refused rather than
      drawn: these are the most a reader can hold apart, and a palette that runs out and
@@ -314,13 +344,15 @@
      at least 8 apart in OKLab ΔE×100 under simulated protanopia and deuteranopia, at
      least 15 apart under ordinary vision, chroma above the point where a hue reads as
      gray, and 3:1 against the paper they sit on. Worst pair here is 9.5 and 17.8, which
-     leaves a little room to move one without having to re-derive the set. The floors are
-     a test rather than a note asking to be remembered
+     leaves a little room to move one without having to re-derive the set; the dark
+     steps are stepped against the dark ground, not lightened from these (9.2 and 17.2).
+     The floors are a test rather than a note asking to be remembered
      (test_the_series_palette_clears_the_floors_it_claims_to), and it counts the steps
      against $series.steps in the same breath, that being what a chart refuses a sixth
      series against. */
-  --series-1: #4589d2; --series-2: #b77114; --series-3: #25966a;
-  --series-4: #6c489a; --series-5: #8c2d2a;
+  --series-1: light-dark(#4589d2, #2b8ecd); --series-2: light-dark(#b77114, #ce7600);
+  --series-3: light-dark(#25966a, #50a069); --series-4: light-dark(#6c489a, #7a4faf);
+  --series-5: light-dark(#8c2d2a, #b13d54);
 }
 html:root {
   --lf-thread-panel-width: min(50vw, max(320px, var(--lf-thread-panel-choice, 420px)));
@@ -372,38 +404,6 @@ html:root {
   syntax: "<custom-ident>";
   inherits: false;
   initial-value: none;
-}
-
-/* The dark page keeps its warm ground. Code remains on a near-neutral dark canvas so it
-   stays distinct from the surrounding document in either color scheme. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #191815;  --ink: #e8e4db;  --muted: #a09889;  --rule: #34312b;
-    --accent: #8fb0d8; --ok: #7fb98c;   --warn: #d8a95c;   --danger: #d98b7a;
-
-    --card: #201e1a; --field: #232019;
-    /* Four times the light alpha, for a fifth of the effect: 5.3 L* off the paper and
-       7.5 off a card, against the 1.4 the light value bought here. */
-    --shade: rgb(0 0 0 / .55);
-    --code-bg: #2b2b29; --pre-bg: #1b1b1a; --code-chrome: #222220;
-    --code-ink: #e8e7e3; --code-muted: #9b9992; --code-border: #3b3a37;
-    --chip: #2d2922;
-    --ink-2: #c9c3b6; --muted-2: #988f7f; --border-2: #453f36;
-    --mark: #6152a059; --mark-hover: #6152a079; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
-    --react: #6152a036;
-    --ok-tint: #1d2b1f;     --ok-ink: #97cca3;
-    --warn-tint: #322715;   --warn-ink: #e2bb75;
-    --danger-tint: #35211b; --danger-ink: #e0a091;
-    --add-tint: #1b2a1c; --del-tint: #33201b; --hi-tint: #342d14;
-    --syn-comment: #a59d8e; --syn-keyword: #e59a8c; --syn-string: #9dc4dd;
-    --syn-number: #a8c4e2;  --syn-name: #c3a8de;    --syn-type: #dcb27e;
-    /* Stepped against this ground rather than lightened from the light set: the band a
-       mark has to sit in over a brown-black is a different band, and the five above
-       leave it at both ends. Same hues, same floors, checked the same way (worst pair
-       9.2 and 17.2). */
-    --series-1: #2b8ecd; --series-2: #ce7600; --series-3: #50a069;
-    --series-4: #7a4faf; --series-5: #b13d54;
-  }
 }
 
 /* ---------- elements ---------- */
@@ -1311,7 +1311,7 @@ leaf-anchor-note { display: contents; }
           width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden;
           border: 0; background: none; color: inherit; font: inherit;
           user-select: none; -webkit-user-select: none; opacity: 0; }
-.lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: 9050;
+.lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: var(--lf-z-escaped-control);
           top: calc(var(--lf-banner-h) + 6px); left: 8px;
           width: auto; height: auto; padding: 6px 10px; overflow: visible; opacity: 1;
           border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);

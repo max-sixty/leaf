@@ -164,7 +164,7 @@
    outset band's outer pixels are not the control's to answer for — the layer's ring
    reading correctly called them a control standing behind the page. */
 .lf-skip:is(:focus-visible, .lf-focus-visible) { opacity: 1; pointer-events: auto;
-  position: fixed; z-index: 9050;
+  position: fixed; z-index: var(--lf-z-escaped-control);
   top: calc(var(--lf-banner-h) + 6px); left: 8px;
   width: auto; height: auto; min-height: var(--aim-floor); padding: 6px 10px;
   overflow: visible; clip-path: none;
@@ -535,13 +535,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    hears the count can enter its first thread, then t/T through the rest. The rule
    below states its whole visible form, so the transparent resting button adds no
    paint of its own. */
-.lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: 9050;
+.lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: var(--lf-z-escaped-control);
   top: calc(var(--lf-banner-h) + 6px); left: 8px;
   width: auto; height: auto; padding: 6px 10px; overflow: visible;
   opacity: 1;
   border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
   color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
-.lf-visual-action:focus-visible { position: fixed; z-index: 9050;
+.lf-visual-action:focus-visible { position: fixed; z-index: var(--lf-z-escaped-control);
   top: calc(var(--lf-banner-h) + 6px); left: 8px;
   width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
   overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
@@ -712,12 +712,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      chrome belongs above that auxiliary surface, including when the same aim or response bar moves
      between the two. The target owner states the plane; document order keeps aim,
      response bar, and inspect in their ordinary order within it. */
-  :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
+  :is(.lf-page-paint, .lf-target-paint) { z-index: var(--lf-z-page-paint); }
   /* The rail cannot trap a raised item below the page paint it summons. Only the item
      under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
   .lf-margin-projection { z-index: auto; }
-  .lf-margin-cluster:is(:hover, :focus-within) { z-index: 8895; }
-  .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
+  .lf-margin-cluster:is(:hover, :focus-within) { z-index: var(--lf-z-margin-raised); }
+  .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
      contour; the keyboard's stronger accent ring remains a separate focus fact. */
@@ -730,7 +730,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-target-trace-shape {
     display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-banner { --lf-banner-gap: 10px; --lf-status-floor: 24ch;
-    position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
+    position: fixed; top: 0; left: 0; right: 0; z-index: var(--lf-z-banner); height: var(--lf-banner-h);
     display: flex;
     align-items: center; gap: var(--lf-banner-gap);
     padding: var(--lf-safe-top) calc(14px + var(--lf-safe-right)) 0
@@ -844,7 +844,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      hangs off. */
   .lf-banner-menu { position: fixed; position-anchor: --lf-banner-more;
     top: calc(anchor(bottom) + 6px); left: anchor(left);
-    right: auto; bottom: auto; margin: 0; z-index: 8950;
+    right: auto; bottom: auto; margin: 0; z-index: var(--lf-z-menu);
     display: none; flex-direction: column; align-items: stretch; gap: 1px;
     min-width: max(anchor-size(width), 180px);
     max-width: calc(100vw - 16px);
@@ -918,7 +918,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border-color: var(--accent); color: var(--accent); }
   .lf-version-menu { position: fixed; position-anchor: --lf-version-btn;
     top: calc(anchor(bottom) + 6px); right: anchor(right);
-    bottom: auto; left: auto; margin: 0; z-index: 8950;
+    bottom: auto; left: auto; margin: 0; z-index: var(--lf-z-menu);
     display: none; grid-template-columns: 1fr auto; align-items: start;
     min-width: anchor-size(width);
     max-width: min(360px, calc(100vw - 16px));
@@ -973,7 +973,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      duplicated, and by the time anyone looked one copy was carrying a literal 300 where
      the other read the constant; what the two trays differ in is the row, below. */
   .lf-tray-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0;
-    z-index: 8900; width: var(--lf-tray-slot-width); background: var(--card);
+    z-index: var(--lf-z-surface); width: var(--lf-tray-slot-width); background: var(--card);
     border-right: 1px solid var(--rule); display: none; flex-direction: column;
     padding-bottom: var(--lf-safe-bottom); padding-left: var(--lf-safe-left); }
   .lf-tray-panel.open { display: flex; }
@@ -982,9 +982,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
      keep their higher planes so a command inside the auxiliary surface can still show its aim. */
   .lf-auxiliary-scrim { position: fixed; inset: 0;
-    z-index: 9010; background: color-mix(in srgb, var(--ink) 24%, transparent); }
+    z-index: var(--lf-z-scrim); background: color-mix(in srgb, var(--ink) 24%, transparent); }
   .lf-auxiliary-scrim[hidden] { display: none; }
-  :is(.lf-tray-panel, .lf-thread-panel)[aria-modal="true"] { z-index: 9020; }
+  :is(.lf-tray-panel, .lf-thread-panel)[aria-modal="true"] { z-index: var(--lf-z-covering-surface); }
   /* The rows scroll in a box of their own rather than in the tray, which is the comment
      panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
      all: a scroll container clips to its padding box, so an edge straddling the border
@@ -1050,7 +1050,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-panel { position: fixed; inset: var(--lf-banner-h) 0 0 auto;
     width: var(--lf-thread-panel-width); height: auto; max-width: none; max-height: none; margin: 0;
     box-sizing: border-box;
-    z-index: 8900; color: var(--ink); font: inherit;
+    z-index: var(--lf-z-surface); color: var(--ink); font: inherit;
     background: var(--card); border: 0; border-left: 1px solid var(--rule); display: none;
     flex-direction: column;
     /* Written as the shorthand, and for the same reason margin and border above it are:
@@ -1618,7 +1618,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      carries (see msgNode) — so this is where they keep their own line breaks. */
   .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
   .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .lf-command-reference { position: fixed; z-index: 9300; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  .lf-command-reference { position: fixed; z-index: var(--lf-z-dialog); top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: min(520px, calc(100vw - 32px - var(--lf-safe-left) - var(--lf-safe-right)));
     max-height: min(80dvh, calc(100dvh - var(--lf-safe-top) - var(--lf-safe-bottom) - 32px));
     overflow: hidden; display: none; margin: 0;
@@ -1626,7 +1626,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     box-shadow: 0 12px 32px var(--shade); padding: 14px 18px; }
   .lf-command-reference.open { display: flex; flex-direction: column; }
   .lf-command-reference::backdrop { background: color-mix(in srgb, var(--ink) 24%, transparent); }
-  .lf-media-viewer { position: fixed; inset: 0; z-index: 9400;
+  .lf-media-viewer { position: fixed; inset: 0; z-index: var(--lf-z-media-viewer);
     width: min(960px, calc(100vw - var(--lf-safe-left) - var(--lf-safe-right) - 32px));
     height: min(82dvh, 760px); box-sizing: border-box; margin: auto; padding: 0;
     overflow: hidden; color: var(--ink); background: var(--card);
@@ -1689,12 +1689,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-command-reference-command[data-lf-available="false"] { color: var(--muted); }
   .lf-page-map-toggle { display: none; }
   .lf-margin-preview { position: fixed;
-    z-index: 9150; width: min(320px, calc(100vw - 24px));
+    z-index: var(--lf-z-margin-preview); width: min(320px, calc(100vw - 24px));
     max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
     scroll-padding-block: var(--here-ring-room);
     margin: 0 8px; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
-  .lf-thread-transition { position: fixed; z-index: 9140; margin: 0;
+  .lf-thread-transition { position: fixed; z-index: var(--lf-z-thread-transition); margin: 0;
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
   .lf-thread-transition-text { display: block; }
@@ -1794,7 +1794,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-action:focus-visible {
     outline: var(--here-ring); --lf-here-ring: page-map-action;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-  .lf-page-map-dialog { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
+  .lf-page-map-dialog { position: fixed; z-index: var(--lf-z-dialog); width: min(560px, calc(100vw - 24px));
     max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
     border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
     color: var(--ink); box-shadow: 0 18px 54px var(--shade); }
@@ -1844,7 +1844,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--muted); font-size: var(--t-6); padding: 5px 10px;
     border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
   .lf-shortcut-bar { position: fixed; left: calc(18px + var(--lf-safe-left));
-    bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
+    bottom: calc(14px + var(--lf-safe-bottom)); z-index: var(--lf-z-shortcut-bar); pointer-events: none;
     display: flex; gap: 12px; align-items: baseline;
     max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
       - var(--lf-safe-left) - var(--lf-safe-right));
@@ -1856,7 +1856,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
     bottom: calc(14px + var(--lf-safe-bottom));
     /* Passive feedback remains visible above a covering auxiliary surface. */
-    z-index: 9030; pointer-events: none;
+    z-index: var(--lf-z-bottom-status); pointer-events: none;
     max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
       - var(--lf-safe-left) - var(--lf-safe-right));
     width: max-content; min-height: calc(var(--lf-key-badge-size) + 12px); align-content: center;
@@ -1936,7 +1936,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      edge as well. Nothing here is something to press: pointer-events stands down so a
      click still lands on the item the box outlines. */
   /* Predictable numeric binding badges belong to local Ask controls. */
-  .lf-key-badges { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
+  .lf-key-badges { position: fixed; inset: 0; z-index: var(--lf-z-key-badges); pointer-events: none; }
   .lf-key-badges > .lf-key-badge { position: absolute; display: block;
     transform: translate(-50%, -100%); }
   /* Ask binding badges sit on the answer control's upper-left corner. Unlike a route name
@@ -1946,7 +1946,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      names while their interaction stands. Every hint remains visible: the face is
      the route itself, not a reminder of a predictable ordinal. */
   .lf-target-chooser-hints, .lf-go-to-hints {
-    position: fixed; inset: 0; z-index: 9070; pointer-events: none;
+    position: fixed; inset: 0; z-index: var(--lf-z-key-badges); pointer-events: none;
   }
   :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint {
     position: absolute; display: block;
@@ -1967,7 +1967,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-search-match { position: absolute; box-sizing: border-box; pointer-events: none;
     background: color-mix(in srgb, var(--accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent); }
-  .lf-page-search { position: fixed; z-index: 9080;
+  .lf-page-search { position: fixed; z-index: var(--lf-z-page-search);
     top: calc(var(--lf-banner-h) + 10px); left: 50%; transform: translateX(-50%);
     width: min(390px, calc(100vw - 28px)); box-sizing: border-box;
     display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;

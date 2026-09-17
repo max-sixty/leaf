@@ -90,9 +90,8 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Order the cascade with `@layer` (theme, chrome, package, page) and one z-index scale. `chrome.css` has a `lf-reset` layer and `theme.css` one anonymous layer; the rest is specificity contests. | S | 50 `!important`, 46 `z-index`; the cascade defect class | High | Package themes and page CSS need a declared layer too |
-| `light-dark()` for the 28-line dark token block in `theme.css`, which already sets `color-scheme: light dark`. | S | 28 | High | Each token states both values in one declaration, so a light-only token has to name its dark value |
 | Typecheck the runtime with `tsc --checkJs` (detail below). | M | none deleted; no defect class shown | Low-Med | Catches little until JSDoc or declarations describe the runtime's shapes; the runtime reaches the typed core through a bundle with no declarations |
+| Order the cascade with `@layer` (theme, package, page). Tried 2026-09-16 and backed out: the page's unlayered `<style>` then outranks the chrome, so a page `div { position: relative }` moved 53 chrome boxes including the aim (`test_render_aim`), and putting `chrome.css` on its own rung flipped the specificity contests it was written against `theme.css` with. Needs the chrome isolated from page CSS first: a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)`. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |
 | Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods. | S-M | ~50 to 100 est. | Low | Chromium-only, no adopters |
 | `focusgroup` (Chrome 150) for the list and toolbar arrow-key walks the keyboard register drives. | M | ~100 to 200 est. | Low | Chromium-only, no adopters |
 | Navigation API for version travel history: three `history` and `popstate` sites, `runtime/navigation.js` at 197 lines. | M | small | Low | Gain only if intercept replaces the activation choreography |
@@ -118,12 +117,13 @@ ordered by confidence, then effort.
   `skills/leaf/assets` and `skills/leaf/packages` in about a second. Measured 2026-09-17:
   with `strict` off it reports 401 errors. 65 sit inside vendored bundles, 43 are
   root-absolute imports such as `/runtime/widget-api.js` that need a `paths` map, and 212
-  are property reads the inferred type does not carry, 81 of them on a plain `Element`. Under `scripts/browser/tsconfig.json`'s strict settings it reports 7,080,
-  3,606 of them unannotated parameters. A sample of the arity and assignability errors
-  found no defect: each came from inferring a callback's type from a default such as
-  `= () => false`. The runtime imports the typed `scripts/browser` core through the built
-  bundle, which carries no declarations, so those calls go unchecked. A first slice would
-  declare that bundle and gate only the modules that call it.
+  are property reads the inferred type does not carry, 81 of them on a plain `Element`.
+  Under `scripts/browser/tsconfig.json`'s strict settings it reports 7,080, 3,606 of them
+  unannotated parameters. A sample of the arity and assignability errors found no defect:
+  each came from inferring a callback's type from a default such as `= () => false`. The
+  runtime imports the typed `scripts/browser` core through the built bundle, which carries
+  no declarations, so those calls go unchecked. A first slice would declare that bundle
+  and gate only the modules that call it.
 
 - **TanStack Hotkeys.** `@tanstack/lit-hotkeys` 0.11 (alpha, June 2026) parses
   template-string bindings with a platform `Mod`, runs vim-style sequences with a timeout,

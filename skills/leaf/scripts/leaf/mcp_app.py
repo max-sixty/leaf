@@ -4,7 +4,6 @@ import copy
 from pathlib import Path
 
 from mcp.types import CallToolResult, TextContent
-from tinycss2 import parse_stylesheet, serialize
 
 from .event_endpoint import accept_event
 from .exporting import inline_assets, inline_css_assets
@@ -23,23 +22,6 @@ from .structure import SourceDocument
 
 APP_MIME = "text/html;profile=mcp-app"
 SNAPSHOT_FORMAT = "leaf.snapshot/v1"
-
-
-def split_theme(theme: str) -> tuple[str, str]:
-    """Separate the OS-dark block so the MCP host's declared theme can select it."""
-    base = []
-    dark = []
-    for rule in parse_stylesheet(theme):
-        if (
-            rule.type == "at-rule"
-            and rule.lower_at_keyword == "media"
-            and serialize(rule.prelude).strip() == "(prefers-color-scheme: dark)"
-            and rule.content is not None
-        ):
-            dark.append(serialize(rule.content))
-        else:
-            base.append(serialize([rule]))
-    return "".join(base), "".join(dark)
 
 
 def state_service(page_dir: Path) -> PageStateService:
@@ -79,12 +61,10 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         read_resource=read_resource,
     )
     title = parsed.title.strip() or page_dir.name
-    theme, dark_theme = split_theme(
-        inline_css_assets(
-            artifact.resources["/theme.css"].data.decode("utf-8"),
-            read_resource=read_resource,
-            document_url="/theme.css",
-        )
+    theme = inline_css_assets(
+        artifact.resources["/theme.css"].data.decode("utf-8"),
+        read_resource=read_resource,
+        document_url="/theme.css",
     )
     styles = [
         {"css": style.text, "media": style.attrs.get("media", "")}
@@ -108,7 +88,6 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         "document": document,
         "authoredStyles": styles,
         "theme": theme,
-        "darkTheme": dark_theme,
         # The app reads a selection out of the document it renders, and one space goes
         # wherever the enclosing text block changes. That vocabulary is this side's, so
         # it travels with the document rather than becoming a third list to keep equal.

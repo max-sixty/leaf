@@ -59,7 +59,7 @@ reason to change frameworks.
 | Positioning | Floating UI for the CSS-anchored menus | Tried: +80 lines of JS and async placement for what 10 CSS lines do synchronously |
 | Focus | tabbable for the covering surface's Tab wrap | Tried: a vendored startup module in place of a 7-line local filter |
 | Motion | `@starting-style` for the thread card and agent-arrival listeners | It replays whenever an ancestor leaves `display: none`, so the reopened panel needs the end listener anyway; the pulse is not an entrance |
-| Motion | Same-document View Transitions for the folds, trays, board moves, and column carry in `runtime/motion.js` | A transition applies its update a frame late and blocks input while it runs, and a new one skips the last, so arrow-key card moves, repeated Resolve presses, and board updates from another tab would lose steps; #666 removed the paint-boundary transition version travel used; `motion.js` is 87 lines |
+| Motion | Same-document View Transitions for the folds, trays, board moves, and column carry in `runtime/motion.js` | The update runs after the old state is captured, later than the gesture's turn; pointer input misses the page while it animates; a fold collapses height so later content slides, which a root cross-fade does not draw; board cards move inside their own scroller, whose clip a snapshot escapes under the Chrome 125 floor. #666 removed the paint-boundary transition version travel used |
 | Version patch | idiomorph with exclusion callbacks in place of `runtime/dom-children.js` | A live-tree diff keeps only the reader state an exclusion names; the source-to-source patch keeps all of it and has needed no fix since #514 split it out |
 | Chrome library | Web Awesome, Spectrum, Lion, Zag | Not chosen over the platform-first direction; still open |
 | Chrome framework | React, Radix, Base UI, shadcn, Preact + htm | A framework migration for the smallest defect bucket |
@@ -69,7 +69,7 @@ reason to change frameworks.
 | Events | an event-sourcing library | None fits a CLI-appendable file |
 | Locks | filelock | Wrong lock semantics |
 | Supervision | supervisor-style libraries | The reaper is the session semantics |
-| File watching | watchfiles for the server | Presence is pids and locks, not files |
+| File watching | watchfiles for the server | Presence is pids and locks; the one file loop re-stats the log at 70 µs a look |
 | JS parsing | esprima, acorn | esprima is unmaintained and acorn needs node; tree-sitter parses authored `page/` modules in Python |
 | Codex | official `openai-codex` SDK | Spawns its own CLI; cannot join a running conversation |
 | Templating | jinja2 | No templating exists |
@@ -88,11 +88,17 @@ reopened.
 - **Comments match text exactly or detach.** Excludes tolerant re-anchoring. Saves no
   complexity (the exact search is ~150 lines); a UX question about fewer detached
   comments. Proposal: leave it.
-- **The keyboard system is vim-like.** Letter chords, per-area scopes, an Escape that
-  unwinds one level; 6,100 lines and the largest fix bucket. Proposal: prototype in a
-  playground page a flatter model of global shortcuts from a settled library, a command
-  palette listing every action, and native Tab and arrow movement; estimated 3 to 4k
-  lines deleted if it wins.
+- **The keyboard system is vim-like.** Letter chords, per-area scopes, go-to hints, and
+  an Escape that closes one layer; 6,085 lines and the largest fix bucket. The reader
+  keeps this behaviour. TanStack Hotkeys, `@github/hotkey`, and tinykeys own only key
+  parsing, which had no fix since 2026-08-29; Tabster's Groupper returns focus to a group
+  rather than closing a surface and restoring the reader's place. Ten of the 24 keyboard
+  fixes since then landed in the code that infers the open layers: `stack()` in
+  `keyboard/dispatch.js`, `keyboard/return-stack.js`, and `native-layers.js`. Proposal:
+  an explicit layer stack that openers push and closes pop, so Escape closes the top
+  layer and bindings come from it; about 600 to 900 lines deleted est. First step: fold
+  `native-layers.js` into the return stack and drop the popover and modal branches of
+  `stack()`.
 - **Comments float in the margin in clusters, and the reply box sits inside the page.**
   6,600 lines and the second-largest bucket. Proposal: add a stacked side-column layout
   with the reply box in the panel as one arm of the "Now" item on annotation placement.
@@ -108,7 +114,9 @@ reopened.
 - **Leaf joins the conversation the user has open in Codex.** Excludes the official SDK,
   which starts its own Codex (and bundles a 113 to 138 MB binary per platform). Open
   question: is the shared conversation a product requirement? If not, 758 lines of
-  hand-written protocol code go.
+  hand-written protocol code go. The website host in `worker/server.py` already spawns
+  its own app-server, so the SDK's limit does not reach it; adopting the SDK there alone
+  would run two clients for one protocol beside `codex.py`.
 - **Package authors describe widgets in JSON Schema.** 474 lines of meta-schema check
   those descriptions. Proposal: typed declarations (pydantic is installed through `mcp`)
   when packages are next revisited.

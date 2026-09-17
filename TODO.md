@@ -90,7 +90,7 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Typecheck the runtime with `tsc --checkJs` (detail below). | M | none deleted; no defect class shown | Low-Med | Catches little until JSDoc or declarations describe the runtime's shapes; the runtime reaches the typed core through a bundle with no declarations |
+| Typecheck the runtime with `tsc --checkJs` (detail below). | M | none deleted; six past fixes show no catch | Low-Med | Catches little until JSDoc or declarations describe the runtime's shapes; the runtime reaches the typed core through a bundle with no declarations |
 | Order the cascade with `@layer` (theme, package, page). Tried 2026-09-16 and backed out: the page's unlayered `<style>` then outranks the chrome, so a page `div { position: relative }` moved 53 chrome boxes including the aim (`test_render_aim`), and putting `chrome.css` on its own rung flipped the specificity contests it was written against `theme.css` with. Needs the chrome isolated from page CSS first: a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)`. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |
 | Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods. | S-M | ~50 to 100 est. | Low | Chromium-only, no adopters |
 | `focusgroup` (Chrome 150) for the list and toolbar arrow-key walks the keyboard register drives. | M | ~100 to 200 est. | Low | Chromium-only, no adopters |
@@ -101,6 +101,7 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
+| Serve each page through starlette and uvicorn, already installed through `mcp`, keeping one process per page. `http.py`'s `Handler` hand-writes response, cookie, and query plumbing, the news stream's `select()` peer-gone loop, and the `http.server` lifecycle workarounds such as #630's preconnect drop. | M-L | ~150 to 200 est. of a ~480-line region; the connection-lifecycle fixes | Low-Med | Converts a threaded server to async: `TemporaryPageServer`, `cmd_serve`, the Worker's `WebsitePageHandler` subclass, and the tests that drive `Handler` |
 | Run one user-level daemon on SQLite, starlette, and asyncio (detail below). | L | ~750 gross, -300 to +500 net est.; about three lifetime and transport fixes in three weeks | Low | A user-level database stops the page directory being the deployment unit; one daemon crash or stale install takes down every page; every CLI writer, hook, the site build, and the Worker change |
 
 ### Both
@@ -114,16 +115,16 @@ ordered by confidence, then effort.
 ### Detail
 
 - **`tsc --checkJs`.** TypeScript 7.0.2, already in `package.json`, checks
-  `skills/leaf/assets` and `skills/leaf/packages` in about a second. Measured 2026-09-17:
-  with `strict` off it reports 401 errors. 65 sit inside vendored bundles, 43 are
-  root-absolute imports such as `/runtime/widget-api.js` that need a `paths` map, and 212
-  are property reads the inferred type does not carry, 81 of them on a plain `Element`.
-  Under `scripts/browser/tsconfig.json`'s strict settings it reports 7,080, 3,606 of them
-  unannotated parameters. A sample of the arity and assignability errors found no defect:
-  each came from inferring a callback's type from a default such as `= () => false`. The
-  runtime imports the typed `scripts/browser` core through the built bundle, which carries
-  no declarations, so those calls go unchecked. A first slice would declare that bundle
-  and gate only the modules that call it.
+  `skills/leaf/assets` and `skills/leaf/packages` in under a second once a `paths` map
+  resolves root-absolute imports such as `/runtime/widget-api.js`. Measured 2026-09-17
+  with `strict` off, it reports 272 errors outside vendored bundles; the vendored files
+  are checked too, because modules import them whatever `exclude` says. The sampled errors
+  are inference artifacts, such as a callback typed from a default of `= () => false` or a
+  custom-element method read off `HTMLElement`. A bug-back over six runtime fixes (#404,
+  #448, #625, #660, #676, #757) found no error that the fix removed from the files it
+  touched. The runtime imports the typed `scripts/browser` core through the built bundle,
+  which carries no declarations, so those calls go unchecked; declarations for that bundle
+  are the first slice with a plausible catch.
 
 - **TanStack Hotkeys.** `@tanstack/lit-hotkeys` 0.11 (alpha, June 2026) parses
   template-string bindings with a platform `Mod`, runs vim-style sequences with a timeout,

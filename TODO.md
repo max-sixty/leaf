@@ -104,7 +104,7 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Run one user-level daemon on SQLite, starlette, and asyncio (detail below). | L | ~3,100; Windows; push instead of 50 ms polling | Med | Loses per-page process isolation and the grep-able JSONL log per page; tests that reach into `http.server` internals rework |
+| Run one user-level daemon on SQLite, starlette, and asyncio (detail below). | L | ~2,900; Windows; push instead of 50 ms polling | Med | Loses per-page process isolation and the grep-able JSONL log per page |
 
 ### Both
 
@@ -130,10 +130,12 @@ ordered by confidence, then effort.
   Escape unwinding, which `runtime/keyboard/dispatch.js` owns. Keep focus-ancestry scopes
   and `aria-keyshortcuts` reflection in Leaf. Wait for a stable release.
 
-- **Daemon.** starlette, sse-starlette, uvicorn, and pydantic are already installed through
-  `mcp`. Deleted: the detached-server handshake, flock leases, pid probing, stat polling,
-  torn-line repair, and most of `http.py`'s dispatch. Examples ship `.jsonl` companions,
-  which would become an import format.
+- **Daemon.** The transport half has landed on its own: every page is served by starlette
+  and uvicorn inside its own process, so the HTTP framing, the peer that leaves mid-answer,
+  and the news stream's disconnect are the library's. What a daemon would add on top is the
+  single process and the shared store, deleting the detached-server handshake, flock leases,
+  pid probing, stat polling, and torn-line repair, and replacing the 50 ms re-stat with a
+  push. Examples ship `.jsonl` companions, which would become an import format.
 
 - **Browser-owned anchoring.** The browser already posts quote, prefix, suffix, and
   section; `leaf comment` and the MCP snapshot resolve through the runtime in a Playwright

@@ -4713,12 +4713,12 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     class Stalls(http_model.handler_for(d, TOKEN)):
         """Answers everything but the earlier version, which it accepts and drops."""
 
-        def do_GET(self):
+        def _get(self):
             if self.path.startswith("/versions/v1.html"):
                 asked.set()
                 release.wait()
                 return
-            super().do_GET()
+            super()._get()
 
     httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Stalls)
     with running_http_server(httpd):
@@ -5635,7 +5635,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         does, whereupon it counts an empty log, waits for nothing, and reads the page
         mid-move. That is this test's own failure and not the gate's."""
 
-        def do_GET(self):
+        def _get(self):
             state_read = self.path.startswith("/api/state")
             page_read = state_read and self.headers.get("Referer")
             # Bounded, and far inside the gate's own deadline for a served document: a
@@ -5643,7 +5643,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
             # below rather than by a gate whose server appeared to stop answering.
             if state_read and not page_read and not arrived.wait(10):
                 expired.append(self.path)
-            super().do_GET()
+            super()._get()
             if page_read and not landed:
                 landed.append(self.headers["Referer"])
                 append_command(serve.page_dir, settle)

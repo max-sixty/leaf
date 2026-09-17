@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,7 +25,7 @@ from leaf.codex import delivery_pointer_prompt as delivery_prompt
 from leaf.delivery import DELIVERY_FORMAT
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
-from leaf.hosting import server_at
+from leaf.hosting import LeafHTTPServer
 from leaf.http import supervised_document
 from leaf.revision_artifact import Resource
 from leaf.schema import ASSETS
@@ -47,19 +48,21 @@ benchmark_site = importlib.util.module_from_spec(_benchmark_spec)
 _benchmark_spec.loader.exec_module(benchmark_site)
 
 
-def get(url: str) -> tuple[bytes, dict]:
+# The response headers as the message, not a plain dict: header names are
+# case-insensitive and arrive lowercased, as they do in a browser.
+def get(url: str) -> tuple[bytes, Message]:
     with urllib.request.urlopen(url) as response:
-        return response.read(), dict(response.headers)
+        return response.read(), response.headers
 
 
-def post(url: str, body: dict, headers: dict | None = None) -> tuple[dict, dict]:
+def post(url: str, body: dict, headers: dict | None = None) -> tuple[dict, Message]:
     request = urllib.request.Request(
         url,
         data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json", **(headers or {})},
     )
     with urllib.request.urlopen(request) as response:
-        return json.loads(response.read()), dict(response.headers)
+        return json.loads(response.read()), response.headers
 
 
 def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
@@ -2485,10 +2488,8 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     agent_host = FakeCodexHost()
-    httpd = server_at(
-        "127.0.0.1",
-        0,
-        website_server.handler_for(site, agent_host),
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.handler_for(site, agent_host)
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
@@ -2713,7 +2714,9 @@ def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
-    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, FakeCodexHost()))
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.handler_for(site, FakeCodexHost())
+    )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
         state = json.loads(get(f"{root}/examples/decision/api/state")[0])
@@ -2748,7 +2751,9 @@ def test_a_product_route_uses_the_same_real_page_server(
     write_manifest(site, {page_root or "/": (f"_leaf/pages/{name}", "product")})
 
     agent_host = FakeCodexHost()
-    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, agent_host))
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.handler_for(site, agent_host)
+    )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
         document, _ = get(f"{root}{page_root}/")
@@ -2811,7 +2816,9 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
     )
     accept_codex_delivery("already-started-thread")
     agent_host = FakeCodexHost()
-    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, agent_host))
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.handler_for(site, agent_host)
+    )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
         answer, _ = post(
@@ -2832,7 +2839,7 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
     shutil.copytree(page_dir, published)
     (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
-    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site))
+    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.handler_for(site))
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
     with running_http_server(httpd):
         state = json.loads(get(f"{root}/api/state")[0])

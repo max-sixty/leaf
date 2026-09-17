@@ -117,7 +117,7 @@ def test_process_state_waits_for_a_serialized_activation(page_dir, monkeypatch):
     answer = {}
     try:
         url = pages.open(page_dir)
-        handler = pages._httpd.RequestHandlerClass
+        handler = pages._httpd.handler_class
         original_select = handler._select_page
 
         def observe_state_request(request_handler):

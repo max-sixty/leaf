@@ -1,17 +1,24 @@
-"""HTTP transport and routes for one served page."""
+"""HTTP transport and routes for one served page.
 
-import contextlib
+The transport is starlette over uvicorn (`hosting.py` owns the server). This file
+owns what a page means at that boundary: route scoping, the key, the layer gate,
+the `Leaf-*` headers, and the news stream a tab listens on.
+"""
+
 import html
 import json
 import re
 import secrets
-import select
 import time
 from collections.abc import Mapping
 from http.cookies import SimpleCookie
-from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+
+import anyio
+from starlette.concurrency import run_in_threadpool
+from starlette.requests import Request
+from starlette.responses import Response, StreamingResponse
 
 from . import presence as presence_model
 from .data import DataError, data_fragment, read_data_fragment
@@ -395,7 +402,17 @@ def supervised_document(
     return (source[:offset] + supervised + source[offset:]).encode()
 
 
-class Handler(BaseHTTPRequestHandler):
+class Handler:
+    """One request against one page, from its arrival to the response it becomes.
+
+    An instance is made per request by `page_app` and thrown away with it, so the
+    routes below read the request off `self` and leave their answer there. The
+    transport underneath is uvicorn's: framing, keep-alive, the peer that closes
+    mid-answer, and the body a route never asked for are its business, not this
+    file's. What stays here is the page's own boundary — selection, the key, the
+    layer gate, and the faults a banner has to be able to show.
+    """
+
     page_dir = None
     token = None
     server_id = secrets.token_hex(16)
@@ -414,6 +431,46 @@ class Handler(BaseHTTPRequestHandler):
     # page servers have no release boundary beyond their vendored layer.
     release = None
     frame_ancestors_policy = FRAME_ANCESTORS_CSP
+
+    def __init__(self, request: Request, server) -> None:
+        self.request = request
+        self.server = server
+        self.command = request.method
+        query = request.url.query
+        # The whole request target, because `_select_page` rewrites it: a multiplexed
+        # transport strips its own prefix here and every route below reads the page's
+        # own address, query included.
+        self.path = request.url.path + (f"?{query}" if query else "")
+        self.headers = request.headers
+        self.response = None
+        self.close_connection = False
+        self._headers: list[tuple[str, str]] = []
+
+    def respond(self) -> Response:
+        """Answer this request, on a worker thread of the serving loop's own pool."""
+        if self.command == "GET":
+            self._answer(self._get)
+        elif self.command == "POST":
+            self._answer(self._post, prepare=self._read_posted)
+        else:
+            self._json({"error": f"unsupported method {self.command}"}, 501)
+        if self.response is None:
+            # A route that returned without answering. Nothing sensible is left to
+            # say, and the peer is owed a status rather than a dropped connection.
+            return Response(b"", status_code=500)
+        return self.response
+
+    def read_body(self) -> bytes:
+        """The request body, read from inside the route that has earned it.
+
+        Deliberately not read on arrival: the key gate is upstream of every read
+        here, so an unauthenticated peer can neither choose an allocation nor park
+        a request on bytes it never sends.
+        """
+        return anyio.from_thread.run(self.request.body)
+
+    def send_header(self, name: str, value: str) -> None:
+        self._headers.append((name, value))
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -513,10 +570,7 @@ class Handler(BaseHTTPRequestHandler):
                 snapshot_id=snapshot,
             )
 
-    def log_message(self, *args):
-        pass
-
-    def _news(self):
+    def _news(self) -> None:
         """The page's reading, named on an open stream each time it changes.
 
         What a tab listens on instead of asking on a timer. The stream carries no
@@ -537,16 +591,19 @@ class Handler(BaseHTTPRequestHandler):
         from here, throttled — it needs a recency, not a request log — and never from
         a preview, whose browser is the render gate's rather than the reader's.
 
-        Ends on the server stopping, or on the peer going: a closed tab makes the
-        socket readable with nothing to read, which the wait between looks sees at
-        once rather than on the next write into it.
+        Ends on the server stopping; a tab that closes cancels the response, which the
+        transport reports without this loop watching the socket for it. `ALIVE_S` is
+        the whole of the keepalive, so the stream carries no comment frames beside it.
         """
-        self.close_connection = True
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Connection", "close")
         self.end_headers()
+        self.response = StreamingResponse(
+            self._readings(),
+            media_type="text/event-stream",
+            headers=dict(self._headers),
+        )
+
+    async def _readings(self):
+        """Every reading this stream owes its listener, as each becomes true."""
         cls = type(self)
         said = files_said = presence = None
         looked = spoke = 0.0
@@ -574,32 +631,14 @@ class Handler(BaseHTTPRequestHandler):
                     cls.viewed_at = time.time()
                     write_json(self.page_dir / VIEWED_FILE, {"t": cls.viewed_at})
                 if reading != said or now - spoke >= ALIVE_S:
-                    self.wfile.write(f"data: {reading}\n\n".encode())
+                    yield f"data: {reading}\n\n"
                     said, files_said, spoke = reading, files, now
-                readable, _, _ = select.select([self.connection], [], [], LOOK_S)
-                if readable and not self.connection.recv(1024):
-                    return
+                await anyio.sleep(LOOK_S)
         except (FileNotFoundError, NotADirectoryError):
             # The page directory going away under an open tab ends the stream, as a
-            # peer going away does. The answer boundary this runs inside would
-            # otherwise write a status line and a JSON fault into the middle of it.
-            # A peer gone mid-write is `handle`'s, and any other fault is a fault.
+            # peer going away does. The response has already begun, so there is no
+            # status left to say it with.
             return
-
-    def handle(self):
-        """The exchange, ending quietly when the reader is no longer there.
-
-        A reader who closes the tab mid-response leaves the handler writing into a
-        socket the kernel answers with a reset, and `socketserver` prints the
-        `BrokenPipeError` as a twenty-five-line traceback naming this file — a
-        server fault, by every appearance, for the one thing a page is most
-        certain to do. Closing a tab is not an error and there is nothing to
-        answer with, the peer being gone; every read and write on the connection
-        passes through here, so this is where it ends. `ConnectionError` is the
-        whole of that case: its other subclass, a refused connection, cannot
-        reach a socket the server already accepted."""
-        with contextlib.suppress(ConnectionError):
-            super().handle()
 
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
@@ -641,7 +680,6 @@ class Handler(BaseHTTPRequestHandler):
         # handling keeps a response from becoming code merely because authored
         # JavaScript tries to import it.
         self.send_header("X-Content-Type-Options", "nosniff")
-        super().end_headers()
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
         is_html = ctype.startswith("text/html")
@@ -651,16 +689,17 @@ class Handler(BaseHTTPRequestHandler):
             body = scope_stylesheet_routes(body, self.page_root)
         elif ctype.startswith(("text/javascript", "application/javascript")):
             body = scope_script_routes(body, self.page_root)
-        self.send_response(status)
+        self._headers = []
         self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         if is_html and self.frame_ancestors_policy:
             self.send_header("Content-Security-Policy", self.frame_ancestors_policy)
         if self.close_connection:
+            # A declared body this route refused to read leaves the connection
+            # unsafe to reuse: those bytes would be read as the next request.
             self.send_header("Connection", "close")
         self.end_headers()
-        self.wfile.write(body)
+        self.response = Response(body, status_code=status, headers=dict(self._headers))
 
     def _json(self, obj, status: int = 200) -> None:
         self._send(
@@ -681,21 +720,10 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def _not_found(self) -> None:
-        # An unread body makes an HTTP/1.1 connection unsafe to reuse.
+        # An unread body makes the connection unsafe to reuse.
         if self.headers.get("Content-Length") or self.headers.get("Transfer-Encoding"):
             self.close_connection = True
         self._json({"error": "not found"}, 404)
-
-    def do_GET(self):
-        self._answer(self._get)
-
-    def do_POST(self):
-        # The body is route preparation: inside the answer boundary, but after the one
-        # shared key gate. An unauthenticated peer therefore cannot choose an allocation
-        # or park a handler in a body read. Its refusal names no attempt because no body
-        # was trusted enough to read one from; the browser accepts that attempt-less
-        # final answer because the refusal happened before any append could have begun.
-        self._answer(self._post, prepare=self._read_posted)
 
     def _read_posted(self) -> tuple:
         """The route's POSTed body, or the refusal it has already earned.
@@ -706,12 +734,14 @@ class Handler(BaseHTTPRequestHandler):
         """
         if urlsplit(self.path).path == "/api/media":
             return self._read_uploaded_media()
+        # A declared length the door will not take, refused before the read rather
+        # than after it: an event is prose, markup and passages, and a body past this
+        # bound is a peer choosing what this process waits for and holds in memory.
+        if int(self.headers.get("Content-Length", 0)) > MAX_MEDIA_UPLOAD_BYTES:
+            self.close_connection = True
+            return {}, "event exceeds the 10 MiB limit"
         try:
-            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        except (TypeError, ValueError, MemoryError):
-            return {}, "invalid Content-Length"
-        try:
-            posted = json.loads(body, parse_constant=reject_json_constant)
+            posted = json.loads(self.read_body(), parse_constant=reject_json_constant)
         except (ValueError, RecursionError):
             return {}, "invalid JSON"
         if not isinstance(posted, dict):
@@ -731,11 +761,7 @@ class Handler(BaseHTTPRequestHandler):
         if length > MAX_MEDIA_UPLOAD_BYTES:
             self.close_connection = True
             return b"", "image exceeds the 10 MiB limit"
-        try:
-            body = self.rfile.read(length)
-        except (MemoryError, OSError):
-            self.close_connection = True
-            return b"", "could not read image body"
+        body = self.read_body()
         if len(body) != length:
             self.close_connection = True
             return b"", "incomplete image body"
@@ -752,14 +778,14 @@ class Handler(BaseHTTPRequestHandler):
     def _answer(self, route, prepare=None) -> None:
         """One boundary for page selection, authorization, preparation, and faults.
 
-        Unanswered, a fault
-        drops the socket, socketserver buries the traceback in stderr nothing reads, and
-        the banner says "Server offline" about a server that is up — so every
-        fault becomes a 500 naming itself, which the banner can show to the one
-        person still looking. The key is checked here for `end_headers`'s reason: every
-        request passes through, so there is one gate rather than one per method, and a
-        route added later cannot be the one that forgot to ask. POST preparation is
-        deliberately after that gate, so an unknown peer cannot choose a body-read cost.
+        Unanswered, a fault would reach the transport, which has no page to say it
+        about — and the banner would read "Server offline" about a server that is
+        up. So every fault becomes a 500 naming itself, which the banner can show to
+        the one person still looking. The key is checked here for `end_headers`'s
+        reason: every request passes through, so there is one gate rather than one
+        per method, and a route added later cannot be the one that forgot to ask.
+        POST preparation is deliberately after that gate, so an unknown peer cannot
+        choose a body-read cost.
         """
         prepared = False
         self.response_layer = self.layer
@@ -773,8 +799,6 @@ class Handler(BaseHTTPRequestHandler):
             if prepare:
                 self.posted, self.posted_error = {}, None
             if not self.authorized():
-                # HTTP/1.1 cannot reuse a connection whose declared request body was
-                # never consumed: those bytes would be parsed as the next request.
                 if prepare:
                     self.close_connection = True
                 self._refuse(NO_KEY, 403)
@@ -788,10 +812,7 @@ class Handler(BaseHTTPRequestHandler):
             # browser must retry the same attempt instead of putting its gesture back.
             if prepare and not prepared:
                 self.close_connection = True
-            try:
-                self._json({"error": f"{type(error).__name__}: {error}"}, 500)
-            except OSError:
-                pass  # the peer left mid-answer; nobody to tell
+            self._json({"error": f"{type(error).__name__}: {error}"}, 500)
 
     def _serve_root(self) -> None:
         if self.page_snapshot is not None:
@@ -1129,7 +1150,6 @@ def handler_for(
     page_dir: Path,
     token: str,
     page_snapshot=None,
-    protocol_version="HTTP/1.0",
     publication=None,
 ):
     """A request handler bound to one page, publication view, and key. The key has no
@@ -1149,10 +1169,28 @@ def handler_for(
                 encoding="utf-8"
             ),
             "page_snapshot": page_snapshot,
-            "protocol_version": protocol_version,
             "layer": identity["generation"],
             "layer_identity": identity,
             "preview": preview_metadata(page_dir),
             "publication": publication,
         },
     )
+
+
+def page_app(handler_class, server):
+    """The ASGI application one handler class serves, on one server's behalf.
+
+    Every request becomes a `Handler` and nothing else: no state crosses between
+    two of them. The routes are ordinary blocking code — page transactions, log
+    reads, atomic writes — so they run on the serving loop's worker threads, and
+    an open news stream is the one response that stays on the loop itself.
+    """
+
+    async def app(scope, receive, send) -> None:
+        if scope["type"] != "http":
+            raise ValueError(f"leaf serves HTTP, not {scope['type']}")
+        handler = handler_class(Request(scope, receive), server)
+        response = await run_in_threadpool(handler.respond)
+        await response(scope, receive, send)
+
+    return app

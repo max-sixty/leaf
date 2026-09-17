@@ -14,7 +14,6 @@ import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
-from http.server import HTTPServer
 from pathlib import Path
 
 import pytest
@@ -658,50 +657,6 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     assert reading["active"]["revision"] == stamped["revision"]
     assert reading["active"]["version"] == stamped["version"]
     assert reading["source_error"] is None
-
-
-def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
-    """Closing a tab mid-response is how nearly every page ends, and it used to put a
-    BrokenPipeError traceback naming leaf's own modules on the server's stderr —
-    indistinguishable, in a log or in a suite's output, from the server having a
-    fault.
-
-    Both halves run the handler the way socketserver runs it, `RequestHandlerClass(
-    request, client_address, server)` being the frame the traceback came out of. That
-    is also what makes the failure deterministic: a socketpair whose far end is closed
-    answers the first write with EPIPE, where a TCP client has to be raced into sending
-    a reset between the server's read and its write. The answered half is here so the
-    silent one cannot pass by refusing the request before it ever writes. The server
-    object only supplies the argument; nothing is accepting on it.
-
-    The state read, of everything a page asks for, because it is the request a tab
-    makes most and holds longest of those that end, and because a socketpair's buffer
-    is a few kilobytes: nothing drains this one until the handler has returned, so
-    the answered half asks for a response that fits. The runtime is 297kB and
-    deadlocks the test rather than the server."""
-    handler = http_model.handler_for(page_dir, TOKEN)
-    httpd = HTTPServer(("127.0.0.1", 0), handler)
-    request = f"GET /api/state?t={TOKEN} HTTP/1.0\r\nHost: x\r\n\r\n".encode()
-
-    reader, edge = socket.socketpair()
-    reader.sendall(request)
-    handler(edge, ("127.0.0.1", 0), httpd)
-    edge.close()  # so the drain below ends rather than waiting on a live connection
-    answer = b""
-    while chunk := reader.recv(65536):
-        answer += chunk
-    reader.close()
-    assert answer.startswith(b"HTTP/1.0 200")
-    head, body = answer.split(b"\r\n\r\n", 1)
-    assert f"Content-Length: {len(body)}".encode() in head
-    assert "versions" in json.loads(body)
-
-    gone, edge = socket.socketpair()
-    gone.sendall(request)
-    gone.close()
-    handler(edge, ("127.0.0.1", 0), httpd)  # the raise was here
-    edge.close()
-    httpd.server_close()
 
 
 def test_server_round_trip(server, page_dir):
@@ -3420,7 +3375,7 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
     release = threading.Event()
     closed = threading.Event()
     responses = []
-    original_get = server.httpd.RequestHandlerClass._get
+    original_get = server.httpd.handler_class._get
 
     def delayed_get(handler):
         entered.set()
@@ -3435,7 +3390,7 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         server.close()
         closed.set()
 
-    monkeypatch.setattr(server.httpd.RequestHandlerClass, "_get", delayed_get)
+    monkeypatch.setattr(server.httpd.handler_class, "_get", delayed_get)
     requester = threading.Thread(target=request, daemon=True)
     closer = threading.Thread(target=close, daemon=True)
     try:
@@ -3458,31 +3413,30 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
     assert files_model.read_json(page_dir / "request-finished.json") == {"done": True}
 
 
-def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir, monkeypatch):
-    """An accepted client that says nothing cannot park a threaded server close."""
-    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN)
-    entered = threading.Event()
-    closed = threading.Event()
-    original_handle = server.httpd.RequestHandlerClass.handle_one_request
+def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir):
+    """An accepted client that then says nothing cannot park a threaded server close.
 
-    def observed_handle(handler):
-        entered.set()
-        original_handle(handler)
+    A keep-alive connection the server has already answered on is an accepted socket
+    with nothing left to read, which is the shape a close has to be bounded against:
+    the answered request proves the server holds it.
+    """
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN)
+    closed = threading.Event()
 
     def close():
         server.close()
         closed.set()
 
-    monkeypatch.setattr(
-        server.httpd.RequestHandlerClass, "handle_one_request", observed_handle
-    )
     closer = threading.Thread(target=close, daemon=True)
     client = None
     closer_started = False
     try:
         server.start()
-        client = socket.create_connection(("127.0.0.1", server.port))
-        assert entered.wait(timeout=5), "the server did not accept the connection"
+        client = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
+        client.request("GET", f"/api/state?t={TOKEN}")
+        answered = client.getresponse()
+        answered.read()
+        assert answered.status == 200, "the server did not accept the connection"
         closer.start()
         closer_started = True
         assert closed.wait(timeout=5), "an idle connection prevented server close"
@@ -3500,7 +3454,7 @@ def test_temporary_server_answers_a_connection_opened_before_its_request(page_di
     """A connection that waits before speaking is a browser preconnecting, not a
     socket that will never speak.
 
-    The close above used to be bounded by a one-second read deadline every connection
+    The close was once bounded by a one-second read deadline every connection
     carried, which cannot tell those two apart. Chromium opens sockets ahead of need
     and writes real requests onto them later, and a request written onto a connection
     the server had already closed is dropped with no response, no console entry and no
@@ -3513,35 +3467,13 @@ def test_temporary_server_answers_a_connection_opened_before_its_request(page_di
         # Longer than any per-connection read deadline of the order the close was
         # once bounded by, so a server still carrying one has closed this already.
         time.sleep(2)
-        client.sendall(f"GET /?t={TOKEN} HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n".encode())
+        client.sendall(f"GET /?t={TOKEN} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".encode())
         client.settimeout(5)
         answer = client.recv(15)
     finally:
         client.close()
         server.close()
-    assert answer.startswith(b"HTTP/1.0 200"), answer
-
-
-def test_server_can_restart_after_prompt_shutdown(page_dir):
-    """The wakeup is reusable, so a normal server restart keeps serving requests."""
-    httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
-    )
-    try:
-        for _ in range(2):
-            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-            thread.start()
-            deadline = time.monotonic() + 1
-            while not thread.is_alive() and time.monotonic() < deadline:
-                time.sleep(0.001)
-            assert (
-                fetch(f"http://127.0.0.1:{httpd.server_address[1]}/api/state")[0] == 200
-            )
-            httpd.shutdown()
-            thread.join(timeout=1)
-            assert not thread.is_alive()
-    finally:
-        httpd.server_close()
+    assert answer.startswith(b"HTTP/1.1 200"), answer
 
 
 def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
@@ -3643,8 +3575,7 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
     # get to choose how much a handler allocates or park it waiting for bytes that never
     # arrive merely by declaring a large body before authentication.
     http11 = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0),
-        http_model.handler_for(page_dir, TOKEN, protocol_version="HTTP/1.1"),
+        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
     )
     with running_http_server(http11):
         peer = http.client.HTTPConnection(
@@ -3800,15 +3731,9 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         ), (name, status, answer)
 
     # The fifth is the header rather than the body, and no opener will send it: a
-    # Content-Length the machine will not hand over. `BufferedReader.read(n)` allocates
-    # n bytes before it reads any, so this raises MemoryError out of the read itself —
-    # neither a ValueError nor anything the parse could have raised, and the third
-    # exception type found this way. A length that cannot be allocated is a length that
-    # cannot be used, so it earns the same word an unparsable length does. The length is
-    # past what any machine can address rather than merely large: a host that overcommits
-    # can hand over ~91 TiB inside the 128 TiB four-level paging reaches, and the read
-    # would then block until this connection's own timeout, failing the row on the wait
-    # rather than on the refusal it is about.
+    # Content-Length past what the door takes. The bound is declared rather than
+    # discovered, so the refusal lands before the read and this process never waits
+    # on bytes it has already decided not to accept.
     # It arrives under this page's layer, as every runtime's POST does: a request from
     # another generation is answered with the one to reload into, ahead of any verdict
     # on a body written in a vocabulary this server no longer speaks.
@@ -3830,7 +3755,8 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         answer.get("ok"),
         answer.get("final"),
         answer.get("error"),
-    ) == (400, False, True, "invalid Content-Length"), answer
+    ) == (400, False, True, "event exceeds the 10 MiB limit"), answer
+    assert answered.getheader("Connection") == "close"
 
     assert [
         e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
@@ -4163,29 +4089,19 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
     assert refused.value.errno == errno.EADDRINUSE
 
 
-def test_the_stated_host_wildcard_clears_ipv6_only_before_bind(monkeypatch):
-    """Clear IPV6_V6ONLY before bind, which makes the wildcard accept IPv4 too."""
-    calls = []
+def test_the_stated_host_wildcard_accepts_an_ipv4_reader(page_dir):
+    """A stated host binds the wildcard of both families, so a v4 reader reaches it.
 
-    class Socket:
-        def setsockopt(self, *args):
-            calls.append(args)
-
-    httpd = object.__new__(hosting_model.DualStackHTTPServer)
-    httpd.socket = Socket()
-    monkeypatch.setattr(
-        hosting_model.LeafHTTPServer,
-        "server_bind",
-        lambda _self: calls.append(("bind",)),
+    IPV6_V6ONLY is cleared before the bind; with it set, the address a `--host`
+    serve records answers only the readers who arrive over IPv6.
+    """
+    httpd = hosting_model.LeafHTTPServer(
+        ("::", 0), http_model.handler_for(page_dir, TOKEN)
     )
-
-    httpd.server_bind()
-
-    assert httpd.address_family == socket.AF_INET6
-    assert calls == [
-        (socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0),
-        ("bind",),
-    ]
+    assert httpd.socket.family == socket.AF_INET6
+    with running_http_server(httpd):
+        port = httpd.server_address[1]
+        assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
 
 
 def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
@@ -4203,15 +4119,17 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
 
     monkeypatch.setattr(socket, "socket", kernel_without_ipv6)
     with pytest.raises(OSError) as refused:
-        hosting_model.server_at(
-            "fd7a:115c:a1e0::1", 0, http_model.handler_for(page_dir, TOKEN)
+        hosting_model.LeafHTTPServer(
+            ("fd7a:115c:a1e0::1", 0), http_model.handler_for(page_dir, TOKEN)
         )
     # Name the errno, or the assertion is satisfied on a v6-capable machine by
     # EADDRNOTAVAIL from an address that is local nowhere — a bare OSError says
     # nothing about whether the family refusal under test was ever reached.
     assert refused.value.errno == errno.EAFNOSUPPORT
 
-    httpd = hosting_model.server_at("::", 0, http_model.handler_for(page_dir, TOKEN))
+    httpd = hosting_model.LeafHTTPServer(
+        ("::", 0), http_model.handler_for(page_dir, TOKEN)
+    )
     try:
         assert httpd.socket.family == socket.AF_INET
         assert httpd.server_address[0] == "0.0.0.0"

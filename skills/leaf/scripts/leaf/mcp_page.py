@@ -12,7 +12,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 
 from .files import latest_revision, revision_path
-from .hosting import server_at
+from .hosting import LeafHTTPServer
 from .http import Handler
 from .registry.contract import RegistryError
 from .revision_artifact import read_artifact
@@ -49,7 +49,6 @@ class _RoutedPageHandler(Handler):
     """Select a page from an unguessable path before entering the HTTP boundary."""
 
     router: ProcessPageServer
-    protocol_version = "HTTP/1.1"
     layer = ""
     # This transport exists to sit in a cross-origin MCP App frame. The host approves
     # the exact process origin, while the unguessable, process-lived path authorizes
@@ -109,8 +108,7 @@ class ProcessPageServer:
         self._by_capability: dict[str, _PageSession] = {}
         self._by_page: dict[Path, _PageSession] = {}
         handler = type("MCPPageHandler", (_RoutedPageHandler,), {"router": self})
-        self._httpd = server_at("127.0.0.1", 0, handler)
-        self._httpd.daemon_threads = True
+        self._httpd = LeafHTTPServer(("127.0.0.1", 0), handler)
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
         self._closed = False
@@ -146,8 +144,8 @@ class ProcessPageServer:
             self._by_capability.clear()
             self._by_page.clear()
         self._httpd.shutdown()
+        self._thread.join(timeout=5)
         self._httpd.server_close()
-        self._thread.join(timeout=2)
 
 
 def resolve_page(page: str | Path) -> Path:

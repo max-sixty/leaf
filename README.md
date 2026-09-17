@@ -59,6 +59,10 @@ Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`. Export requires Chromium 125 or
 later.
 
+In Claude Code, a page messages its session when input arrives after the session's
+`leaf wait` has stopped. A session that bypasses permissions holds that message for
+your approval unless Claude Code's `crossSessionInbound` setting is `"accept"`.
+
 </details>
 
 ## Explore and extend

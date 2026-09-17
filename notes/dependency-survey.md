@@ -2,8 +2,8 @@
 
 What Leaf could hand to a dependency or a browser feature, and why the rest stays. The
 chosen candidates are scored in `TODO.md` under "Platform and dependency cutover"; this
-note keeps what that section leaves out: the evidence, the candidates considered and not
-added, and the Leaf choices worth reconsidering. Delete it once those are decided.
+note keeps what that section leaves out: the evidence, the rejected candidates, and the
+Leaf choices worth reconsidering. Delete it once those are decided.
 
 ## Method
 
@@ -40,11 +40,12 @@ same camp as Claude Code artifacts and Google's generative UI; no benchmark comp
 React and shadcn against HTML or a JSON page spec, so the authoring format is not a
 reason to change frameworks.
 
-## Considered and not added
+## Rejected
 
 | Area | Candidate | Why not |
 |---|---|---|
 | Anchoring | Hypothesis `dom-anchor-text-quote`, `approx-string-match` | Fuzzy; would replace ~150 lines of exact search |
+| Anchoring | Resolving a typed quote through the rendered page instead of `passages.py` | Spiked 2026-09-17 on `agent-a4111d25e33d466d2` (`3132c9af`): all three capture paths cut over with anchors identical to the Python capture and the suite green, but Python grew by 168 lines, because the section, part, retired, and gone refusals and the diagnostics for a quote the page does not show read authored source; a quoted `leaf comment` went from 0.2 s to 1.3 s and now needs Chrome, each MCP snapshot comment launches a browser, and the anchor tests went from 8 s to 37 s |
 | Keyboard parsing | tinykeys, hotkeys-js | The key normaliser is 15 lines; the rest is domain |
 | Command palette | cmdk | React only |
 | Composer | CodeMirror, ProseMirror, Lexical, Tiptap | The composer is a textarea |
@@ -59,16 +60,24 @@ reason to change frameworks.
 | Positioning | Floating UI for the CSS-anchored menus | Tried: +80 lines of JS and async placement for what 10 CSS lines do synchronously |
 | Focus | tabbable for the covering surface's Tab wrap | Tried: a vendored startup module in place of a 7-line local filter |
 | Motion | `@starting-style` for the thread card and agent-arrival listeners | It replays whenever an ancestor leaves `display: none`, so the reopened panel needs the end listener anyway; the pulse is not an entrance |
+| Motion | Same-document View Transitions for the folds, trays, board moves, and column carry in `runtime/motion.js` | The update runs after the old state is captured, later than the gesture's turn; pointer input misses the page while it animates; a fold collapses height so later content slides, which a root cross-fade does not draw; board cards move inside their own scroller, whose clip a snapshot escapes under the Chrome 125 floor. #666 removed the paint-boundary transition version travel used |
+| Version patch | idiomorph with exclusion callbacks in place of `runtime/dom-children.js` | A live-tree diff keeps only the reader state an exclusion names; the source-to-source patch keeps all of it and has needed no fix since #514 split it out |
+| Typecheck | `tsc --checkJs` over the runtime | It runs in under a second, but a bug-back over six runtime fixes (#404, #448, #625, #660, #676, #757) found no error the fix removed; the 272 errors outside vendored bundles are inference artifacts, and the typed `scripts/browser` core arrives through a bundle with no declarations |
+| Keyboard | TanStack Hotkeys (alpha), `@github/hotkey`, tinykeys | They own key parsing, which has had no fix since 2026-08-29; the scope stack, Escape order, and go-to grammar stay in Leaf either way |
+| Focus walks | `focusgroup`, Tabster | `focusgroup` is Chrome 150 with no WebKit, so the published site would carry the 19 KB polyfill; Tabster's Groupper returns focus to a group rather than closing a surface and restoring the reader's place |
+| History | Navigation API for version travel | Three `history` and `popstate` sites; the gain needs intercept to replace the activation choreography |
+| Server | One user-level daemon on SQLite, starlette, and asyncio | Measured about 750 gross and -300 to +500 net: the browser already receives pushes over `EventSource`, the 70 µs stat loop serves CLI writers in other processes, pid probing and the wait, adapter, and delivery locks stay, Windows is not a goal, and a user-level database stops the page directory being the deployment unit |
+| Server | The server rewritten in TypeScript | Not incremental; forfeits the pytest suite and render harness, and node is not guaranteed on Codex hosts |
 | Chrome library | Web Awesome, Spectrum, Lion, Zag | Not chosen over the platform-first direction; still open |
 | Chrome framework | React, Radix, Base UI, shadcn, Preact + htm | A framework migration for the smallest defect bucket |
 | Build | Vite, Rollup | One entry, no dev server; esbuild suffices |
 | HTML parsing | lxml, selectolax, BeautifulSoup, html5lib | Lose source offsets and browser-parity recovery |
 | Events | pydantic or msgspec for event shapes | Shapes are jsonschema; semantics are code |
 | Events | an event-sourcing library | None fits a CLI-appendable file |
-| Locks | filelock | Wrong lock semantics; the daemon item removes the locks |
+| Locks | filelock | Wrong lock semantics |
 | Supervision | supervisor-style libraries | The reaper is the session semantics |
-| File watching | watchfiles for the server | Presence is pids and locks, not files |
-| JS parsing | esprima, acorn | Pre-ES2020; needs node; per-revision copies are the reason it exists |
+| File watching | watchfiles for the server | Presence is pids and locks; the one file loop re-stats the log at 70 µs a look |
+| JS parsing | esprima, acorn | esprima is unmaintained and acorn needs node; tree-sitter parses authored `page/` modules in Python |
 | Codex | official `openai-codex` SDK | Spawns its own CLI; cannot join a running conversation |
 | Templating | jinja2 | No templating exists |
 | Export | premailer-class inliners | Different job |
@@ -86,26 +95,31 @@ reopened.
 - **Comments match text exactly or detach.** Excludes tolerant re-anchoring. Saves no
   complexity (the exact search is ~150 lines); a UX question about fewer detached
   comments. Proposal: leave it.
-- **The keyboard system is vim-like.** Letter chords, per-area scopes, an Escape that
-  unwinds one level; 6,100 lines and the largest fix bucket. Proposal: prototype in a
-  playground page a flatter model of global shortcuts from a settled library, a command
-  palette listing every action, and native Tab and arrow movement; estimated 3 to 4k
-  lines deleted if it wins.
+- **The keyboard system is vim-like.** Letter chords, per-area scopes, go-to hints, and
+  an Escape that closes one layer; 6,085 lines and the largest fix bucket. The reader
+  keeps this behaviour, and no library owns the scope stack, the Escape order, or the
+  go-to grammar; the ones that came closest are in Rejected above. Ten of the 24 keyboard
+  fixes since 2026-08-29 landed in the code that infers the open layers: `stack()` in
+  `keyboard/dispatch.js`, `keyboard/return-stack.js`, and `native-layers.js`. Now item #24
+  in `TODO.md`.
 - **Comments float in the margin in clusters, and the reply box sits inside the page.**
   6,600 lines and the second-largest bucket. Proposal: add a stacked side-column layout
   with the reply box in the panel as one arm of the "Now" item on annotation placement.
-- **The page body is the scroll container.** Behind 30 scroll and layout fixes, and every
-  library assumes the normal setup. Now a row in the TODO tables (spike it).
-- **Every revision keeps its own copy of the runtime.** 3.2 MB per revision plus the
-  import-path rewriting that tree-sitter exists for. The stated purpose is that an old
-  revision renders after a plugin update replaces the install. Open question: do old
-  revisions need their own runtime, or only their HTML rendered by the current one? If
-  the latter, serve from the install and delete the copies and the parser; if the former,
-  the "share by digest" item under Later keeps the guarantee.
+- **Every revision keeps its own copy of the layer.** Two versions of a new page measured
+  about 3.27 MB in 189 files each, with all 187 resource digests identical, beside a
+  3.24 MB page-level copy. The copy arrived with #666 so that activating a revision reads
+  no mutable file, and it lets `page init` skip checking old revisions' HTML against a new
+  layer. tree-sitter stays either way: it reads authored `page/` modules and builds
+  interactive exports. Open question: must a stamped version keep the exact JS, CSS, and
+  look it was approved with? If so, the "share by digest" item under Later keeps that at
+  one stored copy per digest. If not, serve one page-level layer and have `page init`
+  refuse a layer that an old revision's HTML cannot render under.
 - **Leaf joins the conversation the user has open in Codex.** Excludes the official SDK,
   which starts its own Codex (and bundles a 113 to 138 MB binary per platform). Open
   question: is the shared conversation a product requirement? If not, 758 lines of
-  hand-written protocol code go.
+  hand-written protocol code go. The website host in `worker/server.py` already spawns
+  its own app-server, so the SDK's limit does not reach it; adopting the SDK there alone
+  would run two clients for one protocol beside `codex.py`.
 - **Package authors describe widgets in JSON Schema.** 474 lines of meta-schema check
   those descriptions. Proposal: typed declarations (pydantic is installed through `mcp`)
   when packages are next revisited.

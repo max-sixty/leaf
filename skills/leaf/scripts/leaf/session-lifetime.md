@@ -14,6 +14,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live Codex reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
+| the closed turn this page messaged its Claude Code session in | `messaged_turn` in the page's claim record | browser-event admission, once a socket takes the message | a later closed turn carries a different `turn` |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; an App Server observer records `opened` with session and turn identity when its direct delivery starts | never; each event/phase/session/turn transition is idempotent |
@@ -121,6 +122,33 @@ delivery. Both carriers watch every page the session holds, re-reading the set o
 each pass, and produce the same `leaf-delivery-v1` envelope. Each batch names its
 page, monotonic `through_seq`, conversation context, layer handling, and complete
 ordered events.
+
+A Claude Code session can still end a turn with no watcher running, because the Stop
+hook fails open on a repeated stop or the wait is stopped after the turn ends. Input
+that reaches the page after that has no carrier, so browser-event admission messages
+the session through the Unix socket Claude Code binds for it, found by session id in
+Claude Code's session registry (`message_claude_code_session`). It sends when an
+event is appended to a page whose active claim is Claude Code's, whose turn is
+closed, and whose session holds no wait lease. A running turn is excluded because
+its Stop hook already refuses to end with the input unpicked, and a delivering wait
+and the prompt hook both reopen the turn. Each page messages its session once per
+closed turn: when a socket takes the message, the claim records the turn as
+`messaged_turn`, and an opening mints a new turn id, so later input in the same
+closed turn sends nothing more, while input after a send no socket took tries again.
+Input that arrived before a repeated Stop let the turn end gets no message, because
+the blocked Stop already reported it and a message would reopen the turn the hook
+just let end.
+
+The message names the page and tells the agent to start an unnamed `leaf wait`,
+which remains the one delivery path. Claude Code 2.1.274 fires UserPromptSubmit for
+a delivered message, so the prompt hook reopens the turn and lists the input as it
+would for a typed prompt. Delivery is the recipient's decision, and nothing reports
+it back. A session that bypasses permissions holds the message behind an approval
+dialog unless its user set `crossSessionInbound` to `accept`. A background job whose
+worker has retired has no socket to reach. A turn nobody closed is never messaged
+either: Stop does not fire on an interrupted turn (measured), so that page waits for
+the session's next close. Codex needs no message, because its adapter queues turns
+itself.
 
 In Codex, the adapter collects available input, then freezes the delivery. Input
 collected after that boundary belongs to a later delivery. Without an App Server

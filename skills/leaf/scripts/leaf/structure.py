@@ -83,11 +83,12 @@ OVERFLOW_PROPS = ("width", "min-width")
 # would silently declare nothing in the browser, so `version check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
-# The one CSP delivery gives every page. The server adds hashes for the runtime
-# bootstrap and authored module blocks. 'self' is the immutable page layer whole;
-# base-uri and form-action need their own directives because default-src governs only
-# fetches. data: admits the images `version export` inlines, and the theme arrives
-# inline in a <style> on export.
+# The one CSP delivery gives every page. Delivery adds a nonce and writes it onto the
+# runtime bootstrap and every authored module block, so only the inline scripts it
+# composed run. 'self' is the immutable page layer whole; base-uri and form-action
+# need their own directives because default-src governs only fetches. data: admits
+# the images `version export` inlines, and the theme arrives inline in a <style> on
+# export.
 PAGE_CSP = (
     "default-src 'self'; base-uri 'none'; form-action 'none'; "
     "img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -183,9 +184,10 @@ class SourceDocument:
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
-        # Exact text of each inline script, retained for the HTTP projection's CSP
-        # hashes. Validation admits only authored modules; keeping the parser neutral
-        # lets it report the actual attributes on anything else.
+        # Exact text of each inline script, plus where its start tag ends: the capture
+        # digests the text, and delivery inserts the CSP nonce that authorizes the
+        # block at that offset. Validation admits only authored modules; keeping the
+        # parser neutral lets it report the actual attributes on anything else.
         self.inline_scripts = []
         # Executable behavior has one visible source form: a module block. Event
         # attributes and javascript: URLs are recorded here so the static door can
@@ -424,7 +426,16 @@ class SourceDocument:
             if attrs.get("src"):
                 self.external_scripts.append(script)
             else:
-                self.inline_scripts.append({**script, "body": element.text})
+                start_tag = element.source_location.start_tag
+                self.inline_scripts.append(
+                    {
+                        **script,
+                        "body": element.text,
+                        "start_tag_end": self._source_index(
+                            start_tag.end_line, start_tag.end_col
+                        ),
+                    }
+                )
         for name, value in attrs.items():
             if (len(name) > 2 and name.startswith("on")) or (
                 name in SCRIPT_URL_ATTRIBUTES

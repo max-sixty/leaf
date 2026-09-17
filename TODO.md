@@ -108,7 +108,7 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Let the browser own anchoring (detail below). | M-L | ~250 gross, ~100 net est. | Low-Med | Chrome becomes required for `leaf comment --quote` and MCP snapshot comments, at 0.9 to 1.0 s each measured; both capture sites hold the `events.jsonl` lock a headless page would contend for |
+| Let the browser own anchoring (detail below). | M-L | spiked: +257 lines net, Python +168 | Low-Med | A quoted `leaf comment` goes from 0.2 s to 1.3 s and needs Chrome; each MCP snapshot comment launches a browser; the file-side readings and refusal diagnostics stay in Python |
 | Bind one loopback port per MCP page with a wildcard-port `frame_domains`, removing MCP multiplexing under `/p/<capability>` as one of the two callers of the route-scoping regexes in `http.py`; the 69 rooted URL literals under `assets/` and `packages/` go relative. | M | ~75 of 155 | Low-Med | The wildcard needs an MCP-host check; leaf.page's example roots keep the mechanism |
 | Move the server to TypeScript (detail below). | L | 12,900 mirrored Python lines collapse; two native wheels | Low | Forfeits the pytest suite and render harness; node is not guaranteed on Codex hosts; not incremental |
 
@@ -145,18 +145,20 @@ ordered by confidence, then effort.
   same watch unless every writer goes through the daemon. Windows is not a goal, and
   `fcntl`, `start_new_session`, and the `/bin/sh` launcher block it regardless.
 
-- **Browser-owned anchoring.** The browser already resolves the quotes it posts, and
-  `POST /api/event` has not re-read them since #174. Two paths still resolve a quote in
-  Python: `leaf comment --quote` (and `leaf reply` moving a thread) through
-  `conversation.py`, and the MCP snapshot app, which has no runtime, through
-  `event_endpoint.py`. Moving both into a Playwright page deletes most of
-  `anchor_capture.py` and the fence readings in `passages.py`, about 250 lines. The rest of
-  the 824 lines in `passages.py` and `anchor_capture.py` stays: sixteen modules import
-  `passages.py` for projection, restated validation, delivery, and the verbatim render
-  gate, and the section, part, retired, and gone refusals need no browser. The new code is
-  a runtime entry that turns a quote into an anchor with the same refusals, plus the
-  capture driver. Two fixes in the log settled a Python-browser anchoring disagreement,
-  #174 and #207.
+- **Browser-owned anchoring.** Spiked 2026-09-17 on branch `agent-a4111d25e33d466d2`
+  (`3132c9af`). A runtime entry, `quoteAnchor`, resolves a typed quote with the matcher
+  and context writer reader selections use, and Python renders the target revision
+  headlessly outside the log lock and retries the append. `leaf comment --quote`, `leaf
+  reply` moves, and MCP snapshot comments all cut over, with anchors identical to the
+  Python capture and the everyday suite green. The file-side search, fences, and context
+  writer went, but `anchor_capture.py` grew from 239 to 387 lines: the section, part,
+  retired, and gone refusals need no browser, and the diagnostics for a quote the page
+  does not show read authored source the rendered page no longer holds. `passages.py`
+  keeps its readings for projection, restated validation, delivery, and the verbatim gate.
+  The gain is one anchoring implementation; the price is a browser and about 1.1 s per
+  quoted comment, and the anchor tests went from 8 s to 37 s. Moving the removal
+  diagnostics into the page, where retired slots are still in the DOM, is the next cut if
+  this continues.
 
 - **TypeScript server.** Every Python dependency has a node equivalent, and the anchoring
   and projection code would exist once. Do the daemon and anchoring items first; each

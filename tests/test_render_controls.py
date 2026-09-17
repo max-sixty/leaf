@@ -4722,8 +4722,10 @@ customElements.define("lf-quota", class extends HTMLElement {
         "aria-disabled", "false"
     )
 
-    # A live activation imports fresh element identities. The module reparents quota
-    # while upgrading, but eligibility still reads v2's pristine authored parent.
+    # A live activation imports fresh element identities, and inserting them upgrades
+    # quota on the spot, so the module moves it into #destination. v2's authored
+    # placement was decoded from its source before that insertion: the widget's own
+    # render puts quota back under #task, and eligibility reads that same parent.
     quota_v2 = (
         quota_v1.replace(
             '<lf-task id="task" status="active">',
@@ -4740,7 +4742,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     expect(current.locator(".lf-version")).to_contain_text("v2")
     expect(current.locator("#task")).not_to_have_attribute("data-lf-reported", "1")
     expect(current.locator("#child")).not_to_have_attribute("data-lf-reported", "1")
-    expect(current.locator("#destination > #quota")).to_have_count(1)
+    expect(current.locator("#task > #quota")).to_have_count(1)
     expect(current.get_by_role("button", name="Increase")).to_have_attribute(
         "aria-disabled", "true"
     )

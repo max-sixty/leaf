@@ -515,6 +515,14 @@ function deriveAsks(
   return { all, reader, unanswered, awaiting, unansweredAwaiting };
 }
 
+const NO_ASKS: ReturnType<typeof deriveAsks> = {
+  all: [],
+  reader: [],
+  unanswered: [],
+  awaiting: {},
+  unansweredAwaiting: {},
+};
+
 const isReaction = (message: any) => Boolean(message.token);
 
 function deriveThreadReaderObligations(
@@ -837,35 +845,31 @@ export function createSemanticApplication({
       },
       undo: active?.undo ?? [],
     };
-    let threads =
-      phase === "ready"
-        ? foldThreads(
-            state?.browser.conversation.threads ?? [],
-            unreadMessages(unresolved, receipts),
-            pendingReactions(unresolved, receipts),
-            pendingSettlements(unresolved, receipts),
-          )
-        : [];
+    // Threads and Asks both wait for an admitted reading. Authored markup names every
+    // Ask the page could hold, but only the log says which of them it still holds and
+    // whether they are answered, so before that reading there is no inventory to publish.
+    const ready = phase === "ready";
+    let threads = ready
+      ? foldThreads(
+          state?.browser.conversation.threads ?? [],
+          unreadMessages(unresolved, receipts),
+          pendingReactions(unresolved, receipts),
+          pendingSettlements(unresolved, receipts),
+        )
+      : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const projectedRequests = pendingRequests(unresolved, receipts);
-    const asks = deriveAsks(
-      document,
-      projection,
-      widgets,
-      threads,
-      lifecycle,
-      projectedRequests,
-    );
+    const asks = ready
+      ? deriveAsks(document, projection, widgets, threads, lifecycle, projectedRequests)
+      : NO_ASKS;
     let admittedUnansweredAsks = asks.unanswered;
-    if (unresolved.length) {
+    if (ready && unresolved.length) {
       const admittedProjection = foldProjection(admitted);
       admittedUnansweredAsks = deriveAsks(
         document,
         admittedProjection,
         foldWidgetStates(document.authored, admittedProjection),
-        phase === "ready"
-          ? foldThreads(state?.browser.conversation.threads ?? [], [], [], [])
-          : [],
+        foldThreads(state?.browser.conversation.threads ?? [], [], [], []),
         lifecycle,
         [],
       ).unanswered;

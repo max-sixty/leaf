@@ -99,11 +99,8 @@ reopened.
   keeps this behaviour, and no library owns the scope stack, the Escape order, or the
   go-to grammar; the ones that came closest are in Rejected above. Ten of the 24 keyboard
   fixes since 2026-08-29 landed in the code that infers the open layers: `stack()` in
-  `keyboard/dispatch.js`, `keyboard/return-stack.js`, and `native-layers.js`. Proposal:
-  an explicit layer stack that openers push and closes pop, so Escape closes the top
-  layer and bindings come from it; about 600 to 900 lines deleted est. First step: fold
-  `native-layers.js` into the return stack and drop the popover and modal branches of
-  `stack()`.
+  `keyboard/dispatch.js`, `keyboard/return-stack.js`, and `native-layers.js`. Now item #24
+  in `TODO.md`.
 - **Comments float in the margin in clusters, and the reply box sits inside the page.**
   6,600 lines and the second-largest bucket. Proposal: add a stacked side-column layout
   with the reply box in the panel as one arm of the "Now" item on annotation placement.

@@ -30,6 +30,20 @@ remain in git history.
 
 ## Architecture simplification
 
+- **#24 — Give the keyboard an explicit layer stack.** Let whatever opens a surface push a
+  layer carrying its close and its restore, let closing pop it, and have `stack()` read the
+  bindings from the top layer instead of inferring which surfaces are open. The reader
+  keeps every key, sequence, hint, and the one-press-per-layer Escape. Ten of the 24
+  keyboard fixes since 2026-08-29 landed in the inference this removes (`stack()` in
+  `keyboard/dispatch.js`, `keyboard/return-stack.js`, and `native-layers.js`), and about
+  600 to 900 of the system's 6,085 lines go with it. A surface opened by pointer has to
+  declare itself first, which is the invoker-commands row under the cutover. First step:
+  fold `native-layers.js` into the return stack and drop `stack()`'s popover and modal
+  branches. The fix rate here has fallen and nothing planned waits on it, so it sits
+  behind the reading work above; the reason to do it is the implementation's own weight.
+  The libraries that do not cover it, and the fix classification, are in
+  [the survey note](notes/dependency-survey.md).
+
 - **#1 — Keep the semantic application root thin.** Let the application publisher own
   ordering, adoption, and publication while pure Ask, conversation, projection, and widget
   models retain their own modules. Do not replace DOM authority with one module containing

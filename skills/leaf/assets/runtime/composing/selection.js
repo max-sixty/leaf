@@ -513,10 +513,6 @@ export function createSelectionComposer({
     composerEpoch += 1;
     leaveComposer(false);
   }
-  function closeComposer() {
-    leaveComposer(true);
-    showFab(null, null, { returnFocus: "none" });
-  }
   // The composer going down because its draft is spent rather than because the reader
   // dropped it: the words are somewhere else now, or on their way back.
   function settleComposer() {

@@ -32,7 +32,7 @@ import { scheduleMarginLayout } from "./margin-layout.js";
 import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
 import { targetElement, targetParts } from "./resolved-target.js";
-import { el, offer, reveal } from "./widget-elements.js";
+import { offer, reveal } from "./widget-elements.js";
 
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 

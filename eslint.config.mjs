@@ -1246,4 +1246,16 @@ export default [
     files: ["skills/leaf/scripts/leaf/render-checks/init.js"],
     languageOptions: { sourceType: "script" },
   },
+  {
+    // An import or binding nothing reads is a dependency edge the graph still carries
+    // and a name the next reader has to account for. Arguments and caught errors are
+    // left alone: a signature says what a callback is handed.
+    files: ["**/*.{js,mjs}"],
+    rules: {
+      "no-unused-vars": [
+        "error",
+        { args: "none", caughtErrors: "none", ignoreRestSiblings: true },
+      ],
+    },
+  },
 ];

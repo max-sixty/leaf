@@ -83,7 +83,7 @@
 export const TEXT_BLOCK =
   "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 
-import { inUi, overIn, pageShadowRoots, uiInside, under, upFrom } from "./shadow.js";
+import { inUi, overIn, pageShadowRoots, uiInside, upFrom } from "./shadow.js";
 import { elementDeclarations, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 

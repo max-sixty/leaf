@@ -92,7 +92,7 @@ import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./conversation/panel-elements.js";
-import { blockAt, closestAcross, elementById, inChrome, says } from "./passages.js";
+import { blockAt, closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { agentWorkflowStage, updateSequence } from "./updates.js";
@@ -104,7 +104,6 @@ import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
-import { html, render } from "../vendor/browser-runtime.js";
 import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
@@ -2237,7 +2236,7 @@ export function createMarginProjection({
       expandedOptionsKey = null;
       expandedOptionsOwner = null;
     }
-    for (const [key, marker] of rows)
+    for (const key of rows.keys())
       if (!liveHosts.has(key)) {
         const host = hosts.get(key);
         unregisterMarginRow(host);
@@ -2962,7 +2961,6 @@ export function createMarginProjection({
         reply.lfCollapseReply?.();
       clearThreadTransition();
       if (!previewEntry) return;
-      const button = previewMarginEntry;
       pinnedKey = null;
       forcedInlineKey = null;
       forcedInlineOptionsKey = null;

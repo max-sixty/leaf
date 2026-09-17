@@ -1452,8 +1452,10 @@ def main() -> None:
     httpd = LeafHTTPServer(("0.0.0.0", PORT), handler_for(site_root, agent_host))
     log_agent("container_http_ready")
     agent_host.prewarm()
-    # SIGTERM is uvicorn's: it stops the serving loop, and the close below is what
-    # this adapter still owes its App Server when the container is taken away.
+    # SIGTERM is uvicorn's: it stops the serving loop, then re-raises the signal with
+    # the original handler back in place, so this process dies where it stood. The
+    # close below is for the ordinary return; a container taken away takes the socket
+    # and the App Server child with it.
     try:
         httpd.serve_forever()
     finally:

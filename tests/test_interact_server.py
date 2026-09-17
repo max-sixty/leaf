@@ -4116,6 +4116,63 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
     assert server_model.page_access(page_dir) == service
 
 
+def test_a_refused_request_line_writes_nothing_into_the_pipe_nobody_drains(page_dir):
+    """A detached serve's streams are pipes its parent stops reading once the URL is
+    in hand, so anything the server says after that accumulates until the pipe is full
+    and the write blocks. On the serving loop, that write stops the page answering at
+    all. The page's own routes say nothing there, and the server under them is silenced
+    where it is built, so the refusals a scanner or a stray client provokes cost the
+    pipe nothing.
+    """
+    assert service_model.claim_page(page_dir)
+    started = hosting_model.start_server(page_dir)
+    assert started, "the detached server did not start"
+    try:
+        url = started[0]
+        netloc = urllib.parse.urlsplit(url).netloc
+        host, _, port = netloc.partition(":")
+        # More refusals than the 64 KiB pipe would hold of uvicorn's own line about
+        # them: at 31 bytes each, 2,500 is past where a talking server would stall.
+        for _ in range(2500):
+            speaker = socket.create_connection((host, int(port)), timeout=10)
+            try:
+                speaker.sendall(b"NOT-A-REQUEST\r\n\r\n")
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            finally:
+                speaker.close()
+        key = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["t"][0]
+        assert fetch(f"http://{netloc}/api/state", token=key)[0] == 200
+    finally:
+        hosting_model.cmd_stop(page_dir)
+
+
+def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
+    """A page speaks HTTP. An upgrade handshake is a request like any other, so it
+    meets the key the same way; served as its own protocol it would arrive past the
+    gate, and the refusal beneath it would be a stack trace rather than a sentence."""
+    netloc = urllib.parse.urlsplit(server).netloc
+    host, _, port = netloc.partition(":")
+    speaker = socket.create_connection((host, int(port)), timeout=10)
+    heard = b""
+    try:
+        speaker.sendall(
+            b"GET /api/state HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\n"
+            b"Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+            b"Sec-WebSocket-Version: 13\r\n\r\n" % netloc.encode()
+        )
+        while select.select([speaker], [], [], 10)[0]:
+            chunk = speaker.recv(65536)
+            if not chunk:
+                break
+            heard += chunk
+    finally:
+        speaker.close()
+    assert b" 500 " not in heard.split(b"\r\n")[0], heard[:400]
+    assert b"Traceback" not in heard, heard[:400]
+    assert b"it carries the key" in heard, heard[:400]
+
+
 def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     """A scheme, a port, or a path pasted into --host would mint a URL no browser
     resolves, recorded permanently and handed to the one reader who can't report

@@ -1,6 +1,7 @@
 """Durable and process-owned page servers."""
 
 import errno
+import logging
 import secrets
 import socket
 import subprocess
@@ -92,14 +93,26 @@ class LeafHTTPServer:
         self.server_address = self.socket.getsockname()[:2]
         self.stopping = False
         self._uvicorn = None
+        # Leaf says what it has to say on its own streams: the URL, the lifetime
+        # note, and the page's own errors. A server with a logging voice of its own
+        # would write into the handshake those are read from, and a detached serve's
+        # stderr is a pipe nobody drains, so a refused request line repeated often
+        # enough would fill it and stop the page answering. Silenced here rather than
+        # drained there, because the writes are uvicorn's own and nothing reads them:
+        # `log_config=None` configures no handler, which leaves logging's last-resort
+        # one printing to stderr.
+        for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+            logger = logging.getLogger(name)
+            logger.handlers = [logging.NullHandler()]
+            logger.propagate = False
         self._config = uvicorn.Config(
             page_app(handler_class, self),
-            # Leaf says what it has to say on its own streams: the URL, the
-            # lifetime note, and the page's own errors. A server with a logging
-            # voice of its own would write into the handshake those are read from.
             log_config=None,
             access_log=False,
             lifespan="off",
+            # A page speaks HTTP. Left on, an upgrade would arrive as a scope the
+            # page's own gate never sees, ahead of the key and the route scoping.
+            ws="none",
         )
 
     def fileno(self) -> int:
@@ -478,8 +491,9 @@ def start_server(
         return None
     # Nothing drains the child's streams from here on, which is safe because the
     # URL and the note printed beside it are everything a server ever says — the
-    # handler logs nothing (`log_message`) — so there is nothing left to write
-    # into pipes this process closes on its way out.
+    # page's own routes print nothing and uvicorn's loggers are silenced where the
+    # server is built — so there is nothing left to write into pipes this process
+    # closes on its way out.
     return url, startup_note(page_dir)
 
 

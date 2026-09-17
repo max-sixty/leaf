@@ -1399,13 +1399,17 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         # Remember this demo beside the reader's open outer workspace, reload, and play
         # as soon as the frame declares itself ready. The contained thread surface may
         # finish rendering after the page's presentation edge; the replay waits for it
-        # instead of failing its first attempt.
+        # instead of failing its first attempt. The reader here still asks for stillness,
+        # which is what makes the ready state a resting one: a gallery that may move
+        # plays itself the moment it is both loaded and on screen, and where the reload's
+        # restored reading position leaves it is not something this test arranges.
         comment_tab.click()
-        page.emulate_media(reduced_motion="no-preference")
         page.reload(wait_until="domcontentloaded")
         gallery = page.locator("#bg-interactions")
         status = gallery.locator("[data-interaction-status]")
-        expect(status).to_have_text("Ready", timeout=15_000)
+        expect(status).to_have_text(
+            "Ready — motion will start only when you press Play", timeout=15_000
+        )
         gallery.locator("[data-interaction-toggle]").evaluate(
             "toggle => toggle.click()"
         )

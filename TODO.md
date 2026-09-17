@@ -95,9 +95,9 @@ measured unless marked est., plus the defect class removed. A measured figure is
 of the region a library would take over, not what it deletes: the landed swaps (#753)
 deleted 56 of a measured 130 for psutil, 6 of 262 for unidiff, 3 of ~100 for watchfiles,
 and 78 of ~180 for dependency-cruiser, because the refusals, contracts, and definitions
-around a mechanism stay. A flat count can still be worth taking for the kind of code it
-removes: psutil's 56 lines were two platform doors of hand-laid `proc_pidinfo` and
-`sysctl` struct layouts through ctypes. Confidence is how likely the
+around a mechanism stay. A deletion well under the scored figure can still be worth
+taking for the kind of code it removes: psutil's 56 lines were two platform doors of
+hand-laid `proc_pidinfo` and `sysctl` struct layouts through ctypes. Confidence is how likely the
 swap works as described without a spike, weighing adopter evidence and Baseline status.
 Effort and confidence are estimates unless the row cites a measurement. Each table is
 ordered by confidence, then effort.

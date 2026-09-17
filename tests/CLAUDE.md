@@ -58,9 +58,11 @@ Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. If the change affects behavior covered by nightly tests, run
 the smallest local nightly selection that covers it too. `wt merge` runs pre-commit
 and the everyday suite after rebasing. Pull requests run pre-commit, the everyday
-suite, and the website-worker checks. Main runs the ordinary gate; `publish-site`
-runs the website checks before deploying a relevant main change. The scheduled CI
-run exercises the complete suite in one job:
+suite, and the website-worker checks. Main runs the ordinary gate and then, once it
+is green, the complete suite in one job; `publish-site` runs the website checks
+before deploying a relevant main change. Main holds one complete-suite slot and the
+newest commit takes the next turn, so a busy main gets the complete suite on its tip
+rather than on every commit, and the daily schedule covers a quiet one:
 
 ```sh
 uv run pytest tests --run-nightly

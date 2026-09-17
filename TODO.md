@@ -72,7 +72,9 @@ The 2026-09-16 survey of what Leaf could hand to a dependency found the browser 
 record concentrated in margin placement, geometry timing, and the keyboard register, which
 no library owns; a component library would have covered about 13 of the last 175 fixes. The
 direction chosen: keep Lit, and replace hand-built behavior with settled libraries and
-browser features one at a time as each proves out.
+browser features one at a time as each proves out. The evidence, the candidates
+considered and not added, and the Leaf choices worth reconsidering are in
+[the survey note](notes/dependency-survey.md).
 
 Effort is S (under two days), M (two to ten), or L (weeks). Saving is lines deleted,
 measured unless marked est., plus the defect class removed. Confidence is how likely the

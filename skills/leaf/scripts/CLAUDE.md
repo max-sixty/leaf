@@ -38,7 +38,8 @@ The main owners are:
 - `mcp_page`: the capability-scoped canonical page server and private MCP result;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;
-- `host`: local paths, process readings, host identity, and session lifetime;
+- `host`: local paths, process readings, host identity, session lifetime, and the
+  Claude Code messaging socket;
 - `leases`: process-backed page, transition, and waiter leases;
 - `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, plus durable and

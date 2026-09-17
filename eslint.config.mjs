@@ -659,14 +659,21 @@ const architecturePlugin = {
 };
 
 export default [
+  // Generated, vendored, and installed files, ignored everywhere. An `ignores` list
+  // is global only in a config object that carries nothing else, so this one stands
+  // alone; beside another key it would ignore those paths for that config alone and
+  // leave every later one linting them. `.venv` is uv's, and holds Playwright's
+  // bundled JavaScript: the pre-commit hook passes staged files and never reaches it,
+  // but a bare `npx eslint .` walks it.
   {
     ignores: [
+      ".venv/**",
       "examples/corpus.html",
       "skills/leaf/assets/vendor/**",
       "skills/leaf/packages/*/vendor/**",
     ],
-    linterOptions: { noInlineConfig: true },
   },
+  { linterOptions: { noInlineConfig: true } },
   {
     files: ["**/*.{js,mjs}"],
     languageOptions: { ecmaVersion: "latest", sourceType: "module" },

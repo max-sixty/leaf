@@ -5,10 +5,10 @@
 // whole graph; `eslint.config.mjs` keeps the rules a module's own source answers, such
 // as which specifiers an owner may name and who may write the document root.
 //
-// The graph is the runtime directory plus `leaf.js`, which is in it so that an owner
-// importing the boot entry shows up as an edge. Everything else outside the directory
-// is excluded, vendored bundles among them; a bundle reaches no other module, so it is
-// never a route between owners. Two runtime modules name a bundle by its site-absolute
+// The graph is the runtime directory. Everything outside it is excluded, the boot
+// entry and the vendored bundles among them: no route between owners runs through
+// either, and eslint's own `no-restricted-imports` is what refuses an owner that
+// imports the entry. Two runtime modules name a bundle by its site-absolute
 // `/vendor/` specifier, which the browser resolves and Node does not, so that form is
 // excluded under its own name. Every other unresolvable specifier is a missing module
 // and an error.
@@ -17,7 +17,6 @@ import fs from "node:fs";
 
 const assets = "skills/leaf/assets/";
 const runtime = `${assets}runtime/`;
-const bootEntry = `${assets}leaf.js`;
 
 const escaped = (name) => name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isModule = (name) => `^${runtime}${escaped(name)}$`;
@@ -114,13 +113,6 @@ for (const name of new Set(
 export default {
   forbidden: [
     {
-      name: "no-boot-entry",
-      comment: "Private runtime owners never import the boot entry.",
-      severity: "error",
-      from: { path: `^${runtime}` },
-      to: { path: `^${escaped(bootEntry)}$` },
-    },
-    {
       name: "application-behind-widget-api",
       comment:
         "Only the public widget boundary may import the runtime application " +
@@ -172,9 +164,6 @@ export default {
   ],
   options: {
     moduleSystems: ["es6"],
-    exclude: { path: [`^${assets}(?!runtime/|leaf\\.js$)`, "^/vendor/"] },
-    // leaf.js is a node in the graph rather than a route through it. Following it
-    // would add a second set of edges into every owner it boots.
-    doNotFollow: { path: `^${escaped(bootEntry)}$` },
+    exclude: { path: [`^${assets}(?!runtime/)`, "^/vendor/"] },
   },
 };

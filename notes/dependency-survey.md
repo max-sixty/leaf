@@ -59,16 +59,18 @@ reason to change frameworks.
 | Positioning | Floating UI for the CSS-anchored menus | Tried: +80 lines of JS and async placement for what 10 CSS lines do synchronously |
 | Focus | tabbable for the covering surface's Tab wrap | Tried: a vendored startup module in place of a 7-line local filter |
 | Motion | `@starting-style` for the thread card and agent-arrival listeners | It replays whenever an ancestor leaves `display: none`, so the reopened panel needs the end listener anyway; the pulse is not an entrance |
+| Motion | Same-document View Transitions for the folds, trays, board moves, and column carry in `runtime/motion.js` | A transition applies its update a frame late and blocks input while it runs, and a new one skips the last, so arrow-key card moves, repeated Resolve presses, and board updates from another tab would lose steps; #666 removed the paint-boundary transition version travel used; `motion.js` is 87 lines |
+| Version patch | idiomorph with exclusion callbacks in place of `runtime/dom-children.js` | A live-tree diff keeps only the reader state an exclusion names; the source-to-source patch keeps all of it and has needed no fix since #514 split it out |
 | Chrome library | Web Awesome, Spectrum, Lion, Zag | Not chosen over the platform-first direction; still open |
 | Chrome framework | React, Radix, Base UI, shadcn, Preact + htm | A framework migration for the smallest defect bucket |
 | Build | Vite, Rollup | One entry, no dev server; esbuild suffices |
 | HTML parsing | lxml, selectolax, BeautifulSoup, html5lib | Lose source offsets and browser-parity recovery |
 | Events | pydantic or msgspec for event shapes | Shapes are jsonschema; semantics are code |
 | Events | an event-sourcing library | None fits a CLI-appendable file |
-| Locks | filelock | Wrong lock semantics; the daemon item removes the locks |
+| Locks | filelock | Wrong lock semantics |
 | Supervision | supervisor-style libraries | The reaper is the session semantics |
 | File watching | watchfiles for the server | Presence is pids and locks, not files |
-| JS parsing | esprima, acorn | Pre-ES2020; needs node; per-revision copies are the reason it exists |
+| JS parsing | esprima, acorn | esprima is unmaintained and acorn needs node; tree-sitter parses authored `page/` modules in Python |
 | Codex | official `openai-codex` SDK | Spawns its own CLI; cannot join a running conversation |
 | Templating | jinja2 | No templating exists |
 | Export | premailer-class inliners | Different job |
@@ -94,14 +96,15 @@ reopened.
 - **Comments float in the margin in clusters, and the reply box sits inside the page.**
   6,600 lines and the second-largest bucket. Proposal: add a stacked side-column layout
   with the reply box in the panel as one arm of the "Now" item on annotation placement.
-- **The page body is the scroll container.** Behind 30 scroll and layout fixes, and every
-  library assumes the normal setup. Now a row in the TODO tables (spike it).
-- **Every revision keeps its own copy of the runtime.** 3.2 MB per revision plus the
-  import-path rewriting that tree-sitter exists for. The stated purpose is that an old
-  revision renders after a plugin update replaces the install. Open question: do old
-  revisions need their own runtime, or only their HTML rendered by the current one? If
-  the latter, serve from the install and delete the copies and the parser; if the former,
-  the "share by digest" item under Later keeps the guarantee.
+- **Every revision keeps its own copy of the layer.** Two versions of a new page measured
+  about 3.27 MB in 189 files each, with all 187 resource digests identical, beside a
+  3.24 MB page-level copy. The copy arrived with #666 so that activating a revision reads
+  no mutable file, and it lets `page init` skip checking old revisions' HTML against a new
+  layer. tree-sitter stays either way: it reads authored `page/` modules and builds
+  interactive exports. Open question: must a stamped version keep the exact JS, CSS, and
+  look it was approved with? If so, the "share by digest" item under Later keeps that at
+  one stored copy per digest. If not, serve one page-level layer and have `page init`
+  refuse a layer that an old revision's HTML cannot render under.
 - **Leaf joins the conversation the user has open in Codex.** Excludes the official SDK,
   which starts its own Codex (and bundles a 113 to 138 MB binary per platform). Open
   question: is the shared conversation a product requirement? If not, 758 lines of

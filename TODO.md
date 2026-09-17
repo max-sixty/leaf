@@ -83,7 +83,7 @@ deleted 56 of a measured 130 for psutil, 6 of 262 for unidiff, 3 of ~100 for wat
 and 78 of ~180 for dependency-cruiser, because the refusals, contracts, and definitions
 around a mechanism stay. Confidence is how likely the
 swap works as described without a spike, weighing adopter evidence and Baseline status.
-Effort and confidence are estimates from the survey, not measurements. Each table is
+Effort and confidence are estimates unless the row cites a measurement. Each table is
 ordered by confidence, then effort.
 
 ### JavaScript
@@ -92,10 +92,7 @@ ordered by confidence, then effort.
 |---|---|---|---|---|
 | Order the cascade with `@layer` (theme, chrome, package, page) and one z-index scale. `chrome.css` has a `lf-reset` layer and `theme.css` one anonymous layer; the rest is specificity contests. | S | 50 `!important`, 46 `z-index`; the cascade defect class | High | Package themes and page CSS need a declared layer too |
 | `light-dark()` for the 28-line dark token block in `theme.css`, which already sets `color-scheme: light dark`. | S | 28 | High | Each token states both values in one declaration, so a light-only token has to name its dark value |
-| Typecheck the runtime with `tsc --checkJs`. `scripts/browser/tsconfig.json` already sets `allowJs`, `strict`, and `noEmit` and includes only its own `*.ts`; adding `checkJs` and the runtime's `*.js` to `include` checks the 42,000 lines as they ship, with no emit and no build. JSDoc annotations raise the coverage over time. | M | none deleted; part of the state-sync and repaint class (17 fixes) | Med-High | The first run's error volume; annotations needed for full value |
-| Same-document View Transitions for version travel and margin motion. `theme.css:1997` already styles the root transition group and no runtime module calls `startViewTransition`; the FLIP helper and folds in `runtime/motion.js` are what a transition replaces. | M | ~150 est. | Med | Baseline since October 2025, but no UI library depends on it |
-| Make the page scroll normally: `html` as the scroller with fixed chrome, instead of `body` as the scroll container. Thirty fixes trace to scroll restoration, resize, and measuring before paint, and every library and browser feature assumes the normal setup. The reason for the current choice is not recorded; spike the switch and count which of those tests break. | M | part of the scroll and layout class (30 fixes) | Low-Med | Fixed chrome, print, and export may depend on the body scroller |
-| Spike a morph with exclusions for the version patch (detail below). | M | 325 pairing lines in `runtime/dom-children.js` plus the pairs map every patch maintains | Low-Med | Must prove retention of opened `<details>`, tokenizer spans, lent tab stops, and widget-built children |
+| Typecheck the runtime with `tsc --checkJs` (detail below). | M | none deleted; no defect class shown | Low-Med | Catches little until JSDoc or declarations describe the runtime's shapes; the runtime reaches the typed core through a bundle with no declarations |
 | Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods. | S-M | ~50 to 100 est. | Low | Chromium-only, no adopters |
 | `focusgroup` (Chrome 150) for the list and toolbar arrow-key walks the keyboard register drives. | M | ~100 to 200 est. | Low | Chromium-only, no adopters |
 | Navigation API for version travel history: three `history` and `popstate` sites, `runtime/navigation.js` at 197 lines. | M | small | Low | Gain only if intercept replaces the activation choreography |
@@ -105,24 +102,28 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Run one user-level daemon on SQLite, starlette, and asyncio (detail below). | L | ~3,100; Windows; push instead of 50 ms polling | Med | Loses per-page process isolation and the grep-able JSONL log per page; tests that reach into `http.server` internals rework |
+| Run one user-level daemon on SQLite, starlette, and asyncio (detail below). | L | ~750 gross, -300 to +500 net est.; about three lifetime and transport fixes in three weeks | Low | A user-level database stops the page directory being the deployment unit; one daemon crash or stale install takes down every page; every CLI writer, hook, the site build, and the Worker change |
 
 ### Both
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Let the browser own anchoring (detail below). | M | 824 Python lines plus consumers; the byte-exact parity class | Med-High | One headless page load per `leaf comment`, about a second, unless the daemon keeps a browser warm |
+| Let the browser own anchoring (detail below). | M-L | ~250 gross, ~100 net est. | Low-Med | Chrome becomes required for `leaf comment --quote` and MCP snapshot comments, at 0.9 to 1.0 s each measured; both capture sites hold the `events.jsonl` lock a headless page would contend for |
 | Bind one loopback port per MCP page with a wildcard-port `frame_domains`, removing MCP multiplexing under `/p/<capability>` as one of the two callers of the route-scoping regexes in `http.py`; the 69 rooted URL literals under `assets/` and `packages/` go relative. | M | ~75 of 155 | Low-Med | The wildcard needs an MCP-host check; leaf.page's example roots keep the mechanism |
 | Move the server to TypeScript (detail below). | L | 12,900 mirrored Python lines collapse; two native wheels | Low | Forfeits the pytest suite and render harness; node is not guaranteed on Codex hosts; not incremental |
 
 ### Detail
 
-- **Morph spike.** `runtime/dom-children.js` diffs authored source against authored source
-  and writes the live tree through a pair table, so a reader's open `<details>`, tokenizer
-  spans, lent tab stops, and module-built children survive a revision. idiomorph diffs the
-  live tree instead, and its `beforeNodeRemoved` and `beforeAttributeUpdated` callbacks can
-  refuse those four classes. Measure whether a morph plus the existing jsdiff change marks
-  reproduces the patch's retention across the corpus before replacing the pairing.
+- **`tsc --checkJs`.** TypeScript 7.0.2, already in `package.json`, checks
+  `skills/leaf/assets` and `skills/leaf/packages` in about a second. Measured 2026-09-17:
+  with `strict` off it reports 401 errors. 65 sit inside vendored bundles, 43 are
+  root-absolute imports such as `/runtime/widget-api.js` that need a `paths` map, and 212
+  are property reads the inferred type does not carry, 81 of them on a plain `Element`. Under `scripts/browser/tsconfig.json`'s strict settings it reports 7,080,
+  3,606 of them unannotated parameters. A sample of the arity and assignability errors
+  found no defect: each came from inferring a callback's type from a default such as
+  `= () => false`. The runtime imports the typed `scripts/browser` core through the built
+  bundle, which carries no declarations, so those calls go unchecked. A first slice would
+  declare that bundle and gate only the modules that call it.
 
 - **TanStack Hotkeys.** `@tanstack/lit-hotkeys` 0.11 (alpha, June 2026) parses
   template-string bindings with a platform `Mod`, runs vim-style sequences with a timeout,
@@ -132,17 +133,32 @@ ordered by confidence, then effort.
   and `aria-keyshortcuts` reflection in Leaf. Wait for a stable release.
 
 - **Daemon.** starlette, sse-starlette, uvicorn, and pydantic are already installed through
-  `mcp`. Deleted: the detached-server handshake, flock leases, pid probing, stat polling,
-  torn-line repair, and most of `http.py`'s dispatch. Examples ship `.jsonl` companions,
-  which would become an import format.
+  `mcp`. Measured 2026-09-17, the deletable code is the per-page server handshake in
+  `hosting.py` and `server.py` (about 280 lines), `http.py`'s dispatch and server class
+  (about 490, half of it standard-library boilerplate), the event-log flock, the stat
+  loop, and torn-line repair. Pid probing stays, because claim liveness feeds activity and
+  the hooks, and so do the wait, adapter, and delivery-queue locks. A daemon adds a schema,
+  a JSONL import, its own lifecycle, page routing, and routes, an estimated 800 to 1,300
+  lines. The browser already receives pushes over `EventSource`; the 50 ms `LOOK_S` loop
+  stats the log for CLI writers, which are separate processes, so SQLite would need the
+  same watch unless every writer goes through the daemon. Windows is not a goal, and
+  `fcntl`, `start_new_session`, and the `/bin/sh` launcher block it regardless.
 
-- **Browser-owned anchoring.** The browser already posts quote, prefix, suffix, and
-  section; `leaf comment` and the MCP snapshot resolve through the runtime in a Playwright
-  page instead of `passages.py` and `anchor_capture.py`. The server's independent check of
-  browser-supplied anchors protects nothing on localhost.
+- **Browser-owned anchoring.** The browser already resolves the quotes it posts, and
+  `POST /api/event` has not re-read them since #174. Two paths still resolve a quote in
+  Python: `leaf comment --quote` (and `leaf reply` moving a thread) through
+  `conversation.py`, and the MCP snapshot app, which has no runtime, through
+  `event_endpoint.py`. Moving both into a Playwright page deletes most of
+  `anchor_capture.py` and the fence readings in `passages.py`, about 250 lines. The rest of
+  the 824 lines in `passages.py` and `anchor_capture.py` stays: sixteen modules import
+  `passages.py` for projection, restated validation, delivery, and the verbatim render
+  gate, and the section, part, retired, and gone refusals need no browser. The new code is
+  a runtime entry that turns a quote into an anchor with the same refusals, plus the
+  capture driver. Two fixes in the log settled a Python-browser anchoring disagreement,
+  #174 and #207.
 
 - **TypeScript server.** Every Python dependency has a node equivalent, and the anchoring
-  and projection code would exist once. Do the daemon, anchoring, and CSP items first; each
+  and projection code would exist once. Do the daemon and anchoring items first; each
   shrinks what this would port.
 
 ## General reader continuity

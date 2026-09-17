@@ -845,11 +845,12 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     """The catalog is useful HTML first; mounting its shared Leaf layer must not move it.
 
     The column and the cards are read separately because they answer for different
-    halves of the same promise. `main` is the page's own box and nothing the runtime
-    brings may move it. The catalog is a declared wide exhibit, and what it grows into
-    shrinks by the margin rail the runtime claims for its markers, so its width is the
-    layer's to settle; where it starts is the page's, and a card that slides sideways
-    under the reader's cursor is the failure this names.
+    halves of the same promise. `main` is the page's own box, and the catalog is a
+    declared wide exhibit whose width the theme resolves from the authored attribute
+    rather than the one the runtime paints. Both are therefore settled before the
+    module lands, including the margin rail the prepaint bootstrap has already
+    claimed, and a card that resizes or slides under the reader's cursor is the
+    failure this names.
     """
     boot = []
     page = browser.new_page(viewport={"width": 1724, "height": 1036})
@@ -871,8 +872,10 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         )
         final_catalog = catalog.bounding_box()
-        assert {key: final_catalog[key] for key in ("x", "y")} == pytest.approx(
-            {key: initial_catalog[key] for key in ("x", "y")}, abs=1
+        assert {
+            key: final_catalog[key] for key in ("x", "y", "width")
+        } == pytest.approx(
+            {key: initial_catalog[key] for key in ("x", "y", "width")}, abs=1
         )
         assert initial_catalog["width"] > page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"

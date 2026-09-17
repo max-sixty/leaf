@@ -2,8 +2,8 @@
 
 What Leaf could hand to a dependency or a browser feature, and why the rest stays. The
 chosen candidates are scored in `TODO.md` under "Platform and dependency cutover"; this
-note keeps what that section leaves out: the evidence, the candidates considered and not
-added, and the Leaf choices worth reconsidering. Delete it once those are decided.
+note keeps what that section leaves out: the evidence, the rejected candidates, and the
+Leaf choices worth reconsidering. Delete it once those are decided.
 
 ## Method
 
@@ -40,7 +40,7 @@ same camp as Claude Code artifacts and Google's generative UI; no benchmark comp
 React and shadcn against HTML or a JSON page spec, so the authoring format is not a
 reason to change frameworks.
 
-## Considered and not added
+## Rejected
 
 | Area | Candidate | Why not |
 |---|---|---|
@@ -61,6 +61,12 @@ reason to change frameworks.
 | Motion | `@starting-style` for the thread card and agent-arrival listeners | It replays whenever an ancestor leaves `display: none`, so the reopened panel needs the end listener anyway; the pulse is not an entrance |
 | Motion | Same-document View Transitions for the folds, trays, board moves, and column carry in `runtime/motion.js` | The update runs after the old state is captured, later than the gesture's turn; pointer input misses the page while it animates; a fold collapses height so later content slides, which a root cross-fade does not draw; board cards move inside their own scroller, whose clip a snapshot escapes under the Chrome 125 floor. #666 removed the paint-boundary transition version travel used |
 | Version patch | idiomorph with exclusion callbacks in place of `runtime/dom-children.js` | A live-tree diff keeps only the reader state an exclusion names; the source-to-source patch keeps all of it and has needed no fix since #514 split it out |
+| Typecheck | `tsc --checkJs` over the runtime | It runs in under a second, but a bug-back over six runtime fixes (#404, #448, #625, #660, #676, #757) found no error the fix removed; the 272 errors outside vendored bundles are inference artifacts, and the typed `scripts/browser` core arrives through a bundle with no declarations |
+| Keyboard | TanStack Hotkeys (alpha), `@github/hotkey`, tinykeys | They own key parsing, which has had no fix since 2026-08-29; the scope stack, Escape order, and go-to grammar stay in Leaf either way |
+| Focus walks | `focusgroup`, Tabster | `focusgroup` is Chrome 150 with no WebKit, so the published site would carry the 19 KB polyfill; Tabster's Groupper returns focus to a group rather than closing a surface and restoring the reader's place |
+| History | Navigation API for version travel | Three `history` and `popstate` sites; the gain needs intercept to replace the activation choreography |
+| Server | One user-level daemon on SQLite, starlette, and asyncio | Measured about 750 gross and -300 to +500 net: the browser already receives pushes over `EventSource`, the 70 µs stat loop serves CLI writers in other processes, pid probing and the wait, adapter, and delivery locks stay, Windows is not a goal, and a user-level database stops the page directory being the deployment unit |
+| Server | The server rewritten in TypeScript | Not incremental; forfeits the pytest suite and render harness, and node is not guaranteed on Codex hosts |
 | Chrome library | Web Awesome, Spectrum, Lion, Zag | Not chosen over the platform-first direction; still open |
 | Chrome framework | React, Radix, Base UI, shadcn, Preact + htm | A framework migration for the smallest defect bucket |
 | Build | Vite, Rollup | One entry, no dev server; esbuild suffices |
@@ -90,10 +96,9 @@ reopened.
   comments. Proposal: leave it.
 - **The keyboard system is vim-like.** Letter chords, per-area scopes, go-to hints, and
   an Escape that closes one layer; 6,085 lines and the largest fix bucket. The reader
-  keeps this behaviour. TanStack Hotkeys, `@github/hotkey`, and tinykeys own only key
-  parsing, which had no fix since 2026-08-29; Tabster's Groupper returns focus to a group
-  rather than closing a surface and restoring the reader's place. Ten of the 24 keyboard
-  fixes since then landed in the code that infers the open layers: `stack()` in
+  keeps this behaviour, and no library owns the scope stack, the Escape order, or the
+  go-to grammar; the ones that came closest are in Rejected above. Ten of the 24 keyboard
+  fixes since 2026-08-29 landed in the code that infers the open layers: `stack()` in
   `keyboard/dispatch.js`, `keyboard/return-stack.js`, and `native-layers.js`. Proposal:
   an explicit layer stack that openers push and closes pop, so Escape closes the top
   layer and bindings come from it; about 600 to 900 lines deleted est. First step: fold

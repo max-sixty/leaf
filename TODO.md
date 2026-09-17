@@ -72,8 +72,8 @@ The 2026-09-16 survey of what Leaf could hand to a dependency found the browser 
 record concentrated in margin placement, geometry timing, and the keyboard register, which
 no library owns; a component library would have covered about 13 of the last 175 fixes. The
 direction chosen: keep Lit, and replace hand-built behavior with settled libraries and
-browser features one at a time as each proves out. The evidence, the candidates
-considered and not added, and the Leaf choices worth reconsidering are in
+browser features one at a time as each proves out. The evidence, the rejected
+candidates, and the Leaf choices worth reconsidering are in
 [the survey note](notes/dependency-survey.md).
 
 Effort is S (under two days), M (two to ten), or L (weeks). Saving is lines deleted,
@@ -90,19 +90,14 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Typecheck the runtime with `tsc --checkJs` (detail below). | M | none deleted; six past fixes show no catch | Low-Med | Catches little until JSDoc or declarations describe the runtime's shapes; the runtime reaches the typed core through a bundle with no declarations |
 | Order the cascade with `@layer` (theme, package, page). Tried 2026-09-16 and backed out: the page's unlayered `<style>` then outranks the chrome, so a page `div { position: relative }` moved 53 chrome boxes including the aim (`test_render_aim`), and putting `chrome.css` on its own rung flipped the specificity contests it was written against `theme.css` with. Needs the chrome isolated from page CSS first: a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)`. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |
-| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods. | S-M | ~50 to 100 est. | Low | Chromium-only, no adopters |
-| `focusgroup` (Chrome 150) for the list and toolbar arrow-key walks the keyboard register drives. | M | ~100 to 200 est. | Low | Chromium-only, no adopters |
-| Navigation API for version travel history: three `history` and `popstate` sites, `runtime/navigation.js` at 197 lines. | M | small | Low | Gain only if intercept replaces the activation choreography |
-| TanStack Hotkeys for the parsing, sequence timing, and cheat-sheet formatting slice of the keyboard register (detail below). | M | ~200 to 400 est. of 6,100 | Low | Alpha, 715 stars, no scope stack; the register's core stays either way |
+| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods, so a surface opened by pointer declares itself. The keyboard layer stack in [the survey note](notes/dependency-survey.md) needs that declaration. | S-M | ~50 to 100 est. | Low-Med | Chromium-only, so below Chrome 135 the button does nothing unless the module keeps its handler |
 
 ### Python
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
 | Serve each page through starlette and uvicorn, already installed through `mcp`, keeping one process per page. `http.py`'s `Handler` hand-writes response, cookie, and query plumbing, the news stream's `select()` peer-gone loop, and the `http.server` lifecycle workarounds such as #630's preconnect drop. | M-L | ~150 to 200 est. of a ~480-line region; the connection-lifecycle fixes | Low-Med | Converts a threaded server to async: `TemporaryPageServer`, `cmd_serve`, the Worker's `WebsitePageHandler` subclass, and the tests that drive `Handler` |
-| Run one user-level daemon on SQLite, starlette, and asyncio (detail below). | L | ~750 gross, -300 to +500 net est.; about three lifetime and transport fixes in three weeks | Low | A user-level database stops the page directory being the deployment unit; one daemon crash or stale install takes down every page; every CLI writer, hook, the site build, and the Worker change |
 
 ### Both
 
@@ -110,40 +105,8 @@ ordered by confidence, then effort.
 |---|---|---|---|---|
 | Let the browser own anchoring (detail below). | M-L | spiked: +257 lines net, Python +168 | Low-Med | A quoted `leaf comment` goes from 0.2 s to 1.3 s and needs Chrome; each MCP snapshot comment launches a browser; the file-side readings and refusal diagnostics stay in Python |
 | Bind one loopback port per MCP page with a wildcard-port `frame_domains`, removing MCP multiplexing under `/p/<capability>` as one of the two callers of the route-scoping regexes in `http.py`; the 69 rooted URL literals under `assets/` and `packages/` go relative. | M | ~75 of 155 | Low-Med | The wildcard needs an MCP-host check; leaf.page's example roots keep the mechanism |
-| Move the server to TypeScript (detail below). | L | 12,900 mirrored Python lines collapse; two native wheels | Low | Forfeits the pytest suite and render harness; node is not guaranteed on Codex hosts; not incremental |
 
 ### Detail
-
-- **`tsc --checkJs`.** TypeScript 7.0.2, already in `package.json`, checks
-  `skills/leaf/assets` and `skills/leaf/packages` in under a second once a `paths` map
-  resolves root-absolute imports such as `/runtime/widget-api.js`. Measured 2026-09-17
-  with `strict` off, it reports 272 errors outside vendored bundles; the vendored files
-  are checked too, because modules import them whatever `exclude` says. The sampled errors
-  are inference artifacts, such as a callback typed from a default of `= () => false` or a
-  custom-element method read off `HTMLElement`. A bug-back over six runtime fixes (#404,
-  #448, #625, #660, #676, #757) found no error that the fix removed from the files it
-  touched. The runtime imports the typed `scripts/browser` core through the built bundle,
-  which carries no declarations, so those calls go unchecked; declarations for that bundle
-  are the first slice with a plausible catch.
-
-- **TanStack Hotkeys.** `@tanstack/lit-hotkeys` 0.11 (alpha, June 2026) parses
-  template-string bindings with a platform `Mod`, runs vim-style sequences with a timeout,
-  tracks held keys, formats bindings for a cheat sheet, scopes a binding to a `target`
-  element, and detects conflicts at registration. It has no scope stack, priority, or
-  Escape unwinding, which `runtime/keyboard/dispatch.js` owns. Keep focus-ancestry scopes
-  and `aria-keyshortcuts` reflection in Leaf. Wait for a stable release.
-
-- **Daemon.** starlette, sse-starlette, uvicorn, and pydantic are already installed through
-  `mcp`. Measured 2026-09-17, the deletable code is the per-page server handshake in
-  `hosting.py` and `server.py` (about 280 lines), `http.py`'s dispatch and server class
-  (about 490, half of it standard-library boilerplate), the event-log flock, the stat
-  loop, and torn-line repair. Pid probing stays, because claim liveness feeds activity and
-  the hooks, and so do the wait, adapter, and delivery-queue locks. A daemon adds a schema,
-  a JSONL import, its own lifecycle, page routing, and routes, an estimated 800 to 1,300
-  lines. The browser already receives pushes over `EventSource`; the 50 ms `LOOK_S` loop
-  stats the log for CLI writers, which are separate processes, so SQLite would need the
-  same watch unless every writer goes through the daemon. Windows is not a goal, and
-  `fcntl`, `start_new_session`, and the `/bin/sh` launcher block it regardless.
 
 - **Browser-owned anchoring.** Spiked 2026-09-17 on branch `agent-a4111d25e33d466d2`
   (`3132c9af`). A runtime entry, `quoteAnchor`, resolves a typed quote with the matcher
@@ -159,10 +122,6 @@ ordered by confidence, then effort.
   quoted comment, and the anchor tests went from 8 s to 37 s. Moving the removal
   diagnostics into the page, where retired slots are still in the DOM, is the next cut if
   this continues.
-
-- **TypeScript server.** Every Python dependency has a node equivalent, and the anchoring
-  and projection code would exist once. Do the daemon and anchoring items first; each
-  shrinks what this would port.
 
 ## General reader continuity
 

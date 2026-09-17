@@ -177,11 +177,23 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     assert page.locator(".lf-margin-cluster").count() >= 15
     # The corpus carries the gallery's contained frames, and a frame still arriving lays
     # itself out in this page's own process. Counted against five dispatches that touch
-    # nothing, that reads as the heartbeat forcing layout: the measurement is of a
-    # refresh, so what is measured has to have stopped arriving first.
+    # nothing, that reads as the heartbeat forcing layout: what is measured has to have
+    # stopped arriving first.
     page.wait_for_function(
         """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
              (frame) => frame.hasAttribute('data-interaction-ready'))"""
+    )
+    # The first layout pass after those frames arrive reconciles them, and on the corpus
+    # it costs 4 layouts and 21 style recalculations against the 2 and 3 of every pass
+    # after it — a resize costs 3 as well, so the reconciliation is page startup rather
+    # than the price of a changed pass. Spend it before the count starts: what this test
+    # bounds is the five passes below, which touch nothing.
+    page.evaluate(
+        """async () => {
+          const {layoutMarginRows} =
+            await window.__lfRuntimeImport('/runtime/margin-layout.js');
+          layoutMarginRows();
+        }"""
     )
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
@@ -5028,11 +5040,22 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
-    held = marker.get_attribute("aria-label")
+    # The walk is over the markers the viewport holds and never scrolls to reach one,
+    # which is what this case is named for. So it starts at the first of them and steps
+    # down, against the count the walk itself publishes, rather than pressing from
+    # wherever the preview left focus: from the last marker on screen the press clamps,
+    # and this case used to read that clamp as a walk that had failed to move.
+    page.keyboard.press("Home")
+    position = page.locator(".lf-walk-position")
+    expect(position).to_have_text(re.compile(r"^Marker 1 of \d+$"))
+    total = int(position.inner_text().rsplit(" ", 1)[1])
+    assert total > 1, position.inner_text()
+    first = page.locator(":focus").get_attribute("aria-label")
     page.keyboard.press("ArrowDown")
+    expect(position).to_have_text(f"Marker 2 of {total}")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     assert page.evaluate("() => document.activeElement.matches('.lf-margin-marker')")
-    assert page.locator(":focus").get_attribute("aria-label") != held
+    assert page.locator(":focus").get_attribute("aria-label") != first
 
     options = marker.locator("xpath=..").locator(":scope > .lf-margin-options")
     expect(options).to_be_visible()

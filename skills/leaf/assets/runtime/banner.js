@@ -616,7 +616,9 @@ function currentBannerReservations() {
 
 let approving = false;
 
-export function paintApproval(pendingApprovals, unansweredAsks = []) {
+// `blockingAsks` is the unanswered Asks that hold approval, or null before the page has
+// read the log and so cannot say which those are.
+export function paintApproval(pendingApprovals, blockingAsks) {
   const approved = [
     ...(runtime.browser?.conversation?.done ?? []),
     ...pendingApprovals,
@@ -638,14 +640,17 @@ export function paintApproval(pendingApprovals, unansweredAsks = []) {
         approving ||
         runtime.currentStamp === null ||
         !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-        unansweredAsks.length > 0 ||
+        blockingAsks === null ||
+        blockingAsks.length > 0 ||
         approved,
       text: approved ? "✓ Version approved" : "Approve version",
       title: approved
         ? "Approved. Press z to take it back while it is still your last gesture"
-        : unansweredAsks.length
-          ? "Answer every Ask before approving this work"
-          : "Approve this work; the page stays open for follow-up",
+        : blockingAsks === null
+          ? "Approval waits until this page has read its current state"
+          : blockingAsks.length
+            ? "Answer every Ask before approving this work"
+            : "Approve this work; the page stays open for follow-up",
     }),
   );
   repaint();

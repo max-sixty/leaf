@@ -15,12 +15,17 @@ export const askEntry = (ask) => registry[ask?.sourceTag]?.["x-awaits"];
 export const allAsks = () => reading().all;
 export const openAsks = () => reading().reader;
 export const unansweredAsks = () => reading().unanswered;
-// A deferred projection has not committed the optimistic answer to the document yet.
-// Approval is irreversible enough to keep reading the admitted selection until it has.
-export const approvalBlockingAsks = () =>
-  projectionDeferred()
-    ? readApplication().effective.admittedUnansweredAsks
-    : reading().unanswered;
+// Approval is irreversible, so its gate never reads an unknown as an empty list: with
+// no admitted reading nothing says which Asks still stand, and this answers null. A
+// deferred projection has not committed the optimistic answer to the document yet, so
+// until it has, the gate keeps reading the admitted selection.
+export function approvalBlockingAsks() {
+  const application = readApplication();
+  if (application.phase !== "ready") return null;
+  return projectionDeferred()
+    ? application.effective.admittedUnansweredAsks
+    : application.effective.asks.unanswered;
+}
 
 // The first reading is synchronous. The owner is a lifetime assertion for the public
 // widget contract; callers still own disconnecting the returned subscription.

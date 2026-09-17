@@ -28,6 +28,40 @@ remain in git history.
   spacing, framing, control hierarchy, and responsive behavior; avoid playful consumer-app
   ornament.
 
+## Agent activity on the page
+
+The reader should always be able to tell what the agent is doing and whether it is still
+doing it. [The responsiveness note](notes/reader-feedback-responsiveness.md) holds the
+ordering contract these items extend.
+
+- **Measure whether agents keep the banner current.** Run the agent evals the
+  responsiveness note describes against the current guidance: a delivery, a multi-step
+  task, and a task long enough to delegate. Score whether a status write precedes each
+  step and whether the reader's new input is claimed before the work continues.
+
+- **Observe Claude Code's tool steps as App Server observes Codex's.** A `PreToolUse` hook
+  could record the current step for pages the session holds, so the banner stays current
+  when the agent does not write. The existing hook's `uv run` takes about 0.2 s even for a
+  session holding no page (measured 2026-09-17), which every tool call in every session
+  would pay, so the hook needs a check that exits at once for such a session. Decide how
+  an observed step and the agent's sentence share the row; App Server activity currently
+  replaces the sentence.
+
+- **Show every standing claim, not only one.** Parallel workers each hold a subject
+  claim, and the banner names one of them: with a reader move outstanding the activity
+  fold takes the claim with the highest log floor rather than the newest write
+  (`activity.py`), so which worker the banner names is close to arbitrary. List the
+  standing claims in the status disclosure with their subjects and ages.
+
+- **Show the plan as well as the step.** App Server's plan updates and Claude Code's task
+  list both say how far along the work is, and Leaf keeps only the current step. A short
+  checklist in the status disclosure would let a reader see progress without asking.
+
+- **Decide whether delegated work may hold a reader move open across turns.** The Stop
+  hook refuses to end a turn over an acknowledged move with no answer, so a coordinator
+  replies with what it started before its worker runs. A live worker claim on the move's
+  subject could count as handling instead, leaving one reply when the work finishes.
+
 ## Architecture simplification
 
 - **#1 — Keep the semantic application root thin.** Let the application publisher own

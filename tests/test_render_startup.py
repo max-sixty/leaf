@@ -3039,11 +3039,18 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         told(page)
 
     declare("working", "revising the plan")
-    expect(summary).to_have_text("Claude working")
+    expect(summary).to_have_text("Claude working — revising the plan")
     expect(text).to_have_text(
         re.compile(r"^Claude is working — revising the plan \(.+\)$")
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
+    # A claim still believed but minutes old is dated on the row itself, so a long step
+    # and a quiet agent read differently without opening the disclosure.
+    declare("working", "revising the plan", quiet_for=5 * 60)
+    expect(summary).to_have_text("Claude working · 5m ago — revising the plan")
+    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+    declare("working", "revising the plan")
+    expect(summary).to_have_text("Claude working — revising the plan")
 
     [first_comment] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"

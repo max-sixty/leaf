@@ -37,6 +37,15 @@ you return to the user in chat, including interim updates, questions, and the
 final handoff. An inline MCP App has no durable URL to invent; refer to the review
 and its observed mode instead. If you open its browser page, the URL rule begins then.
 
+## Keep the reader current
+
+While a page is live, telling its reader what you are doing takes priority over doing
+it, as a UI thread handles input before background work. Put each step on the page
+before starting it, and acknowledge reader input on the page before acting on it. Keep
+the watcher running, and hand work longer than a few minutes to background workers
+rather than waiting on it yourself, so a new comment reaches you in time to change the
+next step. `references/conversation-loop.md` names the surfaces and when to write each.
+
 ## Start here
 
 Pages conventionally live at `~/.local/state/leaf/pages/<slug>/`, though every
@@ -116,9 +125,7 @@ only controls and gestures whose results advance the reader's task.
 A page states what is true now, not how it got there. Correct a wrong figure in
 place and drop a superseded claim rather than narrating its withdrawal; the
 `version stamp` changelog and the event log carry the history. Save freely as
-the subject changes and stamp meaningful checkpoints. Use status detail for
-progress between revisions. Keep the waiter alive while work continues so
-comments can affect the next step.
+the subject changes and stamp meaningful checkpoints.
 
 ## Improve Leaf through use
 
@@ -148,7 +155,8 @@ so a phase does not depend on discovering a chain of references.
 
 ### First handoff
 
-- `references/conversation-loop.md`: before a page handoff or working status.
+- `references/conversation-loop.md`: before a page handoff, a working status, or
+  work long enough to delegate.
 - `references/host-claude-code.md`: before the first handoff in Claude Code or
   recovery of its direct wait loop.
 - `references/host-codex.md`: before the first handoff in Codex, and for the

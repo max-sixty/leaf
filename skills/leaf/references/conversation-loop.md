@@ -4,6 +4,41 @@ Read this before handing a page to the user or marking work in progress. The
 main skill routes waiting, delivered events, threads, and ending to phase-specific
 references.
 
+## What the reader sees
+
+The reader follows your work on the page:
+
+| Surface | What it shows | Written by |
+| --- | --- | --- |
+| Banner | one sentence for the whole page: what you are doing, or what you want back | `leaf status <page> <state> "<detail>"` |
+| Beside a thread or widget | **Working** and your sentence, above the message or on the control the work answers | `leaf delivery claim`, `leaf status … --on <id>` |
+| Thread | your answer to the reader's message | `leaf reply` |
+| Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf version stamp` |
+| Request | the outcome of a request the reader made | `leaf receipt` |
+
+Leaf itself marks each reader move **Sent**, **Queued**, and **Picked up**, and a Codex
+App Server shows its current tool step in the banner. Chat stays in the host and never
+reaches the page.
+
+## When to write
+
+Write a step's status before starting the step, and write it again whenever the reader
+would describe what you are doing differently: a new subject, or a new phase such as
+reading, editing, testing, or waiting on a result.
+Folding the write into the command that begins the step costs no extra tool call:
+
+```bash
+leaf status <page> working "running the browser suite against the new banner" && <command>
+```
+
+Name the operation and its subject in one sentence. "Working on it" tells the reader
+nothing the banner's dot does not already say.
+
+Reader input takes priority over the work in hand. Claim it first, so the receipt
+beside the reader's own words says you have it, and answer it or say on the thread what
+you are doing about it. Then write the page status again, so the banner describes the
+work that continues rather than the last step before the interruption.
+
 ## Status and handoff
 
 Before a handoff, run:
@@ -66,7 +101,21 @@ write `waiting` merely to end the delivery step. Write it after replies, revisio
 receipts have settled what this turn took in; until then the canonical activity
 fold continues to report the stronger exact handling evidence.
 
-## Renewing a claim
+## Long-running work
+
+New reader input reaches you only between your own operations: in Claude Code at the
+next tool result, and in Codex once the current turn ends. A long foreground
+operation, such as a test suite or a subagent you wait on, leaves the reader's comment
+unanswered for its whole length.
+
+For work that will run longer than a few minutes, coordinate it rather than perform
+it. Hand the reading, editing, and testing to background subagents or background
+commands, and end your turn as the host contract says, so the watcher's next delivery
+reaches you while the work runs instead of waiting behind it. Keep the replies and
+`index.html` yourself, so one writer revises the page. When a reader move started the
+work, reply before you end the turn with what you started and where its result will
+appear: that is the answer the move is owed until the result exists. When a worker
+reports back, settle its result with a reply, a revision, or a receipt.
 
 A `working` claim is believed while the turn that wrote it is open. The page is
 told when that turn ends, so a claim nothing has renewed within a couple of
@@ -74,8 +123,11 @@ minutes of the ending stops being believed, and the banner reports the silence
 instead of the work; a claim nobody renews at all ages out after about a quarter
 of an hour.
 
-Renewing it is therefore part of the work and goes with it: a delegate outlives
-the turn that started it, and no part of this session can write the claim once
-the turn has ended. Give the delegate the launcher path, the page path, the
-subject id, and the command above to run as it starts, soon enough to land
-inside that couple of minutes, and again whenever what it is doing changes.
+A worker therefore reports its own progress: it outlives the turn that started it, and
+no part of this session can write a claim once that turn has ended. Give each worker
+the launcher path, the page path, its subject id if it has one, and the status command
+to run as it starts, soon enough to land inside that couple of minutes, and again
+whenever its step changes. A thread claim written after your reply stands until your
+next reply there, and claims on different subjects stand side by side. Each of them also
+writes the page's own sentence, so with several workers running the banner names one
+step and the page edge shows each subject's own.

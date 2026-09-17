@@ -842,7 +842,15 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
 def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     hosted, browser
 ):
-    """The catalog is useful HTML first; mounting its shared Leaf layer must not move it."""
+    """The catalog is useful HTML first; mounting its shared Leaf layer must not move it.
+
+    The column and the cards are read separately because they answer for different
+    halves of the same promise. `main` is the page's own box and nothing the runtime
+    brings may move it. The catalog is a declared wide exhibit, and what it grows into
+    shrinks by the margin rail the runtime claims for its markers, so its width is the
+    layer's to settle; where it starts is the page's, and a card that slides sideways
+    under the reader's cursor is the failure this names.
+    """
     boot = []
     page = browser.new_page(viewport={"width": 1724, "height": 1036})
     watched(page)
@@ -852,7 +860,9 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
             page.goto(f"{hosted}/examples/", wait_until="commit")
         expect(page.locator("h1")).to_be_visible()
         assert boot, "the positive control did not hold the catalog boot module"
+        catalog = page.locator(".example-catalog").first
         initial = page.locator("main").bounding_box()
+        initial_catalog = catalog.bounding_box()
 
         boot.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
@@ -860,6 +870,14 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         assert {key: final[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         )
+        final_catalog = catalog.bounding_box()
+        assert {key: final_catalog[key] for key in ("x", "y")} == pytest.approx(
+            {key: initial_catalog[key] for key in ("x", "y")}, abs=1
+        )
+        assert initial_catalog["width"] > page.evaluate(
+            "() => parseFloat(getComputedStyle(document.documentElement)"
+            ".getPropertyValue('--col'))"
+        ), "the catalog painted at the prose measure and widened once leaf.js resolved"
     finally:
         for route in boot:
             route.continue_()

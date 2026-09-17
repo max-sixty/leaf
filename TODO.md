@@ -117,25 +117,7 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Let the browser own anchoring (detail below). | M-L | spiked: +257 lines net, Python +168 | Low-Med | A quoted `leaf comment` goes from 0.2 s to 1.3 s and needs Chrome; each MCP snapshot comment launches a browser; the file-side readings and refusal diagnostics stay in Python |
 | Bind one loopback port per MCP page with a wildcard-port `frame_domains`, removing MCP multiplexing under `/p/<capability>` as one of the two callers of the route-scoping regexes in `http.py`; the 69 rooted URL literals under `assets/` and `packages/` go relative. | M | ~75 of 155 | Low-Med | The wildcard needs an MCP-host check; leaf.page's example roots keep the mechanism |
-
-### Detail
-
-- **Browser-owned anchoring.** Spiked 2026-09-17 on branch `agent-a4111d25e33d466d2`
-  (`3132c9af`). A runtime entry, `quoteAnchor`, resolves a typed quote with the matcher
-  and context writer reader selections use, and Python renders the target revision
-  headlessly outside the log lock and retries the append. `leaf comment --quote`, `leaf
-  reply` moves, and MCP snapshot comments all cut over, with anchors identical to the
-  Python capture and the everyday suite green. The file-side search, fences, and context
-  writer went, but `anchor_capture.py` grew from 239 to 387 lines: the section, part,
-  retired, and gone refusals need no browser, and the diagnostics for a quote the page
-  does not show read authored source the rendered page no longer holds. `passages.py`
-  keeps its readings for projection, restated validation, delivery, and the verbatim gate.
-  The gain is one anchoring implementation; the price is a browser and about 1.1 s per
-  quoted comment, and the anchor tests went from 8 s to 37 s. Moving the removal
-  diagnostics into the page, where retired slots are still in the DOM, is the next cut if
-  this continues.
 
 ## General reader continuity
 

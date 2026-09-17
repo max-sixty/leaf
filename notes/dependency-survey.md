@@ -45,6 +45,7 @@ reason to change frameworks.
 | Area | Candidate | Why not |
 |---|---|---|
 | Anchoring | Hypothesis `dom-anchor-text-quote`, `approx-string-match` | Fuzzy; would replace ~150 lines of exact search |
+| Anchoring | Resolving a typed quote through the rendered page instead of `passages.py` | Spiked 2026-09-17 on `agent-a4111d25e33d466d2` (`3132c9af`): all three capture paths cut over with anchors identical to the Python capture and the suite green, but Python grew by 168 lines, because the section, part, retired, and gone refusals and the diagnostics for a quote the page does not show read authored source; a quoted `leaf comment` went from 0.2 s to 1.3 s and now needs Chrome, each MCP snapshot comment launches a browser, and the anchor tests went from 8 s to 37 s |
 | Keyboard parsing | tinykeys, hotkeys-js | The key normaliser is 15 lines; the rest is domain |
 | Command palette | cmdk | React only |
 | Composer | CodeMirror, ProseMirror, Lexical, Tiptap | The composer is a textarea |

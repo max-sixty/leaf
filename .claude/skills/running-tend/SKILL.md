@@ -39,9 +39,24 @@ trackers have no rows and are closed by `ci-fix` itself.
 
 ## A red `ci` on main is live
 
-Pull requests and main run the everyday and website-worker gates. The complete
-suite runs on the daily schedule. A red `ci` on main is already affecting whoever
-pulls next. Treat it as live.
+Pull requests run the everyday and website-worker gates; main runs the everyday
+gate and then, once it is green, the complete suite in the same run. A red `ci` on
+main is already affecting whoever pulls next. Treat it as live.
+
+Main runs one complete suite at a time, and a newer commit replaces the one waiting
+for that turn. GitHub records a replaced entry as a cancelled run, which is the
+common shape of a cancelled `ci` on main and not a regression: its `nightly` job
+never started, so the job carries no runner (`runner_id` 0 and an empty
+`runner_name`), there is nothing to fix, and the commit that took the turn reports
+on its own run.
+
+Read that field rather than the step count or the elapsed time, because a job that
+exceeds its own `timeout-minutes` also concludes `cancelled`, with steps recorded
+and a runner assigned. Elapsed time misleads from the other side as well: a job
+that never started reports `started_at` equal to its `created_at`, so its span
+measures the wait it sat through rather than any work it did. A `nightly` that held
+a runner and still ended cancelled wedged for its full bound, and that is a failure
+to read.
 
 ## Review test selection
 

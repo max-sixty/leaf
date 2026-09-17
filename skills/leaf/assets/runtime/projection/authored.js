@@ -18,7 +18,7 @@ import { readApplication } from "../semantic-state.js";
    semantic input.
 
    `authoredStates` holds the one typed initial condition per owner. The lossy
-   comparison readings origin and diff checks need are folded from those same values by
+   comparison reading provenance origins need is folded from those same values by
    `projection/model.js`, which owns the one reading of them.
 
    The complete initial value, by record kind:

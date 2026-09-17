@@ -20,7 +20,7 @@ import { blockAt, says } from "./passages.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { focused, paintKeys } from "./keyboard/scopes.js";
-import { el, keeps } from "./widget-elements.js";
+import { el } from "./widget-elements.js";
 import {
   BANNER_CONTROL_RANK,
   registerBannerControl,

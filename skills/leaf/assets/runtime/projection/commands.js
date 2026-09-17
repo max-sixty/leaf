@@ -6,8 +6,6 @@ import { widgetDescriptor } from "../widget-descriptors.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { authoredStates } from "./authored.js";
 
-const { registry } = runtime;
-
 function canUndoAction(candidate) {
   const widget = elementById(candidate.event.widget);
   return Boolean(

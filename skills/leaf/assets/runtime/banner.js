@@ -8,8 +8,6 @@ import {
   bannerActions,
   foldShelf,
   measureBannerControls,
-  overflowBtn,
-  overflowMenu,
   registerBannerControl,
   showBannerControl,
   showNews,

@@ -66,7 +66,6 @@ export function mountApplication(dependencies) {
 
   const stateApplying = () => stateApplication?.isApplying() ?? false;
 
-  const pendingEntries = ledger.snapshot;
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
   const pendingRequests = () => readApplication().effective.pendingRequests;

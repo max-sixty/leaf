@@ -3006,6 +3006,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         turn_ended=None,
         session_pid=None,
         claimed=True,
+        stream=None,
     ):
         """`quiet_for` ages the claim; `turn_ended` says how long ago the Stop hook
         watched the turn behind it end. Separate seconds, because the case the second
@@ -3021,6 +3022,18 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
                 else 0
             ),
         }
+        if stream is not None:
+            # What a transport watched for itself, written the way an App Server
+            # observer writes it: bound to this session and its live turn.
+            status["stream"] = {
+                "activity": {
+                    "session": "s",
+                    "turn": "turn-live",
+                    "detail": stream,
+                    "ts": ts.isoformat(timespec="seconds"),
+                    "after": status["after"],
+                }
+            }
         if claimed:
             record_claim(
                 d,
@@ -3090,6 +3103,18 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(dot).to_have_class(re.compile(r"\blistening\b"))
 
         expect(summary).to_have_text("Claude listening · 1 saved")
+
+        # A transport that can watch the session's own steps reports one, and the agent
+        # says what the work is. The row keeps the sentence written for the reader; the
+        # step stands beside it in the disclosure, proving the session is still moving.
+        declare("working", "revising the plan", stream="Running the tests")
+        expect(summary).to_have_text("Claude working — revising the plan")
+        expect(text).to_have_text(
+            re.compile(
+                r"^Claude is working — revising the plan \(.+\) · Running the tests$"
+            )
+        )
+        expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into one. This read "Claude awaits — select text to

@@ -307,15 +307,9 @@ def delivery_claim(delivery_id: str, event_id: str | None, detail: str | None) -
     checked in the same transaction that writes the Working receipt, so a stale
     delivery is a successful no-op rather than a claim on newer input.
     """
-    from leaf.session import DELIVERY_CLAIM_DETAIL, cmd_delivery_claim
+    from leaf.session import cmd_delivery_claim
 
-    click.echo(
-        cmd_delivery_claim(
-            delivery_id,
-            detail=detail or DELIVERY_CLAIM_DETAIL,
-            event_id=event_id,
-        )
-    )
+    click.echo(cmd_delivery_claim(delivery_id, detail=detail, event_id=event_id))
 
 
 @delivery.command("read", short_help="Read one immutable delivery envelope.")

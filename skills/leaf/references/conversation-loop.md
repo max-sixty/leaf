@@ -123,11 +123,12 @@ minutes of the ending stops being believed, and the banner reports the silence
 instead of the work; a claim nobody renews at all ages out after about a quarter
 of an hour.
 
-A worker therefore reports its own progress: it outlives the turn that started it, and
-no part of this session can write a claim once that turn has ended. Give each worker
-the launcher path, the page path, its subject id if it has one, and the status command
-to run as it starts, soon enough to land inside that couple of minutes, and again
-whenever its step changes. A thread claim written after your reply stands until your
-next reply there, and claims on different subjects stand side by side. Each of them also
-writes the page's own sentence, so with several workers running the banner names one
-step and the page edge shows each subject's own.
+One writer owns the reader's reading of the work, and it is whoever is running. While
+you are still in the turn, keep it yourself and tell each worker you are doing so: a
+worker's report is yours to turn into one sentence, and one sentence covering three
+workers reads better than three claims competing for one row. When you end the turn
+while work continues, nobody in this session can write, so hand each worker the launcher
+path, the page path, its subject id if it has one, and the status command to run as it
+starts — soon enough to land inside that couple of minutes — and again whenever its step
+changes. A thread claim written after your reply stands until your next reply there, and
+claims on different subjects stand side by side at the page edge.

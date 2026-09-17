@@ -511,6 +511,11 @@ function renderStatusNow(state) {
     saved,
   });
   let explanation = age ? `${text} (${age})` : text;
+  // What a transport can watch for itself, when the sentence beside it was written by
+  // the agent: two facts about one turn, so the row keeps the one meant for the reader
+  // and the disclosure holds the step proving the session is still moving.
+  if (activity.observed && activity.observed !== detail)
+    explanation += ` · ${activity.observed}`;
   if (kind === "working" && activity.counts.queued)
     explanation += `. ${activity.counts.queued} more update${activity.counts.queued === 1 ? " is" : "s are"} queued.`;
   presentStatus({ kind, tone: TONE[kind], summary, explanation });

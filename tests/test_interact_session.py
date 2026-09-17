@@ -1195,6 +1195,97 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
     )
 
 
+def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(claimed):
+    """One turn states two facts, and each answers its own question.
+
+    The observed step proves the session is alive and moving, which is what makes a page
+    working over a declaration that says otherwise. What the work *is* is the agent's to
+    say, and a reader waiting on an answer is owed that sentence rather than whichever
+    command the transport saw most recently. So a current declaration keeps the sentence
+    and its own date, and the step is reported beside it."""
+    serving(claimed, 1)
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim)
+    )
+    assert lease
+
+    session_model.cmd_status(claimed, "working", "Checking the rollout against staging")
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity(claim["id"], "turn-live", "Running the tests")
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"], activity["observed"]) == (
+        "working",
+        "Checking the rollout against staging",
+        "Running the tests",
+    )
+    # The date belongs to the sentence, so a stream renewing every few seconds cannot
+    # make an old declaration read as current work.
+    assert activity["ts"] == files_model.read_json(claimed / "status.json")["ts"]
+
+    # With nothing current declared, the step is all there is, and it is the sentence.
+    session_model.cmd_status(claimed, "waiting", "which store should own it")
+    waiting = page_state(claimed)["activity"]
+    assert (waiting["kind"], waiting["detail"], waiting["observed"]) == (
+        "working",
+        "Running the tests",
+        "Running the tests",
+    )
+
+    # A step whose own floor is older than the reader's newest move says nothing about
+    # it, and the reading it would stand in is not work. Reported under `working` alone,
+    # so no step turns up beside "last checked in" under an amber dot.
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "One more note"}
+    )
+    quiet = page_state(claimed)["activity"]
+    assert (quiet["kind"], quiet["detail"], quiet["observed"]) == (
+        "listening",
+        "which store should own it",
+        "",
+    )
+    lease.close()
+
+
+def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
+    """`delivery claim` writes a sentence so a taken-up move says so at once.
+
+    It is Leaf's wording rather than the agent's, and a transport watching the session's
+    real steps knows more than it does, so the step is the one the reader gets. An
+    agent's own sentence, the same command's `--detail`, outranks both."""
+    serving(claimed, 1)
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim)
+    )
+    assert lease
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Change the heading"}
+    )
+    delivery = freeze_events(claimed, [comment])
+    session_model.cmd_delivery_claim(delivery["id"])
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity(claim["id"], "turn-live", "Editing index.html")
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"], activity["observed"]) == (
+        "working",
+        "Editing index.html",
+        "Editing index.html",
+    )
+
+    session_model.cmd_delivery_claim(
+        delivery["id"], detail="Rewriting the heading the reader asked about"
+    )
+    stated = page_state(claimed)["activity"]
+    assert (stated["detail"], stated["observed"]) == (
+        "Rewriting the heading the reader asked about",
+        "Editing index.html",
+    )
+    lease.close()
+
+
 def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)

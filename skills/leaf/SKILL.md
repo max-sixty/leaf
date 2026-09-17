@@ -109,6 +109,12 @@ it inline, while queued Codex carries its immutable id. Read
 
 ## Page contract
 
+Using Leaf should feel like playing a game: the reader sees what the page wants of them
+without reading it first, every state they reach offers a move, and a move the page can
+draw shows its result at once. Sometimes the game is Snap, where the match is there and they pick it;
+sometimes it is Factorio, where the system is laid out and they move its pieces. It is
+never a chore.
+
 Unless the user specifies the page's form or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the reader can grasp it at a glance and continue;
@@ -120,7 +126,9 @@ page follows the subject's shape, whether a scrolling document or a workspace;
 `references/page-authoring.md` owns the concrete choices.
 
 The page contract and widget capabilities are choices, not a checklist. Include
-only controls and gestures whose results advance the reader's task.
+only controls and gestures whose results advance the reader's task. A reader part-way
+through should be able to see what they have settled and what is still theirs. A widget
+move, a resolution and a sign-off can be taken back; words and requests stand.
 
 A page states what is true now, not how it got there. Correct a wrong figure in
 place and drop a superseded claim rather than narrating its withdrawal; the

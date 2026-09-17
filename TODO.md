@@ -77,7 +77,11 @@ considered and not added, and the Leaf choices worth reconsidering are in
 [the survey note](notes/dependency-survey.md).
 
 Effort is S (under two days), M (two to ten), or L (weeks). Saving is lines deleted,
-measured unless marked est., plus the defect class removed. Confidence is how likely the
+measured unless marked est., plus the defect class removed. A measured figure is the size
+of the region a library would take over, not what it deletes: the landed swaps (#753)
+deleted 56 of a measured 130 for psutil, 6 of 262 for unidiff, 3 of ~100 for watchfiles,
+and 78 of ~180 for dependency-cruiser, because the refusals, contracts, and definitions
+around a mechanism stay. Confidence is how likely the
 swap works as described without a spike, weighing adopter evidence and Baseline status.
 Effort and confidence are estimates from the survey, not measurements. Each table is
 ordered by confidence, then effort.

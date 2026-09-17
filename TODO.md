@@ -77,7 +77,11 @@ considered and not added, and the Leaf choices worth reconsidering are in
 [the survey note](notes/dependency-survey.md).
 
 Effort is S (under two days), M (two to ten), or L (weeks). Saving is lines deleted,
-measured unless marked est., plus the defect class removed. Confidence is how likely the
+measured unless marked est., plus the defect class removed. A measured figure is the size
+of the region a library would take over, not what it deletes: the landed swaps (#753)
+deleted 56 of a measured 130 for psutil, 6 of 262 for unidiff, 3 of ~100 for watchfiles,
+and 78 of ~180 for dependency-cruiser, because the refusals, contracts, and definitions
+around a mechanism stay. Confidence is how likely the
 swap works as described without a spike, weighing adopter evidence and Baseline status.
 Effort and confidence are estimates from the survey, not measurements. Each table is
 ordered by confidence, then effort.
@@ -86,11 +90,8 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Use one positioning system: move the three CSS-anchored chrome menus in `chrome.css` onto Floating UI, which the margin projection and composing surface already use with virtual references and `size` and `hide` middleware. | S | ~10 CSS rules; a second positioning model | High | Floating UI must stay lazy at startup |
-| Take the auxiliary-modality Tab wrap and the tabindex lending in `runtime/focus.js` from focus-trap or tabbable. | S | <100 | High | The lending to non-stops is Leaf policy the library must not fight |
-| `closedby` (Chrome 134) for the light-dismiss policy `runtime/auxiliary-modality.js` and `runtime/native-layers.js` handle by hand; `@starting-style` with `transition-behavior: allow-discrete` for the `transitionend` tracking in `runtime/margin-entries.js` and `runtime/conversation/thread-card.js`. | S | ~100 to 200 est.; part of the dialog and Escape class | Med-High | `closedby` is Chromium-only |
 | Typecheck the runtime with `tsc --checkJs`. `scripts/browser/tsconfig.json` already sets `allowJs`, `strict`, and `noEmit` and includes only its own `*.ts`; adding `checkJs` and the runtime's `*.js` to `include` checks the 42,000 lines as they ship, with no emit and no build. JSDoc annotations raise the coverage over time. | M | none deleted; part of the state-sync and repaint class (17 fixes) | Med-High | The first run's error volume; annotations needed for full value |
-| Same-document View Transitions for version travel and margin motion. `theme.css:1997` already styles the root transition group and no runtime module calls `startViewTransition`; the FLIP helper in `runtime/motion.js` and the exit listeners above are what a transition replaces. | M | ~150 est. | Med | Baseline since October 2025, but no UI library depends on it |
+| Same-document View Transitions for version travel and margin motion. `theme.css:1997` already styles the root transition group and no runtime module calls `startViewTransition`; the FLIP helper and folds in `runtime/motion.js` are what a transition replaces. | M | ~150 est. | Med | Baseline since October 2025, but no UI library depends on it |
 | Make the page scroll normally: `html` as the scroller with fixed chrome, instead of `body` as the scroll container. Thirty fixes trace to scroll restoration, resize, and measuring before paint, and every library and browser feature assumes the normal setup. The reason for the current choice is not recorded; spike the switch and count which of those tests break. | M | part of the scroll and layout class (30 fixes) | Low-Med | Fixed chrome, print, and export may depend on the body scroller |
 | Spike a morph with exclusions for the version patch (detail below). | M | 325 pairing lines in `runtime/dom-children.js` plus the pairs map every patch maintains | Low-Med | Must prove retention of opened `<details>`, tokenizer spans, lent tab stops, and widget-built children |
 | Order the cascade with `@layer` (theme, package, page). Tried 2026-09-16 and backed out: the page's unlayered `<style>` then outranks the chrome, so a page `div { position: relative }` moved 53 chrome boxes including the aim (`test_render_aim`), and putting `chrome.css` on its own rung flipped the specificity contests it was written against `theme.css` with. Needs the chrome isolated from page CSS first: a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)`. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |

@@ -111,6 +111,7 @@ if (!customElements.get(VIEWER_FACE_TAG))
 export const mediaViewer = document.createElement("dialog");
 mediaViewer.id = "lf-media-viewer";
 mediaViewer.className = "lf-ui lf-media-viewer";
+mediaViewer.setAttribute("closedby", "any");
 mediaViewer.setAttribute("aria-modal", "true");
 mediaViewer.setAttribute("aria-labelledby", "lf-media-viewer-title");
 const viewerFace = document.createElement(VIEWER_FACE_TAG);
@@ -129,19 +130,6 @@ mediaViewer.addEventListener("close", () => {
   viewerFace.present(null);
   if (origin?.isConnected) origin.focus({ preventScroll: true });
   origin = null;
-});
-mediaViewer.addEventListener("mousedown", (event) => {
-  if (event.target !== mediaViewer) return;
-  const box = mediaViewer.getBoundingClientRect();
-  if (
-    event.clientX < box.left ||
-    event.clientX > box.right ||
-    event.clientY < box.top ||
-    event.clientY > box.bottom
-  ) {
-    event.preventDefault();
-    mediaViewer.close();
-  }
 });
 document.addEventListener("click", (event) => {
   const trigger = event

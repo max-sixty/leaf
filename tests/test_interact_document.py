@@ -4975,11 +4975,15 @@ def _apart(a, b, vision=None):
     return math.dist(seen(a), seen(b)) * 100
 
 
-def _palette(theme, block):
-    """The series steps and the paper they sit on, read out of one scheme's token block."""
-    steps = dict(re.findall(r"--series-(\d+):\s*(#[0-9a-f]{6})", block))
-    paper = re.search(r"--paper:\s*(#[0-9a-f]{6})", block)[1]
-    assert steps, "no series tokens in this block"
+def _palette(theme, half):
+    """The series steps and the paper they sit on: `half` 0 or 1 of each `light-dark()`."""
+    pair = r"light-dark\(\s*(#[0-9a-f]{6})\s*,\s*(#[0-9a-f]{6})\s*\)"
+    steps = {
+        number: colours[half]
+        for number, *colours in re.findall(rf"--series-(\d+):\s*{pair}", theme)
+    }
+    paper = re.search(rf"--paper:\s*{pair}", theme)[half + 1]
+    assert steps, "no series tokens in the theme"
     return [steps[str(n)] for n in range(1, len(steps) + 1)], paper
 
 
@@ -4998,13 +5002,12 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     past, and a palette one step longer than the number it publishes would refuse a
     series it has a colour for."""
     theme = (schema_model.ASSETS / "theme.css").read_text()
-    light, dark = theme.split("prefers-color-scheme: dark")
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]
 
-    for scheme, block in (("light", light), ("dark", dark)):
-        steps, paper = _palette(theme, block)
+    for scheme, half in (("light", 0), ("dark", 1)):
+        steps, paper = _palette(theme, half)
         assert len(steps) == declared, (
             f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
         )

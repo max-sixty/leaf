@@ -176,8 +176,9 @@ def test_mcp_snapshot_is_authored_source_with_current_cursors_and_private_bytes(
     assert private["document"].startswith(UTF8_BOM)
     assert private["document"].index('<meta charset="utf-8"') < 1024
     assert private["authoredStyles"] == []
-    assert "--paper: #191815" in private["darkTheme"]
-    assert "prefers-color-scheme: dark" not in private["theme"]
+    assert "--paper: light-dark(#faf9f5, #191815)" in private["theme"]
+    assert "prefers-color-scheme" not in private["theme"]
+    assert "darkTheme" not in private
     assert private["eventSeq"] == 0
 
 

@@ -100,14 +100,16 @@ function attemptId() {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function themeCss(base = "", dark = "") {
-  const chosen =
+function themeCss(base = "") {
+  // The theme states both schemes in one `light-dark()` per colour, so the host's
+  // declared theme is a `color-scheme`, written after the theme's own.
+  const scheme =
     hostContext.theme === "dark"
-      ? `${base}\n${dark}`
+      ? "dark"
       : hostContext.theme === "light"
-        ? base
-        : `${base}\n@media (prefers-color-scheme: dark) {${dark}}`;
-  return chosen.replaceAll(":root", ":host");
+        ? "light"
+        : "light dark";
+  return `${base.replaceAll(":root", ":host")}\n:host { color-scheme: ${scheme}; }`;
 }
 
 function pageCss() {
@@ -126,7 +128,6 @@ function pageCss() {
       contain: layout paint style !important;
       isolation: isolate !important;
       transform: none !important;
-      color-scheme: light dark;
     }
     main { box-sizing: border-box; min-height: 160px; padding-block: 24px 70px; }
     [data-lf-gen], .lf-ui { display: none !important; }
@@ -361,7 +362,7 @@ function renderSnapshot(state) {
   pageHost.hidden = false;
   const theme = document.createElement("style");
   theme.dataset.leafTheme = "";
-  theme.textContent = themeCss(state.theme, state.darkTheme);
+  theme.textContent = themeCss(state.theme);
   const authored = state.authoredStyles.map(({ css, media }) => {
     const style = document.createElement("style");
     style.textContent = css.replaceAll(":root", ":host");
@@ -517,7 +518,7 @@ function applyHostContext(update) {
     displayMode === "fullscreen" ? "Return inline" : "Fullscreen";
   if (currentMode === "snapshot" && hostContext.theme !== previousTheme) {
     const style = shadow.querySelector("style[data-leaf-theme]");
-    if (style) style.textContent = themeCss(current.theme, current.darkTheme);
+    if (style) style.textContent = themeCss(current.theme);
   }
 }
 

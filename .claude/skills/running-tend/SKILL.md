@@ -51,10 +51,12 @@ never started, so the job carries no runner (`runner_id` 0 and an empty
 on its own run.
 
 Read that field rather than the step count or the elapsed time, because a job that
-exceeds its own `timeout-minutes` also concludes `cancelled` — with steps recorded
-and a runner assigned — and `started_at` is stamped when a job enters the queue
-rather than when it starts running. A `nightly` that held a runner and still ended
-cancelled wedged for its full bound, and that is a failure to read.
+exceeds its own `timeout-minutes` also concludes `cancelled`, with steps recorded
+and a runner assigned. Elapsed time misleads from the other side as well: a job
+that never started reports `started_at` equal to its `created_at`, so its span
+measures the wait it sat through rather than any work it did. A `nightly` that held
+a runner and still ended cancelled wedged for its full bound, and that is a failure
+to read.
 
 ## Review test selection
 

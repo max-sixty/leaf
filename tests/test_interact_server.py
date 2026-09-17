@@ -4141,8 +4141,14 @@ def test_a_refused_request_line_writes_nothing_into_the_pipe_nobody_drains(page_
                 pass
             finally:
                 speaker.close()
+        # Read with an end of its own: a page stopped by a full pipe leaves the
+        # kernel accepting from the backlog and nothing answering, so a read without
+        # one would hang here rather than name what it was waiting for.
         key = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["t"][0]
-        assert fetch(f"http://{netloc}/api/state", token=key)[0] == 200
+        with urllib.request.urlopen(
+            f"http://{netloc}/api/state?t={key}", timeout=30
+        ) as answered:
+            assert answered.status == 200
     finally:
         hosting_model.cmd_stop(page_dir)
 
@@ -4154,23 +4160,22 @@ def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
     netloc = urllib.parse.urlsplit(server).netloc
     host, _, port = netloc.partition(":")
     speaker = socket.create_connection((host, int(port)), timeout=10)
-    heard = b""
     try:
         speaker.sendall(
             b"GET /api/state HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\n"
             b"Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
             b"Sec-WebSocket-Version: 13\r\n\r\n" % netloc.encode()
         )
-        while select.select([speaker], [], [], 10)[0]:
-            chunk = speaker.recv(65536)
-            if not chunk:
-                break
-            heard += chunk
+        # The answer ends where it says it does. Reading to the peer's close instead
+        # would wait out the keep-alive with the whole response already in hand.
+        answered = http.client.HTTPResponse(speaker)
+        answered.begin()
+        body = answered.read()
     finally:
         speaker.close()
-    assert b" 500 " not in heard.split(b"\r\n")[0], heard[:400]
-    assert b"Traceback" not in heard, heard[:400]
-    assert b"it carries the key" in heard, heard[:400]
+    assert answered.status == 403, (answered.status, body[:400])
+    assert b"Traceback" not in body, body[:400]
+    assert b"it carries the key" in body, body[:400]
 
 
 def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):

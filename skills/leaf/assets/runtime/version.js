@@ -155,7 +155,7 @@ import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButCommandReference } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import { reportPageError, sameDelivery } from "./layer-client.js";
+import { reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
@@ -804,7 +804,6 @@ export function createVersionController({
     });
     const res = await fetch(`/api/view?${params}`);
     if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
-    if (!sameDelivery(res)) return null;
     const answer = await res.json();
     if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
     return answer.browser;
@@ -1089,7 +1088,7 @@ export function createVersionController({
           documentRequest,
           baseReading(baseRevision, throughSeq),
         ]);
-        if (doc === null || reading === null || mine !== diffRequest) return;
+        if (mine !== diffRequest) return;
         if (runtime.view?.basis?.through_seq === throughSeq) break;
       }
     } catch {
@@ -1125,12 +1124,14 @@ export function createVersionController({
   const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
 
   // ---------- another version's document ----------
-  // Comparison reads an inert document. A different delivery generation already starts
-  // navigation through sameDelivery, so the departing runtime must not use that reading.
+  // Comparison reads an inert document. A revision keeps the layer it captured, and the
+  // server says so — both this document and the projection beside it answer for that
+  // generation rather than the page's — so neither is a delivery answer and neither goes
+  // through the gate. A layer that really did move under the reader reaches them through
+  // the state feed, which is the live channel.
   async function authoredDocument(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
-    if (!sameDelivery(response)) return null;
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
     if (doc.querySelectorAll("body > main").length !== 1)
       throw new Error(`${url} has no single authored main`);

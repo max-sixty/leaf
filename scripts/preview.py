@@ -417,6 +417,11 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
     """
     from leaf.layer import input_paths
 
+    # Every path is resolved before it enters a set or a subscription. `input_paths`
+    # answers in resolved paths, and a watcher can report a change under the root
+    # string it was given, so a package root reached through a symlink or a `..`
+    # would otherwise name its changes in a form nothing here matches.
+    runtime = runtime.resolve()
     scripts = runtime / "skills" / "leaf" / "scripts"
     resolved_roots = {root.resolve() for root in roots}
     layer = {
@@ -431,22 +436,25 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
     }
     manifest = source_manifest(source)
     page = {
-        source,
-        *source_manifest_candidates(source),
-        manifest or DEFAULT_PACKAGES,
-        *(Path(path) for path in seed),
-        *(source.parent / "versions").glob(f"{source.stem}.v*.html"),
-        *media_source(source).rglob("*"),
-        # The nearer of these two directories is the one the page's images come
-        # from, so either arriving changes which images the refresh copies.
-        source.parent / "media",
-        *([manifest.parent / "media"] if manifest is not None else []),
+        path.resolve()
+        for path in (
+            source,
+            *source_manifest_candidates(source),
+            manifest or DEFAULT_PACKAGES,
+            *(Path(path) for path in seed),
+            *(source.parent / "versions").glob(f"{source.stem}.v*.html"),
+            *media_source(source).rglob("*"),
+            # The nearer of these two directories is the one the page's images come
+            # from, so either arriving changes which images the refresh copies.
+            source.parent / "media",
+            *([manifest.parent / "media"] if manifest is not None else []),
+        )
     }
     holders = sorted(
         {
             path
             for path in (
-                *roots,
+                *resolved_roots,
                 scripts,
                 runtime / "pyproject.toml",
                 runtime / "uv.lock",

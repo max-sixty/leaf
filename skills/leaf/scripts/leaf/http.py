@@ -282,8 +282,10 @@ def authorize_inline_scripts(document: SourceDocument, nonce: str) -> str:
     """Mark every inline script this document arrived with as one delivery composed.
 
     Written from the parser's own start-tag spans, back to front so the earlier ones
-    keep their offsets. Any inline script that reaches the browser without the mark —
-    markup a page's own inputs wrote into it after this — does not run.
+    keep their offsets. An inline script that reaches the browser without the mark
+    does not run. The mark keeps out markup written after delivery only while that
+    markup cannot learn it, which holds for a nonce minted per response and not for a
+    document written once and served many times (`live_shell`).
     """
     source = document.html
     for end in sorted(

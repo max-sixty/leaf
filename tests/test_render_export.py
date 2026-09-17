@@ -270,6 +270,36 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     assert watched().roots == subscription
 
 
+def test_a_preview_names_a_linked_package_in_the_form_its_changes_arrive(tmp_path):
+    """A package reached through a link is followed under the path it resolves to.
+
+    A watcher can report a change under the root string it was given, while the layer
+    reading answers in resolved paths, so a root left as written would name every
+    change in a form the watched sets never contain and the package would stop
+    reloading. Subscribing to the resolved root makes the two agree.
+    """
+    import preview
+
+    source = tmp_path / "pages" / "page.html"
+    source.parent.mkdir()
+    source.write_text("page", encoding="utf-8")
+    package = tmp_path / "elsewhere" / "package"
+    (package / "widgets").mkdir(parents=True)
+    (package / "registry.json").write_text("{}", encoding="utf-8")
+    module = package / "widgets" / "lf-linked.js"
+    module.write_text("export {};", encoding="utf-8")
+    linked = tmp_path / "links" / "package"
+    linked.parent.mkdir()
+    linked.symlink_to(package)
+    dotted = source.parent / ".." / "elsewhere" / "package"
+
+    for root in (linked, dotted):
+        watched = preview.watch_paths(source, ROOT, [root], {})
+        assert str(module.resolve()) in watched.layer, root
+        assert all(path == path.resolve() for path in watched.roots), watched.roots
+        assert all(Path(path) == Path(path).resolve() for path in watched.paths), root
+
+
 def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
     """The images move to the nearer directory while the subscription stands still.
 

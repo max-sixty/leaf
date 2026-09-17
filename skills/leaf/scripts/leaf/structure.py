@@ -83,12 +83,12 @@ OVERFLOW_PROPS = ("width", "min-width")
 # would silently declare nothing in the browser, so `version check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
-# The one CSP delivery gives every page. The server adds one nonce, which it also
-# writes onto the runtime bootstrap and every authored module block, so the inline
-# scripts a delivery composed run and an injected one does not. 'self' is the
-# immutable page layer whole; base-uri and form-action need their own directives
-# because default-src governs only fetches. data: admits the images `version export`
-# inlines, and the theme arrives inline in a <style> on export.
+# The one CSP delivery gives every page. Delivery adds a nonce and writes it onto the
+# runtime bootstrap and every authored module block, so only the inline scripts it
+# composed run. 'self' is the immutable page layer whole; base-uri and form-action
+# need their own directives because default-src governs only fetches. data: admits
+# the images `version export` inlines, and the theme arrives inline in a <style> on
+# export.
 PAGE_CSP = (
     "default-src 'self'; base-uri 'none'; form-action 'none'; "
     "img-src 'self' data:; style-src 'self' 'unsafe-inline'"

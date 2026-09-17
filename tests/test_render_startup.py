@@ -2937,9 +2937,14 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
     are still starting — because the reload lands on the same document and the next answer
     says the same thing, so the reader watches the page restart for as long as the
     disagreement lasts. The source of documents is the one party that can tell the two
-    apart, so the page asks it once and then holds still: the answers stay refused, the
+    apart, so the page asks it and then holds still: the answers stay refused, the
     authored page stays readable, and the feed keeps asking until the server is back on
     this delivery.
+
+    Each refused answer gets its own reading, because the source can move while the page
+    waits — a re-vendor during the hold, or a version comparison refused against the
+    captured layer of the revision it names. A page that asked once and remembered the
+    answer would spend the rest of the tab's life refusing state with no way back.
     """
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("() => { window.lfSameDocument = true; }")
@@ -2955,23 +2960,33 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
             body="{}",
         )
 
+    # The source stands still until the test moves it, and then says so once, because a
+    # re-vendor rewrites the page directory the reload goes on to be served from.
+    moved = {"pending": False}
+
     def source(route):
         probes.append(route)
-        route.continue_()
+        if not moved["pending"]:
+            route.continue_()
+            return
+        moved["pending"] = False
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Layer": "re-vendored"},
+        )
+
+    def wake(text):
+        events_model.append_event(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": text},
+        )
 
     page.route("**/registry.json", source)
     page.route("**/api/state", foreign)
     try:
         for index in range(3):
-            events_model.append_event(
-                serve.page_dir,
-                {
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "text": f"Note {index}.",
-                },
-            )
+            wake(f"Note {index}.")
             holding(page, reads, index + 1, "the reads the news woke")
             if index == 0:
                 expect(page.locator(".lf-notice")).to_have_text(
@@ -2980,9 +2995,15 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
         assert page.evaluate("() => window.lfSameDocument === true"), (
             "the page reloaded onto the document it was already being served"
         )
-        assert len(probes) == 1, (
-            "the page asked its source once for each refused answer rather than once "
-            f"for the disagreement: {len(probes)} asks over {len(reads)} answers"
+        assert len(probes) == len(reads), (
+            "the page carried one reading of its source over the refusals that "
+            f"followed: {len(probes)} asks over {len(reads)} answers"
+        )
+
+        moved["pending"] = True
+        wake("The source moved.")
+        page.wait_for_function(
+            "() => window.lfSameDocument === undefined", timeout=15_000
         )
     finally:
         page.unroute("**/api/state", foreign)

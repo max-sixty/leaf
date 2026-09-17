@@ -78,24 +78,34 @@ function reloadNow(message) {
   location.reload();
 }
 
-let sourceAsked = false;
+// Each foreign answer gets its own reading of the source, because the source may move
+// while the page waits — this very page can be re-vendored during the hold — and an
+// answer carried over from an earlier reading would leave the tab with no way back. One
+// probe is in the air at a time, so a burst of refusals costs one. The words are the
+// exception: a standing condition explained once is enough, and repeating a transient
+// status line would hold the page's foot for as long as the disagreement lasts.
+let asking = false;
+let saidWaiting = false;
 function reloadDelivery(message) {
-  if (layerReloading || sourceAsked) return;
-  sourceAsked = true;
+  if (layerReloading || asking) return;
+  asking = true;
   void (async () => {
-    const moved = await sourceMovedOn();
-    if (moved === undefined) {
-      sourceAsked = false;
-      return;
+    try {
+      const moved = await sourceMovedOn();
+      if (moved === undefined) return;
+      if (!moved) {
+        // The answers stay refused, which is the offline reading this page already knows
+        // how to hold: authored content stays readable and the feed keeps asking, so the
+        // page rejoins the log by itself once the server is back on this delivery.
+        if (saidWaiting) return;
+        saidWaiting = true;
+        notice("Waiting for the server to finish updating.");
+        return;
+      }
+      reloadNow(message);
+    } finally {
+      asking = false;
     }
-    if (!moved) {
-      // The answers stay refused, which is the offline reading this page already knows
-      // how to hold: authored content stays readable and the feed keeps asking, so the
-      // page rejoins the log by itself once the server is back on this delivery.
-      notice("Waiting for the server to finish updating.");
-      return;
-    }
-    reloadNow(message);
   })();
 }
 

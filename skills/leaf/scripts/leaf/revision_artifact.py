@@ -173,7 +173,6 @@ def _javascript_imports(
     data: bytes,
     path: str,
     *,
-    allow_import_attributes: bool = False,
     allow_computed_imports: bool = False,
 ):
     """Yield exact string-literal spans of static exports/imports and import()."""
@@ -202,9 +201,7 @@ def _javascript_imports(
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
-            if not allow_import_attributes and any(
-                child.type == "import_attribute" for child in node.named_children
-            ):
+            if any(child.type == "import_attribute" for child in node.named_children):
                 raise ArtifactError(
                     f"{path}:{node.start_point.row + 1}: import attributes are not supported for JavaScript modules"
                 )
@@ -720,7 +717,6 @@ def rewrite_captured_module(
             _javascript_imports(
                 data,
                 logical_path,
-                allow_import_attributes=True,
                 allow_computed_imports=True,
             )
         )

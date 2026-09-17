@@ -52,9 +52,10 @@ jobs:
             worker/package-lock.json
 
       # The runner supplies installed Chrome for the two launcher tests. The rest of
-      # the browser suite uses the headless shell matching the locked Playwright.
-      - name: Install Chromium headless shell
-        run: uv run playwright install --with-deps chromium --only-shell
+      # the browser suite uses the headless shell matching the locked Playwright, and
+      # the phone contract uses its WebKit, the engine iPhone browsers run on.
+      - name: Install Chromium headless shell and WebKit
+        run: uv run playwright install --with-deps chromium webkit --only-shell
 
       - name: Install browser-build dependencies
         run: npm ci
@@ -116,8 +117,8 @@ jobs:
       - name: Install browser-build dependencies
         run: npm ci
 
-      - name: Install Chromium headless shell
-        run: uv run playwright install --with-deps chromium --only-shell
+      - name: Install Chromium headless shell and WebKit
+        run: uv run playwright install --with-deps chromium webkit --only-shell
 
       - name: 🧪 Complete test suite
         run: uv run pytest tests --run-nightly -v --junitxml=.tmp/test-results/nightly.xml

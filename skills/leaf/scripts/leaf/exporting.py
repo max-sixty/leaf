@@ -1,7 +1,6 @@
 """Standalone export of a fully rendered page."""
 
 import base64
-import json
 import re
 import sys
 from collections.abc import Callable
@@ -48,7 +47,7 @@ from leaf.revision_artifact import (
     rewrite_captured_module,
     rewrite_module,
 )
-from leaf.revision_delivery import delivery_identity
+from leaf.revision_delivery import delivery_identity, delivery_sheets, json_script
 from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.served_state.service import PageStateService
 from leaf.structure import (
@@ -281,15 +280,7 @@ def inline_assets(
     return html
 
 
-def _json_script(value) -> str:
-    """Serialize inert JSON without admitting an HTML script end tag."""
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace(
-        "</", "<\\/"
-    )
-
-
 def _interactive_module_urls(artifact: RevisionArtifact) -> dict[str, str]:
-    assets = _AssetInliner(artifact.resources.__getitem__)
     urls = {}
     for path, resource in artifact.resources.items():
         if resource.mime == "application/javascript":
@@ -297,9 +288,6 @@ def _interactive_module_urls(artifact: RevisionArtifact) -> dict[str, str]:
                 resource.data, path, "leaf:", artifact.resources
             )
             urls[path] = _data_url(Resource(source, resource.mime))
-        elif resource.mime == "text/css":
-            css = assets.css(resource.data.decode("utf-8"), path, (path,))
-            urls[path] = _data_url(Resource(css.encode(), resource.mime))
     for tag, implementation in artifact.implementations.items():
         urls[f"/widgets/{tag}.js"] = urls[implementation["path"]]
     return urls
@@ -367,7 +355,8 @@ def interactive_export_page(
         for path, resource in artifact.resources.items()
         if resource.mime not in {"application/javascript", "text/css"}
     }
-    theme = _AssetInliner(artifact.resources.__getitem__).css(
+    inliner = _AssetInliner(artifact.resources.__getitem__)
+    theme = inliner.css(
         artifact.resources["/theme.css"].data.decode("utf-8"),
         "/theme.css",
         ("/theme.css",),
@@ -376,10 +365,10 @@ def interactive_export_page(
     embedded_resources["/registry.json"] = _data_url(
         artifact.resources["/registry.json"]
     )
-    import_map = _json_script(
+    import_map = json_script(
         {"imports": {f"leaf:{path}": url for path, url in sorted(modules.items())}}
     )
-    payload = _json_script(
+    payload = json_script(
         {"state": state, "data": data, "resources": embedded_resources}
     )
     hashes = [script_hash(import_map), *(script_hash(body) for body in authored_inline)]
@@ -397,7 +386,10 @@ def interactive_export_page(
         '<script type="application/json" data-lf-runtime data-lf-offline '
         'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
         f"{payload}</script>"
-        f"<style data-lf-runtime>{escaped_theme}</style>"
+        + delivery_sheets(
+            artifact.resources, lambda css, path: inliner.css(css, path, (path,))
+        )
+        + f"<style data-lf-runtime>{escaped_theme}</style>"
         f'<script type="module" src="{escape(modules["/leaf.js"], quote=True)}" '
         "data-lf-runtime></script>"
     )

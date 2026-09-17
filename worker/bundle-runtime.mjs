@@ -40,18 +40,6 @@ export async function bundleLayer(layerRoot, assetRoot, outputRoot = layerRoot) 
   const preserveUrls = {
     name: "preserve-module-urls",
     setup(builder) {
-      builder.onResolve({ filter: /\.css$/ }, ({ importer, path }) => {
-        if (path.startsWith("/")) {
-          const local = layerPath(path, assetRoot);
-          return {
-            external: true,
-            path: local ? `${assetRoot}/${local}` : path,
-          };
-        }
-        const resolved = resolve(dirname(importer), path);
-        const publicPath = `${assetRoot}/${browserPath(relative(layerRoot, resolved))}`;
-        return { external: true, path: publicPath };
-      });
       builder.onResolve({ filter: /^\// }, ({ kind, path }) => {
         if (kind === "entry-point") return null;
         const local = layerPath(path, assetRoot);

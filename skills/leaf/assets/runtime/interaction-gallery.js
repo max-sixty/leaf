@@ -101,6 +101,14 @@ async function loadFrameDocument(frame) {
   const stylesheet = source.createElement("link");
   stylesheet.rel = "stylesheet";
   stylesheet.href = theme;
+  // The contained page constructs its adopted sheets from the text its document carries
+  // (runtime/stylesheets.js); this page's own carrier is the same layer's.
+  const carrier = document.querySelector(
+    'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
+  );
+  if (!carrier)
+    throw new Error("this document carries no runtime stylesheets to hand the frame");
+  const sheets = source.importNode(carrier, true);
   const main = source.createElement("main");
   main.append(content);
   root.lang = "en";
@@ -118,6 +126,7 @@ async function loadFrameDocument(frame) {
     meta("lf-widgets", JSON.stringify(servedWidgets)),
     meta("lf-version", String(runtime.currentStamp)),
     stylesheet,
+    sheets,
     style,
   );
   // The document in the frame is the runtime's, and it is a whole second Leaf page.

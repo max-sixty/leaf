@@ -313,7 +313,14 @@ def dead_pid(spawn):
 
 
 @pytest.fixture(scope="session")
-def _browser():
+def _playwright():
+    """The one Playwright driver a worker may hold; every browser engine launches from it."""
+    with sync_playwright() as p:
+        yield p
+
+
+@pytest.fixture(scope="session")
+def _browser(_playwright):
     """Playwright's pinned Chromium headless shell, driven for the tests a static
     read can't answer: what a widget upgrades into, and what the site fits on.
 
@@ -324,10 +331,9 @@ def _browser():
 
     Each test receives this process through the function-scoped `browser` fixture,
     which closes any contexts the test leaves open."""
-    with sync_playwright() as p:
-        b = p.chromium.launch()
-        yield b
-        b.close()
+    b = _playwright.chromium.launch()
+    yield b
+    b.close()
 
 
 @pytest.fixture
@@ -348,6 +354,22 @@ def browser(_browser):
     finally:
         for context in reversed(_browser.contexts):
             context.close()
+
+
+@pytest.fixture
+def iphone(_playwright):
+    """A WebKit context shaped like an iPhone: its viewport, pixel ratio, touch, and
+    user agent. WebKit is the engine iPhone browsers run on, so this is what a phone
+    reader meets whichever browser they open the page in. Browser problems are rejected
+    as in `browser`."""
+    from render_harness import clean_browser
+
+    webkit = _playwright.webkit.launch()
+    try:
+        with clean_browser():
+            yield webkit.new_context(**_playwright.devices["iPhone 15"])
+    finally:
+        webkit.close()
 
 
 @pytest.fixture(scope="session")

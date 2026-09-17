@@ -111,6 +111,57 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   how much persistence and workspace customization Leaf should own. Requires Max to
   choose and participate in real recurring tasks.
 
+## Reading on a phone
+
+Leaf's focus is desktop, and a phone reader now gets a working page: since b0e78287 the
+runtime starts in WebKit, and selecting text, commenting, replying, answering an option
+and moving a board card all work at 393px, with no shipped example scrolling sideways.
+The items below are what a survey of `review-a-plan`, `triage-board`, `pr-walkthrough`
+and `ship-review` found missing in an emulated iPhone. Emulation does not show iOS's own
+selection callout, the software keyboard, Safari's collapsing toolbars, or a real
+long-press or pinch, so settle anything that depends on those on a device first. The
+thread panel's touch grip has its own item under Later.
+
+- **Let a touch reader comment on an element, not only on selected text.** The routes to
+  an element target are Alt-click, the `s` key, and a "Respond to…" button that appears
+  on keyboard focus alone (`skills/leaf/assets/runtime/chrome.css`), while the shortcut
+  bar that teaches `s` is hidden at a coarse pointer — which also removes the only
+  pointer route to the command list. Tapping a board card, a diagram, a diff line or a
+  disclosure therefore does nothing. Decide what a phone reader may target before
+  choosing the affordance; the `s` target picker behind the ⋯ menu would reach the same
+  targets the keyboard does.
+
+- **Show a phone reader that a passage has a thread.** Margin markers and pickup receipts
+  are hidden below 900px (`runtime/margin-projection.js`'s `hide` fallback,
+  `assets/theme.css`), so a comment beside a task is invisible, although tapping the text
+  still opens it and Threads still lists it. The reaction row already moves into the text
+  flow when the margin has no room; the same reflow for markers would keep the page
+  honest about what it holds.
+
+- **Make a delivered document declare its viewport.** `references/page-authoring.md` puts
+  `<meta name="viewport">` in the authoring template and nothing checks for it, so a page
+  authored without one lays out at 980px on a phone and none of the runtime's
+  coarse-pointer or narrow-width rules apply. Supplying it at delivery, beside the
+  encoding, CSP, theme and stylesheets a delivery already adds, would make the phone
+  layout a property of the runtime rather than of the author's memory.
+
+- **Find out whether the interactive-reply crash reaches real hardware.** In emulated
+  iPhone WebKit, opening a thread's interactive reply
+  (`runtime/conversation/messages.js`) crashes the page process every time between 393px
+  and 540px and never at 560px or wider, while Chromium at the same size is unaffected.
+  The panel focuses the message and scrolls it into view smoothly twice, and the crash
+  lands about eight frames later; reduced motion does not prevent it, so the smooth
+  scroll may not be the cause. Reproduce it on a device before choosing a fix.
+
+- **Finish the phone polish the same survey listed.** Placeholders and badges name keys a
+  phone cannot press (`Comment… · c` and `Reply · ⌘⏎` from `runtime/composing/input.js`,
+  and the `1 2 3` badges a pick control paints); a disabled "Approve version" keeps its
+  reason in a hover tooltip (`runtime/banner.js`); `pr-walkthrough` opens a 1026px
+  diagram in a 295px box, and its diffs open with soft wrap off, cutting code at about 30
+  columns; and the diff "+", the thread "Add reaction" and `<summary>` rows sit under the
+  44px touch minimum. Each is small alone, and together they decide whether a phone
+  reader can finish what the page asks.
+
 ## Later
 
 - **Prefer a release tag when Leaf adopts named versions.** When the running payload's

@@ -1,5 +1,6 @@
 """Captured dependency addresses are independent of the document's public URL."""
 
+import json
 from urllib.parse import urljoin, urlsplit
 
 import pytest
@@ -7,7 +8,7 @@ import tinycss2
 from interact_support import PAGE
 from leaf.exporting import inline_assets
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
-from leaf.revision_delivery import deliver_document, deliver_resource
+from leaf.revision_delivery import deliver_document, deliver_resource, json_script
 from leaf.structure import SourceDocument
 
 ROOT = "/p/reader/revisions/r1-0123456789abcdef"
@@ -189,3 +190,17 @@ def test_capture_refuses_a_missing_svg_resource(tmp_path):
         ArtifactError, match=r"/page/missing\.svg: cannot capture dependency"
     ):
         capture_artifact(tmp_path, SourceDocument(source), {})
+
+
+def test_inert_json_cannot_end_or_reshape_its_script_element():
+    """A reader's own words travel inside a script element, and two sequences escape it.
+
+    `</script` closes the element; `<!--` opens a comment the parser reads the rest of
+    the document inside, and an exported page carrying one in a comment lost everything
+    after it. No `<` survives serialization, and the text parses back exactly."""
+    hostile = "</script><!--<script>alert(1)</script>"
+
+    serialized = json_script({"said": hostile})
+
+    assert "<" not in serialized
+    assert json.loads(serialized)["said"] == hostile

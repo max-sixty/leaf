@@ -72,7 +72,7 @@ def write_live_shell(
             widgets=artifact.widgets,
             server_id=server_id,
             layer_id=artifact.registry["$layer"]["generation"],
-            bootstrap=artifact.resources["/runtime/bootstrap.js"].data.decode("utf-8"),
+            resources=artifact.resources,
             release_id=release_id,
             page_root=page_root,
             asset_root=revision_root,

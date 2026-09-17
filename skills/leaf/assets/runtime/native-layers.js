@@ -5,7 +5,7 @@
    boundary, then confirm native state at each read so cancellation and light dismissal
    cannot leave a stale owner. The monotonically increasing order survives a temporarily
    hidden popover and distinguishes a newer cover from an older layer revealed beneath a
-   closed return frame. */
+   closed return frame. Dismissal is each layer's own `popover` or `closedby` value. */
 
 const layers = [];
 const orders = new WeakMap();

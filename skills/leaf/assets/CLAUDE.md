@@ -80,6 +80,7 @@ version travel and contained gallery documents consume the executable and widget
 readings;
 `runtime/native-layers.js` owns the browser's modal-dialog and popover order across the
 document and declared shadow roots, including the modal floor beneath a nested popover;
+dialogs declare their own dismissal with `closedby`;
 `runtime/deferred-modals.js` holds authored modals outside the top layer until the
 first presentation boundary;
 `runtime/layer-client.js` owns the vendored-generation gate, shared event and media

@@ -64,6 +64,7 @@ export const commandReferenceDialog = document.createElement("dialog");
 commandReferenceDialog.id = "lf-command-reference";
 commandReferenceDialog.className = "lf-ui lf-command-reference";
 commandReferenceDialog.setAttribute("aria-label", "Command reference");
+commandReferenceDialog.setAttribute("closedby", "any");
 commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
@@ -694,25 +695,10 @@ function readCommandReferenceSearch(event) {
   presentCommandReference();
 }
 
+// Escape and a backdrop press both arrive here as a close request.
 commandReferenceDialog.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeCommandReference();
-});
-
-// A modal dialog's backdrop reports the dialog itself as the click target. Compare the
-// pointer with the painted box so the backdrop remains a light-dismiss surface.
-commandReferenceDialog.addEventListener("mousedown", (event) => {
-  if (event.target !== commandReferenceDialog) return;
-  const box = commandReferenceDialog.getBoundingClientRect();
-  if (
-    event.clientX < box.left ||
-    event.clientX > box.right ||
-    event.clientY < box.top ||
-    event.clientY > box.bottom
-  ) {
-    event.preventDefault();
-    closeCommandReference();
-  }
 });
 
 function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) {

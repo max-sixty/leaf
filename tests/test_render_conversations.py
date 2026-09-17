@@ -222,7 +222,6 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
         """(open, destination) => open.addEventListener(
           'click',
           () => {
-            destination.classList.add('grow');
             window.__arrival = null;
             const arrived = (event) => {
               if (event.target !== destination) return;

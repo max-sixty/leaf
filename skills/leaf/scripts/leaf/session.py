@@ -77,7 +77,7 @@ def cmd_status(
 
 def cmd_delivery_claim(
     delivery_id: str,
-    detail: str = DELIVERY_CLAIM_DETAIL,
+    detail: str | None = None,
     event_id: str | None = None,
 ) -> str:
     """Mark one exact, still-outstanding move from a delivery as Working.
@@ -87,6 +87,11 @@ def cmd_delivery_claim(
     under the same log lock, so a stale delivery cannot attach work to a newer
     move merely because both belong to the same thread or widget.
     """
+    # No detail is Leaf speaking for the agent, so the reader hears something the
+    # moment their move is taken up. An agent that supplies one has said it itself,
+    # whatever words it chose.
+    stated = detail is not None
+    detail = detail if stated else DELIVERY_CLAIM_DETAIL
     delivery = read_delivery(delivery_id)
     candidates = []
     for batch in delivery["batches"]:
@@ -134,7 +139,7 @@ def cmd_delivery_claim(
             }
             if target["kind"] == "widget":
                 handling["revision"] = interaction.get("revision")
-            page.set_status("working", detail, handling=handling)
+            page.set_status("working", detail, handling=handling, stated=stated)
             return (
                 f"working on {target['kind']} {target['id']} for event "
                 f"{event['id']} — {detail}"

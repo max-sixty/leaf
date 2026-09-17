@@ -282,6 +282,7 @@ class PageTransaction:
         *,
         work: dict | None = None,
         handling: dict | None = None,
+        stated: bool = True,
     ) -> None:
         """Write the page declaration and any typed local evidence it renews.
 
@@ -302,6 +303,11 @@ class PageTransaction:
         status = {
             "state": state,
             "detail": detail,
+            # Whether the agent said this. `delivery claim` writes a detail of Leaf's
+            # own so the reader hears something the instant their move is taken up, and
+            # a transport watching the session's real steps knows more than that wording
+            # does. An agent's own sentence is the one nothing outranks.
+            **({} if stated else {"stated": False}),
             "ts": now_iso(),
             # Order the agent's declaration against delivery transitions without
             # comparing wall-clock timestamps that are only precise to a second.

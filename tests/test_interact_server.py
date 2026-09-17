@@ -4512,6 +4512,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "quiet": False,
             "dropped": False,
             "detail": "",
+            "observed": "",
             "count": 0,
             "counts": {
                 "active": 0,
@@ -4572,6 +4573,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 "quiet": True,
                 "dropped": False,
                 "detail": "measuring",
+                "observed": "",
                 "count": 0,
                 "counts": {
                     "active": 0,

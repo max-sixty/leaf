@@ -46,10 +46,16 @@ reaches the standing obligations is current work. If newer interactions are only
 alongside them and the banner names both facts; the older event floor does not claim
 that work has started on the queued input. Turn identity, not elapsed time, decides
 whether opened delivery belongs to the turn now running.
-Fresh activity from the claimed Codex task's App Server outranks that declaration
-while its watcher is live. It is an observation bound to one turn and event floor,
-not a second work declaration; the declaration remains underneath and becomes current
-again when the turn or observer ends.
+Fresh activity from the claimed Codex task's App Server is an observation bound to one
+turn and event floor, not a second work declaration. It can make a page working over a
+declaration that says otherwise, because it proves a session is alive and moving. It
+does not say what the work is: a current `working` declaration keeps the reading's
+sentence and its own date on every host, and the observed step is reported beside it as
+`observed`. `delivery claim` given no detail writes one of Leaf's own so a taken-up move says so at
+once, and marks it `stated: false`; a watched step whose own floor reaches the newest
+input knows more than that wording and takes the sentence back, while an older step
+leaves it standing. Where no current declaration stands, the step is the sentence,
+and the declaration becomes current again when the turn or observer ends.
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
 or widget the work is about. `leaf delivery claim` instead records one event from an

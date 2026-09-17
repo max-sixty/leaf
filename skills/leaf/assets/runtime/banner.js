@@ -1,6 +1,6 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
-import { ago, clocked } from "./presence.js";
+import { JUST_NOW, ago, clocked } from "./presence.js";
 import { el, reserve } from "./widget-elements.js";
 import { agentName, runtime, runtimeResource } from "./context.js";
 import {
@@ -339,6 +339,7 @@ const publicationWords = (published) => [
 // Both levels of wording follow server-owned activity. Short summaries retain the
 // actionable distinction: listening, saved for a later session, or browser-only work.
 function statusWords({
+  age,
   agent,
   dated,
   shortDate,
@@ -363,8 +364,18 @@ function statusWords({
       `No session${savedSummary}`,
       `No session holds this page. ${saved} It picks up again when a session does.`,
     ];
-  if (kind === "working")
-    return [`${agent} working`, `${agent} is working${detail ? " — " + detail : ""}`];
+  // The agent's own sentence is the reason to look at the row while it works, so the
+  // row keeps it and the ellipsis fits it to the room the controls leave. A sentence just
+  // renewed needs no date; an older one is dated ahead of the detail, because the detail
+  // is what the ellipsis eats first and a stale sentence with its date cut off is the one
+  // reading this row must not give.
+  if (kind === "working") {
+    const said = detail ? " — " + detail : "";
+    return [
+      `${agent} working${age && age !== JUST_NOW ? " · " + age : ""}${said}`,
+      `${agent} is working${said}`,
+    ];
+  }
   if (kind === "handling")
     return [`${agent} handling ${updates}`, `${agent} is handling ${updates}`];
   if (kind === "queued")
@@ -483,7 +494,9 @@ function renderStatusNow(state) {
   const dated = dropped
     ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
     : `${agentName()} last checked in ${ago(activity.ts)}`;
+  const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
   const [summary, text] = statusWords({
+    age,
     agent: agentName(),
     dated,
     shortDate: dropped
@@ -497,8 +510,12 @@ function renderStatusNow(state) {
     quiet,
     saved,
   });
-  let explanation =
-    kind === "working" && activity.ts ? `${text} (${ago(activity.ts)})` : text;
+  let explanation = age ? `${text} (${age})` : text;
+  // What a transport can watch for itself, when the sentence beside it was written by
+  // the agent: two facts about one turn, so the row keeps the one meant for the reader
+  // and the disclosure holds the step proving the session is still moving.
+  if (activity.observed && activity.observed !== detail)
+    explanation += ` · ${activity.observed}`;
   if (kind === "working" && activity.counts.queued)
     explanation += `. ${activity.counts.queued} more update${activity.counts.queued === 1 ? " is" : "s are"} queued.`;
   presentStatus({ kind, tone: TONE[kind], summary, explanation });

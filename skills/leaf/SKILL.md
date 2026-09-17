@@ -37,6 +37,15 @@ you return to the user in chat, including interim updates, questions, and the
 final handoff. An inline MCP App has no durable URL to invent; refer to the review
 and its observed mode instead. If you open its browser page, the URL rule begins then.
 
+## Keep the reader current
+
+While a page is live, telling its reader what you are doing takes priority over doing
+it, as a UI thread handles input before background work. Put each step on the page
+before starting it, and acknowledge reader input on the page before acting on it. Keep
+the watcher running, and hand work longer than a few minutes to background workers
+rather than waiting on it yourself, so a new comment reaches you in time to change the
+next step. `references/conversation-loop.md` names the surfaces and when to write each.
+
 ## Start here
 
 Pages conventionally live at `~/.local/state/leaf/pages/<slug>/`, though every
@@ -100,6 +109,12 @@ it inline, while queued Codex carries its immutable id. Read
 
 ## Page contract
 
+Using Leaf should feel like playing a game: the reader sees what the page wants of them
+without reading it first, every state they reach offers a move, and a move the page can
+draw shows its result at once. Sometimes the game is Snap, where the match is there and they pick it;
+sometimes it is Factorio, where the system is laid out and they move its pieces. It is
+never a chore.
+
 Unless the user specifies the page's form or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the reader can grasp it at a glance and continue;
@@ -111,14 +126,14 @@ page follows the subject's shape, whether a scrolling document or a workspace;
 `references/page-authoring.md` owns the concrete choices.
 
 The page contract and widget capabilities are choices, not a checklist. Include
-only controls and gestures whose results advance the reader's task.
+only controls and gestures whose results advance the reader's task. A reader part-way
+through should be able to see what they have settled and what is still theirs. A widget
+move, a resolution and a sign-off can be taken back; words and requests stand.
 
 A page states what is true now, not how it got there. Correct a wrong figure in
 place and drop a superseded claim rather than narrating its withdrawal; the
 `version stamp` changelog and the event log carry the history. Save freely as
-the subject changes and stamp meaningful checkpoints. Use status detail for
-progress between revisions. Keep the waiter alive while work continues so
-comments can affect the next step.
+the subject changes and stamp meaningful checkpoints.
 
 ## Improve Leaf through use
 
@@ -148,7 +163,8 @@ so a phase does not depend on discovering a chain of references.
 
 ### First handoff
 
-- `references/conversation-loop.md`: before a page handoff or working status.
+- `references/conversation-loop.md`: before a page handoff, a working status, or
+  work long enough to delegate.
 - `references/host-claude-code.md`: before the first handoff in Claude Code or
   recovery of its direct wait loop.
 - `references/host-codex.md`: before the first handoff in Codex, and for the

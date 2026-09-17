@@ -55,8 +55,10 @@ leaf codex start <page> --app-server ws://127.0.0.1:4500
 ```
 
 Leaf resumes the current task as a second client. Plan updates, tool starts,
-reasoning summaries, and waits for approval or user input become the page's short
-current activity detail. If the task is idle, Leaf starts one turn with the
+reasoning summaries, and waits for approval or user input are watched as the task's
+current step. The page's sentence stays the one you declare with `leaf status`, and the
+step stands beside it in the banner's disclosure; where you have declared nothing for
+this work, the step is the sentence. If the task is idle, Leaf starts one turn with the
 complete delivery as a structured `leaf_delivery` tool output. If the task is
 already active, Leaf retains the immutable delivery in its own durable queue, observes
 the current turn, and starts the delivery directly as soon as the task is idle. It does

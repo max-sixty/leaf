@@ -28,6 +28,82 @@ remain in git history.
   spacing, framing, control hierarchy, and responsive behavior; avoid playful consumer-app
   ornament.
 
+## Make Leaf feel like a game
+
+`skills/leaf/SKILL.md` states the contract: the reader sees what the page wants of them
+without reading it first, every state offers a move, and a move shows its result at
+once. This is about what a page asks of a reader, not about ornament — the visual
+coherence audit above still rules out consumer-app decoration, and the two agree that a
+reader should never have to work out what to do next.
+
+- **Play each shipped example through as a sequence of moves.** At every state a reader
+  can reach in `review-a-plan`, `triage-board`, `pr-walkthrough` and `ship-review`, ask
+  what the page wants next and whether a move is visible that does it. Record the dead
+  ends: a state that offers nothing, a move whose result is not visible, and a page whose
+  objective only appears after reading. The phone survey's first item is one such dead
+  end — a touch reader cannot target an element at all.
+
+- **Give a page one reading of how far the reader has got.** The banner's `Asks 0/1` is
+  the only score Leaf keeps, so a page carrying a board, several Asks and a version to
+  approve has no single answer to "how much of this is still mine". Decide what counts
+  toward that reading before adding a second counter beside the first.
+
+- **Show the plan as well as the step.** App Server's plan updates and Claude Code's task
+  list both say how far along the work is, and Leaf keeps only the current step. A short
+  checklist in the status disclosure would let a reader see progress without asking.
+
+- **Find a specific first task for the public home page.** A visitor's first move is the
+  tutorial level, and the current page starts with the comment-and-revise loop: a visitor
+  asks Leaf guide to edit their private copy. Replace that interim prompt only after
+  testing a task a new visitor would actually bring; avoid canned choices that
+  manufacture work for the guide.
+
+- **Measure a pending count in the favicon.** Prototype the count at 16px and keep it
+  only if it remains legible beside the existing status treatment.
+
+## Agent activity on the page
+
+The reader should always be able to tell what the agent is doing and whether it is still
+doing it. [The responsiveness note](notes/reader-feedback-responsiveness.md) holds the
+ordering contract these items extend.
+
+- **Measure whether agents keep the banner current.** Run the agent evals the
+  responsiveness note describes against the current guidance: a delivery, a multi-step
+  task, and a task long enough to delegate. Score whether a status write precedes each
+  step and whether the reader's new input is claimed before the work continues.
+
+- **Observe Claude Code's tool steps as App Server observes Codex's.** A `PreToolUse` hook
+  could record the current step for pages the session holds, so the banner stays current
+  when the agent does not write. The existing hook's `uv run` takes about 0.2 s even for a
+  session holding no page (measured 2026-09-17), which every tool call in every session
+  would pay, so the hook needs a check that exits at once for such a session. The row and
+  disclosure already divide the two readings the way Codex's stream now uses, so a hook
+  would write `observed` and change no wording.
+
+- **Teach the hosted website agent to declare its steps.** Its banner sentence comes
+  from the tool steps App Server watches, which is why `worker/server.py` keeps that
+  agent's instructions free of `$LEAF status`. Adding a "declare each step before you
+  start it" paragraph there produced four good sentences and a turn that ran a closing
+  `resolve` and never replied, which `verify_site.py local` caught (measured
+  2026-09-17); the same tree passed with the paragraph removed. Any wording tried here
+  has to keep the turn's response operations exactly as they were, and that check is
+  what says whether it did. What the reader gets meanwhile is the step verbatim —
+  `Running /bin/zsh -lc '$LEAF delivery claim … && rg --files …'` — which is the whole
+  argument for the agent saying it in its own words.
+
+- **Decide the banner's pick when several subject claims stand.** The guidance now has
+  the coordinator write one sentence covering its workers, which leaves this to the
+  threads and widgets that legitimately hold claims at once: with a reader move
+  outstanding the fold takes the claim with the highest log floor rather than the newest
+  write (`activity.py`), so which one the banner names is close to arbitrary. Either
+  choose deliberately or list the standing claims in the status disclosure with their
+  subjects and ages.
+
+- **Decide whether delegated work may hold a reader move open across turns.** The Stop
+  hook refuses to end a turn over an acknowledged move with no answer, so a coordinator
+  replies with what it started before its worker runs. A live worker claim on the move's
+  subject could count as handling instead, leaving one reply when the work finishes.
+
 ## Architecture simplification
 
 - **#24 — Give the keyboard an explicit layer stack.** Let whatever opens a surface push a
@@ -231,11 +307,6 @@ thread panel's touch grip has its own item under Later.
   collision refusal, revision replacement, repeated media, and a hundred-revision size
   profile before cutting over and deleting the per-revision resource copies.
 
-- **Find a specific first task for the public home page.** The current page starts
-  with the comment-and-revise loop: a visitor asks Leaf guide to edit their private copy.
-  Replace that interim prompt only after testing a task a new visitor would actually
-  bring; avoid canned choices that manufacture work for the guide.
-
 - **Decide whether suggested replacements need a proper diff.** Compare the current
   plain replacement with a before-and-after view in Threads and inline conversations.
   Add the diff only if it makes nontrivial edits easier to review without duplicating
@@ -271,9 +342,6 @@ thread panel's touch grip has its own item under Later.
 - **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow
   for any host that can run a command, then use that experience to define a shared host
   adapter only if another integration needs it.
-
-- **Measure a pending count in the favicon.** Prototype the count at 16px and keep it
-  only if it remains legible beside the existing status treatment.
 
 - **Give the touch grip room of its own, then fit more thread cards.** At a coarse
   pointer the panel's resize grip is a 44px square laid over the list, and nothing

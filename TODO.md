@@ -102,7 +102,6 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Small settled swaps: a nonce CSP for the per-body hash pipeline (13 call sites); watchfiles for the watcher in `scripts/preview.py`. | S | hash pipeline + ~100 | High | watchfiles adds a native wheel, though only to the dev group `scripts/` runs from |
 | Run one user-level daemon on SQLite, starlette, and asyncio (detail below). | L | ~3,100; Windows; push instead of 50 ms polling | Med | Loses per-page process isolation and the grep-able JSONL log per page; tests that reach into `http.server` internals rework |
 
 ### Both

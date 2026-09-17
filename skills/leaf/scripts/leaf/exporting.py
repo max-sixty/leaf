@@ -2,6 +2,7 @@
 
 import base64
 import re
+import secrets
 import sys
 from collections.abc import Callable
 from html import escape
@@ -19,7 +20,7 @@ from leaf.files import (
     version_name,
     version_revisions,
 )
-from leaf.http import head_open_end_offset, script_hash
+from leaf.http import head_open_end_offset
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import (
     RENDER_VIEWPORT,
@@ -293,17 +294,25 @@ def _interactive_module_urls(artifact: RevisionArtifact) -> dict[str, str]:
     return urls
 
 
-def _bind_authored_modules(
-    html: str, module_urls: dict[str, str]
-) -> tuple[str, list[str]]:
-    """Address captured authored modules from a self-contained file."""
+def _bind_authored_modules(html: str, module_urls: dict[str, str], nonce: str) -> str:
+    """Address captured authored modules from a self-contained file.
+
+    Each one is also marked with the file's script nonce, which is what separates the
+    blocks this export composed from markup a later reader's inputs write into it.
+    """
     root = turbohtml.parse(html, source_locations=True)
     edits = []
-    inline_modules = []
     for element in root.find_all("script"):
         location = element.source_location
         if location is None or element.attrs.get("type") != "module":
             continue
+        edits.append(
+            (
+                location.start_tag.end_offset - 1,
+                location.start_tag.end_offset - 1,
+                f' nonce="{nonce}"',
+            )
+        )
         if source := element.attrs.get("src"):
             logical = resolve_dependency(source, "/index.html", module=True)
             span = location.attrs["src"]
@@ -320,11 +329,10 @@ def _bind_authored_modules(
             body = rewrite_module(
                 html[start:end].encode(), "/index.html", "leaf:"
             ).decode()
-            inline_modules.append(body)
             edits.append((start, end, body))
     for start, end, replacement in sorted(edits, reverse=True):
         html = html[:start] + replacement + html[end:]
-    return html, inline_modules
+    return html
 
 
 def interactive_export_page(
@@ -349,7 +357,8 @@ def interactive_export_page(
         read_resource=artifact.resources.__getitem__,
         document_url="/index.html",
     )
-    html, authored_inline = _bind_authored_modules(html, modules)
+    nonce = secrets.token_urlsafe(16)
+    html = _bind_authored_modules(html, modules, nonce)
     embedded_resources = {
         path: _data_url(resource)
         for path, resource in artifact.resources.items()
@@ -371,18 +380,16 @@ def interactive_export_page(
     payload = json_script(
         {"state": state, "data": data, "resources": embedded_resources}
     )
-    hashes = [script_hash(import_map), *(script_hash(body) for body in authored_inline)]
     policy = (
         "default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; "
         "connect-src data:; img-src data:; media-src data:; font-src data:; "
-        "style-src 'unsafe-inline' data:; script-src data: "
-        + " ".join(dict.fromkeys(hashes))
+        f"style-src 'unsafe-inline' data:; script-src data: 'nonce-{nonce}'"
     )
     escaped_theme = re.sub(r"</style", r"<\/style", theme, flags=re.IGNORECASE)
     runtime_head = (
         delivery_identity(revision, version, artifact.executable, artifact.widgets)
         + f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">'
-        f'<script type="importmap">{import_map}</script>'
+        f'<script type="importmap" nonce="{nonce}">{import_map}</script>'
         '<script type="application/json" data-lf-runtime data-lf-offline '
         'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
         f"{payload}</script>"

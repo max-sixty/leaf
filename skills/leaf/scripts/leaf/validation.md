@@ -10,8 +10,8 @@ never classic scripts, network imports, event-handler attributes, or `javascript
 page-specific presentation appears inline or in captured `/page/` stylesheets. CSP,
 runtime, theme, page identity, and
 canonical address belong to delivery and are rejected in source. Delivery inserts
-them at the start of `<head>`, before authored executable content, and hashes each
-authored inline module into the served policy. Every lf-* element validates against the effective registry
+them at the start of `<head>`, before authored executable content, and marks each
+authored inline module with the nonce its policy names. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real

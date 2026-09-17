@@ -1,18 +1,32 @@
-"""Local host paths, process readings, and agent-session identity."""
+"""Local host paths, process readings, and agent-session identity.
 
-import ctypes
+psutil owns the process readings. It asks the kernel directly, which is what
+these need: the portable tool is `ps`, macOS ships it setuid root, and the
+seatbelt sandbox Codex runs its shell tool under refuses to exec it (measured
+inside `codex exec --sandbox workspace-write`: `/bin/ps: Operation not
+permitted`). psutil does not own `pid_alive`, whose comment records why."""
+
 import os
 import sys
 from pathlib import Path
 
+import psutil
+
 from leaf.files import read_json
+
+# A process reading fails in two ways worth answering with None: the process is
+# gone (NoSuchProcess, and ZombieProcess under it), or it belongs to another user
+# and its command line is closed to us (AccessDenied). psutil's other errors come
+# from calls this module does not make.
+_UNREADABLE = (psutil.NoSuchProcess, psutil.AccessDenied)
 
 
 def pid_alive(pid: int) -> bool:
     # PermissionError is another user's process, and every pid this module
     # records — servers, agent sessions — runs as this user. After a reboot the
     # low pids are mostly root's, so counting EPERM alive read a stale record
-    # as a live server for as long as the machine stayed up.
+    # as a live server for as long as the machine stayed up. `psutil.pid_exists`
+    # is the opposite reading: it takes EPERM as proof that a process is there.
     try:
         os.kill(pid, 0)
     except (ProcessLookupError, PermissionError):
@@ -27,55 +41,14 @@ def process_info(pid: int) -> tuple[int, str] | None:
     The name is the executable's own, not the words the command was written
     with: a process launched through a symlink or a `#!` script reports what the
     kernel loaded. That is the point — it answers which program a process *is*,
-    which is what `session_lifetime` asks of an ancestor.
-
-    Two platform doors because there is no portable one. `ps` reads this on
-    both, and macOS ships it setuid root, which the seatbelt sandbox Codex runs
-    its shell tool under refuses to exec — so the one door that looks portable
-    is the one that fails exactly where this is needed (measured inside
-    `codex exec --sandbox workspace-write`: `/bin/ps: Operation not
-    permitted`)."""
-    if sys.platform == "darwin":
-        # proc_pidinfo's PROC_PIDT_SHORTBSDINFO, whose whole struct is the two
-        # facts wanted; pbsi_comm is the executable's name, truncated to 16.
-        class ProcBSDShortInfo(ctypes.Structure):
-            _fields_ = [
-                ("pbsi_pid", ctypes.c_uint32),
-                ("pbsi_ppid", ctypes.c_uint32),
-                ("pbsi_pgid", ctypes.c_uint32),
-                ("pbsi_status", ctypes.c_uint32),
-                ("pbsi_comm", ctypes.c_char * 16),
-                ("pbsi_flags", ctypes.c_uint32),
-                ("pbsi_uid", ctypes.c_uint32),
-                ("pbsi_gid", ctypes.c_uint32),
-                ("pbsi_ruid", ctypes.c_uint32),
-                ("pbsi_rgid", ctypes.c_uint32),
-                ("pbsi_svuid", ctypes.c_uint32),
-                ("pbsi_svgid", ctypes.c_uint32),
-                ("pbsi_rfu", ctypes.c_uint32),
-            ]
-
-        proc_pidt_shortbsdinfo = 13
-        info = ProcBSDShortInfo()
-        proc_pidinfo = ctypes.CDLL(None).proc_pidinfo
-        if proc_pidinfo(
-            ctypes.c_int(pid),
-            ctypes.c_int(proc_pidt_shortbsdinfo),
-            ctypes.c_uint64(0),
-            ctypes.byref(info),
-            ctypes.c_int(ctypes.sizeof(info)),
-        ) != ctypes.sizeof(info):
-            return None
-        return info.pbsi_ppid, info.pbsi_comm.decode()
-
+    which is what `session_lifetime` asks of an ancestor. The kernel truncates
+    it to 15 or 16 characters; psutil restores a truncated name from the program
+    path the command line starts with."""
     try:
-        stat = Path(f"/proc/{pid}/stat").read_text()
-    except OSError:
+        process = psutil.Process(pid)
+        return process.ppid(), process.name()
+    except _UNREADABLE:
         return None
-    # The program's name is parenthesised and may hold spaces and parens of its
-    # own, so the fields after it are read from past the last ')': state, ppid.
-    program = stat[stat.index("(") + 1 : stat.rindex(")")]
-    return int(stat[stat.rindex(")") + 1 :].split()[1]), program
 
 
 def ancestry() -> list[tuple[int, str]]:
@@ -97,45 +70,16 @@ def ancestry() -> list[tuple[int, str]]:
 
 
 def process_argv(pid: int) -> list[str] | None:
-    """The words a live process was launched with, or None once it is gone.
+    """The words a live process was launched with, or None once it is gone or
+    out of reach.
 
     `process_info` answers which program a process *is*; this answers what it
     was told to do, which is the only thing that separates a `codex` hosting one
-    session from a `codex` hosting all of them (`session_lifetime`).
-
-    The same two platform doors, and for the same reason: `ps` is setuid root on
-    macOS and the seatbelt sandbox Codex runs its shell tool under refuses to
-    exec it. KERN_PROCARGS2 needs no privilege for this user's own processes.
-    Its buffer is [argc][exec path][alignment NULs][argc NUL-terminated args],
-    so the path is dropped and the args taken by count rather than by scanning
-    into the environment that follows them."""
-    if sys.platform == "darwin":
-        libc = ctypes.CDLL(None)
-        libc.sysctl.argtypes = [
-            ctypes.POINTER(ctypes.c_int),
-            ctypes.c_uint,
-            ctypes.c_void_p,
-            ctypes.POINTER(ctypes.c_size_t),
-            ctypes.c_void_p,
-            ctypes.c_size_t,
-        ]
-        ctl_kern, kern_procargs2 = 1, 49
-        size = ctypes.c_size_t(262144)
-        buffer = ctypes.create_string_buffer(size.value)
-        mib = (ctypes.c_int * 3)(ctl_kern, kern_procargs2, pid)
-        if libc.sysctl(mib, 3, buffer, ctypes.byref(size), None, 0) != 0:
-            return None
-        raw = buffer.raw[: size.value]
-        argc = int.from_bytes(raw[:4], sys.byteorder)
-        rest = raw[4:]
-        rest = rest[rest.index(b"\0") :].lstrip(b"\0")
-        return [word.decode("utf-8", "replace") for word in rest.split(b"\0")[:argc]]
-
+    session from a `codex` hosting all of them (`session_lifetime`)."""
     try:
-        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
-    except OSError:
+        return psutil.Process(pid).cmdline()
+    except _UNREADABLE:
         return None
-    return [word.decode("utf-8", "replace") for word in raw.split(b"\0") if word]
 
 
 def state_home() -> Path:

@@ -87,7 +87,7 @@ ordered by confidence, then effort.
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
 | Order the cascade with `@layer` (theme, chrome, package, page) and one z-index scale. `chrome.css` has a `lf-reset` layer and `theme.css` one anonymous layer; the rest is specificity contests. | S | 50 `!important`, 46 `z-index`; the cascade defect class | High | Package themes and page CSS need a declared layer too |
-| eslint `no-cycle` or dependency-cruiser for the import graph and Tarjan SCC in `eslint.config.mjs`; `light-dark()` for the 28-line dark token block in `theme.css`, which already sets `color-scheme: light dark`. | S | ~180 + 28 | High | The ownership rules in the eslint config stay hand-written |
+| `light-dark()` for the 28-line dark token block in `theme.css`, which already sets `color-scheme: light dark`. | S | 28 | High | Each token states both values in one declaration, so a light-only token has to name its dark value |
 | Typecheck the runtime with `tsc --checkJs`. `scripts/browser/tsconfig.json` already sets `allowJs`, `strict`, and `noEmit` and includes only its own `*.ts`; adding `checkJs` and the runtime's `*.js` to `include` checks the 42,000 lines as they ship, with no emit and no build. JSDoc annotations raise the coverage over time. | M | none deleted; part of the state-sync and repaint class (17 fixes) | Med-High | The first run's error volume; annotations needed for full value |
 | Same-document View Transitions for version travel and margin motion. `theme.css:1997` already styles the root transition group and no runtime module calls `startViewTransition`; the FLIP helper and folds in `runtime/motion.js` are what a transition replaces. | M | ~150 est. | Med | Baseline since October 2025, but no UI library depends on it |
 | Make the page scroll normally: `html` as the scroller with fixed chrome, instead of `body` as the scroll container. Thirty fixes trace to scroll restoration, resize, and measuring before paint, and every library and browser feature assumes the normal setup. The reason for the current choice is not recorded; spike the switch and count which of those tests break. | M | part of the scroll and layout class (30 fixes) | Low-Med | Fixed chrome, print, and export may depend on the body scroller |
@@ -101,7 +101,6 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Small settled swaps: a nonce CSP for the per-body hash pipeline (13 call sites); psutil for the macOS process structs in `host.py`; unidiff for the diff parser in `data.py`; watchfiles for the watcher in `scripts/preview.py`. | S | hash pipeline + 130 + 262 + ~100 | High | psutil adds one native wheel; unidiff must refuse `copy` diffs as today |
 | Run one user-level daemon on SQLite, starlette, and asyncio (detail below). | L | ~3,100; Windows; push instead of 50 ms polling | Med | Loses per-page process isolation and the grep-able JSONL log per page; tests that reach into `http.server` internals rework |
 
 ### Both

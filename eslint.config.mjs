@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 // The browser's names the layer uses, for `no-undef`: a moved function that lost an
 // import must fail the hook rather than bind to `window.*` on the first page that
@@ -227,18 +227,6 @@ const runtimeRoot = fileURLToPath(
 );
 const runtimeName = (file) =>
   path.relative(runtimeRoot, file).split(path.sep).join("/");
-const assetRoot = path.dirname(runtimeRoot) + path.sep;
-const runtimeDependency = (file, source) => {
-  if (!source.startsWith(".") && !source.startsWith("/")) return null;
-  const target = fileURLToPath(
-    new URL(
-      source.startsWith("/") ? `.${source}` : source,
-      pathToFileURL(source.startsWith("/") ? assetRoot : file),
-    ),
-  );
-  const name = runtimeName(target);
-  return !name.startsWith("../") || name === "../leaf.js" ? name : null;
-};
 
 let pagePaintAttributeValues;
 function pagePaintAttributesFrom(parser) {
@@ -294,197 +282,6 @@ function pagePaintAttributesFrom(parser) {
     pagePaintAttributeValues.set(name, value);
   }
   return pagePaintAttributeValues;
-}
-
-const exactClosures = new Map(
-  Object.entries({
-    "projection/model.js": [],
-    "projection/state.js": ["semantic-state.js"],
-    "conversation/model.js": ["anchor-coordinate.js", "conversation/identity.js"],
-    "conversation/state.js": ["semantic-state.js"],
-    "pending/model.js": ["conversation/identity.js"],
-    "pending/state.js": ["semantic-state.js"],
-    "keyboard/dispatch.js": [
-      "context.js",
-      "semantic-state.js",
-      "focus.js",
-      "keyboard/bindings.js",
-      "keyboard/register.js",
-      "keyboard/return-stack.js",
-      "keyboard/scopes.js",
-      "keyboard/text-entry.js",
-      "native-layers.js",
-      "registry.js",
-      "repaint.js",
-      "shadow.js",
-    ],
-  }).map(([root, allowed]) => [root, new Set(allowed)]),
-);
-
-const applicationOwners = new Set([
-  "application.js",
-  "delivery.js",
-  "keyboard/go-to-sequence.js",
-  "keyboard/controller.js",
-  "keyboard/page.js",
-  "thread-panel.js",
-  "pending/state.js",
-  "projection/commands.js",
-  "state-application.js",
-  "state-feed.js",
-  "auxiliary-chrome.js",
-]);
-
-const forbiddenClosures = new Map([
-  ...[
-    "conversation/acknowledgments.js",
-    "conversation/box.js",
-    "conversation/folding.js",
-    "conversation/inline.js",
-    "conversation/landing.js",
-    "conversation/messages.js",
-    "conversation/narrowing.js",
-    "conversation/panel.js",
-    "conversation/placement.js",
-    "conversation/presentation.js",
-    "conversation/reaction-strips.js",
-    "conversation/replies.js",
-    "conversation/surfaces.js",
-    "conversation/thread-card.js",
-    "conversation/thread-list.js",
-  ].map((root) => [root, applicationOwners]),
-  ...[
-    "anchor-resolution.js",
-    "anchor-controls.js",
-    "anchor-paint.js",
-    "anchor-travel.js",
-    "chrome-layout.js",
-    "composing/drawing-paint.js",
-    "margin-layout.js",
-    "page-geometry.js",
-    "target-paint.js",
-  ].map((root) => [
-    root,
-    new Set([...applicationOwners, "conversation/presentation.js"]),
-  ]),
-  ...["projection/data.js", "projection/presentation.js"].map((root) => [
-    root,
-    applicationOwners,
-  ]),
-]);
-
-let runtimeGraph;
-function graphFrom(parser) {
-  if (runtimeGraph) return runtimeGraph;
-  const graph = new Map();
-  const visitTree = (directory) => {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      const file = path.join(directory, entry.name);
-      if (entry.isDirectory()) {
-        visitTree(file);
-        continue;
-      }
-      if (!file.endsWith(".js")) continue;
-      const ast = parser.parse(fs.readFileSync(file, "utf8"), {
-        ecmaVersion: "latest",
-        sourceType: "module",
-      });
-      const imports = [];
-      const seen = new Set();
-      const walk = (node) => {
-        if (!node || typeof node !== "object" || seen.has(node)) return;
-        seen.add(node);
-        if (
-          (node.type === "ImportDeclaration" ||
-            node.type === "ExportNamedDeclaration" ||
-            node.type === "ExportAllDeclaration") &&
-          typeof node.source?.value === "string"
-        )
-          imports.push(node.source.value);
-        else if (
-          node.type === "ImportExpression" &&
-          typeof node.source?.value === "string"
-        )
-          imports.push(node.source.value);
-        for (const value of Object.values(node)) {
-          if (Array.isArray(value)) value.forEach(walk);
-          else walk(value);
-        }
-      };
-      walk(ast);
-      graph.set(
-        runtimeName(file),
-        imports
-          .map((source) => runtimeDependency(file, source))
-          .filter((target) => target !== null),
-      );
-    }
-  };
-  visitTree(runtimeRoot);
-  const namedModules = new Set([
-    ...exactClosures.keys(),
-    ...forbiddenClosures.keys(),
-    ...[...exactClosures.values(), ...forbiddenClosures.values()].flatMap((names) => [
-      ...names,
-    ]),
-  ]);
-  for (const module of namedModules)
-    if (!graph.has(module))
-      throw new Error(`architecture/runtime-graph names a missing module: ${module}`);
-  for (const [module, dependencies] of graph)
-    for (const dependency of dependencies)
-      if (dependency !== "../leaf.js" && !graph.has(dependency))
-        throw new Error(`${module} imports a missing runtime module: ${dependency}`);
-  runtimeGraph = graph;
-  return graph;
-}
-
-function pathsFrom(graph, root) {
-  const paths = new Map([[root, [root]]]);
-  const queue = [root];
-  for (const current of queue)
-    for (const dependency of graph.get(current) ?? []) {
-      if (!graph.has(dependency) || paths.has(dependency)) continue;
-      paths.set(dependency, [...paths.get(current), dependency]);
-      queue.push(dependency);
-    }
-  return paths;
-}
-
-function cyclicComponents(graph) {
-  let nextIndex = 0;
-  const indices = new Map();
-  const lowLinks = new Map();
-  const stack = [];
-  const stacked = new Set();
-  const components = [];
-  const visit = (module) => {
-    indices.set(module, nextIndex);
-    lowLinks.set(module, nextIndex);
-    nextIndex += 1;
-    stack.push(module);
-    stacked.add(module);
-    for (const dependency of graph.get(module) ?? []) {
-      if (!graph.has(dependency)) continue;
-      if (!indices.has(dependency)) {
-        visit(dependency);
-        lowLinks.set(module, Math.min(lowLinks.get(module), lowLinks.get(dependency)));
-      } else if (stacked.has(dependency))
-        lowLinks.set(module, Math.min(lowLinks.get(module), indices.get(dependency)));
-    }
-    if (lowLinks.get(module) !== indices.get(module)) return;
-    const component = [];
-    let member;
-    do {
-      member = stack.pop();
-      stacked.delete(member);
-      component.push(member);
-    } while (member !== module);
-    if (component.length > 1 || (graph.get(module) ?? []).includes(module))
-      components.push(component.sort());
-  };
-  for (const module of graph.keys()) if (!indices.has(module)) visit(module);
-  return components;
 }
 
 export const semanticStoreOwnershipRule = {
@@ -858,85 +655,25 @@ const architecturePlugin = {
         };
       },
     },
-    "runtime-graph": {
-      meta: { type: "problem", schema: [] },
-      create(context) {
-        return {
-          Program(node) {
-            const file = runtimeName(context.filename ?? context.getFilename());
-            const graph = graphFrom(context.languageOptions.parser);
-            const direct = graph.get(file) ?? [];
-            if (direct.includes("../leaf.js"))
-              context.report({
-                node,
-                message: "Private runtime owners never import the boot entry.",
-              });
-            if (
-              !["widget-api.js", "widget-controller.js"].includes(file) &&
-              direct.includes("application.js")
-            )
-              context.report({
-                node,
-                message:
-                  "Only the public widget boundary may import the runtime application composition root.",
-              });
-            if (file !== "keyboard/page.js" && direct.includes("keyboard/page.js"))
-              context.report({
-                node,
-                message: "Only leaf.js may import keyboard/page.js.",
-              });
-
-            for (const component of cyclicComponents(graph))
-              if (component.includes(file))
-                context.report({
-                  node,
-                  message: `Runtime import cycle: ${component.join(" -> ")}.`,
-                });
-
-            for (const [root, allowed] of exactClosures) {
-              const reached = pathsFrom(graph, root);
-              const violation = [...reached]
-                .filter(
-                  ([dependency, route]) =>
-                    dependency !== root &&
-                    !allowed.has(dependency) &&
-                    route.includes(file),
-                )
-                .sort((a, b) => a[1].length - b[1].length)[0];
-              if (violation)
-                context.report({
-                  node,
-                  message: `${root} has a forbidden transitive dependency through ${violation[1].join(" -> ")}.`,
-                });
-            }
-            for (const [root, forbidden] of forbiddenClosures) {
-              const reached = pathsFrom(graph, root);
-              const violation = [...forbidden]
-                .map((dependency) => reached.get(dependency))
-                .filter((route) => route?.includes(file))
-                .sort((a, b) => a.length - b.length)[0];
-              if (violation)
-                context.report({
-                  node,
-                  message: `${root} has a forbidden transitive dependency through ${violation.join(" -> ")}.`,
-                });
-            }
-          },
-        };
-      },
-    },
   },
 };
 
 export default [
+  // Generated, vendored, and installed files, ignored everywhere. An `ignores` list
+  // is global only in a config object that carries nothing else, so this one stands
+  // alone; beside another key it would ignore those paths for that config alone and
+  // leave every later one linting them. `.venv` is uv's, and holds Playwright's
+  // bundled JavaScript: the pre-commit hook passes staged files and never reaches it,
+  // but a bare `npx eslint .` walks it.
   {
     ignores: [
+      ".venv/**",
       "examples/corpus.html",
       "skills/leaf/assets/vendor/**",
       "skills/leaf/packages/*/vendor/**",
     ],
-    linterOptions: { noInlineConfig: true },
   },
+  { linterOptions: { noInlineConfig: true } },
   {
     files: ["**/*.{js,mjs}"],
     languageOptions: { ecmaVersion: "latest", sourceType: "module" },
@@ -1120,7 +857,6 @@ export default [
     rules: {
       ...ownerBoundary,
       "architecture/root-state-ownership": "error",
-      "architecture/runtime-graph": "error",
       "architecture/semantic-store-ownership": "error",
     },
   },

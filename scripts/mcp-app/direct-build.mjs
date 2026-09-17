@@ -80,25 +80,6 @@ const result = await build({
                 throw new Error("Favicon boundary changed");
               source = source.replace(original, `href: ${JSON.stringify(iconUrl)}`);
             }
-            // A CSS module import (`with { type: "css" }`) hands the runtime a
-            // constructed sheet. The bundle has no loader for one, so the file becomes
-            // the module that constructs it, with the icon mask's URL inlined first.
-            if (filename.endsWith(".css")) {
-              const original = 'url("/icon.svg")';
-              if (
-                filename.endsWith("/runtime/chrome.css") &&
-                !source.includes(original)
-              )
-                throw new Error("Icon mask boundary changed");
-              source = source.replaceAll(original, `url("${iconUrl}")`);
-              return {
-                contents:
-                  "const sheet = new CSSStyleSheet();\n" +
-                  `sheet.replaceSync(${JSON.stringify(source)});\n` +
-                  "export default sheet;\n",
-                loader: "js",
-              };
-            }
             return {
               contents: source,
               loader: filename.endsWith(".json") ? "json" : "js",

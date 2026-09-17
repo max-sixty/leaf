@@ -357,7 +357,9 @@ Tests of initialization, re-vendoring, or a custom overlay still cross the real
 ## Drive the browser a reader gets
 
 The browser suite uses Playwright's pinned Chromium headless shell and real
-HTML. Use `locator.click()`, `page.keyboard`, and `page.mouse` when the gesture
+HTML. The `iphone` fixture is Playwright's WebKit in an iPhone-shaped context, the
+engine iPhone browsers run on, for the everyday contract that the page starts and
+takes a comment there. Use `locator.click()`, `page.keyboard`, and `page.mouse` when the gesture
 matters. A synthetic `dispatchEvent` can skip the pointer sequence the runtime
 listens to and prove only that a handler works under an impossible event
 history.

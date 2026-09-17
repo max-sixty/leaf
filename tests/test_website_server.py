@@ -26,6 +26,8 @@ from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import server_at
 from leaf.http import supervised_document
+from leaf.revision_artifact import Resource
+from leaf.schema import ASSETS
 
 ROOT = Path(__file__).parent.parent
 _spec = importlib.util.spec_from_file_location(
@@ -141,7 +143,14 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         widgets={},
         server_id="server",
         layer_id="layer",
-        bootstrap="",
+        resources={
+            path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
+            for path, mime in (
+                ("/runtime/bootstrap.js", "application/javascript"),
+                ("/runtime/chrome.css", "text/css"),
+                ("/runtime/marks.css", "text/css"),
+            )
+        },
         page_root=page_root,
         before_runtime=addition,
     ).decode()

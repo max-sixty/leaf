@@ -153,8 +153,10 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
             asset_root=root,
         ).decode()
         assert bootstrap in document
+        # CSP authorizes what executes; the runtime's stylesheet text is inert data.
         for script in parsed.inline_scripts:
-            assert script_hash(script["body"]) in html.unescape(document)
+            if script["attrs"].get("type") != "application/json":
+                assert script_hash(script["body"]) in html.unescape(document)
         expected_widget = (
             f'export * from "{root}/page/widgets/lf-options.js";\n'.encode()
             if version == 2

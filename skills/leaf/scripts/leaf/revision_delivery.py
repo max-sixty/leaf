@@ -8,6 +8,8 @@ document therefore works at the live, stamped-version, and immutable-revision UR
 
 import html
 import json
+from collections.abc import Callable, Mapping
+from functools import lru_cache
 from urllib.parse import quote, urlsplit
 
 import tinycss2
@@ -125,6 +127,54 @@ def delivery_identity(
             if version is not None
             else ""
         )
+    )
+
+
+def json_script(value) -> str:
+    """Serialize inert JSON that cannot end or reshape the script element holding it.
+
+    `</script` ends the element and `<!--` opens a comment the parser then reads the
+    rest of the document inside, so no `<` survives: escaped, it is the same JSON and
+    the same string once parsed.
+    """
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace(
+        "<", "\\u003c"
+    )
+
+
+# Keyed on the sheet's own bytes, so a re-vendor is a new entry rather than a stale
+# one. Two sheets a layer: room for the four most recent, and a miss is one parse.
+@lru_cache(maxsize=8)
+def _uncommented(css: bytes) -> str:
+    return tinycss2.serialize(
+        tinycss2.parse_stylesheet(css.decode("utf-8"), skip_comments=True)
+    )
+
+
+def delivery_sheets(
+    resources: Mapping[str, Resource],
+    rewrite: Callable[[str, str], str] = lambda css, _path: css,
+) -> str:
+    """Carry the layer's adopted stylesheets in the document that runs the layer.
+
+    `runtime/stylesheets.js` constructs the chrome's and the marks' sheets while it
+    evaluates, so their text must be in hand without a request. WebKit has no CSS module
+    scripts to import them with, and a fetch awaited at module scope would make every
+    page module that imports the widget API evaluate after `DOMContentLoaded`. Like the
+    identity above, every delivery writes this. `rewrite` addresses the sheet's own
+    URLs for that delivery; comments go, since they are most of the chrome's sheet and
+    the browser discards them anyway.
+    """
+    sheets = {
+        name: rewrite(_uncommented(resources[path].data), path)
+        for name, path in (
+            ("chrome", "/runtime/chrome.css"),
+            ("marks", "/runtime/marks.css"),
+        )
+    }
+    return (
+        '<script type="application/json" data-lf-runtime data-lf-sheets>'
+        f"{json_script(sheets)}</script>"
     )
 
 

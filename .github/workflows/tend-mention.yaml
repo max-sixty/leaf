@@ -306,6 +306,8 @@ jobs:
           token: ${{ secrets.TEND_BOT_TOKEN }}
 
       - uses: astral-sh/setup-uv@v7
+      - run: uv run --frozen --no-dev playwright install-deps webkit
+        name: Install WebKit's system libraries
 
       - name: Compute queue delay
         id: delay
@@ -332,8 +334,8 @@ jobs:
           base_branch: ${{ github.event.repository.default_branch }}
           sandbox_setup: |2
             uv sync --frozen
-            uv run playwright install chromium --only-shell
-            uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.stop()"
+            uv run playwright install chromium webkit --only-shell
+            uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.stop()"
           prompt: >-
             ${{ steps.delay.outputs.seconds
             && format('This job started {0}s after the triggering event (over ~40s means it was queued). ',

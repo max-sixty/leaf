@@ -11,6 +11,7 @@ const browserGlobals = Object.fromEntries(
   [
     "AbortController",
     "CSS",
+    "CSSStyleSheet",
     "CustomEvent",
     "DOMException",
     "DOMParser",
@@ -398,18 +399,9 @@ function graphFrom(parser) {
             node.type === "ExportNamedDeclaration" ||
             node.type === "ExportAllDeclaration") &&
           typeof node.source?.value === "string"
-        ) {
-          const resourceType = node.attributes?.find(
-            (attribute) => (attribute.key.name ?? attribute.key.value) === "type",
-          )?.value.value;
-          if (resourceType && resourceType !== "javascript") {
-            const resource = runtimeDependency(file, node.source.value);
-            if (resource && !fs.existsSync(path.join(runtimeRoot, resource)))
-              throw new Error(
-                `${runtimeName(file)} imports a missing resource: ${resource}`,
-              );
-          } else imports.push(node.source.value);
-        } else if (
+        )
+          imports.push(node.source.value);
+        else if (
           node.type === "ImportExpression" &&
           typeof node.source?.value === "string"
         )

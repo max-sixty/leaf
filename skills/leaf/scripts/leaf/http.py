@@ -9,6 +9,7 @@ import re
 import secrets
 import select
 import time
+from collections.abc import Mapping
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -35,8 +36,13 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
-from .revision_artifact import RevisionArtifact, read_artifact
-from .revision_delivery import deliver_document, deliver_resource, delivery_identity
+from .revision_artifact import Resource, RevisionArtifact, read_artifact
+from .revision_delivery import (
+    deliver_document,
+    deliver_resource,
+    delivery_identity,
+    delivery_sheets,
+)
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
@@ -287,7 +293,12 @@ def runtime_document(
     widgets: dict,
     version: int | None = None,
 ) -> bytes:
-    """Give a clean authored document its runtime head and immutable identity."""
+    """Give a clean authored document its runtime head and immutable identity.
+
+    A document that goes on to run the layer needs the layer's stylesheets with it
+    (`delivery_sheets`); this composes the head every delivery shares, and its callers
+    differ on that, so each writes the sheets itself.
+    """
     document = SourceDocument(source)
     offset = head_open_end_offset(document)
     theme_head, entry_head = _runtime_assets()
@@ -308,7 +319,7 @@ def supervised_document(
     widgets: dict,
     server_id: str,
     layer_id: str,
-    bootstrap: str,
+    resources: Mapping[str, Resource],
     release_id: str | None = None,
     page_root: str = "",
     asset_root: str | None = None,
@@ -334,7 +345,7 @@ def supervised_document(
     parsed = SourceDocument(source)
     offset = head_open_end_offset(parsed)
     bootstrap = scope_script_routes(
-        bootstrap.encode(), page_root, asset_root=asset_root
+        resources["/runtime/bootstrap.js"].data, page_root, asset_root=asset_root
     ).decode()
     hashes = [script_hash(bootstrap)]
     hashes.extend(script_hash(script["body"]) for script in parsed.inline_scripts)
@@ -360,6 +371,12 @@ def supervised_document(
         + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
         + bootstrap_head
         + theme_head
+        + delivery_sheets(
+            resources,
+            lambda css, _path: scope_stylesheet_routes(
+                css.encode(), page_root, asset_root=asset_root
+            ).decode(),
+        )
         + before_runtime
         + entry_head
         + f'<link rel="canonical" href="{html.escape(page_root, quote=True)}/" data-lf-runtime>'
@@ -812,9 +829,7 @@ class Handler(BaseHTTPRequestHandler):
                 widgets=artifact.widgets,
                 server_id=self.server_id,
                 layer_id=artifact.registry["$layer"]["generation"],
-                bootstrap=artifact.resources["/runtime/bootstrap.js"].data.decode(
-                    "utf-8"
-                ),
+                resources=artifact.resources,
                 release_id=self.release,
                 page_root=self.page_root,
                 asset_root=self._artifact_root(revision),

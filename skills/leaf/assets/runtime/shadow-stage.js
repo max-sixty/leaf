@@ -14,7 +14,8 @@
    look, and it would look right in exactly the session where someone remembered. Same
    reasoning as renderSaid — a rule each widget has to remember is a rule that gets
    forgotten, and the forgetting is invisible until a page ships without it. */
-import { marksSheet, SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
+import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
+import { marksSheet } from "./stylesheets.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchNativeLayers } from "./native-layers.js";
 import { setChildren } from "./dom-children.js";

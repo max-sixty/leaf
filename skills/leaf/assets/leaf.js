@@ -1,10 +1,9 @@
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
-import chromeSheet from "./runtime/chrome.css" with { type: "css" };
 import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
-import { marksSheet } from "./runtime/shadow.js";
+import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { promoteDeferredModals } from "./runtime/deferred-modals.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";

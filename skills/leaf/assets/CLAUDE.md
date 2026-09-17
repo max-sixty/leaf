@@ -229,8 +229,12 @@ anatomy (`responseAction`), labels, gesture guards, deferred measurement, layout
 `runtime/registry.js` owns vocabulary queries;
 `runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
 fixed-surface wheel forwarding, and the gutter its bar takes;
-`runtime/chrome.css` is the comment layer's private stylesheet, a CSS module the boot
-module adopts, and keeps the chrome's paint hosts out of the containing-block chain for
+`runtime/stylesheets.js` constructs the layer's adopted sheets synchronously from the
+text every delivery carries in the document (`delivery_sheets`); runtime CSS never
+arrives as a CSS module script, which WebKit lacks, nor through a module-scope await,
+which would move page modules after `DOMContentLoaded`;
+`runtime/chrome.css` is the comment layer's private stylesheet, which the boot module
+adopts, and keeps the chrome's paint hosts out of the containing-block chain for
 document-positioned chrome. It also keeps page-attached paint below covering auxiliary surfaces
 and paint for chrome targets above them.
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow

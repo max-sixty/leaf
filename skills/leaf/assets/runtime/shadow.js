@@ -131,7 +131,3 @@ async function readShadowRules() {
     );
   shadowRules = found.map((match) => match[1]).join("\n");
 }
-
-import marksSheet from "./marks.css" with { type: "css" };
-
-export { marksSheet };

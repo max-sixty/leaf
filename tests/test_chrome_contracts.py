@@ -2,8 +2,10 @@
 
 import io
 import re
+from urllib.parse import urljoin
 
 import pytest
+from leaf import event_log as events_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -23,9 +25,11 @@ from render_harness import (
     clean_browser,
     compare_with,
     consume_browser_errors,
+    leaf_page,
     open_page,
     panel_settled,
     resized,
+    sending,
     told,
     watched,
 )
@@ -484,3 +488,104 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             )
             == accent
         ), (width, panel_open, "the notice is covered by the panel or its scrim")
+
+
+PHONE_PAGE = leaf_page(
+    "phone",
+    "<h1 id='t'>Phone</h1><p id='p1'>Paragraph one. " + "Filler. " * 40 + "</p>",
+    head='<meta name="viewport" content="width=device-width, initial-scale=1">',
+)
+
+
+def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve):
+    """The runtime starts in WebKit, and a selection alone opens the comment field.
+
+    A module feature WebKit lacks fails the whole module graph before the runtime runs:
+    CSS module scripts did, and an iPhone reader saw only that Leaf could not start. A
+    long press that selects words hands the page no mouseup, and Playwright cannot make
+    one, so the selection is placed with no pointer gesture at all."""
+    page = open_page(None, serve(PHONE_PAGE), context=iphone)
+    page.locator("#p1").evaluate("""paragraph => {
+      const range = document.createRange();
+      range.setStart(paragraph.firstChild, 0);
+      range.setEnd(paragraph.firstChild, "Paragraph one".length);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }""")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.tap()
+    field.fill("From a phone")
+    with sending(page, "the comment"):
+        page.locator(".lf-fab-bar").get_by_role("button", name="Comment").tap()
+    [comment] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert comment["text"] == "From a phone"
+    assert comment["anchor"]["quote"] == "Paragraph one", comment
+
+
+ORDERED_PAGE = leaf_page(
+    "ordered",
+    "<h1 id='t'>Ordered</h1><p id='p1'>One paragraph.</p>",
+    head="""<script type="module">
+import "/runtime/widget-api.js";
+window.__leafReadyHeard = false;
+document.addEventListener("DOMContentLoaded", () => {
+  window.__leafReadyHeard = true;
+});
+</script>""",
+)
+
+
+def test_a_page_module_importing_the_widget_api_hears_dom_content_loaded(
+    browser, serve
+):
+    """A page module runs before `DOMContentLoaded`, as every deferred module does.
+
+    Pages wire their behavior on that event. The widget API sits over the runtime's
+    stylesheets, so an await at module scope anywhere under it starts the page module
+    after the event instead, and a listener like this one never hears it."""
+    page = open_page(browser, serve(ORDERED_PAGE))
+    assert page.evaluate("() => window.__leafReadyHeard")
+
+
+def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve):
+    """Delivery drops the sheets' comments and re-serializes what is left, so what a page
+    adopts is not the file's own bytes. The two have to say the same thing to the browser:
+    a stylesheet oddity the serializer repairs would change the rules every page runs
+    under, and no parser here would report it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    layer = urljoin(
+        page.url,
+        page.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').dataset.lfEntry"
+        ),
+    )
+    files = {}
+    for name in ("chrome", "marks"):
+        answer = page.request.get(urljoin(layer, f"runtime/{name}.css"))
+        assert answer.ok, answer.status
+        files[name] = answer.text()
+
+    readings = page.evaluate(
+        """(files) => {
+          const rules = (sheet) => [...sheet.cssRules].map((rule) => rule.cssText);
+          const fromFile = (text) => {
+            const sheet = new CSSStyleSheet();
+            sheet.replaceSync(text);
+            return rules(sheet);
+          };
+          const [chrome, marks] = document.adoptedStyleSheets;
+          return {
+            chrome: {delivered: rules(chrome), file: fromFile(files.chrome)},
+            marks: {delivered: rules(marks), file: fromFile(files.marks)},
+          };
+        }""",
+        files,
+    )
+    for name, reading in readings.items():
+        assert reading["delivered"], f"the page adopted no {name} rules"
+        assert reading["delivered"] == reading["file"], name

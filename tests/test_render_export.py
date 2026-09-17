@@ -270,13 +270,14 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     assert watched().roots == subscription
 
 
-def test_a_preview_names_a_linked_package_in_the_form_its_changes_arrive(tmp_path):
-    """A package reached through a link is followed under the path it resolves to.
+def test_a_preview_follows_a_linked_package_wherever_its_files_resolve(tmp_path):
+    """A package reached through a link is followed under the paths it resolves to.
 
-    A watcher can report a change under the root string it was given, while the layer
-    reading answers in resolved paths, so a root left as written would name every
-    change in a form the watched sets never contain and the package would stop
-    reloading. Subscribing to the resolved root makes the two agree.
+    The layer reading answers in resolved paths, following a link at the package root
+    and one inside it alike, while a watcher reports a change only under a directory it
+    subscribed to, and can name it under the root string it was given. So each watched
+    path has to be resolved, and has to sit under a subscribed root; a path that does
+    not is an input the preview has silently stopped following.
     """
     import preview
 
@@ -292,12 +293,33 @@ def test_a_preview_names_a_linked_package_in_the_form_its_changes_arrive(tmp_pat
     linked.parent.mkdir()
     linked.symlink_to(package)
     dotted = source.parent / ".." / "elsewhere" / "package"
+    # A package whose widgets directory is itself a link to a tree outside it.
+    outside = tmp_path / "outside" / "widgets"
+    outside.mkdir(parents=True)
+    outside_module = outside / "lf-outside.js"
+    outside_module.write_text("export {};", encoding="utf-8")
+    nested = tmp_path / "nested" / "package"
+    nested.mkdir(parents=True)
+    (nested / "registry.json").write_text("{}", encoding="utf-8")
+    (nested / "widgets").symlink_to(outside)
 
-    for root in (linked, dotted):
+    for root, followed in (
+        (linked, module),
+        (dotted, module),
+        (nested, outside_module),
+    ):
         watched = preview.watch_paths(source, ROOT, [root], {})
-        assert str(module.resolve()) in watched.layer, root
+        assert str(followed.resolve()) in watched.layer, root
         assert all(path == path.resolve() for path in watched.roots), watched.roots
-        assert all(Path(path) == Path(path).resolve() for path in watched.paths), root
+        assert [
+            path
+            for path in sorted(watched.paths)
+            if Path(path) != Path(path).resolve()
+            or not any(
+                Path(path) == subscribed or subscribed in Path(path).parents
+                for subscribed in watched.roots
+            )
+        ] == [], (root, watched.roots)
 
 
 def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):

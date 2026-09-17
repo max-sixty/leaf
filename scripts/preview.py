@@ -424,12 +424,15 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
     runtime = runtime.resolve()
     scripts = runtime / "skills" / "leaf" / "scripts"
     resolved_roots = {root.resolve() for root in roots}
+    # The layer reading follows a link inside a package as well as one at its root,
+    # so a vendored file can resolve outside every package root.
+    package = [
+        path
+        for path in input_paths(roots)
+        if path not in resolved_roots and not path.is_dir()
+    ]
     layer = {
-        *(
-            str(path)
-            for path in input_paths(roots)
-            if path not in resolved_roots and not path.is_dir()
-        ),
+        *(str(path) for path in package),
         *(str(path) for path in scripts.rglob("*.py")),
         str(runtime / "pyproject.toml"),
         str(runtime / "uv.lock"),
@@ -458,6 +461,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
                 scripts,
                 runtime / "pyproject.toml",
                 runtime / "uv.lock",
+                *(path.parent for path in package),
                 *(path.parent for path in page),
             )
             if path.exists()

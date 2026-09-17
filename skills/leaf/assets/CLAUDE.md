@@ -23,7 +23,7 @@ current one.
 its capability and imports what it needs, and `leaf.js` imports them and runs the boot
 sequence (Startup and presentation, below). It exports no capability and no owner
 imports it back. The HTTP boundary places the vendored
-`runtime/bootstrap.js` before loadable resources, with an exact CSP hash; it can
+`runtime/bootstrap.js` before loadable resources, carrying the delivery's CSP nonce; it can
 show startup failure and hear a replacement server even if the module graph or
 stylesheet never loads. A delivery carrying a site release also uses that bootstrap
 to send one content-free startup profile after presentation, failure, timeout, or

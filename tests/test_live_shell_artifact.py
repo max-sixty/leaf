@@ -1,7 +1,7 @@
 """Published documents and modules retain their complete captured revision."""
 
-import html
 import json
+import re
 import subprocess
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -11,7 +11,7 @@ from interact_support import PAGE
 from leaf.event_log import append_event, read_events
 from leaf.files import replace_files, revision_path
 from leaf.hosting import TemporaryPageServer
-from leaf.http import scope_script_routes, script_hash
+from leaf.http import scope_script_routes
 from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import RESOURCE_TYPES, read_artifact
 from leaf.revisioning import activate_source
@@ -153,10 +153,17 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
             asset_root=root,
         ).decode()
         assert bootstrap in document
-        # CSP authorizes what executes; the runtime's stylesheet text is inert data.
+        # CSP authorizes what executes: the nonce the policy names is on every script
+        # this delivery composed, and the runtime's stylesheet text is inert data.
+        policy = next(
+            meta["content"]
+            for meta in parsed.http_equivs
+            if meta["equiv"].lower() == "content-security-policy"
+        )
+        nonce = re.search(r"script-src 'self' 'nonce-([^']+)'", policy).group(1)
         for script in parsed.inline_scripts:
             if script["attrs"].get("type") != "application/json":
-                assert script_hash(script["body"]) in html.unescape(document)
+                assert script["attrs"].get("nonce") == nonce, script["attrs"]
         expected_widget = (
             f'export * from "{root}/page/widgets/lf-options.js";\n'.encode()
             if version == 2

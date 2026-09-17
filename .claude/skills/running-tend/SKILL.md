@@ -10,6 +10,14 @@ description: Project-specific guidance loaded by tend workflows alongside CLAUDE
 Work from Tend lands as a pull request that a maintainer merges. The bot has
 write access, and the `Merge access` ruleset holds merging to admins.
 
+Merging squashes, and the repository is set to `PR_TITLE` / `PR_BODY`, so a
+description is `main`'s commit message for that change rather than review
+scaffolding that the merge discards. Hold a claim in it to the standard the diff
+is held to. Attribution is the claim that goes wrong: read which file an earlier
+commit changed off that commit's own per-file diff — `git show <sha> -- <path>`,
+or `--stat` for the shape — because a grep over a whole-directory diff prints
+the matching lines without saying which file each came from.
+
 ## Review threshold
 
 Apply `CLAUDE.md`'s **Stage** section to the verdict. Once a change moves Leaf

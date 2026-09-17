@@ -2,7 +2,8 @@ name: ci
 
 # Pull requests and main run the small landing gate. Pull requests also run the
 # website gate; relevant pushes to main run that gate in publish-site before deploy.
-# The scheduled and manual paths run the complete browser surface on one runner.
+# A green push to main, the daily schedule, and a manual dispatch each run the
+# complete browser surface.
 on:
   push:
     branches: [main]
@@ -11,9 +12,14 @@ on:
     - cron: "47 10 * * *"
   workflow_dispatch:
 
+# Only a pull request cancels its own earlier run. A push to main keeps its run: a red
+# branch is judged against the base SHA's result, a cancellation reaches tend-ci-fix as
+# something to fix, and with `nightly` in the run the next merge would end a complete
+# suite partway through. Nothing outside a pull request shares a group, so the only
+# queue here is the `nightly` job's.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Branch protection requires this check by name.
@@ -96,8 +102,38 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+  # The complete suite, including the nightly-marked modules that broad discovery
+  # skips and the everyday `test` job therefore never reaches. A push to main runs it,
+  # so a regression in one of them surfaces in the hour or two after it lands rather
+  # than at the next morning's cron, and the failed run reaches tend-ci-fix.
   nightly:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: [lint, test]
+    # The schedule and a dispatch skip `lint` and `test`, and the default `success()`
+    # gate would skip this job along with them, so read their results directly. The
+    # guard names the two results that may proceed rather than excluding `failure`,
+    # because a job killed by its own `timeout-minutes` concludes `cancelled` and a
+    # wedged everyday gate would otherwise send an hour of complete suite after it.
+    # A red everyday gate skips this job too: it already names what to fix.
+    if: >-
+      !cancelled()
+      && github.event_name != 'pull_request'
+      && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
+      && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    concurrency:
+      # One automatic suite at a time: it holds a runner for over an hour, and
+      # GitHub's concurrency pool is per-account, shared with the other repos here. A
+      # running suite is never cancelled, because that hour would be lost; a newer
+      # commit replaces the pending entry instead, under GitHub's default
+      # `queue: single`, so a busy main gets the suite on its tip rather than working
+      # through commits already superseded. Superseded pending entries are recorded as
+      # cancelled runs, and #296 accepted that cost for the same reason.
+      #
+      # A dispatch keeps a slot per ref, as it had before this job took a group of its
+      # own. It is the control a session runs against a base SHA, and two sessions
+      # judging two branches need both answers; behind main's queue either one would
+      # be replaced by the next merge before it ever started.
+      group: ${{ github.workflow }}-nightly-${{ github.event_name == 'workflow_dispatch' && github.ref || 'automatic' }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 135
     env:

@@ -2995,9 +2995,12 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
         assert page.evaluate("() => window.lfSameDocument === true"), (
             "the page reloaded onto the document it was already being served"
         )
+        # The ask leaves the page a beat before the route records it, so the count is
+        # read behind its own wait rather than behind the reads that caused it.
+        holding(page, probes, len(reads), "the asks the refusals made of the source")
         assert len(probes) == len(reads), (
-            "the page carried one reading of its source over the refusals that "
-            f"followed: {len(probes)} asks over {len(reads)} answers"
+            "one refusal asked the source more than once: "
+            f"{len(probes)} asks over {len(reads)} answers"
         )
 
         moved["pending"] = True

@@ -664,7 +664,17 @@ main {
  * workspace, and `main` subtracts the page's own two margin claims from that one browser
  * reading. A live page and a standalone copy therefore use the same arithmetic. */
 @media screen {
-  [data-lf-space] {
+  /* Two attributes carry one fact. `data-lf-space` is what the runtime paints from the
+   * registry, and it arrives with the script. `data-width` is the page's own occurrence
+   * saying the same thing, and it is in the markup the browser first lays out — so the
+   * rules read both, and an authored width is in the first paint rather than a reflow
+   * once leaf.js resolves. They never disagree: the paint of an authored occurrence is
+   * that attribute's own value (markDeclared). In a message the runtime withholds the
+   * room deliberately, the document's rather than the panel's, so the authored half of
+   * each selector is the document's to give and stays under `main`. The two are written
+   * as a list rather than one :is(), so the painted selector keeps the specificity every
+   * widget and package rule already overrides it at. */
+  [data-lf-space], main [data-width] {
     --lf-natural-inline-size: 0;
     --lf-surplus: max(0px, calc(var(--lf-reach) - 100%));
     --lf-grow-l: calc(var(--lf-surplus) / 2);
@@ -681,23 +691,25 @@ main {
      * intrinsic width; what it holds already scrolls. */
     contain: inline-size;
   }
-  [data-lf-space="column"] {
+  [data-lf-space="column"], main [data-width="column"] {
     --lf-reach: min(var(--col), var(--lf-room, 0px));
     --lf-surplus: 0px;
     width: min(100%, var(--col));
     margin-inline: auto;
   }
-  table[data-width][data-lf-space]:not([data-lf-space="column"]) {
+  table[data-width][data-lf-space]:not([data-lf-space="column"]),
+  main table[data-width]:not([data-width="column"]) {
     width: calc(100% + var(--lf-surplus));
   }
-  [data-lf-space="wide"] {
+  [data-lf-space="wide"], main [data-width="wide"] {
     --lf-reach: min(var(--wide), var(--lf-room, 0px),
       var(--lf-space-bound, 99999px));
   }
-  [data-lf-space="available"] {
+  [data-lf-space="available"], main [data-width="available"] {
     --lf-reach: min(var(--lf-room, 0px), var(--lf-space-bound, 99999px));
   }
-  [data-lf-space] [data-lf-space] {
+  [data-lf-space] [data-lf-space],
+  main :is([data-lf-space], [data-width]) :is([data-lf-space], [data-width]) {
     --lf-room: 100%;
   }
   /* A widget whose upgrade failed is showing the message and the source it choked on
@@ -713,7 +725,8 @@ main {
    * so the box came out as wide as the longest line — 854px of it in a 720px column,
    * scrolling, on the first real diagram source anyone fed it. The `pre` scrolls inside
    * the message instead, which is what a `pre` does everywhere else on the page. */
-  [data-lf-space]:has(> .lf-error) { --lf-room: 0px; }
+  [data-lf-space]:has(> .lf-error),
+  main [data-width]:has(> .lf-error) { --lf-room: 0px; }
   /* A box that draws one of its own is a box a wide widget stays inside. The room is the
    * page's to give, and inside a disclosure or a callout the page is not what holds the
    * widget — a board that took the window from inside a <details> hung out over both
@@ -1102,7 +1115,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
     --lf-shift: calc(
       max(0px, var(--strip-l) + var(--lf-sidebar-edge) - var(--lf-gutter))
       - max(0px, var(--strip-r) + var(--lf-sidebar-edge) - var(--lf-gutter)));
-    & [data-lf-space] {
+    & :is([data-lf-space], [data-width]) {
       --lf-space-bound: var(--lf-sidebar-shell-bound,
         calc(50cqi - var(--lf-shift)
           + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
@@ -1131,7 +1144,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
     main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
-    & [data-lf-space] {
+    & :is([data-lf-space], [data-width]) {
       --lf-space-bound: var(--lf-sidebar-shell-bound,
         calc(50cqi - var(--lf-shift)
           + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
@@ -1239,7 +1252,8 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
        disclosure level with a note. Asking which elements have room needs the element's
        own value and a style query answers for its container, so the alternative is a
        second reading of the room rather than a tighter rule. */
-    & [data-lf-space]:not([data-lf-space="column"]) { clear: right; }
+    & :is([data-lf-space]:not([data-lf-space="column"]),
+      [data-width]:not([data-width="column"])) { clear: right; }
   }
   /* The pull reaches the page's margin through any box between that doesn't clip, which
      is a section, a tab panel, a disclosure. Through one that does — a choose group, a
@@ -1990,15 +2004,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
             color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;
             font-size: var(--t-5); white-space: normal; --lf-block-frame: 1; }
 .lf-error pre { margin: 8px 0 0; white-space: pre; }
-
-/* A live-version transition is a paint boundary, not motion. The old pixels remain
- * while the replacement upgrades and replays, then the restored reading lands in one
- * frame rather than cross-fading text under the reader's eyes. */
-html.lf-versioning::view-transition-group(root),
-html.lf-versioning::view-transition-old(root),
-html.lf-versioning::view-transition-new(root) {
-  animation-duration: .01ms !important;
-}
 
 /* Reduced motion: one global guard covers every animation and transition in the
  * theme and the injected layers (!important outranks inline styles, so

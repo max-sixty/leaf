@@ -10,6 +10,7 @@ import re
 import shlex
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,7 @@ from interact_support import (
     PAGE_PACKAGES,
     PLUGIN_ROOT,
     SKILL_ROOT,
+    STATED_TIMEOUT,
     _status,
     append_command,
     available_loopback_port,
@@ -1193,6 +1195,108 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
         files_model.read_json(claimed / "status.json")["stream"]["activity"]["ts"]
         == renewed_at
     )
+
+
+def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(claimed):
+    """One turn states two facts, and each answers its own question.
+
+    The observed step proves the session is alive and moving, which is what makes a page
+    working over a declaration that says otherwise. What the work *is* is the agent's to
+    say, and a reader waiting on an answer is owed that sentence rather than whichever
+    command the transport saw most recently. So a current declaration keeps the sentence
+    and its own date, and the step is reported beside it."""
+    serving(claimed, 1)
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim)
+    )
+    assert lease
+
+    session_model.cmd_status(claimed, "working", "Checking the rollout against staging")
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity(claim["id"], "turn-live", "Running the tests")
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"], activity["observed"]) == (
+        "working",
+        "Checking the rollout against staging",
+        "Running the tests",
+    )
+    # The date belongs to the sentence, so a stream renewing every few seconds cannot
+    # make an old declaration read as current work.
+    assert activity["ts"] == files_model.read_json(claimed / "status.json")["ts"]
+
+    # With nothing current declared, the step is all there is, and it is the sentence.
+    session_model.cmd_status(claimed, "waiting", "which store should own it")
+    waiting = page_state(claimed)["activity"]
+    assert (waiting["kind"], waiting["detail"], waiting["observed"]) == (
+        "working",
+        "Running the tests",
+        "Running the tests",
+    )
+
+    # A declaration with no words is not a sentence to prefer: `leaf status <page>
+    # working` says only that work is happening, which the step says better.
+    session_model.cmd_status(claimed, "working", "")
+    wordless = page_state(claimed)["activity"]
+    assert (wordless["kind"], wordless["detail"], wordless["observed"]) == (
+        "working",
+        "Running the tests",
+        "Running the tests",
+    )
+    session_model.cmd_status(claimed, "waiting", "which store should own it")
+
+    # A step whose own floor is older than the reader's newest move says nothing about
+    # it, and the reading it would stand in is not work. Reported under `working` alone,
+    # so no step turns up beside "last checked in" under an amber dot.
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "One more note"}
+    )
+    quiet = page_state(claimed)["activity"]
+    assert (quiet["kind"], quiet["detail"], quiet["observed"]) == (
+        "listening",
+        "which store should own it",
+        "",
+    )
+    lease.close()
+
+
+def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
+    """`delivery claim` writes a sentence so a taken-up move says so at once.
+
+    It is Leaf's wording rather than the agent's, and a transport watching the session's
+    real steps knows more than it does, so the step is the one the reader gets. An
+    agent's own sentence, the same command's `--detail`, outranks both."""
+    serving(claimed, 1)
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim)
+    )
+    assert lease
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Change the heading"}
+    )
+    delivery = freeze_events(claimed, [comment])
+    session_model.cmd_delivery_claim(delivery["id"])
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity(claim["id"], "turn-live", "Editing index.html")
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"], activity["observed"]) == (
+        "working",
+        "Editing index.html",
+        "Editing index.html",
+    )
+
+    session_model.cmd_delivery_claim(
+        delivery["id"], detail="Rewriting the heading the reader asked about"
+    )
+    stated = page_state(claimed)["activity"]
+    assert (stated["detail"], stated["observed"]) == (
+        "Rewriting the heading the reader asked about",
+        "Editing index.html",
+    )
+    lease.close()
 
 
 def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):
@@ -7614,6 +7718,118 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     assert capsys.readouterr().out == ""
     lease.close()
+
+
+def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
+    server, page_dir, tmp_path, monkeypatch
+):
+    """A running turn's Stop hook refuses to end with a reader move unpicked, and a
+    live `leaf wait` delivers one, so the move nobody picks up arrives at a Claude
+    Code claim whose turn has closed with no wait lease held — a watcher that died
+    after the turn ended. The server then messages that session's socket, found
+    by session id in Claude Code's session registry, once per closed turn: a reader
+    ticking three boxes must not queue three turns or three approvals, and input
+    left unacknowledged when the Stop hook failed open must not silence the next
+    closed turn.
+
+    The server sends inside the event request, and a Unix connection is queued in
+    the listener's backlog before `connect` returns, so a listener with nothing to
+    accept once the POST has answered was never messaged."""
+    closed = "2026-09-17T09:00:00+00:00"
+    publish(page_dir)
+    sockets = Path(tempfile.mkdtemp(prefix="lf", dir="/tmp"))  # sun_path is short
+    config = tmp_path / "claude"
+    (config / "sessions").mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
+    listeners = {}
+    for pid, session_id in ((4101, "s1"), (4102, "s2")):
+        address = str(sockets / f"{pid}.sock")
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        listener.bind(address)
+        listener.listen()
+        listener.setblocking(False)
+        listeners[session_id] = listener
+        files_model.write_json(
+            config / "sessions" / f"{pid}.json",
+            {"pid": pid, "sessionId": session_id, "messagingSocketPath": address},
+        )
+        files_model.write_json(
+            config / "sessions" / f"{pid}.k{pid}.key",
+            {"peerToken": f"token-{session_id}"},
+        )
+
+    def react(text):
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "revision": 1, "text": text}).encode(),
+        )
+        assert status == 200, body
+        return json.loads(body)["state"]["events"][-1]["seq"]
+
+    def messages(session_id):
+        try:
+            peer, _ = listeners[session_id].accept()
+        except BlockingIOError:
+            return None
+        with peer:
+            peer.settimeout(STATED_TIMEOUT)
+            data = b"".join(iter(lambda: peer.recv(4096), b""))
+        return [json.loads(line) for line in data.decode().splitlines()]
+
+    try:
+        # A turn still running: its Stop hook carries the move.
+        record_claim(page_dir)
+        react("while the turn runs")
+        assert messages("s1") is None
+
+        # A live watcher delivers it.
+        claim = record_claim(page_dir, turn_closed=closed)
+        lease = leases_model.take_waiter_lease(
+            leases_model.waiter_lease_path(page_dir, claim)
+        )
+        assert lease
+        react("while a wait holds the lease")
+        lease.close()
+        assert messages("s1") is None
+
+        # Codex's detached adapter queues its own turns; the socket is Claude Code's.
+        record_claim(page_dir, host="codex", turn_closed=closed)
+        react("to a Codex task")
+        assert messages("s1") is None
+
+        record_claim(page_dir, turn_closed=closed)
+        react("after the watcher died")
+        auth, user = messages("s1")
+        assert auth == {"type": "auth", "token": "token-s1"}
+        assert user["type"] == "user" and user["session_id"] == "s1"
+        assert user["message"]["role"] == "user"
+        assert str(page_dir.resolve()) in user["message"]["content"]
+        assert messages("s2") is None
+        react("in the same closed turn")
+        assert messages("s1") is None
+
+        # The next closed turn is messaged, whatever is still unacknowledged.
+        record_claim(
+            page_dir, turn="turn-2", turn_closed=closed, messaged_turn="turn-1"
+        )
+        react("in the next closed turn")
+        assert messages("s1") is not None
+
+        # Another live session's socket is never a stand-in for the claimant's,
+        # and input after a send nobody took tries again.
+        record_path = config / "sessions" / "4101.json"
+        record = files_model.read_json(record_path)
+        record_path.unlink()
+        record_claim(page_dir, turn="turn-3", turn_closed=closed)
+        react("once the claimant's session has left the registry")
+        assert messages("s1") is None and messages("s2") is None
+        files_model.write_json(record_path, record)
+        react("once it is back")
+        assert messages("s1") is not None
+    finally:
+        for listener in listeners.values():
+            listener.close()
+        shutil.rmtree(sockets)
 
 
 def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(

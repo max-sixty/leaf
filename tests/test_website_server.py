@@ -958,6 +958,10 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "Do not run `$LEAF reply`" in instructions
     assert "no separate `leaf publish` command" in instructions
     assert "$LEAF version check" not in instructions
+    # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
+    # run a closing `resolve` and never reply, which `verify_site.py local` caught. The
+    # hosted page's sentence comes from the steps App Server watches instead, which the
+    # activity fold prefers over Leaf's own claim wording for exactly this reason.
     assert "$LEAF status" not in instructions
     assert "$LEAF resolve . --to RESPONSE_CONVERSATION" in instructions
     assert "binds its destination before" in instructions

@@ -260,6 +260,17 @@ class PageTransaction:
             write_json(claim_path(self.page_dir), claim)
         return claim.get("turn")
 
+    def note_messaged_turn(self) -> None:
+        """Record that input reaching this page messaged its session while the
+        claim's turn was closed.
+
+        Browser-event admission sends at most one such message per closed turn
+        (`session-lifetime.md`, Carriers). The turn id is the exact key: an
+        opening mints a new one whenever it clears a closing, so a later closed
+        turn never matches the turn a message already went out in."""
+        claim = self.claim
+        write_json(claim_path(self.page_dir), {**claim, "messaged_turn": claim["turn"]})
+
     @property
     def status(self) -> dict:
         return read_json(self.page_dir / STATUS_FILE)
@@ -271,6 +282,7 @@ class PageTransaction:
         *,
         work: dict | None = None,
         handling: dict | None = None,
+        stated: bool = True,
     ) -> None:
         """Write the page declaration and any typed local evidence it renews.
 
@@ -291,6 +303,11 @@ class PageTransaction:
         status = {
             "state": state,
             "detail": detail,
+            # Whether the agent said this. `delivery claim` writes a detail of Leaf's
+            # own so the reader hears something the instant their move is taken up, and
+            # a transport watching the session's real steps knows more than that wording
+            # does. An agent's own sentence is the one nothing outranks.
+            **({} if stated else {"stated": False}),
             "ts": now_iso(),
             # Order the agent's declaration against delivery transitions without
             # comparing wall-clock timestamps that are only precise to a second.

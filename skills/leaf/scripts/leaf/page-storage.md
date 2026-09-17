@@ -107,6 +107,8 @@ A page directory holds:
     status.json          the agent's declared state: {"state": working|waiting|idle,
                          "detail", "ts", "after"}; `after` is the exact event-log
                          floor observed when the declaration was written;
+                         `"stated": false` marks a detail Leaf wrote for the agent,
+                         which a watched step outranks;
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it
                          needs from the reader while waiting;

@@ -65,11 +65,12 @@ export async function tickClock(reportError) {
 export const observeServerNow = (now) => {
   if (now) clockSkew = Date.parse(now) - Date.now();
 };
+export const JUST_NOW = "just now";
 export const ago = (ts) =>
   clockValue((now) => {
     if (!ts) return "";
     const secs = Math.max(0, (now - new Date(ts).getTime()) / 1000);
-    if (secs < 45) return "just now";
+    if (secs < 45) return JUST_NOW;
     if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
     if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
     return `${Math.round(secs / 86400)}d ago`;

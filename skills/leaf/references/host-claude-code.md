@@ -55,7 +55,9 @@ that status:
 
 Empty stdout alone is not evidence that the host stopped the process. Start a
 replacement unnamed wait only when the host itself reports that it canceled or
-killed the command.
+killed the command, or when a message from Leaf says a page has new input and no
+`leaf wait` is running for this session. That message comes through Claude
+Code's session messaging, so it is presented as coming from another session.
 
 ## Review fixtures
 

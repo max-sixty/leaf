@@ -73,8 +73,6 @@ For a new actionable delivery:
 - When several inputs are outstanding, the current subject becomes **Active** and the
   others retain their actual receipts. The banner combines both facts, for example:
   `Codex is working — Revising the heading (just now). 2 more updates are queued.`
-- When the agent switches subjects or work phases, it updates the UI before beginning
-  the new work.
 
 A retry whose obligations are already settled must not flash a new work claim. Input
 that arrives during unrelated work remains **Queued** automatically; it does not replace

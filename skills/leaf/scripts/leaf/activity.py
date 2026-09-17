@@ -242,7 +242,19 @@ def canonical_activity(
         # A newer queued interaction does not erase fresh evidence that the agent is
         # already working, nor does that older work floor claim the queued input. The
         # canonical counts keep the two facts separate for every consumer.
-        if stream_work or (stream_current and queued):
+        #
+        # What the work *is* comes from the agent, on every host. An observed tool step
+        # says a session is alive and moving, which is why it can make a page working
+        # over a declaration that says otherwise; it cannot say what the reader is
+        # waiting for, and a step that replaced the sentence would trade the one reading
+        # written for them for the one that happens to be newest. So a current
+        # declaration keeps the sentence and its own date, and the step stands beside it
+        # as `observed`. Leaf's own wording, written so a claimed move says something at
+        # once, is not that sentence: a step the transport watched says more. Nor is a
+        # declaration with no words at all, which `leaf status <page> working` writes.
+        if declared_work and status.get("stated", True) and status.get("detail"):
+            detail = status.get("detail", "")
+        elif stream_work or (stream_current and queued):
             detail, ts, quiet, dropped = (
                 stream.get("detail", ""),
                 stream.get("ts"),
@@ -292,6 +304,13 @@ def canonical_activity(
         "quiet": quiet,
         "dropped": dropped,
         "detail": detail,
+        # The step behind a working reading, reported whether or not it is also the
+        # sentence, so a consumer can show both without asking which host this is. Only
+        # under `working`: a step standing beside "last checked in 30m ago" would argue
+        # with the amber dot the rest of that reading wears.
+        "observed": (
+            stream.get("detail", "") if stream_current and kind == "working" else ""
+        ),
         "count": count,
         "counts": {
             "active": len(active_moves),

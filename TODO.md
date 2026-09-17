@@ -66,6 +66,83 @@ remain in git history.
   have feature owners contribute explicit capabilities at boot and leave the dispatcher
   generic.
 
+## Platform and dependency cutover
+
+The 2026-09-16 survey of what Leaf could hand to a dependency found the browser defect
+record concentrated in margin placement, geometry timing, and the keyboard register, which
+no library owns; a component library would have covered about 13 of the last 175 fixes. The
+direction chosen: keep Lit, and replace hand-built behavior with settled libraries and
+browser features one at a time as each proves out.
+
+Effort is S (under two days), M (two to ten), or L (weeks). Saving is lines deleted,
+measured unless marked est., plus the defect class removed. Confidence is how likely the
+swap works as described without a spike, weighing adopter evidence and Baseline status.
+Effort and confidence are estimates from the survey, not measurements. Each table is
+ordered by confidence, then effort.
+
+### JavaScript
+
+| Change | Effort | Saving | Confidence | Risk |
+|---|---|---|---|---|
+| Order the cascade with `@layer` (theme, chrome, package, page) and one z-index scale. `chrome.css` has a `lf-reset` layer and `theme.css` one anonymous layer; the rest is specificity contests. | S | 50 `!important`, 46 `z-index`; the cascade defect class | High | Package themes and page CSS need a declared layer too |
+| Use one positioning system: move the three CSS-anchored chrome menus in `chrome.css` onto Floating UI, which the margin projection and composing surface already use with virtual references and `size` and `hide` middleware. | S | ~10 CSS rules; a second positioning model | High | Floating UI must stay lazy at startup |
+| Take the auxiliary-modality Tab wrap and the tabindex lending in `runtime/focus.js` from focus-trap or tabbable. | S | <100 | High | The lending to non-stops is Leaf policy the library must not fight |
+| eslint `no-cycle` or dependency-cruiser for the import graph and Tarjan SCC in `eslint.config.mjs`; `light-dark()` for the 28-line dark token block in `theme.css`, which already sets `color-scheme: light dark`. | S | ~180 + 28 | High | The ownership rules in the eslint config stay hand-written |
+| `closedby` (Chrome 134) for the light-dismiss policy `runtime/auxiliary-modality.js` and `runtime/native-layers.js` handle by hand; `@starting-style` with `transition-behavior: allow-discrete` for the `transitionend` tracking in `runtime/margin-entries.js` and `runtime/conversation/thread-card.js`. | S | ~100 to 200 est.; part of the dialog and Escape class | Med-High | `closedby` is Chromium-only |
+| Typecheck the runtime with `tsc --checkJs`. `scripts/browser/tsconfig.json` already sets `allowJs`, `strict`, and `noEmit` and includes only its own `*.ts`; adding `checkJs` and the runtime's `*.js` to `include` checks the 42,000 lines as they ship, with no emit and no build. JSDoc annotations raise the coverage over time. | M | none deleted; part of the state-sync and repaint class (17 fixes) | Med-High | The first run's error volume; annotations needed for full value |
+| Same-document View Transitions for version travel and margin motion. `theme.css:1997` already styles the root transition group and no runtime module calls `startViewTransition`; the FLIP helper in `runtime/motion.js` and the exit listeners above are what a transition replaces. | M | ~150 est. | Med | Baseline since October 2025, but no UI library depends on it |
+| Make the page scroll normally: `html` as the scroller with fixed chrome, instead of `body` as the scroll container. Thirty fixes trace to scroll restoration, resize, and measuring before paint, and every library and browser feature assumes the normal setup. The reason for the current choice is not recorded; spike the switch and count which of those tests break. | M | part of the scroll and layout class (30 fixes) | Low-Med | Fixed chrome, print, and export may depend on the body scroller |
+| Spike a morph with exclusions for the version patch (detail below). | M | 325 pairing lines in `runtime/dom-children.js` plus the pairs map every patch maintains | Low-Med | Must prove retention of opened `<details>`, tokenizer spans, lent tab stops, and widget-built children |
+| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods. | S-M | ~50 to 100 est. | Low | Chromium-only, no adopters |
+| `focusgroup` (Chrome 150) for the list and toolbar arrow-key walks the keyboard register drives. | M | ~100 to 200 est. | Low | Chromium-only, no adopters |
+| Navigation API for version travel history: three `history` and `popstate` sites, `runtime/navigation.js` at 197 lines. | M | small | Low | Gain only if intercept replaces the activation choreography |
+| TanStack Hotkeys for the parsing, sequence timing, and cheat-sheet formatting slice of the keyboard register (detail below). | M | ~200 to 400 est. of 6,100 | Low | Alpha, 715 stars, no scope stack; the register's core stays either way |
+
+### Python
+
+| Change | Effort | Saving | Confidence | Risk |
+|---|---|---|---|---|
+| Small settled swaps: a nonce CSP for the per-body hash pipeline (13 call sites); psutil for the macOS process structs in `host.py`; unidiff for the diff parser in `data.py`; watchfiles for the watcher in `scripts/preview.py`. | S | hash pipeline + 130 + 262 + ~100 | High | psutil adds one native wheel; unidiff must refuse `copy` diffs as today |
+| Run one user-level daemon on SQLite, starlette, and asyncio (detail below). | L | ~3,100; Windows; push instead of 50 ms polling | Med | Loses per-page process isolation and the grep-able JSONL log per page; tests that reach into `http.server` internals rework |
+
+### Both
+
+| Change | Effort | Saving | Confidence | Risk |
+|---|---|---|---|---|
+| Let the browser own anchoring (detail below). | M | 824 Python lines plus consumers; the byte-exact parity class | Med-High | One headless page load per `leaf comment`, about a second, unless the daemon keeps a browser warm |
+| Bind one loopback port per MCP page with a wildcard-port `frame_domains`, removing MCP multiplexing under `/p/<capability>` as one of the two callers of the route-scoping regexes in `http.py`; the 69 rooted URL literals under `assets/` and `packages/` go relative. | M | ~75 of 155 | Low-Med | The wildcard needs an MCP-host check; leaf.page's example roots keep the mechanism |
+| Move the server to TypeScript (detail below). | L | 12,900 mirrored Python lines collapse; two native wheels | Low | Forfeits the pytest suite and render harness; node is not guaranteed on Codex hosts; not incremental |
+
+### Detail
+
+- **Morph spike.** `runtime/dom-children.js` diffs authored source against authored source
+  and writes the live tree through a pair table, so a reader's open `<details>`, tokenizer
+  spans, lent tab stops, and module-built children survive a revision. idiomorph diffs the
+  live tree instead, and its `beforeNodeRemoved` and `beforeAttributeUpdated` callbacks can
+  refuse those four classes. Measure whether a morph plus the existing jsdiff change marks
+  reproduces the patch's retention across the corpus before replacing the pairing.
+
+- **TanStack Hotkeys.** `@tanstack/lit-hotkeys` 0.11 (alpha, June 2026) parses
+  template-string bindings with a platform `Mod`, runs vim-style sequences with a timeout,
+  tracks held keys, formats bindings for a cheat sheet, scopes a binding to a `target`
+  element, and detects conflicts at registration. It has no scope stack, priority, or
+  Escape unwinding, which `runtime/keyboard/dispatch.js` owns. Keep focus-ancestry scopes
+  and `aria-keyshortcuts` reflection in Leaf. Wait for a stable release.
+
+- **Daemon.** starlette, sse-starlette, uvicorn, and pydantic are already installed through
+  `mcp`. Deleted: the detached-server handshake, flock leases, pid probing, stat polling,
+  torn-line repair, and most of `http.py`'s dispatch. Examples ship `.jsonl` companions,
+  which would become an import format.
+
+- **Browser-owned anchoring.** The browser already posts quote, prefix, suffix, and
+  section; `leaf comment` and the MCP snapshot resolve through the runtime in a Playwright
+  page instead of `passages.py` and `anchor_capture.py`. The server's independent check of
+  browser-supplied anchors protects nothing on localhost.
+
+- **TypeScript server.** Every Python dependency has a node equivalent, and the anchoring
+  and projection code would exist once. Do the daemon, anchoring, and CSP items first; each
+  shrinks what this would port.
+
 ## General reader continuity
 
 - **#11 — [Let newer navigation win over revision

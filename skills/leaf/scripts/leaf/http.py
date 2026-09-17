@@ -460,14 +460,25 @@ class Handler:
             return Response(b"", status_code=500)
         return self.response
 
-    def read_body(self) -> bytes:
-        """The request body, read from inside the route that has earned it.
+    def read_body(self, limit: int | None = None) -> bytes | None:
+        """The request body, read from inside the route that has earned it, and
+        never past a bound the route states — `None` says the peer went past it.
 
         Deliberately not read on arrival: the key gate is upstream of every read
         here, so an unauthenticated peer can neither choose an allocation nor park
-        a request on bytes it never sends.
+        a request on bytes it never sends. The bound belongs to the read rather
+        than to `Content-Length`, which a chunked body does not carry at all.
         """
-        return anyio.from_thread.run(self.request.body)
+
+        async def read() -> bytes | None:
+            body = bytearray()
+            async for chunk in self.request.stream():
+                body += chunk
+                if limit is not None and len(body) > limit:
+                    return None
+            return bytes(body)
+
+        return anyio.from_thread.run(read)
 
     def send_header(self, name: str, value: str) -> None:
         self._headers.append((name, value))
@@ -595,6 +606,7 @@ class Handler:
         transport reports without this loop watching the socket for it. `ALIVE_S` is
         the whole of the keepalive, so the stream carries no comment frames beside it.
         """
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.response = StreamingResponse(
             self._readings(),
@@ -737,11 +749,15 @@ class Handler:
         # A declared length the door will not take, refused before the read rather
         # than after it: an event is prose, markup and passages, and a body past this
         # bound is a peer choosing what this process waits for and holds in memory.
-        if int(self.headers.get("Content-Length", 0)) > MAX_MEDIA_UPLOAD_BYTES:
+        # A chunked body declares no length, so the read carries the same bound.
+        body = None
+        if int(self.headers.get("Content-Length", 0)) <= MAX_MEDIA_UPLOAD_BYTES:
+            body = self.read_body(MAX_MEDIA_UPLOAD_BYTES)
+        if body is None:
             self.close_connection = True
             return {}, "event exceeds the 10 MiB limit"
         try:
-            posted = json.loads(self.read_body(), parse_constant=reject_json_constant)
+            posted = json.loads(body, parse_constant=reject_json_constant)
         except (ValueError, RecursionError):
             return {}, "invalid JSON"
         if not isinstance(posted, dict):

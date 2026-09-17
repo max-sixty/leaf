@@ -108,6 +108,15 @@ class LeafHTTPServer:
     def serve_forever(self) -> None:
         """Serve on the current thread until `shutdown` or a handled signal."""
         self._uvicorn = uvicorn.Server(self._config)
+        # A signal reaches uvicorn alone, and its graceful shutdown has no bound:
+        # a news stream that never learns of the stop holds the process open.
+        handled_exit = self._uvicorn.handle_exit
+
+        def stop(sig, frame):
+            self.stopping = True
+            handled_exit(sig, frame)
+
+        self._uvicorn.handle_exit = stop
         if self.stopping:
             return
         self._uvicorn.run(sockets=[self.socket.dup()])

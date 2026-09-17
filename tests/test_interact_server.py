@@ -6,6 +6,7 @@ import http.client
 import http.cookiejar
 import json
 import os
+import select
 import socket
 import subprocess
 import sys
@@ -3101,6 +3102,9 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
 def _news(server):
     """An open news stream, and a reader of the next reading it names."""
     stream = urllib.request.urlopen(f"{server}/api/news?t={TOKEN}", timeout=5)
+    # Readings are said once, to the tab holding this stream. A cache that kept them
+    # would answer a later stream with news that has already been acted on.
+    assert stream.headers.get("Cache-Control") == "no-store"
 
     def heard():
         while True:
@@ -3757,6 +3761,55 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         answer.get("error"),
     ) == (400, False, True, "event exceeds the 10 MiB limit"), answer
     assert answered.getheader("Connection") == "close"
+
+    # The sixth declares no length at all. A chunked body is the shape that reaches the
+    # read without passing the header check, so the bound belongs to the read: the door
+    # stops taking chunks once they pass it rather than holding the whole stream first.
+    # It answers and closes while the sender is still writing, so the writes that land
+    # on the closed connection are the refusal arriving early rather than a fault.
+    host, _, port = urllib.parse.urlsplit(server).netloc.partition(":")
+    door = socket.create_connection((host, int(port)), timeout=30)
+    spoken = b""
+    try:
+        door.sendall(
+            b"POST /api/event?t=%s HTTP/1.1\r\nHost: %s\r\n"
+            b"Leaf-Layer: %s\r\nContent-Type: application/json\r\n"
+            b"Transfer-Encoding: chunked\r\n\r\n"
+            % (
+                TOKEN.encode(),
+                urllib.parse.urlsplit(server).netloc.encode(),
+                json.loads(served)["layer"]["generation"].encode(),
+            )
+        )
+        chunk = b"x" * (1024 * 1024)
+        door.settimeout(5)
+        try:
+            for _ in range(12):
+                if select.select([door], [], [], 0)[0]:
+                    break
+                door.sendall(b"%x\r\n" % len(chunk) + chunk + b"\r\n")
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
+            # The door has stopped reading, so the rest of the body has nowhere to go.
+            pass
+        try:
+            while select.select([door], [], [], 30)[0]:
+                heard = door.recv(65536)
+                if not heard:
+                    break
+                spoken += heard
+        except (ConnectionResetError, TimeoutError):
+            pass
+    finally:
+        door.close()
+    head, _, body = spoken.partition(b"\r\n\r\n")
+    assert head.split(b"\r\n")[0].endswith(b"400 Bad Request"), spoken[:400]
+    assert b"{" in body, spoken[:400]
+    answer = json.loads(body[body.index(b"{") : body.rindex(b"}") + 1])
+    assert (answer.get("ok"), answer.get("final"), answer.get("error")) == (
+        False,
+        True,
+        "event exceeds the 10 MiB limit",
+    ), answer
 
     assert [
         e for e in event_model.read_events(page_dir) if e["kind"] == "comment"

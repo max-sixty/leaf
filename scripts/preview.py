@@ -21,11 +21,13 @@ values. The first lets a page arrive mid-conversation; the second supplies the
 same page-bound external data a real host would replace through `leaf data set`.
 
 A source or layer edit stops the preview service, stamps changed source, and restarts
-at the same URL. A layer edit also re-vendors, through the normal compatibility gate;
-a source edit alone does not, because vendoring mints a fresh layer generation and a
-revision carrying one is a different program, which the browser can only follow into a
-fresh document. So a prose edit here arrives the way it arrives for a reader, patched
-into the page they are standing in. The page log
+at the same URL. `watchfiles` owns the watching: it reports which paths changed and
+groups an editor's save batch, so this script only says which paths it follows and
+what each one means. A layer edit also re-vendors, through the normal compatibility
+gate; a source edit alone does not, because vendoring mints a fresh layer generation
+and a revision carrying one is a different program, which the browser can only follow
+into a fresh document. So a prose edit here arrives the way it arrives for a reader,
+patched into the page they are standing in. The page log
 and reader decisions survive; a refused update stays visible in the terminal
 or background log and is retried after the next edit. Existing slots resume.
 Changing fixture identity or seeded history is refused so a slot keeps its feedback.
@@ -57,6 +59,7 @@ import time
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
+from typing import NamedTuple
 
 from example_data import TEST_PAGES, example_versions
 from page_fixtures import (
@@ -74,6 +77,15 @@ ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
 NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+# The watcher's own dependency, which the dev group beside this script declares. A
+# checkout named by `--runtime` has the `--no-dev` environment `bin/leaf` syncs, so the
+# worker command overlays it there. Move this floor whenever `pyproject.toml`'s moves.
+WATCHER_PACKAGE = "watchfiles>=1.1.0"
+# One interval serves two jobs: it is the quiet gap that closes an editor's save batch
+# (`step`), and the idle wake-up at which the watcher re-reads its stop flag and the
+# server's liveness (`rust_timeout`). `debounce` keeps watchfiles' 1.6s default ceiling,
+# so writes that never go quiet still reach the page rather than starving there.
+WATCH_INTERVAL_MS = 250
 
 
 def leaf(
@@ -378,131 +390,108 @@ def refresh_preview(
     mark_preview(source, page, runtime, automation=automation)
 
 
-def watch_paths(
-    source: Path, runtime: Path, roots: list[Path], seed: dict
-) -> tuple[list[Path], list[Path]]:
+class Watched(NamedTuple):
+    """One filesystem subscription and what the paths it reports mean.
+
+    `roots` is what watchfiles is given, each watched recursively, so a path that does
+    not exist yet — a first `versions/` directory, a `media/` directory nearer the
+    source than the layer's — still arrives as a change under the directory that will
+    hold it. Every path in `paths` sits under one of those roots; a path that did not
+    would be an input the preview had silently stopped following.
+    """
+
+    roots: tuple[Path, ...]
+    paths: frozenset[str]
+    layer: frozenset[str]
+
+
+def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> Watched:
+    """The inputs one preview follows, and which of them `page init` vendors.
+
+    A reported path is matched against `paths` for whether it is watched at all, and
+    against `layer` for whether the refresh re-copies the layer. The two are told
+    apart because re-copying the layer changes what a revision is as executable code
+    while editing the page's own source does not: a fresh layer generation makes the
+    next revision a different program, which the browser can only follow into a fresh
+    document, while a prose edit is a revision the reader keeps their page for.
+    """
     from leaf.layer import input_paths
 
-    inputs = input_paths(roots)
-    resolved_roots = {root.resolve() for root in roots}
-    directories = [*roots]
-    directories.extend(
-        path for path in inputs if path in resolved_roots or path.is_dir()
-    )
-    paths = [
-        path for path in inputs if path not in resolved_roots and not path.is_dir()
-    ]
-    # Everything above is the layer `page init` vendors. What follows is the page's own,
-    # and the two are told apart because re-copying the layer changes what a revision is
-    # as executable code while editing the page does not.
-    layer = {str(path) for path in paths}
-    manifest = source_manifest(source)
-    paths.append(source)
-    paths.extend(source_manifest_candidates(source))
-    paths.append(manifest or DEFAULT_PACKAGES)
-    paths.extend(Path(path) for path in seed)
-    versions = source.parent / "versions"
-    directories.append(versions)
-    paths.extend(versions.glob(f"{source.stem}.v*.html"))
+    # Every path is resolved before it enters a set or a subscription. `input_paths`
+    # answers in resolved paths, and a watcher can report a change under the root
+    # string it was given, so a package root reached through a symlink or a `..`
+    # would otherwise name its changes in a form nothing here matches.
+    runtime = runtime.resolve()
     scripts = runtime / "skills" / "leaf" / "scripts"
-    directories.append(scripts)
-    for path in scripts.rglob("*"):
-        if path.is_dir():
-            directories.append(path)
-        elif path.suffix == ".py":
-            paths.append(path)
-    paths.extend((runtime / "pyproject.toml", runtime / "uv.lock"))
-    layer.update(str(runtime / name) for name in ("pyproject.toml", "uv.lock"))
-    layer.update(
-        str(path)
-        for path in scripts.rglob("*")
-        if not path.is_dir() and path.suffix == ".py"
-    )
-    media = media_source(source)
-    directories.append(source.parent / "media")
-    if manifest is not None:
-        directories.append(manifest.parent / "media")
-    for path in media.rglob("*"):
-        if path.is_dir():
-            directories.append(path)
-        else:
-            paths.append(path)
-    return paths, list(dict.fromkeys(directories)), layer
-
-
-def snapshot(paths: list[Path]) -> dict:
-    """Stat inputs so idle previews do not repeatedly read vendored bundles."""
-    result = {}
-    for path in paths:
-        try:
-            stat = path.stat()
-        except FileNotFoundError:
-            continue  # an editor's atomic replace is observed on the next pass
-        result[str(path)] = (stat.st_mtime_ns, stat.st_size)
-    return result
-
-
-class WatchedInputs:
-    """Cache expansion until directory membership can have changed."""
-
-    def __init__(
-        self, source: Path, runtime: Path, roots: list[Path], seed: dict
-    ) -> None:
-        self.source = source
-        self.runtime = runtime
-        self.roots = roots
-        self.seed = seed
-        self.paths: list[Path] = []
-        self.directories: list[Path] = []
-        self.layer: set[str] = set()
-        self.all_paths: list[Path] = []
-        self.directory_state = {}
-
-    def expand(self) -> dict:
-        while True:
-            known_directories = {str(path) for path in self.directories}
-            directory_state = snapshot(self.directories)
-            paths, directories, layer = watch_paths(
-                self.source, self.runtime, self.roots, self.seed
+    resolved_roots = {root.resolve() for root in roots}
+    # The layer reading follows a link inside a package as well as one at its root,
+    # so a vendored file can resolve outside every package root.
+    package = [
+        path
+        for path in input_paths(roots)
+        if path not in resolved_roots and not path.is_dir()
+    ]
+    layer = {
+        *(str(path) for path in package),
+        *(str(path) for path in scripts.rglob("*.py")),
+        str(runtime / "pyproject.toml"),
+        str(runtime / "uv.lock"),
+    }
+    manifest = source_manifest(source)
+    page = {
+        path.resolve()
+        for path in (
+            source,
+            *source_manifest_candidates(source),
+            manifest or DEFAULT_PACKAGES,
+            *(Path(path) for path in seed),
+            *(source.parent / "versions").glob(f"{source.stem}.v*.html"),
+            *media_source(source).rglob("*"),
+            # The nearer of these two directories is the one the page's images come
+            # from, so either arriving changes which images the refresh copies.
+            source.parent / "media",
+            *([manifest.parent / "media"] if manifest is not None else []),
+        )
+    }
+    holders = sorted(
+        {
+            path
+            for path in (
+                *resolved_roots,
+                scripts,
+                runtime / "pyproject.toml",
+                runtime / "uv.lock",
+                *(path.parent for path in package),
+                *(path.parent for path in page),
             )
-            if any(str(path) not in known_directories for path in directories):
-                self.directories = directories
-                continue
-            self.paths, self.directories, self.layer = paths, directories, layer
-            break
-        self.all_paths = list(dict.fromkeys((*self.paths, *self.directories)))
-        state = snapshot(self.all_paths)
-        current = {
-            str(path): state[str(path)] for path in self.paths if str(path) in state
+            if path.exists()
         }
-        self.directory_state = {
-            str(path): directory_state[str(path)]
-            for path in self.directories
-            if str(path) in directory_state
-        }
-        return current
+    )
+    # A recursive root already covers everything below it, so keep only the outermost.
+    # Sorted, an ancestor precedes its descendants. The subscription is then the same
+    # set whether or not the page has media or prior versions yet, which is what keeps
+    # it open — and collecting — across the refreshes those arriving files cause.
+    subscribed: list[Path] = []
+    for path in holders:
+        if not any(root in path.parents for root in subscribed):
+            subscribed.append(path)
+    return Watched(
+        tuple(subscribed),
+        frozenset(layer | {str(path) for path in page}),
+        frozenset(layer),
+    )
 
-    # Whether what `page init` vendors moved, as against the page's own source. One
-    # re-copies the layer and one does not, and the difference is what a reader sees:
-    # a fresh layer generation makes the next revision a different program, which is a
-    # reload, while a prose edit alone is a revision the reader keeps their page for.
-    def layer_changed(self, before: dict, after: dict) -> bool:
-        return any(before.get(key) != after.get(key) for key in self.layer)
 
-    def read(self) -> dict:
-        if not self.all_paths:
-            return self.expand()
-        current = snapshot(self.all_paths)
-        directory_state = {
-            str(path): current[str(path)]
-            for path in self.directories
-            if str(path) in current
-        }
-        if directory_state != self.directory_state:
-            return self.expand()
-        return {
-            str(path): current[str(path)] for path in self.paths if str(path) in current
-        }
+def watch_changes(watched: Watched):
+    """Subscribe to one watched set; the rust watcher starts on the first read."""
+    from watchfiles import watch
+
+    return watch(
+        *watched.roots,
+        step=WATCH_INTERVAL_MS,
+        rust_timeout=WATCH_INTERVAL_MS,
+        yield_on_timeout=True,
+    )
 
 
 def start_preview_server(
@@ -665,6 +654,7 @@ def watch_preview(
             "or rerun with --reset to replace it"
         )
     temporary = None
+    changes = None
     with lease:
         try:
             if automation and PageTransaction(page).active_claim is not None:
@@ -709,16 +699,15 @@ def watch_preview(
             roots = layer_inputs(
                 tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
-            watched_inputs = WatchedInputs(source, runtime, roots, identity["seed"])
-            previous = watched_inputs.read()
-            candidate = previous
+            watched = watch_paths(source, runtime, roots, identity["seed"])
+            changes = watch_changes(watched)
             preview_ready({"prepared": prepared, "url": url, "note": note}, ready_fd)
             print(
                 f"Watching {source} and {runtime}; feedback stays in {page}", flush=True
             )
             serving = True
             while read_json(metadata)["enabled"]:
-                time.sleep(0.25)
+                reported = {path for _, path in next(changes)}
                 live = temporary.running if automation else running_server(page)
                 if serving and not live:
                     return  # an explicit service stop or the owning session ended
@@ -728,15 +717,14 @@ def watch_preview(
                     with PageTransaction(page) as state:
                         if not state.owned_by(host_identity()):
                             return
-                current = watched_inputs.read()
-                if current == previous:
-                    candidate = current
+                if not reported:
+                    continue  # the idle wake-up that carried the two checks above
+                # An added input is only in the reading taken after it arrived, and a
+                # deleted one only in the reading taken while it was still there.
+                current = watch_paths(source, runtime, roots, identity["seed"])
+                if not reported & (watched.paths | current.paths):
                     continue
-                if current != candidate:
-                    candidate = current
-                    continue  # one quiet interval groups an editor's save batch
-                vendored = watched_inputs.layer_changed(previous, current)
-                previous = current
+                vendored = bool(reported & (watched.layer | current.layer))
                 if automation:
                     token, port = temporary.token, temporary.port
                     temporary.close()
@@ -756,15 +744,22 @@ def watch_preview(
                     roots = layer_inputs(
                         tuple(read_json(page / "registry.json")["$layer"]["packages"])
                     )
-                    watched_inputs = WatchedInputs(
-                        source, runtime, roots, identity["seed"]
-                    )
+                    rebuilt = watch_paths(source, runtime, roots, identity["seed"])
                 except (SystemExit, ValueError, OSError) as error:
                     print(
                         f"Preview update refused: {error}. Feedback is preserved; edit the inputs to retry.",
                         file=sys.stderr,
                         flush=True,
                     )
+                    rebuilt = current
+                if rebuilt.roots != watched.roots:
+                    # A refresh can change which packages the page vendors, and a
+                    # subscription is fixed for its lifetime. Holding the old one
+                    # wherever the roots stand still keeps the edits made during the
+                    # refresh, which the rust watcher collected while this was busy.
+                    changes.close()
+                    changes = watch_changes(rebuilt)
+                watched = rebuilt
                 if not read_json(metadata)["enabled"]:
                     return
                 if automation:
@@ -781,6 +776,8 @@ def watch_preview(
                     print(f"Reloaded {source.stem}", flush=True)
         finally:
             update_preview_state(page, enabled=False)
+            if changes is not None:
+                changes.close()
             if temporary is not None:
                 temporary.close()
             elif not automation:
@@ -804,9 +801,21 @@ def start_preview_worker(
     automation: bool,
     reset: bool,
 ) -> None:
-    """Run in the selected checkout's uv environment, including --runtime previews."""
+    """Run in the selected checkout's uv environment, including --runtime previews.
+
+    That environment is the one `bin/leaf` syncs, which carries no dev group, so the
+    watcher's own dependency is overlaid onto it rather than installed into it.
+    """
     command = [
-        str(runtime / ".venv" / "bin" / "python"),
+        "uv",
+        "run",
+        "-q",
+        "--no-dev",
+        "--project",
+        str(runtime),
+        "--with",
+        WATCHER_PACKAGE,
+        "python",
         str(Path(__file__).resolve()),
         "--source",
         str(source),
@@ -827,7 +836,7 @@ def start_preview_worker(
         command.append("--stop")
     if not background:
         os.chdir(runtime)
-        os.execv(command[0], command)
+        os.execvp(command[0], command)
     _, _, log_path = preview_files(page)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     read_fd, write_fd = os.pipe()

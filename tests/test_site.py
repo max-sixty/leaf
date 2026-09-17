@@ -400,6 +400,15 @@ def test_a_crawler_is_given_one_page_per_route(site):
                 assert card.size == (1200, 630), route
 
 
+def _one_nonce(document: bytes) -> bytes:
+    """Rewrite a document's CSP nonce to a fixed token, wherever it appears."""
+    # Read it off a script rather than the policy, which is escaped inside the meta
+    # attribute. A policy naming some other nonce keeps that one and still differs.
+    nonce = re.search(rb'<script nonce="([A-Za-z0-9_-]+)"', document)
+    assert nonce is not None, document[:400]
+    return document.replace(nonce.group(1), b"minted")
+
+
 def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     site, hosted
 ):
@@ -441,6 +450,10 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
             served = re.sub(
                 rb'data-lf-server="[^"]+"', b'data-lf-server="published"', served
             )
+            # The other value a delivery mints fresh. Each document is rewritten with
+            # its own nonce, so a document whose scripts carried a nonce its policy
+            # does not name still fails the comparison.
+            served, materialized = _one_nonce(served), _one_nonce(materialized)
         assert materialized == served, route
 
 

@@ -23,7 +23,7 @@ current one.
 its capability and imports what it needs, and `leaf.js` imports them and runs the boot
 sequence (Startup and presentation, below). It exports no capability and no owner
 imports it back. The HTTP boundary places the vendored
-`runtime/bootstrap.js` before loadable resources, with an exact CSP hash; it can
+`runtime/bootstrap.js` before loadable resources, carrying the delivery's CSP nonce; it can
 show startup failure and hear a replacement server even if the module graph or
 stylesheet never loads. A delivery carrying a site release also uses that bootstrap
 to send one content-free startup profile after presentation, failure, timeout, or
@@ -41,9 +41,9 @@ helper must not restore a forbidden dependency. The public widget facade is the 
 for authored behavior modules, not an internal shortcut between runtime owners.
 The keyboard register stores declarations without evaluating their dynamic readings;
 the first repaint after mounting evaluates them.
-The lint gate rejects cycles, forbidden transitive dependencies, and missing module
-names in its boundary declarations. Runtime imports use literal paths so the gate can
-read their edges. Only the authored interaction loader and registry widget loader use
+`.dependency-cruiser.mjs` declares the runtime's boundaries for the lint gate, which rejects
+cycles, forbidden transitive dependencies, and a declaration naming a module that no
+longer exists. Runtime imports use literal paths so the gate can read their edges. Only the authored interaction loader and registry widget loader use
 computed imports; those load content modules rather than runtime owners.
 `runtime/chrome.js` owns only the shared chrome root; `leaf.js` assembles its parts,
 mounts them, and wires behavior that needs them in the document;

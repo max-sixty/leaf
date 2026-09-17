@@ -46,13 +46,30 @@ repos:
     hooks:
       - id: prettier
         types_or: [javascript, html]
-  # Parse every JavaScript module and enforce the runtime import graph. The browser
-  # loader proves that named imports exist; this owns syntax and forbidden edges.
+  # Parse every JavaScript module and enforce the rules a module's own source answers:
+  # which specifiers an owner may name, who may write the document root, who may
+  # publish semantic state. The browser loader proves that named imports exist.
   - repo: https://github.com/pre-commit/mirrors-eslint
     rev: v10.9.1
     hooks:
       - id: eslint
         args: [--max-warnings=0]
+  # The runtime import graph, which no per-file linter can see: cycles, the direct
+  # edges that cross a boundary, and the transitive closures `.dependency-cruiser.mjs`
+  # declares. Every rule reads the whole graph, so the hook takes no filenames and the
+  # pattern below only wakes it. dependency-cruiser is not an eslint plugin, so it
+  # needs a hook of its own, pinned here as every other tool in this file is.
+  # `package.json` is the `scripts/browser/` build's manifest; the lint gate runs no
+  # `npm ci`, so a tool pinned only there would never be installed.
+  - repo: local
+    hooks:
+      - id: dependency-cruiser
+        name: dependency-cruiser
+        language: node
+        additional_dependencies: [dependency-cruiser@18.3.1]
+        entry: depcruise --output-type err skills/leaf/assets/runtime
+        pass_filenames: false
+        files: ^(skills/leaf/assets/(leaf\.js|runtime/.*\.js)|\.dependency-cruiser\.mjs)$
   - repo: https://github.com/adhtruong/mirrors-typos
     rev: v1.48.0
     hooks:

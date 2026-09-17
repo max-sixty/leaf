@@ -42,6 +42,11 @@ def write_live_shell(
 
     The runtime and its API routes remain unchanged. A static host may serve this
     derived tree while the canonical Leaf server answers those API routes.
+
+    Each document's script nonce is minted here, once, and every reader of that
+    release receives the same one in the page source. It still admits only the inline
+    scripts delivery composed, but it is not a secret the way a per-response nonce is:
+    markup able to read the page could carry it.
     """
     events = read_events(page_dir)
     active = latest_revision(page_dir)

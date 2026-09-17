@@ -1,8 +1,6 @@
 """HTTP transport and routes for one served page."""
 
-import base64
 import contextlib
-import hashlib
 import html
 import json
 import re
@@ -280,10 +278,21 @@ def _runtime_assets(asset_root: str = "") -> tuple[str, str]:
     )
 
 
-def script_hash(body: str) -> str:
-    """One CSP source expression for the exact text an inline script executes."""
-    digest = base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()
-    return f"'sha256-{digest}'"
+def authorize_inline_scripts(document: SourceDocument, nonce: str) -> str:
+    """Mark every inline script this document arrived with as one delivery composed.
+
+    Written from the parser's own start-tag spans, back to front so the earlier ones
+    keep their offsets. An inline script that reaches the browser without the mark
+    does not run. The mark keeps out markup written after delivery only while that
+    markup cannot learn it, which holds for a nonce minted per response and not for a
+    document written once and served many times (`live_shell`).
+    """
+    source = document.html
+    for end in sorted(
+        (script["start_tag_end"] for script in document.inline_scripts), reverse=True
+    ):
+        source = f'{source[: end - 1]} nonce="{nonce}"{source[end - 1 :]}'
+    return source
 
 
 def runtime_document(
@@ -327,9 +336,10 @@ def supervised_document(
 ) -> bytes:
     """Supervise HTTP startup before the module graph or stylesheet can load.
 
-    The served document receives the runtime assets, current layer CSP, exact
-    bootstrap hash, and server incarnation probe, so historical sources inherit
-    the current delivery boundary without carrying delivery markup themselves.
+    The served document receives the runtime assets, current layer CSP, this
+    delivery's script nonce, and server incarnation probe, so historical sources
+    inherit the current delivery boundary without carrying delivery markup
+    themselves.
 
     It also names the page it belongs to. A page answers at three addresses — the
     live root, each stamped version, and each immutable revision — and every one
@@ -337,8 +347,6 @@ def supervised_document(
     all of them. The href is relative to the delivery, which has no origin to
     know: it resolves wherever the page directory is mounted.
     """
-    # Scope authored routes before hashing: CSP authorizes the bytes the browser
-    # receives, including rewritten imports inside authored module blocks.
     source = scope_document_routes(
         source.encode(), page_root, asset_root=asset_root
     ).decode()
@@ -347,9 +355,12 @@ def supervised_document(
     bootstrap = scope_script_routes(
         resources["/runtime/bootstrap.js"].data, page_root, asset_root=asset_root
     ).decode()
-    hashes = [script_hash(bootstrap)]
-    hashes.extend(script_hash(script["body"]) for script in parsed.inline_scripts)
-    csp = PAGE_CSP + "; script-src 'self' " + " ".join(dict.fromkeys(hashes))
+    # One nonce per delivery. The head's own scripts carry it as they are written;
+    # the authored blocks are marked in place, after route scoping so the offsets
+    # are the ones the browser will read.
+    nonce = secrets.token_urlsafe(16)
+    source = authorize_inline_scripts(parsed, nonce)
+    csp = PAGE_CSP + f"; script-src 'self' 'nonce-{nonce}'"
     release = (
         f' data-lf-release="{html.escape(release_id, quote=True)}"'
         if release_id is not None
@@ -360,7 +371,7 @@ def supervised_document(
     theme_head, entry_head = _runtime_assets(assets)
     asset_path = assets.rstrip("/")
     bootstrap_head = (
-        f'<script data-lf-runtime data-lf-server="{server_id}" '
+        f'<script nonce="{nonce}" data-lf-runtime data-lf-server="{server_id}" '
         f'data-lf-layer="{layer_id}"{release}{public_root} '
         f'data-lf-entry="{asset_path}/leaf.js" '
         f'data-lf-theme="{asset_path}/theme.css" '

@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 import click
+from unidiff import PatchedFile, PatchSet, UnidiffParseError
 
 from .data_contracts import (
     DataError,
@@ -20,19 +21,18 @@ from .registry.storage import read_page_registry
 from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
 
-_HUNK_HEADER = re.compile(
-    r"^@@ -(?P<old_start>[0-9]+)(?:,(?P<old_count>[0-9]+))? "
-    r"\+(?P<new_start>[0-9]+)(?:,(?P<new_count>[0-9]+))? @@(?: .*)?$"
-)
-_GIT_PATH_TOKEN = r'(?:(?:"(?:\\.|[^"\\])*")|\S+)'
-
+# From here to `unified_diff_manifest`, whose docstring states the division: unidiff
+# reads the hunks, and everything here owns the manifest built around them.
 _GIT_QUOTED_PATH = re.compile(
     r'(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*'
 )
 
 
 def _decode_git_path(path: str) -> str:
-    """Decode the C-style quoting Git uses for diff path fields."""
+    """Decode the C-style quoting Git uses for diff path fields.
+
+    unidiff hands a quoted path back as Git wrote it, so the manifest decodes it
+    here and refuses an escape Git would not have written."""
     if not path.startswith('"'):
         return path
     if len(path) < 2 or not path.endswith('"'):
@@ -50,6 +50,7 @@ def _decode_git_path(path: str) -> str:
 
 
 def _diff_header_path(side: str, path: str) -> str:
+    """One bare path written the way its `diff --git` side names it."""
     return (
         f'"{side}/{path[1:]}'
         if path.startswith('"') and path.endswith('"')
@@ -57,48 +58,21 @@ def _diff_header_path(side: str, path: str) -> str:
     )
 
 
-def _diff_header_paths(
-    section: str,
-    marked_old: str | None = None,
-    marked_new: str | None = None,
-) -> tuple[str, str]:
-    header = section.split("\n", 1)[0]
-    match = re.fullmatch(
-        rf"diff --git (?P<old>{_GIT_PATH_TOKEN}) (?P<new>{_GIT_PATH_TOKEN})",
-        header,
-    )
-    if match is None:
-        # Git leaves ordinary spaces unquoted in `diff --git` and terminates the
-        # unambiguous ---/+++ paths with a tab instead. Reconstruct the header from
-        # that already-parsed pair rather than guessing where one path ends.
-        if marked_old is None or marked_new is None:
-            raise DataError(f"invalid Git diff header: {header}")
-        old = None if marked_old == "/dev/null" else _diff_display_path(marked_old)
-        new = None if marked_new == "/dev/null" else _diff_display_path(marked_new)
-        old = old or new
-        new = new or old
-        if (
-            old is None
-            or new is None
-            or header
-            != (
-                f"diff --git {_diff_header_path('a', old)} "
-                f"{_diff_header_path('b', new)}"
-            )
-        ):
-            raise DataError(f"invalid Git diff header: {header}")
-        return old, new
-    old = _decode_git_path(match.group("old"))
-    new = _decode_git_path(match.group("new"))
-    if not old.startswith("a/") or not new.startswith("b/"):
-        raise DataError(f"invalid Git diff paths: {header}")
-    return old[2:], new[2:]
+def _marked_bare_path(token: str, side: str) -> str:
+    """One ---/+++ path token with its side marker removed, still quoted where Git
+    quoted it.
 
-
-def _diff_display_path(path: str) -> str:
-    """Decode one Git header path and remove its a/ or b/ side marker."""
-    decoded = _decode_git_path(path)
-    return decoded[2:] if decoded.startswith(("a/", "b/")) else decoded
+    Git writes the marker itself, so the leading two characters are never part of
+    the path, and stripping them before decoding keeps the quoting that the
+    `diff --git` header is compared against. A capture made with `--no-prefix` or a
+    mnemonic prefix is refused here: the widget reads the default markers."""
+    marker = f"{side}/"
+    if token.startswith('"') and token.endswith('"'):
+        if token[1:3] == marker:
+            return f'"{token[3:]}'
+    elif token.startswith(marker):
+        return token[2:]
+    raise DataError(f"unified diff path {token!r} has no {marker} side marker")
 
 
 def _diff_marked_paths(section: str) -> tuple[str | None, str | None]:
@@ -159,47 +133,130 @@ def _path_only_rename(section: str) -> tuple[str, str] | None:
     return _decode_git_path(old_path), _decode_git_path(new_path)
 
 
-def _diff_hunk_counts(section: str, path: str) -> tuple[int, int]:
-    """Validate every textual hunk and return its additions and deletions."""
-    lines = section.rstrip("\n").split("\n")
-    starts = [index for index, line in enumerate(lines) if line.startswith("@@")]
-    if not starts:
+def _parsed_hunks(section: str, path: str) -> PatchedFile:
+    """unidiff's reading of one section's textual hunks.
+
+    unidiff ends a hunk as soon as its @@ header's declared counts are met, and
+    hands any line after that back to the file parser, which absorbs it as patch
+    metadata. So the reading counts as evidence only once the hunks account for
+    every line from the first @@ header on."""
+    # One view of where the section ends, for the parse and the count below: the
+    # blank lines a patch may carry between files are neither hunk nor metadata.
+    body_text = section.rstrip("\n") + "\n"
+    try:
+        parsed = PatchSet.from_string(body_text)
+    except UnidiffParseError as error:
+        # unidiff ends a refusal that quotes a line with that line's own newline.
+        detail = str(error).strip()
+        raise DataError(f"unsupported hunks for {path}: {detail}") from error
+    if len(parsed) != 1:
+        raise DataError(f"unified diff repeats a file header inside {path}")
+    patched = parsed[0]
+    if not patched:
         raise DataError(
             f"unsupported hunkless diff for {path}; only exact path-only renames "
             "may omit textual @@ hunks"
         )
-    additions = deletions = 0
-    for position, start in enumerate(starts):
-        header = _HUNK_HEADER.fullmatch(lines[start])
-        if header is None:
-            raise DataError(f"invalid hunk header for {path}: {lines[start]}")
-        old_expected = int(header.group("old_count") or 1)
-        new_expected = int(header.group("new_count") or 1)
-        old_seen = new_seen = 0
-        end = starts[position + 1] if position + 1 < len(starts) else len(lines)
-        for line in lines[start + 1 : end]:
-            if line == r"\ No newline at end of file":
-                continue
-            if not line or line[0] not in " +-":
-                raise DataError(f"invalid hunk line for {path}: {line!r}")
-            if line[0] in " -":
-                old_seen += 1
-            if line[0] in " +":
-                new_seen += 1
-            if line[0] == "-":
-                deletions += 1
-            elif line[0] == "+":
-                additions += 1
-        if (old_seen, new_seen) != (old_expected, new_expected):
+    lines = body_text.rstrip("\n").split("\n")
+    first_hunk = next(
+        index for index, line in enumerate(lines) if line.startswith("@@")
+    )
+    body = lines[first_hunk:]
+    if len(body) != len(patched) + sum(len(hunk) for hunk in patched):
+        raise DataError(
+            f"hunk line counts for {path} do not match the lines under them"
+        )
+    # unidiff reads a bare empty line as an empty context line, for a patch that
+    # crossed a transport which strips trailing whitespace. `lf-diff` refuses one,
+    # so capture refuses it too rather than storing evidence the page cannot draw.
+    if not all(body):
+        raise DataError(f"unsupported hunks for {path}: an empty line has no marker")
+    return patched
+
+
+def _manifest_file(section: str) -> dict:
+    """One manifest entry for one `diff --git` section of the captured patch."""
+    if re.search(r"^copy (?:from|to) ", section, re.MULTILINE):
+        raise DataError(
+            "unsupported copy diff; omit copy metadata and provide textual @@ "
+            "hunks for an edited destination"
+        )
+    pure_rename = _path_only_rename(section)
+    if pure_rename is not None:
+        previous, path = pure_rename
+        return {
+            "key": path,
+            "path": path,
+            "previousPath": previous,
+            "kind": "rename",
+            "additions": 0,
+            "deletions": 0,
+            "patch": section,
+        }
+
+    header = section.split("\n", 1)[0]
+    previous, renamed = _diff_rename_paths(section)
+    marked_old, marked_new = _diff_marked_paths(section)
+    if marked_old is None or marked_new is None:
+        if re.search(r"^@@", section, re.MULTILINE):
             raise DataError(
-                f"hunk line counts for {path} are {old_seen} old and {new_seen} new; "
-                f"the header declares {old_expected} old and {new_expected} new"
+                "unified diff has no ---/+++ file-header pair before its first hunk"
             )
-    return additions, deletions
+        if previous is not None or renamed is not None:
+            raise DataError(
+                "unsupported hunkless rename; only the exact four-line "
+                "path-only form may omit textual @@ hunks"
+            )
+        raise DataError(f"unsupported hunkless diff: {header}")
+
+    # Git leaves ordinary spaces unquoted in `diff --git` and terminates the
+    # unambiguous ---/+++ paths with a tab instead, so the header is compared with
+    # the pair rebuilt from those paths rather than split at a guessed space. An
+    # added or deleted file names /dev/null on one side and the surviving path on
+    # both sides of the header.
+    old_path = None if marked_old == "/dev/null" else _marked_bare_path(marked_old, "a")
+    new_path = None if marked_new == "/dev/null" else _marked_bare_path(marked_new, "b")
+    if old_path is None and new_path is None:
+        raise DataError("diff file has no old or new path")
+    old_path = old_path or new_path
+    new_path = new_path or old_path
+    if header != (
+        f"diff --git {_diff_header_path('a', old_path)} "
+        f"{_diff_header_path('b', new_path)}"
+    ):
+        raise DataError(
+            "unified diff ---/+++ paths disagree with its diff --git header"
+        )
+    if (previous is not None and previous != _decode_git_path(old_path)) or (
+        renamed is not None and renamed != _decode_git_path(new_path)
+    ):
+        raise DataError("unified diff rename paths disagree with its diff --git header")
+
+    path = renamed or _decode_git_path(new_path)
+    patched = _parsed_hunks(section, path)
+    return {
+        "key": path,
+        "path": path,
+        **({"previousPath": previous} if previous is not None else {}),
+        "kind": "patch",
+        "additions": patched.added,
+        "deletions": patched.removed,
+        "patch": section,
+    }
 
 
 def unified_diff_manifest(source: str) -> dict:
-    """Parse one supported Git unified patch into Leaf's fragmented manifest."""
+    """One captured Git patch as Leaf's fragmented manifest.
+
+    Leaf owns the manifest and unidiff owns the hunks inside it. Each entry
+    carries the file's key and paths, its change counts, and the verbatim section
+    of the captured text that `lf-diff` renders once its disclosure opens — which
+    is why the source is split here rather than rebuilt from unidiff's reading.
+
+    Capture refuses what the widget cannot present as review evidence. Two of
+    those refusals are Leaf's alone: copy metadata, which unidiff reads as a
+    rename, and a hunkless entry that is not the exact four-line path-only
+    rename, which it reports as a file with no hunks."""
     sections = [
         section
         for section in re.split(r"(?=^diff --git )", source, flags=re.MULTILINE)
@@ -211,74 +268,11 @@ def unified_diff_manifest(source: str) -> dict:
     files = []
     paths = set()
     for section in sections:
-        if re.search(r"^copy (?:from|to) ", section, re.MULTILINE):
-            raise DataError(
-                "unsupported copy diff; omit copy metadata and provide textual @@ "
-                "hunks for an edited destination"
-            )
-        previous, renamed = _diff_rename_paths(section)
-        pure_rename = _path_only_rename(section)
-        if pure_rename is not None:
-            previous, path = pure_rename
-            additions = deletions = 0
-            kind = "rename"
-        else:
-            old_header, new_header = _diff_marked_paths(section)
-            header_old, header_new = _diff_header_paths(section, old_header, new_header)
-            if old_header is None or new_header is None:
-                if re.search(r"^@@", section, re.MULTILINE):
-                    raise DataError(
-                        "unified diff has no ---/+++ file-header pair before its first hunk"
-                    )
-                if previous is not None or renamed is not None:
-                    raise DataError(
-                        "unsupported hunkless rename; only the exact four-line "
-                        "path-only form may omit textual @@ hunks"
-                    )
-                header = section.split("\n", 1)[0]
-                raise DataError(f"unsupported hunkless diff: {header}")
-            if old_header == new_header == "/dev/null":
-                raise DataError("diff file has no old or new path")
-            marked_old = (
-                "/dev/null"
-                if old_header == "/dev/null"
-                else _diff_display_path(old_header)
-            )
-            marked_new = (
-                "/dev/null"
-                if new_header == "/dev/null"
-                else _diff_display_path(new_header)
-            )
-            if (marked_old != "/dev/null" and marked_old != header_old) or (
-                marked_new != "/dev/null" and marked_new != header_new
-            ):
-                raise DataError(
-                    "unified diff ---/+++ paths disagree with its diff --git header"
-                )
-            if (previous is not None and previous != header_old) or (
-                renamed is not None and renamed != header_new
-            ):
-                raise DataError(
-                    "unified diff rename paths disagree with its diff --git header"
-                )
-            selected = new_header if new_header != "/dev/null" else old_header
-            path = renamed or _diff_display_path(selected)
-            additions, deletions = _diff_hunk_counts(section, path)
-            kind = "patch"
-        if path in paths:
-            raise DataError(f"unified diff repeats file path {path!r}")
-        paths.add(path)
-        files.append(
-            {
-                "key": path,
-                "path": path,
-                **({"previousPath": previous} if previous is not None else {}),
-                "kind": kind,
-                "additions": additions,
-                "deletions": deletions,
-                "patch": section,
-            }
-        )
+        entry = _manifest_file(section)
+        if entry["path"] in paths:
+            raise DataError(f"unified diff repeats file path {entry['path']!r}")
+        paths.add(entry["path"])
+        files.append(entry)
     return {"files": files}
 
 

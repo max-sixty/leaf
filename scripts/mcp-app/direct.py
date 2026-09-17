@@ -27,7 +27,6 @@ def document_for(page: Path, bundle: Path, service: PageStateService) -> str:
         active["executable"],
         widgets=artifact.widgets,
         version=active["version"],
-        resources=artifact.resources,
     ).decode()
     document = inline_assets(document, page)
     # The host supplies the resource CSP; the HTTP fixture policy blocks inline JS.

@@ -255,13 +255,18 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
     await readingArrangement.setReadingPosture(bounded ? "bounded" : "flow");
   };
 
+  /* One fit per frame, so the notices a single rearrangement sends share a reading.
+     The slot reopens at the reading rather than when the choice settles: publishing a
+     posture waits a frame for the new geometry, and a notice that lands in that window
+     names layout this reading never saw. Holding the slot across it would answer that
+     notice with a decision taken before its change existed, and the posture would stay
+     stale until something else moved. */
   const update = () => {
     if (!scheduled)
       scheduled = new Promise((resolve, reject) => {
         requestAnimationFrame(() => {
-          choosePosture()
-            .then(resolve, reject)
-            .finally(() => (scheduled = null));
+          scheduled = null;
+          choosePosture().then(resolve, reject);
         });
       });
     return scheduled;

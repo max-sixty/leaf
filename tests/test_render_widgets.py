@@ -697,6 +697,40 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
     expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
 
+def test_a_layout_notice_sent_while_a_posture_settles_is_read(browser, serve):
+    """A root fit answers the layout it was last told about, not the one it read.
+
+    Publishing a posture waits a frame for the new geometry. A notice arriving in
+    that wait describes content the fit's reading never saw, so it needs a reading
+    of its own; sharing the settling one leaves the posture stale for good."""
+    page = open_page(browser, serve(WORKSPACE_PAGE))
+    workspace = page.locator("#review-workspace")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+
+    # The second notice goes out from a frame callback queued behind the first fit's,
+    # which is the frame that fit spends publishing the posture it just chose.
+    page.evaluate(
+        """async () => {
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const workspace = document.querySelector('#review-workspace');
+          const content = workspace.querySelector(':scope > .lf-workspace-content');
+          const loose = document.createTextNode('Unsupported loose prose');
+          content.append(loose);
+          leaf.layoutChanged(workspace);
+          requestAnimationFrame(() => {
+            window.__lfSettlingPosture = workspace.dataset.lfReadingPosture;
+            loose.remove();
+            leaf.layoutChanged(workspace);
+          });
+        }"""
+    )
+    page.wait_for_function("() => window.__lfSettlingPosture")
+    assert page.evaluate("() => window.__lfSettlingPosture") == "flow", (
+        "the second notice has to go out while the first choice is still settling"
+    )
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+
+
 def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     source = SWIPE_PAGE.replace(
         "  <p>Pass removes an item from this design; Keep carries it into implementation.</p>\n",

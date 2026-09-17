@@ -745,16 +745,19 @@ export function createPageKeys({
     );
   }
 
-  // A focused thread's primary route is its reply or reopen, not the page's. It said "On a
-  // focused thread" and was live over the whole page, so a reader who had focused nothing
-  // was offered a press that no-opped — the old page-step bug from the other side. The
-  // reopen button tells the two states apart; absent a focused thread, the reference
-  // describes the open state readers first meet rather than inventing a third one.
+  // A thread's own keys, live wherever the reader stands in one: the card, the message a
+  // click on its words focuses, the quote, a link in a reply. `r` settles the thread from
+  // any of them, since a control, a widget, or a text box that owns a letter is walked
+  // first. Enter replies or reopens only from the card, where no control inside has an
+  // Enter of its own to lose. The reopen button tells the two states apart; absent a
+  // thread, the reference describes the open state readers first meet.
+  const heldThread = () =>
+    documentFocused()?.closest(".lf-thread, .lf-conversation-thread") ?? null;
   const THREAD = {
-    title: "On a focused thread",
+    title: "In a thread",
     root: focused,
     when: () => threadList().length > 0,
-    at: () => Boolean(focusedThread()),
+    at: () => Boolean(heldThread()),
     rows: [
       {
         id: "thread.primary",
@@ -792,20 +795,18 @@ export function createPageKeys({
         id: "thread.resolution.toggle",
         keys: ["r"],
         does: () =>
-          resolutionControl(focusedThread())?.matches(".lf-reopen")
+          resolutionControl(heldThread())?.matches(".lf-reopen")
             ? "Reopen it"
             : "Resolve it",
         line: () =>
-          resolutionControl(focusedThread())?.matches(".lf-reopen")
-            ? "reopen"
-            : "resolve",
+          resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
         // Search keeps its next/previous hints; resolution remains in the reference.
         lineWhen: () => !threadSearchActive(),
         when: () =>
-          resolutionControl(focusedThread())?.matches(
+          resolutionControl(heldThread())?.matches(
             ':not(:disabled, [aria-disabled="true"])',
           ),
-        run: () => resolutionControl(focusedThread()).click(),
+        run: () => resolutionControl(heldThread()).click(),
       },
     ],
   };

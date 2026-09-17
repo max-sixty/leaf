@@ -5095,7 +5095,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("Enter")
     expect(help_el).to_be_visible()
     expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        "Available on a focused thread"
+        "Available in a thread"
     )
     search.fill("close response choices")
     cancel_reaction = help_el.locator(
@@ -8650,7 +8650,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("On a link")
     expect(help_el).not_to_contain_text("Next open thread")
     expect(help_el).not_to_contain_text("Previous open thread")
-    expect(help_el).not_to_contain_text("On a focused thread")
+    expect(help_el).not_to_contain_text("In a thread")
     expect(help_el).not_to_contain_text("waiting on you for")
     # A first version has a menu and a way out, but no neighbouring version to walk.
     expect(help_el).to_contain_text("The versions, and what each one changed")
@@ -8699,7 +8699,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(
         help_el.locator("tr", has_text="Previous open thread").locator("kbd")
     ).to_have_text("T")
-    expect(help_el).to_contain_text("On a focused thread")
+    expect(help_el).to_contain_text("In a thread")
     # Still one version, so there is no version walk to advertise.
     expect(help_el).to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Later version")
@@ -8778,9 +8778,9 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text("On a focused thread")
-    focused_section = command_reference_rows(page, "On a focused thread")
-    expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(1)
+    expect(page.locator(".lf-command-reference")).to_contain_text("In a thread")
+    thread_section = command_reference_rows(page, "In a thread")
+    expect(thread_section.get_by_text("Resolve it", exact=True)).to_have_count(1)
     page.keyboard.press("Escape")
 
     # x has no command. r resolves the thread, with the button's existing
@@ -8813,6 +8813,81 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
     page.keyboard.press("Escape")
     expect(reopened).to_be_focused()
     expect(line).to_contain_text("reply")
+
+
+def test_r_resolves_a_thread_from_wherever_the_reader_stands_in_it(browser, serve):
+    """r settles the thread holding focus, not only a focused card.
+
+    A click on a thread's words focuses the message, so a card-only reach left the
+    reader's most common way in pressing a letter that did nothing. The Resolve button,
+    a link in a reply, and the message each reach it; the reply box keeps the letter."""
+    url = serve(NOTED_PAGE)
+    d = serve.page_dir
+    threads = []
+    for i in range(4):
+        root = events_model.append_event(
+            d,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"Thought {i}.",
+            },
+        )["id"]
+        events_model.append_event(
+            d,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Reply {i}, citing [a source](https://example.com/{i}).",
+            },
+        )
+        threads.append(root)
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    def card(n):
+        return page.locator(f'.lf-thread[data-id="{threads[n]}"]')
+
+    def resolved():
+        return [
+            event["parent"]
+            for event in events_model.read_events(d)
+            if event["kind"] == "resolve"
+        ]
+
+    # The reply box is in the thread too, and its typing claim stands first.
+    box = card(0).locator(":scope > .lf-compose textarea")
+    box.click()
+    page.keyboard.press("r")
+    expect(box).to_have_value("r")
+    box.fill("")
+    page.keyboard.press("Escape")
+    expect(card(0)).to_be_focused()
+
+    # A pointer on the reply's words stands the reader on the message, not the card.
+    message = card(0).locator(".lf-msg.claude")
+    message.locator(".lf-msg-head").click()
+    expect(message).to_be_focused()
+    assert "resolve" in shortcut_bar_text(page)
+    with sending(page, "the resolve from a message"):
+        page.keyboard.press("r")
+    assert resolved() == [threads[0]]
+    expect(card(1)).to_be_focused()
+
+    card(1).locator(".lf-msg a[href]").focus()
+    with sending(page, "the resolve from a link"):
+        page.keyboard.press("r")
+    assert resolved() == threads[:2]
+
+    card(2).get_by_role("button", name="Resolve").focus()
+    with sending(page, "the resolve from its button"):
+        page.keyboard.press("r")
+    assert resolved() == threads[:3]
 
 
 def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve):

@@ -185,12 +185,6 @@ ordered by confidence, then effort.
 | Order the cascade with `@layer` (theme, package, page). Tried 2026-09-16 and backed out: the page's unlayered `<style>` then outranks the chrome, so a page `div { position: relative }` moved 53 chrome boxes including the aim (`test_render_aim`), and putting `chrome.css` on its own rung flipped the specificity contests it was written against `theme.css` with. Needs the chrome isolated from page CSS first: a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)`. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |
 | Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods, so a surface opened by pointer declares itself. The keyboard layer stack in [the survey note](notes/dependency-survey.md) needs that declaration. | S-M | ~50 to 100 est. | Low-Med | Chromium-only, so below Chrome 135 the button does nothing unless the module keeps its handler |
 
-### Python
-
-| Change | Effort | Saving | Confidence | Risk |
-|---|---|---|---|---|
-| Serve each page through starlette and uvicorn, already installed through `mcp`, keeping one process per page. `http.py`'s `Handler` hand-writes response, cookie, and query plumbing, the news stream's `select()` peer-gone loop, and the `http.server` lifecycle workarounds such as #630's preconnect drop. | M-L | ~150 to 200 est. of a ~480-line region; the connection-lifecycle fixes | Low-Med | Converts a threaded server to async: `TemporaryPageServer`, `cmd_serve`, the Worker's `WebsitePageHandler` subclass, and the tests that drive `Handler` |
-
 ### Both
 
 | Change | Effort | Saving | Confidence | Risk |

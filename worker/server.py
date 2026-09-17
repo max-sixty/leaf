@@ -13,7 +13,6 @@ import json
 import os
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -43,7 +42,7 @@ from leaf.codex import (
 )
 from leaf.conversation import cmd_reply, reserve_delivery_reply
 from leaf.delivery import read_delivery
-from leaf.hosting import server_at
+from leaf.hosting import LeafHTTPServer
 from leaf.http import Handler, scope_page_urls
 from leaf.leases import take_waiter_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
@@ -1311,7 +1310,6 @@ class WebsitePageHandler(Handler):
     pages: dict
     sitenote: bytes
     agent_host: WebsiteCodexHost
-    protocol_version = "HTTP/1.1"
     layer = ""
 
     def page_state(self, view_revision: int | None = None) -> dict:
@@ -1451,16 +1449,18 @@ def main() -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     agent_host = website_codex_host()
-    httpd = server_at("0.0.0.0", PORT, handler_for(site_root, agent_host))
+    httpd = LeafHTTPServer(("0.0.0.0", PORT), handler_for(site_root, agent_host))
     log_agent("container_http_ready")
     agent_host.prewarm()
-    previous_term = signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    # SIGTERM is uvicorn's: it stops the serving loop, then re-raises the signal with
+    # the original handler back in place, so this process dies where it stood. The
+    # close below is for the ordinary return; a container taken away takes the socket
+    # and the App Server child with it.
     try:
         httpd.serve_forever()
     finally:
         httpd.server_close()
         agent_host.close()
-        signal.signal(signal.SIGTERM, previous_term)
 
 
 if __name__ == "__main__":

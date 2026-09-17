@@ -265,12 +265,12 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     class Drops(http_model.handler_for(serve.page_dir, TOKEN)):
         """Answers everything but the Leaf entry, which it accepts and drops."""
 
-        def do_GET(self):
+        def _get(self):
             if urlsplit(self.path).path.endswith("/leaf.js"):
                 asked.set()
                 release.wait()
                 return
-            super().do_GET()
+            super()._get()
 
     httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Drops)
     dropped = (

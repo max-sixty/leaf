@@ -278,13 +278,8 @@ describe("product-site delivery", () => {
     const sessionId = "0b".repeat(16);
     const containerFetch = vi.fn(async () =>
       Response.json(
-        { reading: "old-release" },
-        {
-          headers: {
-            "Leaf-Layer": LAYER,
-            "Leaf-Release": "b".repeat(64),
-          },
-        },
+        { reading: "private" },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
       ),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
@@ -302,7 +297,76 @@ describe("product-site delivery", () => {
     );
 
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(await response.json()).toMatchObject({ reading: "private" });
     expect(response.headers.get("Set-Cookie")).toBeNull();
+  });
+
+  // A container still on the previous image answers for a release the edge no longer
+  // serves. The browser's only move against a foreign release is to reload, and the
+  // document it reloads onto is the one the edge already gave it, so the answer has to
+  // stop here: while the rollout runs, the reader reads the published projection.
+  it("reads the published projection while the container image rolls out", async () => {
+    const sessionId = "0c".repeat(16);
+    const containerFetch = vi.fn(async () =>
+      Response.json(
+        { reading: "old-release" },
+        { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
+      ),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment();
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/api/state", {
+        headers: {
+          Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+          "Leaf-Layer": LAYER,
+          "Leaf-Release": RELEASE,
+        },
+      }),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+    expect(response.headers.get("Leaf-Layer")).toBe(LAYER);
+    expect(response.headers.get("Leaf-Session")).toBe("passive");
+    expect(await response.json()).toMatchObject({ reading: "published" });
+    expect(response.headers.get("Set-Cookie")).toBe(
+      `__Host-leaf-active-${cookieKey("/examples/triage-board")}=; Path=/; Secure; ` +
+        "HttpOnly; SameSite=Lax; Max-Age=0",
+    );
+  });
+
+  it("holds a gesture back from a container the rollout has not reached", async () => {
+    const sessionId = "0d".repeat(16);
+    const containerFetch = vi.fn(async () =>
+      Response.json(
+        { id: "e1" },
+        { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
+      ),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment();
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/api/event", {
+        method: "POST",
+        headers: {
+          Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+          "Content-Type": "application/json",
+          "Leaf-Layer": LAYER,
+          "Leaf-Release": RELEASE,
+        },
+        body: JSON.stringify({ kind: "comment", text: "hello" }),
+      }),
+      env,
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("5");
+    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+    expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
   });
 
   it("serves a page's immutable runtime without allocating its session", async () => {

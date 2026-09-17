@@ -3653,7 +3653,9 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
     leaving. An answer only the install path knew how to read made the beat's question
     throw, and the beat carries the clock, the deferred corrections, and this retry, so a
     refusal stopped all three and reported a page failure on the way out of a document
-    nobody had complained about.
+    nobody had complained about. A re-vendor rewrites the whole page directory, so the
+    registry the page probes names the new generation as well; that is what tells the
+    page a reload has a different document to land on.
     """
     first = leaf_page(
         "Beat first",
@@ -3679,9 +3681,27 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
             headers={**response.headers, "Leaf-Layer": "re-vendored"},
         )
 
+    # The page probes its own source before reloading, because only a source that has
+    # moved has another document to give. A re-vendor moves the whole page directory, so
+    # that one probe answers for the new generation; the document it brings back is the
+    # re-vendored page, which this fixture leaves as the directory it really is.
+    probes = []
+
+    def revendored(route):
+        probes.append(route)
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={
+                **response.headers,
+                **({"Leaf-Layer": "re-vendored"} if len(probes) == 1 else {}),
+            },
+        )
+
     page.route("**/revisions/*", answer)
     try:
         (serve.page_dir / "index.html").write_text(second)
+        page.route("**/registry.json", revendored)
         holding(page, asked, REFUSALS + 1, "the asks the beats made for the revision")
         # The refusal reloads, and the page that comes back is on the layer it was told
         # about, holding the revision it could not be given in place.
@@ -3694,6 +3714,7 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
         )
     finally:
         page.unroute("**/revisions/*", answer)
+        page.unroute("**/registry.json", revendored)
 
 
 def test_a_revision_navigates_without_the_view_transition_api(browser, serve):

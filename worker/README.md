@@ -11,14 +11,19 @@ do not prewarm. Setting the variable to `false` keeps read-only visits at the ed
 first request that needs private, mutable state reaches the canonical Python Leaf
 server. Containers are keyed by both reader identity and site release, so a deployment
 may discard ephemeral demo state instead of routing the new site through an older
-container. The copied page directories and append-only logs remain private to that
-reader and disappear when Cloudflare replaces the container; no website-only projection
-or conversation store exists.
+container. Cloudflare activates the Worker and its assets before the container image has
+finished rolling out, so a session opened in that window still starts on the previous
+release. The Worker answers for the edge instead of passing that container's reply on:
+the reader is unseated, `GET api/state` returns the published projection, and every other
+request waits behind a 503 until the rollout lands. The copied page directories and
+append-only logs remain private to that reader and disappear when Cloudflare replaces the
+container; no website-only projection or conversation store exists.
 
 The build gives every document, state response, and module graph one release digest.
 Runtime assets live behind release-addressed URLs with immutable cache headers, while
 the browser sends the document's release and layer identities to every API request. A
-mixed response reloads instead of letting one release interpret another release's state.
+mixed response is refused rather than allowed to interpret this document's state, and the
+page reloads only once its source of documents says it has a different one to give.
 The build-generated manifest is the routing authority shared by the Worker and the
 Python adapter, and carries each page's title, description, and card image, which both
 halves compose into the head a crawler and a link preview read. Published media,

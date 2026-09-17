@@ -194,9 +194,20 @@ export function sessionCookie(sessionId: string, secure: boolean): string {
   return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }
 
-export function activeCookie(secure: boolean, pageRoot: string): string {
+function pageActiveCookie(secure: boolean, pageRoot: string, value: string): string {
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const name = pageCookieName(prefix, pageRoot);
   const security = secure ? "; Secure" : "";
-  return `${name}=1; Path=/${security}; HttpOnly; SameSite=Lax`;
+  return `${name}=${value}; Path=/${security}; HttpOnly; SameSite=Lax`;
+}
+
+export function activeCookie(secure: boolean, pageRoot: string): string {
+  return pageActiveCookie(secure, pageRoot, "1");
+}
+
+// The marker says the page's private state lives in a container, so it has to go when
+// the reader is put back on the published projection; leaving it and ignoring it would
+// send the next read to the container again.
+export function clearActiveCookie(secure: boolean, pageRoot: string): string {
+  return `${pageActiveCookie(secure, pageRoot, "")}; Max-Age=0`;
 }

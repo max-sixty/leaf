@@ -8,9 +8,12 @@
  * filesystem, so one reader can exercise the real event log without changing another
  * reader's page.
  * Containers are scoped to the deployed release, so a rollout may reset this explicitly
- * ephemeral state but never sends a new document through an older container. A private
- * revision that changes executable code marks its one required container reload in the
- * URL; every ordinary document navigation stays at the edge.
+ * ephemeral state but never sends a new document through an older reader session. The
+ * container image itself rolls out after the Worker is already live, so a fresh session
+ * can still start on the previous release; the edge serves the published projection in
+ * place of that container's answer rather than handing the browser a release no reload
+ * can reach. A private revision that changes executable code marks its one required
+ * container reload in the URL; every ordinary document navigation stays at the edge.
  * Accepted browser events start their agent task in the already-selected reader
  * container without holding the browser acknowledgement open. Analytics Engine records
  * accepted product events; Workers Observability records the content-free execution path.
@@ -28,6 +31,7 @@ import * as z from "zod/mini";
 import {
   activeCookie,
   activeFromCookie,
+  clearActiveCookie,
   isLivePageDocumentRequest,
   isPageApiRequest,
   isPageSessionFileRequest,
@@ -770,6 +774,45 @@ async function staticState(
   });
 }
 
+// Cloudflare activates a Worker and its assets in one operation and rolls the container
+// application's image out in another, so for the first minutes of a deployment the edge
+// already serves the new release while containers still answer for the previous one. The
+// browser's only move against a foreign release is to reload, and the document it would
+// reload onto is the one this edge just gave it, so handing that answer on leaves the
+// page restarting for as long as the rollout runs. The edge answers for itself instead:
+// the reader is unseated, reads the published projection at the release their document
+// belongs to, and waits to send rather than landing a gesture in a container that is
+// about to be replaced.
+async function rollingOut(
+  request: Request,
+  env: Env,
+  manifest: SiteManifest,
+  route: PageRoute,
+  reference: string,
+  cookies: string[],
+): Promise<Response> {
+  const answer =
+    request.method === "GET" && route.inside === "api/state"
+      ? await staticState(request, env, manifest, route, reference)
+      : new Response("this release is still starting", {
+          status: 503,
+          headers: {
+            "Retry-After": "5",
+            "Cache-Control": "no-store",
+            "Leaf-Layer": route.layer,
+            "Leaf-Release": manifest.release,
+            "Leaf-Session-Reference": reference,
+          },
+        });
+  const headers = new Headers(answer.headers);
+  for (const cookie of cookies) headers.append("Set-Cookie", cookie);
+  return new Response(answer.body, {
+    status: answer.status,
+    statusText: answer.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestStarted = Date.now();
@@ -889,6 +932,12 @@ export default {
         ? request.clone()
         : null;
     const response = await getContainer(env.PAGES, privateContainer).fetch(request);
+    const containerRelease = response.headers.get("Leaf-Release");
+    if (containerRelease !== null && containerRelease !== manifest.release) {
+      const cookies = [clearActiveCookie(secure, route.root)];
+      if (existing === null) cookies.push(sessionCookie(sessionId, secure));
+      return rollingOut(request, env, manifest, route, reference, cookies);
+    }
     if (postedRequest) {
       const accepted = await acceptedEvent(postedRequest, response);
       if (accepted) {

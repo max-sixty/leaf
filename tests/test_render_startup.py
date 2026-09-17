@@ -2927,6 +2927,92 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     consume_browser_errors(page, "net::ERR")
 
 
+def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser, serve):
+    """A reload is only an answer when the document would come back different.
+
+    The page refuses an answer from another layer because it cannot read that state, and
+    it used to reload on the spot. That is right when re-vendoring has moved the page out
+    from under an open tab. It is wrong the other way around — a server behind the
+    document it served, which is what the website looks like while a release's containers
+    are still starting — because the reload lands on the same document and the next answer
+    says the same thing, so the reader watches the page restart for as long as the
+    disagreement lasts. The source of documents is the one party that can tell the two
+    apart, so the page asks it and then holds still: the answers stay refused, the
+    authored page stays readable, and the feed keeps asking until the server is back on
+    this delivery.
+
+    Each refused answer gets its own reading, because the source can move while the page
+    waits — a re-vendor during the hold, or a version comparison refused against the
+    captured layer of the revision it names. A page that asked once and remembered the
+    answer would spend the rest of the tab's life refusing state with no way back.
+    """
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("() => { window.lfSameDocument = true; }")
+    reads = []
+    probes = []
+
+    # The layer is read before the body is, so a foreign answer needs no state in it.
+    def foreign(route):
+        reads.append(route)
+        route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json", "Leaf-Layer": "another-layer"},
+            body="{}",
+        )
+
+    # The source stands still until the test moves it, and then says so once, because a
+    # re-vendor rewrites the page directory the reload goes on to be served from.
+    moved = {"pending": False}
+
+    def source(route):
+        probes.append(route)
+        if not moved["pending"]:
+            route.continue_()
+            return
+        moved["pending"] = False
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Layer": "re-vendored"},
+        )
+
+    def wake(text):
+        events_model.append_event(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": text},
+        )
+
+    page.route("**/registry.json", source)
+    page.route("**/api/state", foreign)
+    try:
+        for index in range(3):
+            wake(f"Note {index}.")
+            holding(page, reads, index + 1, "the reads the news woke")
+            if index == 0:
+                expect(page.locator(".lf-notice")).to_have_text(
+                    "Waiting for the server to finish updating."
+                )
+        assert page.evaluate("() => window.lfSameDocument === true"), (
+            "the page reloaded onto the document it was already being served"
+        )
+        # The ask leaves the page a beat before the route records it, so the count is
+        # read behind its own wait rather than behind the reads that caused it.
+        holding(page, probes, len(reads), "the asks the refusals made of the source")
+        assert len(probes) == len(reads), (
+            "one refusal asked the source more than once: "
+            f"{len(probes)} asks over {len(reads)} answers"
+        )
+
+        moved["pending"] = True
+        wake("The source moved.")
+        page.wait_for_function(
+            "() => window.lfSameDocument === undefined", timeout=15_000
+        )
+    finally:
+        page.unroute("**/api/state", foreign)
+        page.unroute("**/registry.json", source)
+
+
 def test_the_help_overlay_answers_to_one_owner(browser, serve):
     """Open or closed is state with one writer now — it was three writers and
     two classList read-backs, the exact shape the first norm forbids.

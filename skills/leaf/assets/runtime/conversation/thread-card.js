@@ -128,16 +128,11 @@ export class ThreadView {
   #summaryResolved = null;
   #keys = new WeakSet();
   #settlements = new Map();
-  #growing = false;
 
   constructor(surface, commands) {
     this.#commands = commands;
     this.node = document.createElement(surface === "outlet" ? "details" : "div");
     this.node.tabIndex = -1;
-    this.node.addEventListener("animationend", () => {
-      this.#growing = false;
-      this.node.classList.remove("grow");
-    });
   }
 
   get model() {
@@ -153,10 +148,16 @@ export class ThreadView {
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
     this.node.hidden = !model.visible && !model.folding;
-    this.#growing ||= !prior && model.grow;
+    // The arrival is the card's own first rendering, which the theme states with
+    // `@starting-style` and the browser runs to its resting values on its own. The mark
+    // is written once, before this card has been drawn, and stays: it can only ever
+    // catch that first rendering, so nothing has to come back and take it off. A fold
+    // withdraws it because a card leaving is not a card arriving, and because `landing`
+    // withdraws it the same way when a direct arrival owns the cue instead.
+    if (!prior && model.grow) this.node.classList.add("grow");
+    if (model.folding) this.node.classList.remove("grow");
     this.node.classList.toggle("lf-going", model.folding);
     this.node.classList.toggle("lf-thread", panel && !model.folding);
-    this.node.classList.toggle("grow", this.#growing && !model.folding);
     if (!panel) {
       this.node.classList.add("lf-conversation-thread", "lf-ui");
       this.node.dataset.lfGen = "1";

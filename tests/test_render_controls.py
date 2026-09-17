@@ -1465,14 +1465,19 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
 def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     """An open versions menu keeps the two edges its anchor names, and no others.
 
-    The rule states the menu's top under the button's bottom and its right against the
-    button's right. The popover UA rule states the other two, `inset: 0` with
-    `margin: auto`, and unless the rule takes those back the auto margins centre the box
-    in the band between the anchored edges and the viewport's far corner: at 1200x900 a
-    menu whose anchored top reads as satisfied still opened 400px further down the page
-    and 450px in from the control that opened it. Both edges are therefore read against
-    the button's own box rather than against numbers, because what the anchor promises is
-    a relation and not a coordinate.
+    Placement states the menu's top under the button's bottom and its right against the
+    button's right. The popover UA rule states all four, `inset: 0` with `margin: auto`,
+    and unless the rule takes those back the auto margins centre the box in the band
+    between the placed edges and the viewport's far corner: at 1200x900 a menu whose
+    anchored top reads as satisfied still opened 400px further down the page and 450px in
+    from the control that opened it. Both edges are therefore read against the button's
+    own box rather than against numbers, because what the placement promises is a
+    relation and not a coordinate.
+
+    Each reading waits for `data-lf-anchored`, the fact the placement states when it has
+    measured this menu against this anchor. An open popover is not yet a placed one, and
+    a box read in that gap is the static position: the assertions below pass on it by
+    luck at some viewports and fail at others.
     """
     page = open_page(browser, serve(LONG_PAGE))
     chooser = page.locator(".lf-version")
@@ -1480,6 +1485,7 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     chooser.click()
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
+    expect(menu).to_have_attribute("data-lf-anchored", "")
     boxes = menu.evaluate(
         """menu => {
           const button = document.querySelector('.lf-version').getBoundingClientRect();
@@ -1498,7 +1504,14 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
         f"the versions menu covered the chooser it hangs from: {boxes}"
     )
 
+    # Reopened at the new width rather than read through the resize, so this reading
+    # waits on a placement that was genuinely absent a moment before.
     resized(page, 320, 844)
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    page.locator(".lf-version").click()
+    expect(menu).to_be_visible()
+    expect(menu).to_have_attribute("data-lf-anchored", "")
     phone = menu.evaluate(
         """menu => {
           const button = document.querySelector('.lf-version').getBoundingClientRect();

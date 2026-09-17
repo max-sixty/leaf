@@ -8,6 +8,7 @@
  */
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 
+import { anchorSurface } from "./anchoring.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { listWalkPosition } from "./walk-position.js";
 import { el, reserve } from "./widget-elements.js";
@@ -64,6 +65,7 @@ class VersionChooserView {
     // exposes the same relationship from the popover end to owners restoring a layer.
     this.button.popoverTargetElement = this.menu;
     this.menu.lfInvoker = this.button;
+    anchorSurface(this.menu, { anchor: () => this.button, placement: "bottom-end" });
     this.menu.addEventListener("toggle", (event) => {
       const open = event.newState === "open";
       if (this.#model.chooser.offered)

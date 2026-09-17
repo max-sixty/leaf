@@ -112,8 +112,8 @@ with one `"<name>": () => import("@shikijs/langs/<name>"),` entry for every regi
 language before bundling.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
-which holds for `marked`, `sortable`, `beautiful-mermaid`, `floating-ui`, `highlight`,
-and `jsdiff`, so a clean `git status` after a run is the check that the bundle still
+which holds for `marked`, `sortable`, `tabbable`, `beautiful-mermaid`, `floating-ui`,
+`highlight`, and `jsdiff`, so a clean `git status` after a run is the check that the bundle still
 matches the script. `plot`, `pierre`, and `mcp-app` reach npm's resolver for transitive
 dependencies and inherit its ranges, so a diff from one of those can be an upstream
 patch rather than drift.

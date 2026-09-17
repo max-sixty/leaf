@@ -46,6 +46,12 @@ registerBannerControl({
 });
 
 const dialog = document.createElement("dialog");
+// A close request leaves; a press on the backdrop does not. The map is a place the
+// reader works from — searching it, walking it, spilling a margin entry's options into
+// it — and a stray press beside the sheet would drop that work. Said out loud rather
+// than left to the modal default, so the map's policy reads beside the two chrome
+// dialogs that do take a press away as leaving.
+dialog.setAttribute("closedby", "closerequest");
 dialog.className = "lf-ui lf-page-map-dialog";
 dialog.setAttribute("aria-label", "Page Map");
 dialog.setAttribute("aria-modal", "true");

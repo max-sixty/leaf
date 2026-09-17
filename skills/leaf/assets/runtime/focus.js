@@ -1,4 +1,8 @@
-/* Focus placement for destinations that may not already be tab stops. */
+/* Focus placement for destinations that may not already be tab stops.
+
+   Not the tab-order question `tabbable` answers for the covering surface's wrap. This
+   module's subject is the element a library would rightly say is not a stop, and Leaf's
+   policy of lending it one anyway for as long as the reader stands there. */
 
 // Put the reader on an element that may not be a tab stop: focus it, and where it will
 // not take focus, lend it the tab stop a control has for exactly as long as it holds it —

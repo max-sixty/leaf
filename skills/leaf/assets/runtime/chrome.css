@@ -618,9 +618,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 @keyframes lf-runtime-4f3c2a8d-flash {
   0% { background: var(--hi-tint); } 100% { background: var(--card); }
 }
-@keyframes lf-runtime-4f3c2a8d-grow {
-  0% { opacity: 0; transform: translateY(-6px) scale(.985); }
-}
 /* Everything below is private to the chrome, scoped to the runtime's own container:
    no widget or page class can match a rule here, whatever it is named. (lf-tabs once
    marked itself lf-live — this block's name for the visually-hidden live region —
@@ -798,7 +795,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-status-button { display: flex; align-items: center; gap: var(--lf-banner-gap);
     min-width: 0; width: 100%; max-width: 100%; min-height: var(--aim-floor); padding: 2px 0;
     border: 0; border-radius: 4px; background: none; color: var(--ink-2);
-    font: inherit; text-align: left; cursor: pointer; anchor-name: --lf-status; }
+    font: inherit; text-align: left; cursor: pointer; }
   .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
     border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
     transform: rotate(45deg); margin: -3px 3px 0 0; }
@@ -807,10 +804,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline-offset: 2px; --lf-here-ring: status; }
   .lf-status-text { color: inherit; min-width: 0; overflow: hidden;
     display: block; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
-  .lf-status-detail { position: fixed; position-anchor: --lf-status;
-    top: calc(anchor(bottom) + 8px); left: calc(14px + var(--lf-safe-left));
-    right: auto; bottom: auto; margin: 0; width: min(420px, calc(100vw - 28px));
-    max-height: calc(100dvh - var(--lf-banner-h) - 24px); overflow: auto;
+  /* Placed by `runtime/anchoring.js`, which measures the room under the button rather
+     than restating the banner's declared height here. Every side the placement writes
+     is taken back from the popover UA rule first: it states inset 0 with automatic
+     margins, so leaving the far edges alone pins them to the viewport's corner and the
+     margins centre the box in the band between them, nowhere near the control. */
+  .lf-status-detail { position: fixed; inset: auto; margin: 0;
+    width: min(420px, calc(100vw - 28px));
+    max-height: var(--lf-anchor-room, 100dvh); overflow: auto;
     padding: 14px 16px; border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--card); color: var(--ink-2); box-shadow: 0 8px 24px var(--shade);
     white-space: normal; overflow-wrap: anywhere; }
@@ -822,7 +823,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The door onto the folded controls. It stands where they would have: at the row's
      start, so the menu's contents read straight on into the row's and the two are one
      order rather than two to keep in step. */
-  .lf-banner-more { anchor-name: --lf-banner-more; flex: none; }
+  .lf-banner-more { flex: none; }
   /* The row's own .lf-btn rule states a display, and an author's display outranks the
      UA's for [hidden], so a door with nothing behind it goes on standing there. Said
      here for the same reason the Page Map says it: hidden is a display of its own. */
@@ -837,18 +838,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
-  /* Anchored under its own press, and every side it does not name said out loud. The
-     popover UA rule is inset: 0 with margin: auto, so a rule that states only top and
-     left leaves bottom and right at zero with automatic margins to resolve the
-     contradiction — which centres the menu in the window, nowhere near the button it
-     hangs off. */
-  .lf-banner-menu { position: fixed; position-anchor: --lf-banner-more;
-    top: calc(anchor(bottom) + 6px); left: anchor(left);
-    right: auto; bottom: auto; margin: 0; z-index: 8950;
+  /* Placed under its own press by `runtime/anchoring.js`, which also states the door's
+     width and the room under it. Every side that placement writes is taken back from the
+     popover UA rule first: it is inset: 0 with margin: auto, so leaving the far edges
+     alone pins them to the viewport's corner and the automatic margins centre the menu
+     in the window, nowhere near the button it hangs off. */
+  .lf-banner-menu { position: fixed; inset: auto; margin: 0; z-index: 8950;
     display: none; flex-direction: column; align-items: stretch; gap: 1px;
-    min-width: max(anchor-size(width), 180px);
+    min-width: max(var(--lf-anchor-width, 0px), 180px);
     max-width: calc(100vw - 16px);
-    max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
+    max-height: var(--lf-anchor-room, 100dvh); overflow-y: auto;
     overscroll-behavior: contain;
     background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade); padding: 4px; }
@@ -891,8 +890,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @layer lf-reset {
     .lf-thread-action { font: inherit; }
   }
-  /* The chooser's menu: fixed under the button it hangs off, anchored rather than
-     measured, so nothing recomputes a position when the row's contents change width.
+  /* The chooser's menu: fixed under the button it hangs off, placed by
+     `runtime/anchoring.js` so one model answers a viewport edge for the whole layer.
      It is the only place the version notes are, so a row wraps to hold one whole —
      the reason a menu is worth having over a control whose closed label and open list
      are forced to be the same string. Capped at the viewport's remaining height and
@@ -906,23 +905,20 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      siblings rather than a wrapper each, because a role="menu" owns menuitems and a
      div between them is a claim about ARIA that nothing here needed to make.
 
-     Two anchored edges are the whole of the placement, so the other two are taken back
-     from the popover UA rule, which states inset 0 with auto margins: left alone, its
-     far edges stay pinned to the viewport's corner and its margins centre the box in
-     the band between them and the anchor, nowhere near the button. */
-  .lf-version { anchor-name: --lf-version-btn; }
+     The placement writes every side, so all four are taken back from the popover UA
+     rule, which states inset 0 with auto margins: left alone, its far edges stay pinned
+     to the viewport's corner and its margins centre the box in the band between them,
+     nowhere near the button. */
   /* A pinned or deferred page keeps the full destination in the Latest control, but
      that control may be behind the fold. Mark its stable Versions door with the same
      border-and-ink vocabulary as a folded-news door, without adding words or width. */
   :is(.lf-banner-actions, .lf-banner-menu) > .lf-version[data-lf-news] {
     border-color: var(--accent); color: var(--accent); }
-  .lf-version-menu { position: fixed; position-anchor: --lf-version-btn;
-    top: calc(anchor(bottom) + 6px); right: anchor(right);
-    bottom: auto; left: auto; margin: 0; z-index: 8950;
+  .lf-version-menu { position: fixed; inset: auto; margin: 0; z-index: 8950;
     display: none; grid-template-columns: 1fr auto; align-items: start;
-    min-width: anchor-size(width);
+    min-width: var(--lf-anchor-width, auto);
     max-width: min(360px, calc(100vw - 16px));
-    max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
+    max-height: var(--lf-anchor-room, 100dvh); overflow-y: auto;
     overscroll-behavior: contain;
     background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade); padding: 4px; }
@@ -1283,8 +1279,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     animation: lf-runtime-4f3c2a8d-flash 1.2s ease-out;
   }
   /* An arrival the reconcile added while the user was watching. Motion, not a
-     jump: nothing above it moves, and the newcomer settles rather than appears. */
-  .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
+     jump: nothing above it moves, and the newcomer settles rather than appears.
+     The card's first rendering is the whole of the trigger, which `@starting-style`
+     says and the browser then runs to the resting values below on its own, so the mark
+     the list writes is a fact about the card rather than a state anyone has to clear.
+     The declaration outlives the arrival and is inert afterwards: a card's opacity and
+     transform are otherwise written by the Web Animations helper in `motion.js`, which
+     a transition does not reach. */
+  .lf-thread.grow, .lf-msg.grow {
+    transition: opacity .32s cubic-bezier(.2,.7,.3,1),
+      transform .32s cubic-bezier(.2,.7,.3,1);
+    @starting-style { opacity: 0; transform: translateY(-6px) scale(.985); }
+  }
   /* The card of the comment the reader is standing in, which is the panel's half of
      the pair the page paints as lf-mark-here. A thread is a composite region rather
      than one control: another perimeter around a large card reads as a blue box, not

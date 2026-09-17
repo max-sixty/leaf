@@ -5,6 +5,7 @@
  * publication layouts; no outside code writes or reparents anything inside it.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
+import { anchorSurface } from "./anchoring.js";
 import { el } from "./widget-elements.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
@@ -35,6 +36,7 @@ class BannerStatusView extends HTMLElement {
     this.#detail.setAttribute("aria-label", "Page status");
     this.#button.popoverTargetElement = this.#detail;
     this.#detail.lfInvoker = this.#button;
+    anchorSurface(this.#detail, { anchor: () => this.#button, gap: 8 });
     this.#detail.addEventListener("toggle", (event) => {
       const open = event.newState === "open";
       this.#button.setAttribute("aria-expanded", String(open));

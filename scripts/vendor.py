@@ -58,6 +58,7 @@ PINS = {
     "elkjs": "0.11.1",
     "entities": "7.0.1",
     "sortablejs": "1.15.7",
+    "tabbable": "6.5.0",
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.4.2",
     "@modelcontextprotocol/ext-apps": "2.0.0",
@@ -96,6 +97,19 @@ COPIES = {
         "sortablejs",
         "modular/sortable.esm.js",
         package_vendor("default") / "sortable.esm.js",
+    ),
+    # tabbable answers what in a subtree will take a Tab, in the order Tab will
+    # take it. The covering auxiliary surface wraps its boundary on that reading,
+    # which a selector cannot give: a stop can be hidden by a `display: contents`
+    # ancestor, held inside a disabled fieldset, promoted by a positive tabindex,
+    # or sitting in a shadow root a document query never enters. Zero dependencies
+    # and browser-native ESM, so the published file is taken as it is. The minified
+    # entry, because this one rides the layer's startup fetch rather than a widget's;
+    # `index.esm.js` is the same module unminified at four times the bytes.
+    "tabbable": Copy(
+        "tabbable",
+        "dist/index.esm.min.js",
+        ASSETS / "vendor/tabbable.esm.js",
     ),
 }
 

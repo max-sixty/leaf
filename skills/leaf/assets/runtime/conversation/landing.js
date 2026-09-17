@@ -287,8 +287,10 @@ async function showThreadNow(id, focus, revealThread) {
     available: () => threadsBox.isConnected,
     fallback: threadsBox,
   });
-  // A direct arrival owns the target's one transition cue. Remove a retained arrival
-  // animation before an asynchronous reveal gives the browser a frame to start it.
+  // A direct arrival owns the target's one cue. Take the settling mark off before an
+  // asynchronous reveal gives the browser the frame that would draw it: the mark is
+  // read at the card's first rendering, so withdrawing it first is what keeps the two
+  // cues from both being true of the same arrival.
   threadsBox
     .querySelector(
       `.lf-thread[data-id="${CSS.escape(id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,

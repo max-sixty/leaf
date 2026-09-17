@@ -314,6 +314,12 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
 generated images or links. It uses the page's public root across ordinary, MCP, and
 published pages while the source retains its canonical path.
+A card, menu, or tip that hangs off the control opening it is a native popover placed by
+`anchorSurface(surface, {anchor, placement, gap})`: the module opens and closes the
+popover as it likes, and Leaf keeps the surface with its anchor through scroll and
+resize, turns it at a viewport edge, and states the anchor's width in
+`--lf-anchor-width` and the room beneath it in `--lf-anchor-room` for the package's own
+rules. Do not write a second placement beside it.
 
 `widgetController(owner)` is the one semantic interface. Leaf captures the owner's id,
 tag, document, revision-bound declaration, authored ownership and exhibit fences,

@@ -24,7 +24,6 @@ import {
   sameDelivery,
   sessionIsActive,
 } from "./layer-client.js";
-import { paintKeys } from "./keyboard/scopes.js";
 
 // The answer, decoded, with nothing applied yet.
 //

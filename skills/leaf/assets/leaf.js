@@ -84,7 +84,6 @@ import {
   panelFoot,
   threadsBox,
   mountPanelReadingRegion,
-  panelWouldCover,
 } from "./runtime/conversation/panel-elements.js";
 import { createMarginProjection } from "./runtime/margin-projection.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
@@ -159,12 +158,7 @@ import {
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import { activeRowLabel } from "./runtime/keyboard/dispatch.js";
-import {
-  focused,
-  keys,
-  paintKeys,
-  reflectFirstScopes,
-} from "./runtime/keyboard/scopes.js";
+import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";

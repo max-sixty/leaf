@@ -1000,6 +1000,35 @@ BOTH_STAMPS = """() => {
   const entry = document.querySelector('script[data-lf-entry]');
   return entry?.lfCurrentPresentationReady?.() ?? false;
 }"""
+HANDOVER_DEADLINE_MS = 90_000
+"""How long a complete page handover may take before the page counts as wedged.
+
+`navigate` carried a whole handover — the document, and then the wait for the
+stamps the page raises over it — on no stated end of its own, so it took
+Playwright's implicit 30s: a deadline on the work a page does rather than on a
+fact another process states, and no more room for all of it than
+`SERVED_TIMEOUT_MS` gives a single probe. The corpus is the heaviest page the
+suite carries it on: a cold handover of it reaches `BOTH_STAMPS` in 16-18s on an
+idle four-core host, and in 19-24s once the nightly's second worker is driving a
+browser beside it. That is 80% of the old budget at the top of the range, and the
+nightly for 95a542a9 spent all of it on
+`test_composed_corpus_runs_authored_page_modules`.
+
+`restarting` takes the same constant, and its 30s was stated rather than
+implicit: a page whose server was replaced under it comes back up through this
+same handover. The harness's remaining unstated navigations — `opened_tab`'s
+`goto`, and the runtime install `wait_for_revision` waits for — keep the implicit
+default, as do the direct `BOTH_STAMPS` waits in the test modules. Those are
+re-waits and primings on small fixtures, none of them has failed, and they are a
+change to make on their own terms rather than inside a CI repair.
+
+Sized like `STATED_TIMEOUT` in `interact_support.py` and generous for the same
+reason: it separates a page that never arrives from a machine that has not got
+there yet, so it is set where a merely slow handover still finishes and a wedged
+one still fails well inside the nightly step's own bound. Waiting longer weakens
+no claim, since the stamps say the same thing whenever they arrive and nothing
+here reads how quickly a page came up — the suite's startup readings are the
+phase profile `scripts/verify-site-local.sh` takes."""
 STORED_DRAFT_TEXT = """ctx => {
   try {
     const record = JSON.parse(localStorage.getItem('lf-draft:' + ctx));
@@ -1105,7 +1134,7 @@ def restarting(page):
     """
     mark = len(page.lf_errors)
     yield
-    page.wait_for_function(BOTH_STAMPS, timeout=30000)
+    page.wait_for_function(BOTH_STAMPS, timeout=HANDOVER_DEADLINE_MS)
     del page.lf_errors[mark:]
 
 
@@ -1210,8 +1239,8 @@ def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
 
     def complete_navigation():
         start = len(errors)
-        page.goto(url, wait_until=wait_until)
-        page.wait_for_function(ready)
+        page.goto(url, wait_until=wait_until, timeout=HANDOVER_DEADLINE_MS)
+        page.wait_for_function(ready, timeout=HANDOVER_DEADLINE_MS)
         # Let the rendering turn that earned the readiness stamp finish. A loop
         # notice is delivered by that turn, rather than by the DOM write alone.
         page.evaluate(ONE_FRAME)

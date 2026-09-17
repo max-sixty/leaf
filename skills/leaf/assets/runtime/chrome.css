@@ -618,6 +618,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 @keyframes lf-runtime-4f3c2a8d-flash {
   0% { background: var(--hi-tint); } 100% { background: var(--card); }
 }
+@keyframes lf-runtime-4f3c2a8d-grow {
+  0% { opacity: 0; transform: translateY(-6px) scale(.985); }
+}
 /* Everything below is private to the chrome, scoped to the runtime's own container:
    no widget or page class can match a rule here, whatever it is named. (lf-tabs once
    marked itself lf-live — this block's name for the visually-hidden live region —
@@ -1281,8 +1284,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   /* An arrival the reconcile added while the user was watching. Motion, not a
      jump: nothing above it moves, and the newcomer settles rather than appears. */
-  .lf-thread.grow { transition: opacity .32s cubic-bezier(.2,.7,.3,1), transform .32s cubic-bezier(.2,.7,.3,1);
-    @starting-style { opacity: 0; transform: translateY(-6px) scale(.985); } }
+  .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
   /* The card of the comment the reader is standing in, which is the panel's half of
      the pair the page paints as lf-mark-here. A thread is a composite region rather
      than one control: another perimeter around a large card reads as a blue box, not

@@ -2008,7 +2008,7 @@ html.lf-versioning::view-transition-new(root) {
  * The two halves are not written alike, because a duration is a way of keeping
  * an animation and no way at all of keeping a transition. An animation is
  * declared and named, and `animationend` is how the layer knows one has run —
- * the agent-arrival pulse clears its mark that way — so the near-zero duration
+ * the thread list takes `grow` off a card that way — so the near-zero duration
  * keeps that event and spends no time on it. A transition is declared by
  * nobody: `transition-property` is `all` until something says otherwise, so a
  * duration on every element makes a transition out of every property that

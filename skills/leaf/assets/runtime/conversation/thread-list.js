@@ -333,7 +333,7 @@ const rowModel = (all, commands) => {
   // Newcomers settle in (`grow`) only when the user already has the list in front
   // of them: the first populated render is the page loading, not news arriving, and a
   // node animated while the panel is closed would replay the moment it opens.
-  // (Reduced motion isn't asked here: grow is a CSS transition, and those are the
+  // (Reduced motion isn't asked here: grow is a CSS animation, and those are the
   // theme's one global guard's to stop.)
   const grow =
     commands.panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));

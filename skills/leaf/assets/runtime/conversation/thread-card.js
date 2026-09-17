@@ -128,11 +128,16 @@ export class ThreadView {
   #summaryResolved = null;
   #keys = new WeakSet();
   #settlements = new Map();
+  #growing = false;
 
   constructor(surface, commands) {
     this.#commands = commands;
     this.node = document.createElement(surface === "outlet" ? "details" : "div");
     this.node.tabIndex = -1;
+    this.node.addEventListener("animationend", () => {
+      this.#growing = false;
+      this.node.classList.remove("grow");
+    });
   }
 
   get model() {
@@ -148,10 +153,10 @@ export class ThreadView {
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
     this.node.hidden = !model.visible && !model.folding;
-    // `@starting-style` plays the arrival on first render, so the mark never needs clearing.
-    if (!prior && model.grow) this.node.classList.add("grow");
+    this.#growing ||= !prior && model.grow;
     this.node.classList.toggle("lf-going", model.folding);
     this.node.classList.toggle("lf-thread", panel && !model.folding);
+    this.node.classList.toggle("grow", this.#growing && !model.folding);
     if (!panel) {
       this.node.classList.add("lf-conversation-thread", "lf-ui");
       this.node.dataset.lfGen = "1";

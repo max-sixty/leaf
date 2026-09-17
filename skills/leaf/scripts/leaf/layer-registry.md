@@ -31,8 +31,11 @@ init records two deliberately different identities under `$layer`:
 
 - `generation` is a fresh epoch embedded in both `runtime/layer-client.js` and the
   registry. State reports it and event requests carry it; the server repeats it on
-  contract responses, so an old or half-loaded tab reloads before a replacement
-  server can interpret or append its event.
+  contract responses, so an old or half-loaded tab refuses a foreign answer rather
+  than letting a replacement server interpret or append its event. That tab reloads
+  on top of the refusal only when its registry probe reports the new generation too,
+  because a server running behind the document it served would hand back the same
+  document.
 - `fingerprint` is the SHA-256 identity of the complete composed layer before that
   epoch is stamped. Identical runtime, theme, registry, widget, vendor, icon, and
   guidance bytes have the same fingerprint across repeated vendoring. `producer`

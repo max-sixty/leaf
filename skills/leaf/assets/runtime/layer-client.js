@@ -4,9 +4,13 @@
    A vendored runtime and registry are one generation. This module carries the
    `__LEAF_LAYER_GENERATION__` placeholder (quoted, once) and the registry carries the same epoch
    after `page init`. `sameDelivery` checks every successful state read and POST response
-   against the document's layer and website release. Active responses also establish the
-   private server incarnation, so an ephemeral replacement reloads before its new event
-   sequence meets the old DOM. Do not let one delivery interpret another's state.
+   against the document's layer and website release. A foreign answer is always refused;
+   whether the page also reloads is the document source's to answer, through the same
+   probe startup recovery uses, because only a source that has moved on has a different
+   document to give and a page that reloads without one never stops. Active responses
+   also establish the private server incarnation, so an ephemeral replacement reloads
+   before its new event sequence meets the old DOM. Do not let one delivery interpret
+   another's state.
 
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
    its own element so the rest of the page and Threads remain usable, but a presentation
@@ -29,12 +33,70 @@ if (documentLayer && documentLayer !== layerGeneration) {
   throw new Error("Leaf's document and runtime belong to different layers");
 }
 
+// Which delivery this page belongs to is settled by whatever serves its documents, not
+// by whoever answered last. An answer naming another generation may come from a party a
+// reload will never reach — a website container still starting the release the edge has
+// already moved past — and reloading at each such answer lands on the same document and
+// is told again, so the reader spends the rollout watching the page restart. The probe
+// is the document source's own reading, as it is for startup recovery: the page's
+// release-scoped assets are gone once the edge has moved on, and the registry still
+// names this document's layer while it has not.
+// True when the source has a different document, false when it does not, and undefined
+// when the probe could not be read at all, which settles nothing and leaves the question
+// open for the next foreign answer.
+const probe = runtimeScript?.dataset.lfProbe;
+async function sourceMovedOn() {
+  if (!probe) return true;
+  let response;
+  try {
+    response = await fetch(probe, { cache: "no-store" });
+  } catch {
+    return undefined;
+  }
+  if (response.status === 404) return Boolean(release);
+  if (!response.ok) return undefined;
+  const servedRelease = response.headers.get("Leaf-Release");
+  if (release && servedRelease) return servedRelease !== release;
+  let generation = response.headers.get("Leaf-Layer");
+  if (!generation) {
+    try {
+      generation = (await response.json())?.["$layer"]?.generation;
+    } catch {
+      return undefined;
+    }
+  }
+  return generation ? generation !== layerGeneration : undefined;
+}
+
 let layerReloading = false;
-function reloadDelivery(message) {
+// A replaced server incarnation is not a question about generations: its log starts
+// again, so the old DOM has to go whatever the source says.
+function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
   notice(message);
   location.reload();
+}
+
+let sourceAsked = false;
+function reloadDelivery(message) {
+  if (layerReloading || sourceAsked) return;
+  sourceAsked = true;
+  void (async () => {
+    const moved = await sourceMovedOn();
+    if (moved === undefined) {
+      sourceAsked = false;
+      return;
+    }
+    if (!moved) {
+      // The answers stay refused, which is the offline reading this page already knows
+      // how to hold: authored content stays readable and the feed keeps asking, so the
+      // page rejoins the log by itself once the server is back on this delivery.
+      notice("Waiting for the server to finish updating.");
+      return;
+    }
+    reloadNow(message);
+  })();
 }
 
 export function layerHeaders(headers = {}) {
@@ -78,7 +140,7 @@ const sessionChannel =
 
 function activateSession(broadcast, server = null) {
   if (server && sessionServer && server !== sessionServer) {
-    reloadDelivery("This Leaf session restarted — reloading the page.");
+    reloadNow("This Leaf session restarted — reloading the page.");
     return;
   }
   if (server) sessionServer = server;

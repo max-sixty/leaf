@@ -2927,6 +2927,68 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     consume_browser_errors(page, "net::ERR")
 
 
+def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser, serve):
+    """A reload is only an answer when the document would come back different.
+
+    The page refuses an answer from another layer because it cannot read that state, and
+    it used to reload on the spot. That is right when re-vendoring has moved the page out
+    from under an open tab. It is wrong the other way around — a server behind the
+    document it served, which is what the website looks like while a release's containers
+    are still starting — because the reload lands on the same document and the next answer
+    says the same thing, so the reader watches the page restart for as long as the
+    disagreement lasts. The source of documents is the one party that can tell the two
+    apart, so the page asks it once and then holds still: the answers stay refused, the
+    authored page stays readable, and the feed keeps asking until the server is back on
+    this delivery.
+    """
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("() => { window.lfSameDocument = true; }")
+    reads = []
+    probes = []
+
+    # The layer is read before the body is, so a foreign answer needs no state in it.
+    def foreign(route):
+        reads.append(route)
+        route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json", "Leaf-Layer": "another-layer"},
+            body="{}",
+        )
+
+    def source(route):
+        probes.append(route)
+        route.continue_()
+
+    page.route("**/registry.json", source)
+    page.route("**/api/state", foreign)
+    try:
+        for index in range(3):
+            events_model.append_event(
+                serve.page_dir,
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": f"Note {index}.",
+                },
+            )
+            holding(page, reads, index + 1, "the reads the news woke")
+            if index == 0:
+                expect(page.locator(".lf-notice")).to_have_text(
+                    "Waiting for the server to finish updating."
+                )
+        assert page.evaluate("() => window.lfSameDocument === true"), (
+            "the page reloaded onto the document it was already being served"
+        )
+        assert len(probes) == 1, (
+            "the page asked its source once for each refused answer rather than once "
+            f"for the disagreement: {len(probes)} asks over {len(reads)} answers"
+        )
+    finally:
+        page.unroute("**/api/state", foreign)
+        page.unroute("**/registry.json", source)
+
+
 def test_the_help_overlay_answers_to_one_owner(browser, serve):
     """Open or closed is state with one writer now — it was three writers and
     two classList read-backs, the exact shape the first norm forbids.

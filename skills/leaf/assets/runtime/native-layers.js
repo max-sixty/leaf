@@ -5,11 +5,7 @@
    boundary, then confirm native state at each read so cancellation and light dismissal
    cannot leave a stale owner. The monotonically increasing order survives a temporarily
    hidden popover and distinguishes a newer cover from an older layer revealed beneath a
-   closed return frame.
-
-   Order is the whole of what this module owns. How a layer is dismissed belongs to the
-   layer: a popover carries its own `popover` value, and a dialog declares `closedby`,
-   which is what runs Escape and the press outside for both. */
+   closed return frame. Dismissal is each layer's own `popover` or `closedby` value. */
 
 const layers = [];
 const orders = new WeakMap();

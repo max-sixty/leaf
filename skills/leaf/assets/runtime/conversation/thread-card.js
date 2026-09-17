@@ -148,12 +148,7 @@ export class ThreadView {
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
     this.node.hidden = !model.visible && !model.folding;
-    // The arrival is the card's own first rendering, which the theme states with
-    // `@starting-style` and the browser runs to its resting values on its own. The mark
-    // is written once, before this card has been drawn, and stays: it can only ever
-    // catch that first rendering, so nothing has to come back and take it off. A fold
-    // withdraws it because a card leaving is not a card arriving, and because `landing`
-    // withdraws it the same way when a direct arrival owns the cue instead.
+    // `@starting-style` plays the arrival on first render, so the mark never needs clearing.
     if (!prior && model.grow) this.node.classList.add("grow");
     if (model.folding) this.node.classList.remove("grow");
     this.node.classList.toggle("lf-going", model.folding);

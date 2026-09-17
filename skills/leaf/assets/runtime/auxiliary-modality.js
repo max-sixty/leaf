@@ -12,11 +12,7 @@
    wrap and programmatic-focus recovery that a non-top-layer surface still needs.
    Entering the boundary dismisses pre-existing outside popovers. Native dialogs, and
    popovers deliberately opened after entry, remain available to their top-layer owner.
-
-   The wrap needs the two ends of the surface's tab order, which is `tabbable`'s
-   question rather than this owner's: it reads the order Tab will actually take —
-   positive `tabindex` ahead of document order — and it reaches the stops a document
-   query cannot, inside an open shadow root or behind a `display: contents` ancestor. */
+   `tabbable` supplies the wrap's tab order, including stops inside open shadow roots. */
 
 import { tabbable } from "../vendor/tabbable.esm.js";
 import { openNativePopovers } from "./native-layers.js";

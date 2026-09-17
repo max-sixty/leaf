@@ -56,8 +56,8 @@ reason to change frameworks.
 | Content widgets | Web Awesome or Spectrum tabs and boards | Different child vocabulary; under 400 lines each |
 | Data widgets | TanStack Table, Virtual, Form | No widget sorts, filters, or virtualizes |
 | Scroll settle | `scrollend` only | `keyboard/go-to-sequence.js` documents a case that never fires it |
-| Positioning | CSS anchor positioning | Reversed: the JS sites need virtual references; no library adopter |
-| Motion | `transition-behavior: allow-discrete` exits for the two animation listeners | The thread list's arrival took `@starting-style`; the agent-arrival pulse is a mid-life keyframe with a catch-up delay, so neither an entrance nor an exit. No module listens for `transitionend`: the folds run on Web Animations through `motion.js` |
+| Positioning | Floating UI for the CSS-anchored menus | Tried: +80 lines of JS and async placement for what 10 CSS lines do synchronously |
+| Motion | `allow-discrete` for the remaining animation listener | The agent-arrival pulse is not an entrance or exit; nothing listens for `transitionend` |
 | Chrome library | Web Awesome, Spectrum, Lion, Zag | Not chosen over the platform-first direction; still open |
 | Chrome framework | React, Radix, Base UI, shadcn, Preact + htm | A framework migration for the smallest defect bucket |
 | Build | Vite, Rollup | One entry, no dev server; esbuild suffices |

@@ -111,10 +111,6 @@ if (!customElements.get(VIEWER_FACE_TAG))
 export const mediaViewer = document.createElement("dialog");
 mediaViewer.id = "lf-media-viewer";
 mediaViewer.className = "lf-ui lf-media-viewer";
-// The viewer covers the page to show one image, so every ordinary way out of it is a
-// way out: the close control, a close request, and the backdrop the image sits on. The
-// platform runs all three off this declaration, including the backdrop press whose
-// target a modal dialog reports as the dialog itself.
 mediaViewer.setAttribute("closedby", "any");
 mediaViewer.setAttribute("aria-modal", "true");
 mediaViewer.setAttribute("aria-labelledby", "lf-media-viewer-title");

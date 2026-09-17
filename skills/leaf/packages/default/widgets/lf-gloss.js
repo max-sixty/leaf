@@ -9,9 +9,8 @@
  * Leaf offer at the same place gives Tab, Enter, and Space their native route without
  * adding a second mark to the prose. Clicking the phrase pins the card for touch and
  * careful reading. An auto popover owns the top-layer lifecycle and light dismissal;
- * the layer's shared anchoring keeps the card with its phrase. */
+ * CSS anchors keep the card with its phrase. */
 import {
-  anchorSurface,
   offer,
   once,
   paintKeys,
@@ -63,7 +62,9 @@ customElements.define(
       this.#bubble.setAttribute("popover", "auto");
       this.#bubble.setAttribute("role", "note");
       this.#bubble.textContent = this.getAttribute("tip");
-      anchorSurface(this.#bubble, { anchor: () => this, placement: "bottom", gap: 8 });
+      const anchor = `--lf-gloss-${nextId}`;
+      this.style.anchorName = anchor;
+      this.#bubble.style.positionAnchor = anchor;
       this.#mark.setAttribute("aria-controls", this.#bubble.id);
       this.#mark.setAttribute("aria-describedby", this.#bubble.id);
       // x-says="after" puts the tip directly after the authored body and before any

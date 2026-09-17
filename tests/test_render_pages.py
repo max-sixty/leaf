@@ -629,9 +629,6 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(thread.locator(".lf-msg.claude .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
-    # Both gestures draw their result before the log answers, so the card and the
-    # count below say nothing about what reached the file. The read at the end is a
-    # read of these two sends, and it waits for them as such.
     thread.locator("textarea").fill("three is the retry budget, not a guess")
     with sending(page, "the reply"):
         thread.get_by_role("button", name="Send", exact=True).click()

@@ -64,11 +64,6 @@ export const commandReferenceDialog = document.createElement("dialog");
 commandReferenceDialog.id = "lf-command-reference";
 commandReferenceDialog.className = "lf-ui lf-command-reference";
 commandReferenceDialog.setAttribute("aria-label", "Command reference");
-// The reference is a catalog the reader consults, so pressing away from it is leaving
-// it. The platform runs that off this declaration, including the backdrop press whose
-// target a modal dialog reports as the dialog itself, and routes it through the same
-// close request Escape makes — which is what the handler below turns into this owner's
-// own departure.
 commandReferenceDialog.setAttribute("closedby", "any");
 commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
@@ -700,8 +695,7 @@ function readCommandReferenceSearch(event) {
   presentCommandReference();
 }
 
-// Escape and a press outside both arrive as a close request. Take it over so the
-// reference leaves the way its own command does, restoring the layers it covered.
+// Escape and a backdrop press both arrive here as a close request.
 commandReferenceDialog.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeCommandReference();

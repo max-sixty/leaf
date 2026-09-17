@@ -320,10 +320,11 @@ lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
   outline-offset: calc(-1 * var(--here-ring-w));
 }
 .lf-gloss-popover {
-  position: fixed; inset: auto; margin: 0;
+  position: fixed; inset: auto; position-area: block-end center;
+  position-try-fallbacks: flip-block, flip-inline;
   box-sizing: border-box;
   width: max-content; max-width: min(22rem, calc(100vw - 24px));
-  padding: 10px 13px 11px;
+  margin: 8px 0; padding: 10px 13px 11px;
   border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--card); color: var(--ink);
   box-shadow: 0 10px 28px var(--shade);

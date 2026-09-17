@@ -12,7 +12,6 @@
  * application presentation transaction.
  */
 import { html, render, repeat } from "../vendor/browser-runtime.js";
-import { anchorSurface } from "./anchoring.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
 
@@ -91,7 +90,6 @@ render(menuTemplate(), overflowMenu);
 export const overflowBtn = bannerActions.querySelector(".lf-banner-more");
 overflowBtn.popoverTargetElement = overflowMenu;
 overflowMenu.lfInvoker = overflowBtn;
-anchorSurface(overflowMenu, { anchor: () => overflowBtn });
 
 function paintControl(entry) {
   entry.control.classList.toggle("lf-news-shown", entry.conditional && entry.offered);

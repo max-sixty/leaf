@@ -98,14 +98,8 @@ COPIES = {
         "modular/sortable.esm.js",
         package_vendor("default") / "sortable.esm.js",
     ),
-    # tabbable answers what in a subtree will take a Tab, in the order Tab will
-    # take it. The covering auxiliary surface wraps its boundary on that reading,
-    # which a selector cannot give: a stop can be hidden by a `display: contents`
-    # ancestor, held inside a disabled fieldset, promoted by a positive tabindex,
-    # or sitting in a shadow root a document query never enters. Zero dependencies
-    # and browser-native ESM, so the published file is taken as it is. The minified
-    # entry, because this one rides the layer's startup fetch rather than a widget's;
-    # `index.esm.js` is the same module unminified at four times the bytes.
+    # tabbable gives the covering surface's Tab wrap its stops in tab order. The
+    # minified entry, since the layer loads it at startup.
     "tabbable": Copy(
         "tabbable",
         "dist/index.esm.min.js",

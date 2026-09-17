@@ -48,8 +48,8 @@ computed imports; those load content modules rather than runtime owners.
 `runtime/chrome.js` owns only the shared chrome root; `leaf.js` assembles its parts,
 mounts them, and wires behavior that needs them in the document;
 `runtime/auxiliary-modality.js` owns the shared inert, scrim, focus, semantic, and
-reading-scroll boundary while an auxiliary surface covers the document, taking the
-surface's tab order from `vendor/tabbable.esm.js` rather than a selector of its own;
+reading-scroll boundary while an auxiliary surface covers the document, with
+`tabbable`'s tab order;
 `runtime/repaint.js` owns the shared frame, whose fixed phases are wired at boot:
 first keyboard-scope reflection, standing content, chrome layout, requested page
 movement, then standing geometry. Work requested during a phase belongs to the next
@@ -63,13 +63,7 @@ done to the page — a selection, an open disclosure, a lent tab stop, a tokeniz
 spans, a module's own output — is written over only where the author wrote; every
 judgement it cannot make from the DOM alone is its caller's; conversation owners supply
 reaction teardown when removing their surfaces;
-`runtime/focus.js` places focus on destinations, lending a tab stop only when needed —
-the lend is Leaf's own policy about an element no library would call a stop, and it
-belongs to no library's question;
-`runtime/anchoring.js` places every surface that hangs off the control opening it, and
-is the layer's only positioning model: it holds a surface transparent until Floating UI
-has measured its anchor, and states the anchor's width and the room under it for the
-surface's own rules;
+`runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
 `runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
 document roots so authored revision replacement can leave that live state in place;
 `runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
@@ -86,9 +80,8 @@ application publisher from that reading before it constructs browser owners, whi
 version travel and contained gallery documents consume the executable and widget
 readings;
 `runtime/native-layers.js` owns the browser's modal-dialog and popover order across the
-document and declared shadow roots, including the modal floor beneath a nested popover.
-Order is all it owns: each dialog states its own way out with `closedby`, and the
-platform runs both Escape and the press outside off that declaration;
+document and declared shadow roots, including the modal floor beneath a nested popover;
+dialogs declare their own dismissal with `closedby`;
 `runtime/deferred-modals.js` holds authored modals outside the top layer until the
 first presentation boundary;
 `runtime/layer-client.js` owns the vendored-generation gate, shared event and media

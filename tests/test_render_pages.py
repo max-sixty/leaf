@@ -79,6 +79,7 @@ from render_harness import (
     panel_settled,
     refuse,
     resized,
+    sending,
     stamp_page,
     told,
     wait_for_revision,
@@ -628,12 +629,17 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(thread.locator(".lf-msg.claude .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
+    # Both gestures draw their result before the log answers, so the card and the
+    # count below say nothing about what reached the file. The read at the end is a
+    # read of these two sends, and it waits for them as such.
     thread.locator("textarea").fill("three is the retry budget, not a guess")
-    thread.get_by_role("button", name="Send", exact=True).click()
+    with sending(page, "the reply"):
+        thread.get_by_role("button", name="Send", exact=True).click()
     expect(page.locator(".lf-msg.user")).to_have_count(1)
-    page.locator(".lf-thread").first.get_by_role(
-        "button", name="Resolve thread", exact=True
-    ).click()
+    with sending(page, "the resolve"):
+        page.locator(".lf-thread").first.get_by_role(
+            "button", name="Resolve thread", exact=True
+        ).click()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
     kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]

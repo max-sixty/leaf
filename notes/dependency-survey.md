@@ -57,6 +57,7 @@ reason to change frameworks.
 | Data widgets | TanStack Table, Virtual, Form | No widget sorts, filters, or virtualizes |
 | Scroll settle | `scrollend` only | `keyboard/go-to-sequence.js` documents a case that never fires it |
 | Positioning | CSS anchor positioning | Reversed: the JS sites need virtual references; no library adopter |
+| Motion | `transition-behavior: allow-discrete` exits for the two animation listeners | The thread list's arrival took `@starting-style`; the agent-arrival pulse is a mid-life keyframe with a catch-up delay, so neither an entrance nor an exit. No module listens for `transitionend`: the folds run on Web Animations through `motion.js` |
 | Chrome library | Web Awesome, Spectrum, Lion, Zag | Not chosen over the platform-first direction; still open |
 | Chrome framework | React, Radix, Base UI, shadcn, Preact + htm | A framework migration for the smallest defect bucket |
 | Build | Vite, Rollup | One entry, no dev server; esbuild suffices |

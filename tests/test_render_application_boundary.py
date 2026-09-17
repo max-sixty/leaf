@@ -19,6 +19,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    refuse,
     reported_browser_errors,
     round_trip,
     stamp_page,
@@ -289,11 +290,9 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
         page.close()
 
 
-def test_deferred_projection_holds_approval_until_its_paint_lands(browser, serve):
-    """Deferred projection paint, not admission, holds the irreversible approval."""
-    source = leaf_page(
-        "approval waits for admission",
-        """
+APPROVAL_PAGE = leaf_page(
+    "approval waits for admission",
+    """
 <lf-ask id="release-decision"><h1>Ship this release?</h1>
   <lf-options id="release-options" choose>
     <lf-option id="release-ship">Ship it</lf-option>
@@ -301,9 +300,37 @@ def test_deferred_projection_holds_approval_until_its_paint_lands(browser, serve
   </lf-options>
 </lf-ask>
 """,
-        head='<meta name="lf-review" content="sign-off">',
-    )
-    page = open_page(browser, serve(source))
+    head='<meta name="lf-review" content="sign-off">',
+)
+
+
+def test_approval_waits_for_a_reading_of_the_log(browser, serve):
+    """An offline page that never read its log cannot say its Asks are answered.
+
+    The first state read is refused, so presentation releases the authored page under the
+    offline banner with no admitted reading. Nothing then says whether the authored Ask
+    still stands, and approval stays shut rather than reading that silence as every Ask
+    answered."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.route("**/api/state*", refuse)
+    try:
+        page.goto(serve(APPROVAL_PAGE), wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
+        expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
+        approval = page.locator(".lf-signoff")
+        expect(approval).to_be_visible()
+        expect(approval).to_be_disabled()
+        expect(approval).to_have_attribute(
+            "title", "Approval waits until this page has read its current state"
+        )
+    finally:
+        page.close()
+
+
+def test_deferred_projection_holds_approval_until_its_paint_lands(browser, serve):
+    """Deferred projection paint, not admission, holds the irreversible approval."""
+    page = open_page(browser, serve(APPROVAL_PAGE))
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_disabled()
 

@@ -58,7 +58,7 @@ const state = (taken, events = []) => ({
     },
   },
 });
-const setup = (extraDescriptors = [], extraAuthored = []) => {
+const capture = (extraDescriptors = [], extraAuthored = []) => {
   const app = createSemanticApplication();
   app.identify(1);
   app.captureDocument({
@@ -81,6 +81,10 @@ const setup = (extraDescriptors = [], extraAuthored = []) => {
     ]),
     descriptors: new Map([[descriptor.id, descriptor], ...extraDescriptors]),
   });
+  return app;
+};
+const setup = (extraDescriptors = [], extraAuthored = []) => {
+  const app = capture(extraDescriptors, extraAuthored);
   app.adopt(state(1));
   return app;
 };
@@ -735,10 +739,17 @@ test("one publisher reading owns Ask inventory, source identity, and pending ans
     },
     ask: { answers: ["accept", "reject"], empty: {} },
   };
-  const app = setup([
+  const app = capture([
     [surface.id, surface],
     [source.id, source],
   ]);
+  // The authored document names the Ask, but only the log's reading says whether it
+  // still stands, so neither the wait for that reading nor an offline page lists it.
+  for (const phase of ["waiting", "offline"]) {
+    app.setPhase(phase);
+    assert.deepEqual(app.read().effective.asks.all, []);
+    assert.deepEqual(app.read().effective.asks.awaiting, {});
+  }
   app.adopt(state(2));
   assert.deepEqual(app.read().effective.asks, {
     all: [

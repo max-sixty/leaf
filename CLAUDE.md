@@ -257,9 +257,11 @@ on a Mac, or fail inside the whole suite under the default `-n 2` and pass alone
 under `-n0`. Use the base SHA's GitHub Actions run as the control; a local Docker
 image is not the hosted runner, and an Apple-silicon image must either emulate the
 CPU or give up installed Chrome. A green run several commits behind the base is
-not that control. Main's own push run may be cancelled when the next merge lands,
-and `nightly` does not run on a push. Rerun a cancelled base-SHA run, or push that
-SHA as a branch and dispatch `ci` on it for the nightly selection. Until the
+not that control. Main's own push run survives the next merge and goes on to the
+nightly selection once the everyday gate is green, but main holds one nightly slot,
+so a commit whose turn a newer one took carries no nightly result. Push that SHA as
+a branch and dispatch `ci` on it: a dispatch holds a slot per branch and does not
+wait behind main's. Until the
 failure reproduces on the base SHA, treat it as this branch's. Once it does, the
 branch lands the ordinary way, and a red hook takes
 the `--no-hooks` route above. `lint` is the only required check, so a red `test`

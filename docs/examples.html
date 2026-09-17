@@ -200,20 +200,15 @@
 
       <header class="hero catalog-prose" id="top">
         <p class="eyebrow">examples</p>
-        <h1>A page for the next step</h1>
+        <h1>What Leaf can do</h1>
         <p class="lede" id="lede">
-          Choose an example by what you want Leaf to do. Short pages cover everyday
-          work; larger examples for code review and live operations follow.
-        </p>
-        <p id="live">
-          Open an example to try its controls in a private browser session.
-          <a href="#run">Run it from a checkout</a> to work with your own agent.
+          Open any example to try its controls in a private copy for this browser.
         </p>
       </header>
 
       <section class="catalog" id="pages" aria-labelledby="pages-title">
         <div class="catalog-prose">
-          <h2 id="pages-title">What Leaf can do</h2>
+          <h2 id="pages-title">Everyday work</h2>
         </div>
         <ul class="example-catalog">
           <li>
@@ -465,34 +460,6 @@
           </li>
           -->
         </ul>
-      </section>
-
-      <section class="catalog-prose" id="run">
-        <h2>Run one for real</h2>
-        <p>
-          From a checkout, <code>preview.py</code> builds the page directory the runtime
-          expects and serves it, which is the same path an agent session takes:
-        </p>
-        <pre
-          id="triage-preview-command"
-        ><code>scripts/preview.py triage-board</code></pre>
-        <p>
-          Comments on that page reach somebody. Run from an agent session, they arrive
-          and the example gets revised like any other page; run from a bare shell, they
-          queue in the log until an agent next reads it.
-        </p>
-        <p>
-          The <a href="/examples/ship-review/">ship review</a> is where to see what
-          comes back: it ships a log beside it, so it opens mid-conversation with a
-          passage marked and the exchange under it. Write a reply there and it stops at
-          your browser; write one from a checkout and the agent answers it.
-        </p>
-        <pre
-          id="review-preview-command"
-        ><code>scripts/preview.py ship-review</code></pre>
-        <p>
-          On the <a href="/">home page</a>, ask Leaf guide to edit your private copy.
-        </p>
       </section>
 
       <section

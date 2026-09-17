@@ -272,21 +272,6 @@ thread panel's touch grip has its own item under Later.
   for any host that can run a command, then use that experience to define a shared host
   adapter only if another integration needs it.
 
-- **Wake a Claude Code session that holds no watcher.** A page whose watcher never came
-  back is invisible from the browser, which is why the Stop hook in
-  `hooks/scripts/loop-guard.py` polices the loop. Claude Code binds
-  `/tmp/cc-socks/<pid>.sock` per session and publishes its path and a peer key under
-  `~/.claude/sessions/`; a server the session spawned also inherits the address and a
-  token of its own in `CLAUDE_CODE_MESSAGING_SOCKET` and `CLAUDE_CODE_MESSAGING_TOKEN`.
-  An auth line followed by a `{"type":"user", ...}` line wakes an idle session, measured
-  with the peer key on 2.1.272. Send a pointer to `leaf delivery read <id>` rather than
-  the batch, and keep `leaf wait` as the one delivery path. Settle the recipient's terms
-  before building: `crossSessionInbound` defaults to `hold`, so a session running bypass
-  permissions holds a message from a sender it cannot identify behind an approval dialog,
-  and the session's own child token does not exempt it. The text also arrives wrapped as
-  a peer message rather than as an envelope Leaf controls. The protocol is internal —
-  `peerProtocol: 1`, no CLI — and Codex keeps the existing route either way.
-
 - **Measure a pending count in the favicon.** Prototype the count at 16px and keep it
   only if it remains legible beside the existing status treatment.
 

@@ -1,4 +1,5 @@
-"""Local host paths, process readings, and agent-session identity.
+"""Local host paths, process readings, agent-session identity, and the Claude Code
+messaging socket.
 
 psutil owns the process readings. It asks the kernel directly, which is what
 these need: the portable tool is `ps`, macOS ships it setuid root, and the
@@ -6,7 +7,9 @@ seatbelt sandbox Codex runs its shell tool under refuses to exec it (measured
 inside `codex exec --sandbox workspace-write`: `/bin/ps: Operation not
 permitted`). psutil does not own `pid_alive`, whose comment records why."""
 
+import json
 import os
+import socket
 import sys
 from pathlib import Path
 
@@ -228,3 +231,58 @@ def session_lifetime(identity: dict) -> dict:
         "LEAF_SESSION_ID names a Codex session but no codex process runs above "
         f"this one ({chain}); leaf takes the session's lifetime from it"
     )
+
+
+def message_claude_code_session(session_id: str, text: str) -> bool:
+    """Put `text` into a Claude Code session as a user message, through the
+    messaging socket every session binds, and say whether a socket took it.
+
+    A session publishes itself as `sessions/<pid>.json` in its config directory,
+    carrying `sessionId` and `messagingSocketPath`, beside a 0600
+    `<pid>.<hash>.key` holding the `peerToken` the socket authenticates. The
+    record is found by session id when the message is sent rather than written
+    into the claim, because a background job's worker pid, and the socket with
+    it, changes over the job's life. The socket reads newline JSON and answers
+    nothing: an auth line, then a user frame whose `session_id` makes a socket
+    that has since passed to another session drop it.
+
+    The recipient decides delivery. Measured on Claude Code 2.1.274: a session
+    in a prompting permission mode queues the text as a user turn, which wakes
+    it when idle and fires its UserPromptSubmit hook with the text as the
+    prompt. A session that bypasses permissions holds a message from any process
+    outside its own process tree behind a deliver-or-deny dialog, unless its
+    user set `crossSessionInbound` to `accept`, and a headless session lets the
+    held message expire. The server `leaf server start` spawns runs in a process
+    session of its own, so it is outside that tree. Nothing reports the outcome
+    to the sender, so True means only that a listening socket took the frames.
+
+    Each record and key is another program's live file, and a session can exit
+    between reading its record and connecting, so a file that vanished, was
+    caught mid-write, lacks a field this reads, or names a socket nobody listens
+    on skips that record."""
+    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    sessions = config / "sessions"
+    for record_path in sessions.glob("*.json"):
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+            if record["sessionId"] != session_id:
+                continue
+            key_path = next(sessions.glob(f"{record['pid']}.*.key"))
+            token = json.loads(key_path.read_text(encoding="utf-8"))["peerToken"]
+            address = record["messagingSocketPath"]
+            frames = (
+                {"type": "auth", "token": token},
+                {
+                    "type": "user",
+                    "session_id": session_id,
+                    "message": {"role": "user", "content": text},
+                },
+            )
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer:
+                peer.settimeout(1)
+                peer.connect(address)
+                peer.sendall("".join(json.dumps(f) + "\n" for f in frames).encode())
+        except (OSError, ValueError, KeyError, TypeError, StopIteration):
+            continue
+        return True
+    return False

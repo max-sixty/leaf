@@ -1233,6 +1233,17 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         "Running the tests",
     )
 
+    # A declaration with no words is not a sentence to prefer: `leaf status <page>
+    # working` says only that work is happening, which the step says better.
+    session_model.cmd_status(claimed, "working", "")
+    wordless = page_state(claimed)["activity"]
+    assert (wordless["kind"], wordless["detail"], wordless["observed"]) == (
+        "working",
+        "Running the tests",
+        "Running the tests",
+    )
+    session_model.cmd_status(claimed, "waiting", "which store should own it")
+
     # A step whose own floor is older than the reader's newest move says nothing about
     # it, and the reading it would stand in is not work. Reported under `working` alone,
     # so no step turns up beside "last checked in" under an amber dot.

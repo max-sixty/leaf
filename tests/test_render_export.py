@@ -154,12 +154,12 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
 
     assert preview.source_packages(source) == ["diagram"]
     assert preview.media_source(source) == media
-    paths, _, layer = preview.watch_paths(source, ROOT, [], {})
-    assert examples / "layer.json" in paths
+    watched = preview.watch_paths(source, ROOT, [], {})
+    assert str(examples / "layer.json") in watched.paths
     # The layer is told apart from the page's own inputs, because re-vendoring changes
     # what a revision is as executable code and editing the source does not.
-    assert str(examples / "layer.json") not in layer
-    assert str(ROOT / "uv.lock") in layer
+    assert str(examples / "layer.json") not in watched.layer
+    assert str(ROOT / "uv.lock") in watched.layer
 
 
 def test_a_preview_asks_the_launcher_for_its_payload_root(tmp_path, monkeypatch):
@@ -182,9 +182,45 @@ def test_a_preview_asks_the_launcher_for_its_payload_root(tmp_path, monkeypatch)
     assert calls[0][0] == ([str(launcher), "--root"],)
 
 
-def test_preview_reexpands_inputs_only_when_directory_membership_changes(
-    tmp_path, monkeypatch
-):
+def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
+    """A path outside the subscribed roots is never reported, so it can never refresh.
+
+    watchfiles watches each root recursively and names the path that changed; the
+    watcher decides from that name alone. Any watched path the roots do not cover is
+    therefore an input the preview silently stops following. The page directory is the
+    other half: its own writes are a reader's feedback, and watching them would make
+    every gesture a reload.
+    """
+    import preview
+    from leaf.layer import layer_inputs
+
+    source = ROOT / "examples" / "heat-loss.html"
+    packages = json.loads((ROOT / "examples" / "layer.json").read_text())
+    watched = preview.watch_paths(
+        source,
+        ROOT,
+        layer_inputs(tuple(packages)),
+        preview.fixture_seed(source),
+    )
+
+    assert watched.layer < watched.paths
+    assert [
+        path
+        for path in sorted(watched.paths)
+        if not any(
+            Path(path) == root or root in Path(path).parents for root in watched.roots
+        )
+    ] == []
+    assert [root for root in watched.roots if ".tmp" in root.parts] == []
+
+
+def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_path):
+    """Which set a reported path lands in is what decides whether the refresh vendors.
+
+    The sets are read from the files as they now stand, so a module added since the
+    last reading is layer, a file beside it that nothing vendors is neither, and a
+    prior version of the source is the page's own.
+    """
     import preview
 
     source = tmp_path / "examples" / "page.html"
@@ -195,71 +231,53 @@ def test_preview_reexpands_inputs_only_when_directory_membership_changes(
     scripts.mkdir(parents=True)
     existing_script = scripts / "existing.py"
     existing_script.write_text("first", encoding="utf-8")
-    layer = tmp_path / "layer"
-    widgets = layer / "widgets"
+    layer_root = tmp_path / "layer"
+    widgets = layer_root / "widgets"
     widgets.mkdir(parents=True)
 
-    expansions = 0
-    expand = preview.watch_paths
+    def watched():
+        return preview.watch_paths(source, runtime, [layer_root], {})
 
-    def counted_expansion(*args):
-        nonlocal expansions
-        expansions += 1
-        return expand(*args)
-
-    monkeypatch.setattr(preview, "watch_paths", counted_expansion)
-    watched = preview.WatchedInputs(source, runtime, [layer], {})
-    baseline = watched.read()
-    initial_expansions = expansions
-    assert watched.read() == baseline
-    assert expansions == initial_expansions
+    subscription = watched().roots
+    assert str(existing_script) in watched().layer
+    assert str(source) in watched().paths
+    assert str(source) not in watched().layer
 
     ignored = scripts / "README.md"
     ignored.write_text("ignored", encoding="utf-8")
-    before = expansions
-    assert watched.read() == baseline
-    assert expansions > before
-
-    existing_script.write_text("changed size", encoding="utf-8")
-    before = expansions
-    assert watched.read() != baseline
-    assert expansions == before
+    assert str(ignored) not in watched().paths
 
     added_script = scripts / "added.py"
     added_script.write_text("new", encoding="utf-8")
-    before = expansions
-    assert str(added_script) in watched.read()
-    assert expansions > before
+    assert str(added_script) in watched().layer
 
-    renamed_script = scripts / "renamed.py"
-    added_script.rename(renamed_script)
-    before = expansions
-    renamed = watched.read()
-    assert str(added_script) not in renamed
-    assert str(renamed_script) in renamed
-    assert expansions > before
-
-    renamed_script.unlink()
-    before = expansions
-    assert str(renamed_script) not in watched.read()
-    assert expansions > before
+    added_script.unlink()
+    assert str(added_script) not in watched().paths
 
     versions = source.parent / "versions"
     versions.mkdir()
     version = versions / "page.v1.html"
     version.write_text("version", encoding="utf-8")
-    before = expansions
-    assert str(version) in watched.read()
-    assert expansions > before
+    assert str(version) in watched().paths
+    assert str(version) not in watched().layer
 
     widget = widgets / "lf-new.js"
     widget.write_text("export {};", encoding="utf-8")
-    before = expansions
-    assert str(widget.resolve()) in watched.read()
-    assert expansions > before
+    assert str(widget.resolve()) in watched().layer
+
+    # None of those arrivals moved the subscription: each landed inside a directory
+    # already watched recursively, so the open watcher kept collecting through them.
+    assert watched().roots == subscription
 
 
-def test_preview_reexpands_when_a_nearer_media_directory_appears(tmp_path):
+def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
+    """The images move to the nearer directory while the subscription stands still.
+
+    A subscription is fixed for its lifetime, and rebuilding one drops the changes
+    its watcher has collected. The first file a page's `media/` ever holds arrives
+    inside a directory already watched recursively, so the set does not move; when it
+    did, the edit made while that refresh ran was lost.
+    """
     import preview
 
     checkout = tmp_path / "checkout"
@@ -276,45 +294,19 @@ def test_preview_reexpands_when_a_nearer_media_directory_appears(tmp_path):
     inherited = inherited_media / "inherited.png"
     inherited.write_bytes(b"inherited")
 
-    watched = preview.WatchedInputs(source, checkout, [], {})
-    assert str(inherited) in watched.read()
-
     nearer_media = source.parent / "media"
+    before = preview.watch_paths(source, checkout, [], {})
+    assert str(inherited) in before.paths
+    # The directory that does not exist yet is watched, so its arrival is a change.
+    assert str(nearer_media) in before.paths
+
     nearer_media.mkdir()
     nearer = nearer_media / "nearer.png"
     nearer.write_bytes(b"nearer")
-    current = watched.read()
-    assert str(nearer) in current
-    assert str(inherited) not in current
-
-
-def test_preview_does_not_swallow_a_file_created_during_expansion(
-    tmp_path, monkeypatch
-):
-    import preview
-
-    source = tmp_path / "page.html"
-    source.write_text("page", encoding="utf-8")
-    scripts = tmp_path / "skills" / "leaf" / "scripts"
-    scripts.mkdir(parents=True)
-    added = scripts / "added.py"
-    watched = preview.WatchedInputs(source, tmp_path, [], {})
-    watched.read()
-    expand = preview.watch_paths
-    raced = False
-
-    def racing_expansion(*args):
-        nonlocal raced
-        result = expand(*args)
-        if not raced:
-            added.write_text("created after enumeration", encoding="utf-8")
-            raced = True
-        return result
-
-    monkeypatch.setattr(preview, "watch_paths", racing_expansion)
-    (scripts / "trigger.py").write_text("trigger expansion", encoding="utf-8")
-    watched.read()
-    assert str(added) in watched.read()
+    after = preview.watch_paths(source, checkout, [], {})
+    assert str(nearer) in after.paths
+    assert str(inherited) not in after.paths
+    assert after.roots == before.roots
 
 
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):

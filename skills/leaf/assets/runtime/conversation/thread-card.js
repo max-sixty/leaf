@@ -150,7 +150,6 @@ export class ThreadView {
     this.node.hidden = !model.visible && !model.folding;
     // `@starting-style` plays the arrival on first render, so the mark never needs clearing.
     if (!prior && model.grow) this.node.classList.add("grow");
-    if (model.folding) this.node.classList.remove("grow");
     this.node.classList.toggle("lf-going", model.folding);
     this.node.classList.toggle("lf-thread", panel && !model.folding);
     if (!panel) {

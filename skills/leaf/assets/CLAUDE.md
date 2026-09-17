@@ -48,8 +48,7 @@ computed imports; those load content modules rather than runtime owners.
 `runtime/chrome.js` owns only the shared chrome root; `leaf.js` assembles its parts,
 mounts them, and wires behavior that needs them in the document;
 `runtime/auxiliary-modality.js` owns the shared inert, scrim, focus, semantic, and
-reading-scroll boundary while an auxiliary surface covers the document, with
-`tabbable`'s tab order;
+reading-scroll boundary while an auxiliary surface covers the document;
 `runtime/repaint.js` owns the shared frame, whose fixed phases are wired at boot:
 first keyboard-scope reflection, standing content, chrome layout, requested page
 movement, then standing geometry. Work requested during a phase belongs to the next

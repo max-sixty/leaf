@@ -198,7 +198,7 @@ let pageKeys;
 
 const panelVisibility = createPanelVisibility();
 const { panelIsOpen } = panelVisibility;
-const auxiliaryModality = createAuxiliaryModality({ chromeRoot });
+const auxiliaryModality = createAuxiliaryModality({ chromeRoot, focusable: FOCUSABLE });
 const navigation = createNavigation({
   panelIsOpen,
   coveringAuxiliaryScroller: auxiliaryModality.coveringScroller,

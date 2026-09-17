@@ -11,14 +11,12 @@
    Native inertness owns sequential focus and pointer reach. This owner adds the Tab
    wrap and programmatic-focus recovery that a non-top-layer surface still needs.
    Entering the boundary dismisses pre-existing outside popovers. Native dialogs, and
-   popovers deliberately opened after entry, remain available to their top-layer owner.
-   `tabbable` supplies the wrap's tab order, including stops inside open shadow roots. */
+   popovers deliberately opened after entry, remain available to their top-layer owner. */
 
-import { tabbable } from "../vendor/tabbable.esm.js";
 import { openNativePopovers } from "./native-layers.js";
 import { under } from "./shadow.js";
 
-export function createAuxiliaryModality({ chromeRoot }) {
+export function createAuxiliaryModality({ chromeRoot, focusable }) {
   const controllers = new Set();
   const scrim = document.createElement("div");
   scrim.className = "lf-auxiliary-scrim";
@@ -37,7 +35,14 @@ export function createAuxiliaryModality({ chromeRoot }) {
     while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
     return node;
   };
-  const stops = (surface) => tabbable(surface, { getShadowRoot: true });
+  const stops = (surface) =>
+    [...surface.querySelectorAll(focusable)].filter(
+      (node) =>
+        node.tabIndex >= 0 &&
+        !node.matches(":disabled") &&
+        !node.inert &&
+        node.checkVisibility(),
+    );
   const place = (node) => {
     placingFocus = true;
     try {

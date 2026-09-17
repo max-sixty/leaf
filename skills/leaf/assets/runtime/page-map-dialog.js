@@ -46,8 +46,6 @@ registerBannerControl({
 });
 
 const dialog = document.createElement("dialog");
-// A stray backdrop press must not drop a search in progress.
-dialog.setAttribute("closedby", "closerequest");
 dialog.className = "lf-ui lf-page-map-dialog";
 dialog.setAttribute("aria-label", "Page Map");
 dialog.setAttribute("aria-modal", "true");

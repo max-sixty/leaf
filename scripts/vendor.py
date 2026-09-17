@@ -58,7 +58,6 @@ PINS = {
     "elkjs": "0.11.1",
     "entities": "7.0.1",
     "sortablejs": "1.15.7",
-    "tabbable": "6.5.0",
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.4.2",
     "@modelcontextprotocol/ext-apps": "2.0.0",
@@ -97,13 +96,6 @@ COPIES = {
         "sortablejs",
         "modular/sortable.esm.js",
         package_vendor("default") / "sortable.esm.js",
-    ),
-    # tabbable gives the covering surface's Tab wrap its stops in tab order. The
-    # minified entry, since the layer loads it at startup.
-    "tabbable": Copy(
-        "tabbable",
-        "dist/index.esm.min.js",
-        ASSETS / "vendor/tabbable.esm.js",
     ),
 }
 

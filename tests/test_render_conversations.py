@@ -3492,7 +3492,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-thread-head",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
-        # Primary buttons keep the authored theme's filled action face when they
+        # Primary buttons keep the authored theme's accent action face when they
         # enter chrome rows whose quiet controls deliberately clear that paint.
         "primary",
     }, "the authored-theme class surface changed: widen the exception on purpose"

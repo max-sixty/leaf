@@ -276,8 +276,9 @@ revision patches into the page;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
 conversion from viewport boxes to document-positioned chrome;
-`runtime/keyboard/key-badge-placement.js` adds the readings that account for fixed
-chrome, which every target hint and Ask binding badge is admitted and seated by;
+`runtime/keyboard/key-badge-placement.js` adds the readings that account for the room
+chrome leaves and for a member covered without being clipped, which every target hint
+and Ask binding badge is admitted and seated by;
 `runtime/navigation.js` owns reader travel; `reading-regions.js` selects its scroller;
 `runtime/anchor-resolution.js` resolves anchors without importing paint or travel;
 `runtime/anchor-paint.js` owns their placed readings and marks;

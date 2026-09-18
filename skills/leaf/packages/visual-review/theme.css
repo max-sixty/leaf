@@ -551,11 +551,13 @@ lf-visual-review > .lf-reading-after {
   font-weight: 700;
 }
 
+/* The chosen verdict wears the layer's .lf-btn.on face: a pressable never carries the
+   accent as a solid fill. */
 .lf-vr-case[data-disposition="looks-right"] .lf-vr-looks-right,
 .lf-vr-case[data-disposition="needs-work"] .lf-vr-needs-work {
   border-color: var(--accent);
-  background: var(--accent);
-  color: var(--paper);
+  background: var(--chip);
+  color: var(--accent);
 }
 
 .lf-vr-thread-outlet:empty {

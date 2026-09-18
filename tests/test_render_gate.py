@@ -1330,7 +1330,7 @@ def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):
 <lf-diagram id="flow"><pre>
 flowchart LR
   Missing[Missing] --&gt; Fallback[Fallback]
-  classDef missing fill:var(--accent-tint),stroke:var(--accent),color:var(--ink)
+  classDef missing fill:var(--accent-glow),stroke:var(--accent),color:var(--ink)
   classDef fallback fill:var(--diagram-safe),stroke:var(--ok),color:var(--ok-ink)
   class Missing missing
   class Fallback fallback
@@ -1368,7 +1368,7 @@ flowchart LR
             "markup": """<lf-diagram id="sent"><pre>
 flowchart LR
   Missing[Missing]
-  classDef missing fill:var(--accent-tint),stroke:var(--accent),color:var(--ink)
+  classDef missing fill:var(--accent-glow),stroke:var(--accent),color:var(--ink)
   class Missing missing
 </pre></lf-diagram>""",
         },
@@ -1380,7 +1380,7 @@ flowchart LR
     assert len(unresolved) == 4, failures
     for diagram in ("flow", "sent"):
         expected = (
-            f"<lf-diagram id='{diagram}'> renders fill='var(--accent-tint)' on <rect> "
+            f"<lf-diagram id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
             "for data-id='Missing'"
         )
         assert sum(expected in failure for failure in unresolved) == 2, unresolved

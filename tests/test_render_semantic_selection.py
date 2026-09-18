@@ -1005,6 +1005,169 @@ def test_a_letter_naming_no_target_leaves_the_hints_standing(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
 
+def test_the_key_line_moves_a_hint_rather_than_dropping_its_target(browser, serve):
+    """Chrome at the foot does not decide who is in the map.
+
+    The shortcut bar states the armed map's own keys and changes width as the reader
+    filters it, so a map that read it would lose members as it armed and swap codes under
+    the reader as its own legend grew. The strip of page below the bar is page the reader
+    reads, besides. A chip that would land on the bar is moved clear instead, which keeps
+    the route where dropping the member loses it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "targets at the key line",
+                """
+<h1 id="head">Targets by the foot</h1>
+<p id="behind">Behind the key line.</p>
+<p id="gutter">Below the key line.</p>
+""",
+                head="""<style>
+  #behind, #gutter { position: fixed; width: 120px; height: 12px; margin: 0;
+    overflow: hidden; white-space: nowrap; }
+  #behind { left: 30px; top: calc(100vh - 30px); }
+  #gutter { left: 170px; top: calc(100vh - 6px); }
+</style>""",
+            )
+        ),
+    )
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-chooser-hint")
+    expect(hints).to_have_count(3)
+
+    # The premise. One target stands wholly inside the bar's box, the other wholly below
+    # it and still on screen, both within its span, and the bar is the width the armed
+    # chooser made it.
+    room = page.evaluate(
+        """() => {
+          const box = selector => document.querySelector(selector).getBoundingClientRect();
+          const bar = box('.lf-shortcut-bar');
+          const hit = a => a.left < bar.right && bar.left < a.right
+                        && a.top < bar.bottom && bar.top < a.bottom;
+          const behind = box('#behind'), gutter = box('#gutter');
+          return {
+            covered: bar.left <= behind.left && behind.right <= bar.right
+                  && bar.top <= behind.top && behind.bottom <= bar.bottom,
+            below: bar.left <= gutter.left && gutter.right <= bar.right
+                && gutter.top >= bar.bottom && gutter.top < innerHeight,
+            fouled: [...document.querySelectorAll('.lf-target-chooser-hint')]
+              .filter(chip => hit(chip.getBoundingClientRect())).length,
+          };
+        }"""
+    )
+    assert room["covered"] and room["below"], room
+    assert room["fouled"] == 0, room
+
+    # Both are named, and the walk reaches them in the order they stand.
+    said = page.locator(".lf-live")
+    page.keyboard.press("Tab")
+    expect(said).to_contain_text("Targets by the foot")
+    page.keyboard.press("Tab")
+    expect(said).to_contain_text("Behind the key line.")
+    page.keyboard.press("Tab")
+    expect(said).to_contain_text("Below the key line.")
+
+
+def test_a_target_behind_a_page_sheet_is_offered_no_letter(browser, serve):
+    """The same promise read the other way. An opaque box covers a member without
+    clipping its rectangle, so geometry alone still reports the member standing there;
+    a letter over the cover names something the reader cannot see, and choosing it opens
+    a comment on a block they never read."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a target behind a sheet",
+                """
+<h1 id="head">Covered</h1>
+<p id="hidden">Completely behind the sheet.</p>
+<div id="sheet">An opaque page sheet.</div>
+""",
+                head="""<style>
+  #hidden { position: relative; margin: 0; height: 4rem; }
+  #sheet { position: absolute; left: 0; top: 6rem; width: 100vw; height: 10rem;
+    background: white; z-index: 5; }
+</style>""",
+            )
+        ),
+    )
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-chooser-hint")
+    expect(hints.first).to_be_visible()
+
+    # The premise: the paragraph keeps its whole rectangle and the sheet answers for
+    # every point of it.
+    covered = page.evaluate(
+        """() => {
+          const box = document.querySelector('#hidden').getBoundingClientRect();
+          const at = (x, y) => document.elementFromPoint(x, y)?.id;
+          return {
+            box: box.toJSON(),
+            corner: at(box.left + 1, box.top + 1),
+            middle: at((box.left + box.right) / 2, (box.top + box.bottom) / 2),
+          };
+        }"""
+    )
+    assert covered["box"]["height"] > 0, covered
+    assert covered["corner"] == covered["middle"] == "sheet", covered
+
+    # The heading and the sheet itself; not the paragraph behind it.
+    expect(hints).to_have_count(2)
+
+
+def test_a_boxless_target_is_read_where_it_paints(browser, serve):
+    """A `display: contents` member's bounds are the union of its children's, so the
+    middle of those bounds can be the gap between two of them, where the page behind
+    answers. Asking there would cost the member its letter while the reader is looking
+    straight at it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a boxless target",
+                """
+<h1 id="head">Split</h1>
+<div id="split" style="display: contents">
+  <p id="one">First run of the split target.</p>
+  <p id="two">Second run of the split target.</p>
+</div>
+""",
+                head="""<style>
+  #one, #two { margin: 0; }
+  #two { margin-top: 14rem; }
+</style>""",
+            )
+        ),
+    )
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-chooser-hint")
+    expect(hints.first).to_be_visible()
+
+    # The premise: the wrapper paints nothing of its own between its two runs.
+    assert (
+        page.evaluate(
+            """() => {
+              const runs = ['#one', '#two'].map(
+                id => document.querySelector(id).getBoundingClientRect());
+              const middle = (runs[0].top + runs[1].bottom) / 2;
+              const at = document.elementFromPoint(runs[0].left + 1, middle);
+              return document.querySelector('#split').contains(at);
+            }"""
+        )
+        is False
+    )
+
+    # The heading, the wrapper, and each of its two runs.
+    expect(hints).to_have_count(4)
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    # The one target whose words span both runs is the wrapper, not either run.
+    expect(page.locator(".lf-live")).to_contain_text(
+        "div: First run of the split target. Second run"
+    )
+
+
 def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     """A smooth scroll repositions the small visible map and refreshes its membership
     once at rest; targets inside a closed disclosure never incur geometry reads."""

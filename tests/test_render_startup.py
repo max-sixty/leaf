@@ -3295,7 +3295,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # Claude's own status gets a far longer rope: the same silence is just a long turn.
     # No turn has closed under this claim, so the rope is the whole of what judges it.
     declare("working", "running the migration", quiet_for=10 * 60)
-    expect(text).to_have_text(re.compile(r"^Agent is working — running the migration"))
+    expect(text).to_have_text(re.compile(r"^Claude is working — running the migration"))
 
     # A dead session needs no timeout at all — the owning pid is simply gone, so the
     # claim it left has nothing behind it however lately it was written.
@@ -3839,7 +3839,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         )
     )
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Agent is working — rerunning the failing shard")
+        re.compile(r"^Claude is working — rerunning the failing shard")
     )
     expect(visible_work_line).to_have_text(
         re.compile(r"^● Was working 6m ago — reading the reconnect traces$")

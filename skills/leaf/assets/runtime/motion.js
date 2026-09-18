@@ -39,8 +39,9 @@ preference.addEventListener("change", (event) => {
 // Web-Animations motion goes through here, so a reader who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
 // reduce, and a caller treats "no animation" and "animation finished" as the same
-// state. The board's FLIP, the shell carry, and the folds (FOLD_MS) are the motions the
-// product makes; they share one ease and one held-end-frame contract.
+// state. Every motion this module plays shares one ease and one held-end-frame
+// contract. A duration a caller passes in is still a number this module has no reason
+// for; see CLAUDE.md's "Motion".
 export function motion(el, keyframes, ms) {
   // First replay happens behind the presentation boundary. Its state should be the
   // first frame the reader sees, not a motion from authored state they never saw; it

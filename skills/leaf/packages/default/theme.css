@@ -2091,7 +2091,11 @@ lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--h
    package answers the same question on its own rows, but from the track rather than the
    line, because there every row has to end where the widest one does: this block's lines
    are their own width, so a short hi line still stops at the scrollport rather than at
-   the block's own width. */
+   the block's own width.
+   TODO: give the rendered <pre> one column with that same floor, so every line ends
+   where the widest one does. A note shares the column and would need the diff outlet's
+   inline-size containment to stay out of its measure; notes also position sticky, which
+   is the part a grid could move. */
 lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
              width: max-content; min-width: 100%; box-sizing: border-box; }
 lf-code .lf-code-line::before { counter-increment: lf-code-line;

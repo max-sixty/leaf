@@ -1016,6 +1016,13 @@ def _selector_list(prelude):
     return [" ".join(one.split()) for one in selectors if one.strip()]
 
 
+# The at-rules whose contents are style rules that match elements. An animation's
+# stops and a registered property's descriptors are neither, and reading them would
+# have `0%` in one sheet tie with `0%` in another — two animations sharing nothing,
+# reported as a selector both sheets dress.
+_HOLDS_RULES = {"media", "supports", "container", "scope", "layer"}
+
+
 def _stated_faces(sheet, *, only_top_level):
     """{complex selector: {property}} for every rule stating a shared visual property.
 
@@ -1026,6 +1033,8 @@ def _stated_faces(sheet, *, only_top_level):
     def visit(rules):
         for rule in rules:
             if rule.type == "at-rule":
+                if rule.lower_at_keyword not in _HOLDS_RULES:
+                    continue
                 if only_top_level and rule.lower_at_keyword in {"scope", "layer"}:
                     continue
                 if rule.content is not None:

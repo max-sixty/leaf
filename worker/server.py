@@ -168,7 +168,11 @@ def log_agent(event: str, **fields) -> None:
 
 
 def starting_turn_key(delivery_id: str) -> str:
-    """Name the stream reading a delivery owns before its provider turn binds."""
+    """Name the stream reading a delivery owns before its provider turn binds.
+
+    Dispatch writes a reading before it has asked App Server for a turn, so for
+    that stretch the delivery is the only name the reading can carry.
+    """
     return f"delivery:{delivery_id}"
 
 
@@ -486,11 +490,19 @@ class HostedTurn:
     """One delivery's hosted turn, from its App Server binding to its receipt.
 
     The delivery is this turn's identity and the only name it holds for its whole
-    life. App Server's turn id arrives later, by notification or by resume, and may
-    never arrive; Leaf's turn id arrives later still, when the delivery is accepted.
-    Binding is therefore something that happens *to* a turn rather than a condition
-    for having one, which is why the same two steps run whether the id came from a
-    live notification or a resumed thread.
+    life. App Server's turn id arrives with the acknowledgement of the `turn/start`
+    that carried the delivery, or — for a start that was refused, lost, or never
+    sent — later by notification or resume, and then may never arrive at all;
+    Leaf's turn id arrives when the delivery is accepted. Binding is therefore
+    something that happens *to* a turn rather than a condition for having one,
+    which is why the same steps run whichever of the three named it.
+
+    Binding also gives a follower its ending. Bound, every way its stream can
+    stop reaches a terminal status for its turn or a fault it reports. Unbound,
+    it has no turn whose status to read, so a drop and a silence both return it
+    to the same wait and only a fault it happens to raise stops it. A follower
+    therefore binds on the first reading that names its turn rather than holding
+    out for a preferred one.
 
     Folding a notification and telling the page about it are separate: `absorb`
     keeps the readings, `commit` writes the account of how the turn ended.
@@ -544,12 +556,33 @@ class HostedTurn:
         self.milestones.add(event)
         self.record(event, **fields)
 
+    @property
+    def activity_key(self) -> str | None:
+        """The name the live reading this follower wrote is keyed by.
+
+        Dispatch writes under the delivery, for want of a turn id; `bind` gives
+        the reading up and every later one is the turn's. A follower clears by
+        this key, so it never clears a reading another turn wrote.
+        """
+        if self.leaf_turn is None and self.delivery_id is not None:
+            return starting_turn_key(self.delivery_id)
+        return self.turn_id
+
     def begin(self) -> None:
-        """Show a turn already bound as starting, before its first notification."""
+        """Open the Leaf turn for a start App Server has already named.
+
+        The request carried this delivery both as its `clientUserMessageId` and as
+        its `leaf_delivery` tool output, so the turn App Server answered with is
+        the turn that took it. That answer is the binding, not a record of one
+        still to come.
+        """
         if self.turn_id is None:
             return
+        if self.leaf_turn is None:
+            self.bind(self.turn_id, acknowledged=True)
+        else:
+            self._open_reply()
         _set_stream_activity(self.thread_id, self.turn_id, "Starting")
-        self._open_reply()
 
     def _open_reply(self) -> None:
         if self.reply_target is None:
@@ -574,14 +607,23 @@ class HostedTurn:
         )
         self.awaiting = False
         self.record("turn_delivery_bound", deliveryId=self.delivery_id, **fields)
+        # Dispatch keyed its reading by the delivery for want of a turn id, and
+        # that name is now unreachable: a follower clears by one key. What the
+        # turn is doing is the next notification's to say, except where the
+        # binding itself proves the turn is starting.
+        _clear_stream_activity(self.thread_id, starting_turn_key(self.delivery_id))
         self._open_reply()
 
     def should_resubscribe(self, stream: TurnStream) -> bool:
         """Take one fresh subscription for a delivery App Server has not started.
 
-        The offer is still standing and nothing is buffered, so no notification is
-        on its way to say otherwise. A resume answers with the thread itself, which
-        settles whether the turn exists.
+        An acknowledged start binds, so only a delivery whose `turn/start` was
+        refused, lost, or never sent is still awaiting and reaches here — and
+        this subscription is therefore carrying no turn of ours to lose. Nothing
+        is buffered, so no notification is on its way to say App Server started
+        one after all, and the offer has not been retired out from under the
+        wait. A resume answers with the thread itself, which settles whether the
+        turn exists.
         """
         if not (self.resubscribe_once and self.awaiting and not stream.pending):
             return False
@@ -664,6 +706,8 @@ class HostedTurn:
             raise StreamRestart from error
         self.events.restore_turn(started)
         self.start_rejections = 0
+        self.bind(started["id"], restarted=True)
+        _set_stream_activity(self.thread_id, self.turn_id, "Starting")
 
     def _restore_reply(self, recovered: dict) -> None:
         """Republish the final text a resumed turn proves was already written."""
@@ -762,20 +806,13 @@ class HostedTurn:
         """Compose the terminal of a turn that lost its observer, and its record."""
         fault = fault_fields(error)
         detail = f"{fault['error']}: {error}" if str(error) else fault["error"]
-        if self.awaiting:
+        if self.leaf_turn is None:
             log_agent(
                 "turn_delivery_unbound",
                 **self.fields,
                 deliveryId=self.delivery_id,
                 **fault,
             )
-            # The reading this delivery wrote before its turn bound is keyed by the
-            # delivery, not by the turn id it never learned. Left standing it tells the
-            # reader the agent is still starting for the whole working grace — the
-            # page's last word on a move that will now never be answered.
-            _clear_stream_activity(self.thread_id, starting_turn_key(self.delivery_id))
-        else:
-            _clear_stream_activity(self.thread_id, self.turn_id)
         return {
             "id": self.turn_id,
             "status": "failed",
@@ -783,19 +820,31 @@ class HostedTurn:
         }, fault
 
     def commit(self, terminal: dict) -> None:
-        """Account for the turn on the page: its reply, its receipt, its claim."""
-        if self.leaf_turn is None:
-            self._report_failure(terminal)
-            return
-        reply_error = None
-        if self.reply_stream is not None:
-            reply_error = self.reply_stream.finish(
-                terminal.get("status") or "failed",
-                self.events.final_text(terminal),
+        """Account for the turn on the page: its reply, its receipt, its claim.
+
+        A turn that has ended has no live reading, however it ended. Folding a
+        notified completion releases that turn's, but a resumed thread answering
+        with a finished turn and a fault that stops the follower both arrive with
+        the reading still standing, and left standing it tells the reader the
+        agent is working for the whole working grace.
+        """
+        try:
+            if self.leaf_turn is None:
+                self._report_failure(terminal)
+                return
+            reply_error = None
+            if self.reply_stream is not None:
+                reply_error = self.reply_stream.finish(
+                    terminal.get("status") or "failed",
+                    self.events.final_text(terminal),
+                )
+            if reply_error is not None:
+                self.record("turn_reply_commit_failed", **fault_fields(reply_error))
+            self.host._finish_turn(
+                self.page_dir, self.thread_id, self.leaf_turn, terminal
             )
-        if reply_error is not None:
-            self.record("turn_reply_commit_failed", **fault_fields(reply_error))
-        self.host._finish_turn(self.page_dir, self.thread_id, self.leaf_turn, terminal)
+        finally:
+            _clear_stream_activity(self.thread_id, self.activity_key)
 
     def _report_failure(self, terminal: dict) -> None:
         """Receipt every move in this delivery, for a turn nothing bound.
@@ -1199,11 +1248,8 @@ class WebsiteCodexHost:
         reply_target = stream_reply_target(prepared.payload)
         if reply_target is not None:
             reserve_delivery_reply(thread_id, prepared.payload["id"], reply_target)
-        # The follower learns which App Server turn took this delivery from the
-        # notification stream, which is the one reading that survives a lost
-        # acknowledgement. The turn id below is therefore a timing record rather
-        # than this turn's name, and the turn is the same object either way.
-        turn = HostedTurn(
+        follower = partial(
+            HostedTurn,
             self,
             page_dir,
             thread_id,
@@ -1226,9 +1272,10 @@ class WebsiteCodexHost:
             WebSocketException,
         ):
             # Refused or lost, the offer stands and the delivery is still this
-            # turn's; the follower reconciles against the thread to find out which.
+            # turn's. This is the one arm with no turn to name, so it is the only
+            # one whose follower reconciles against the thread to find out which.
             _clear_stream_activity(thread_id, starting_turn)
-            return turn
+            return follower()
         turn_id = started_turn.get("id")
         if not turn_id:
             raise RuntimeError("Codex App Server returned no turn id")
@@ -1238,7 +1285,17 @@ class WebsiteCodexHost:
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
-        return turn
+        # App Server answered for the turn it made from this delivery, so the
+        # follower starts knowing which turn is its own. The answer names a turn
+        # of this delivery's rather than some other request's because App Server
+        # only steers a `turn/start` into a turn already running, and every caller
+        # here sends one against a thread it has read as not active — the
+        # container being App Server's only client, nothing starts one between
+        # that reading and this request. Opening the Leaf turn is left to the
+        # follower's own first step, where a refusal to open it is a fault the
+        # follower reports rather than one this dispatch raises at a reader whose
+        # turn is already running.
+        return follower(turn_id=turn_id)
 
     def _start_thread(
         self, page_dir: Path, process: subprocess.Popen, event_id: str

@@ -1455,16 +1455,184 @@ def test_a_lost_turn_start_ack_retries_after_idle_reconciliation(page_dir, monke
     )
 
 
+def test_an_acknowledged_start_answers_a_reader_with_no_turn_started_notification(
+    page_dir, monkeypatch
+):
+    """App Server's answer to `turn/start` is the binding, not a timing record.
+
+    The request carries the delivery both as its `clientUserMessageId` and as its
+    `leaf_delivery` tool output, so the turn the response names is the turn that
+    took this delivery. Waiting for a notification to repeat that leaves the
+    follower unbound, and an unbound follower has no turn whose terminal status it
+    can read: nothing it receives finishes it, and nothing it loses recovers it.
+    The stream below carries the whole turn except the one notification that names
+    the delivery, which is the shape behind a page that read `working: Starting`
+    for ten minutes while its agent published.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+    )
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
+    answer = {
+        "id": "answer",
+        "type": "agentMessage",
+        "phase": "final_answer",
+        "text": "Deployment verified.",
+    }
+    messages = iter(
+        [
+            json.dumps(
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "app-server-turn",
+                        "completedAtMs": 1_000,
+                        "item": answer,
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turn": {
+                            "id": "app-server-turn",
+                            "status": "completed",
+                            "items": [answer],
+                        },
+                    },
+                }
+            ),
+        ]
+    )
+
+    class Socket:
+        closed = False
+
+        def recv(self, timeout):
+            return next(messages)
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    host._follow_turn(follow, socket)
+    events = read_events(page_dir)
+    activity = website_server.full_state(page_dir, events)["activity"]
+    host.close()
+
+    [reply] = [event for event in events if event["kind"] == "reply"]
+    assert (reply["responds"], reply["text"]) == (comment["id"], "Deployment verified.")
+    assert "failure" not in reply
+    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    assert (activity["kind"], activity["obligations"]) == ("listening", [])
+    assert socket.closed
+
+
+def test_an_acknowledged_start_reads_its_turn_out_of_an_unnameable_resume(
+    page_dir, monkeypatch
+):
+    """A resumed thread answers for a turn by id, not by the delivery it took.
+
+    `_delivered_turn` reads a delivery out of a resumed turn's own items, so a
+    turn whose items never carry the `leaf_delivery` output the request supplied
+    is invisible to a follower hunting its binding. The restart arm below it
+    declines too, because the thread is active. So the resume settles nothing,
+    the loop waits out another silence and repeats, and that is the cycle that
+    never produced a fault for #779's receipt to catch. Holding the turn App
+    Server named in its answer, the follower recovers on the first resume.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+    )
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
+    monkeypatch.setattr(website_server, "STREAM_SILENCE", 0.0)
+
+    class Socket:
+        def __init__(self):
+            self.closed = False
+
+        def recv(self, timeout):
+            raise TimeoutError
+
+        def close(self):
+            self.closed = True
+
+    silent = Socket()
+    resumed = Socket()
+    # The resumed thread is active and its turn carries the answer the model
+    # wrote, but no item naming the delivery it consumed. Both of the resume's
+    # arms therefore decline a follower that is still hunting for its binding.
+    thread = {
+        "id": "hosted-thread",
+        "status": {"type": "active"},
+        "turns": [
+            {
+                "id": "app-server-turn",
+                "status": "completed",
+                "items": [
+                    {
+                        "id": "answer",
+                        "type": "agentMessage",
+                        "phase": "final_answer",
+                        "text": "Recovered answer.",
+                    }
+                ],
+            }
+        ],
+    }
+    resumes = []
+
+    def resume(thread_id):
+        resumes.append(thread_id)
+        if len(resumes) > 3:
+            raise AssertionError("the follower resumed without ever ending")
+        return resumed, thread
+
+    monkeypatch.setattr(host, "_resume_turn_stream", resume)
+    host._follow_turn(follow, silent)
+    host.close()
+
+    assert resumes == ["hosted-thread"]
+    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [(reply["responds"], reply["text"]) for reply in replies] == [
+        (comment["id"], "Recovered answer.")
+    ]
+    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+
+
 def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
     page_dir, monkeypatch, capsys
 ):
     """A turn nothing bound still reaches the log and the page.
 
-    The App Server's own sentence is the only thing that separates one refusal from
-    another, and the reading the delivery wrote before it bound is keyed by the
-    delivery rather than the turn id the follower never learned. Left alone the record
-    names a class, the page says the agent is starting for the whole working grace,
-    and the reader is never told the move went unanswered.
+    A `turn/start` App Server never answered is the one arm that leaves a follower
+    hunting its turn on the stream, and a refused resume ends that hunt with
+    nothing bound. The App Server's own sentence is the only thing that separates
+    one refusal from another, so without the record and the receipt below the log
+    names a class and the reader is never told the move went unanswered.
     """
     # A published page waits between readers, which is the state a reader's first
     # message arrives at and the one `_start_turn` moves to `waiting`.
@@ -1478,7 +1646,7 @@ def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
     monkeypatch.setattr(
         host,
         "_send",
-        lambda *_args, **_kwargs: {"turn": {"id": "app-server-turn"}},
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError("lost ack")),
     )
     follow = host._start_turn(
         "socket",
@@ -1486,11 +1654,8 @@ def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
         "hosted-thread",
         type("Process", (), {"pid": os.getpid()})(),
     )
-    starting = website_server.full_state(page_dir, read_events(page_dir))["activity"]
-    assert (starting["kind"], starting["detail"]) == ("working", "Starting")
+    assert (follow.turn_id, follow.leaf_turn) == (None, None)
 
-    # `turn/start` was acknowledged, so the delivery holds the "Starting" reading and
-    # the follower is still waiting for the `turn/started` that would bind it.
     class LostSocket:
         def recv(self, timeout):
             raise OSError("connection lost")
@@ -1524,9 +1689,9 @@ def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
     reported = next(r for r in records if r["event"] == "turn_failure_reported")
     assert (reported["settled"], reported["outstanding"]) == (1, 0)
 
-    # The delivery's own reading is gone, so the page no longer tells the reader the
-    # agent is starting on a move it will never answer, and the move itself carries a
-    # receipt saying so rather than waiting on a reply that is not coming.
+    # The page no longer tells the reader the agent is starting on a move it will
+    # never answer, and the move itself carries a receipt saying so rather than
+    # waiting on a reply that is not coming.
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
     assert (activity["kind"], activity["detail"]) == ("listening", "")
     assert activity["interactions"] == []
@@ -1537,6 +1702,60 @@ def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
     # observer, which is the shape of the incident this path was written for.
     assert reply["text"] == website_server.FAILURE_RECEIPTS["turn_failed"]
     host.close()
+
+
+def test_a_bound_turn_that_stops_leaves_its_move_to_the_turn_that_took_it(
+    page_dir, monkeypatch
+):
+    """A turn that bound and then stopped is receipted by nobody, on purpose.
+
+    `write_failure_receipt` answers only a move no turn has picked up, and
+    binding is that pickup, so a follower holding a Leaf turn was never the
+    writer of that receipt — it closes the turn instead and the move goes back to
+    the page unanswered. Binding on the acknowledgement moves faults here that
+    used to fall to the receipt: the same refusal that settles a reader in the
+    test above now reaches them as a picked-up move nobody finished.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+    )
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
+
+    class LostSocket:
+        def recv(self, timeout):
+            raise OSError("connection lost")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        host,
+        "_resume_turn_stream",
+        lambda _thread: (_ for _ in ()).throw(
+            website_server.AppServerRequestRejected("no thread by that id")
+        ),
+    )
+    host._follow_turn(follow, LostSocket())
+    events = read_events(page_dir)
+    activity = website_server.full_state(page_dir, events)["activity"]
+    host.close()
+
+    assert follow.leaf_turn is not None
+    assert not [event for event in events if event["kind"] == "reply"]
+    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    assert activity["kind"] != "working"
+    [obligation] = activity["obligations"]
+    assert (obligation["event"], obligation["dropped"]) == (comment["id"], True)
 
 
 def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):
@@ -1630,7 +1849,9 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
 
     A widget frozen into thread markup is answered on the conversation holding it,
     so the address a reply is written to and the move it settles are two different
-    events. Writing the receipt at the gesture refuses instead of settling it.
+    events. Writing the receipt at the gesture refuses instead of settling it. A
+    lost `turn/start` acknowledgement is what leaves a follower with no turn of its
+    own, which is the state that owes this receipt.
     """
     website_server.activate_source(page_dir, read_events(page_dir))
     asked = append_event(
@@ -1661,7 +1882,9 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
         page.set_status("idle", "")
     host = website_server.WebsiteCodexHost("codex")
     monkeypatch.setattr(
-        host, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+        host,
+        "_send",
+        lambda *a, **k: (_ for _ in ()).throw(TimeoutError("lost ack")),
     )
     follow = host._start_turn(
         "socket",
@@ -1669,6 +1892,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
         "hosted-thread",
         type("Process", (), {"pid": os.getpid()})(),
     )
+    assert follow.leaf_turn is None
     assert follow.reply_target is not None
     assert follow.reply_target["reply_to"] != follow.reply_target["responds"]
 
@@ -2011,7 +2235,10 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         ("hosted-thread", "initial-turn", "Running leaf version check ."),
         ("hosted-thread", "initial-turn", "Deployment verified."),
     ]
-    assert clears == [("hosted-thread", "initial-turn")]
+    # The turn's own reading and no other. A completed turn's reading is released
+    # both as its completion is folded and again when the follower accounts for the
+    # turn, which is one reading gone rather than two calls worth pinning.
+    assert set(clears) == {("hosted-thread", "initial-turn")}
     assert streamed == [
         (
             "hosted-thread",
@@ -2274,6 +2501,10 @@ def test_a_stream_that_goes_silent_recovers_its_turn_like_a_dropped_one(
         "_resume_turn_stream",
         lambda thread_id: (resumed, {"id": thread_id, "turns": [recovered]}),
     )
+    # Without the lease this page is not listening, and a page that is not
+    # listening reads `away` whatever its stream reading holds — which would pass
+    # the activity assertion below on a follower that left one standing.
+    host._hold_waiter(page_dir, "hosted-thread")
 
     host._follow_turn(
         website_server.HostedTurn(
@@ -2289,11 +2520,15 @@ def test_a_stream_that_goes_silent_recovers_its_turn_like_a_dropped_one(
         silent,
     )
 
-    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    events = read_events(page_dir)
+    replies = [event for event in events if event["kind"] == "reply"]
     assert [(reply["responds"], reply["text"]) for reply in replies] == [
         (comment["id"], "Recovered answer.")
     ]
     assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    # A turn the resume reports finished sent no completion notification to fold,
+    # so nothing on that path clears the reading the follower set before it.
+    assert website_server.full_state(page_dir, events)["activity"]["kind"] != "working"
     assert silent.closed
 
 

@@ -192,10 +192,12 @@ Workers Observability is the operational log store. Request-path records carry t
 canonical `eventId`; Worker-side records also carry the public `reference` and `route`.
 The public reference finds every request from one reader session, and the event id
 follows one request across the Worker and Container datasets. `turn_start_acknowledged`
-records the RPC result and its Codex `turnId`; `turn_delivery_bound` records the later
-provider item that proves which delivery the turn consumed. Model records carry that
-turn id. Analytics Engine holds
-aggregate product events rather than a second debugging log. Live incidents use
+records the RPC result and its Codex `turnId`; `turn_delivery_bound` records which
+reading named the turn that consumed the delivery, marking it `acknowledged` for that
+RPC result, `restarted` for a start the follower sent itself, `recovered` for a resumed
+thread, and none of the three for a provider notification. Model records carry that
+turn id. Analytics Engine holds aggregate product events rather than a second
+debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
 query builder.
 
@@ -243,9 +245,13 @@ and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
 cold runtime-filesystem work before a model command. Each App Server turn is bound to
-one immutable delivery id carried by the direct request as `clientUserMessageId`. A
-bound delivery with one
-plain reply streams the final-answer item into its addressed thread and commits that
+one immutable delivery id carried by the direct request as `clientUserMessageId`, so
+the response to that request names the turn that took it and the follower binds on
+that answer. Only a start that was refused, lost, or never sent leaves a follower to
+learn its turn from the notification stream or a resumed thread, and only such a
+follower takes a fresh subscription to ask whether its turn exists at all.
+A bound delivery with one plain reply
+streams the final-answer item into its addressed thread and commits that
 same completed text through the canonical reply writer, even if its subscription drops,
 its turn closes, or the next turn opens first. The App Server adapter presents ordered
 input in delivery slices containing at most one plain reply; a later plain reply remains
@@ -261,7 +267,10 @@ claim turn without inventing a reply; its reader obligation remains unanswered. 
 follower owes that outcome for every way it can stop, so a fault of any shape closes
 the turn, and a subscription that goes quiet for longer than a running turn ever does
 is recovered like a dropped one: `thread/resume` reads the authoritative turn, which
-carries the terminal status a stream that stopped delivering never sent. Neither a
+carries the terminal status a stream that stopped delivering never sent. Each of those
+endings belongs to a turn, so a follower binds on the first reading that names one.
+Holding no turn it has no terminal status to read, and neither a dropped subscription
+nor a silence recovers it while the page keeps the reading dispatch wrote. Neither a
 stalled stream nor a follower fault can leave a page reading working with no receipt.
 
 The container pins the Codex version its App Server protocol was tested against and

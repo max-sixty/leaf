@@ -68,15 +68,16 @@ def contract_writer(function):
     return locked
 
 
-def waiter_lease_path(page_dir: Path | None, session: dict | None) -> Path | None:
+def waiter_lease_path(page_dir: Path | None, session_id: str | None) -> Path | None:
     """The one lease a wait holds for its watch set.
 
     A host wait covers every page its session owns, so its lease belongs to the
-    session. Outside a host, a named page is the entire watch set and holds a
-    page-local lease. An unnamed bare-shell wait has no watch set and no lease.
+    session and takes only its id. Outside a host, a named page is the entire
+    watch set and holds a page-local lease. An unnamed bare-shell wait has no
+    watch set and no lease.
     """
-    if session:
-        return state_home() / "sessions" / f"{session['id']}.wait"
+    if session_id:
+        return state_home() / "sessions" / f"{session_id}.wait"
     return page_dir / WAITER_LOCK if page_dir is not None else None
 
 
@@ -109,7 +110,7 @@ def take_waiter_lease(path: Path):
     return record
 
 
-def wait_is_live(page_dir: Path, session: dict | None) -> bool:
+def wait_is_live(page_dir: Path, session_id: str | None) -> bool:
     """Whether this ownership scope's exact wait lease is held now."""
-    lease_path = waiter_lease_path(page_dir, session)
+    lease_path = waiter_lease_path(page_dir, session_id)
     return bool(lease_path and lock_is_held(lease_path))

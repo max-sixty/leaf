@@ -211,7 +211,7 @@ def cmd_receipt(page_dir: Path, request: str, status: str, text) -> None:
     with PageTransaction(page_dir) as page:
         event = {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             **message_identity(),
             "request": request,
             "status": status,

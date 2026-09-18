@@ -30,7 +30,7 @@ from leaf import hooks as hooks_model
 from leaf.registry import storage as registry_storage
 
 
-def test_comment_anchors_on_a_quote_and_posts_as_claude(page_dir, sessionless):
+def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
     result = comment(
         published(page_dir), "--quote", "Ship dark", "--text", "dark for how long?"
     )
@@ -38,7 +38,7 @@ def test_comment_anchors_on_a_quote_and_posts_as_claude(page_dir, sessionless):
     event = json.loads(result.output)
     assert (
         event["kind"] == "comment"
-        and event["author"] == "claude"
+        and event["author"] == "agent"
         and event["revision"] == 1
     )
     # A bare run has no host session behind it, so the event carries no voice
@@ -1014,7 +1014,7 @@ def test_a_comment_without_an_anchor_asks_the_page_whole(page_dir):
     result = comment(published(page_dir), "--text", "just a thought")
     assert result.exit_code == 0, result.output
     event = json.loads(result.output)
-    assert event["kind"] == "comment" and event["author"] == "claude"
+    assert event["kind"] == "comment" and event["author"] == "agent"
     assert "anchor" not in event
 
 
@@ -1068,12 +1068,12 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     )
     assert result.exit_code == 0, result.output
     event = json.loads(result.output)
-    assert event["kind"] == "resolve" and event["author"] == "claude"
+    assert event["kind"] == "resolve" and event["author"] == "agent"
     assert event["parent"] == answer["id"]
     assert event["agent"] == "Indexer" and event["session"] == "s-7"
 
     threads = state_json(page_dir)["conversations"]
-    assert [t["resolved"] for t in threads] == ["claude"]
+    assert [t["resolved"] for t in threads] == ["agent"]
 
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "resolved by Indexer" in transcript.output
@@ -1133,7 +1133,7 @@ def test_a_closed_thread_stops_asking(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which mitigations?",
             "markup": '<lf-ask id="gm-decision"><h3>Which mitigations?</h3>'
@@ -1153,7 +1153,7 @@ def test_a_closed_thread_stops_asking(page_dir):
         }
     ]
     events_model.append_event(
-        page_dir, {"kind": "resolve", "author": "claude", "parent": root["id"]}
+        page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
     )
     assert state_json(page_dir)["asks"] == []
 
@@ -1168,7 +1168,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
                 page_dir,
                 {
                     "kind": "comment",
-                    "author": "claude",
+                    "author": "agent",
                     "revision": 1,
                     "text": f"Choose {suffix}",
                     "markup": (

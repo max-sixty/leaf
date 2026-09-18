@@ -1057,7 +1057,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-decision",
             "revision": 1,
             "text": SPECIMEN_TEXT,

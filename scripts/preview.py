@@ -798,7 +798,7 @@ def serve_preview(
     the restart it would have made is suppressed.
     """
     from leaf.files import read_json
-    from leaf.host import host_identity
+    from leaf.host import session_harness
     from leaf.layer import layer_inputs
     from leaf.leases import lock_is_held
     from leaf.service import PageTransaction
@@ -843,7 +843,7 @@ def serve_preview(
                 # A refused restart has no service watching the claim's
                 # lifetime. Lost ownership ends this watcher as well.
                 with PageTransaction(page) as state:
-                    if not state.owned_by(host_identity()):
+                    if not state.owned_by(session_harness()):
                         return
             if not reported:
                 continue  # the idle wake-up that carried the two checks above

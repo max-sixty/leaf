@@ -649,7 +649,7 @@ test("a pending reader reply hands an accepted question to the agent until it le
   const root = {
     kind: "comment",
     id: "question",
-    author: "claude",
+    author: "agent",
     text: "Which one?",
     ts: "now",
   };
@@ -706,7 +706,7 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
   const root = {
     kind: "comment",
     id: "question",
-    author: "claude",
+    author: "agent",
     text: "Choose in the options below.",
     ts: "now",
   };
@@ -882,7 +882,7 @@ test("a reaction root is not a spoken turn awaiting the reader", () => {
   const root = {
     kind: "comment",
     id: "reaction-root",
-    author: "claude",
+    author: "agent",
     token: "ack",
     parent: "passage",
     ts: "now",

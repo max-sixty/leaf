@@ -238,7 +238,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 # A host session states its identity in the environment, under names of its own.
-# The suite is a Claude Code session, and `host_identity` reads that set first, so
+# The suite is a Claude Code session, and `session_harness` reads that set first, so
 # a test about a Codex session, or about no session at all, takes it away.
 CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID", "CLAUDE_JOB_DIR")
 CODEX_IDENTITY = ("CODEX_THREAD_ID", "LEAF_SESSION_ID", "LEAF_AGENT")
@@ -288,7 +288,7 @@ def sessionless(monkeypatch):
 def codex_env():
     """The environment a Codex session's commands run in, for the tests that put
     a real one above a leaf: everything this process holds but the Claude Code
-    identity, which `host_identity` would answer with instead."""
+    identity, which `session_harness` would answer with instead."""
     return {k: v for k, v in os.environ.items() if k not in CLAUDE_IDENTITY}
 
 

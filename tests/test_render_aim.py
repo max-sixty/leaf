@@ -1779,7 +1779,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-inline-margin",
             "revision": 1,
             "text": "Here is the change:",

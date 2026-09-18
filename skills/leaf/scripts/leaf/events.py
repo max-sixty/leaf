@@ -273,7 +273,7 @@ def awaits_agent(thread: dict) -> bool:
     the same question as theirs is one fact told two ways.
 
     Not the agent, rather than the reader: `author` is an open string on every message
-    contract, and the two the code writes are `user` and `claude`. A line from anywhere
+    contract, and the two the code writes are `user` and `agent`. A line from anywhere
     else therefore reads as owed an answer, which is the direction to err in — an
     unanswered word is invisible to everyone, while one answer too many costs a reply.
 
@@ -283,15 +283,14 @@ def awaits_agent(thread: dict) -> bool:
     runtime's `awaitsAgent` reads the same list for the same reason."""
     said = spoken_turns(thread)
     unanswered = next(
-        (message for message in reversed(said) if message["author"] != "claude"),
+        (message for message in reversed(said) if message["author"] != "agent"),
         None,
     )
     return bool(
         not thread["resolved"]
         and unanswered
         and not any(
-            message["author"] == "claude"
-            and message.get("responds") == unanswered["id"]
+            message["author"] == "agent" and message.get("responds") == unanswered["id"]
             for message in said
         )
     )

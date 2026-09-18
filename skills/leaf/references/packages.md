@@ -315,6 +315,18 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary, MCP, and
 published pages while the source retains its canonical path.
 
+A module that moves something calls `motion(element, keyframes, ms)` rather than
+`element.animate`. The stylesheet's reduced-motion guard reaches CSS animation and
+transitions, not a Web Animations call a module makes for itself, so `motion` is where a
+reader who asked for stillness is answered: it returns `null` under that preference,
+before `body[data-lf-presented]`, and while standing state is being restored into
+replacement markup, and a caller treats no animation and a finished one as the same
+state. `reducedMotion()`, `scrollBehavior()`, and `onMotionPreferenceChange()` answer the
+same preference where a module has to branch on it, and `FOLD_MS` is how long a unit takes
+to leave, so a widget retiring one uses that constant rather than choosing a number. Spend
+a duration only on letting the eye follow a box from where it was to where it is. A result
+the module can already draw is drawn in the gesture rather than after a wait.
+
 `widgetController(owner)` is the one semantic interface. Leaf captures the owner's id,
 tag, document, revision-bound declaration, authored ownership and exhibit fences,
 Ask and conversation predicates, request bindings, and direct offers before upgrade;

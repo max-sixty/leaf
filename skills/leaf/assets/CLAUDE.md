@@ -721,14 +721,27 @@ receipts carry it beside the triggering message; thread cards do not repeat it a
 colored edge. Quiet or ended work releases the control. Reduced motion suppresses
 arrival, and repainting or replacing a carrier cannot replay it.
 
+A thread reading whose next word is the reader's wears the same two channels in blue —
+icon and interior — in Margin and in Page Map. It reads `awaitsReader`, the server's one
+answer to whose turn a conversation is, rather than deriving a second one. Agent workflow
+outranks it on the same carrier: live work is what the reader needs first, and one
+interior carries one wash. Colour is never the only channel, so the reading also says
+"On you" in its label and accessible name. An aggregated thread control takes the turn of
+any member, as it takes the most urgent member's workflow stage.
+
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
 a state the reader must return to or act on, such as failure.
 
 Where the page can produce that result itself, it produces it in the gesture. A
 suggestion decision paints its projected outcome; a comment or reply paints the message
-and opens its thread. The application overlays pending work on the log and restores
-authoritative state on refusal. The content and its Undo control are the confirmation,
+and opens its thread. Drawing the result moves the words, so the box they were written
+in reads empty in that same turn. The reader's answer stands on screen once, rather than
+beside a copy of itself still waiting to be sent. The generation is unsettled until the
+log answers, and a refusal returns it to the box. The runtime's send owns both halves
+(`standGesture`), so no box empties or refills itself.
+The application overlays pending work on the log and restores authoritative state on
+refusal. The content and its Undo control are the confirmation,
 so neither path needs a success notice; announce the same outcome for a reader listening
 to the page. For a message that announcement is `post`'s, made where the gesture is first
 known to be a message, so a box that sends one adds no second announcement. A box whose
@@ -737,6 +750,29 @@ because a later write replaces the live region rather than joining it. A gesture
 result only the log can supply waits instead, with
 `aria-busy` on the surface, which `chrome.css` paints on a delay so a fast answer shows
 nothing at all.
+
+### Motion
+
+Nothing the reader must read, press, or decide waits on a clock. Motion runs from a state
+that is already true: a fold collapses room the reader has already been told is going, a
+carry moves a card that has already arrived. Motion that has to finish before the result
+can be read is a pause.
+
+A motion the reader is waiting to end runs as long as the eye needs to follow a box from
+where it was to where it is, and stays under 300ms. A motion that moves nothing carries
+no such bound, so a landing flash or an arrival pulse may run longer; the reader reads
+straight through it.
+
+The `aria-busy` wait above withholds a look rather than a result. It removes a flicker a
+fast answer would otherwise paint and leave, and a delay may subtract that way. A minimum
+spinner time, a staged reveal, or a pause that makes work read as substantial adds one
+instead.
+
+`runtime/motion.js` owns the shared gate, the ease, and the reduced-motion answer for the
+motion it plays; the theme's guard answers for CSS. A duration two motions share belongs
+there under one name, as `FOLD_MS` is, because two numbers written for one reason are free
+to disagree. A duration one motion uses states its reason where it is passed. CSS
+transitions answer to the same ceiling.
 
 ## Standalone copies and print
 

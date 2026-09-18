@@ -530,6 +530,12 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     # The sentence behind the chip, off the register: the reference's z row names the
     # token and the passage it stands on, where it promised a generic take-back before.
+    # The row and the line's chip ask one predicate, and it is dead for as long as the
+    # send this sentence would name is a gesture no log read has accounted for. The paint
+    # above arrives a turn before that reading does, so the reference is opened from the
+    # moment the line offers the press, which is the fact `render_harness.undo` waits
+    # on for the press itself.
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()

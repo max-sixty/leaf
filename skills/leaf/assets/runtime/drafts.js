@@ -36,6 +36,12 @@
    distinguish them, because deletion can fail independently and could otherwise
    resurrect old words.
 
+   Every send draws its result in this document before the log answers. So the send
+   masks its generation here at the gesture (`standGesture`) and the box the words were
+   typed in reads empty, while the record stands unsettled until the answer accepts it
+   or a refusal gives the words back. The mask is this document's; the record is every
+   tab's.
+
    `base` records the durable shared generation a local edit descends from. A chain of
    nondurable local writes keeps that base. Storage news from the base cannot erase the
    branch; an unrelated later shared generation owns the context and retires it. Before
@@ -189,18 +195,18 @@ const refreshDraftRecord = (ctx) => {
   if (changed) projectDraftRecord(ctx, shared);
   return shared;
 };
-// A generation this document has sent as a message and not heard back on. Its words are
-// standing in the conversation, so the box they were written in reads empty — while the
-// record itself stands, unsettled, until the log accepts it. The two are different
-// facts: what a composer shows is about this document, and settlement is a claim over
-// every tab. That is what lets a second tab still show and send the same generation, and
-// what brings the words back here on a refusal with nothing to restore them from.
-const standingMessages = new Map(); // ctx -> attempt
+// A generation this document has sent and not heard back on. Its words are standing
+// wherever the gesture drew them, so the box they were written in reads empty, while
+// the record itself stands, unsettled, until the log accepts it. The two are different
+// facts: what a box shows is about this document, and settlement is a claim over every
+// tab. That is what lets a second tab still show and send the same generation, and what
+// brings the words back here on a refusal with nothing to restore them from.
+const standingGestures = new Map(); // ctx -> attempt
 
 const activeDraftRecord = (ctx) => {
   const record = rawDraftRecord(ctx);
   if (!record || record.settled || attemptAccepted(record.attempt)) return null;
-  return standingMessages.get(ctx) === record.attempt ? null : record;
+  return standingGestures.get(ctx) === record.attempt ? null : record;
 };
 // Every tombstone is an ownership claim, whether it follows Send, Cancel, a widget
 // action, or a poll that observed the attempt in the log. Re-read shared storage before
@@ -310,22 +316,50 @@ function claimDraft(ctx, owns) {
   return current;
 }
 
-// A gesture whose result only the log can supply: a widget edit, an added option. The
-// draft stands until the answer accepts it, so a refusal leaves the reader's text exactly
-// where it was, and the caller waits on the answer with `aria-busy` on its own control.
+// Both senders below stage the same way, because both draw their result in the document
+// before the log has answered: `post` paints the message in its thread, and a dispatched
+// action paints its projected outcome. So the box stops showing words the reader can now
+// see standing, while the record keeps them — one copy of the words on screen, and a
+// generation still owed an answer. Acceptance settles exactly that generation. A refusal
+// withdraws the result and lifts the mask, so the box the reader typed in has the words
+// again; the record stood in the store throughout, which is what a tab that went down
+// with the send recovers from.
+const standGesture = (ctx, current) => {
+  standingGestures.set(ctx, current.attempt);
+  tellDraft(ctx, null);
+  return (sent) => {
+    // Lift this generation's mask, not whatever is standing for the context: a second
+    // send into the box this one emptied has masked its own words by the time this
+    // answer arrives, and they are on screen as a gesture of their own.
+    if (standingGestures.get(ctx) === current.attempt) standingGestures.delete(ctx);
+    if (sent) {
+      if (settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
+      return;
+    }
+    // A later edit of their own has a fresh attempt and is not this generation, and
+    // keeps the box.
+    if (activeDraftRecord(ctx)?.attempt !== current.attempt) return;
+    tellDraft(ctx, current.text);
+  };
+};
+
+// An action the sender waits on: a widget edit, an added option. Its dispatch paints the
+// projected outcome before the delivery it returns resolves, so the words are already
+// standing in the document by the time this awaits them. The caller's own control shows
+// the wait.
 export async function sendDraft(ctx, owns, send) {
   const current = claimDraft(ctx, owns);
   if (!current) return null;
-  const sent = await send(current.attempt, current.payload);
-  if (sent && settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
+  const flight = send(current.attempt, current.payload);
+  const answer = standGesture(ctx, current);
+  const sent = await flight;
+  answer(sent);
   return sent;
 }
 
 // A message, whose result is the words themselves. `post` stages and paints it before it
 // returns, so the caller continues against a thread the reader can already see and the
-// round trip happens behind them. The generation settles on acceptance, exactly as
-// above; what happens in the gesture is that this document stops showing words it is now
-// showing in the thread. A refusal lifts that and the box has them again.
+// round trip happens behind them.
 //
 // The returned handle names the message the send drew. It is what a caller opens or
 // focuses, and the log's answer renames that same node rather than replacing it.
@@ -333,24 +367,8 @@ export function sendMessage(ctx, owns, send) {
   const current = claimDraft(ctx, owns);
   if (!current) return null;
   const flight = send(current.attempt, current.payload);
-  standingMessages.set(ctx, current.attempt);
-  tellDraft(ctx, null);
-  void Promise.resolve(flight).then((sent) => {
-    // Lift this generation's mask, not whatever is standing for the context: a second
-    // send into the box this one emptied has masked its own words by the time this
-    // answer arrives, and they are on screen as a pending message of their own.
-    if (standingMessages.get(ctx) === current.attempt) standingMessages.delete(ctx);
-    if (sent) {
-      if (settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
-      return;
-    }
-    // Refused, so the words are the reader's again — written back to the store rather
-    // than only told to the boxes, since the one they were typed in may have gone down
-    // with the send and a reload must still find them. A later edit of their own has a
-    // fresh attempt and is not this generation, and keeps the box.
-    if (activeDraftRecord(ctx)?.attempt !== current.attempt) return;
-    tellDraft(ctx, current.text);
-  });
+  const answer = standGesture(ctx, current);
+  void Promise.resolve(flight).then(answer);
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }
 

@@ -329,6 +329,18 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
+  /* A conversation whose next word is the reader's. The green below says the agent has
+     this one, so the reader's own turn has to be a hue apart from it, and apart again
+     from the violet a comment mark already wears. Blue is where the page's pointing
+     already lives; the wash is mixed to the same strength as --ok-wash so the two
+     states read as one pair rather than two decorations.
+     TODO: this is a first colour, not a settled scheme. A margin entry can now stand in
+     three states — on the agent, on the reader, on neither — and they have not been
+     designed together. Decide whether the reader's turn deserves a hue of its own
+     rather than the accent's, and whether "on neither" should say so at all. */
+  --turn-tint: light-dark(#dbe6f4, #1a2533);
+  --turn-wash: color-mix(in srgb, var(--turn-tint) 52%, var(--paper));
+  --turn-ink: var(--accent);
   --warn-tint: light-dark(#f7ecd2, #322715);   --warn-ink: light-dark(#8a5a12, #e2bb75);
   --danger-tint: light-dark(#f7e0da, #35211b); --danger-ink: light-dark(#9c3526, #e0a091);
   --add-tint: light-dark(#e4efe0, #1b2a1c); --del-tint: light-dark(#f7e2dc, #33201b);
@@ -1404,6 +1416,12 @@ leaf-anchor-note { display: contents; }
           align-items: center; }
 .lf-conversation-head time { color: var(--muted-2); }
 .lf-conversation-head .lf-edited { color: var(--muted-2); }
+/* The document face of the panel's receipt mark, dressed here for the same reason the
+   head's sizes and rhythm are: a conversation projected inline wears the theme. */
+.lf-conversation-head .lf-msg-failure { padding: 1px 5px;
+    border: 1px solid var(--warn); border-radius: var(--chip-r);
+    color: var(--warn-ink); background: var(--warn-tint);
+    font: 600 var(--t-6)/1.25 var(--sans); }
 .lf-conversation-body { margin-top: 4px; line-height: 1.5; }
 .lf-conversation-body > :first-child { margin-top: 0; }
 .lf-conversation-body > :last-child { margin-bottom: 0; }

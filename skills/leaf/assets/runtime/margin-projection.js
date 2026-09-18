@@ -25,7 +25,9 @@
    a reader move from its generated status into pickup and work on the exact thread
    reading or the target's surviving semantic control; only a target without a carrier
    gets a separate activity reading. Aggregated thread controls prefer working over
-   picked up, while Page Map keeps each thread's stage.
+   picked up, while Page Map keeps each thread's stage. A thread reading also carries
+   whose turn the conversation is, read from the server's `awaitsReader`; an aggregate
+   takes the turn of any member, and agent workflow outranks it on the same carrier.
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
@@ -67,6 +69,7 @@ import {
   presentMarginEntry,
   syncMarginAgentWorkflow,
   syncMarginEntrySelection,
+  syncMarginTurn,
   watchMarginContributions,
 } from "./margin-entries.js";
 import { mapButton } from "./page-map-dialog.js";
@@ -97,7 +100,7 @@ import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.
 import { paintTrace } from "./target-paint.js";
 import { agentWorkflowStage, updateSequence } from "./updates.js";
 import { threadList } from "./conversation/state.js";
-import { threadKey } from "./conversation/model.js";
+import { awaitsReader, threadKey } from "./conversation/model.js";
 
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
@@ -696,7 +699,16 @@ export function createMarginProjection({
 
   const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
+  // An aggregated reading takes its most urgent member's turn, as it already takes the
+  // most urgent member's workflow stage: one seat cannot say two things, and the reading
+  // a cluster is compact enough to hide is the one the reader most needs to see.
+  const awaitingReader = (items) => items.some((item) => item.awaitsReader);
+  // The word beside the colour. Colour alone cannot carry a state, and the panel already
+  // calls this one "On you", so the margin says it the same way.
+  const TURN_WORD = "On you";
+
   function readingContext(choice) {
+    if (awaitingReader(choice?.items ?? [])) return TURN_WORD;
     if (choice?.items.length !== 1) return null;
     return choice.items[0].context ?? null;
   }
@@ -1109,6 +1121,7 @@ export function createMarginProjection({
       const id = thread.root.id;
       const target = placedAt(id)?.element;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
+      const onReader = awaitsReader(thread);
       add(groups, target, {
         kind: "comment",
         // One row for one conversation, across the log answering for it. A thread the
@@ -1120,6 +1133,14 @@ export function createMarginProjection({
           thread.root.text || anchorLabel(thread.anchor, thread.root.about),
         ),
         thread,
+        // Whose word this conversation waits on, read from the server's projection
+        // rather than derived again here: the banner's count, the panel's On-you facet
+        // and this margin entry are one question, and a second reading of it in the
+        // margin would be a second answer.
+        awaitsReader: onReader,
+        // Page Map lists each conversation on its own row, so the word goes on the row
+        // rather than on an aggregate.
+        ...(onReader ? { mapContext: TURN_WORD } : {}),
         workflowReceipt: threadReceipts.get(id),
         activate: () => showThread(id),
       });
@@ -1445,7 +1466,7 @@ export function createMarginProjection({
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
-    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}`;
+    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${awaitingReader(choice?.items ?? []) ? `, ${TURN_WORD}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
     return `${reading}, ${index + 1} of ${anchored}, ${subject}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}`;
@@ -1792,6 +1813,7 @@ export function createMarginProjection({
     row.removeAttribute("aria-pressed");
     syncReadingRelation(row, choice);
     syncMarginAgentWorkflow(row, workflowReceipt(choice?.items ?? []));
+    syncMarginTurn(row, awaitingReader(choice?.items ?? []));
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
       (row.hidden ? document.body : row).focus({ preventScroll: true });
@@ -1860,7 +1882,7 @@ export function createMarginProjection({
         key: `reading:${choice.key}`,
         icon: face.icon,
         label,
-        accessibleLabel: `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
+        accessibleLabel: `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}${awaitingReader(choice.items) ? `, ${TURN_WORD}` : ""}`,
         context: readingContext(choice),
         behavior,
         rank: "reading",
@@ -1874,6 +1896,7 @@ export function createMarginProjection({
     keeps(node, "data-lf-kinds", choice.kind);
     syncReadingRelation(node, choice);
     syncMarginAgentWorkflow(node, workflowReceipt(choice.items));
+    syncMarginTurn(node, awaitingReader(choice.items));
     node.onclick =
       behavior === "status"
         ? null

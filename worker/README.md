@@ -224,12 +224,20 @@ revise `index.html`, validate it, append thread replies, and leave the page wait
 initiating App Server connection projects the turn's native activity notifications back
 through Leaf. For deferred input it stays subscribed through the active turn, starts
 and records the delivery turn opening, and observes that turn to its terminal state. The container's
-pickup is idempotent, so a repeated dispatch does not start the work twice. A task
-startup failure appends a short failure reply through the same event log. The Worker
-sends `{event, text, failure}` to `/_leaf/agent/reply`: `failure` is `startup_failed`
-or `rate_limited`, validated by the adapter and persisted on the canonical reply.
-The deployment verifier retries `startup_failed` once and fails immediately on
-`rate_limited`; ordinary agent answers omit `failure`. Reply wording is presentation.
+pickup is idempotent, so a repeated dispatch does not start the work twice. A boundary
+that gives up appends a failure receipt through the same event log. The
+Worker names a code and nothing else — it sends `{event, failure}` to
+`/_leaf/agent/reply`, where `failure` is `startup_failed` or `rate_limited` — and the
+adapter validates it, supplies the reader's wording from its own `FAILURE_RECEIPTS`
+declaration, and persists the code on the canonical reply. `turn_failed` is the third
+code and never crosses that door: a container writes it from its own reading of a turn
+it followed to nothing, which is a claim only the code that followed it can make. All
+three go through one writer, `write_failure_receipt`, so a reader meets every
+giving-up boundary in one shape and the page has one thing to draw — a reply carrying
+`failure` is marked in its head as answering nothing, rather than reading as the
+answer it stands in for. The deployment verifier retries `startup_failed` once and
+fails immediately on `rate_limited`; it reads the code and never the words, and
+ordinary agent answers omit `failure` entirely.
 The accepted event and active turn are not yet mirrored into Durable Object storage,
 and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.

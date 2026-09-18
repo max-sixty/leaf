@@ -31,6 +31,7 @@ import {
   compareMarginEntryRecords,
   presentMarginEntryHost,
   syncMarginAgentWorkflow,
+  syncMarginTurn,
   trackMarginEntryControl,
   visibleMarginEntryLabel,
 } from "./margin-entries.js";
@@ -328,9 +329,10 @@ export function createPageMapDialog({
       )) {
         const action = actions.get(control.dataset.lfMapKey);
         if (!action) continue;
-        if (action.kind === "item")
+        if (action.kind === "item") {
           syncMarginAgentWorkflow(control, action.item.workflowReceipt);
-        else presentSheetControl(control, action, group.actions);
+          syncMarginTurn(control, action.item.awaitsReader);
+        } else presentSheetControl(control, action, group.actions);
       }
       for (const offered of group.entry.offers)
         clearMarginEntryControls(

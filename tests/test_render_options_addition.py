@@ -17,6 +17,9 @@ from render_cases_layout import (
 )
 from render_harness import (
     EXAMPLE_MEDIA,
+    STORED_DRAFT_TEXT,
+    consume_browser_errors,
+    holding,
     open_page,
     round_trip,
     sending,
@@ -323,6 +326,86 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
+
+
+def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve):
+    """The reader's answer stands on screen once, as the option the press drew.
+
+    The press paints that option before the log has answered, so the words have moved and
+    the box they came from is empty in that same turn; a reader who saw both would read
+    their own answer as still unsent. The generation is standing rather than settled, and
+    the refusal shows the difference. It takes the option away and gives the words back,
+    out of a record that never left the store.
+    """
+    browser, held = held_events
+    page = open_page(browser, serve(ASK_PAGE))
+    form = page.locator("#jobs > .lf-another")
+    field = form.get_by_role("textbox", name="Another option", exact=True)
+    words = "Insulate the camera battery"
+    field.fill(words)
+    form.get_by_role("button", name="Add option", exact=True).click(no_wait_after=True)
+    holding(page, held, 1, "the added option")
+
+    added = page.locator("#jobs > lf-option[data-lf-added]")
+    expect(added).to_have_count(1)
+    expect(added).to_contain_text(words)
+    expect(field).to_have_value("")
+    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") == words
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(added).to_have_count(0)
+    expect(field).to_have_value(words)
+    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") == words
+    assert not [
+        event
+        for event in sent_events(serve.page_dir)
+        if event.get("kind") == "action" and event.get("widget") == "jobs"
+    ]
+    consume_browser_errors(page, "400")
+
+
+def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, serve):
+    """A pick made while the send is open leaves the sent generation alone.
+
+    Every pick rewrites the add field's draft, because the choice that draft would submit
+    has changed. A pick made while the added option was in the wire used to write over
+    the generation that send owned, so its answer settled nothing and the words it had
+    already carried into an option stayed in the box for good. A sent generation is no
+    longer the box's to write — the same mask that empties the box keeps the pick out of
+    it.
+    """
+    browser, held = held_events
+    page = open_page(browser, serve(ASK_PAGE))
+    form = page.locator("#jobs > .lf-another")
+    field = form.get_by_role("textbox", name="Another option", exact=True)
+    words = "Insulate the camera battery"
+    field.fill(words)
+    form.get_by_role("button", name="Add option", exact=True).click(no_wait_after=True)
+    holding(page, held, 1, "the added option")
+
+    # The queue holds this second action behind the first, so the pick's own paint, not
+    # another held route, is what says the gesture was taken while the send was open.
+    page.locator("#job-heater").click()
+    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
+    expect(field).to_have_value("")
+
+    while held:
+        held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(field).to_have_value("")
+    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") is None
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
 
 
 PASTE_IMAGE = """(textarea, encoded) => {

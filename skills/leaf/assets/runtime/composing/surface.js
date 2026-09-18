@@ -223,7 +223,11 @@ export function createResponseSurface({
   // resize, layout shift, and the bar's own content size. Leaf's explicit layout signals
   // still call placeFab because a document revision can replace the semantic target rather
   // than merely move its old node.
-  function stopFabPositioning({ reset = false } = {}) {
+  // `repositioning` is the caller saying it is moving the bar rather than putting it
+  // away: it answers the waiters itself once the bar has landed. Answering here would
+  // take them out of the list — one answer drains it — and tell a reader waiting to be
+  // put in the field that the bar has no position, in the middle of giving it one.
+  function stopFabPositioning({ reset = false, repositioning = false } = {}) {
     fabPositionEpoch += 1;
     cancelAnimationFrame(fabPositionFrame);
     fabPositionFrame = 0;
@@ -232,7 +236,7 @@ export function createResponseSurface({
     fabPositionTarget = null;
     fabContentHeight = null;
     if (!reset) return;
-    answerFabPosition(false);
+    if (!repositioning) answerFabPosition(false);
     fabPlacement = null;
     fabInlineConnection = null;
     fabPlacementInput = null;
@@ -295,7 +299,7 @@ export function createResponseSurface({
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
     if (fabInlineOutlet !== outlet || fabBar.parentElement !== outlet) {
-      stopFabPositioning({ reset: true });
+      stopFabPositioning({ reset: true, repositioning: true });
       fabInlineOutlet = outlet;
       fabFloating = false;
       moveFab(outlet);
@@ -313,7 +317,7 @@ export function createResponseSurface({
     // viewport plane. Capture the exact focused control first; hiding a focused subtree
     // makes Chromium move focus to body before moveFab can observe what was held.
     const held = captureFabFocus();
-    stopFabPositioning({ reset: true });
+    stopFabPositioning({ reset: true, repositioning: place });
     fabInlineOutlet = null;
     fabFloating = true;
     delete fabBar.dataset.lfPresentation;

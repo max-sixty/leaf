@@ -23,6 +23,11 @@ import { uiInside } from "./shadow.js";
    remaining the wrong semantic target, which is why `shownParts` takes the bounded
    chrome question (`uiInside`). `unmarkableElements`, in the render checks, detects
    declared items with no visible part on which a mark can land. */
+// Whether two boxes share any pixel. The one spelling of a question three chrome passes
+// ask: placement, badge reservation, and the clear part left of a box behind furniture.
+export const overlaps = (a, b) =>
+  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
 // Document-anchored chrome is positioned from the document origin, while the boxes it
 // follows are read in viewport coordinates. Convert once at that boundary.
 export function documentPoint(left, top) {

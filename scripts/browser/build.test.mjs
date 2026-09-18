@@ -19,7 +19,9 @@ test("locked source reproduces the complete committed output", async () => {
   );
   assert.deepEqual(manifest.exports, [
     "LitElement",
+    "PRESENTATION_HELD",
     "createPresentationCoordinator",
+    "createPresentationSchedule",
     "createSemanticApplication",
     "describeFailure",
     "html",

@@ -149,7 +149,7 @@ export function createTrays({
   closePreview,
   leavesOffered,
   presentLeaves,
-  renderAsks,
+  syncAsks,
   renderMargin,
   registerAuxiliarySurface,
 }) {
@@ -247,7 +247,7 @@ export function createTrays({
   // The painters are thunks: each tray's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
   registerTray("leaves", othersPanel, othersBtn, leavesFurniture.close, presentLeaves);
-  registerTray("asks", asksPanel, asksBtn, asksFurniture.close, renderAsks);
+  registerTray("asks", asksPanel, asksBtn, asksFurniture.close, syncAsks);
   const trayNames = Object.freeze([...trays.keys()]);
 
   // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from

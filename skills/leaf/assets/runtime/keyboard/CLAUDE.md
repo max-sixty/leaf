@@ -20,6 +20,17 @@ Core owns commands that act on Leaf's page, chrome, navigation, comments, and sh
 conversation state. A widget owns commands that interpret or change its content. Widget
 scopes join the register only while their instance exists.
 
+Every owner declares its own keys where its code is, through one of two doors, and no
+module enumerates another's capabilities to do it. A widget or a generated control uses
+the element register — `keys(element, …)` and `commandScope(…)` in `scopes.js` — which
+applies while focus is inside that element. A core owner whose condition is the page's
+rather than the reader's position uses `register.js`: `pageScope(name, …)` for a scope of
+its own, and `pageCommand(row)` for a row of the page's own scope. Contribution runs as
+the owner is constructed, so a row closes over that owner's state and the register never
+holds a capability. Adding a command to a surface a feature already declares costs
+nothing outside that feature; a new page-level letter, or a new scope, takes its rank in
+the two orders `register.js` holds.
+
 ## Scope resolution
 
 Ordinary bindings resolve from the focused element outward: an exact control or active
@@ -38,6 +49,13 @@ control or active mode may consume one inner step, followed by the latest eligib
 frame and then containing fallbacks. Browser modal and popover boundaries remain outside
 that order. One press closes one layer.
 
+Those fallbacks are the ladder at the foot of the stack, for state the reader reached
+without a registered keyboard entry: a captured target, a pointer-opened tray or panel,
+ordinary focus traversal. Each rung is an ordinary Escape row in a scope of its owner's,
+rooted at the surface it takes off, and the dispatcher's own walk picks the innermost
+live one. No rung tests whether a return frame stands: `escapeOrder` already ranks that
+frame ahead of every unmarked fallback.
+
 ## Page grammar
 
 Page scope contains commands whose subject is the page. Surface scopes contain commands
@@ -45,10 +63,11 @@ whose subject is that surface's contents. A page-level letter must remain useful
 every page; a visible control otherwise remains reachable through Tab, its native
 activation, contextual Ask digits, or generated Go-to hints.
 
-`page.js` is the canonical page vocabulary. Directional walks use lowercase to advance
-and Shift to go back. A surface may reuse a page key for the same intent with a nearer
-destination; other local commands belong to the widget scope. The exact rows, rather
-than a copied key list, state the current bindings.
+`register.js`'s `PAGE_COMMANDS` is the canonical page vocabulary, in the order the
+shortcut line ranks it; each row is declared by the owner that implements it. Directional
+walks use lowercase to advance and Shift to go back. A surface may reuse a page key for
+the same intent with a nearer destination; other local commands belong to the widget
+scope. The exact rows, rather than a copied key list, state the current bindings.
 
 While the reader stands in an Ask, core projects its widget's ordered Decision commands
 onto `1` through `9`. A widget's declared route wins while focus is in that widget;
@@ -58,14 +77,19 @@ binding invoke the original command through its stable identity and source scope
 ## Module ownership
 
 - `bindings.js` owns spelling, parsing, row fields, routes, and declaration checks.
-- `scopes.js` owns element scopes and the shared command sections derived from them;
-  `register.js` holds core's registered scopes.
+- `scopes.js` owns element scopes and the shared command sections derived from them.
+- `register.js` owns the page's keyboard: the order core's scopes shadow one another in,
+  the rank of the page's own commands, the door each owner contributes through, and the
+  auxiliary-layer readings the dispatcher reads without an edge to their owner.
 - `dispatch.js` owns precedence and platform-default handling; `controller.js` owns the
   physical input lifecycle; `text-entry.js` owns native editing claims.
 - `layer-stack.js` owns the ordered layers standing over the page: the popovers and modal
   dialogs their openers declare, across the document and declared shadow roots, and the
   inverse of commands that enter temporary layers.
-- `page.js` declares core's scopes and rows.
+- `page.js` declares the page's own parts — a link, a disclosure, caret browsing, and the
+  two ends of the Escape ladder — and exports nothing.
+- `control-keys.js` paints the shortcut a visible control advertises, from the row that
+  reaches it.
 - `presentation.js` projects immutable key-sequence readings through the shared Lit
   template. `shortcut-bar.js` and `command-reference.js` synchronously derive and
   Lit-render their complete persistent surfaces from evaluated command readings; their

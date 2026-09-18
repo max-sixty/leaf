@@ -90,6 +90,7 @@ import { panelWouldCover } from "./conversation/panel-elements.js";
 import { COVERING } from "./chrome-layout.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
+import { pageScope } from "./keyboard/register.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
@@ -2719,6 +2720,31 @@ export function createMarginProjection({
       };
     return null;
   }
+
+  // A thread card and the unfolded margin entry cluster that owns it are one page-map
+  // stack, though the card itself is hoisted into the chrome. This is a scene-derived
+  // fallback: a later keyboard entry returns through its captured frame before this rung.
+  // Without one, the registered rung precedes the reaction and navigation fallbacks just as
+  // the surface's old local listener did: Escape closes the card first, then folds the
+  // cluster on a second press.
+  const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
+  pageScope("page map", {
+    title: "In the Page Map",
+    root: () => pageMapRung()?.root ?? document,
+    when: () => Boolean(pageMapRung(false)),
+    at: () => Boolean(pageMapRung()),
+    rows: [
+      {
+        id: "margin.back",
+        keys: ["Escape"],
+        does: () => pageMapRung(false)?.does,
+        line: () => pageMapRung()?.says,
+        commandReferenceWhen: () => Boolean(pageMapRung(false)),
+        when: () => Boolean(pageMapRung()),
+        run: () => pageMapRung()?.out(),
+      },
+    ],
+  });
 
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)

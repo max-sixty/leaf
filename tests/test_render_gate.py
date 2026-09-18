@@ -3167,10 +3167,10 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
 def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_leaf):
     """The shell adopts a workspace's final room in one layout pass.
 
-    The first sample precedes the press. Every later frame should read the final room while
-    the presentation offset carries the column there. More than those two values means the
-    shell is moving through transient widths and making its container queries repeatedly
-    lay out the page.
+    The first sample precedes the press. Every later frame should read the final room,
+    which the column is already laid out in. More than those two values means the shell is
+    moving through transient widths and making its container queries repeatedly lay out
+    the page.
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)

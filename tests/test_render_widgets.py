@@ -5792,8 +5792,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
     page.get_by_role("button", name="Close threads").click()
-    # The panel gives the room back in one responsive layout, then carries the column to
-    # it. Wait for that route before reading the rows against their settled blocks.
+    # The panel gives the room back in one responsive layout, and the column is already
+    # in it. Wait for that before reading the rows against their settled blocks.
     panel_settled(page, open=False)
     resized(page, 820, 900)
     page.wait_for_function(

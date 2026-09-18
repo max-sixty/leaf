@@ -19,12 +19,17 @@ def lock_is_held(path: Path) -> bool:
 
     The kernel releases the lease on exit, crash, or reboot. A durable record
     can therefore outlive its writer without being mistaken for a live process.
+
+    The question is asked with a shared lock, which every lease here refuses and
+    no reading takes for longer than the question. An exclusive probe would be
+    answered by another reading's probe as readily as by a lease, so two
+    processes asking at once would tell each other a lease was held.
     """
     require_cross_process_locking()
     try:
         with open(path, "r+b") as probe:
             try:
-                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
             except OSError:
                 return True
             fcntl.flock(probe, fcntl.LOCK_UN)

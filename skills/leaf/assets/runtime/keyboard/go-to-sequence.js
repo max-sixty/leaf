@@ -2,18 +2,13 @@
 
    Visible, visually discovered targets share one generated-letter namespace. Links,
    tabs, folds, the presses a widget built, and visible margin targets are read together
-   in screen order and receive short prefix-free labels. Most cost one letter; only the
-   tail branches when the scene contains more targets than the available alphabet. The
-   lowercase kind mnemonics are separate commands that filter that map: `g h` shows
-   hyperlinks, `g f` folds, `g m` margin targets, `g t` Thread
-   controls, and `g a` Ask controls. A filtered map keeps each member's code from the
-   complete map. The mapping is local to the
-   visible scene: scrolling refreshes it once motion settles, while a partly typed label
-   freezes it until the reader completes or backs out of that prefix. Routine repaints do
-   not regenerate a standing map. A candidate is revalidated before activation, so a
-   target that left the scene cannot be worked by a stale label. Tab and Shift-Tab announce
-   the current candidates and Enter activates the last one announced, because the painted
-   labels themselves are visual chrome.
+   in screen order and receive short prefix-free labels. `hints.js` owns that map — the
+   codes, the typed prefix, the audible walk, the scroll freeze, the revalidation before
+   activation, and the paint — and this owner declares what the scene holds, what a chip
+   says, and what taking one does. The lowercase kind mnemonics are separate commands
+   that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin targets, `g t`
+   Thread controls, and `g a` Ask controls. A filtered map keeps each member's code from
+   the complete map, which is why codes are assigned here rather than by the session.
 
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `a`, `f`, `h`,
    `m`, and `t` name filters; all nine are excluded from the generated alphabet. `g g` and
@@ -38,11 +33,12 @@
 
    Arming paints `data-lf-go-to-active` on the body and puts the same overlay hint shape on named
    banner destinations and visible page targets. Named destinations show the complete
-   sequence. Generated targets show only their suffix; the shortcut bar and reference retain
-   that shared prefix.
-   Generated hints are opaque routes, so none may be dropped for a collision; the shared
-   hint placement pass spreads them around the shortcut bar and one another. Escape removes
-   one typed letter, then a filter, then closes the sequence. A letter from the hint alphabet is consumed
+   sequence and stay put through a scroll, since they stand on fixed chrome; the session
+   takes them as its fixed chips and spreads the generated ones around them. Generated
+   targets show only their suffix; the shortcut bar and reference retain that shared
+   prefix. A moving page target cannot carry a readable opaque route, so the generated
+   part of the map is withheld until the scene settles. Escape removes one typed letter,
+   then a filter, then closes the sequence. A letter from the hint alphabet is consumed
    even when a scene refresh made it invalid, with explicit feedback instead of an
    unrelated page action; another unrelated key closes the sequence and is redispatched with
    its ordinary meaning.
@@ -65,13 +61,13 @@
    the hints just painted. */
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
-import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
+import { createHintSession, HINT_KEYS, hintCodes, renderKeys } from "./hints.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
   progressStates,
 } from "./presentation.js";
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing } from "../../vendor/browser-runtime.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
@@ -103,7 +99,6 @@ import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, focused, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
-import { beginWalk, listWalkPosition } from "../walk-position.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -115,8 +110,8 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 export function createGoToSequence({
   panelIsOpen,
   panelCovers,
-  elements: { banner, toggleBtn, shortcutBarEl },
-  standingStatusBoxes,
+  elements: { banner, toggleBtn },
+  hintChrome,
   directDestinations,
   captureAuxiliaryChromeState,
   restoreAuxiliaryChromeState,
@@ -425,7 +420,7 @@ export function createGoToSequence({
           member.getAttribute("aria-disabled") === "true" ||
           closestAcross(member, "[inert]");
         if (unavailable) continue;
-        const rect = placement.visibleBox(member);
+        const rect = placement.badgeBox(member);
         if (!rect || !exposed(member, rect, entry.exposure)) continue;
         seen.add(member);
         const says =
@@ -454,15 +449,8 @@ export function createGoToSequence({
   // added to the live sequence so the shortcut bar and chips can paint how far it has advanced.
   const sequencePrefix = () => [labelOf(OPEN_GO_TO)].filter(Boolean);
   const sequenceKeys = () =>
-    [...sequencePrefix(), targetFilter?.key, ...prefix].filter(Boolean);
-  const hintRenderKeys = new WeakMap();
-  let nextHintRenderKey = 1;
-  // Lit sees only an opaque primitive. The native row or target remains controller state,
-  // while an unchanged owner retains its hint and keycaps across paint-only updates.
-  const hintRenderKey = (owner) => {
-    if (!hintRenderKeys.has(owner)) hintRenderKeys.set(owner, nextHintRenderKey++);
-    return hintRenderKeys.get(owner);
-  };
+    [...sequencePrefix(), targetFilter?.key, ...hints.prefix()].filter(Boolean);
+  const hintRenderKey = renderKeys();
   const goToHintModel = (candidate, current) => {
     const steps = [...candidate.code];
     const marginEntryKey = candidate.member.dataset?.lfMarginEntryKey;
@@ -480,7 +468,7 @@ export function createGoToSequence({
       targetId: targetId || null,
       commandId: null,
       address: null,
-      sequence: keySequenceModel(steps, progressStates(steps, [...prefix])),
+      sequence: keySequenceModel(steps, progressStates(steps, [...hints.prefix()])),
     });
   };
 
@@ -530,41 +518,50 @@ export function createGoToSequence({
   };
   const directDestinationHints = () =>
     GO_TO_SCOPE.rows.map(directDestinationHint).filter(Boolean);
-  const renderGoToHints = (controlPlans, targetPlans = []) => {
-    const plans = [...controlPlans, ...targetPlans];
-    render(
-      html`${repeat(
-        plans,
-        ({ model }) => model.key,
-        ({ model }) => goToHintTemplate(model),
-      )}`,
-      goToHintLayer,
-    );
-    const chips = [...goToHintLayer.children];
-    const placed = plans.map((plan, index) => {
-      const chip = chips[index];
-      chip.style.left = `${plan.left}px`;
-      chip.style.top = `${plan.top}px`;
-      return { chip, target: plan.target, belowTarget: plan.belowTarget };
-    });
-    const controls = placed.slice(0, controlPlans.length);
-    return {
-      controlBoxes: spreadHints(controls),
-      targets: placed.slice(controlPlans.length),
-    };
-  };
-
-  // The armed window owns every key wherever focus sits. Generated candidates stay stable
-  // through ordinary repaints, refresh after viewport motion settles, and freeze after the
-  // first hint letter.
+  // The armed window owns every key wherever focus sits. The shared hint session holds
+  // the map, the typed prefix, the audible walk, and the scroll freeze; this owner holds
+  // only which kind filter the reader has asked for.
   let goToActive = false;
   let targetFilter = null;
-  let prefix = "";
-  let candidates = [];
-  let hintActive = -1;
-  let scrolling = false;
-  let scrollTimer = 0;
-  let refreshCandidates = false;
+
+  // A generated label over an inline link must not become a span the passage walk then
+  // has to understand, so the chips are chrome and the scene is read rather than marked.
+  const hints = createHintSession({
+    layer: goToHintLayer,
+    walk: "go-to-target",
+    read: () => visibleCandidates(targetFilter),
+    identity: (candidate) => candidate.member,
+    scene: keyBadgePlacement,
+    plan: (candidate, { current, fresh, reading }) => {
+      const rect = fresh ? candidate.rect : reading.badgeBox(candidate.member);
+      if (
+        !fresh &&
+        (!candidate.member.checkVisibility() ||
+          !rect ||
+          !exposed(candidate.member, rect, candidate.exposure))
+      )
+        return null;
+      return {
+        model: goToHintModel(candidate, current),
+        target: rect,
+        belowTarget: false,
+        left: rect.left,
+        top: rect.top,
+      };
+    },
+    template: goToHintTemplate,
+    take: (candidate) => {
+      setGoToSequence(false);
+      candidate.go(candidate.member);
+    },
+    words: {
+      describe: (candidate) => `${candidate.kind}, ${candidate.says}`,
+      take: "go there",
+      all: "All go-to hints.",
+    },
+    chrome: hintChrome,
+    extras: directDestinationHints,
+  });
 
   function setGoToSequence(on) {
     // Armed over a control that has claimed Escape, one press would have two owners — the
@@ -577,211 +574,39 @@ export function createGoToSequence({
     // links that were already standing in the document.
     document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
     targetFilter = null;
-    prefix = "";
-    candidates = on ? visibleCandidates() : [];
-    hintActive = -1;
-    scrolling = false;
-    refreshCandidates = false;
-    clearTimeout(scrollTimer);
+    if (!on) {
+      hints.disarm();
+      return repaint();
+    }
+    const found = hints.arm();
     // The chips are the eye's copy; the sequence itself is spoken, or the context change is silent
     // to exactly the reader who cannot see them.
-    if (on)
-      announce(
-        `Go to — ${candidates.length ? `${candidates.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
-      );
+    announce(
+      `Go to — ${found.length ? `${found.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+    );
     repaint();
   }
 
-  const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
   const targetCapability = () => TARGET_KINDS.some((entry) => entry.list().length > 0);
-  const atGoToTargets = () => !targetFilter && !prefix;
-
-  function candidateIsCurrent(candidate) {
-    return visibleCandidates(targetFilter).some(
-      (current) =>
-        current.member === candidate.member && current.kind === candidate.kind,
-    );
-  }
+  const atGoToTargets = () => !targetFilter && !hints.prefix();
 
   function filterTargets(binding) {
     targetFilter = TARGET_FILTERS.find(({ key }) => key === binding);
-    prefix = "";
-    candidates = visibleCandidates(targetFilter);
-    hintActive = -1;
-    const message = candidates.length
-      ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
+    const found = hints.refresh();
+    const message = found.length
+      ? `${found.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
       : `No visible ${targetFilter.word}.`;
-    if (candidates.length) notice(message);
+    if (found.length) notice(message);
     else announce(message);
     repaint();
   }
 
   // An empty active filter is useful state, not a four-second event. The candidate map is
-  // the reading paintGoToHints already owns; using it here keeps the shortcut repaint out
-  // of the expensive visibility and hit-test pass.
+  // the reading the hint session already holds; using it here keeps the shortcut repaint
+  // out of the expensive visibility and hit-test pass.
   function goToStatus() {
-    if (!goToActive || !targetFilter || candidates.length) return null;
+    if (!goToActive || !targetFilter || hints.candidates().length) return null;
     return `No visible ${targetFilter.word}.`;
-  }
-
-  function activateCandidate(candidate) {
-    if (!candidate || !candidateIsCurrent(candidate)) {
-      prefix = "";
-      candidates = visibleCandidates(targetFilter);
-      hintActive = -1;
-      announce("That target is no longer visible. The hints are reset.");
-      return repaint();
-    }
-    setGoToSequence(false);
-    candidate.go(candidate.member);
-  }
-
-  function typeHint(key) {
-    const next = prefix + key;
-    if (!candidates.some(({ code }) => code.startsWith(next))) {
-      announce(`No hint ${next}. The current hints are unchanged.`);
-      return;
-    }
-    prefix = next;
-    hintActive = -1;
-    const target = hinted().find(({ code }) => code === prefix);
-    if (target) return activateCandidate(target);
-    announce(`${hinted().length} targets remain.`);
-    repaint();
-  }
-
-  function moveHint(direction) {
-    const targets = hinted();
-    if (!targets.length) return;
-    hintActive = (hintActive + direction + targets.length) % targets.length;
-    const target = targets[hintActive];
-    beginWalk("go-to-target", "Target", () =>
-      listWalkPosition(hinted(), hinted()[hintActive], {
-        identity: (candidate) => candidate.member,
-      }),
-    );
-    const stop = /[.!?]$/.test(target.says) ? "" : ".";
-    announce(
-      `Hint ${target.code}: ${target.kind}, ${target.says}${stop} Press Enter to go there.`,
-    );
-    repaint();
-  }
-
-  const chooseHint = () => activateCandidate(hinted()[hintActive]);
-
-  // The layer is chrome rather than authored markup: a generated label over an inline link
-  // must not become a span the passage walk then has to understand. Candidates are measured
-  // together, synchronously rendered through retained Lit nodes, and then spread without
-  // dropping any opaque route.
-  function paintGoToHints() {
-    if (!goToActive) {
-      render(nothing, goToHintLayer);
-      return;
-    }
-    const controlPlaced = directDestinationHints();
-    // A moving page target cannot carry a readable opaque route. Suppress that part of the
-    // map until the scene settles, then regenerate it once. Fixed banner destinations stay
-    // put, so their overlays remain visible throughout the scroll.
-    if (scrolling) {
-      renderGoToHints(controlPlaced);
-      return;
-    }
-    const wasActive = hintActive >= 0;
-    const heard = hinted()[hintActive];
-    // A scroll keeps one map until it settles. Reconciliation is different: every old
-    // candidate is detached at once, so holding that map would paint nothing indefinitely
-    // if the replacement's scroll restoration does not produce a final scrollend.
-    const detached = candidates.some(({ member }) => !member.isConnected);
-    const refreshed =
-      !prefix && !scrolling && (refreshCandidates || detached || !candidates.length);
-    const emptyBeforeRefresh = candidates.length === 0;
-    if (refreshed) {
-      candidates = visibleCandidates(targetFilter);
-      hintActive = heard
-        ? candidates.findIndex(
-            (candidate) =>
-              candidate.member === heard.member && candidate.code === heard.code,
-          )
-        : -1;
-      refreshCandidates = false;
-    }
-    const filterStatusChanged =
-      Boolean(targetFilter) && emptyBeforeRefresh !== (candidates.length === 0);
-    const activeCandidate = hinted()[hintActive];
-    const placement = keyBadgePlacement();
-    const plans = [];
-    const drawn = new Set();
-    for (const candidate of hinted()) {
-      const r = placement.visibleBox(candidate.member);
-      if (
-        !candidate.member.checkVisibility() ||
-        !r ||
-        !exposed(candidate.member, r, candidate.exposure)
-      )
-        continue;
-      plans.push({
-        model: goToHintModel(candidate, activeCandidate === candidate),
-        target: r,
-        belowTarget: false,
-        left: r.left,
-        top: r.top,
-      });
-      drawn.add(candidate);
-    }
-    if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
-    const { controlBoxes, targets } = renderGoToHints(controlPlaced, plans);
-    spreadHints(targets, {
-      barriers: [...controlBoxes, ...standingStatusBoxes()],
-      lineBox: shortcutBarEl.getBoundingClientRect(),
-      viewportTop: banner.getBoundingClientRect().bottom,
-    });
-    if ((wasActive && hintActive < 0) || filterStatusChanged) repaint();
-  }
-  // A page that moves under an armed window makes opaque labels temporarily untrustworthy,
-  // so the scroll pass hides them and remaps once the scene settles. Capture, because the
-  // panel's list and a board's own overflow scroll in boxes of their own and a scroll event
-  // does not bubble.
-  //
-  // Only while the sequence is armed, which is why this is a listener of its own rather than a
-  // line in the page's own repaint door (pageShifted): what the line says about the sequence
-  // holds at every scroll position, no list's membership moving with the page, so the door
-  // that repaints on every scroll of every page would be repainting for nobody. Armed, the
-  // paint is the whole shared repaint — the ring and line are cheap beside the chips, and
-  // one door is what stops the chips having a repaint set of their own to keep in step.
-  function mountGoToSequence() {
-    addEventListener(
-      "scroll",
-      () => {
-        if (!goToActive) return;
-        scrolling = true;
-        refreshCandidates = true;
-        clearTimeout(scrollTimer);
-        scrollTimer = setTimeout(() => {
-          if (!goToActive || !scrolling) return;
-          scrolling = false;
-          repaint();
-        }, 80);
-        repaint();
-      },
-      { capture: true, passive: true },
-    );
-    addEventListener(
-      "scrollend",
-      () => {
-        if (!goToActive || !scrolling) return;
-        clearTimeout(scrollTimer);
-        scrolling = false;
-        repaint();
-      },
-      { capture: true, passive: true },
-    );
-    addEventListener("resize", () => {
-      if (!goToActive) return;
-      clearTimeout(scrollTimer);
-      scrolling = false;
-      refreshCandidates = true;
-      repaint();
-    });
   }
 
   // The sequence is one scope: generated visible targets, named global destinations, structural
@@ -854,11 +679,11 @@ export function createGoToSequence({
           // Every alphabet key is claimed while the map stands. If a scene refresh retired
           // a remembered route, that old letter must report the miss rather than falling
           // through to an unrelated page shortcut such as `d`.
-          keys: () => (prefix ? HINT_KEYS : GO_TO_HINT_KEYS),
+          keys: () => (hints.prefix() ? HINT_KEYS : GO_TO_HINT_KEYS),
           label: "letters",
           sequenceSteps: () => [
             ...(targetFilter ? [targetFilter.key] : []),
-            ...(prefix ? [...prefix, "…"] : ["letters"]),
+            ...(hints.prefix() ? [...hints.prefix(), "…"] : ["letters"]),
           ],
           completeSequenceSteps: () => [
             ...(targetFilter ? [targetFilter.key] : []),
@@ -870,7 +695,7 @@ export function createGoToSequence({
           // then reports the miss inside this sequence rather than falling through to a page
           // command whose letter happened to match it.
           when: () => (goToActive ? true : targetCapability()),
-          run: typeHint,
+          run: hints.type,
         },
         {
           id: "navigation.target.filter",
@@ -905,16 +730,16 @@ export function createGoToSequence({
           does: "Hear the next / previous visible target",
           line: "browse hints",
           repeat: true,
-          when: () => (goToActive ? candidates.length > 0 : targetCapability()),
-          run: (binding) => moveHint(binding === "Tab" ? 1 : -1),
+          when: () => (goToActive ? hints.candidates().length > 0 : targetCapability()),
+          run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
         },
         {
           id: "navigation.target.choose",
           keys: ["Enter"],
           does: "Go to the target just announced",
           line: "go to target",
-          when: () => hintActive >= 0,
-          run: chooseHint,
+          when: hints.walking,
+          run: hints.choose,
         },
         ...BUILTIN_DIRECT_DESTINATIONS.map((destination) => ({
           id: destination.id,
@@ -984,24 +809,22 @@ export function createGoToSequence({
           keys: ["Escape"],
           sequenceControl: true,
           does: () =>
-            prefix
+            hints.prefix()
               ? "Remove the last hint letter"
               : targetFilter
                 ? "Show all visible targets"
                 : "Cancel the sequence",
           line: () =>
-            prefix ? "back one letter" : targetFilter ? "all targets" : "cancel",
+            hints.prefix()
+              ? "back one letter"
+              : targetFilter
+                ? "all targets"
+                : "cancel",
           run: () => {
-            if (prefix) {
-              prefix = prefix.slice(0, -1);
-              hintActive = -1;
-              announce(prefix ? `Hint ${prefix}.` : "All go-to hints.");
-              return repaint();
-            }
+            if (hints.backOneLetter()) return;
             if (targetFilter) {
               targetFilter = null;
-              candidates = visibleCandidates();
-              hintActive = -1;
+              hints.refresh();
               announce("All go-to targets.");
               return repaint();
             }
@@ -1034,8 +857,8 @@ export function createGoToSequence({
     goToStatus,
     formatGoToAddress,
     setGoToSequence,
-    paintGoToHints,
+    paintGoToHints: hints.paint,
     goToSequenceActive,
-    mountGoToSequence,
+    mountGoToSequence: hints.mount,
   };
 }

@@ -1,7 +1,6 @@
 /* This module owns the target chooser and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
-import { sameAnchor } from "../anchor-coordinate.js";
 import { bindings } from "../keyboard/bindings.js";
 import { el, LAYOUT } from "../widget-elements.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
@@ -16,17 +15,23 @@ import {
   quoteFrom,
   rangeOf,
 } from "../passages.js";
-import { shownParts, shownRect } from "../geometry.js";
+import { shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
-import { HINT_KEYS, hintCodes, spreadHints } from "../keyboard/hints.js";
+import {
+  createHintSession,
+  HINT_KEYS,
+  hintCodes,
+  renderKeys,
+} from "../keyboard/hints.js";
+import { chromeTop, keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
   progressStates,
 } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
-import { beginWalk, listWalkPosition, walkPosition } from "../walk-position.js";
+import { beginWalk, walkPosition } from "../walk-position.js";
 
 import { allButCommandReference } from "../keyboard/register.js";
 
@@ -55,24 +60,16 @@ pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
 // chosen target; `/` opens the page's text search directly or from that map.
 //
-// The short, viewport-local hints form a prefix-free tree over one alphabet. Most
-// targets cost one letter; only the tail branches when the viewport holds more targets
-// than the alphabet. These hints are ephemeral and make no promise across a scroll or
-// revision. They are the whole route, so none may be dropped because
-// its chip collides. Each chip begins at its target's visible top-left corner. A target
-// whose visible box is strictly smaller and fully enclosed by another target steps its
-// chip right once per enclosing box. If that position crosses the key-line band and the
-// target has visible room beside it, the chip moves into that room; otherwise it moves
-// above the band. An ancestor and descendant with the same visible box name one target:
-// the innermost remains, matching direct aim. Equal boxes outside one containment chain
-// stay at the same depth, and the collision pass separates their chips without inventing
-// a hierarchy or moving them beyond the viewport foot. Membership is fixed for the
-// length of a scroll and re-read once it settles, so a target arriving mid-scroll is
-// named at rest rather than on the frame it appears.
-//
-// Tab and Shift-Tab walk the visible target map and announce each target. Enter chooses
-// the last one announced. A viewport change that removes or renames that target clears
-// the announced choice before Enter can act on it.
+// `keyboard/hints.js` owns the map itself: arming, codes, the typed prefix, the audible
+// walk, the scroll freeze, and the paint. What this module declares is which members the
+// map holds and where each chip sits among them. An ancestor and descendant painting the
+// same visible box name one target, and the innermost remains, matching direct aim. A
+// target whose visible box is strictly smaller and fully enclosed by another steps its
+// chip right once per enclosing box, so nested corners stay apart; equal boxes outside
+// one containment chain stay at the same depth and the shared placement pass separates
+// their chips. A member the bottom chrome's lane covers has no visible part left to name
+// and leaves the map, which is why the reading here is the whole box rather than the
+// corner the Go-to map hangs a chip on.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
 // page or from the visible target hints. Tab walks repeated occurrences and Enter makes a
@@ -83,10 +80,7 @@ pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 
 export function createTargetChooser({
   scrollToRange,
-  banner,
-  bottomChromeBoxes,
-  shortcutBarEl,
-  standingStatusBoxes,
+  hintChrome,
   commentOnTarget,
   updateFab,
   fabAnchorAt,
@@ -95,112 +89,24 @@ export function createTargetChooser({
 
   let chooserOpen = false;
   let pageSearchOpen = false;
-  let prefix = "";
-  let candidates = [];
   let matches = [];
   let active = -1;
-  let hintActive = -1;
   let opener = null;
   let searchReturnsToHints = false;
-  let scrolling = false;
   let repeatedSearch = null;
   const matchNodeIds = new WeakMap();
   let nextMatchNodeId = 1;
-  const hintRenderKeys = new WeakMap();
-  let nextHintRenderKey = 1;
 
   // Target elements and text coordinates stay outside the immutable readings. Lit receives
   // only opaque primitive identities, retaining unchanged hint and keycap nodes on repaint.
-  const hintRenderKey = (element) => {
-    if (!hintRenderKeys.has(element)) hintRenderKeys.set(element, nextHintRenderKey++);
-    return hintRenderKeys.get(element);
-  };
+  const hintRenderKey = renderKeys();
 
   const matchRenderKey = (identity, index) => `${identity}\u0000${index}`;
 
-  const clips = () => new Map();
-  const covered = () => banner.getBoundingClientRect().bottom;
-  const overlaps = (a, b) =>
-    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-  const rect = (left, top, right, bottom, sourceTop = top) =>
-    right > left && bottom > top
-      ? {
-          left,
-          top,
-          right,
-          bottom,
-          width: right - left,
-          height: bottom - top,
-          clippedTop: sourceTop < top,
-        }
-      : null;
-  // The largest visible rectangle left after viewport chrome is subtracted. The banner
-  // spans the window and clips one edge. Bottom chrome reserves its whole lane to the
-  // viewport foot. Each blocker divides a target
-  // crossing it into the open space above, below, before, or after it.
-  //
-  // A coarse pointer is shown no line, and an empty one takes itself down. A zero box must
-  // therefore answer with the viewport foot rather than a top of 0, or `s` names no items
-  // and `/` paints no match with nothing on screen saying why.
-  function visibleRect(box, sourceTop = box?.top) {
-    if (!box) return null;
-    const shown = rect(
-      Math.max(box.left, 0),
-      Math.max(box.top, covered()),
-      Math.min(box.right, innerWidth),
-      Math.min(box.bottom, innerHeight),
-      sourceTop,
-    );
-    if (!shown) return null;
-    const blockers = bottomChromeBoxes().map((box) => ({
-      left: box.left,
-      top: box.top,
-      right: box.right,
-      bottom: innerHeight,
-    }));
-    const candidates = blockers.reduce(
-      (available, box) => {
-        return available.flatMap((candidate) =>
-          overlaps(candidate, box)
-            ? [
-                rect(
-                  candidate.left,
-                  candidate.top,
-                  candidate.right,
-                  Math.min(candidate.bottom, box.top),
-                  sourceTop,
-                ),
-                rect(
-                  candidate.left,
-                  candidate.top,
-                  Math.min(candidate.right, box.left),
-                  candidate.bottom,
-                  sourceTop,
-                ),
-                rect(
-                  Math.max(candidate.left, box.right),
-                  candidate.top,
-                  candidate.right,
-                  candidate.bottom,
-                  sourceTop,
-                ),
-                rect(
-                  candidate.left,
-                  Math.max(candidate.top, box.bottom),
-                  candidate.right,
-                  candidate.bottom,
-                  sourceTop,
-                ),
-              ].filter(Boolean)
-            : [candidate],
-        );
-      },
-      [shown],
-    );
-    return (
-      candidates.sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null
-    );
-  }
+  // One reading of the room the reader has, shared by every member of a pass: the clips
+  // over their common ancestors are walked once, and admission, exposure, and paint read
+  // the same boxes.
+  const room = keyBadgePlacement;
   // A fixed sheet can cover a page box without clipping it. Hints live above the chrome,
   // so geometry alone would put a key on the thread panel for a card hidden behind it.
   // Ask the rendered stack at the hint's corner; pointer-events:none keeps an existing
@@ -208,7 +114,7 @@ export function createTargetChooser({
   const exposed = (box) => {
     if (!box) return false;
     const x = Math.max(0, Math.min(innerWidth - 1, box.left + 1));
-    const y = Math.max(covered(), Math.min(innerHeight - 1, box.top + 1));
+    const y = Math.max(chromeTop(), Math.min(innerHeight - 1, box.top + 1));
     return !inChrome(document.elementFromPoint(x, y));
   };
   // Chromium retains geometry for descendants suppressed by a closed disclosure. Ask
@@ -219,21 +125,13 @@ export function createTargetChooser({
     (getComputedStyle(element).display === "contents" &&
       shownParts(element).some((part) => part.checkVisibility()));
 
-  function clippedRect(box, clip) {
-    if (!box || !clip) return null;
-    const left = Math.max(box.left, clip.left, 0);
-    const top = Math.max(box.top, clip.top, covered());
-    const right = Math.min(box.right, clip.right, innerWidth);
-    const bottom = Math.min(box.bottom, clip.bottom, innerHeight);
-    return visibleRect({ left, top, right, bottom }, box.top);
-  }
-
-  function firstShown(range, owner, cache) {
-    const clip = shownRect(owner, cache);
+  function firstShown(range, owner, reading) {
+    const clip = reading.clipOver(owner);
     if (!clip) return null;
     return (
-      [...range.getClientRects()].map((box) => clippedRect(box, clip)).find(exposed) ??
-      null
+      [...range.getClientRects()]
+        .map((box) => reading.clearPart(box, clip))
+        .find(exposed) ?? null
     );
   }
 
@@ -244,13 +142,13 @@ export function createTargetChooser({
     Math.abs(a.bottom - b.bottom) < 0.5;
 
   function visibleTargets() {
-    const cache = clips();
+    const reading = room();
     const targets = aimTargets()
       .filter(({ element }) => !inChrome(element))
       .filter(targetShown)
       .map((target) => ({
         ...target,
-        rect: visibleRect(shownRect(target.element, cache)),
+        rect: reading.visibleBounds(target.element),
       }))
       .filter(({ rect }) => exposed(rect))
       .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
@@ -284,6 +182,9 @@ export function createTargetChooser({
     }));
   }
 
+  // `withHints` opens the shared mode without a target map: a direct slash is page
+  // search over the whole document, and reading a viewport-local map it would then hide
+  // is work for nobody.
   function setTargetChooser(on, restore = false, withHints = true) {
     if (on && !anchoringIsReady()) return;
     if (on) opener = focused();
@@ -291,30 +192,20 @@ export function createTargetChooser({
     chooserOpen = on;
     pageSearchOpen = false;
     searchReturnsToHints = false;
-    prefix = "";
     matches = [];
     active = -1;
-    hintActive = -1;
-    scrolling = false;
     pageSearchInput.value = "";
     pageSearchSurface.hidden = true;
     if (on && withHints) {
-      candidates = visibleTargets();
-      if (!candidates.length) {
-        announce(
-          "There is no visible target to choose. Press slash to search the page.",
-        );
-      } else {
-        announce(
-          `Choose a target — type one of ${candidates.length} hints, press Tab to hear them, or slash to search the page.`,
-        );
-      }
-    } else if (!on) {
-      candidates = [];
-      render(nothing, targetChooserHintLayer);
-      opener = null;
+      const found = hints.arm();
+      announce(
+        found.length
+          ? `Choose a target — type one of ${found.length} hints, press Tab to hear them, or slash to search the page.`
+          : "There is no visible target to choose. Press slash to search the page.",
+      );
     } else {
-      candidates = [];
+      hints.disarm();
+      if (!on) opener = null;
     }
     repaint();
     if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
@@ -322,8 +213,6 @@ export function createTargetChooser({
 
   function setPageSearch(on) {
     pageSearchOpen = on;
-    prefix = "";
-    hintActive = -1;
     pageSearchSurface.hidden = !on;
     if (on) {
       pageSearchInput.focus({ preventScroll: true });
@@ -334,6 +223,9 @@ export function createTargetChooser({
       matches = [];
       active = -1;
       document.body.focus({ preventScroll: true });
+      // Search may have travelled to a match, so the map the reader comes back to is the
+      // one in front of them now rather than the one search covered.
+      hints.refresh();
       announce("Choose a target — type a hint, or slash to search the page.");
     }
     repaint();
@@ -351,13 +243,13 @@ export function createTargetChooser({
     return first ? (blockAt(first.node) ?? first.node.parentElement) : null;
   }
 
-  function matchRect(segments, cache = clips()) {
+  function matchRect(segments, reading = room()) {
     const owner = matchOwner(segments);
-    return owner ? firstShown(rangeOf(segments), owner, cache) : null;
+    return owner ? firstShown(rangeOf(segments), owner, reading) : null;
   }
 
   function startingMatch(found) {
-    const top = covered();
+    const top = chromeTop();
     const next = found.findIndex(
       (segments) => rangeOf(segments).getBoundingClientRect().bottom > top,
     );
@@ -498,42 +390,6 @@ export function createTargetChooser({
     announce(`Chosen ${target.label}.`);
   }
 
-  function typeHint(key) {
-    hintActive = -1;
-    prefix += key;
-    const left = candidates.filter(({ code }) => code.startsWith(prefix));
-    const target = left.find(({ code }) => code === prefix);
-    if (target) return chooseTarget(target);
-    if (!left.length) {
-      prefix = "";
-      announce("That hint is not on screen. The hints are reset.");
-    } else announce(`${left.length} targets remain.`);
-    repaint();
-  }
-
-  const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
-
-  function moveHint(direction) {
-    const targets = hinted();
-    if (!targets.length) return;
-    hintActive = (hintActive + direction + targets.length) % targets.length;
-    const target = targets[hintActive];
-    beginWalk("target-chooser", "Target", () =>
-      listWalkPosition(hinted(), hinted()[hintActive], {
-        identity: (candidate) => candidate.element,
-      }),
-    );
-    announce(
-      `Hint ${target.code}: ${cut(target.label, 0, 72)}. Press Enter to choose.`,
-    );
-    repaint();
-  }
-
-  function chooseHint() {
-    const target = hinted()[hintActive];
-    if (target) chooseTarget(target);
-  }
-
   function chooseMatch() {
     const segments = matches[active];
     if (!segments) return;
@@ -581,139 +437,98 @@ export function createTargetChooser({
       announce("Page search closed.");
       return;
     }
-    if (prefix) {
-      prefix = prefix.slice(0, -1);
-      hintActive = -1;
-      announce(prefix ? `Hint ${prefix}.` : "All target hints.");
-      return repaint();
-    }
+    if (hints.backOneLetter()) return;
     setTargetChooser(false, true);
     announce("Target chooser closed.");
   }
 
-  function hintModel(target) {
-    const steps = [...target.code];
-    return Object.freeze({
-      key: hintRenderKey(target.element),
-      kind: "hint",
-      className: `lf-key-badge lf-key-hint lf-target-chooser-hint${
-        hinted()[hintActive] === target ? " lf-current" : ""
-      }`,
-      hintCode: target.code,
-      sequence: keySequenceModel(steps, progressStates(steps, [...prefix])),
-    });
-  }
+  const hintTemplate = (model) =>
+    html`<span class=${model.className} data-lf-hint-code=${model.hintCode}
+      >${keySequenceTemplate(model.sequence)}</span
+    >`;
 
-  const hintLayerTemplate = (model) =>
-    model.kind === "hint"
-      ? html`<span class=${model.className} data-lf-hint-code=${model.hintCode}
-          >${keySequenceTemplate(model.sequence)}</span
-        >`
-      : html`<span class="lf-page-search-match"></span>`;
+  // The chooser's hints and the open search's marks are two faces in one layer, and only
+  // one of them stands at a time: search covers the map that opened it.
+  const hints = createHintSession({
+    layer: targetChooserHintLayer,
+    walk: "target-chooser",
+    read: visibleTargets,
+    identity: (target) => target.element,
+    scene: room,
+    plan: (target, { current, fresh, reading }) => {
+      let rect = target.rect;
+      if (!fresh) {
+        if (!targetShown(target)) return null;
+        rect = reading.visibleBounds(target.element);
+        if (!exposed(rect)) return null;
+      }
+      const steps = [...target.code];
+      return {
+        model: Object.freeze({
+          key: hintRenderKey(target.element),
+          className: `lf-key-badge lf-key-hint lf-target-chooser-hint${
+            current ? " lf-current" : ""
+          }${rect.clippedTop || rect.top < chromeTop() ? " lf-in" : ""}`,
+          hintCode: target.code,
+          sequence: keySequenceModel(steps, progressStates(steps, [...hints.prefix()])),
+        }),
+        target: rect,
+        belowTarget: false,
+        // A target whose visible box is enclosed by another steps its chip right once
+        // per enclosing box, so a nested pair does not name one corner twice.
+        left: Math.max(10, rect.left + target.nesting * HINT_INDENT),
+        top: Math.max(chromeTop(), rect.top),
+      };
+    },
+    template: hintTemplate,
+    take: chooseTarget,
+    words: {
+      describe: (target) => cut(target.label, 0, 72),
+      take: "choose",
+      all: "All target hints.",
+    },
+    chrome: hintChrome,
+    followsScroll: true,
+  });
 
-  function renderHintLayer(plans) {
+  function paintSearchMatches() {
+    const segments = matches[active];
+    const owner = segments && matchIsRangeable(segments) ? matchOwner(segments) : null;
+    const reading = room();
+    const clip = owner ? reading.clipOver(owner) : null;
+    const plans = [];
+    if (clip)
+      for (const [index, box] of [...rangeOf(segments).getClientRects()].entries()) {
+        const rect = reading.clearPart(box, clip);
+        if (!exposed(rect)) continue;
+        plans.push({
+          key: matchRenderKey(
+            matchIdentity(pageSearchInput.value.trim(), segments),
+            index,
+          ),
+          rect,
+        });
+      }
     render(
       html`${repeat(
         plans,
-        ({ model }) => model.key,
-        ({ model }) => hintLayerTemplate(model),
+        ({ key }) => key,
+        () => html`<span class="lf-page-search-match"></span>`,
       )}`,
       targetChooserHintLayer,
     );
-    return plans.map((plan, index) => ({
-      ...plan,
-      node: targetChooserHintLayer.children[index],
-    }));
+    for (const [index, { rect }] of plans.entries()) {
+      const mark = targetChooserHintLayer.children[index];
+      mark.style.left = `${rect.left}px`;
+      mark.style.top = `${rect.top}px`;
+      mark.style.width = `${rect.width}px`;
+      mark.style.height = `${rect.height}px`;
+    }
   }
 
   function paintTargetChooserHints() {
-    if (!chooserOpen) {
-      render(nothing, targetChooserHintLayer);
-      return;
-    }
-    const wasActive = hintActive >= 0;
-    const refreshed = !pageSearchOpen && !prefix && !scrolling;
-    const heard = hinted()[hintActive];
-    if (refreshed) {
-      candidates = visibleTargets();
-      const still = heard
-        ? candidates.findIndex(
-            (target) =>
-              sameAnchor(target.anchor, heard.anchor) && target.code === heard.code,
-          )
-        : -1;
-      hintActive = still;
-    }
-    const plans = [];
-    const hints = [];
-    const drawnTargets = new Set();
-    if (!pageSearchOpen) {
-      const cache = clips();
-      for (const target of candidates) {
-        if (!target.code.startsWith(prefix)) continue;
-        if (!targetShown(target)) continue;
-        const rect = refreshed
-          ? target.rect
-          : visibleRect(shownRect(target.element, cache));
-        if (!exposed(rect)) continue;
-        const model = hintModel(target);
-        plans.push({
-          model: Object.freeze({
-            ...model,
-            className: `${model.className}${
-              rect.clippedTop || rect.top < covered() ? " lf-in" : ""
-            }`,
-          }),
-          left: Math.max(10, rect.left + target.nesting * HINT_INDENT),
-          top: Math.max(covered(), rect.top),
-          rect,
-        });
-        drawnTargets.add(target);
-      }
-    } else if (matches[active] && matchIsRangeable(matches[active])) {
-      const owner = matchOwner(matches[active]);
-      const clip = owner ? shownRect(owner, clips()) : null;
-      if (clip)
-        for (const [index, box] of [
-          ...rangeOf(matches[active]).getClientRects(),
-        ].entries()) {
-          const rect = clippedRect(box, clip);
-          if (!exposed(rect)) continue;
-          plans.push({
-            model: Object.freeze({
-              key: matchRenderKey(
-                matchIdentity(pageSearchInput.value.trim(), matches[active]),
-                index,
-              ),
-              kind: "match",
-            }),
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-            height: rect.height,
-          });
-        }
-    }
-    if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
-    // The shortcut bar was painted before geometry retired the browsed hint.
-    if (wasActive && hintActive < 0) repaint();
-    const rendered = renderHintLayer(plans);
-    for (const plan of rendered) {
-      plan.node.style.left = `${plan.left}px`;
-      plan.node.style.top = `${plan.top}px`;
-      if (plan.model.kind === "hint")
-        hints.push({ chip: plan.node, target: plan.rect });
-      else {
-        plan.node.style.width = `${plan.width}px`;
-        plan.node.style.height = `${plan.height}px`;
-      }
-    }
-    if (!pageSearchOpen)
-      spreadHints(hints, {
-        barriers: standingStatusBoxes(),
-        lineBox: shortcutBarEl.getBoundingClientRect(),
-        viewportTop: covered(),
-      });
+    if (chooserOpen && pageSearchOpen) return paintSearchMatches();
+    hints.paint();
   }
 
   const PAGE_SEARCH = {
@@ -761,7 +576,7 @@ export function createTargetChooser({
         ? searchReturnsToHints
           ? "Return to the visible target hints"
           : "Close page search"
-        : prefix
+        : hints.prefix()
           ? "Remove the last hint letter"
           : "Close the target chooser",
     line: () =>
@@ -769,7 +584,7 @@ export function createTargetChooser({
         ? searchReturnsToHints
           ? "back to hints"
           : "close search"
-        : prefix
+        : hints.prefix()
           ? "back one letter"
           : "close chooser",
     run: back,
@@ -793,8 +608,8 @@ export function createTargetChooser({
         label: "a–z",
         does: "Type the hint for a target",
         line: "type hint",
-        when: () => candidates.length > 0,
-        run: typeHint,
+        when: () => hints.candidates().length > 0,
+        run: hints.type,
       },
       {
         id: "target.chooser.hint.walk",
@@ -814,16 +629,16 @@ export function createTargetChooser({
         does: "Hear the next / previous visible target",
         line: "browse hints",
         repeat: true,
-        when: () => candidates.length > 0,
-        run: (binding) => moveHint(binding === "Tab" ? 1 : -1),
+        when: () => hints.candidates().length > 0,
+        run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
       },
       {
         id: "target.chooser.target.choose",
         keys: ["Enter"],
         does: "Choose the target just announced",
         line: "choose target",
-        when: () => hintActive >= 0,
-        run: chooseHint,
+        when: hints.walking,
+        run: hints.choose,
       },
       TARGETING_BACK,
     ],
@@ -874,29 +689,7 @@ export function createTargetChooser({
 
   function mount() {
     pageSearchInput.addEventListener("input", search);
-    addEventListener(
-      "scroll",
-      () => {
-        if (!chooserOpen) return;
-        scrolling = true;
-        repaint();
-      },
-      { capture: true, passive: true },
-    );
-    addEventListener(
-      "scrollend",
-      () => {
-        if (!chooserOpen || !scrolling) return;
-        scrolling = false;
-        repaint();
-      },
-      { capture: true, passive: true },
-    );
-    addEventListener("resize", () => {
-      if (!chooserOpen) return;
-      scrolling = false;
-      repaint();
-    });
+    hints.mount();
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
   return {

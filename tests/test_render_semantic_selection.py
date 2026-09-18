@@ -893,6 +893,52 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
     assert page.evaluate("() => getSelection().toString()") == ""
 
 
+def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serve):
+    """A page can move and never send `scrollend`: a programmatic scroll written a frame
+    at a time, and the scroll a replaced scene restores, both end without one. The map
+    freezes its membership for the length of a scroll, so with nothing to settle it the
+    chips go on naming the scene the first frame left behind.
+
+    A hidden target is dropped from the paint either way; the codes are what say whether
+    the map was read again, because a fresh reading gives the survivors the head of the
+    alphabet."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    codes = """() => [...document.querySelectorAll('.lf-target-chooser-hint')]
+      .map(chip => chip.dataset.lfHintCode)"""
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-chooser-hint")
+    expect(hints).to_have_count(3)
+    assert page.evaluate(codes) == ["a", "s", "d"]
+
+    page.evaluate(
+        """() => {
+          document.querySelector('#t').style.display = 'none';
+          dispatchEvent(new Event('scroll'));
+        }"""
+    )
+
+    expect(hints).to_have_count(2)
+    expect(hints.nth(1)).to_have_attribute("data-lf-hint-code", "s")
+    assert page.evaluate(codes) == ["a", "s"]
+
+
+def test_a_letter_naming_no_target_leaves_the_hints_standing(browser, serve):
+    """A letter the map does not hold is reported and costs the reader nothing else.
+    Resetting instead would throw away the letters they had already typed right."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-chooser-hint")
+    expect(hints).to_have_count(3)
+
+    page.keyboard.press("q")
+
+    expect(page.locator(".lf-live")).to_have_text(
+        "No hint q. The current hints are unchanged."
+    )
+    expect(hints).to_have_count(3)
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+
+
 def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     """A smooth scroll repositions the small visible map and refreshes its membership
     once at rest; targets inside a closed disclosure never incur geometry reads."""

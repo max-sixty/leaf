@@ -98,11 +98,11 @@ class FakeCodexHost:
         self.attached.append(page_dir)
         return "codex-thread"
 
-    def fallback_reply(
-        self, page_dir: Path, event_id: str, text: str, failure: str
+    def failure_receipt(
+        self, page_dir: Path, event_id: str, failure: str
     ) -> dict | None:
-        return website_server.WebsiteCodexHost("codex").fallback_reply(
-            page_dir, event_id, text, failure
+        return website_server.WebsiteCodexHost("codex").failure_receipt(
+            page_dir, event_id, failure
         )
 
 
@@ -1528,18 +1528,75 @@ def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
     # agent is starting on a move it will never answer, and the move itself carries a
     # receipt saying so rather than waiting on a reply that is not coming.
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
-    assert (activity["kind"], activity["detail"]) != ("working", "Starting")
+    assert (activity["kind"], activity["detail"]) == ("listening", "")
     assert activity["interactions"] == []
     [reply] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert reply["responds"] == comment["id"]
     assert reply["failure"] == "turn_failed"
     # Only the absence of an answer: a provider turn may still be running with no
     # observer, which is the shape of the incident this path was written for.
-    assert reply["text"] == (
-        "The agent's turn ended without an answer to this message. "
-        "Send it again to retry."
-    )
+    assert reply["text"] == website_server.FAILURE_RECEIPTS["turn_failed"]
     host.close()
+
+
+def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):
+    """The Worker's last-resort receipt reaches a widget gesture too, twice over.
+
+    `/_leaf/agent/reply` is what the Worker calls when it is rate limited or its
+    dispatch throws, with whatever event `/api/event` accepted — which can be a
+    gesture on a widget frozen into thread markup. That is answered on the
+    conversation holding it, so addressing the receipt at the gesture refuses the
+    one write whose whole job is to leave the reader something.
+
+    The Worker repeats that request, so the second call has to answer with the first
+    receipt. Once the first has settled the gesture, nothing outside the log can say
+    where its reply went: an address worked out ahead of the write reads the settled
+    page, gets the gesture back, and refuses its own earlier receipt as another
+    event's. The durable attempt is the answer, and the writer reads it first.
+    """
+    website_server.activate_source(page_dir, read_events(page_dir))
+    asked = append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "text": "Which region?",
+            "markup": '<lf-options id="region" choose>'
+            '<lf-option id="east"><strong>East</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    chose = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "region",
+            "action": "choose",
+            "detail": {"options": ["east"]},
+        },
+    )
+
+    reply = website_server.WebsiteCodexHost("codex").failure_receipt(
+        page_dir, chose["id"], "startup_failed"
+    )
+
+    assert reply is not None
+    assert (reply["parent"], reply["responds"]) == (asked["id"], chose["id"])
+    assert reply["failure"] == "startup_failed"
+
+    repeated = website_server.WebsiteCodexHost("codex").failure_receipt(
+        page_dir, chose["id"], "startup_failed"
+    )
+    # The same event, which is what the door hands back (`accepted["id"]`); the log
+    # read carries a `seq` the freshly appended record does not.
+    assert repeated is not None and repeated["id"] == reply["id"]
+    assert repeated["parent"] == asked["id"]
+    assert [
+        event["id"] for event in read_events(page_dir) if event["kind"] == "reply"
+    ] == [reply["id"]]
 
 
 def test_a_fault_record_keeps_the_end_of_an_oversized_message():
@@ -2549,7 +2606,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
 
 
-def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
+def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     page_dir,
 ):
     comment = append_event(
@@ -2575,25 +2632,22 @@ def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
     assert reply is None
 
 
-def test_a_host_fallback_survives_an_invalid_candidate_source(page_dir):
+def test_a_host_receipt_survives_an_invalid_candidate_source(page_dir):
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
     (page_dir / "index.html").write_text("<main>unfinished")
 
-    reply = website_server.WebsiteCodexHost("codex").fallback_reply(
-        page_dir,
-        comment["id"],
-        "The host could not start this task.",
-        "startup_failed",
+    reply = website_server.WebsiteCodexHost("codex").failure_receipt(
+        page_dir, comment["id"], "startup_failed"
     )
 
     assert reply is not None
     assert reply["responds"] == comment["id"]
 
 
-def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
+def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
     page_dir, monkeypatch
 ):
     comment = append_event(
@@ -2604,7 +2658,7 @@ def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
     process = type("Process", (), {"pid": os.getpid()})()
     turn_started = threading.Event()
     record_acceptance = threading.Event()
-    fallback_waiting = threading.Event()
+    receipt_waiting = threading.Event()
 
     class ObservedLock:
         def __init__(self):
@@ -2612,7 +2666,7 @@ def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
 
         def __enter__(self):
             if self.lock.locked():
-                fallback_waiting.set()
+                receipt_waiting.set()
             self.lock.acquire()
 
         def __exit__(self, *args):
@@ -2638,14 +2692,13 @@ def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
         attached = pool.submit(host.attach, page_dir, comment["id"])
         assert turn_started.wait(timeout=STATED_TIMEOUT)
         settled = pool.submit(
-            host.fallback_reply,
+            host.failure_receipt,
             page_dir,
             comment["id"],
-            "The host could not start this task.",
             "startup_failed",
         )
 
-        assert fallback_waiting.wait(timeout=STATED_TIMEOUT)
+        assert receipt_waiting.wait(timeout=STATED_TIMEOUT)
         record_acceptance.set()
         assert attached.result(timeout=STATED_TIMEOUT) == "hosted-thread"
         assert settled.result(timeout=STATED_TIMEOUT) is None
@@ -2790,11 +2843,21 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert started == {"status": "started", "thread": "codex-thread"}
         assert agent_host.attached == [published]
 
-        for failure_fields in ({}, {"failure": "unknown"}, {"failure": None}):
+        for refused in (
+            {},
+            {"failure": "unknown"},
+            {"failure": None},
+            # The words are the adapter's, declared beside the code, so a Worker that
+            # sends its own is one copy of them too many rather than an override.
+            {"failure": "startup_failed", "text": "Failure"},
+            # And `turn_failed` says a turn was followed to nothing, which only the
+            # code that followed it can say.
+            {"failure": "turn_failed"},
+        ):
             with pytest.raises(urllib.error.HTTPError) as invalid:
                 post(
                     f"{root}/examples/decision/_leaf/agent/reply",
-                    {"event": comment["id"], "text": "Failure", **failure_fields},
+                    {"event": comment["id"], **refused},
                 )
             assert invalid.value.code == 400
         with pytest.raises(urllib.error.HTTPError) as forged:
@@ -2816,11 +2879,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         appended, _ = post(
             f"{root}/examples/decision/_leaf/agent/reply",
-            {
-                "event": comment["id"],
-                "text": "This is a host failure.",
-                "failure": "startup_failed",
-            },
+            {"event": comment["id"], "failure": "startup_failed"},
         )
         reply = read_events(published)[-1]
         assert appended == {"status": "appended", "event": reply["id"]}
@@ -2831,7 +2890,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "session": "leaf-website-agent",
             "parent": comment["id"],
             "responds": comment["id"],
-            "text": "This is a host failure.",
+            "text": website_server.FAILURE_RECEIPTS["startup_failed"],
             "failure": "startup_failed",
             "attempt": f"website-agent-{comment['id']}",
             "id": reply["id"],
@@ -2847,11 +2906,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert verify_site.deployment_answer(failures) is None
         repeated, _ = post(
             f"{root}/examples/decision/_leaf/agent/reply",
-            {
-                "event": comment["id"],
-                "text": "This is a host failure.",
-                "failure": "startup_failed",
-            },
+            {"event": comment["id"], "failure": "startup_failed"},
         )
         assert repeated == appended
         assert (
@@ -3084,11 +3139,12 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
 
         answer, _ = post(
             f"{root}/_leaf/agent/reply",
-            {"event": first["id"], "text": "Now stale", "failure": "rate_limited"},
+            {"event": first["id"], "failure": "rate_limited"},
         )
 
         assert answer == {"status": "settled"}
-        assert all(event.get("text") != "Now stale" for event in read_events(published))
+        stale = website_server.FAILURE_RECEIPTS["rate_limited"]
+        assert all(event.get("text") != stale for event in read_events(published))
 
 
 def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
@@ -3308,9 +3364,7 @@ def test_the_deploy_gate_reads_a_durable_host_failure(page_dir, failure):
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    reply = host.fallback_reply(
-        page_dir, comment["id"], "New failure wording.", failure
-    )
+    reply = host.failure_receipt(page_dir, comment["id"], failure)
     state = website_server.full_state(page_dir, read_events(page_dir))
     replies = [event for event in state["events"] if event["kind"] == "reply"]
     assert [event["id"] for event in replies] == [reply["id"]]
@@ -3495,8 +3549,11 @@ def test_the_deploy_gate_retries_only_startup_failures(failure):
 
 
 def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
+    """`failure` decides, so the wording may change and old pages still read right."""
     for text in (
         "deployment verified",
+        *website_server.FAILURE_RECEIPTS.values(),
+        # Wordings this adapter has already written into pages that outlive it.
         "I couldn’t generate a reply just now. Please send a new message to try again.",
         "I finished without posting a reply. Please send a new message to try again.",
         "This public demo is busy right now. Please wait a minute, then send a new message.",

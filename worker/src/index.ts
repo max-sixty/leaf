@@ -112,10 +112,6 @@ type AgentResult = z.infer<
   (typeof agentResultSchemas)[keyof typeof agentResultSchemas]
 >;
 
-const GENERATION_FAILURE_REPLY =
-  "I couldn’t generate a reply just now. Please send a new message to try again.";
-const RATE_LIMIT_REPLY =
-  "This public demo is busy right now. Please wait a minute, then send a new message.";
 const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
 const CLOUDFLARE_CONTAINER_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 interface LeafEvent {
@@ -580,10 +576,11 @@ async function runAgentTask(
       askContainer(env, params, "start", { event: params.eventId }),
     );
   }
-  return measuredAgentOperation("fallback_reply", params, () =>
+  // The words the reader gets belong to the adapter, which declares them beside the
+  // code in `FAILURE_RECEIPTS`; naming the code here is the whole of what this knows.
+  return measuredAgentOperation("failure_receipt", params, () =>
     askContainer(env, params, "reply", {
       event: params.eventId,
-      text: RATE_LIMIT_REPLY,
       failure: "rate_limited",
     }),
   );
@@ -607,16 +604,15 @@ async function dispatchAgentTask(
       error: error instanceof Error ? error.name : "unknown",
     });
     try {
-      await measuredAgentOperation("fallback_reply", params, () =>
+      await measuredAgentOperation("failure_receipt", params, () =>
         askContainer(env, params, "reply", {
           event: params.eventId,
-          text: GENERATION_FAILURE_REPLY,
           failure: "startup_failed",
         }),
       );
-    } catch (fallbackError) {
+    } catch (receiptError) {
       agentLog("dispatch_abandoned", params, {
-        error: fallbackError instanceof Error ? fallbackError.name : "unknown",
+        error: receiptError instanceof Error ? receiptError.name : "unknown",
       });
     }
   }

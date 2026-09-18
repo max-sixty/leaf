@@ -85,13 +85,34 @@ STREAM_SILENCE = 120.0
 # sentence a boundary writes, short enough that one that writes a file cannot fill
 # the log with it.
 FAULT_DETAIL_LIMIT = 500
-# What a reader is told when the turn carrying their message ends with no answer.
-# It says only what the host observed: a turn may well have run — the incident this
-# path was written for had one running still — so a sentence about the message never
-# arriving would be wrong exactly where it matters most.
-TURN_UNANSWERED_TEXT = (
-    "The agent's turn ended without an answer to this message. Send it again to retry."
-)
+# Every failure a host receipt reports, and the words the reader gets for it. A code
+# and its wording are one fact told to two audiences — `failure` is what the deployment
+# verifier and the page read, the text is what the reader reads — so they are declared
+# together, here, rather than the codes living at the door that validates them and the
+# words at whichever boundary gave up. The voice is the host's, not the agent's: a
+# receipt written in the agent's first person is indistinguishable from an answer,
+# which is the failure this whole path exists to make visible.
+FAILURE_RECEIPTS = {
+    "startup_failed": (
+        "The agent could not be started for this message. Send it again to retry."
+    ),
+    "rate_limited": (
+        "This public demo is busy right now. Wait a minute, then send the message again."
+    ),
+    # This one says only what the container observed: a turn may well have run — the
+    # incident it was written for had one running still — so a sentence about the
+    # message never arriving would be wrong exactly where it matters most.
+    "turn_failed": (
+        "The agent's turn ended without an answer to this message. "
+        "Send it again to retry."
+    ),
+}
+# The one code the container writes from its own reading of a turn it followed. The
+# rest reach the log through the Worker's door, which takes them and refuses this one,
+# so that a receipt claiming a turn was observed comes only from the code that observed
+# it.
+CONTAINER_FAILURE = "turn_failed"
+WORKER_FAILURES = tuple(code for code in FAILURE_RECEIPTS if code != CONTAINER_FAILURE)
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_REPLY_PATH = "/_leaf/agent/reply"
 STARTUP_REPORT_PATH = "/api/performance"
@@ -251,6 +272,43 @@ def site_head(page_root: str, page: dict, *, asset_root: str | None = None) -> s
 def agent_attempt(event_id: str) -> str:
     """The durable reply attempt owned by one reader message."""
     return f"website-agent-{event_id}"
+
+
+def write_failure_receipt(page_dir: Path, responds: str, failure: str) -> dict | None:
+    """Write the one receipt that tells a reader no answer to their move is coming.
+
+    This is the only writer of a reply carrying `failure`, so a reader meets every
+    giving-up boundary — the Worker's rate limiter, a dispatch that threw, a turn this
+    container followed to nothing — in one shape, and the page has one thing to draw.
+
+    Only the move is named. A reply's address is not always the move — a gesture on a
+    widget frozen into thread markup is answered on the conversation holding it — and
+    `cmd_reply` resolves that from the same reading either way, so naming it here would
+    be a second answer to a question the writer already answers. It would also be the
+    wrong one on a repeat: the Worker retries the same request, and once the first
+    receipt has settled the move, nothing outside the log can say where its reply went.
+    The durable `attempt` is what makes that repeat idempotent, and the writer consults
+    it before the address.
+
+    `only_if_unclaimed` is the whole safety of this: a move some turn has picked up
+    belongs to that turn, and this returns None rather than answering for it.
+    """
+    accepted = cmd_reply(
+        page_dir,
+        None,
+        FAILURE_RECEIPTS[failure],
+        "",
+        for_event=responds,
+        attempt=agent_attempt(responds),
+        skip_if_settled=True,
+        only_if_unclaimed=True,
+        failure=failure,
+        identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
+    )
+    claim = page_claim(page_dir)
+    if claim and claim.get("host") == "codex":
+        abandon_codex_delivery(claim["id"], responds)
+    return accepted
 
 
 def agent_event_pending(page_dir: Path, event_id: str) -> bool:
@@ -727,7 +785,7 @@ class HostedTurn:
     def commit(self, terminal: dict) -> None:
         """Account for the turn on the page: its reply, its receipt, its claim."""
         if self.leaf_turn is None:
-            self._report_unanswered(terminal)
+            self._report_failure(terminal)
             return
         reply_error = None
         if self.reply_stream is not None:
@@ -739,8 +797,8 @@ class HostedTurn:
             self.record("turn_reply_commit_failed", **fault_fields(reply_error))
         self.host._finish_turn(self.page_dir, self.thread_id, self.leaf_turn, terminal)
 
-    def _report_unanswered(self, terminal: dict) -> None:
-        """Tell the reader their move went unanswered, for a turn nothing bound.
+    def _report_failure(self, terminal: dict) -> None:
+        """Receipt every move in this delivery, for a turn nothing bound.
 
         No Leaf turn holds this delivery, so no other writer will ever name it: the
         reply the reader is owed has no author, and without this their message sits
@@ -759,12 +817,8 @@ class HostedTurn:
         try:
             for target in targets:
                 if (
-                    self.host.settle_unclaimed(
-                        Path(target["page"]),
-                        target["reply_to"],
-                        target["responds"],
-                        TURN_UNANSWERED_TEXT,
-                        "turn_failed",
+                    write_failure_receipt(
+                        Path(target["page"]), target["responds"], CONTAINER_FAILURE
                     )
                     is not None
                 ):
@@ -1342,40 +1396,17 @@ class WebsiteCodexHost:
         )
         return thread_id
 
-    def fallback_reply(
-        self, page_dir: Path, event_id: str, text: str, failure: str
+    def failure_receipt(
+        self, page_dir: Path, event_id: str, failure: str
     ) -> dict | None:
-        """Settle unclaimed input without racing a turn that is starting."""
-        with self.lock:
-            return self.settle_unclaimed(page_dir, event_id, event_id, text, failure)
+        """Receipt a move the Worker could not hand to an agent at all.
 
-    def settle_unclaimed(
-        self, page_dir: Path, reply_to: str, responds: str, text: str, failure: str
-    ) -> dict | None:
-        """Write one host failure receipt, for a caller that already holds the lock.
-
-        `reply_to` is where the receipt is written and `responds` is the move it
-        answers; the two differ when a widget gesture belongs to a frozen
-        conversation. `only_if_unclaimed` is the whole safety of this: a move some
-        turn has picked up belongs to that turn, and this returns None rather than
-        answering for it.
+        The lock is what keeps this from racing a turn that is starting: attachment
+        holds it too, so whichever arrives second reads a page the first has already
+        changed.
         """
-        accepted = cmd_reply(
-            page_dir,
-            reply_to,
-            text,
-            "",
-            for_event=responds,
-            attempt=agent_attempt(responds),
-            skip_if_settled=True,
-            only_if_unclaimed=True,
-            failure=failure,
-            identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
-        )
-        claim = page_claim(page_dir)
-        if claim and claim.get("host") == "codex":
-            abandon_codex_delivery(claim["id"], responds)
-        return accepted
+        with self.lock:
+            return write_failure_receipt(page_dir, event_id, failure)
 
 
 _agent_host: WebsiteCodexHost | None = None
@@ -1388,32 +1419,29 @@ def website_codex_host() -> WebsiteCodexHost:
     return _agent_host
 
 
-def _agent_event(posted: dict, *, with_text: bool) -> tuple[str, str | None]:
-    expected = {"event", "text"} if with_text else {"event"}
-    if set(posted) != expected:
-        raise ValueError(f"agent request fields must be {sorted(expected)}")
+def _agent_event(posted: dict) -> str:
+    """Validate the one reader move a Worker request names."""
+    if set(posted) != {"event"}:
+        raise ValueError("agent request fields must be ['event']")
     event_id = posted["event"]
     if not isinstance(event_id, str) or not AGENT_EVENT_ID.fullmatch(event_id):
         raise ValueError("agent event must be a Leaf event id")
-    if not with_text:
-        return event_id, None
-    text = posted["text"]
-    if not isinstance(text, str) or not text.strip():
-        raise ValueError("agent reply text must be non-empty")
-    return event_id, text
+    return event_id
 
 
-def _agent_failure(posted: dict) -> tuple[str, str, str]:
-    """Validate a Worker failure before admitting its host-authored reply."""
-    if set(posted) != {"event", "text", "failure"}:
-        raise ValueError("agent failure requires event, text, and failure")
+def _agent_failure(posted: dict) -> tuple[str, str]:
+    """Validate a Worker failure before admitting its host-authored receipt.
+
+    The Worker names the failure, not the words for it: the wording is a reader-facing
+    presentation of a code this module already declares, and two copies of it either
+    side of an HTTP hop is one copy too many.
+    """
+    if set(posted) != {"event", "failure"}:
+        raise ValueError("agent failure requires event and failure")
     failure = posted["failure"]
-    if failure not in ("startup_failed", "rate_limited"):
-        raise ValueError("agent failure must be startup_failed or rate_limited")
-    event_id, text = _agent_event(
-        {"event": posted["event"], "text": posted["text"]}, with_text=True
-    )
-    return event_id, text, failure
+    if failure not in WORKER_FAILURES:
+        raise ValueError(f"agent failure must be one of {list(WORKER_FAILURES)}")
+    return _agent_event({"event": posted["event"]}), failure
 
 
 def published_page(
@@ -1502,9 +1530,9 @@ class WebsitePageEndpoint(PageEndpoint):
             return self._json({"error": self.posted_error}, 400)
         try:
             if path == AGENT_REPLY_PATH:
-                event_id, text, failure = _agent_failure(self.posted)
+                event_id, failure = _agent_failure(self.posted)
             else:
-                event_id, text = _agent_event(self.posted, with_text=False)
+                event_id = _agent_event(self.posted)
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
         if path == AGENT_START_PATH:
@@ -1514,9 +1542,7 @@ class WebsitePageEndpoint(PageEndpoint):
             return self._json({"status": "started", "thread": thread_id})
 
         try:
-            accepted = self.agent_host.fallback_reply(
-                self.page_dir, event_id, text, failure
-            )
+            accepted = self.agent_host.failure_receipt(self.page_dir, event_id, failure)
         except SystemExit as error:
             return self._json({"error": str(error)}, 400)
         if accepted is None:

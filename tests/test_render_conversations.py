@@ -19,6 +19,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
+    CONVERSATION_DIFF_PAGE,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
@@ -2449,6 +2450,79 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
 
 
+def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
+    """A reply saying no answer is coming is marked as one, in both faces of the head.
+
+    Nothing else in the message says it: a host receipt is a reply event, written
+    under the thread's own agent name, in the same bubble as a real answer, and its
+    prose is the only other difference. So a reader skimming a thread reads an
+    apology from the agent rather than a notice that their message went nowhere, and
+    the page's own record of the failure — `failure` — went unread. The mark belongs
+    in the head because that is the part of a message a reader takes on trust.
+    """
+    url = serve(CONVERSATION_DIFF_PAGE)
+    answered, unanswered = (
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": text,
+                "anchor": {"section": "cd-q"},
+            },
+        )
+        for text in ("Widen the north bracket?", "And the south pair?")
+    )
+    answer = conversation_model.cmd_reply(
+        serve.page_dir,
+        answered["id"],
+        "Widened it to forty.",
+        None,
+        for_event=answered["id"],
+    )
+    receipt = conversation_model.cmd_reply(
+        serve.page_dir,
+        unanswered["id"],
+        "The agent's turn ended without an answer to this message. "
+        "Send it again to retry.",
+        None,
+        for_event=unanswered["id"],
+        failure="turn_failed",
+    )
+
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    inline = page.locator(f'#cd-q .lf-conversation-msg[data-event="{receipt["id"]}"]')
+    expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
+    assert inline.get_attribute("data-failure") == "turn_failed"
+    # The real answer above it wears nothing, so the mark is a difference the reader
+    # can see rather than a decoration every agent message carries.
+    real = page.locator(f'#cd-q .lf-conversation-msg[data-event="{answer["id"]}"]')
+    expect(real.locator(".lf-msg-failure")).to_have_count(0)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel = page.locator(f'.lf-msg[data-mid="{receipt["id"]}"]')
+    expect(panel.locator(".lf-msg-failure")).to_have_text("Not answered")
+
+    # And it is dressed rather than bare: an unmarked span among a head of muted
+    # metadata would be the same invisibility in another shape.
+    head = page.evaluate(
+        """(id) => {
+          const head = document.querySelector(`.lf-msg[data-mid="${id}"] .lf-msg-head`);
+          const chip = getComputedStyle(head.querySelector(".lf-msg-failure"));
+          return {
+            chip: chip.color,
+            border: chip.borderTopWidth,
+            clock: getComputedStyle(head.querySelector("time")).color,
+          };
+        }""",
+        receipt["id"],
+    )
+    assert head["chip"] != head["clock"] and head["border"] != "0px"
+
+
 def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     """Either side can close a thread and the reader watches only one of them happen.
     Their own press folds the thread under their hand and leaves the outcome on the
@@ -3333,6 +3407,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-conversation-head",
         "lf-conversation-thread",
         "lf-edited",
+        # A host receipt's mark is part of that same shared message structure: the
+        # head carries it in the panel and inline, so the theme dresses it here.
+        "lf-msg-failure",
         "lf-fab",
         "lf-fab-bar",
         "lf-focus-within",

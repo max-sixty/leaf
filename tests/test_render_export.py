@@ -20,6 +20,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
+from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import render_checks as render_checks_model
@@ -540,14 +541,11 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert automation_process.stdout.readline() == "\n"
     automation_url = automation_process.stdout.readline().strip()
     assert automation_url.startswith("http://127.0.0.1:")
-    assert (
-        automation_process.stderr.readline().strip()
-        == "server   temporary (stops with this command)"
-    )
+    assert automation_process.stderr.readline().strip() == preview_model.AUTOMATION_NOTE
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
     watcher_metadata = page_dir.with_name(f"{page_dir.name}.preview.json")
-    assert "url" not in json.loads(watcher_metadata.read_text())
+    assert json.loads(watcher_metadata.read_text())["url"] == automation_url
     assert page_dir not in service_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
@@ -666,10 +664,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert reset_automation.stdout.readline() == "\n"
     reset_url = reset_automation.stdout.readline().strip()
     assert reset_url.startswith("http://127.0.0.1:")
-    assert (
-        reset_automation.stderr.readline().strip()
-        == "server   temporary (stops with this command)"
-    )
+    assert reset_automation.stderr.readline().strip() == preview_model.AUTOMATION_NOTE
     assert service_model.page_claim(reader_dir) is None
     assert reader_event not in events_model.read_events(reader_dir)
 
@@ -684,6 +679,85 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     _, reset_stderr = reset_automation.communicate(timeout=10)
     assert reset_automation.returncode == 130, reset_stderr
     assert "Traceback" not in reset_stderr
+
+
+def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
+    tmp_path, preview_slot, request, capsys
+):
+    """An agent drives its preview across many tool calls, so it needs `--background`.
+
+    Interaction and detachment are separate choices. While they were one, the only
+    backgroundable preview was the claimed one, and a session driving four of them
+    through browser proof read its own presses back as reader input: six Stop hooks
+    blocked on `.tmp/previews/` slots inside subagent worktrees that no reader
+    could see.
+
+    A claimed preview still reports its reader, which is the reading
+    `test_a_preview_owes_no_watcher_but_still_carries_its_reader` holds. The
+    difference is upstream, in whether the preview took a claim at all.
+    """
+    slot, page_dir = preview_slot
+    source = tmp_path / "detached.html"
+    source.write_text(REPLAYED_PAGE, encoding="utf-8")
+    runtime = install_payload(tmp_path / "detached-runtime")
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+    ]
+    request.addfinalizer(
+        lambda: subprocess.run(
+            [*command, "--automation", "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    )
+    started = subprocess.run(
+        [*command, "--automation", "--background"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert started.returncode == 0, (
+        f"stdout:\n{started.stdout}\nstderr:\n{started.stderr}"
+    )
+    url = started.stdout.splitlines()[-1]
+    assert url.startswith("http://127.0.0.1:")
+    assert preview_model.AUTOMATION_NOTE in started.stderr
+
+    # The address is the one thing a caller cannot rebuild, and a temporary server
+    # writes no `service.json` to read it off, so a second invocation answers from
+    # the watcher's own state rather than starting a rival.
+    resumed = subprocess.run(
+        [*command, "--automation", "--background"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert resumed.returncode == 0, resumed.stderr
+    assert resumed.stdout.splitlines()[-1] == url
+
+    session = os.environ["CLAUDE_CODE_SESSION_ID"]
+    assert service_model.page_claim(page_dir) is None
+    assert page_dir not in service_model.owned_pages(session)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": session})
+    assert capsys.readouterr().out == ""
 
 
 @pytest.fixture

@@ -12,9 +12,11 @@ standalone HTML file instead.
 The live result is a page, not a picture of one: it takes comments. Served from
 an agent session, `leaf wait` on the same directory carries them to the agent and
 the example gets revised like any other page. Outside an agent host, gestures remain
-in the log until an agent claims the page. `--automation` uses the same temporary
-page server as the browser harness: gestures traverse the real HTTP and event-log
-boundary, but the server creates no claim or durable service.
+in the log until an agent claims the page. The claim puts the preview in that session's
+delivery loop, so a session driving its own preview reads every gesture it makes back
+as reader input. `--automation` uses the same temporary page server as the browser
+harness: gestures traverse the real HTTP and event-log boundary, but the server creates
+no claim or durable service.
 
 An example can also ship companion `.jsonl` events and `.data.json` source
 values. The first lets a page arrive mid-conversation; the second supplies the
@@ -77,6 +79,10 @@ ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
 NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+# An automation preview reports its own lifetime rather than the temporary server's:
+# `leaf server run --temporary` ends with the command that printed it, while this
+# watcher outlives a detached start and ends at `--stop` either way.
+AUTOMATION_NOTE = "server   temporary (no task claim; --stop ends it)"
 # The watcher's own dependency, which the dev group beside this script declares. A
 # checkout named by `--runtime` has the `--no-dev` environment `bin/leaf` syncs, so the
 # worker command overlays it there. Move this floor whenever `pyproject.toml`'s moves.
@@ -171,10 +177,8 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parsed = parser.parse_args()
     if parsed.source and parsed.example:
         parser.error("choose an example name or --source, not both")
-    if parsed.automation and (parsed.background or parsed.export):
-        parser.error(
-            "--automation is a foreground watcher; omit --background or --export"
-        )
+    if parsed.automation and parsed.export:
+        parser.error("--automation serves a page; omit --export")
     if parsed.reset and (parsed.stop or parsed.export):
         parser.error("--reset starts a fresh preview; omit --stop or --export")
     return parser, parsed
@@ -580,7 +584,6 @@ def watch_preview(
     from leaf.files import read_json, write_json
     from leaf.host import session_harness
     from leaf.hosting import (
-        TEMPORARY_SERVER_NOTE,
         TemporaryPageServer,
         cmd_stop,
         start_server,
@@ -629,21 +632,21 @@ def watch_preview(
             key: identity.get(key)
             for key in ("source", "runtime", "seed", "interaction")
         }:
-            if automation:
-                raise ValueError(
-                    "automation preview already running; use the URL printed by its foreground command"
-                )
-            running = running_server(page)
-            while running is None and (read_json(metadata) or {}).get("enabled"):
+            # The running watcher publishes its URL in the preview state, so a
+            # second invocation reads it from one place whichever server is
+            # behind it. An automation preview has no `service.json` to read it
+            # off, and its URL is the only thing a caller cannot rebuild.
+            state = read_json(metadata) or {}
+            while state.get("url") is None and state.get("enabled"):
                 time.sleep(0.05)
-                running = running_server(page)
-            if running is None:
+                state = read_json(metadata) or {}
+            if state.get("url") is None:
                 raise ValueError(f"preview {page} was stopped while updating")
             preview_ready(
                 {
                     "prepared": f"watching {source.stem} (feedback preserved)",
-                    "url": running["url"],
-                    "note": startup_note(page),
+                    "url": state["url"],
+                    "note": AUTOMATION_NOTE if automation else startup_note(page),
                 },
                 ready_fd,
                 log_path,
@@ -690,7 +693,7 @@ def watch_preview(
                 return
             if automation:
                 temporary = TemporaryPageServer(page).start()
-                url, note = temporary.url, TEMPORARY_SERVER_NOTE
+                url, note = temporary.url, AUTOMATION_NOTE
             else:
                 ready = start_preview_server(page, launcher, runtime)
                 if ready is None:
@@ -701,6 +704,7 @@ def watch_preview(
             )
             watched = watch_paths(source, runtime, roots, identity["seed"])
             changes = watch_changes(watched)
+            update_preview_state(page, url=url)
             preview_ready({"prepared": prepared, "url": url, "note": note}, ready_fd)
             print(
                 f"Watching {source} and {runtime}; feedback stays in {page}", flush=True
@@ -775,7 +779,7 @@ def watch_preview(
                 if serving:
                     print(f"Reloaded {source.stem}", flush=True)
         finally:
-            update_preview_state(page, enabled=False)
+            update_preview_state(page, enabled=False, url=None)
             if changes is not None:
                 changes.close()
             if temporary is not None:

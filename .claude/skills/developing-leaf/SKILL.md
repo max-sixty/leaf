@@ -87,20 +87,23 @@ tight semantic container when it has none.
 ## Preview a shipped example
 
 From the repository root, run `scripts/preview.py <example> --export` for a
-standalone static rendering. Start `scripts/preview.py <example>` in a
-long-running command or terminal session for an interactive preview. Keep it
-alive and retain the exact served URL. The script watches source and runtime
+standalone static rendering. Start `scripts/preview.py <example>` for an
+interactive preview: `--background` detaches the watcher and prints its URL,
+and a foreground run holds the terminal. The script watches source and runtime
 edits and preserves feedback at `.tmp/previews/<example>`. Repeating the command
-reuses that preview; use `--slot <name>` for another copy. A refused update
-appears in the terminal or the background log named at startup. Fix the input
-and the watcher retries.
+reuses that preview and prints its URL again; use `--slot <name>` for another
+copy. A refused update appears in the terminal or the background log named at
+startup. Fix the input and the watcher retries.
 
-Browser automation runs `scripts/preview.py <example> --automation` in a
-long-running process. The command uses the browser suite's temporary server: the
-real HTTP and event log, with no task claim or durable service. Its default page
-is `.tmp/previews/<example>-automation`; use the reader preview's distinct page
-when presenting a URL for feedback. An explicit slot cannot change interaction
-mode.
+Choose the interaction by who presses the page. Add `--automation` to a preview
+this session drives itself, including every screenshot and browser check: it
+serves through the browser suite's temporary server, with the real HTTP and event
+log but no task claim or durable service, at `.tmp/previews/<example>-automation`.
+Leave it off only for a preview whose URL goes to the user, where the claim carries
+their comments to `leaf wait`. A claim delivers every press back to this session as
+reader input. A claimed preview under automation therefore reports the agent's own
+gestures as unanswered reader moves, and the Stop hook holds the turn open for each.
+An explicit slot cannot change interaction mode.
 
 When finished with a preview, run the matching preview command with `--stop` (and
 `--automation` for its automation slot); it waits for the watcher and server to
@@ -162,15 +165,16 @@ Use `$baseline_root` as the baseline and `$candidate_root` as the candidate.
 Choose the sources that isolate the change: one shared authored source for a
 runtime change, or each checkout's copy when the authored content changed. Give
 the pair a comparison-specific `<slot>` name; `--reset` removes any state left
-by an earlier run.
+by an earlier run. Both commands below carry `--automation`, because the pair is
+measured here; drop it from a pair whose URLs you hand to the user.
 
 ```bash
 "$candidate_root/scripts/preview.py" --source <baseline-source.html> \
   --runtime "$baseline_root" \
-  --slot <slot>-baseline --reset --background
+  --slot <slot>-baseline --reset --automation --background
 "$candidate_root/scripts/preview.py" --source <candidate-source.html> \
   --runtime "$candidate_root" \
-  --slot <slot>-candidate --reset --background
+  --slot <slot>-candidate --reset --automation --background
 ```
 
 Each command verifies the checkout launcher, prepares its independent page,

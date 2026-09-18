@@ -31,7 +31,13 @@ no-treatment case as a neutral control. Put longer rationale or provenance in a
 disclosure after the Ask. Use a short option that points
 elsewhere only to select among sections or work items that already exist
 independently of the Ask; do not create separate sections to hold its
-alternatives. Allow multiple picks only when several options may stand.
+alternatives.
+
+`multiple` asks whether two options can both hold, not whether the reader
+usually picks one. A group without it enforces exclusivity by discarding: the
+second press starts from an empty set, so the first pick is dropped silently.
+Author the exclusive group only where the options rule each other out; where a
+set is answerable — work to start, checks to run, risks to accept — allow it.
 
 On the page the group's last cell is an option the reader writes, saying
 `Another option`, so author the alternatives you actually mean and no catch-all

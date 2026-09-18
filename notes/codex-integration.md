@@ -41,7 +41,9 @@ Codex still calls Leaf commands to revise the page, report status, and perform o
 typed operations. Multi-conversation and disconnected deliveries keep the existing
 file-pointer queue fallback. Leaf does not answer approvals or user-input requests.
 
-The implementation is in `skills/leaf/scripts/leaf/codex.py`. The operating
+The implementation is in `skills/leaf/scripts/leaf/app_server.py`, which the detached
+adapter in `skills/leaf/scripts/leaf/codex.py` and the website host in
+`worker/server.py` both drive. The operating
 contract is `skills/leaf/references/host-codex.md`; activity and delivery state are
 specified in `skills/leaf/scripts/leaf/session-lifetime.md`.
 
@@ -253,7 +255,7 @@ still useful to the task owner, but Leaf does not reproduce it as a separate pan
 
 The first implementation includes:
 
-1. `AppServerEvents` in `codex.py` returns separate activity and final-answer
+1. `AppServerEvents` in `app_server.py` returns separate activity and final-answer
    snapshots. Codex commentary remains in Codex rather than appearing as the
    Leaf reply.
 2. An App Server turn is bound only when its delivery belongs to one Leaf conversation.

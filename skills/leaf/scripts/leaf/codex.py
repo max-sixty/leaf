@@ -1,6 +1,19 @@
-"""Detached Leaf delivery into later turns of one Codex task."""
+"""Detached Leaf delivery into later turns of one Codex task.
 
-import hashlib
+`leaf codex start` claims a page and leaves this adapter running behind the turn that
+started it, so a reader's later moves reach the same Codex task instead of waiting for
+the agent to ask again. The adapter owns the session watch: it captures each batch
+into the task's delivery record, offers one delivery at a time, and reconciles the
+receipt its page is owed however the delivery was taken.
+
+One of two transports carries an offer. An observed App Server connection opens a turn
+as soon as the task is idle, which is also how the reader sees activity and a streamed
+answer; the `codex queue` command leaves a pointer for the task's next turn, and the
+turn itself reports back through `leaf delivery claim`. `app_server.py` owns the
+protocol, the delivery records, and the page writers both transports share. What is
+here is the carrier around them.
+"""
+
 import json
 import os
 import queue
@@ -11,29 +24,40 @@ import sys
 import tempfile
 import threading
 import time
-import uuid
-from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlsplit
-from xml.etree import ElementTree
 
-from websockets.sync.client import connect, unix_connect
-
-from .conversation import (
-    DeliveryReply,
-    delivery_reply_reserved,
-    reserve_delivery_reply,
+from .app_server import (
+    START_TIMEOUT,
+    AppServerEvents,
+    AppServerReplyStream,
+    AppServerRequestRejected,
+    accept_codex_delivery,
+    app_server_connect,
+    app_server_delivery_id,
+    app_server_handshake,
+    app_server_request,
+    app_server_turn_start_params,
+    append_batch,
+    archive_queue,
+    check_app_server_endpoint,
+    clear_stream_activity,
+    close_stream_turn,
+    delivery_lock_path,
+    delivery_stream_reply_target,
+    offer_delivery,
+    open_stream_turn,
+    project_app_server_activity,
+    queue_path,
+    queue_records,
+    session_state_path,
+    set_stream_activity,
+    stop_app_server,
+    stream_reply_target,
+    write_queue,
 )
-from .delivery import (
-    DELIVERY_FORMAT,
-    batch_data,
-    current_responses,
-    delivery_path,
-    freeze_delivery,
-)
+from .conversation import delivery_reply_reserved, reserve_delivery_reply
 from .event_log import flocked, read_cursor
-from .files import read_json, write_json
+from .files import read_json
 from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
 from .schema import EVENTS_FILE
@@ -42,168 +66,15 @@ from .service import (
     owned_pages,
     restore_page_claim,
     take_page_claim,
-    unacknowledged,
 )
 from .session import Watch, acknowledge, read_watch_pass, record_pickup
 
 QUEUE_TIMEOUT = 20
-START_TIMEOUT = 20
-QUEUE_FORMAT = "leaf-codex-queue-v1"
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
-STREAM_UPDATE_INTERVAL = 0.2
-STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
-STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
-STREAM_HEARTBEAT_METHODS = {
-    "item/commandExecution/outputDelta",
-    "item/fileChange/outputDelta",
-    "item/mcpToolCall/progress",
-}
-STREAM_THROTTLED_METHODS = (
-    STREAM_TEXT_METHODS | STREAM_HEARTBEAT_METHODS | {STREAM_MESSAGE_METHOD}
-)
-
-
-class AppServerRequestRejected(RuntimeError):
-    """The App Server definitively rejected a request before executing it."""
 
 
 class AppServerDeliveryUncertain(RuntimeError):
     """A delivery may have started, but its acknowledgement was lost."""
-
-
-@dataclass(frozen=True)
-class PreparedDelivery:
-    """One immutable delivery in pointer and structured forms."""
-
-    prompt: str
-    payload: dict
-
-
-def delivery_reply_targets(payload: dict) -> list[dict]:
-    """Every plain reply address the moves in one delivery are owed.
-
-    A move's response address is not the move: a widget gesture inside a frozen
-    conversation is answered on the conversation that holds it. Reading both halves
-    from the delivery keeps every writer — the provider's own final answer and a
-    host receipt written when there will be no final answer — addressing the same
-    place.
-    """
-    return [
-        {
-            "page": batch["page"],
-            "reply_to": obligation["response"]["to"],
-            "responds": obligation["response"]["for"],
-        }
-        for batch in payload["batches"]
-        for event in batch["events"]
-        if (obligation := event.get("obligation")) is not None
-        and obligation["response"]["kind"] == "reply"
-    ]
-
-
-def stream_reply_target(payload: dict) -> dict | None:
-    """Return the one plain reply address a provider message may answer."""
-    targets = delivery_reply_targets(payload)
-    return targets[0] if len(targets) == 1 else None
-
-
-def app_server_turn_start_params(thread_id: str, payload: dict) -> dict:
-    """Build the one App Server request shape for a Leaf delivery turn."""
-    return {
-        "threadId": thread_id,
-        "clientUserMessageId": payload["id"],
-        "input": [],
-        "toolOutput": {
-            "name": "leaf_delivery",
-            "output": json.dumps(payload, separators=(",", ":")),
-        },
-        "turnTrigger": "leaf",
-    }
-
-
-def app_server_initialize_params(name: str, title: str) -> dict:
-    """Initialize one Leaf App Server client."""
-    return {
-        "clientInfo": {"name": name, "title": title, "version": "0"},
-        "capabilities": {"requestAttestation": False},
-    }
-
-
-def app_server_delivery_id(message: dict) -> str | None:
-    """Read the exact Leaf delivery identity carried by one provider notification."""
-    method = message.get("method")
-    params = message.get("params") or {}
-    if method == "turn/started":
-        items = params.get("turn", {}).get("items", [])
-    elif method in {"item/started", "item/completed"}:
-        items = [params.get("item") or {}]
-    else:
-        return None
-
-    found = set()
-    for item in items:
-        if (
-            item.get("type") == "functionCallOutput"
-            and item.get("name") == "leaf_delivery"
-            and isinstance(item.get("output"), str)
-        ):
-            try:
-                payload = json.loads(item["output"])
-            except json.JSONDecodeError:
-                continue
-            if (
-                isinstance(payload, dict)
-                and payload.get("format") == DELIVERY_FORMAT
-                and isinstance(payload.get("id"), str)
-            ):
-                found.add(payload["id"])
-            continue
-        if item.get("type") != "userMessage":
-            continue
-        for content in item.get("content", []):
-            if content.get("type") != "text":
-                continue
-            lines = content.get("text", "").strip().splitlines()
-            if len(lines) != 3 or lines[0] != "```xml" or lines[2] != "```":
-                continue
-            try:
-                pointer = ElementTree.fromstring(lines[1])
-            except ElementTree.ParseError:
-                continue
-            if (
-                pointer.tag == "leaf-delivery"
-                and set(pointer.attrib) == {"id", "operation"}
-                and pointer.attrib["operation"] == "delivery claim"
-            ):
-                found.add(pointer.attrib["id"])
-    return next(iter(found)) if len(found) == 1 else None
-
-
-def delivery_stream_reply_target(session_id: str, delivery_id: str) -> dict | None:
-    """Resolve one task-owned delivery identity to its plain reply address."""
-    path = queue_path(session_id, delivery_id)
-    records = (path, path.parent / "history" / path.name)
-    if not any(
-        (recorded := read_json(record)) is not None
-        and recorded.get("format") == QUEUE_FORMAT
-        for record in records
-    ):
-        return None
-    try:
-        payload = read_json(delivery_path(delivery_id))
-    except ValueError:
-        return None
-    return stream_reply_target(payload) if payload is not None else None
-
-
-def delivery_queue_state(session_id: str, delivery_id: str) -> str | None:
-    """Read one delivery's transport state from its live or archived queue record."""
-    path = queue_path(session_id, delivery_id)
-    with flocked(delivery_lock_path(session_id)):
-        record = read_json(path)
-        if record is None:
-            record = read_json(path.parent / "history" / path.name)
-    return record.get("state") if record is not None else None
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -241,384 +112,6 @@ def queue_delivery(
     arguments = ["queue"]
     arguments.extend(["--thread", thread_id, "--message", prompt])
     _run_codex(codex_path, *arguments)
-
-
-def app_server_socket_path(endpoint: str) -> Path | None:
-    """Validate a local App Server endpoint and return its Unix socket path."""
-    try:
-        parsed = urlsplit(endpoint)
-        hostname = parsed.hostname
-    except ValueError as error:
-        raise RuntimeError("--app-server needs a valid local endpoint") from error
-    if parsed.query or parsed.fragment or parsed.username or parsed.password:
-        raise RuntimeError("--app-server needs a local WebSocket or Unix endpoint")
-    if parsed.scheme == "ws" and hostname in {"127.0.0.1", "::1", "localhost"}:
-        return None
-    if parsed.scheme == "unix" and not parsed.netloc and parsed.path:
-        path = Path(parsed.path)
-        if path.is_absolute():
-            return path
-    raise RuntimeError(
-        "--app-server needs a local loopback ws:// endpoint or an absolute "
-        "unix:/// socket"
-    )
-
-
-def check_app_server_endpoint(endpoint: str) -> None:
-    """Keep the experimental unauthenticated transport on this machine."""
-    app_server_socket_path(endpoint)
-
-
-def _app_server_connect(endpoint: str):
-    socket_path = app_server_socket_path(endpoint)
-    options = {
-        "open_timeout": START_TIMEOUT,
-        "close_timeout": 1,
-        "compression": None,
-        # App Server completion items include complete command output. A page read can
-        # therefore exceed websockets' 1 MiB message default even though the local
-        # protocol and the command both completed normally.
-        "max_size": None,
-    }
-    connection = (
-        unix_connect(str(socket_path), uri="ws://localhost/rpc", **options)
-        if socket_path is not None
-        else connect(endpoint, **options)
-    )
-    # Website delivery transfers this connection to its turn-following thread, so its
-    # owner closes it explicitly rather than retaining the context manager here. Enter
-    # it before transfer: this is a no-op in websockets 15-16 and the supported direct
-    # connection path in 17, without splitting Leaf by dependency version.
-    return connection.__enter__()
-
-
-def _head(text: str, limit: int = 180) -> str:
-    line = " ".join(text.split())
-    return line if len(line) <= limit else line[: limit - 1] + "…"
-
-
-def _tail(text: str, limit: int = 240) -> str:
-    line = " ".join(text.split())
-    return line if len(line) <= limit else "…" + line[-(limit - 1) :]
-
-
-class AppServerEvents:
-    """Fold one task's notifications into activity and terminal readings."""
-
-    def __init__(self, thread_id: str):
-        self.thread_id = thread_id
-        self.turn_id: str | None = None
-        self.details: dict[str, str] = {}
-        self.text: dict[str, str] = {}
-        self.message_phases: dict[str, str | None] = {}
-        self.message_order: list[str] = []
-        self.item_started_at: dict[str, int] = {}
-
-    def restore_turn(self, turn: dict) -> str:
-        """Replace transient message state with one resumed provider turn."""
-        self.turn_id = turn["id"]
-        self.details.clear()
-        self.text.clear()
-        self.message_phases.clear()
-        self.message_order.clear()
-        self.item_started_at.clear()
-        for item in turn.get("items", []):
-            if item.get("type") == "agentMessage":
-                self._record_message(item)
-        return self.final_text(turn)
-
-    def read(self, message: dict) -> dict | None:
-        """Return one transient activity or turn-completion update."""
-        method = message.get("method")
-        params = message.get("params") or {}
-        message_thread = params.get("threadId")
-        if message_thread is not None and message_thread != self.thread_id:
-            return None
-
-        if method == "turn/started":
-            self.restore_turn(params["turn"])
-            return {"turn": self.turn_id, "activity": "Starting"}
-
-        turn_id = params.get("turnId") or self.turn_id
-        if method == "turn/completed":
-            turn = params["turn"]
-            completed = turn["id"]
-            final = self.final_text(turn)
-            if self.turn_id == completed:
-                self.turn_id = None
-                self.details.clear()
-                self.item_started_at.clear()
-            return {
-                "turn": completed,
-                "completed": turn.get("status", "completed"),
-                "text": final,
-            }
-        if turn_id is None:
-            return None
-
-        if method == "turn/plan/updated":
-            steps = params.get("plan", [])
-            current = next(
-                (step["step"] for step in steps if step["status"] == "inProgress"),
-                None,
-            )
-            if current is None:
-                current = next(
-                    (step["step"] for step in steps if step["status"] == "pending"),
-                    None,
-                )
-            return {"turn": turn_id, "activity": _head(current)} if current else None
-
-        if method == "item/started":
-            item = params["item"]
-            lifecycle = self._item_lifecycle(params, "started")
-            if item["type"] == "agentMessage":
-                self._record_message(item)
-                if item.get("phase") == "commentary":
-                    return {"turn": turn_id, "item": lifecycle}
-                if item.get("text"):
-                    return {
-                        "turn": turn_id,
-                        "item": lifecycle,
-                        "message": self._message_update(item["id"], complete=False),
-                    }
-                return {"turn": turn_id, "item": lifecycle}
-            detail = self._item_detail(item)
-            if detail:
-                self.details[item["id"]] = detail
-            return {
-                "turn": turn_id,
-                "item": lifecycle,
-                **({"activity": detail} if detail else {}),
-            }
-
-        if method == "item/completed":
-            item = params["item"]
-            lifecycle = self._item_lifecycle(params, "completed")
-            self.details.pop(item["id"], None)
-            if item["type"] == "agentMessage":
-                self._record_message(item)
-                if item.get("phase") == "commentary":
-                    return {"turn": turn_id, "item": lifecycle}
-                return {
-                    "turn": turn_id,
-                    "item": lifecycle,
-                    "message": self._message_update(item["id"], complete=True),
-                }
-            return {"turn": turn_id, "item": lifecycle}
-
-        if method == STREAM_MESSAGE_METHOD:
-            item_id = params["itemId"]
-            combined = self.text.get(item_id, "") + params["delta"]
-            self.text[item_id] = combined
-            if item_id not in self.message_order:
-                self.message_order.append(item_id)
-                self.message_phases[item_id] = None
-            if self.message_phases.get(item_id) == "commentary":
-                return None
-            return {
-                "turn": turn_id,
-                "message": self._message_update(item_id, complete=False),
-            }
-
-        if method in STREAM_TEXT_METHODS:
-            item_id = params["itemId"]
-            combined = self.text.get(item_id, "") + params["delta"]
-            self.text[item_id] = combined
-            return {"turn": turn_id, "activity": "Thinking — " + _tail(combined)}
-
-        if method in STREAM_HEARTBEAT_METHODS:
-            detail = self.details.get(params["itemId"])
-            return {"turn": turn_id, "activity": detail} if detail else None
-
-        if method in {
-            "item/commandExecution/requestApproval",
-            "item/fileChange/requestApproval",
-            "item/permissions/requestApproval",
-            "item/tool/requestUserInput",
-        }:
-            return {"turn": turn_id, "activity": "Waiting for input in Codex"}
-
-        if method == "thread/status/changed":
-            flags = params.get("status", {}).get("activeFlags", [])
-            if "waitingOnApproval" in flags or "waitingOnUserInput" in flags:
-                return {"turn": turn_id, "activity": "Waiting for input in Codex"}
-        return None
-
-    def _record_message(self, item: dict) -> None:
-        item_id = item["id"]
-        if item_id not in self.message_order:
-            self.message_order.append(item_id)
-        self.message_phases[item_id] = item.get("phase")
-        self.text[item_id] = item.get("text", "")
-
-    def _visible_text(self) -> str:
-        final = [
-            self.text[item_id]
-            for item_id in self.message_order
-            if self.message_phases.get(item_id) == "final_answer"
-            and self.text.get(item_id)
-        ]
-        if final:
-            return "\n\n".join(final)
-        unknown = [
-            self.text[item_id]
-            for item_id in self.message_order
-            if self.message_phases.get(item_id) is None and self.text.get(item_id)
-        ]
-        return unknown[-1] if unknown else ""
-
-    def final_text(self, turn: dict) -> str:
-        """Return only completed final-answer content suitable for publication."""
-        items = [
-            item for item in turn.get("items", []) if item.get("type") == "agentMessage"
-        ]
-        return "\n\n".join(
-            item.get("text", "")
-            for item in items
-            if item.get("phase") == "final_answer" and item.get("text")
-        )
-
-    def _message_update(self, item_id: str, *, complete: bool) -> dict:
-        return {
-            "item": item_id,
-            "phase": self.message_phases.get(item_id),
-            "text": self._visible_text(),
-            "complete": complete,
-        }
-
-    def _item_lifecycle(self, params: dict, state: str) -> dict:
-        """Return the App Server's content-free item timing vocabulary."""
-        item = params["item"]
-        item_id = item["id"]
-        if state == "started":
-            at = params["startedAtMs"]
-            self.item_started_at[item_id] = at
-            return {
-                "id": item_id,
-                "type": item["type"],
-                "state": state,
-                "atMs": at,
-            }
-        at = params["completedAtMs"]
-        started_at = self.item_started_at.pop(item_id, None)
-        return {
-            "id": item_id,
-            "type": item["type"],
-            "state": state,
-            "atMs": at,
-            **({"durationMs": at - started_at} if started_at is not None else {}),
-            **({"status": item["status"]} if item.get("status") else {}),
-            **(
-                {"exitCode": item["exitCode"]}
-                if item.get("exitCode") is not None
-                else {}
-            ),
-        }
-
-    @staticmethod
-    def _item_detail(item: dict) -> str | None:
-        kind = item["type"]
-        if kind == "commandExecution":
-            return "Running " + _head(item["command"])
-        if kind == "fileChange":
-            paths = [change["path"] for change in item.get("changes", [])]
-            return "Editing " + _head(", ".join(paths)) if paths else "Editing files"
-        if kind == "mcpToolCall":
-            app = item.get("appContext") or {}
-            name = app.get("appName") or item.get("server")
-            return "Using " + _head(f"{name}: {item['tool']}")
-        if kind == "dynamicToolCall":
-            return "Using " + _head(item["tool"])
-        if kind == "collabAgentToolCall":
-            return "Coordinating " + _head(item["tool"])
-        if kind == "webSearch":
-            return "Searching the web" + (
-                " — " + _head(item["query"]) if item.get("query") else ""
-            )
-        if kind == "imageView":
-            return "Inspecting " + _head(item["path"])
-        if kind == "contextCompaction":
-            return "Compacting the conversation"
-        if kind == "imageGeneration":
-            return "Generating an image"
-        if kind == "enteredReviewMode":
-            return "Reviewing " + _head(item["review"])
-        return None
-
-
-class AppServerReplyStream:
-    """Project and commit one App Server final answer as its Leaf reply."""
-
-    def __init__(
-        self,
-        session_id: str,
-        turn_id: str,
-        delivery_id: str,
-        target: dict,
-    ):
-        self.reply = DeliveryReply(session_id, turn_id, delivery_id, target)
-        self.last_update = 0.0
-
-    def update(self, update: dict | None) -> bool:
-        """Publish a final-answer item update, throttling only partial deltas."""
-        message = update.get("message") if update is not None else None
-        if message is None or message["phase"] != "final_answer":
-            return False
-        now = time.monotonic()
-        if not message["complete"] and now - self.last_update < STREAM_UPDATE_INTERVAL:
-            return False
-        published = self.reply.replace(
-            message["item"],
-            message["text"],
-            settles=message["complete"] and bool(message["text"]),
-        )
-        self.last_update = now
-        return published
-
-    def restore(self, text: str) -> bool:
-        """Restore a still-running final answer after reconnecting."""
-        return self.reply.replace(None, text)
-
-    def finish(
-        self, state: str, completed_text: str | None = None
-    ) -> BaseException | None:
-        """Finish the delivery from completed provider evidence only."""
-        return self.reply.finish(state, completed_text)
-
-    def disconnect(self) -> None:
-        """Keep partial text visible but mark its provider connection lost."""
-        self.reply.disconnect()
-
-
-def project_app_server_activity(
-    events: AppServerEvents,
-    message: dict,
-    update: dict | None,
-    last_stream_update: float,
-    set_activity,
-    clear_activity,
-) -> float:
-    """Project one notification with the shared streamed-update throttle."""
-    if update is None:
-        return last_stream_update
-    turn_id = update["turn"]
-    if update.get("completed"):
-        clear_activity(events.thread_id, turn_id)
-        return last_stream_update
-    detail = update.get("activity")
-    if detail is None and (message_update := update.get("message")):
-        detail = _tail(message_update["text"])
-    if detail is None:
-        return last_stream_update
-    now = time.monotonic()
-    if (
-        message.get("method") in STREAM_THROTTLED_METHODS
-        and now - last_stream_update < STREAM_UPDATE_INTERVAL
-    ):
-        return last_stream_update
-    set_activity(events.thread_id, turn_id, detail)
-    return now
 
 
 class AppServerClient:
@@ -694,30 +187,20 @@ class AppServerClient:
         params: dict,
         pending: list[dict] | None = None,
     ) -> dict:
-        socket.send(json.dumps({"method": method, "id": request_id, "params": params}))
-        while not self.stop_event.is_set():
-            raw = socket.recv(timeout=START_TIMEOUT)
-            message = json.loads(raw)
-            if message.get("id") == request_id and "method" not in message:
-                if error := message.get("error"):
-                    raise AppServerRequestRejected(error.get("message") or str(error))
-                return message.get("result") or {}
-            if pending is None:
-                self._read(message)
-            else:
-                pending.append(message)
-        raise RuntimeError("Codex App Server client stopped")
+        """Request on this observer's connection, folding what it does not hold."""
+        return app_server_request(
+            socket,
+            method,
+            request_id,
+            params,
+            pending.append if pending is not None else self._read,
+            stopped=self.stop_event.is_set,
+        )
 
     def _connect(self) -> None:
-        with _app_server_connect(self.endpoint) as socket:
+        with app_server_connect(self.endpoint) as socket:
             self.socket = socket
-            self._send(
-                socket,
-                "initialize",
-                0,
-                app_server_initialize_params("leaf", "Leaf"),
-            )
-            socket.send(json.dumps({"method": "initialized", "params": {}}))
+            app_server_handshake(socket, 0, "leaf", "Leaf", self._read)
             result = self._send(
                 socket,
                 "thread/resume",
@@ -736,7 +219,7 @@ class AppServerClient:
                     "active",
                 )
                 self.events.turn_id = active
-                _set_stream_activity(self.thread_id, active, "Working in Codex")
+                set_stream_activity(self.thread_id, active, "Working in Codex")
             with self.waiter_lock:
                 if self.stop_event.is_set():
                     return
@@ -862,7 +345,7 @@ class AppServerClient:
                     turn.get("status", "failed"),
                     self.events.final_text(turn),
                 )
-                _close_stream_turn(self.thread_id, turn_id)
+                close_stream_turn(self.thread_id, turn_id)
                 if self.events.turn_id == turn_id:
                     self.events.turn_id = None
                 if error is not None:
@@ -898,7 +381,7 @@ class AppServerClient:
             return
         status = turn.get("status", "failed")
         if status == "inProgress":
-            _open_stream_turn(self.thread_id, turn_id)
+            open_stream_turn(self.thread_id, turn_id)
             self._bind(turn_id, delivery_id, target)
             self.bindings[turn_id].restore(self.events.final_text(turn))
         else:
@@ -908,7 +391,7 @@ class AppServerClient:
                 status,
                 self.events.final_text(turn),
             )
-            _close_stream_turn(self.thread_id, turn_id)
+            close_stream_turn(self.thread_id, turn_id)
             if error is not None:
                 print(
                     f"Codex final reply rejected: {error}",
@@ -943,7 +426,7 @@ class AppServerClient:
         turn_id = update["turn"]
         observed_delivery = None
         if message.get("method") == "turn/started":
-            _open_stream_turn(self.thread_id, turn_id)
+            open_stream_turn(self.thread_id, turn_id)
         delivery_id = app_server_delivery_id(message)
         if delivery_id is not None and turn_id not in self.bindings:
             self._accept_observed_delivery(turn_id, delivery_id)
@@ -956,14 +439,14 @@ class AppServerClient:
             message,
             update,
             self.last_activity_update,
-            _set_stream_activity,
-            _clear_stream_activity,
+            set_stream_activity,
+            clear_stream_activity,
         )
         if stream := self.bindings.get(turn_id):
             stream.update(update)
         if completed := update.get("completed"):
             error = self._finish_binding(turn_id, completed, update.get("text", ""))
-            _close_stream_turn(self.thread_id, turn_id)
+            close_stream_turn(self.thread_id, turn_id)
             if error is not None:
                 print(
                     f"Codex final reply rejected: {error}",
@@ -1019,7 +502,7 @@ class AppServerClient:
         """Disconnect projections without breaking the observer recovery boundary."""
         failures = []
         try:
-            _clear_stream_activity(self.thread_id)
+            clear_stream_activity(self.thread_id)
         except Exception as error:  # noqa: BLE001
             failures.append(error)
         for stream in list(self.bindings.values()):
@@ -1059,180 +542,12 @@ class AppServerClient:
                 self.stop_event.wait(min(30, 2 ** min(failures, 5)))
 
 
-def _session_key(session_id: str) -> str:
-    return hashlib.sha256(session_id.encode()).hexdigest()[:32]
-
-
 def adapter_log_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.codex.log"
-
-
-def delivery_dir(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.deliveries"
-
-
-def delivery_lock_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.delivery.lock"
-
-
-def queue_path(session_id: str, delivery_id: str) -> Path:
-    return delivery_dir(session_id) / f"{delivery_id}.json"
-
-
-def _archive_queue(path: Path, queue: dict) -> None:
-    """Move completed queue state out of the adapter's hot scan."""
-    if queue["state"] == "accepted" and all(
-        batch["receipted"] for batch in queue["batches"]
-    ):
-        history_path = path.parent / "history" / path.name
-        history_path.parent.mkdir(parents=True, exist_ok=True)
-        path.replace(history_path)
-
-
-def _write_queue(path: Path, queue: dict) -> None:
-    write_json(path, queue)
-    _archive_queue(path, queue)
+    return session_state_path(session_id, "codex.log")
 
 
 def adapter_start_lock_path(session_id: str) -> Path:
-    return state_home() / "sessions" / f"{_session_key(session_id)}.start"
-
-
-def delivery_pointer_prompt(delivery_id: str) -> str:
-    delivery = ElementTree.Element(
-        "leaf-delivery", {"id": delivery_id, "operation": "delivery claim"}
-    )
-    pointer = ElementTree.tostring(delivery, encoding="unicode")
-    return f"```xml\n{pointer}\n```"
-
-
-def _offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
-    """Freeze one payload before offering its permanent pointer."""
-    if queue["state"] == "offering":
-        payload_path = delivery_path(path.stem)
-        payload = read_json(payload_path)
-        if payload is None:
-            raise RuntimeError("the Codex delivery payload is missing")
-        return PreparedDelivery(delivery_pointer_prompt(path.stem), payload)
-
-    payload = freeze_delivery(
-        queue["batches"],
-        delivery_id=path.stem,
-        created_at=queue["created_at"],
-    )
-    queue["batches"] = [
-        {
-            "page": batch["page"],
-            "session": batch["session"],
-            "events": [
-                {"seq": event["seq"], "id": event["id"]} for event in batch["events"]
-            ],
-            "receipted": False,
-        }
-        for batch in queue["batches"]
-    ]
-    queue["state"] = "offering"
-    _write_queue(path, queue)
-    return PreparedDelivery(delivery_pointer_prompt(path.stem), payload)
-
-
-def _queues(session_id: str) -> list[tuple[Path, dict]]:
-    directory = delivery_dir(session_id)
-    if not directory.is_dir():
-        return []
-    records = [
-        (path, queue)
-        for path in directory.glob("*.json")
-        if (queue := read_json(path)) is not None
-        and queue.get("format") == QUEUE_FORMAT
-    ]
-    return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
-
-
-def _collecting_queue(
-    session_id: str,
-    queues: list[tuple[Path, dict]] | None = None,
-) -> tuple[Path, dict] | None:
-    records = _queues(session_id) if queues is None else queues
-    current = [
-        (path, queue) for path, queue in records if queue["state"] == "collecting"
-    ]
-    if len(current) > 1:
-        raise RuntimeError(
-            f"Codex task {session_id} has multiple collecting Leaf deliveries"
-        )
-    return current[0] if current else None
-
-
-def _append_batch(
-    session_id: str,
-    page_dir: Path,
-    transaction: PageTransaction,
-    batch: list[dict],
-) -> tuple[Path, int, dict] | None:
-    """Append fresh events to the task's one collecting queue."""
-    current = _collecting_queue(session_id)
-    if current is None:
-        path = queue_path(session_id, str(uuid.uuid4()))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        queue = {
-            "format": QUEUE_FORMAT,
-            "state": "collecting",
-            "created_at": time.time(),
-            "batches": [],
-        }
-    else:
-        path, queue = current
-
-    delivered = {
-        (entry["page"], event["seq"], event["id"])
-        for entry in queue["batches"]
-        for event in entry["events"]
-    }
-    fresh = [
-        event
-        for event in batch
-        if (str(page_dir), event["seq"], event["id"]) not in delivered
-    ]
-    if not fresh:
-        return None
-
-    replies = sum(
-        obligation["response"]["kind"] == "reply"
-        for entry in queue["batches"]
-        for event in entry["events"]
-        if (obligation := event.get("obligation")) is not None
-    )
-    responses = current_responses(page_dir, transaction.events)
-    selected = []
-    for event in fresh:
-        response = responses.get(event["id"])
-        if response is not None and response["kind"] == "reply":
-            if replies:
-                break
-            replies += 1
-        selected.append(event)
-    if not selected:
-        return None
-
-    data = batch_data(
-        page_dir,
-        transaction,
-        selected,
-        as_of_seq=max(event["seq"] for event in fresh),
-    )
-    entry = {
-        "page": data["page"],
-        "session": session_id,
-        "through_seq": data["through_seq"],
-        "conversations": data["conversations"],
-        "handling": data["handling"],
-        "events": data["events"],
-        "receipted": False,
-    }
-    queue["batches"].append(entry)
-    _write_queue(path, queue)
-    return path, len(queue["batches"]) - 1, entry
+    return session_state_path(session_id, "start")
 
 
 def capture_batch(session_id: str, reading) -> bool:
@@ -1240,7 +555,7 @@ def capture_batch(session_id: str, reading) -> bool:
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
-        captured = _append_batch(
+        captured = append_batch(
             session_id,
             reading.page_dir,
             reading.transaction,
@@ -1292,16 +607,16 @@ def _sync_receipts(path: Path, queue: dict) -> None:
             batch["receipted"] = True
             changed = True
     if changed:
-        _write_queue(path, queue)
+        write_queue(path, queue)
     else:
-        _archive_queue(path, queue)
+        archive_queue(path, queue)
 
 
 def _record_receipt(path: Path, batch_index: int) -> None:
     queue = read_json(path)
     if queue is not None and not queue["batches"][batch_index]["receipted"]:
         queue["batches"][batch_index]["receipted"] = True
-        _write_queue(path, queue)
+        write_queue(path, queue)
 
 
 def _recover_receipt(session_id: str) -> bool:
@@ -1309,13 +624,13 @@ def _recover_receipt(session_id: str) -> bool:
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
-        queues = _queues(session_id)
+        queues = queue_records(session_id)
         for path, queue in queues:
             _sync_receipts(path, queue)
         pending = min(
             (
                 (path, index, dict(batch), queue.get("transport"))
-                for path, queue in _queues(session_id)
+                for path, queue in queue_records(session_id)
                 if queue["state"] == "accepted"
                 for index, batch in enumerate(queue["batches"])
                 if not batch["receipted"]
@@ -1344,7 +659,7 @@ def _offer_queued_delivery(
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
-        queues = _queues(session_id)
+        queues = queue_records(session_id)
         unoffered = next(
             (
                 (path, queue)
@@ -1356,7 +671,7 @@ def _offer_queued_delivery(
         queued = None
         if unoffered is not None:
             path, queue = unoffered
-            queued = path, queue, _offer_delivery(path, queue)
+            queued = path, queue, offer_delivery(path, queue)
     if queued is not None:
         path, _offered, prepared = queued
         target = stream_reply_target(prepared.payload)
@@ -1384,7 +699,7 @@ def _offer_queued_delivery(
             if queue is not None and queue["state"] == "offering":
                 queue["state"] = "accepted"
                 queue["transport"] = transport
-                _write_queue(path, queue)
+                write_queue(path, queue)
         return True
     return False
 
@@ -1394,48 +709,8 @@ def _has_delivery_work(session_id: str) -> bool:
         return any(
             queue["state"] != "accepted"
             or any(not batch["receipted"] for batch in queue["batches"])
-            for _, queue in _queues(session_id)
+            for _, queue in queue_records(session_id)
         )
-
-
-@contextmanager
-def _locked_codex_pages(session_id: str):
-    """Lock the current Codex-owned page set in its stable path order."""
-    with ExitStack() as stack:
-        pages = []
-        for page_dir in owned_pages(session_id):
-            try:
-                page = stack.enter_context(PageTransaction(page_dir))
-            except FileNotFoundError:
-                continue
-            claim = page.active_claim
-            if claim and claim["id"] == session_id and claim["host"] == "codex":
-                pages.append(page)
-        yield pages
-
-
-def _set_stream_activity(session_id: str, turn_id: str, detail: str) -> None:
-    with _locked_codex_pages(session_id) as pages:
-        for page in pages:
-            page.set_stream_activity(session_id, turn_id, detail)
-
-
-def _clear_stream_activity(session_id: str, turn_id: str | None = None) -> None:
-    with _locked_codex_pages(session_id) as pages:
-        for page in pages:
-            page.clear_stream_activity(session_id, turn_id)
-
-
-def _open_stream_turn(session_id: str, turn_id: str) -> None:
-    with _locked_codex_pages(session_id) as pages:
-        for page in pages:
-            page.open_turn(session_id, turn_id)
-
-
-def _close_stream_turn(session_id: str, turn_id: str) -> None:
-    with _locked_codex_pages(session_id) as pages:
-        for page in pages:
-            page.close_turn(session_id, turn_id)
 
 
 def run_adapter(
@@ -1618,186 +893,6 @@ def cmd_codex_start(
     return f"Codex delivery started for task {session_id}{connected}"
 
 
-def prepare_codex_delivery(
-    page_dir: Path,
-    identity: dict,
-    lifetime: dict,
-) -> PreparedDelivery:
-    """Claim PAGE and freeze the input for an embedded task's first turn."""
-    session_id = identity["id"]
-    transition = None
-    try:
-        with PageTransaction(page_dir) as page:
-            transition = page.take_claim(identity, lifetime)
-            batch = unacknowledged(page.events, page.cursor)
-            if not batch:
-                raise RuntimeError("the page has no Leaf input to deliver")
-            lock = delivery_lock_path(session_id)
-            lock.parent.mkdir(parents=True, exist_ok=True)
-            with flocked(lock):
-                pending = next(
-                    (
-                        (path, queue)
-                        for path, queue in _queues(session_id)
-                        if queue["state"] in {"collecting", "offering"}
-                    ),
-                    None,
-                )
-                if pending is not None:
-                    return _offer_delivery(*pending)
-                captured = _append_batch(
-                    session_id,
-                    page_dir,
-                    page,
-                    batch,
-                )
-                if captured is None:
-                    raise RuntimeError("the page input is already in a Codex delivery")
-                path, _, _ = captured
-                return _offer_delivery(path, read_json(path))
-    except BaseException:
-        restore_page_claim(page_dir, transition)
-        raise
-
-
-def accept_codex_delivery(
-    session_id: str,
-    *,
-    phase: str = "opened",
-    turn: str | None = None,
-) -> list[dict]:
-    """Record and describe batches accepted by one Codex carrier."""
-    if phase not in {"queued", "opened"}:
-        raise ValueError(f"unknown delivery phase {phase!r}")
-    lock = delivery_lock_path(session_id)
-    with flocked(lock):
-        offered = [
-            (path, queue)
-            for path, queue in _queues(session_id)
-            if queue["state"] == "offering"
-        ]
-        if len(offered) != 1:
-            raise RuntimeError("the Codex task has no delivery to accept")
-        path, queue = offered[0]
-        batches = [dict(batch) for batch in queue["batches"]]
-
-    accepted = []
-    for batch in batches:
-        page_dir = Path(batch["page"])
-        expected = {event["seq"]: event["id"] for event in batch["events"]}
-        with PageTransaction(page_dir) as page:
-            claim = page.active_claim
-            if claim is None or claim["id"] != session_id:
-                raise RuntimeError("the Codex delivery no longer owns its page")
-            delivered = {
-                event["seq"]: event
-                for event in page.events
-                if min(expected) <= event["seq"] <= max(expected)
-            }
-            if not all(
-                delivered.get(seq, {}).get("id") == event_id
-                for seq, event_id in expected.items()
-            ):
-                raise RuntimeError("the Codex delivery no longer matches its page log")
-            claim_turn = page.open_turn(session_id, turn) if phase == "opened" else None
-            record_pickup(
-                page,
-                [delivered[seq] for seq in expected],
-                phase=phase,
-                session=session_id,
-                turn=claim_turn,
-            )
-            acknowledge(page, max(expected))
-            accepted.append(
-                {
-                    "page": page_dir,
-                    "events": tuple(expected.values()),
-                    "turn": claim_turn,
-                }
-            )
-
-    with flocked(lock):
-        queue = read_json(path)
-        if queue is None or queue["state"] != "offering":
-            raise RuntimeError("the Codex delivery changed before it was accepted")
-        for batch in queue["batches"]:
-            batch["receipted"] = True
-        queue["state"] = "accepted"
-        queue["transport"] = {"phase": phase, "turn": turn}
-        _write_queue(path, queue)
-    return accepted
-
-
-def open_queued_codex_delivery(
-    page_dir: Path,
-    session_id: str,
-    event_ids: tuple[str, ...],
-    turn: str,
-) -> str:
-    """Record when a durable queued delivery actually enters its Codex turn."""
-    with PageTransaction(page_dir) as page:
-        claim = page.active_claim
-        if claim is None or claim["id"] != session_id:
-            raise RuntimeError("the queued Codex delivery no longer owns its page")
-        by_id = {event["id"]: event for event in page.events}
-        if any(event_id not in by_id for event_id in event_ids):
-            raise RuntimeError("the queued Codex delivery no longer matches its page")
-        leaf_turn = page.open_turn(session_id, turn)
-        if leaf_turn is None:
-            raise RuntimeError("the queued Codex turn could not open its page claim")
-        record_pickup(
-            page,
-            [by_id[event_id] for event_id in event_ids],
-            phase="opened",
-            session=session_id,
-            turn=leaf_turn,
-        )
-        return leaf_turn
-
-
-def open_app_server_delivery(
-    page_dir: Path,
-    session_id: str,
-    delivery_id: str,
-    event_ids: tuple[str, ...],
-    turn: str,
-) -> str:
-    """Bind a provider-observed App Server delivery to its turn."""
-    if delivery_queue_state(session_id, delivery_id) == "offering":
-        accepted = accept_codex_delivery(session_id, turn=turn)
-        matching = [
-            delivery
-            for delivery in accepted
-            if delivery["page"] == page_dir and delivery["events"] == event_ids
-        ]
-        if len(matching) != 1:
-            raise RuntimeError(
-                "the recovered App Server turn accepted an unexpected page batch"
-            )
-        return matching[0]["turn"]
-    return open_queued_codex_delivery(page_dir, session_id, event_ids, turn)
-
-
-def abandon_codex_delivery(session_id: str, event_id: str) -> None:
-    """Retire an unaccepted delivery after its triggering event was settled."""
-    lock = delivery_lock_path(session_id)
-    with flocked(lock):
-        matching = [
-            path
-            for path, queue in _queues(session_id)
-            if queue["state"] == "offering"
-            and any(
-                event["id"] == event_id
-                for batch in queue["batches"]
-                for event in batch["events"]
-            )
-        ]
-        if len(matching) > 1:
-            raise RuntimeError("the Codex task has duplicate offered deliveries")
-        if matching:
-            matching[0].unlink()
-
-
 def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
     deadline = time.monotonic() + START_TIMEOUT
     while time.monotonic() < deadline:
@@ -1809,17 +904,6 @@ def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
             raise RuntimeError(detail or "Codex App Server exited before it was ready")
         time.sleep(0.05)
     raise RuntimeError("Codex App Server did not become ready")
-
-
-def _stop_process(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
-    process.terminate()
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=5)
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:
@@ -1847,4 +931,4 @@ def cmd_codex_launch(codex_path: str | None = None) -> int:
                     env=environment,
                 )
             finally:
-                _stop_process(server)
+                stop_app_server(server)

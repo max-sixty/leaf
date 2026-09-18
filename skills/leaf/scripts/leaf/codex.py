@@ -79,23 +79,32 @@ class PreparedDelivery:
     payload: dict
 
 
-def stream_reply_target(payload: dict) -> dict | None:
-    """Return the one plain reply address a provider message may answer."""
-    responses = [
-        (batch["page"], obligation["response"])
+def delivery_reply_targets(payload: dict) -> list[dict]:
+    """Every plain reply address the moves in one delivery are owed.
+
+    A move's response address is not the move: a widget gesture inside a frozen
+    conversation is answered on the conversation that holds it. Reading both halves
+    from the delivery keeps every writer — the provider's own final answer and a
+    host receipt written when there will be no final answer — addressing the same
+    place.
+    """
+    return [
+        {
+            "page": batch["page"],
+            "reply_to": obligation["response"]["to"],
+            "responds": obligation["response"]["for"],
+        }
         for batch in payload["batches"]
         for event in batch["events"]
         if (obligation := event.get("obligation")) is not None
         and obligation["response"]["kind"] == "reply"
     ]
-    if len(responses) != 1:
-        return None
-    [(page, response)] = responses
-    return {
-        "page": page,
-        "reply_to": response["to"],
-        "responds": response["for"],
-    }
+
+
+def stream_reply_target(payload: dict) -> dict | None:
+    """Return the one plain reply address a provider message may answer."""
+    targets = delivery_reply_targets(payload)
+    return targets[0] if len(targets) == 1 else None
 
 
 def app_server_turn_start_params(thread_id: str, payload: dict) -> dict:

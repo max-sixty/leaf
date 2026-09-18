@@ -326,6 +326,9 @@
      chip was when it was measured, and a package redeclaring the ladder grows the chip
      into whatever the column was holding beside it. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  /* A pressable never wears the accent as a solid fill: the accent is its ink and its
+     hairline, and this tint is the disc or ground that rises under it on hover. */
+  --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
@@ -2078,15 +2081,20 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
 .lf-btn[hidden]:not([hidden="until-found"]) { display: none; }
 .lf-btn:not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
-.lf-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
-.lf-btn.primary:hover { filter: brightness(.92); }
+/* The committing action is the one control in its row drawn in the accent: accent ink
+   on the ordinary card, under a softened accent hairline, and the tint rises on hover.
+   .lf-btn.on below is its neighbour — a full accent border on the chip ground — and
+   the two stay a step apart so a toggle and a commitment never read as one. */
+.lf-btn.primary { color: var(--accent);
+          border-color: color-mix(in srgb, var(--accent) 45%, var(--card)); }
+.lf-btn.primary:not(:disabled, [aria-disabled="true"]):hover { background: var(--accent-tint); }
 /* Two selectors, two mechanisms, one look: the platform's own on the banner's real
    buttons, and the attribute wireInput sets, which is the only one a span press can
    wear. */
 .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
 .lf-btn.primary:is(:disabled, [aria-disabled="true"]) {
           opacity: 1; color: var(--muted); background: var(--paper);
-          border-color: var(--border-2); filter: none; }
+          border-color: var(--border-2); }
 .lf-compose-field { --lf-icon-action-hit: max(28px, var(--aim-floor));
           position: relative; flex: 1; min-width: 0; }
 .lf-compose-field > textarea:not(.lf-fab-input) { display: block; box-sizing: border-box;
@@ -2104,19 +2112,28 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-close-action { border: 0; background: transparent;
           color: var(--muted); }
 .lf-close-action:hover { background: var(--chip); color: var(--ink); }
-/* The glyph stands on the disc below, so it takes the disc's colour and not the chrome's
-   ink, which the .lf-ui face states above and this rule outranks by coming later. */
+/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
+   whose ::before is a 28px disc that stays clear at rest and takes the action's tint
+   on hover. The hit box around the disc is the icon-action floor above. The glyph's
+   ink outranks the .lf-ui face by coming later. */
+.lf-compose-submit, .lf-resolve.lf-icon-action { border: 0; background: transparent;
+          box-shadow: none; }
+:is(.lf-compose-submit, .lf-resolve.lf-icon-action)::before { content: "";
+          position: absolute; box-sizing: border-box; inline-size: 28px; block-size: 28px;
+          border-radius: var(--r); background: transparent; }
+:is(.lf-compose-submit, .lf-resolve.lf-icon-action):hover { background: transparent;
+          box-shadow: none; }
 .lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
-          inset-block-end: 6px; border: 0;
-          background: transparent; color: var(--paper); filter: none; }
-.lf-compose-submit::before { content: ""; position: absolute; box-sizing: border-box;
-          width: 28px; height: 28px; border-radius: var(--r); background: var(--accent); }
-.lf-compose-submit:hover { background: transparent; filter: none; }
-.lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before { filter: brightness(.92); }
-.lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1;
-          border-color: transparent; background: transparent; color: var(--muted); }
-.lf-compose-submit:is(:disabled, [aria-disabled="true"])::before {
-          border: 0; background: transparent; }
+          inset-block-end: 6px; color: var(--accent); }
+.lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before {
+          background: var(--accent-tint); }
+.lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
+.lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
+          color: var(--ink); }
+.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover { color: var(--ok-ink); }
+.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
+          background: var(--ok-tint); }
+.lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
 /* Core may seat its one response bar in a widget's exact-datum Thread outlet. The
    widget supplies only the layout location; these rules carry the canonical composer
    through the same shadow-theme slice as the Thread view around it. */
@@ -2176,17 +2193,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }
-.lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
-          border: 0; background: transparent; color: var(--ink);
-          box-shadow: none; }
-.lf-resolve.lf-icon-action::before { content: ""; position: absolute;
-          box-sizing: border-box; inline-size: 28px; block-size: 28px;
-          border: 0; border-radius: var(--r); background: transparent; }
-.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover {
-          background: transparent; color: var(--ok-ink); box-shadow: none; }
-.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
-          background: var(--ok-tint); }
-.lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in
    the shared slice because document selectors do not cross a declared shadow root. */

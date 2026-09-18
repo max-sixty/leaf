@@ -1291,7 +1291,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-going { overflow: hidden; box-sizing: border-box; }
   .lf-going .lf-thread-send { visibility: hidden; }
   .lf-going .lf-resolve { color: var(--ok-ink); }
-  .lf-going .lf-resolve::before { border-color: var(--ok); background: var(--ok-tint); }
+  .lf-going .lf-resolve::before { background: var(--ok-tint); }
   /* Direct navigation cues the same bounded box it revealed: a short card, one
      message, the reply row, or an oversized editor. */
   .lf-thread.flash, .lf-msg.flash, .lf-compose.flash, .lf-compose textarea.flash {

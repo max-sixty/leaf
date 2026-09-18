@@ -115,6 +115,12 @@ const authoredMessage = (message) => {
 export const messageWidgetIds = (message) =>
   message.markup ? authoredMessage(message).widgets : Object.freeze([]);
 
+// One word for every host failure receipt. The codes behind them differ — a rate
+// limiter, a dispatch that threw, a turn followed to nothing (worker/server.py,
+// FAILURE_RECEIPTS) — but the difference is diagnostic, and what they share is the
+// whole of what the reader can act on: this message answers nothing, send it again.
+const FAILURE_LABEL = "Not answered";
+
 export function messageReading(message, { panel, receipts, reactions }) {
   const token = isReaction(message) ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
@@ -132,6 +138,11 @@ export function messageReading(message, { panel, receipts, reactions }) {
     age: ago(message.ts),
     edited: message.edited ? `Edited ${ago(message.edited.ts)}` : null,
     pending: Boolean(message.pending),
+    // A host receipt saying no reply is coming is otherwise indistinguishable from
+    // one: it is a reply event, written under the thread's own agent name, in the
+    // same bubble. The head is where that gets said, because the body is prose the
+    // reader has no reason to trust differently from the prose above it.
+    failure: message.failure ?? null,
     stream: message.stream_state ?? null,
     streamLabel:
       !message.stream_state || message.stream_state === "active"
@@ -192,6 +203,8 @@ export class MessageView {
     else this.node.removeAttribute("aria-busy");
     if (model.stream) this.node.dataset.streamState = model.stream;
     else delete this.node.dataset.streamState;
+    if (model.failure) this.node.dataset.failure = model.failure;
+    else delete this.node.dataset.failure;
     if (panel && model.body.markup && !this.#authored)
       this.#authored = authoredMessage({
         id: model.id,
@@ -215,6 +228,11 @@ export class MessageView {
       html`
         <div class=${panel ? "lf-msg-head" : "lf-conversation-head"}>
           <b>${model.by}</b><time datetime=${model.timestamp}>${model.age}</time>
+          ${
+            model.failure
+              ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
+              : nothing
+          }
           ${
             model.body.kind === "suggestion" && panel
               ? html`<span class="lf-suggest-label">Suggestion</span>`

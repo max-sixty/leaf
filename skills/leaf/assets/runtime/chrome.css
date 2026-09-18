@@ -1337,6 +1337,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
   .lf-msg time { color: var(--muted-2); }
   .lf-msg-head .lf-edited { color: var(--muted-2); }
+  /* The one mark in a message head that is not muted metadata. Everything else there
+     — the clock, `edited`, a stream's last state — is about a message the reader can
+     read anyway; this says the message in front of them answers nothing, and it is
+     the only thing in the head they have to act on. */
+  .lf-msg-head .lf-msg-failure { padding: 1px 5px;
+    border: 1px solid var(--warn); border-radius: var(--chip-r);
+    color: var(--warn-ink); background: var(--warn-tint);
+    font: 600 var(--t-6)/1.25 var(--sans); }
   /* A message body is rendered Markdown, which is why this dresses a box and not a
      paragraph. The theme's element rules are at document level and reach in here, so a
      reply's lists, code, quotes and tables already read as the page's do; what is left

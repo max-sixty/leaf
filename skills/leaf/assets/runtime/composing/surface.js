@@ -1303,6 +1303,7 @@ export function createResponseSurface({
       if (threadId)
         return openPageThread(threadId, {
           focus: panel.classList.contains("open") ? "reply" : "thread",
+          travel: false,
         });
     });
     wireFabInput();

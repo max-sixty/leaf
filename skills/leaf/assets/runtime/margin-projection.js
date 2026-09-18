@@ -2810,7 +2810,11 @@ export function createMarginProjection({
   // unaddressable conversation. Callers choose only the landing within the conversation;
   // this function owns the surface choice so a mark, its accessibility note, and t/T
   // cannot drift into different policies.
-  function openPageThread(id, { focus = "reply" } = {}) {
+  //
+  // A press on marked words passes `travel: false`: the words are already under the
+  // reader's hand, and centring them moves everything the reader was looking at. The
+  // card needs no trip, since placeThreadPreview keeps it inside the viewport.
+  function openPageThread(id, { focus = "reply", travel = true } = {}) {
     if (!panelIsOpen()) {
       const local = focusSurface(id, { focus });
       if (local) {
@@ -2818,7 +2822,7 @@ export function createMarginProjection({
         closePreview();
         if (optionsKey && expandedOptionsKey === optionsKey)
           setOptionsOpen(null, false);
-        scrollToThread(id);
+        if (travel) scrollToThread(id);
         return local;
       }
       const thread = openInlineThread(id, null, (positionedThread) => {
@@ -2833,7 +2837,7 @@ export function createMarginProjection({
             behavior: scrollBehavior(),
             block: "nearest",
           });
-          scrollToThread(id);
+          if (travel) scrollToThread(id);
         } else {
           landInConversation(destination);
         }

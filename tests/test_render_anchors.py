@@ -21,6 +21,7 @@ from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    SCROLL_SETTLED,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
@@ -3838,16 +3839,9 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(page.locator(".lf-thread").first).to_be_focused()
 
 
-def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
-    browser, serve
-):
-    """Anchor travel treats the bottom toolbar's scroll padding as covered space.
-
-    A passage can be geometrically inside the viewport while its last line is under the
-    shortcut bar. The control places it just above that band first, proving travel leaves
-    a readable destination alone, then inside the band, where the same public thread walk
-    must move it back into the usable reading area.
-    """
+def clearance_page(browser, serve):
+    """One commented passage between spacers, and a way to stand its bottom edge
+    `offset` pixels below the top of the shortcut bar's scroll padding."""
     source = leaf_page(
         "Bottom clearance",
         """
@@ -3862,7 +3856,6 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
         serve(source, anchored=(("destination", "The passage remains readable"),)),
     )
     resized(page, 1000, 700)
-    destination = page.locator("#destination")
 
     def place_bottom(offset):
         return page.evaluate(
@@ -3878,6 +3871,22 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
             }""",
             offset,
         )
+
+    return page, place_bottom
+
+
+def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
+    browser, serve
+):
+    """Anchor travel treats the bottom toolbar's scroll padding as covered space.
+
+    A passage can be geometrically inside the viewport while its last line is under the
+    shortcut bar. The control places it just above that band first, proving travel leaves
+    a readable destination alone, then inside the band, where the same public thread walk
+    must move it back into the usable reading area.
+    """
+    page, place_bottom = clearance_page(browser, serve)
+    destination = page.locator("#destination")
 
     clear = place_bottom(-4)
     assert clear["clear"] > 0
@@ -3903,6 +3912,23 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
         covered["scroll"], abs=1
     )
     expect(destination).to_be_in_viewport()
+
+
+def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
+    """The walk above travels for this geometry; a press on the same words does not,
+    because the reader's hand is already on them and the card fits beside them."""
+    page, place_bottom = clearance_page(browser, serve)
+    # 10px into the band keeps the line's middle, where the press lands, off the bar.
+    covered = place_bottom(10)
+    page.evaluate("() => { delete window.__lfScroll; delete window.__lfScrollSince; }")
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    # A trip waits on a conversation refresh before it moves, so hold longer than that.
+    page.wait_for_function(SCROLL_SETTLED, arg=400)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
+        covered["scroll"], abs=1
+    )
+    expect(page.locator("[data-lf-thread]")).to_be_in_viewport(ratio=1)
 
 
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):

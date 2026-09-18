@@ -116,8 +116,11 @@ ordering contract these items extend.
   count and the panel's On you filter as well as the margin, so it is one change in
   `events.py`'s projection rather than a second reading beside it. No page in the corpus
   stands that shape today, so seeding one is the first step and the evidence the
-  decision needs; `bg-resolved-text` is the near miss, excluded for being resolved
-  rather than by this rule.
+  decision needs. Start from the feature gallery's `bg-resolved-text`: the rule already
+  fires there, because its answering reply carries no `awaits` and no ask element, but
+  what it hides is an answer, so on-nobody is the right reading and the thread is
+  resolved besides. Give it a later agent reply that answers nothing and the same rule
+  hides a question instead.
 
 - **Decide whether delegated work may hold a reader move open across turns.** The Stop
   hook refuses to end a turn over an acknowledged move with no answer, so a coordinator

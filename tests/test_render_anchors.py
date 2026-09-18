@@ -311,7 +311,8 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
     page.locator(".lf-composer textarea").fill("this column's name is wrong")
-    page.keyboard.press("ControlOrMeta+Enter")
+    with sending(page, "the comment on the card's column name"):
+        page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     thread = page.locator(".lf-thread .lf-quote").first
@@ -563,7 +564,8 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "Heated bird bath"
     page.locator(".lf-composer textarea").fill("call it the bath, not the bird bath")
-    page.keyboard.press("ControlOrMeta+Enter")
+    with sending(page, "the comment on the tab's name"):
+        page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     thread = page.locator(".lf-thread .lf-quote").first
@@ -2659,7 +2661,8 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     expect(fab).to_be_visible()
     fab.focus()
     page.locator(".lf-composer textarea").fill("is this idempotent?")
-    page.locator(".lf-composer button.lf-compose-submit").click()
+    with sending(page, "the comment on the ambiguous passage"):
+        page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -2733,7 +2736,8 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").focus()
     page.locator(".lf-composer textarea").fill("why is this section here?")
-    page.locator(".lf-composer button.lf-compose-submit").click()
+    with sending(page, "the comment on the section that leaves"):
+        page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -3031,26 +3035,28 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     makes its passage unique again."""
     url = serve(THIN_V1)
     page = open_page(browser, live_url(url))
-    posted = page.evaluate("""async () => {
-        const p = document.querySelectorAll('#thin p')[0];
-        const phrase = 'The version stamp never lands';
-        const at = p.firstChild.data.indexOf(phrase);
-        const want = document.createRange();
-        want.setStart(p.firstChild, at); want.setEnd(p.firstChild, at + phrase.length);
-        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
-        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.lf-fab-input');
-        if (fab.style.display !== 'block') return 'no button';
-        await new Promise(r => setTimeout(r, 40));
-        fab.focus();
-        const box = document.querySelector('.lf-composer textarea');
-        box.value = 'does this hold?';
-        box.dispatchEvent(new Event('input', {bubbles: true}));
-        document.querySelector('.lf-composer button.lf-compose-submit').click();
-        return true;
-    }""")
-    assert posted is True, f"couldn't post the comment ({posted})"
+    with sending(page, "the comment on the passage with one neighbour"):
+        posted = page.evaluate("""async () => {
+            const p = document.querySelectorAll('#thin p')[0];
+            const phrase = 'The version stamp never lands';
+            const at = p.firstChild.data.indexOf(phrase);
+            const want = document.createRange();
+            want.setStart(p.firstChild, at);
+            want.setEnd(p.firstChild, at + phrase.length);
+            const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
+            document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 40));
+            const fab = document.querySelector('.lf-fab-input');
+            if (fab.style.display !== 'block') return 'no button';
+            await new Promise(r => setTimeout(r, 40));
+            fab.focus();
+            const box = document.querySelector('.lf-composer textarea');
+            box.value = 'does this hold?';
+            box.dispatchEvent(new Event('input', {bubbles: true}));
+            document.querySelector('.lf-composer button.lf-compose-submit').click();
+            return true;
+        }""")
+        assert posted is True, f"couldn't post the comment ({posted})"
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir

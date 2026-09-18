@@ -36,7 +36,7 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { restoreReturnPlace } from "./return-stack.js";
+import { restoreReturnPlace } from "./layer-stack.js";
 import { el, keeps } from "../widget-elements.js";
 import {
   coveringAuxiliaryFocus,
@@ -58,7 +58,7 @@ import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
 import { availableCommandRoutes, readerIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
-import { openNativePopovers } from "../native-layers.js";
+import { openPopovers } from "./layer-stack.js";
 
 export const commandReferenceDialog = document.createElement("dialog");
 commandReferenceDialog.id = "lf-command-reference";
@@ -712,7 +712,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) 
   const closing = !open && commandReferenceDialog.open;
   if (fresh) {
     commandReferenceOrigin = captureOrigin();
-    commandReferenceLayers = openNativePopovers();
+    commandReferenceLayers = openPopovers();
     commandReferenceBoundary = coveringAuxiliarySurface();
     // The displaced page decides what can run. Capture before the reference's own scope
     // becomes active, then gather its instructional rows after it does.

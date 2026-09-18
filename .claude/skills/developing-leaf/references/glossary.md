@@ -146,6 +146,7 @@ spine instead.
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among same-kind destinations |
 | **Return** | Restoration of the origin captured before an entered transition; Escape unwinds an inner interaction before returning when necessary |
+| **Layer stack** | The one ordered record of the popovers, modal dialogs, and return frames standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |
 | **Key badge** | A keycap-shaped carrier for a binding or transient hint code |
 | **Binding badge** | A key badge showing a command's currently resolved binding |
 

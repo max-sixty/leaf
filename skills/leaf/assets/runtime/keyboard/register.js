@@ -26,4 +26,3 @@ export const coveringAuxiliarySurface = () => auxiliaryModality.coveringSurface(
 export const coveringAuxiliaryFocus = () => auxiliaryModality.coveringFocus();
 export const auxiliaryAllowsNativeLayer = (node, establishedOver) =>
   auxiliaryModality.allowsNativeLayer(node, establishedOver);
-export const openAuxiliarySurfaceFor = (node) => auxiliaryModality.openSurfaceFor(node);

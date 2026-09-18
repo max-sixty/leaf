@@ -1463,10 +1463,9 @@ export function createVersionController({
   // to try again. A re-vendored layer needs no answer of its own here: it changes the
   // revision's executable identity, which takes the fresh-document install above, and a
   // state that belongs to another layer is refused before it reaches this at all.
-  // Whether the move
-  // happens now is asked at the commit: an unresolved delivery, `midComposition`, or an
-  // open menu defers it, unless the chip was pressed (goActive) — the one override,
-  // spent by the install it forced.
+  // Whether the move happens now is asked at the commit: an unresolved delivery,
+  // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
+  // — the one override, spent by the install it forced.
   async function prepareActivation(state) {
     const target = state.active;
     if (

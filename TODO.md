@@ -127,27 +127,49 @@ ordering contract these items extend.
 
 ## Architecture simplification
 
-- **#1 — Keep the semantic application root thin.** Let the application publisher own
-  ordering, adoption, and publication while pure Ask, conversation, projection, and widget
-  models retain their own modules. Do not replace DOM authority with one module containing
-  every domain rule.
+The 2026-09-13 to 09-17 Lit application arc closed #1 and #3, which git history now
+carries. A 2026-09-18 survey measured what remains and added #25 to #27; its evidence is
+the `leaf-simplification` page directory in the state home. Ids here share one space with
+the workspace research below, which reaches #23, so a new item starts above that.
 
-- **#2 — Replace manual presentation choreography with epoch presenters.** Have each
-  presenter consume one immutable semantic epoch and report completion to the presentation
-  coordinator. Remove hand-maintained renderer ordering and repeated conversation passes.
+- **#4 — Delete the browser's second derivation of the server's semantics.** The server
+  already folds the Ask inventory, winner and retraction resolution, and each thread's
+  `awaits_reader`, and ships all three on `/api/state`; the browser discards them and
+  derives them again in `scripts/browser/application.ts` — `deriveAsks` across lines 342 to
+  517, `deriveThreadReaderObligations` 528 to 582, the ask predicates between them, plus a
+  re-fold of the `actions` and `desired` id lists the wire carries for exactly that purpose.
+  Roughly 750 lines, arrived in #746. The two copies of the `when` predicate already
+  disagree, Python testing presence and TypeScript testing non-null, so an attribute
+  recorded as `null` reads differently on each side. Nothing on either side compares them.
+  Keep the pending-attempt ledger and the DOM-captured authored baseline, which are the
+  browser's real work. Restore the ~35 lines of page-ask serialization
+  `served_state/document.py` computes and drops, and delete the ask payload
+  `served_state/conversation.py` ships that nothing reads. A shared parity corpus follows
+  this rather than preceding it: built first, it would police an implementation that is
+  about to go.
 
-- **#3 — Make revision activation one explicit transaction.** Bound document fetch,
-  reconciliation, widget capture, semantic adoption, and reader continuity behind one
-  input and result. Give every stateful captured widget a stable identity.
+- **#2 — Finish the epoch presenters.** The coordinator and monotone epochs exist; six
+  hand-ordered choreography sites survive beside them, including `state-application.js`
+  running `applyConversation()` on either side of one `presentProjection` call and the
+  `prepareProjection`/`presentProjection` split that sandwich exists to hold. About 130
+  lines, and it retires the second mechanism for something that already has one.
 
-- **#4 — Prove Python and browser semantic parity.** Let the server provide the complete
-  accepted projection and keep the browser fold to explicit pending-event deltas. Run one
-  shared corpus of Ask, conversation, retirement, and rollback cases against both
-  implementations.
+- **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
+  imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the
+  connection lifecycle `AppServerClient` owns: the `initialize`/`initialized`/`thread/resume`
+  prologue three times across the two files, `_send` twice, and the reconnect backoff four
+  times — already drifted, `min(failures, 5)` against `min(self.failures - 1, 5)`. One
+  subscription class with a delivery-source hook deletes 550 to 650 lines. Both carriers
+  are live and tested, so this is a restructure rather than a deletion of dead code.
 
 - **#5 — Separate the pure margin model from stateful presentation.** Produce the complete
   cluster and Page Map reading as immutable data, then let retained-control presentation
-  and placement consume it independently.
+  and placement consume it independently. `margin-projection.js` is 3,072 lines in one
+  factory; roughly 650 would move and what it deletes directly is small. The return is that
+  the model becomes testable without Chrome, which `test_render_margin.py` currently spends
+  6,351 lines on, and that an entry's identity and focus standing stop living on
+  `dataset.lfMarginEntry*` across the 77 sites that write them onto nodes and read them
+  back.
 
 - **#6 — Separate Codex delivery protocol, durable state, and process supervision.** Keep
   App Server message interpretation, the queue and receipt ledger, and adapter process and
@@ -155,13 +177,39 @@ ordering contract these items extend.
 
 - **#7 — Test model rules without rebuilding whole browser journeys.** Keep browser tests
   for focus, selection, pointer identity, layout, accessibility, and synchronous
-  presentation. Cover pure folds and cross-runtime parity with compact model fixtures, and
-  express runtime dependency policy in a small declarative layer manifest.
+  presentation. Cover pure folds with compact model fixtures. The declarative layer
+  manifest landed in #753. `tests/` is 137,643 lines against 106,577 of implementation, and
+  1,372 of the 2,315 tests are browser render tests across 88,868 lines. Of those, 296
+  across 13,263 lines drive no input, read no geometry and assert on no focus — they load a
+  page to read state back, and are what a model fixture would replace. No pure test covers
+  `projection.py`, `asks.py` or `conversation.py`. This follows #5 and #4 rather than
+  leading them: what makes the folds reachable without a browser is giving them a home off
+  the DOM.
 
-- **#8 — Decentralize keyboard feature knowledge when another change proves the need.** If
-  a feature declaring commands locally must still modify the page keyboard coordinator,
-  have feature owners contribute explicit capabilities at boot and leave the dispatcher
-  generic.
+- **#8 — Decentralize keyboard feature knowledge.** Have feature owners contribute explicit
+  capabilities at boot and leave the dispatcher generic. The condition this item waited on
+  is met: `createPageKeys` takes 53 named capabilities and `leaf.js` mirrors all 53, so a
+  core command costs one line in each of three files, while a package widget already
+  registers through `keys()` and costs none. Eleven of the 53 are scopes a feature declared
+  locally and `page.js` names again. It moves about 900 lines and deletes about 170,
+  including the `rung()` ladder whose own guard stands down for the layer stack.
+
+- **#26 — Unify the two generated-hint machines.** `keyboard/go-to-sequence.js` and
+  `composing/target-chooser.js` implement one arming, prefix, walk and paint interaction
+  twice, sharing 24 identically named declarations and the same three helpers from
+  `keyboard/hints.js` before rebuilding everything above them. About 225 lines, and it pays
+  in both subsystems.
+
+- **#27 — Admit every event through one door.** Six of the nine `append_event` callers
+  check no contract: `cmd_comment`, `cmd_reply`, `cmd_edit` and `cmd_resolve` in
+  `conversation.py`, the `pickup` in `session.py`, and the `note` in `publishing.py`. Of
+  the three that do check, `cmd_report` reaches `event_contracts.py` and `cmd_receipt`
+  uses a validator `requests.py` defines itself, so the rules are in two homes as well as
+  the gate being in three — `event_endpoint.accept_event` for browser events and
+  `service.append_event` for widget kinds, with the CLI going through neither.
+  `event_log` stamps an id and a timestamp and checks no schema, so whatever a caller
+  hands it lands in the log. Validate once at the edge: one admission door the CLI writers
+  share, not a validator added per caller.
 
 ## Platform and dependency cutover
 

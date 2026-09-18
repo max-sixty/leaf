@@ -899,6 +899,36 @@ LIVE_KEYS_V3 = LIVE_KEYS_V2.replace(
     '<p id="lk-newer">A finding the third revision put above that.</p>\n<p id="lk-new">',
 )
 
+# The decision as the same live page states it, so a revision below can be written by
+# taking it out or putting other words in its place.
+LIVE_KEYS_DECISION = """<lf-ask id="lk-decision"><h2>Which one?</h2>
+<lf-options id="lk-options" choose>
+  <lf-option id="lk-one">One</lf-option>
+  <lf-option id="lk-two">Two</lf-option>
+</lf-options></lf-ask>"""
+
+# A revision that restates the question the reader is answering, which is the revision
+# they most need to stay with. The Ask keeps its id and its options keep theirs, but every
+# element in it is rewritten, so nothing inside it is the node the reader was holding.
+LIVE_KEYS_ASK_REWRITTEN = LIVE_KEYS_V1.replace(
+    "<title>Live keys first</title>", "<title>Live keys rewritten</title>"
+).replace(
+    LIVE_KEYS_DECISION,
+    LIVE_KEYS_DECISION.replace(
+        "<h2>Which one?</h2>", "<h2>Which one, now the costs are in?</h2>"
+    ).replace(
+        '<lf-option id="lk-two">Two</lf-option>',
+        '<lf-option id="lk-two">Two</lf-option>\n'
+        '  <lf-option id="lk-three">Three</lf-option>',
+    ),
+)
+
+# And a revision that withdraws the question, which is the one with nowhere to put the
+# reader back.
+LIVE_KEYS_ASK_WITHDRAWN = LIVE_KEYS_V1.replace(
+    "<title>Live keys first</title>", "<title>Live keys without it</title>"
+).replace(LIVE_KEYS_DECISION, '<p id="lk-settled">That one is settled.</p>')
+
 
 # A section that generates no box of its own, holding blocks that carry no id. The
 # reading position's landmark is whichever id stands nearest the block the reader was

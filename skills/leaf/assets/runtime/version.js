@@ -62,9 +62,13 @@
  * has no identity a new document could be sure it had found again, only a shape — an
  * owner's id, a tag, a class, a count among its siblings, a string of its words — and a
  * guess that lands on the wrong control hands it the reader's next press. Focus goes to
- * the page instead, where its keys are live. Explicit historical travel carries neither
- * focus nor a selection. Durable drafts and stored chrome arrangement use their existing
- * stores. Native selections and arbitrary module state never cross documents.
+ * the page instead, where its keys are live. The one standing that does cross is the Ask
+ * the reader is working, which is named by a declared id rather than by a shape: the
+ * inventory, the tray, and the ask walk all resolve it against whichever document is
+ * standing, so putting the reader back on it is a lookup and not a guess. Explicit
+ * historical travel carries neither focus nor a selection. Durable drafts and stored
+ * chrome arrangement use their existing stores. Native selections and arbitrary module
+ * state never cross documents.
  *
  * The handoff is scoped to this page and consumed once, even when a newer revision
  * overtakes the one that triggered navigation. Ordinary reloads and history travel
@@ -82,9 +86,11 @@
  * back navigation. `landArrival` applies that ranking only after final page geometry is
  * available.
  *
- * Neither install claims the reader still stands on a control. A patch does not have to
- * claim it: focus the revision did not disturb was never lost, because the control is
- * the same element. A reload cannot, so it does not try.
+ * Neither install claims the reader still stands on an arbitrary control. A patch does
+ * not have to claim it: focus the revision did not disturb was never lost, because the
+ * control is the same element. A reload cannot, so it does not try. Both restore the Ask
+ * the reader was working, by the same capture, because a reader told "Updated to …"
+ * cannot tell the two installs apart and should not have to.
  *
  * Served identity is read before boot mutates the document, and it includes what each
  * declared widget in this page was written as, one digest per id, decided by the capture
@@ -276,6 +282,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
+  captureAskStanding = () => null,
+  restoreAskStanding = () => {},
 }) {
   let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
     initialDocument;
@@ -1275,6 +1283,7 @@ export function createVersionController({
   // be carried across anything.
   async function activateRevision(doc, target) {
     const view = captureView();
+    const askStanding = captureAskStanding();
     // A pending selection is standing too: cancel its old-document request before the
     // authored page changes, then restore that base against the arriving revision.
     const comparedFrom = selectedBase();
@@ -1412,6 +1421,13 @@ export function createVersionController({
     // kept is the same element, still holding it, with the tab stop it was lent. One the
     // revision replaced drops focus to `body`, where the page's own keys are live, which
     // is the honest answer for a reader whose control the revision took away.
+    //
+    // A reader working an Ask has named more than a control, and the revision that
+    // rewrote the question is exactly the revision they most need to stay with. Their
+    // standing is restored by the Ask's declared id, so it is not the shape guess the
+    // module header rules out; an Ask the revision dropped leaves them on `body` like any
+    // other replaced control.
+    restoreAskStanding(askStanding);
     if (comparedFrom !== null) showComparison(comparedFrom);
     // The same words the fresh document says on arrival. The page changing under a
     // reader is the thing announced, and which install carried it is not their business.
@@ -1527,6 +1543,7 @@ export function createVersionController({
         url: location.href,
         view,
         retainedStanding: captureRetainedStanding(),
+        askStanding: captureAskStanding(),
         comparison: selectedBase(),
         pointer: pointerAt(),
       }),
@@ -1902,6 +1919,7 @@ export function createVersionController({
         restorePointer(handoff.pointer);
         restoreView(handoff.view);
         restoreRetainedStanding(handoff.retainedStanding);
+        restoreAskStanding(handoff.askStanding);
         if (handoff.comparison !== null && stamped(handoff.comparison))
           showComparison(handoff.comparison);
         return;

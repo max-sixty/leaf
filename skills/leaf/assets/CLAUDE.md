@@ -103,9 +103,10 @@ each package supplies its words and bound detail;
 `runtime/asks/model.js` exposes immutable Ask selectors and the semantic subscription
 from the application publisher; inventory, answer state, retirement, and thread
 obligations are folded by that publisher;
-`runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and
-Ask-local contextual command projection; `asks/view-elements.js` owns its passive paint
-host and control selector;
+`runtime/asks/view.js` owns Ask chrome, marking, the Ask walk,
+Ask-local contextual command projection, and the reader's standing on an Ask as a
+declared id a replacing document can be asked for; `asks/view-elements.js` owns its
+passive paint host and control selector;
 `runtime/projection-watch.js` owns the lifetime-bound invalidation subscription shared
 by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
@@ -212,8 +213,8 @@ marked block discloses, version document loading, the one activation door and th
 installs behind it — the authored page patched in place, or a fresh document — which
 the arriving revision's executable identity decides, the per-widget digests each
 revision's delivery states that decide which widgets a patch may keep, the persisted
-semantic reading landmarks carried across either, and the page-block reading
-directional walks start from;
+semantic reading landmarks and Ask standing carried across either, and the page-block
+reading directional walks start from;
 `runtime/version-chooser.js` consumes one frozen version presentation reading and owns
 the retained native chooser button, versions popover, and latest-version chip in their
 separate chrome seats: their synchronous Lit paint, keyed rows, disclosure focus and

@@ -62,12 +62,12 @@ export function createConversationPresentation({
     region: "conversation",
     order: PRESENTATION_ORDER.conversation,
     // Every phase owes a reading, the ones before the log has been read included: what
-    // the panel says while it waits is this region's to draw. A copy with no chrome is
-    // the one page that owes nothing.
+    // the panel says while it waits is this region's to draw, and a reader who opens it
+    // then is asking for exactly that. The one page that owes nothing is a copy with no
+    // chrome to draw into.
     current: () => (available ? readApplication().effective.conversation : null),
     failSoft: retainedThreadListProof,
     paint: async (value) => {
-      if (!available) return value;
       painting = true;
       try {
         const phase = readApplication().phase;
@@ -87,7 +87,18 @@ export function createConversationPresentation({
   // the root than its own fold: thread receipts come from canonical activity and the
   // margin draws the Ask rows beside them. The claim registers that obligation inside
   // the publication that seals membership; the pass paints it.
-  applicationState.select((snapshot) => snapshot.semanticEpoch).subscribe(present);
+  //
+  // Every epoch the page has read the log for, that is. Before it has, each one draws
+  // the same line about waiting, and repainting the margin and the anchors to say it
+  // again is work done ahead of the first paint the reader is waiting on. A reader who
+  // opens the panel in that window asks for the reading directly, and gets it.
+  applicationState
+    .select((snapshot) =>
+      snapshot.phase === "waiting" ? null : snapshot.semanticEpoch,
+    )
+    .subscribe((value) => {
+      if (value !== null) void present();
+    });
 
   function finishListRecovery(candidate) {
     if (candidate?.recovered)
@@ -156,9 +167,10 @@ export function createConversationPresentation({
   // A tick can also land in the middle of a pass paint, while it waits on a frozen
   // widget. That runs `renderReading` again, and `surfaceGeneration` settles which of
   // the two the page keeps: the newer one, exactly as a newer claim supersedes an older
-  // reading a rank up. The pass paint then returns having drawn nothing, and its ticket
-  // is still honest, because what stands in the region is the newer reading of the same
-  // root. The clock has to reach `renderReading` synchronously either way — `clocked`
+  // reading a rank up. The pass paint then returns having drawn nothing and commits on
+  // the strength of a reading that is still in flight, which is the one gap here: a
+  // failure in that newer reading arrives after the commit with no ticket to carry it.
+  // The clock has to reach `renderReading` synchronously either way — `clocked`
   // records which relative-time readings a paint made while that paint runs, and a claim
   // that returns before the pass would record none and unsubscribe the conversation from
   // the clock altogether.

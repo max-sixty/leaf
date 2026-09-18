@@ -90,7 +90,7 @@ export const presentDocument = () => {
 // publications collected has painted, including the ones their painting collected. This
 // is what a caller awaits instead of naming renderers, and it carries the first paint
 // failure of the pass so an accepted reading that could not be shown stays unrecorded.
-export const documentPresented = () => schedule.passed();
+export const whenDocumentPresented = () => schedule.passed();
 export { PRESENTATION_HELD };
 
 export class PresentationRetentionError extends AggregateError {}

@@ -701,9 +701,10 @@ export function createPresentationSchedule() {
     }
 
     async function run(ticket: Ticket) {
-      // Superseded before it painted. This reading drew nothing and has nothing to
-      // report, so it releases its own ticket rather than leaving the region an answer
-      // that never comes.
+      // Superseded before it painted. The claim that superseded it already installed
+      // its own ticket, so the region is not waiting on this one for anything; settling
+      // it releases the coordinator's continuation, which would otherwise hold this
+      // reading's value for as long as the document lives.
       if (ticket.claimed !== generation) {
         ticket.resolve(undefined);
         return;
@@ -713,8 +714,10 @@ export function createPresentationSchedule() {
         const painted = paint(ticket.value, () => ticket.claimed === generation);
         if (painted === PRESENTATION_HELD) {
           withheld = true;
-          // A reading superseded while it was deciding to withhold is not the one a
-          // later claim has to release.
+          // `held` is the current withheld reading, and a reading superseded while it
+          // was deciding to withhold is not that. Nothing observable turns on it — the
+          // stale hold would release a ticket no longer standing for the region — but
+          // one name meaning one thing is worth a line.
           if (ticket.claimed === generation) held = ticket.resolve;
         } else ticket.resolve(await painted);
       } catch (error) {

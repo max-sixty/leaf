@@ -1688,6 +1688,42 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     page.close()
 
 
+def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, serve):
+    """An accepted approval is a semantic fact, so it moves the epoch on its own.
+
+    Nothing else about this state read changes: no thread, no Ask, no widget facet, no
+    pending gesture of this reader's. The approval is another tab's, so there is no
+    receipt to account and no ledger entry to remove — the two paints that show it have
+    only the published fold to hear it from.
+    """
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page = open_page(browser, serve(html, comments=1))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    approve = page.locator(".lf-signoff")
+    expect(approve).to_have_text("Approve version")
+    expect(page.locator(".lf-threads")).not_to_contain_text("Approved")
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "done",
+            "author": "user",
+            "revision": 1,
+            "version": 1,
+            "text": "Looks good",
+        },
+    )
+    told(page)
+
+    expect(page.locator(".lf-threads")).to_contain_text("Approved")
+    expect(approve).to_have_text("✓ Version approved")
+    page.close()
+
+
 def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
     """A system-row age is presented mechanically without advancing semantic time."""
     url = serve(LONG_PAGE, comments=1)

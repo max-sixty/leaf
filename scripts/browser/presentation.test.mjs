@@ -820,9 +820,10 @@ test("a paint that fails after a newer claim supersedes it still reports", async
   const publication = coordinator.begin(document, 0);
   const schedule = createPresentationSchedule();
   const slow = deferred();
+  const renderer = {};
   let first = true;
   const presenter = schedule.presenter({
-    attach: () => coordinator.attach("conversation", {}),
+    attach: () => coordinator.attach("conversation", renderer),
     paint: (value) => {
       if (!first) return value;
       first = false;
@@ -842,9 +843,14 @@ test("a paint that fails after a newer claim supersedes it still reports", async
     ["the superseded paint failed"],
   );
   assert.equal(
-    coordinator.committed("conversation", undefined, "current"),
+    coordinator.committed("conversation", renderer, "current").status,
+    "committed",
+    "the reading that superseded it still commits",
+  );
+  assert.equal(
+    coordinator.committed("conversation", renderer, "stale"),
     null,
-    "a failure reported against one renderer says nothing about another",
+    "the failed reading commits nothing",
   );
   assert.equal(coordinator.read().presentedEpoch, 0);
 });

@@ -12,7 +12,7 @@ import { LIVE_ROOT } from "./storage.js";
 import { runtime } from "./context.js";
 import {
   applicationState,
-  documentPresented,
+  whenDocumentPresented,
   readApplication,
 } from "./semantic-state.js";
 import { reportPageError, sameLayer } from "./layer-client.js";
@@ -150,7 +150,7 @@ export function createStateApplication({
         // Adoption already claimed every document region for this epoch, and frozen
         // thread widgets joining the document reopen the ones they change. Waiting for
         // that proof is what replaces naming the renderers and the order they run in.
-        await documentPresented();
+        await whenDocumentPresented();
         await notifyDataSubscribers();
         if (runtime.reading !== null)
           document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);

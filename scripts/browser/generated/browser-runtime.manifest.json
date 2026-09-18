@@ -62,8 +62,8 @@
       "sha256": "e3557d10fe60fce3ffe7d80f859a933222479ed43da7f243893d4e1842116151"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 409037,
-      "sha256": "005d1872c28642d57eb4d22d3b1d4e58f7cd494468e2b40192ebb62e335878aa"
+      "bytes": 409358,
+      "sha256": "27baf10dd4b63610784a74a5aea602104f7e61638bc1bec82c00790c1799a94f"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 7267,

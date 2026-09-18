@@ -706,23 +706,58 @@ MANIFEST_DIFF_PAGE = leaf_page(
     + '<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>',
 )
 
-# Which of a diff's source lines are cut off by the box they sit in. A row is one line of
-# the patch however many line boxes it takes, so scrollWidth past clientWidth is text the
-# reader cannot see without scrolling the file's own box sideways — and on paper, text
-# that is simply gone. `worst` and `widest` are for the failure to say which line and by
-# how much, since "some row overflows" sends its reader back to the browser.
+# Which of a diff's source lines run past what the reader can see. A row is one line of
+# the patch however many line boxes it takes, and the box that clips it is the file's
+# scrolling code box, not the row: the row is sized to the longest line in its file so
+# its fill reaches the end of it, which is why the room is measured out here — the code
+# box's own width less the gutter standing in front of the content column. A row wider
+# than that room is text the reader cannot see without scrolling the file sideways, and
+# on paper, text that is simply gone. `worst` and `widest` are for the failure to say
+# which line and by how much, since "some row overflows" sends its reader back to the
+# browser.
 DIFF_CLIPPING = """() => {
     const diff = document.querySelector('lf-diff');
-    const rows = [...diff.shadowRoot.querySelectorAll('[data-content] [data-line]')];
-    const cut = rows.filter((row) => row.scrollWidth > row.clientWidth);
+    const rows = [];
+    for (const code of diff.shadowRoot.querySelectorAll('code[data-code]')) {
+        const gutter = code.querySelector('[data-gutter]');
+        const room = code.clientWidth - (gutter ? gutter.getBoundingClientRect().width : 0);
+        for (const row of code.querySelectorAll('[data-content] [data-line]'))
+            rows.push({ row, over: Math.round(row.scrollWidth - room) });
+    }
+    const cut = rows.filter((entry) => entry.over > 0);
     return { rows: rows.length, cut: cut.length,
-             worst: rows.reduce((most, row) =>
-                 Math.max(most, row.scrollWidth - row.clientWidth), 0),
+             worst: rows.reduce((most, entry) => Math.max(most, entry.over), 0),
              widest: cut.length
-               ? cut.reduce((a, b) =>
-                   a.scrollWidth - a.clientWidth > b.scrollWidth - b.clientWidth ? a : b
-                 ).textContent.slice(0, 70)
+               ? cut.reduce((a, b) => (a.over > b.over ? a : b))
+                   .row.textContent.slice(0, 70)
                : null };
+}"""
+
+# Where a changed row's fill ends, against the line it is painting and against the room
+# the file's box gives it. A row's green or red is its own background, so it reaches
+# exactly as far as the row's box does: a box narrower than the row's own text is a fill
+# that stops mid-line and leaves the rest of the addition sitting on the file's plain
+# paper, which is what a reader who scrolls sideways finds. `short` counts those and
+# `gap` is the worst. `narrow` is the same reading from the other side — a file whose
+# lines all fit must still fill its box rather than end at its longest line. `scrolls`
+# is the population: on a file that does not scroll, `short` is zero for free.
+DIFF_ROW_FILL = """() => {
+    const diff = document.querySelector('lf-diff');
+    const out = { rows: 0, short: 0, gap: 0, narrow: 0, scrolls: 0, files: 0 };
+    for (const code of diff.shadowRoot.querySelectorAll('code[data-code]')) {
+        out.files += 1;
+        if (code.scrollWidth > code.clientWidth) out.scrolls += 1;
+        const gutter = code.querySelector('[data-gutter]');
+        const room = code.clientWidth - (gutter ? gutter.getBoundingClientRect().width : 0);
+        for (const row of code.querySelectorAll('[data-content] [data-line]')) {
+            const painted = row.getBoundingClientRect().width;
+            out.rows += 1;
+            const gap = Math.round(row.scrollWidth - painted);
+            if (gap > 1) { out.short += 1; out.gap = Math.max(out.gap, gap); }
+            if (room - painted > 1) out.narrow += 1;
+        }
+    }
+    return out;
 }"""
 
 # Where each file's row starts against its own wrapper. The review press stands ahead of

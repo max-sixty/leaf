@@ -63,6 +63,7 @@ from render_cases_widgets import (
     DIFF_CLIPPING,
     DIFF_LANDING,
     DIFF_PRESS,
+    DIFF_ROW_FILL,
     DIFF_ROW_PLACEMENT,
     LONG_LINE_DIFF_PAGE,
     MANIFEST_DIFF_PAGE,
@@ -9528,6 +9529,43 @@ def _bound_diff(browser, serve):
     return page
 
 
+def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
+    browser, serve
+):
+    """A changed row says it changed by the colour behind it, and that colour is the row's
+    own background, so it stops where the row's box stops. The renderer sizes the code
+    column to the box that scrolls, which is the width the reader could already see: on
+    this patch the fill ran out 2,563px short of the line's end, so scrolling right left
+    every addition and deletion sitting on the file's plain paper with nothing to say
+    which it was.
+
+    Both directions in one reading, because they are one track: the floor that carries the
+    fill past the scrollport would, left alone, also shrink a short file's rows to its own
+    longest line and leave the rest of the box blank. And again with the rows wrapped,
+    where the scrollbar is gone and the room is all there is."""
+    page = _bound_diff(browser, serve)
+
+    filled = page.evaluate(DIFF_ROW_FILL)
+    assert filled["rows"] > 20 and filled["scrolls"] > 0, (
+        f"no file runs past its box, so a filled result would prove nothing: {filled}"
+    )
+    assert filled["short"] == 0, (
+        f"a row's fill stops before its own text ends, worst by {filled['gap']}px: "
+        f"{filled}"
+    )
+    assert filled["narrow"] == 0, f"a row's fill stops before its box does: {filled}"
+
+    page.locator("lf-diff .lf-diff-wrap").click()
+    wrapped = page.evaluate(DIFF_ROW_FILL)
+    assert wrapped["rows"] == filled["rows"] and wrapped["scrolls"] == 0, (
+        wrapped,
+        filled,
+    )
+    assert (wrapped["short"], wrapped["narrow"]) == (0, 0), (
+        f"wrapped rows do not fill the box they wrapped into: {wrapped}"
+    )
+
+
 def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_switch_says(
     browser, serve
 ):
@@ -9780,11 +9818,13 @@ _SELECT_IN_ROW = """(row, phrase) => {
     selection.addRange(range);
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     // The row is a block, so it has one client rectangle however many line boxes are in
-    // it. Its height is what says how many, and its overhang says whether the words
-    // selected were on screen at all.
+    // it, and its height is what says how many. Whether the words selected were on screen
+    // is the range's own right edge against the file's scrolling box — not the row's,
+    // which is sized to the longest line in the file so its fill reaches the end of it.
+    const box = row.closest('code[data-code]').getBoundingClientRect();
     return { text: selection.toString(),
              height: Math.round(row.getBoundingClientRect().height),
-             cut: row.scrollWidth > row.clientWidth };
+             cut: range.getBoundingClientRect().right > box.right };
 }"""
 
 

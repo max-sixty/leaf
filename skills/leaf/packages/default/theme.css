@@ -2087,8 +2087,11 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; --lf-block-frame: 1; }
 lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-pre-light;
              outline-offset: calc(-1 * var(--here-ring-w)); }
-/* The same max-content floor as the shadow slice's line spans: an hi range's tint has
-   to run the whole scrolled line, not stop at the fold. */
+/* An hi range's tint has to run the whole scrolled line, not stop at the fold. The diff
+   package answers the same question on its own rows, but from the track rather than the
+   line, because there every row has to end where the widest one does: this block's lines
+   are their own width, so a short hi line still stops at the scrollport rather than at
+   the block's own width. */
 lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
              width: max-content; min-width: 100%; box-sizing: border-box; }
 lf-code .lf-code-line::before { counter-increment: lf-code-line;

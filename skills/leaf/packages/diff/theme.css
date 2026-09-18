@@ -200,6 +200,19 @@ lf-diff:not(.lf-rendered) > pre {
   --diffs-bg-addition-emphasis: color-mix(in srgb, var(--ok) 34%, var(--pre-bg));
   --diffs-bg-deletion-emphasis: color-mix(in srgb, var(--danger) 34%, var(--pre-bg));
 }
+/* A changed row's fill stops where the scrollport does. Pierre gives the code column
+   `1fr`, which is the width of the box that scrolls, so a line running past that box
+   paints its green or red only as far as the reader could already see: scrolling right
+   ran the fill out mid-line and left the rest of the row on the file's plain paper,
+   with the added or removed text sitting on nothing. The track takes its floor from the
+   longest line instead, and keeps `1fr` over it so a file whose lines all fit still
+   fills the box rather than ending at its longest line. `--lf-diff-row-fill` is that
+   floor, and wrapping drops it (below): a wrapped line still measures its whole
+   unwrapped self at max-content, so a floor left in place would size the column to the
+   very line the reader asked to have wrapped. */
+:host(.lf-rendered) code[data-code] {
+                          --diffs-code-grid: var(--diffs-grid-number-column-width)
+                                             minmax(var(--lf-diff-row-fill, max-content), 1fr); }
 :host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
                           border-radius: 0; overflow-x: auto; color: var(--code-ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
@@ -214,7 +227,13 @@ lf-diff:not(.lf-rendered) > pre {
                           min-width: 0; border-block: 1px solid var(--rule);
                           background: var(--paper); }
 .lf-diff-thread-gutter { border-inline-end: 1px solid var(--rule); }
-.lf-diff-thread-outlet { padding: 10px clamp(10px, 2vw, 18px); white-space: normal; }
+/* The outlet stands in the code column with the lines, and its max-content is the whole
+   thread set on one line, so the floor above would size the code by the longest comment
+   rather than the longest line — 1579px where the lines wanted 745px. Inline-size
+   containment takes the outlet's own text out of that measure; it still stretches to
+   whatever the code settles on, and wraps inside it. */
+.lf-diff-thread-outlet { padding: 10px clamp(10px, 2vw, 18px); white-space: normal;
+                          contain: inline-size; }
 .lf-diff-file-thread-outlet { margin-top: 8px; border: 1px solid var(--rule);
                               border-radius: var(--r); }
 .lf-diff-thread-outlet > .lf-conversation-thread {
@@ -240,7 +259,7 @@ lf-diff:not(.lf-rendered) > pre {
 .lf-diff-tools:has(.lf-diff-wrap:checked) ~ .lf-diff-file [data-line] {
                           white-space: pre-wrap; overflow-wrap: anywhere; }
 .lf-diff-tools:has(.lf-diff-wrap:checked) ~ .lf-diff-file code[data-code] {
-                          overflow-x: auto; }
+                          overflow-x: auto; --lf-diff-row-fill: 0; }
 /* Pierre owns the line and inline-diff paint. Leaf supplies brighter semantic fills
    through its variables above, and keeps its syntax roles readable on the denser one. */
 [data-diff-span] [data-lf-syn="cm"] { color: color-mix(in srgb, var(--syn-comment) 50%, var(--ink)); }
@@ -279,6 +298,6 @@ lf-diff:not(.lf-rendered) > pre {
      would have been reading the page to learn. The switch is not on the sheet to press,
      so the sheet cannot be left holding its answer. */
   [data-line] { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }
-  code[data-code] { overflow-x: visible !important; }
+  code[data-code] { overflow-x: visible !important; --lf-diff-row-fill: 0; }
 }
 /* lf-shadow:end */

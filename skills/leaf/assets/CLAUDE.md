@@ -112,8 +112,9 @@ by the public semantic projection watchers;
 `runtime/composing/surface.js` owns floating comment geometry, addressable-element comment entry,
 and page-click routing;
 `runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text
-search, including their synchronous keyed Lit overlay and the mechanical geometry applied
-to its retained hint and match nodes;
+search: the scene, chip, and activation it declares over the shared hint session in
+`runtime/keyboard/hints.js`, and the synchronous keyed Lit overlay and mechanical
+geometry of the search marks that share its layer;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
 `runtime/composing/drawing.js` owns one-stroke pointer capture and drawing commands;
 `composing/drawing-record.js` owns drawing payload shape and validation; `composing/drawing-paint.js` owns their
@@ -270,6 +271,8 @@ revision patches into the page;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
 conversion from viewport boxes to document-positioned chrome;
+`runtime/keyboard/key-badge-placement.js` adds the readings that account for fixed
+chrome, which every target hint and Ask binding badge is admitted and seated by;
 `runtime/navigation.js` owns reader travel; `reading-regions.js` selects its scroller;
 `runtime/anchor-resolution.js` resolves anchors without importing paint or travel;
 `runtime/anchor-paint.js` owns their placed readings and marks;

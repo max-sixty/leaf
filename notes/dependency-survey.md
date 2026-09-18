@@ -57,7 +57,7 @@ reason to change frameworks.
 | Icons | lucide | 25 inline icons, 69 lines |
 | Content widgets | Web Awesome or Spectrum tabs and boards | Different child vocabulary; under 400 lines each |
 | Data widgets | TanStack Table, Virtual, Form | No widget sorts, filters, or virtualizes |
-| Scroll settle | `scrollend` only | `keyboard/go-to-sequence.js` documents a case that never fires it |
+| Scroll settle | `scrollend` only | `keyboard/hints.js` documents a case that never fires it |
 | Positioning | Floating UI for the CSS-anchored menus | Tried: +80 lines of JS and async placement for what 10 CSS lines do synchronously |
 | Focus | tabbable for the covering surface's Tab wrap | Tried: a vendored startup module in place of a 7-line local filter |
 | Motion | `@starting-style` for the thread card and agent-arrival listeners | It replays whenever an ancestor leaves `display: none`, so the reopened panel needs the end listener anyway; the pulse is not an entrance |

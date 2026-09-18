@@ -744,7 +744,7 @@ export function createAskView({
       bindingBadge.setAttribute("data-lf-ask-binding-badge", "");
       bindingBadge.textContent = spell(binding);
       bindingBadge.style.display = "block";
-      const box = bindingBadge.checkVisibility() && placement.visibleBox(bindingBadge);
+      const box = bindingBadge.checkVisibility() && placement.badgeBox(bindingBadge);
       if (
         !box ||
         !exposedBindingBadge(bindingBadge, control, box) ||
@@ -763,7 +763,7 @@ export function createAskView({
       if (bindingBadge && wornBindingBadges.has(bindingBadge)) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
-      const box = placement.visibleBox(presented);
+      const box = placement.badgeBox(presented);
       if (!box) continue;
       const chip = el("span", "lf-key-badge lf-ask-binding-badge", spell(binding));
       chip.setAttribute("aria-hidden", "true");

@@ -39,6 +39,7 @@
 // Application composition supplies feature-local geometry. This owner cannot open
 // auxiliary surfaces, send commands, or reconcile conversation DOM.
 import { drawnEdge } from "./drawn-edge.js";
+import { overlaps } from "./geometry.js";
 import { motion } from "./motion.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 
@@ -112,8 +113,6 @@ export function createChromeLayout({
     const panelBeside = panelIsOpen() && !panelCovers();
     const overlapsAcross = (one, other) =>
       one.left < other.right && other.left < one.right;
-    const overlaps = (one, other) =>
-      overlapsAcross(one, other) && one.top < other.bottom && other.top < one.bottom;
     const foot = panelFoot.getBoundingClientRect();
     // Beside the page, the thread panel owns the right strip all the way to its foot. Cap
     // the line's room at that strip rather than letting a long hint cross into the panel.

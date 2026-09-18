@@ -1032,6 +1032,11 @@ export function createResponseSurface({
   // stands says the same word, and repainting the chrome on every move of a drag would
   // put a whole shared repaint inside every frame of one.
   let selectionStood = false;
+  // The page's own words this press began with, against the ones it ends holding: what
+  // tells a gesture that took words from a press that merely landed in some (the click
+  // door below). Read beside `selectionStood`, ahead of the browser's own collapse, for
+  // the same reason.
+  let wordsAtPress = "";
   // What this drag has had inside the document, kept against a release that ends holding
   // something else. Only while both ends are still in it: `pageSelection` answers for the
   // end the press began at, which stays in the page for the whole of a drag that leaves it,
@@ -1148,8 +1153,10 @@ export function createResponseSurface({
           : null;
         // Read here, ahead of the browser's own collapse, so the first crossing this press
         // makes is measured against what the line already says rather than against nothing.
-        selectionStood = Boolean(pageSelection());
-        const selection = pointerSelecting ? pageSelection() : null;
+        const stood = pageSelection();
+        selectionStood = Boolean(stood);
+        wordsAtPress = stood ? stood.toString() : "";
+        const selection = pointerSelecting ? stood : null;
         if (selection && pageRange(selection).intersectsNode(ev.target))
           rememberPointerSelection();
         actionPress = Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
@@ -1252,11 +1259,31 @@ export function createResponseSurface({
     document.addEventListener("click", (ev) => {
       if (drawModeActive()) return;
       if (!pageWords(ev.target)) return;
-      // A press design mode did not take at the press is a press on prose: a drag that
-      // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the
-      // block; a plain click comments on the block it landed in.
+      // A press that ends holding words it did not begin with took them, and is that
+      // selection's mouseup rather than a click on whatever lies under it: the reader was
+      // reaching for the words, and the 💬 is already up on them (updateFab, on the same
+      // mouseup). The same complaint `offer` answers for a press on a control and the
+      // thread list for a press on a card (reachedForWords), and it governs the whole of
+      // what a click on prose means — the block design mode comments on, and the thread a
+      // mark opens. Marked words are where it showed: a gesture inside one travelled to its
+      // thread, and with Threads open the reply box it landed in collapsed the selection
+      // the reader had just made, so the words and the 💬 went with it.
+      //
+      // Asked of what this press changed rather than of the standing selection those two
+      // have to read, because a mark is a painted range with no element to put the question
+      // to — and because the state alone is too strict: a press landing inside words
+      // already selected keeps them through its own mousedown, so it would refuse the press
+      // that opens the very mark the reader just picked out. That press is also the only
+      // way the two readings can come out the same, since every other gesture moves the
+      // selection before its click.
+      //
+      // Changed, and not "dragged": how far the pointer travelled covers one of the three
+      // ways a reader takes words, and a double-click's second press and a shift-click's
+      // extension both arrive here having just taken some without moving it at all.
+      const words = pageSelection();
+      if (words && words.toString() !== wordsAtPress) return;
+      // A plain click comments on the block it landed in.
       if (designModeActive()) {
-        if (pageSelection()) return;
         const target = designTarget(ev.target);
         if (target) openOnDesign(target);
         return;

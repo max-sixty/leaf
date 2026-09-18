@@ -350,11 +350,7 @@ export class ThreadView {
       : null;
     const input = offer("textarea");
     input.name = "reply";
-    const send = offer(
-      "button",
-      panel ? "lf-btn primary lf-thread-send" : "lf-btn primary",
-      "Send",
-    );
+    const send = offer("button", panel ? "lf-btn lf-thread-send" : "lf-btn", "Send");
     if (disclosure) row.append(disclosure);
     row.append(input, send);
     const hasDraft = () => loadDraft("reply:" + model.key) !== null;

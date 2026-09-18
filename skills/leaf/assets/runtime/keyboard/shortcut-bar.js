@@ -198,7 +198,6 @@ export const bottomChromeBoxes = () => [
   ...boxesOf([shortcutBarEl]),
   ...standingStatusBoxes(),
 ];
-export const fixedChromeBoxes = bottomChromeBoxes;
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each

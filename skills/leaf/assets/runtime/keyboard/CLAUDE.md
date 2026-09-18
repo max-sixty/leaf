@@ -70,9 +70,12 @@ binding invoke the original command through its stable identity and source scope
   template. `shortcut-bar.js` and `command-reference.js` synchronously derive and
   Lit-render their complete persistent surfaces from evaluated command readings; their
   controllers retain native focus, disclosure, fitting, and dispatch mechanics.
-- `go-to-sequence.js` owns generated routes and the complete keyed Lit hint layer, then
-  applies placement to its retained hint nodes in the same input frame. `hints.js` owns
-  the route calculation; `key-badge-placement.js` owns shared badge placement.
+- `hints.js` owns the generated-hint session: the route codes, the no-drop placement
+  pass, and the arming, prefix, audible walk, scroll freeze, and keyed Lit paint over
+  them. `go-to-sequence.js` and `composing/target-chooser.js` each declare one scene,
+  chip, and activation over that session and hold nothing of the interaction themselves.
+  `key-badge-placement.js` owns what the reader can see of a target once fixed chrome is
+  accounted for, and the reserved placement Ask binding badges use.
 - `disclosure.js` owns the shared native disclosure reading and bindings.
 
 Before changing a binding, inspect the complete register for conflicting meanings,

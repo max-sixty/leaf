@@ -3627,6 +3627,93 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     ), geometry
 
 
+def _margin_entry_paint(control):
+    return control.evaluate("""node => {
+      const style = getComputedStyle(node);
+      return {
+        background: style.backgroundColor,
+        icon: getComputedStyle(
+          node.querySelector(':scope > .lf-margin-entry-icon')).color,
+      };
+    }""")
+
+
+def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
+    """Whose turn a conversation is reaches the margin as colour and as a word.
+
+    The reader's own comment is the control: one target, one retained marker, and the
+    only thing that changes between the two readings is who spoke last. Pickup is the
+    second contrast — the agent taking the work restores its green, because one interior
+    cannot carry two washes and live work is what the reader needs first.
+    """
+    page = open_page(browser, live_url(serve(ASK_PAGE, events=[COMMENT_ON_ASK])))
+    resized(page, 1440, 900)
+    cluster = page.locator('[data-lf-margin-for="bracket"]')
+    marker = cluster.locator(":scope > .lf-margin-marker")
+    expect(marker).to_have_attribute("data-lf-kinds", "comment")
+    expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    marker.evaluate("node => node.dataset.identityProbe = 'retained'")
+    with_agent = _margin_entry_paint(marker)
+    expect(marker.locator(".lf-margin-entry-context")).to_have_count(0)
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "agent": "Claude",
+            "revision": 1,
+            "text": "Two of them can share a visit; the third cannot.",
+            "anchor": {"section": "bracket"},
+        },
+    )
+    told(page)
+    expect(marker).to_have_attribute("data-lf-turn", "reader")
+    expect(marker).to_have_attribute("data-identity-probe", "retained")
+    expect(marker.locator(".lf-margin-entry-context")).to_have_text("On you")
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Threads \(2\), On you,")
+    )
+    on_reader = _margin_entry_paint(marker)
+    assert on_reader == {
+        "background": token_colour(page, "--turn-wash"),
+        "icon": token_colour(page, "--turn-ink"),
+    }, "the reader's turn did not colour the Thread marker's icon and interior"
+    assert with_agent["background"] != on_reader["background"], with_agent
+
+    # Page Map lists each conversation on its own row, so the reader's own thread is the
+    # control for the agent's beside it.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible()
+    rows = dialog.locator('.lf-page-map-action[data-lf-map-item^="comment:"]')
+    expect(rows).to_have_count(2)
+    assert rows.evaluate_all(
+        """nodes => nodes.map(node => [
+          node.dataset.lfTurn ?? null,
+          node.querySelector('.lf-page-map-action-context')?.textContent ?? null,
+        ])"""
+    ) == [[None, None], ["reader", "On you"]]
+    page.keyboard.press("Escape")
+    expect(dialog).to_be_hidden()
+
+    roots = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        session_model.record_pickup(transaction, roots)
+    told(page)
+    expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
+    expect(marker).to_have_attribute("data-lf-turn", "reader")
+    assert _margin_entry_paint(marker) == {
+        "background": with_agent["background"],
+        "icon": token_colour(page, "--ok-ink"),
+    }, "pickup did not take the carrier back from the reader's turn"
+
+
 def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):
     """Two moved cards share a widget claim, but each receipt arrives only once.
 

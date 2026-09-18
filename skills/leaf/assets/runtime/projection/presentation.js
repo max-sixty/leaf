@@ -64,7 +64,10 @@ export function createProjectionPresentation({ onDeferredReady }) {
   const presenter = applicationPresenter({
     region: "projection:chrome",
     order: PRESENTATION_ORDER.projection,
-    current: () => applicationState.read().effective.projection,
+    current: () => {
+      const root = applicationState.read();
+      return root.authoritative === null ? null : root.effective.projection;
+    },
     paint: () => paintReading(applicationState.read()),
   });
 
@@ -74,13 +77,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
   // while frozen widget markup is still joining the document; the pass paints it after.
   // Every epoch owes one: the coverage stamp reads the server's view of the log beside
   // the fold, so an unchanged fold is not an unchanged chrome reading.
-  applicationState
-    .select((snapshot) =>
-      snapshot.authoritative === null ? null : snapshot.semanticEpoch,
-    )
-    .subscribe((value) => {
-      if (value !== null) void present();
-    });
+  applicationState.select((snapshot) => snapshot.semanticEpoch).subscribe(present);
 
   function coordinateProjectionCommitted(projection, entry) {
     const desired = projection.desired.get(entry.coordinate);

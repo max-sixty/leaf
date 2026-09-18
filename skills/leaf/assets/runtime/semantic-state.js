@@ -51,9 +51,13 @@ const documentPresenters = [];
 
 // One region's epoch presenter: the claim is synchronous, inside the publication that
 // opened the epoch, and the paint runs on the pass that follows it. `current` reads the
-// value this region owes now, so claiming never needs the caller to carry one. A
-// renderer withholds a reading by returning `PRESENTATION_HELD`, which keeps its region
-// pending until a later claim supersedes it.
+// value this region owes now, so claiming never needs the caller to carry one, and
+// returns null where the region owes nothing yet — before the page has read the log,
+// or on a copy where this renderer was never mounted. That answer belongs to the
+// presenter rather than to whoever asks it to paint: a region claimed for a renderer
+// that cannot paint stays pending, and the page never presents at all. A renderer
+// withholds a reading it does owe by returning `PRESENTATION_HELD`, which keeps its
+// region pending until a later claim supersedes it.
 export const applicationPresenter = ({
   region,
   renderer = document,
@@ -68,7 +72,10 @@ export const applicationPresenter = ({
     paint,
     failSoft,
   });
-  const present = () => presenter.sync(current());
+  const present = () => {
+    const value = current();
+    return value === null ? schedule.passed() : presenter.sync(value);
+  };
   documentPresenters.push(present);
   return Object.freeze({ present, disconnect: presenter.disconnect });
 };

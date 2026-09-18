@@ -35,7 +35,6 @@ import { reachedForWords } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
 import { SAYS_IN, SAY_BOX } from "./selectors.js";
 import { retainReaderIntent } from "../reader-intent.js";
-import { documentPresented } from "../semantic-state.js";
 
 export { SAY_BOX } from "./selectors.js";
 const conversationReturns = new WeakMap();
@@ -288,11 +287,6 @@ async function showThreadNow(id, focus, revealThread) {
     available: () => threadsBox.isConnected,
     fallback: threadsBox,
   });
-  // Opening the panel claims the conversation; the cards this arrival is looking for
-  // land on the pass that follows. Reading the list first would find whatever the panel
-  // last held — nothing at all, on a first open — and send a destination that is about
-  // to exist down the reveal path, past the fold it needed to cancel.
-  await documentPresented();
   // A direct arrival owns the target's one transition cue. Remove a retained arrival
   // animation before an asynchronous reveal gives the browser a frame to start it.
   threadsBox

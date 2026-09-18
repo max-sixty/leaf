@@ -226,7 +226,7 @@ export function createAskView({
     region: "asks",
     renderer: asksRenderer,
     order: PRESENTATION_ORDER.asks,
-    current: () => readApplication().semanticEpoch,
+    current: () => (mounted ? readApplication().semanticEpoch : null),
     failSoft: failSoftAfterRetention(asksRenderer),
     paint: (epoch, current) => paintAsks(current),
   });

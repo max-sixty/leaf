@@ -97,7 +97,7 @@ def codex_launch(codex_path: str | None) -> None:
 
     This integration is experimental.
     """
-    from leaf.codex import cmd_codex_launch
+    from leaf.codex_adapter import cmd_codex_launch
 
     try:
         sys.exit(cmd_codex_launch(codex_path))
@@ -119,7 +119,7 @@ def codex_start(
     app_server: str | None,
 ) -> None:
     """Start one task-wide delivery carrier and claim PAGE for it."""
-    from leaf.codex import cmd_codex_start
+    from leaf.codex_adapter import cmd_codex_start
 
     try:
         click.echo(cmd_codex_start(resolve_dir(dir), codex_path, app_server))
@@ -137,7 +137,7 @@ def codex_run(
     app_server: str | None,
 ) -> None:
     """Run the detached carrier child."""
-    from leaf.codex import run_adapter
+    from leaf.codex_adapter import run_adapter
 
     sys.exit(run_adapter(codex_path, ready_fd, app_server))
 

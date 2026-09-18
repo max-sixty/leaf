@@ -22,7 +22,7 @@ from functools import cache, partial
 from html import escape
 from pathlib import Path
 
-from leaf.app_server import (
+from leaf.codex import (
     AppServerEvents,
     AppServerReplyStream,
     AppServerRequestRejected,
@@ -38,6 +38,7 @@ from leaf.app_server import (
     open_app_server_delivery,
     prepare_codex_delivery,
     project_app_server_activity,
+    retry_delay,
     set_stream_activity,
     stop_app_server,
     stream_reply_target,
@@ -480,7 +481,7 @@ class TurnStream:
                 self.host._ensure_server()
         except (OSError, RuntimeError):
             pass
-        if self.host.stop_event.wait(min(30, 2 ** min(self.failures - 1, 5))):
+        if self.host.stop_event.wait(retry_delay(self.failures)):
             raise RuntimeError("the website App Server host closed")
 
 
@@ -656,9 +657,7 @@ class HostedTurn:
         except AppServerRequestRejected as error:
             self.start_rejections += 1
             stream.drop()
-            if self.host.stop_event.wait(
-                min(30, 2 ** min(self.start_rejections - 1, 5))
-            ):
+            if self.host.stop_event.wait(retry_delay(self.start_rejections)):
                 raise RuntimeError("the website App Server host closed") from error
             raise StreamRestart from error
         except (OSError, TimeoutError, ValueError, WebSocketException) as error:
@@ -735,8 +734,6 @@ class HostedTurn:
             message,
             update,
             self.last_stream_update,
-            set_stream_activity,
-            clear_stream_activity,
         )
         published = (
             self.reply_stream.update(update) if self.reply_stream is not None else False

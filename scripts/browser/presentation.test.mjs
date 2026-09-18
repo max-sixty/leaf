@@ -813,3 +813,38 @@ test("a reading claimed mid-paint is installed before the finished one settles",
     "committed",
   );
 });
+
+test("a paint that fails after a newer claim supersedes it still reports", async () => {
+  const { coordinator, failures } = setup();
+  const document = {};
+  const publication = coordinator.begin(document, 0);
+  const schedule = createPresentationSchedule();
+  const slow = deferred();
+  let first = true;
+  const presenter = schedule.presenter({
+    attach: () => coordinator.attach("conversation", {}),
+    paint: (value) => {
+      if (!first) return value;
+      first = false;
+      return slow.promise;
+    },
+  });
+  const stale = presenter.sync("stale");
+  coordinator.seal(publication);
+  await Promise.resolve();
+
+  const current = presenter.sync("current");
+  slow.reject(new Error("the superseded paint failed"));
+  await Promise.allSettled([stale, current]);
+
+  assert.deepEqual(
+    failures.map((reason) => reason.message),
+    ["the superseded paint failed"],
+  );
+  assert.equal(
+    coordinator.committed("conversation", undefined, "current"),
+    null,
+    "a failure reported against one renderer says nothing about another",
+  );
+  assert.equal(coordinator.read().presentedEpoch, 0);
+});

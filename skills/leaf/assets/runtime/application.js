@@ -10,6 +10,7 @@ import {
   setPresentationFailureReporter,
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
+  presentDocument,
 } from "./semantic-state.js";
 import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
@@ -68,6 +69,7 @@ export function mountApplication(dependencies) {
 
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
+  const acceptedApprovals = () => readApplication().effective.conversation.done;
   const pendingRequests = () => readApplication().effective.pendingRequests;
   const openAsks = readOpenAsks;
   const unansweredAsks = readUnansweredAsks;
@@ -114,10 +116,10 @@ export function mountApplication(dependencies) {
     void releasePending().catch((error) => console.error(`leaf: ${context}`, error));
   };
 
-  // The document-wide pass. Each presenter claims its region now and paints the current
+  // The document-wide pass. Every presenter claims its region now and paints the current
   // semantic root on the pass that follows, in the order semantic-state.js declares, so
-  // a caller that changes what the page shows only has to say so. What comes back is the
-  // whole pass rather than one renderer.
+  // a caller that changes what the page shows only has to say so — it names no renderer
+  // and cannot leave one out. What comes back is the whole pass.
   //
   // A state application holds the pass: the reading it is presenting owns the retained
   // surfaces, and a second pass arriving mid-recovery would supersede the one restoring
@@ -128,8 +130,7 @@ export function mountApplication(dependencies) {
       queuedInvalidation = true;
       return Promise.resolve();
     }
-    void projection.present();
-    return presentConversation();
+    return presentDocument();
   };
 
   const retryProjection = () => {
@@ -171,15 +172,14 @@ export function mountApplication(dependencies) {
       projection.stageOptimistic(entry);
       // Desired state changes at enqueue even where the widget has already painted the
       // same value, so this gesture reaches the page on the pass the enqueue opened,
-      // before transport. It claims its regions directly rather than through
-      // `invalidateDom`: a state application held on some renderer's preparation holds
-      // background repaints, and a reader's own gesture is not one of those — what the
-      // page can draw of it does not wait for an answer the log has not given.
+      // before transport. It claims directly rather than through `invalidateDom`: a
+      // state application held on some renderer's preparation holds background repaints,
+      // and a reader's own gesture is not one of those — what the page can draw of it
+      // does not wait for an answer the log has not given.
       // The presentation coordinator reports a failed paint once, for the region that
       // owns it. Observe the pass here so this gesture's own promise carries no
       // unhandled rejection and no second account of one fault.
-      void projection.present();
-      conversationPresentation = presentConversation().catch(() => undefined);
+      conversationPresentation = presentDocument().catch(() => undefined);
     } catch (error) {
       presentationError = error;
     } finally {
@@ -488,6 +488,7 @@ export function mountApplication(dependencies) {
     openAsks,
     unansweredAsks,
     pendingApprovals,
+    acceptedApprovals,
     pendingRequests,
     post,
     projectData: dataProjection.projectData,
@@ -521,6 +522,7 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openAsks = (...args) => app().openAsks(...args);
 export const unansweredAsks = (...args) => app().unansweredAsks(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
+export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);
 export const pendingRequests = (...args) => app().pendingRequests(...args);
 export const post = (...args) => app().post(...args);
 export const projectData = (...args) => app().projectData(...args);

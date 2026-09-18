@@ -14,7 +14,7 @@ import {
 } from "./messages.js";
 import { reactionReading } from "./reaction-strips.js";
 import { messageReceipts } from "./acknowledgments.js";
-import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
+import { offer, reachedForWords } from "../widget-elements.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
@@ -68,17 +68,15 @@ export function threadReading(
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
-  const settling = thread.settling ?? null;
+  // A settlement in flight has already flipped `resolved`, because what the page can
+  // draw of a gesture stands in the turn that sends it. The control the reader is left
+  // looking at is therefore the opposite one, offering to take the gesture back, and it
+  // wears the word for that: a delivery status is not the result, so there is no
+  // "Resolving…" state to name.
+  const settling = Boolean(thread.settling);
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
-  const label =
-    settling === kind
-      ? resolved
-        ? "Reopening…"
-        : "Resolving thread…"
-      : resolved
-        ? word
-        : "Resolve thread";
+  const label = resolved ? word : "Resolve thread";
   return Object.freeze({
     key: threadKey(thread),
     id: thread.root.id,
@@ -97,7 +95,7 @@ export function threadReading(
         : panel
           ? ""
           : "✓ Resolved",
-    settlement: Object.freeze({ kind, word, label, pending: Boolean(settling) }),
+    settlement: Object.freeze({ kind, word, label, pending: settling }),
     reply: !resolved && (panel || thread.root.response?.kind !== "version"),
     messages: Object.freeze(
       turns(thread).map((message) =>
@@ -340,12 +338,6 @@ export class ThreadView {
           run: () => button.click(),
         },
       ]);
-      if (reopen)
-        measure(button, () =>
-          requestAnimationFrame(() =>
-            measure(button, () => reserve(button, ["Reopen", "Reopening…"])),
-          ),
-        );
     }
   }
 

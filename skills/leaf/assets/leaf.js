@@ -178,7 +178,11 @@ import { FOCUSABLE } from "./runtime/reach.js";
 
 let app;
 const paintVersionApproval = () =>
-  paintApproval(app.pendingApprovals(), app.approvalBlockingAsks());
+  paintApproval(
+    app.pendingApprovals(),
+    app.approvalBlockingAsks(),
+    app.acceptedApprovals(),
+  );
 let threadPanelController;
 let trays;
 let layout;
@@ -606,7 +610,7 @@ trays = createTrays({
   closePreview: app.margin.closePreview,
   leavesOffered,
   presentLeaves,
-  renderAsks: asks.syncAsks,
+  syncAsks: asks.syncAsks,
   renderMargin: app.margin.renderMargin,
   registerAuxiliarySurface: auxiliaryModality.registerAuxiliarySurface,
 });

@@ -44,23 +44,40 @@ export const PRESENTATION_ORDER = Object.freeze({
   asks: 2,
 });
 
+// The document-wide presenters, in registration order. `presentDocument` is what a
+// caller reaches for when it has changed something every region may be showing and has
+// no business knowing which those are.
+const documentPresenters = [];
+
 // One region's epoch presenter: the claim is synchronous, inside the publication that
-// opened the epoch, and the paint runs on the pass that follows it. A renderer withholds
-// a reading by returning `PRESENTATION_HELD`, which keeps its region pending until a
-// later claim supersedes it.
+// opened the epoch, and the paint runs on the pass that follows it. `current` reads the
+// value this region owes now, so claiming never needs the caller to carry one. A
+// renderer withholds a reading by returning `PRESENTATION_HELD`, which keeps its region
+// pending until a later claim supersedes it.
 export const applicationPresenter = ({
   region,
   renderer = document,
   order,
+  current,
   paint,
   failSoft,
-}) =>
-  schedule.presenter({
+}) => {
+  const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
     order,
     paint,
     failSoft,
   });
+  const present = () => presenter.sync(current());
+  documentPresenters.push(present);
+  return Object.freeze({ present, disconnect: presenter.disconnect });
+};
+
+/** Claim every document-wide region for the root as it stands now. */
+export const presentDocument = () => {
+  for (const present of documentPresenters) void present();
+  return schedule.passed();
+};
 
 // The page has caught up with the root it is reading: every presenter the current
 // publications collected has painted, including the ones their painting collected. This

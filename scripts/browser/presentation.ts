@@ -544,19 +544,25 @@ export function createPresentationCoordinator<
 /** Epoch presenters and the one pass that paints them.
  *
  * Every renderer owes the same three moves — open a ticket inside the synchronous
- * publication that opened the epoch, replace the hold it inherited, and paint the newest
- * value once that publication has settled. A schedule runs the presenters it collected
- * in ascending `order`, each awaited before the next and repeated while painting has
- * collected more. Two facts follow. A renderer that reads DOM another renderer
- * materializes states that dependency once, beside the coordinator, rather than at every
- * site that publishes. And `passed` says the page has caught up with the root it is
- * reading, which is what a caller waits for instead of naming renderers.
+ * publication that opened the epoch, release the hold it inherited, and paint the newest
+ * value once that publication has settled. A schedule starts the presenters it collected
+ * in ascending `order` and repeats while painting has collected more.
  *
- * A claim supersedes whatever the region was drawing. It cannot wait for it: a renderer
- * may be holding its reading open — on a widget that has not prepared, on a gesture the
- * reader has not finished — and a newer reading that queued behind it would never be
- * drawn at all. The coordinator still reports the superseded paint's failure, because
- * the DOM keeps whatever state that failure reached.
+ * Starting is all the order buys, and the guarantee is worth stating exactly: when a
+ * presenter begins, every lower-ranked presenter in that round has run as far as its
+ * first `await`. So a renderer may rely on the markup a lower-ranked one writes
+ * synchronously, and may not rely on anything that one finishes asynchronously — a
+ * widget it upgrades, a box it measures after a frame. That dependency is stated once
+ * here, beside the coordinator, rather than at every site that publishes, and `passed`
+ * says the page has caught up with the root it is reading, which is what a caller waits
+ * for instead of naming renderers.
+ *
+ * The pass cannot await a presenter before starting the next, and a claim cannot wait
+ * for the reading it supersedes, for the same reason: a renderer may be holding its
+ * reading open — on a widget that has not prepared, on a gesture the reader has not
+ * finished — and anything queued behind that hold would never be drawn at all. What a
+ * superseded paint keeps is its own ticket, so the coordinator still reports its
+ * failure, because the DOM keeps whatever state that failure reached.
  */
 export const PRESENTATION_HELD = Symbol("presentation held");
 
@@ -567,9 +573,7 @@ export interface EpochPresenter<Value> {
   disconnect(): void;
 }
 
-export function createPresentationSchedule({
-  schedule = queueMicrotask,
-}: { schedule?: (run: () => void) => void } = {}) {
+export function createPresentationSchedule() {
   let queued: { order: number; run: () => Promise<void> }[] = [];
   let running: Promise<void>[] = [];
   let scheduled = false;
@@ -600,7 +604,7 @@ export function createPresentationSchedule({
     queued.push({ order, run });
     if (scheduled) return;
     scheduled = true;
-    schedule(() => {
+    queueMicrotask(() => {
       scheduled = false;
       const round = queued;
       queued = [];
@@ -675,8 +679,13 @@ export function createPresentationSchedule({
         resolve = done;
         reject = fail;
       });
+      // The only reading this claim has to answer for is a withheld one, which by
+      // definition will never answer for itself. A paint still running keeps its own
+      // ticket: it is what reports its own failure, and the document keeps whatever
+      // state that failure reached. Answering for it here would fulfil the ticket its
+      // rejection was going to travel on, and the fault would go unreported.
       const inherited = held;
-      held = resolve;
+      held = null;
       handle ??= attach();
       const ready =
         handle?.present(value, completion as PromiseLike<Proof>, failSoft) ??
@@ -685,19 +694,29 @@ export function createPresentationSchedule({
       // deliberately leave its region pending without also raising a browser-level
       // unhandled rejection.
       void ready.catch(() => undefined);
-      // Install the replacement hold before releasing the one it supersedes, so an
-      // obsolete value cannot briefly acknowledge this epoch between two claims.
+      // Release the superseded hold behind the replacement, so an obsolete value cannot
+      // briefly acknowledge this epoch between two claims.
       inherited?.(undefined);
       return { claimed, value, resolve, reject, ready };
     }
 
     async function run(ticket: Ticket) {
-      if (ticket.claimed !== generation) return;
+      // Superseded before it painted. This reading drew nothing and has nothing to
+      // report, so it releases its own ticket rather than leaving the region an answer
+      // that never comes.
+      if (ticket.claimed !== generation) {
+        ticket.resolve(undefined);
+        return;
+      }
       let withheld = false;
       try {
         const painted = paint(ticket.value, () => ticket.claimed === generation);
-        if (painted === PRESENTATION_HELD) withheld = true;
-        else ticket.resolve(await painted);
+        if (painted === PRESENTATION_HELD) {
+          withheld = true;
+          // A reading superseded while it was deciding to withhold is not the one a
+          // later claim has to release.
+          if (ticket.claimed === generation) held = ticket.resolve;
+        } else ticket.resolve(await painted);
       } catch (error) {
         ticket.reject(error);
       }

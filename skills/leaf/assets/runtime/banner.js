@@ -635,11 +635,8 @@ let approving = false;
 
 // `blockingAsks` is the unanswered Asks that hold approval, or null before the page has
 // read the log and so cannot say which those are.
-export function paintApproval(pendingApprovals, blockingAsks) {
-  const approved = [
-    ...(runtime.browser?.conversation?.done ?? []),
-    ...pendingApprovals,
-  ].some(
+export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals) {
+  const approved = [...acceptedApprovals, ...pendingApprovals].some(
     (e) =>
       e.kind === "done" &&
       e.revision === runtime.currentRevision &&

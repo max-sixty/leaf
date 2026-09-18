@@ -64,6 +64,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
   const presenter = applicationPresenter({
     region: "projection:chrome",
     order: PRESENTATION_ORDER.projection,
+    current: () => applicationState.read().effective.projection,
     paint: () => paintReading(applicationState.read()),
   });
 
@@ -242,7 +243,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
   }
 
   function present() {
-    return presenter.sync(applicationState.read().effective.projection);
+    return presenter.present();
   }
 
   return {

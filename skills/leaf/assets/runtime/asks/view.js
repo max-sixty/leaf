@@ -226,6 +226,7 @@ export function createAskView({
     region: "asks",
     renderer: asksRenderer,
     order: PRESENTATION_ORDER.asks,
+    current: () => readApplication().semanticEpoch,
     failSoft: failSoftAfterRetention(asksRenderer),
     paint: (epoch, current) => paintAsks(current),
   });
@@ -376,7 +377,7 @@ export function createAskView({
   // first, while the application barrier already knows this inherited Ask paint is stale.
   // The pass runs this reading after the conversation whose markup its rows stand on.
   function syncAsks() {
-    return presenter.sync(readApplication().semanticEpoch);
+    return presenter.present();
   }
 
   // The walk over what the page is waiting on the reader for. It wraps at both ends,

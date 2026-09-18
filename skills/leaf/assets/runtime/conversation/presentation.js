@@ -61,6 +61,7 @@ export function createConversationPresentation({
   const presenter = applicationPresenter({
     region: "conversation",
     order: PRESENTATION_ORDER.conversation,
+    current: () => readApplication().effective.conversation,
     failSoft: retainedThreadListProof,
     paint: async (value) => {
       if (!available) return value;
@@ -90,9 +91,7 @@ export function createConversationPresentation({
       if (value !== null) void present();
     });
 
-  function present() {
-    return presenter.sync(readApplication().effective.conversation);
-  }
+  const present = () => presenter.present();
 
   function finishListRecovery(candidate) {
     if (candidate?.recovered)
@@ -157,6 +156,16 @@ export function createConversationPresentation({
   // holds one and claiming a second would be this paint waiting on the pass it is part
   // of. Either way the reading comes from the current semantic root rather than a
   // retained input that could omit a later local gesture or accepted reading.
+  //
+  // A tick can also land in the middle of a pass paint, while it waits on a frozen
+  // widget. That runs `renderReading` again, and `surfaceGeneration` settles which of
+  // the two the page keeps: the newer one, exactly as a newer claim supersedes an older
+  // reading a rank up. The pass paint then returns having drawn nothing, and its ticket
+  // is still honest, because what stands in the region is the newer reading of the same
+  // root. The clock has to reach `renderReading` synchronously either way — `clocked`
+  // records which relative-time readings a paint made while that paint runs, and a claim
+  // that returns before the pass would record none and unsubscribe the conversation from
+  // the clock altogether.
   const paintCurrent = clocked(document.body, () =>
     painting ? renderCurrent() : present(),
   );

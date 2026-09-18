@@ -133,6 +133,7 @@ export interface AuthoritativeState {
       threads: Thread[];
       projection: WireProjection;
       requests?: { seat: { widget: string }; phase: string }[];
+      done?: Event[];
     };
     receipts: Event[];
   };
@@ -879,7 +880,16 @@ export function createSemanticApplication({
       hostAvailable,
       projection,
       widgets,
-      conversation: { all: threads, listed: threads.filter(conversational) },
+      conversation: {
+        all: threads,
+        listed: threads.filter(conversational),
+        // The approvals the log has accepted, folded through withdrawal by the server.
+        // The thread list draws a row for each and the banner's button reads them for
+        // the word it wears, so they are a semantic input like any other: left out of
+        // this publication, an approval arriving on its own changes nothing anyone
+        // derives, no epoch follows it, and neither surface repaints.
+        done: state?.browser.conversation.done ?? [],
+      },
       asks,
       // Approval is irreversible. While projection paint is deferred, its gate uses
       // this admitted selection instead of an optimistic answer the reader cannot yet

@@ -4284,6 +4284,41 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         page.unroute("**/api/view*")
 
 
+def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serve):
+    """A revision keeps the layer it captured, and comparing to it is not a re-vendor.
+
+    `/api/view` and an immutable document are stamped with the captured generation of
+    the revision they name, so after a re-vendor the base of a comparison legitimately
+    answers for a layer the live page is no longer on. Running that answer through the
+    delivery gate reads it as the page being re-vendored underneath the reader, which it
+    is not: the page refuses its own comparison, and the reader is told the server is
+    updating.
+    """
+    url = serve(REPORT_PAGE)
+    d = serve.page_dir
+    # The whole premise is that this second init really re-vendors. Were it ever refused,
+    # the base of the comparison would not be foreign and the case would pass against the
+    # runtime it exists to pin.
+    revendored = CliRunner().invoke(
+        cli_model.cli, ["page", "init", str(d)], catch_exceptions=False
+    )
+    assert revendored.exit_code == 0, revendored.output
+    stamp_page(
+        d,
+        REPORT_PAGE.replace("</main>", '<p id="new-copy">A new prose line.</p></main>'),
+        "added prose",
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+
+    page.locator(".lf-version").click()
+    page.locator('.lf-version-diff[data-lf-version="1"]').click()
+
+    expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
+    expect(page.locator(".lf-notice")).not_to_have_text(
+        "Waiting for the server to finish updating."
+    )
+
+
 def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
     """The half of a roster no version can write down. A standing report states what
     each worker is doing; only the log knows when it last said so, and a page that keeps

@@ -155,7 +155,7 @@ import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButCommandReference } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import { reportPageError, sameDelivery } from "./layer-client.js";
+import { reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
@@ -804,7 +804,6 @@ export function createVersionController({
     });
     const res = await fetch(`/api/view?${params}`);
     if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
-    if (!sameDelivery(res)) return null;
     const answer = await res.json();
     if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
     return answer.browser;
@@ -1089,7 +1088,7 @@ export function createVersionController({
           documentRequest,
           baseReading(baseRevision, throughSeq),
         ]);
-        if (doc === null || reading === null || mine !== diffRequest) return;
+        if (mine !== diffRequest) return;
         if (runtime.view?.basis?.through_seq === throughSeq) break;
       }
     } catch {
@@ -1125,12 +1124,14 @@ export function createVersionController({
   const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
 
   // ---------- another version's document ----------
-  // Comparison reads an inert document. A different delivery generation already starts
-  // navigation through sameDelivery, so the departing runtime must not use that reading.
+  // Comparison reads an inert document. A revision keeps the layer it captured, and the
+  // server says so — both this document and the projection beside it answer for that
+  // generation rather than the page's — so neither is a delivery answer and neither goes
+  // through the gate. A layer that really did move under the reader reaches them through
+  // the state feed, which is the live channel.
   async function authoredDocument(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
-    if (!sameDelivery(response)) return null;
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
     if (doc.querySelectorAll("body > main").length !== 1)
       throw new Error(`${url} has no single authored main`);
@@ -1459,11 +1460,12 @@ export function createVersionController({
   // The move a state asks of the live root, prepared ahead of the commit that makes it.
   // Null where there is nothing to follow — no newer revision, or a document that failed
   // to load, which is reported; the commit's own render then lights the chip as the way
-  // to try again. `stale` where the document came from a re-vendored layer, so the page
-  // is reloading and the state belongs to the layer it is leaving. Whether the move
-  // happens now is asked at the commit: an unresolved delivery, `midComposition`, or an
-  // open menu defers it, unless the chip was pressed (goActive) — the one override,
-  // spent by the install it forced.
+  // to try again. A re-vendored layer needs no answer of its own here: it changes the
+  // revision's executable identity, which takes the fresh-document install above, and a
+  // state that belongs to another layer is refused before it reaches this at all.
+  // Whether the move happens now is asked at the commit: an unresolved delivery,
+  // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
+  // — the one override, spent by the install it forced.
   async function prepareActivation(state) {
     const target = state.active;
     if (
@@ -1482,21 +1484,10 @@ export function createVersionController({
     // against it afterwards, so the document's revision and the state that speaks for it
     // become current in one reading.
     if (!servedExecutable || target.executable !== servedExecutable)
-      return {
-        stale: false,
-        revision: target.revision,
-        activates,
-        install: reloadInto(target),
-      };
+      return { revision: target.revision, activates, install: reloadInto(target) };
     let doc;
     try {
       doc = await revisionDocument(target);
-      if (doc === null)
-        // Every answer carries `activates`, so no caller has to know which shapes this
-        // can return. `stale` says why this one refuses — the document came from a
-        // re-vendored layer and the page is already reloading — and the heartbeat, which
-        // asks nothing but `activates`, is right without a second reading of that fact.
-        return { stale: true, activates: () => false };
       // Step 6 of the startup order, on the same background stretch as the document
       // itself: this revision may carry a tag the standing document never held, and
       // insertion is where its element is constructed. Asked for here so the install
@@ -1511,7 +1502,6 @@ export function createVersionController({
       return null;
     }
     return {
-      stale: false,
       revision: target.revision,
       activates,
       install: () => {

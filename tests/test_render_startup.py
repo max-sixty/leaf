@@ -2942,9 +2942,9 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
     this delivery.
 
     Each refused answer gets its own reading, because the source can move while the page
-    waits — a re-vendor during the hold, or a version comparison refused against the
-    captured layer of the revision it names. A page that asked once and remembered the
-    answer would spend the rest of the tab's life refusing state with no way back.
+    waits — this page can be re-vendored during the hold. A page that asked once and
+    remembered the answer would spend the rest of the tab's life refusing state with no
+    way back.
     """
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("() => { window.lfSameDocument = true; }")

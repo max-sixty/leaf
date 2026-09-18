@@ -62,7 +62,9 @@ binding invoke the original command through its stable identity and source scope
   `register.js` holds core's registered scopes.
 - `dispatch.js` owns precedence and platform-default handling; `controller.js` owns the
   physical input lifecycle; `text-entry.js` owns native editing claims.
-- `return-stack.js` owns the inverse of commands that enter temporary layers.
+- `layer-stack.js` owns the ordered layers standing over the page: the popovers and modal
+  dialogs their openers declare, across the document and declared shadow roots, and the
+  inverse of commands that enter temporary layers.
 - `page.js` declares core's scopes and rows.
 - `presentation.js` projects immutable key-sequence readings through the shared Lit
   template. `shortcut-bar.js` and `command-reference.js` synchronously derive and

@@ -48,17 +48,18 @@
    release, and return to the page cannot cascade from one keypress. A scope does not need
    a private `keydown` listener or hand-written `preventDefault` to protect that contract.
 
-   Auto popovers and modal dialogs are the platform's modes. Each scope and return frame
-   belongs to its document or native-layer root. A modal keeps only scopes rooted in that
-   layer before the platform boundary and drops the inert document's scopes. A popover is
-   nonmodal: active command modes and focused scopes retain their order, later scopes owned
-   by the popover move ahead of the boundary, and the boundary reserves an otherwise
-   unhandled Escape while letting other page commands through. When that popover stands
-   inside a modal, the enclosing modal remains the floor and document scopes stay inert.
-   An inner Leaf row can therefore unwind a step in that layer, while an unhandled Escape
-   reaches the browser and cannot fall through. Covered return frames are suspended;
-   closing the layer exposes the same frame again. The universal reference is the
-   boundary's one route through to another layer.
+   Auto popovers and modal dialogs are the platform's modes, and the layer stack holds
+   them in the order they opened. The dispatcher tiers the scopes over that stack from the
+   top down: each layer takes the scopes rooted inside it, the topmost layer also takes
+   the focused element's scopes, explicitly inner modes, and the current return frame, and
+   a boundary follows each layer. A modal is a floor, so every scope below the newest one
+   is dropped and the inert document cannot answer. A popover is nonmodal, so the scopes
+   it did not take stay reachable for keys its boundary does not claim, while its Escape
+   cannot fall through into the covered page. An inner Leaf row can therefore unwind a
+   step in that layer, while an unhandled Escape reaches the browser and cannot fall
+   through. A return frame under a later layer is not the current one, so no tier offers
+   it until that layer closes. The universal reference is the boundary's one route through
+   to another layer.
 
    A covering auxiliary surface uses the same modal command floor without entering the browser's
    top layer. Its owner makes the background DOM inert, and this dispatcher keeps only
@@ -99,13 +100,8 @@ import {
 import { EVERYTHING } from "./text-entry.js";
 import { takesLetters } from "../focus.js";
 import { focused, recoveredLabelFocus, scopesAt, scopesFor } from "./scopes.js";
-import { RETURN, invoke } from "./return-stack.js";
-import {
-  currentModalLayer,
-  currentNativeLayer,
-  nativeLayerFor,
-  nativeLayersFor,
-} from "../native-layers.js";
+import { RETURN, invoke, nativeLayers } from "./layer-stack.js";
+import { under } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the reader
@@ -181,59 +177,57 @@ export function stack(binding = null) {
     if (scope === TYPING && typing) return [];
     return scope;
   });
-  const auxiliarySurface = coveringAuxiliarySurface();
-  const layer = currentNativeLayer(active);
   const ordered = (scopes) => {
     const activeScopes = scopes.filter(standing);
     return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
   };
-  if (!layer) {
-    if (!auxiliarySurface) return ordered(expanded);
-    const owned = expanded.filter((scope) => {
-      const root = scopeRoot(scope);
-      return (
-        scope === RETURN || root === auxiliarySurface || auxiliarySurface.contains(root)
-      );
-    });
-    return ordered([...owned, MODAL_BOUNDARY]);
+  // One tier per layer the browser holds, newest first. Everything below the newest modal
+  // is inert, so those layers are the only ones a scope can still be standing in.
+  const layers = nativeLayers();
+  const modalAt = layers.findLastIndex((layer) => layer.kind === "modal");
+  const visible = modalAt < 0 ? layers : layers.slice(modalAt);
+  const auxiliarySurface = coveringAuxiliarySurface();
+  // The floor is the newest modal, or a covering auxiliary surface taking modal semantics
+  // without the browser's top layer. What it makes inert is out of reach however near the
+  // reader it stands, so a focused control inside a layer keeps the widget ancestors that
+  // are inside the floor too and drops the ones outside it. The layers themselves stand
+  // above the floor rather than under it, and each takes its own scopes below.
+  const floor = modalAt < 0 ? auxiliarySurface : visible[0].root;
+  const aboveFloor = (scope) =>
+    !floor || scope === RETURN || under(scopeRoot(scope), floor);
+  const top = visible.at(-1) ?? null;
+  // The topmost layer also holds the focused control, explicitly inner modes, and the
+  // command frame that leads back out: they stand above the browser's light-dismiss
+  // boundary whatever their own root is. The frame is the stack's own top entry, so it is
+  // never below the floor.
+  const foreground = (scope) =>
+    scope === RETURN ||
+    elementStack.includes(scope) ||
+    scopeRoot(scope) === active ||
+    innerEscape(scope, active);
+  const parts = [];
+  let pool = expanded;
+  const take = (keep) => {
+    const rest = [];
+    for (const scope of pool) (keep(scope) ? parts : rest).push(scope);
+    pool = rest;
+  };
+  for (let index = visible.length - 1; index >= 0; index -= 1) {
+    const layer = visible[index];
+    take(
+      (scope) =>
+        under(scopeRoot(scope), layer.root) ||
+        (layer === top && foreground(scope) && aboveFloor(scope)),
+    );
+    parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
   }
-  const modal = currentModalLayer(active);
-  const inLayer = (scope) => nativeLayerFor(scopeRoot(scope)) === layer;
-  if (layer !== modal) {
-    // The popover, its focused controls, and explicitly inner modes stand above the
-    // browser's light-dismiss boundary. Everything else remains reachable for keys the
-    // boundary does not claim, but its Escape cannot fall through into the covered page.
-    const aboveBoundary = modal
-      ? (scope) => nativeLayersFor(scopeRoot(scope)).includes(modal)
-      : auxiliarySurface
-        ? (scope) => {
-            const root = scopeRoot(scope);
-            return (
-              scope === RETURN ||
-              inLayer(scope) ||
-              root === auxiliarySurface ||
-              auxiliarySurface.contains(root)
-            );
-          }
-        : () => true;
-    const available = expanded.filter(aboveBoundary);
-    const foreground = (scope) =>
-      inLayer(scope) ||
-      elementStack.includes(scope) ||
-      scopeRoot(scope) === active ||
-      innerEscape(scope, active);
-    const popoverStack = [
-      ...available.filter(foreground),
-      POPOVER_BOUNDARY,
-      ...available.filter((scope) => !foreground(scope)),
-    ];
-    if (modal || auxiliarySurface) popoverStack.push(MODAL_BOUNDARY);
-    return ordered(popoverStack);
+  if (modalAt < 0) {
+    if (auxiliarySurface) {
+      take(aboveFloor);
+      parts.push(MODAL_BOUNDARY);
+    } else parts.push(...pool);
   }
-  const owned = expanded.filter((scope) =>
-    nativeLayersFor(scopeRoot(scope)).includes(modal),
-  );
-  return ordered([...owned, MODAL_BOUNDARY]);
+  return ordered(parts);
 }
 // The ownership of every scope nearer the reader than this one, accumulated as either
 // walk steps outward. An element scope owns both its broad native claims and every exact

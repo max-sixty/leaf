@@ -17,7 +17,7 @@
 import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
 import { marksSheet } from "./stylesheets.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
-import { watchNativeLayers } from "./native-layers.js";
+import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
 import { watchExternalLinks } from "./presentation.js";
 
@@ -34,7 +34,7 @@ export function shadowStage(host, nodes) {
   // from inside one is not composed, and a MutationObserver does not cross the
   // boundary either.
   watchDisclosures(root);
-  watchNativeLayers(root);
+  watchLayers(root);
   const style = document.createElement("style");
   style.textContent = SHADOW_STARTUP_CSS + shadowRules;
   // Fragment hydration can add a sheet while the reader uses an existing control.

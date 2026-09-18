@@ -34,13 +34,8 @@
  * the draft store's words — is already restored by that module reading its own store back
  * under the same id, and does not belong here.
  */
-import { focusDestination, takesLetters } from "./focus.js";
+import { focusDestination, readCaret } from "./focus.js";
 
-// The input types whose selection the platform will answer for. Reading `selectionStart`
-// on any other throws rather than returning null.
-const CARETED = new Set(["text", "search", "url", "tel", "password"]);
-const holdsCaret = (node) =>
-  node.tagName === "TEXTAREA" || (node.tagName === "INPUT" && CARETED.has(node.type));
 const holdsWords = (node) =>
   (node.tagName === "TEXTAREA" || node.tagName === "INPUT") && !node.isContentEditable;
 const holdsTick = (node) =>
@@ -63,8 +58,9 @@ export function captureCarry(root) {
     if (holdsWords(node) && node.value !== node.defaultValue) record.value = node.value;
     if (holdsTick(node) && node.checked !== node.defaultChecked)
       record.checked = node.checked;
-    if (node === active && holdsCaret(node) && node.selectionStart !== null) {
-      record.caret = [node.selectionStart, node.selectionEnd, node.selectionDirection];
+    if (node === active) {
+      const caret = readCaret(node);
+      if (caret) record.caret = caret;
     }
     // Two keys is the id and its tag, which is a record of nothing.
     if (Object.keys(record).length === 2) continue;
@@ -95,9 +91,7 @@ export function restoreCarry(records, held = new Map()) {
     if (!record.focus) continue;
     // The element may have been focusable only through a tab stop the runtime lent it,
     // which the arriving node has not been lent; `focusDestination` lends it again for
-    // as long as the reader holds it.
-    focusDestination(arrived);
-    if (record.caret && holdsCaret(arrived) && takesLetters(arrived))
-      arrived.setSelectionRange(...record.caret);
+    // as long as the reader holds it, and puts the caret back in the same act.
+    focusDestination(arrived, record.caret);
   }
 }

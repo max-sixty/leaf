@@ -62,7 +62,9 @@ done to the page — a selection, an open disclosure, a lent tab stop, a tokeniz
 spans, a module's own output — is written over only where the author wrote; every
 judgement it cannot make from the DOM alone is its caller's; conversation owners supply
 reaction teardown when removing their surfaces;
-`runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
+`runtime/focus.js` puts the reader on an element — the focus, lending a tab stop only
+when needed, and the caret inside it, which an arrival that is a return reads before its
+element goes away and hands back in the same act;
 `runtime/carry.js` owns the mechanical reader state an install carries between two
 nodes the author gave the same id — a field's words and caret, a tick, a disclosure,
 an inner scroll, and focus — and carries nothing for an element the author left

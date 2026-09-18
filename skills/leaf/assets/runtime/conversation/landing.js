@@ -35,6 +35,7 @@ import { reachedForWords } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
 import { SAYS_IN, SAY_BOX } from "./selectors.js";
 import { retainReaderIntent } from "../reader-intent.js";
+import { focusDestination, readCaret } from "../focus.js";
 
 export { SAY_BOX } from "./selectors.js";
 const conversationReturns = new WeakMap();
@@ -158,11 +159,7 @@ export function retainConversationFocus(panelIsOpen) {
   const input = focused();
   const held = input && closestAcross(input, SAYS_IN);
   if (!held || held.querySelector(SAY_BOX) !== input) return () => {};
-  const selection = [
-    input.selectionStart,
-    input.selectionEnd,
-    input.selectionDirection,
-  ];
+  const caret = readCaret(input);
   let restoredInput;
   let mayLand;
   if (held.matches(".lf-thread") && held.parentElement === threadsBox) {
@@ -190,8 +187,7 @@ export function retainConversationFocus(panelIsOpen) {
     if (!mayLand()) return;
     const restored = restoredInput();
     if (!restored) return;
-    restored.focus({ preventScroll: true });
-    restored.setSelectionRange(...selection);
+    focusDestination(restored, caret);
   };
 }
 // Landing belongs to the list, not to whatever moved the focus. The list already says

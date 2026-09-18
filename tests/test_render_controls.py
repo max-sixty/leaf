@@ -477,19 +477,21 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
 
 
 @pytest.mark.parametrize("resident", ["sidebar", "sidenote"])
-def test_an_auxiliary_surface_lands_one_responsive_layout_and_carries_the_column_to_it(
-    browser, serve, resident
-):
-    """Opening Threads never makes the page visit intermediate responsive postures.
+def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, resident):
+    """Opening Threads never makes the page visit an intermediate responsive posture.
 
-    The two cases supply a left sidebar and a right sidenote. Opening the panel at
-    1440px withdraws either real margin resident, making the column move in opposite
-    directions across the two cases. Animating the shell's width crossed that breakpoint
-    in mid-flight, which made the column jump or reverse.
+    The two cases supply a left sidebar and a right sidenote. Opening the panel at 1440px
+    withdraws either real margin resident, and the column moves in opposite directions
+    across the two cases, so a shell that arrived in stages would be caught going the
+    wrong way in one of them.
 
-    Hold the runtime motion and seek it deterministically. The shell should already
-    have its final width and responsive state at the opening frame, while the column
-    starts where the reader left it and travels monotonically to its final position.
+    It cannot arrive in stages any more, and that is the assertion. The shell used to
+    reach its final width at once and then glide the column there over 180ms, which is
+    where the intermediate postures came from and what this test grew up watching; the
+    glide is gone, because animating the column's `left` suppressed the browser's scroll
+    anchoring and cost the reader their place every time the panel closed. So the page
+    has exactly one layout, held motion has nothing to hold, and the column is already
+    where it belongs on the frame the panel opens.
     """
     source = leaf_page(
         "Responsive resident",
@@ -499,58 +501,45 @@ def test_an_auxiliary_surface_lands_one_responsive_layout_and_carries_the_column
     width = 1440
     resized(page, width, 900)
     initial = page.evaluate(
-        """() => {
-          const main = document.querySelector('main');
-          return {
-            x: main.getBoundingClientRect().x,
-            resident: getComputedStyle(document.querySelector('aside')).float,
-          };
-        }"""
+        """() => ({
+          resident: getComputedStyle(document.querySelector('aside')).float,
+        })"""
     )
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    assert page.evaluate("() => window.__lfHeld.length") == 1, (
-        "opening the auxiliary surface did not produce one controllable column motion"
-    )
-    final_layout = page.evaluate(
+    landed = page.evaluate(
         """() => {
           const main = document.querySelector('main');
+          const body = document.body;
+          const border = getComputedStyle(body);
           return {
-            shell: document.body.getBoundingClientRect().width,
+            shell: body.clientWidth,
+            moving: main.getAnimations().length + window.__lfHeld.length,
+            columnX: main.getBoundingClientRect().x,
+            strip: parseFloat(border.borderRightWidth) || 0,
             resident: getComputedStyle(document.querySelector('aside')).float,
           };
         }"""
     )
-    assert final_layout["shell"] == width - 420
-    assert initial["resident"] != final_layout["resident"], (
+    assert landed["shell"] == width - 420
+    assert landed["strip"] == 420, (
+        "the page yielded the strip as something other than the border that keeps the "
+        f"reader's place: {landed}"
+    )
+    assert initial["resident"] != landed["resident"], (
         "the fixture crossed no responsive posture, so it cannot expose the regression"
     )
-
-    positions = page.evaluate(
-        """() => {
-          const motion = window.__lfHeld[0];
-          const duration = motion.effect.getComputedTiming().duration;
-          return [0, .25, .5, .75, 1].map(part => {
-            motion.currentTime = duration * part;
-            return document.querySelector('main').getBoundingClientRect().x;
-          });
-        }"""
+    assert landed["moving"] == 0, (
+        "the column is travelling to its position rather than starting there, which is "
+        "the intermediate posture this case exists to refuse"
     )
-    assert positions[0] == pytest.approx(initial["x"], abs=1)
-    if positions[-1] < positions[0]:
-        assert positions == sorted(positions, reverse=True), positions
-    else:
-        assert positions == sorted(positions), positions
-    assert all(
-        min(positions[0], positions[-1]) <= position <= max(positions[0], positions[-1])
-        for position in positions
-    ), f"the reading column overshot its two settled positions: {positions}"
 
-    page.evaluate("() => window.__lfHeld[0].finish()")
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
+    # And it is where the settled page puts it, with nothing left to finish.
+    settled = page.evaluate(
+        "() => document.querySelector('main').getBoundingClientRect().x"
     )
+    assert settled == pytest.approx(landed["columnX"], abs=1)
 
 
 def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve):
@@ -4260,8 +4249,12 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     """The browser root scrolls the document and the panel keeps its own scrollport.
 
     Body is the yielding page shell rather than a third scroll region: beside a wide
-    panel its right edge ends where the panel begins, while native document scrolling
-    remains rooted in html."""
+    panel the room it gives the document ends where the panel begins, while native
+    document scrolling remains rooted in html.
+
+    That room is body's content box. The strip is a transparent border (theme.css, at the
+    body strip, says why it has to be one rather than the margin it was), so the box body
+    draws now reaches the window and the border is the strip the panel stands in."""
     page = open_page(browser, serve(LONG_PAGE, comments=12))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -4269,11 +4262,14 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     geom = page.evaluate("""() => {
         const box = el => el.getBoundingClientRect();
         const body = document.body, threads = document.querySelector('.lf-threads');
+        const border = getComputedStyle(body);
         return { rootIsScroller: document.scrollingElement === document.documentElement,
                  rootScrolls: document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight,
                  bodyOverflow: getComputedStyle(body).overflowY,
                  threadsScroll: threads.scrollHeight > threads.clientHeight,
-                 bodyRight: box(body).right, threadsLeft: box(threads).left };
+                 bodyRight: box(body).left
+                   + (parseFloat(border.borderLeftWidth) || 0) + body.clientWidth,
+                 threadsLeft: box(threads).left };
     }""")
 
     assert geom["rootIsScroller"] and geom["rootScrolls"]

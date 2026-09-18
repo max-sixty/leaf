@@ -26,18 +26,21 @@ from leaf.codex import (
     AppServerEvents,
     AppServerReplyStream,
     AppServerRequestRejected,
-    _app_server_connect,
-    _clear_stream_activity,
-    _set_stream_activity,
     abandon_codex_delivery,
+    app_server_connect,
     app_server_delivery_id,
-    app_server_initialize_params,
+    app_server_handshake,
+    app_server_request,
     app_server_turn_start_params,
+    clear_stream_activity,
     delivery_queue_state,
     delivery_reply_targets,
     open_app_server_delivery,
     prepare_codex_delivery,
     project_app_server_activity,
+    retry_delay,
+    set_stream_activity,
+    stop_app_server,
     stream_reply_target,
 )
 from leaf.conversation import (
@@ -478,7 +481,7 @@ class TurnStream:
                 self.host._ensure_server()
         except (OSError, RuntimeError):
             pass
-        if self.host.stop_event.wait(min(30, 2 ** min(self.failures - 1, 5))):
+        if self.host.stop_event.wait(retry_delay(self.failures)):
             raise RuntimeError("the website App Server host closed")
 
 
@@ -548,7 +551,7 @@ class HostedTurn:
         """Show a turn already bound as starting, before its first notification."""
         if self.turn_id is None:
             return
-        _set_stream_activity(self.thread_id, self.turn_id, "Starting")
+        set_stream_activity(self.thread_id, self.turn_id, "Starting")
         self._open_reply()
 
     def _open_reply(self) -> None:
@@ -654,9 +657,7 @@ class HostedTurn:
         except AppServerRequestRejected as error:
             self.start_rejections += 1
             stream.drop()
-            if self.host.stop_event.wait(
-                min(30, 2 ** min(self.start_rejections - 1, 5))
-            ):
+            if self.host.stop_event.wait(retry_delay(self.start_rejections)):
                 raise RuntimeError("the website App Server host closed") from error
             raise StreamRestart from error
         except (OSError, TimeoutError, ValueError, WebSocketException) as error:
@@ -733,8 +734,6 @@ class HostedTurn:
             message,
             update,
             self.last_stream_update,
-            _set_stream_activity,
-            _clear_stream_activity,
         )
         published = (
             self.reply_stream.update(update) if self.reply_stream is not None else False
@@ -773,9 +772,9 @@ class HostedTurn:
             # delivery, not by the turn id it never learned. Left standing it tells the
             # reader the agent is still starting for the whole working grace — the
             # page's last word on a move that will now never be answered.
-            _clear_stream_activity(self.thread_id, starting_turn_key(self.delivery_id))
+            clear_stream_activity(self.thread_id, starting_turn_key(self.delivery_id))
         else:
-            _clear_stream_activity(self.thread_id, self.turn_id)
+            clear_stream_activity(self.thread_id, self.turn_id)
         return {
             "id": self.turn_id,
             "status": "failed",
@@ -935,13 +934,7 @@ class WebsiteCodexHost:
             self._stop_server(process)
 
     def _stop_server(self, process: subprocess.Popen) -> None:
-        if process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
+        stop_app_server(process)
         self.socket_path.unlink(missing_ok=True)
 
     def _ensure_server(self) -> subprocess.Popen:
@@ -990,17 +983,17 @@ class WebsiteCodexHost:
         raise RuntimeError("Codex App Server did not become ready")
 
     def _request(self, method: str, params: dict, before_close=None) -> dict:
-        socket = _app_server_connect(self.endpoint)
+        socket = app_server_connect(self.endpoint)
         followed = False
         pending = []
         try:
-            self._send(
+            app_server_handshake(
                 socket,
-                "initialize",
-                app_server_initialize_params("leaf-website", "Leaf website"),
-                pending,
+                self._request_id(),
+                "leaf-website",
+                "Leaf website",
+                pending.append,
             )
-            socket.send(json.dumps({"method": "initialized", "params": {}}))
             result = self._send(socket, method, params, pending)
             if before_close is not None:
                 follow = before_close(socket, result, pending)
@@ -1078,14 +1071,14 @@ class WebsiteCodexHost:
 
     def _resume_turn_stream(self, thread_id: str):
         """Reconnect to App Server and recover its complete turn reading."""
-        socket = _app_server_connect(self.endpoint)
+        socket = app_server_connect(self.endpoint)
         try:
-            self._send(
+            app_server_handshake(
                 socket,
-                "initialize",
-                app_server_initialize_params("leaf-website", "Leaf website"),
+                self._request_id(),
+                "leaf-website",
+                "Leaf website",
             )
-            socket.send(json.dumps({"method": "initialized", "params": {}}))
             result = self._send(
                 socket,
                 "thread/resume",
@@ -1160,18 +1153,19 @@ class WebsiteCodexHost:
         params: dict,
         pending: list[dict] | None = None,
     ) -> dict:
+        """Request on one of this host's connections, under its own request ids."""
+        return app_server_request(
+            socket,
+            method,
+            self._request_id(),
+            params,
+            pending.append if pending is not None else None,
+        )
+
+    def _request_id(self) -> int:
         request_id = self.next_request_id
         self.next_request_id += 1
-        socket.send(json.dumps({"method": method, "id": request_id, "params": params}))
-        while True:
-            message = json.loads(socket.recv(timeout=20))
-            if message.get("id") != request_id or "method" in message:
-                if pending is not None:
-                    pending.append(message)
-                continue
-            if error := message.get("error"):
-                raise AppServerRequestRejected(error.get("message") or str(error))
-            return message.get("result") or {}
+        return request_id
 
     def _start_turn(
         self,
@@ -1195,7 +1189,7 @@ class WebsiteCodexHost:
         )
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
         starting_turn = starting_turn_key(prepared.payload["id"])
-        _set_stream_activity(thread_id, starting_turn, "Starting")
+        set_stream_activity(thread_id, starting_turn, "Starting")
         reply_target = stream_reply_target(prepared.payload)
         if reply_target is not None:
             reserve_delivery_reply(thread_id, prepared.payload["id"], reply_target)
@@ -1227,7 +1221,7 @@ class WebsiteCodexHost:
         ):
             # Refused or lost, the offer stands and the delivery is still this
             # turn's; the follower reconciles against the thread to find out which.
-            _clear_stream_activity(thread_id, starting_turn)
+            clear_stream_activity(thread_id, starting_turn)
             return turn
         turn_id = started_turn.get("id")
         if not turn_id:

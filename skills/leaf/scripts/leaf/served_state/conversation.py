@@ -120,7 +120,7 @@ def browser_conversation(
             target["msgs"] = [
                 *target["msgs"],
                 {
-                    "id": f"codex-stream:{live_reply['turn']}",
+                    "id": f"stream:{live_reply['turn']}",
                     "attempt": live_reply["attempt"],
                     "kind": "reply",
                     "addressable": False,

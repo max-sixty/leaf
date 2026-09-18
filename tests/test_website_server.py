@@ -19,9 +19,10 @@ import pytest
 import verify_site
 from click.testing import CliRunner
 from interact_support import STATED_TIMEOUT, append_command, running_http_server
-from leaf.codex import _queues as codex_queues
+from leaf import codex as leaf_codex
 from leaf.codex import accept_codex_delivery
 from leaf.codex import delivery_pointer_prompt as delivery_prompt
+from leaf.codex import queue_records as codex_queues
 from leaf.delivery import DELIVERY_FORMAT
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
@@ -83,6 +84,23 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
     target = site / website_server.SITE_MANIFEST
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
+    """Collect every activity reading a turn writes, instead of a page taking it.
+
+    Two bindings of the same two functions write them: the host calls them for a
+    turn it is starting or giving up on, and `leaf.codex` calls them for everything
+    the projection reads off the stream. A test that wants the readings, or wants
+    them to touch nothing, has to say so at both.
+    """
+    for module in (website_server, leaf_codex):
+        monkeypatch.setattr(
+            module, "set_stream_activity", lambda *args: updates.append(args)
+        )
+        monkeypatch.setattr(
+            module, "clear_stream_activity", lambda *args: clears.append(args)
+        )
 
 
 class FakeCodexHost:
@@ -664,9 +682,7 @@ def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir)
         page_dir, identity, {"pid": os.getpid()}
     )
     [queued] = accept_codex_delivery("hosted-thread", phase="queued")
-    website_server._set_stream_activity(
-        "hosted-thread", opened["turn"], "Still working"
-    )
+    website_server.set_stream_activity("hosted-thread", opened["turn"], "Still working")
 
     class Socket:
         closed = False
@@ -1764,9 +1780,8 @@ def test_notifications_before_start_response_reach_the_turn_follower(
             self.closed = True
 
     socket = Socket()
-    monkeypatch.setattr(website_server, "_app_server_connect", lambda endpoint: socket)
-    monkeypatch.setattr(website_server, "_set_stream_activity", lambda *args: None)
-    monkeypatch.setattr(website_server, "_clear_stream_activity", lambda *args: None)
+    monkeypatch.setattr(website_server, "app_server_connect", lambda endpoint: socket)
+    take_stream_activity(monkeypatch, [], [])
     host = website_server.WebsiteCodexHost("codex")
     monkeypatch.setattr(host, "_hold_waiter", lambda *args: None)
     monkeypatch.setattr(
@@ -1840,7 +1855,7 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
         assert state["activity"]["detail"] == "Starting"
         assert state["activity"]["obligations"][0]["event"] == comment["id"]
 
-        website_server._set_stream_activity(
+        website_server.set_stream_activity(
             "hosted-thread", "app-server-turn", "Editing index.html"
         )
         working = website_server.full_state(page_dir, read_events(page_dir))
@@ -1973,16 +1988,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         def finish(self, state, text):
             committed.append((state, text))
 
-    monkeypatch.setattr(
-        website_server,
-        "_set_stream_activity",
-        lambda *args: updates.append(args),
-    )
-    monkeypatch.setattr(
-        website_server,
-        "_clear_stream_activity",
-        lambda *args: clears.append(args),
-    )
+    take_stream_activity(monkeypatch, updates, clears)
     monkeypatch.setattr(website_server, "AppServerReplyStream", ReplyStream)
 
     host = website_server.WebsiteCodexHost("codex")

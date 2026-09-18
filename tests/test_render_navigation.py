@@ -6320,9 +6320,15 @@ def test_reference_does_not_restore_a_popover_across_modal_entry(browser, serve)
     panel = page.locator("#lf-threads")
     assert panel.evaluate("panel => panel.contains(document.activeElement)")
     assert page.locator("main").evaluate("main => main.inert")
+    # The stale row the reference displaced cannot take focus back, and where the reader
+    # lands instead is not settled: sometimes the card they stood on, sometimes the
+    # covering panel's list. Escape's first step follows the landing — letting go of the
+    # card, or the `g T` entry's return from the list — and the versions menu's own keys
+    # are gone either way.
     page.evaluate(RENDERED)
     hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
-    assert {"navigation.return", "thread.find"} <= hints, hints
+    assert "thread.find" in hints, hints
+    assert hints & {"navigation.return", "navigation.release"}, hints
     assert not any(command.startswith("version.") for command in hints), hints
 
     # A layer explicitly opened over the established modal boundary still makes the
@@ -9054,7 +9060,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     resolved = page.locator('.lf-thread[data-resolved="true"]:not([hidden])').first
     resolved.focus()
     expect(resolved).to_be_focused()
-    expect(line).to_contain_text("show all")
+    # Standing on the card comes off before the filter: the line names that step, and
+    # the walk stays offered over a resolved card.
+    expect(line).to_contain_text("back to list")
     expect(line).to_contain_text("t / T")
 
     # The state is an ordinary panel filter, with no disclosure scope added beside it.

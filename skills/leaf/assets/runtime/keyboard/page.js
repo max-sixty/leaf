@@ -1364,6 +1364,10 @@ export function createPageKeys({
       TARGET_CHOOSER_SCOPE,
       ELEMENTS,
       RETURN,
+      // Right after the frames, so the line's Escape chip keeps the front of the line
+      // whichever of the two owns it; among inner scopes the order is moot, since the
+      // modes and the Page Map stand it down themselves.
+      STANDING,
       VERSIONS,
       COMPOSER,
       TYPING,
@@ -1374,7 +1378,6 @@ export function createPageKeys({
       DISCLOSURE,
       DRAW_MODE_SCOPE,
       DESIGN_MODE_SCOPE,
-      STANDING,
       PAGE,
     ];
     // Core's scopes are checked as the list is built by the rule every widget's are checked

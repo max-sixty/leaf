@@ -9,6 +9,8 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import preview as preview_model
@@ -541,7 +543,10 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert automation_process.stdout.readline() == "\n"
     automation_url = automation_process.stdout.readline().strip()
     assert automation_url.startswith("http://127.0.0.1:")
-    assert automation_process.stderr.readline().strip() == preview_model.AUTOMATION_NOTE
+    assert (
+        automation_process.stderr.readline().strip()
+        == "server   temporary (no task claim or service record)"
+    )
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
     watcher_metadata = page_dir.with_name(f"{page_dir.name}.preview.json")
@@ -664,7 +669,10 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert reset_automation.stdout.readline() == "\n"
     reset_url = reset_automation.stdout.readline().strip()
     assert reset_url.startswith("http://127.0.0.1:")
-    assert reset_automation.stderr.readline().strip() == preview_model.AUTOMATION_NOTE
+    assert (
+        reset_automation.stderr.readline().strip()
+        == "server   temporary (no task claim or service record)"
+    )
     assert service_model.page_claim(reader_dir) is None
     assert reader_event not in events_model.read_events(reader_dir)
 
@@ -734,6 +742,7 @@ def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
     url = started.stdout.splitlines()[-1]
     assert url.startswith("http://127.0.0.1:")
     assert preview_model.AUTOMATION_NOTE in started.stderr
+    assert urllib.request.urlopen(url, timeout=30).status == 200
 
     # The address is the one thing a caller cannot rebuild, and a temporary server
     # writes no `service.json` to read it off, so a second invocation answers from
@@ -747,7 +756,10 @@ def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
         timeout=90,
     )
     assert resumed.returncode == 0, resumed.stderr
+    # A published URL names a server that answers. The address alone would be
+    # satisfied by the state file remembering a watcher that has since died.
     assert resumed.stdout.splitlines()[-1] == url
+    assert urllib.request.urlopen(url, timeout=30).status == 200
 
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     assert service_model.page_claim(page_dir) is None
@@ -758,6 +770,83 @@ def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
     )
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": session})
     assert capsys.readouterr().out == ""
+
+
+def _reachable(url: str) -> bool:
+    """Whether a preview's published address still answers."""
+    try:
+        with urllib.request.urlopen(url, timeout=5) as answer:
+            return answer.status == 200
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def test_a_detached_automation_preview_ends_with_the_session_that_started_it(
+    tmp_path, preview_slot, spawn, request
+):
+    """Every preview is reaped by the session's lifetime; only the route differs.
+
+    A reader preview is reaped through its claim: the serving process exits when
+    the lifetime ends, and the watcher's liveness check sees an empty service.
+    An automation preview holds its server in its own thread and takes no claim,
+    so nothing outside it would ever notice. Detached, that left a Python
+    process and a loopback port standing after the session, the terminal and the
+    host were gone — and the baseline/candidate recipe starts two of them.
+    """
+    slot, page_dir = preview_slot
+    source = tmp_path / "reaped.html"
+    source.write_text(REPLAYED_PAGE, encoding="utf-8")
+    runtime = install_payload(tmp_path / "reaped-runtime")
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+        "--automation",
+    ]
+    request.addfinalizer(
+        lambda: subprocess.run(
+            [*command, "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    )
+    # A process of the test's own standing in for the host session, so ending it
+    # is the fact under test rather than the end of this run.
+    host = spawn([sys.executable, "-c", "import time; time.sleep(600)"])
+    started = subprocess.run(
+        [*command, "--background"],
+        cwd=ROOT,
+        env={**os.environ, "CLAUDE_PID": str(host.pid)},
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert started.returncode == 0, (
+        f"stdout:\n{started.stdout}\nstderr:\n{started.stderr}"
+    )
+    url = started.stdout.splitlines()[-1]
+    assert urllib.request.urlopen(url, timeout=30).status == 200
+
+    host.terminate()
+    host.wait(timeout=10)
+    wait_for(
+        lambda: _reachable(url),
+        lambda answering: not answering,
+        failure="the detached automation preview outlived its session",
+        timeout=30,
+    )
+    metadata = page_dir.with_name(f"{page_dir.name}.preview.json")
+    retired = json.loads(metadata.read_text())
+    assert (retired["enabled"], retired["url"]) == (False, None)
 
 
 @pytest.fixture

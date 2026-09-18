@@ -82,7 +82,11 @@ SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 # An automation preview reports its own lifetime rather than the temporary server's:
 # `leaf server run --temporary` ends with the command that printed it, while this
 # watcher outlives a detached start and ends at `--stop` either way.
-AUTOMATION_NOTE = "server   temporary (no task claim; --stop ends it)"
+AUTOMATION_NOTE = "server   temporary (no task claim or service record)"
+# A resume waits for the running watcher to publish its URL, which can take a
+# `page init`. Past this it is a watcher that will not answer, and a preview
+# command that never returns is worse to meet than one that names its log.
+RESUME_DEADLINE_SECS = 120
 # The watcher's own dependency, which the dev group beside this script declares. A
 # checkout named by `--runtime` has the `--no-dev` environment `bin/leaf` syncs, so the
 # worker command overlays it there. Move this floor whenever `pyproject.toml`'s moves.
@@ -151,7 +155,7 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser.add_argument(
         "--automation",
         action="store_true",
-        help="watch through the process-owned browser harness",
+        help="serve through the browser harness, taking no task claim",
     )
     parser.add_argument(
         "--reset",
@@ -592,7 +596,7 @@ def watch_preview(
     from leaf.layer import layer_inputs
     from leaf.leases import take_waiter_lease
     from leaf.server import running_server
-    from leaf.service import PageTransaction
+    from leaf.service import PageTransaction, claim_is_active
 
     metadata, lease_path, log_path = preview_files(page)
     lease_path.parent.mkdir(parents=True, exist_ok=True)
@@ -625,7 +629,10 @@ def watch_preview(
                     "source_digest": digest(source),
                 }
             )
-            write_json(metadata, {**identity, "enabled": True})
+            # `identity` is the previous run's whole state where the page
+            # survives, and its `url` described a server that is gone. Only the
+            # watcher that serves may publish one.
+            write_json(metadata, {**identity, "enabled": True, "url": None})
     if lease is None:
         expected = source_identity(source, runtime, automation)
         if identity and expected == {
@@ -636,8 +643,14 @@ def watch_preview(
             # second invocation reads it from one place whichever server is
             # behind it. An automation preview has no `service.json` to read it
             # off, and its URL is the only thing a caller cannot rebuild.
+            deadline = time.monotonic() + RESUME_DEADLINE_SECS
             state = read_json(metadata) or {}
             while state.get("url") is None and state.get("enabled"):
+                if time.monotonic() > deadline:
+                    raise ValueError(
+                        f"the watcher on {page} has published no URL in "
+                        f"{RESUME_DEADLINE_SECS}s; its log is {log_path}"
+                    )
                 time.sleep(0.05)
                 state = read_json(metadata) or {}
             if state.get("url") is None:
@@ -658,6 +671,18 @@ def watch_preview(
         )
     temporary = None
     changes = None
+    # A reader preview is reaped through its claim: the serving process exits
+    # when the session's lifetime ends, and the liveness check below sees that.
+    # An automation preview takes no claim, so it reads the same lifetime here
+    # and ends itself. `claim_is_active` is that reading, and a harness states
+    # the fields it consumes; outside an agent host there is no session to
+    # outlive, and the watcher runs until `--stop`.
+    harness = session_harness() if automation else None
+    session_lifetime = (
+        None
+        if harness is None
+        else {"released": None, "page": str(page), **harness.lifetime()}
+    )
     with lease:
         try:
             if automation and PageTransaction(page).active_claim is not None:
@@ -712,7 +737,12 @@ def watch_preview(
             serving = True
             while read_json(metadata)["enabled"]:
                 reported = {path for _, path in next(changes)}
-                live = temporary.running if automation else running_server(page)
+                if automation:
+                    live = temporary.running and (
+                        session_lifetime is None or claim_is_active(session_lifetime)
+                    )
+                else:
+                    live = running_server(page)
                 if serving and not live:
                     return  # an explicit service stop or the owning session ended
                 if not serving and not automation:
@@ -735,6 +765,7 @@ def watch_preview(
                     temporary = None
                 else:
                     cmd_stop(page)
+                update_preview_state(page, url=None)
                 try:
                     refresh_preview(
                         source,
@@ -777,6 +808,10 @@ def watch_preview(
                     # serving child validates the retained claim before restarting.
                     serving = start_server(page) is not None
                 if serving:
+                    # The address is unchanged — automation reuses its token and
+                    # port, and a reader service keeps its own — so this restores
+                    # the published fact rather than replacing it.
+                    update_preview_state(page, url=url)
                     print(f"Reloaded {source.stem}", flush=True)
         finally:
             update_preview_state(page, enabled=False, url=None)

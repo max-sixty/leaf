@@ -35,9 +35,10 @@ alternatives.
 
 `multiple` asks whether two options can both hold, not whether the reader
 usually picks one. A group without it enforces exclusivity by discarding: the
-second press starts from an empty set, so the first pick is dropped silently.
-Author the exclusive group only where the options rule each other out; where a
-set is answerable — work to start, checks to run, risks to accept — allow it.
+second press starts from an empty set, and the announcement names only the new
+pick, so nothing tells the reader their first answer is gone. Author the
+exclusive group only where the options rule each other out; where a set is
+answerable — work to start, checks to run, risks to accept — allow it.
 
 On the page the group's last cell is an option the reader writes, saying
 `Another option`, so author the alternatives you actually mean and no catch-all

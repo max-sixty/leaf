@@ -207,6 +207,23 @@ window.authoredModuleRan = true;
         page.close()
 
 
+def test_the_page_policy_admits_a_driver_poll_that_outlives_its_evaluate(
+    browser, serve
+):
+    """A driver compiles a wait predicate with eval on every poll, and only the poll
+    installed inside its own evaluate call inherits that call's permission. The
+    delivered script-src admits the later compiles, so a wait ends on the fact it
+    names rather than on the policy."""
+    page = open_page(
+        browser, live_url(serve(leaf_page("Driver poll", "<h1>Driver poll</h1>")))
+    )
+    try:
+        page.evaluate("() => setTimeout(() => { window.lateFact = true }, 250)")
+        page.wait_for_function("window.lateFact === true", timeout=5_000)
+    finally:
+        page.close()
+
+
 def test_a_website_example_names_its_limited_agent(browser, serve):
     page = open_page(
         browser,

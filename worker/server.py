@@ -81,10 +81,16 @@ AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 # stopped delivering, and `thread/resume` is the reading that separates them: it
 # recovers the authoritative turn, including a terminal status the stream never sent.
 STREAM_SILENCE = 120.0
-# What a reader is told when their turn ended without ever reaching the agent.
+# How much of a refusal's own words one record carries. Long enough for the
+# sentence a boundary writes, short enough that one that writes a file cannot fill
+# the log with it.
+FAULT_DETAIL_LIMIT = 500
+# What a reader is told when the turn carrying their message ends with no answer.
+# It says only what the host observed: a turn may well have run — the incident this
+# path was written for had one running still — so a sentence about the message never
+# arriving would be wrong exactly where it matters most.
 TURN_UNANSWERED_TEXT = (
-    "This message did not reach the agent — its turn ended before it started. "
-    "Send it again to retry."
+    "The agent's turn ended without an answer to this message. Send it again to retry."
 )
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_REPLY_PATH = "/_leaf/agent/reply"
@@ -165,6 +171,12 @@ def fault_fields(error: BaseException) -> dict:
     execution path readable without putting a reader's words in the log.
     """
     message = str(error)
+    if len(message) > FAULT_DETAIL_LIMIT:
+        # An exception message is not always a sentence: a spawn that never became
+        # ready raises with App Server's whole log as its message. A record is not
+        # where a log file belongs, and the reason a process exited is at the end of
+        # its log rather than the start, so the tail is the part worth keeping.
+        message = f"…{message[-FAULT_DETAIL_LIMIT:]}"
     return {"error": type(error).__name__, **({"detail": message} if message else {})}
 
 
@@ -721,11 +733,13 @@ class HostedTurn:
     def _report_unanswered(self, terminal: dict) -> None:
         """Tell the reader their move went unanswered, for a turn nothing bound.
 
-        No provider turn ever took this delivery, so no other writer will ever name
-        it: the reply the reader is owed has no other author, and without this their
-        message simply sits unanswered beside an agent that reads as listening. A
-        move another turn has picked up is that turn's to answer, which is what the
-        unclaimed guard leaves alone.
+        No Leaf turn holds this delivery, so no other writer will ever name it: the
+        reply the reader is owed has no author, and without this their message sits
+        unanswered beside an agent that reads as listening. That is all this knows —
+        a provider turn may be running with nobody observing it, which is the
+        incident this path exists for, so the receipt claims no more than the
+        absence of an answer. A move another turn has picked up is that turn's to
+        answer, which is what the unclaimed guard leaves alone.
         """
         if terminal.get("status") == "completed":
             return

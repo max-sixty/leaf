@@ -1533,8 +1533,32 @@ def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
     [reply] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert reply["responds"] == comment["id"]
     assert reply["failure"] == "turn_failed"
-    assert "Send it again to retry." in reply["text"]
+    # Only the absence of an answer: a provider turn may still be running with no
+    # observer, which is the shape of the incident this path was written for.
+    assert reply["text"] == (
+        "The agent's turn ended without an answer to this message. "
+        "Send it again to retry."
+    )
     host.close()
+
+
+def test_a_fault_record_keeps_the_end_of_an_oversized_message():
+    """A boundary that raises with a whole file does not get to fill the log.
+
+    `_wait_for_app_server` raises with App Server's entire log as the message when a
+    spawn never becomes ready, and a record is not where a log file belongs. The
+    reason a process exited is at the end of its log, so that is the part kept.
+    """
+    short = website_server.fault_fields(RuntimeError("no thread by that id"))
+    assert short == {"error": "RuntimeError", "detail": "no thread by that id"}
+
+    log = "noise\n" * 400 + "fatal: the reason it exited"
+    assert len(log) > website_server.FAULT_DETAIL_LIMIT
+    bounded = website_server.fault_fields(RuntimeError(log))
+    assert bounded["error"] == "RuntimeError"
+    assert bounded["detail"].endswith("fatal: the reason it exited")
+    assert bounded["detail"].startswith("\u2026")
+    assert len(bounded["detail"]) == website_server.FAULT_DETAIL_LIMIT + 1
 
 
 def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(

@@ -2383,8 +2383,17 @@ def take_by_drag(page):
 
 
 def take_by_double_click(page):
-    run = marked_run(page)
-    page.mouse.dblclick(run["left"] + (run["right"] - run["left"]) / 2, run["y"])
+    # A named word rather than the middle of the painted run: which character the midpoint
+    # falls on is the font's business, and a double-click on the space between two words
+    # takes nothing at all. Measured, it is a letter on this Mac's Charter and a space on
+    # CI's Linux Chromium — so the run's geometry aims the drag, which only needs to end
+    # among words, and never a gesture that has to land on one.
+    #
+    # The first click of the pair is a press by the door's own rule, and opens the mark's
+    # thread; the second takes the word and is refused, and focus comes back to the page
+    # with it. What the reader is left holding is what this arm asserts.
+    at = word_at(page, "#edge p", "deploy")
+    page.mouse.dblclick(at["x"], at["y"])
 
 
 def take_by_shift_click(page):
@@ -2406,8 +2415,16 @@ def take_by_shift_click(page):
 def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_thread(
     browser, serve, take
 ):
-    """Marked words are still words to comment on: every way of taking them raises the 💬
-    on what it took, and only a press opens the conversation already there.
+    """Marked words are still words to comment on: every way of taking them leaves the
+    reader holding them, with the 💬 on what was taken and the page still under them.
+
+    What the reader ends up with, rather than where the gesture went on the way: a
+    double-click's first click is a press by the door's own rule and opens the mark's
+    thread, and only its second click takes a word. Measured, that excursion costs the
+    reader a focus round trip through the reply box and no movement of the reading column
+    at all, and refusing it would mean holding every press on a mark for the length of the
+    double-click interval — the ordinary gesture made sluggish for the rarer one. So each
+    arm asserts the standing result, and the press below asserts that the mark still opens.
 
     A click ends a gesture that took words as surely as it ends a press, and the mark's
     door read every one of them as a press. With Threads open the thread it opened landed
@@ -2419,10 +2436,10 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
 
     All three gestures, because the first reading written for this covered only the drag:
     it asked how far the pointer had travelled, and a double-click's second press and a
-    shift-click's extension both take words without moving it. Each arm ends with the
-    press the mark is for, made where the gesture's own words still stand selected — a
-    reading taken off the standing selection rather than off what this press changed
-    refuses that press as a gesture of its own, and the mark stops opening at all."""
+    shift-click's extension both take words without moving it. Each arm then makes the
+    press the mark is for, where the gesture's own words still stand selected — a reading
+    taken off the standing selection rather than off what the press changed refuses that
+    press as a gesture of its own, and the mark stops opening at all."""
     page = mark_the_first_sentence(browser, serve)
     take(page)
     expect(page.locator(".lf-fab-input")).to_be_visible()

@@ -83,6 +83,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_right,
     panel_settled,
     post_event,
     refuse,
@@ -5763,20 +5764,10 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     # The panel takes the right of the window, and the rail survives it: the rows
     # keep their line, clear of the column on one side and of the panel on the
     # other. Measured after the layout has moved, since opening the panel resizes
-    # the page and the rows re-place on the frame after that.
+    # the page and the rows re-place on the frame after that. Under full motion
+    # the rows used to dock for the length of the column's glide and come back at
+    # its end; there is no glide now, so both arms go straight to the settled page.
     page.locator(".lf-threads-toggle").click()
-    if reduced_motion == "no-preference":
-        # Hold the presentation offset while the resize-driven placements dock the
-        # rows. Let that frame's ResizeObserver delivery and its queued placement run
-        # before finishing the carry, so no pending resize accidentally repairs them.
-        page.wait_for_function(
-            "() => [...document.querySelectorAll('[data-lf-margin-for=sug-refill], "
-            "[data-lf-margin-for=sug-thistle]')]"
-            ".every(r => r.classList.contains('lf-docked'))"
-        )
-        page.evaluate("""() => new Promise(resolve => {
-          requestAnimationFrame(() => requestAnimationFrame(resolve));
-        })""")
     panel_settled(page)
     page.wait_for_function(
         "() => [...document.querySelectorAll("
@@ -5784,7 +5775,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         ".every(r => !r.classList.contains('lf-docked'))"
     )
     narrowed = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
-    room = page.evaluate("() => document.body.getBoundingClientRect().right")
+    room = page_right(page)
     for i in range(2):
         rect = margin_rows.nth(i).evaluate(box)
         assert rect["left"] > narrowed and rect["right"] <= room, (
@@ -5795,8 +5786,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
     page.get_by_role("button", name="Close threads").click()
-    # The panel gives the room back in one responsive layout, then carries the column to
-    # it. Wait for that route before reading the rows against their settled blocks.
+    # The panel gives the room back in one responsive layout, and the column is already
+    # in it. Wait for that before reading the rows against their settled blocks.
     panel_settled(page, open=False)
     resized(page, 820, 900)
     page.wait_for_function(
@@ -8732,7 +8723,7 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     # And the room it takes comes back with it, or the tray returns lying over the
     # column it is meant to stand beside.
     page.wait_for_function(
-        """() => getComputedStyle(document.body).marginLeft !== '0px'"""
+        """() => getComputedStyle(document.body).borderLeftWidth !== '0px'"""
     )
 
 
@@ -8800,7 +8791,7 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
-        """() => getComputedStyle(document.body).marginLeft !== '0px'"""
+        """() => getComputedStyle(document.body).borderLeftWidth !== '0px'"""
     )
     wide = page.evaluate(geometry)
     assert wide["column"] >= wide["tray"], (
@@ -8812,7 +8803,7 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     # Narrow enough and the strip is more than the page can give, so it covers.
     resized(page, 560, 800)
     page.wait_for_function(
-        """() => getComputedStyle(document.body).marginLeft === '0px'"""
+        """() => getComputedStyle(document.body).borderLeftWidth === '0px'"""
     )
     assert page.evaluate(geometry)["sideways"] == 0
 
@@ -8846,7 +8837,7 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     expect(decisions).to_be_hidden()
     # The page has its room back the moment the Asks tray goes down.
     page.wait_for_function(
-        """() => getComputedStyle(document.body).marginLeft === '0px'"""
+        """() => getComputedStyle(document.body).borderLeftWidth === '0px'"""
     )
 
     # Leaves is a modal covering workspace, so its scrim correctly makes the page and

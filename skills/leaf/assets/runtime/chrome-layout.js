@@ -3,9 +3,12 @@
 // container, `main` composes its left and right claims, and queries grant or withdraw
 // margin postures. JavaScript may hear the shell's content-box size without deriving a
 // posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
-// repaint after a width change. `moveContentFrame` lands the final responsive shell in one pass,
-// then animates only the reading column's presentation offset and repaints page-attached
-// chrome along that route. A height-only change sends `pageShifted` directly so a content
+// repaint after a width change. `moveContentFrame` lands the final responsive shell in one
+// pass and repaints page-attached chrome in the same gesture. Nothing here holds the
+// reader's place across the reflow that lands with the new shell: the browser does, because
+// the strip the shell yields is a transparent border rather than a margin, and `border-width`
+// is not a scroll-anchoring suppression trigger (theme.css, at the body strip, carries the
+// measurement and the reasoning). A height-only change sends `pageShifted` directly so a content
 // reflow re-places document-attached paint without re-running chrome reservation.
 //
 // `syncLayout` measures only chrome whose placement or reservation depends on rendered
@@ -40,7 +43,6 @@
 // auxiliary surfaces, send commands, or reconcile conversation DOM.
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps } from "./geometry.js";
-import { motion } from "./motion.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
@@ -98,7 +100,6 @@ export function createChromeLayout({
   repaint,
   repaintPage,
 }) {
-  let shellMotion = null;
   const panelCovers = () => panelIsOpen() && commentsEdge.over.matches;
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
@@ -214,52 +215,28 @@ export function createChromeLayout({
     if (syncReactLayout()) return;
     refreshFab();
   }
-  // A auxiliary chrome state is a responsive-layout boundary, not a sequence of temporary
-  // viewport sizes. Apply the state first, so every container query reads the final
-  // shell in one pass, then carry the reading column from the box it occupied before
-  // the change. Animating body's margin crosses sidebar and sidenote breakpoints during
-  // motion and can reverse the column's direction. The offset moves only paint already
-  // laid out against the final shell.
+  // An auxiliary chrome state is a responsive-layout boundary, not a sequence of temporary
+  // viewport sizes. Apply the state and every container query reads the final shell in one
+  // pass; the reading column arrives at its new horizontal position in that same pass.
+  //
+  // It used to glide there over 180ms. That glide animated `main`'s `left`, which is a
+  // scroll-anchoring suppression trigger on every frame it ran, so the page bought a
+  // moving column at the price of dropping the reader each time the panel closed. The
+  // browser carries them now (theme.css, at the body strip), and the column jumps — which
+  // is what every editor with a side panel does, and cheaper than it looks against words
+  // that stay put.
+  //
+  // So the paint that follows the column follows it here, in the gesture, not a frame
+  // later. The repaint was deferred only because the column used to be in flight; with
+  // it already at rest there is nothing to wait for, and waiting left a frame in which
+  // the margin's rows and the marks on the page stood where the column had been. They are
+  // placed off the column's box, which a resize observer cannot report — it hears a box
+  // change size, not place. The observers still run on the frame after, and re-placing
+  // what is already placed is a no-op.
   function moveContentFrame(change) {
-    const main = document.querySelector("body > main");
-    const before = main?.getBoundingClientRect();
-    // A second auxiliary surface can replace the first before its motion finishes. Preserve the
-    // currently drawn position, then release the old effect before reading the next
-    // layout; otherwise two animations would both own the same offset.
-    if (shellMotion) {
-      shellMotion.cancel();
-      shellMotion = null;
-    }
     change();
-    if (!main || !before) {
-      scheduleShellRepaint();
-      return null;
-    }
-    const after = main.getBoundingClientRect();
-    const distance = before.left - after.left;
-    const moved = Math.abs(distance) >= 0.5;
-    const played = moved
-      ? motion(
-          main,
-          [
-            { "--lf-shell-motion-x": `${distance}px` },
-            { "--lf-shell-motion-x": "0px" },
-          ],
-          180,
-        )
-      : null;
-    shellMotion = played;
-    if (played) {
-      const settled = () => {
-        if (shellMotion === played) shellMotion = null;
-        // The carry changes position without another resize; the repaint's frames lay
-        // the margin's rows out along it and once more at rest (repaintMovingShell).
-        scheduleShellRepaint();
-      };
-      played.finished.then(settled, settled);
-    }
-    scheduleShellRepaint();
-    return played;
+    pageShifted();
+    layoutMarginRows();
   }
   // Field sizing and every other chrome-size change feed the one layout pass.
   // The document shell's size also feeds the page repaint door: content landing can move
@@ -268,9 +245,11 @@ export function createChromeLayout({
     if (shellChanged) repaintPage();
     else if (chromeChanged) repaint();
   };
-  // Body's own box is the first of them, because an auxiliary surface lands its final shell width
-  // before the column finishes moving there. Width observation handles taking or
-  // returning room; moveContentFrame's frames keep page-attached paint with the carried column.
+  // Body's own box is the first of them: taking or returning room changes body's content box,
+  // since the strip is a border inside it, so width observation hears every auxiliary
+  // surface arrive and leave. `moveContentFrame` has already placed page-attached paint by
+  // then; this pass is the one that also covers a window resize, which has no gesture to
+  // repaint from.
   //
   // A height-only body resize is repaint-only. An image or font can move a later target
   // without resizing that target or mutating the DOM, while sending that ordinary page
@@ -319,24 +298,6 @@ export function createChromeLayout({
     layoutSizes.observe(panelFoot);
     layoutSizes.observe(shortcutBarEl);
     layoutSizes.observe(bottomStatusEl);
-  }
-  let shellFrame = 0;
-  function repaintMovingShell() {
-    shellFrame = 0;
-    pageShifted();
-    // The margin's rows are placed off the column's box, and the column's box is in
-    // flight: the body's width change laid them out on the carry's first frame, against
-    // a column a few pixels into its move, and nothing asked again once it had arrived —
-    // a resize observer hears a box change size, not place. So the rows stood where the
-    // column had been until the next poll or pointer move, over the prose the column had
-    // moved under them. Laid out on each carried frame, they ride with the column, and
-    // the last call here is the one taken at rest.
-    layoutMarginRows();
-    if (shellMotion?.playState === "running")
-      shellFrame = requestAnimationFrame(repaintMovingShell);
-  }
-  function scheduleShellRepaint() {
-    if (!shellFrame) shellFrame = requestAnimationFrame(repaintMovingShell);
   }
 
   // The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps

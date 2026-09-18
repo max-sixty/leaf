@@ -183,6 +183,24 @@ the workspace research below, which reaches #23, so a new item starts above that
   hands it lands in the log. Validate once at the edge: one admission door the CLI writers
   share, not a validator added per caller.
 
+- **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
+  now keeps the reader's place through the browser's own scroll anchoring, and that hold
+  rests on an ordering rather than a guarantee: `main`'s `left` (via `--lf-shift`) and its
+  `width` do change when the strip is taken, both are on Chromium's suppression list, and
+  they escape it only because the container-query recalc that moves them runs inside
+  layout, after `ScrollAnchor::NotifyBeforeLayout` has walked the anchor's ancestors.
+  Measured 2026-09-18: across three pages and six widths, `left` changed at 1440 and 1200
+  and `width` at ≤1200, and the reader held within 2px in all 18 cases. Make `body` a
+  three-track grid for column placement only — keep the border strip, so every
+  `lf-shell` floor keeps its meaning — and give `main` `grid-column: 2; width: 100%`, so
+  its inset never changes. That deletes `--lf-shift`, `--lf-gutter`, `--lf-sidebar-edge`,
+  `left`, and the `50cqi ± --lf-shift` terms in `packages/default/theme.css`, with the same
+  layout at every width and the same sideways jump. Keep `main`'s `max-width`, or
+  `_column_width` (`scripts/leaf/styles.py`) silently falls back to 780. About half a day;
+  the space-bound arithmetic is where the 134px and 34px overlaps were measured, so expect
+  `test_render_margin.py` and the `withheldRoom` gate to need iteration. Low priority:
+  `--lf-shift` has been touched by two commits, so this is insurance, not accretion.
+
 ## Platform and dependency cutover
 
 The 2026-09-16 survey of what Leaf could hand to a dependency found the browser defect

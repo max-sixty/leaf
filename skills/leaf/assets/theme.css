@@ -1435,7 +1435,7 @@ leaf-anchor-note { display: contents; }
           position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-3));
           border-top: 1px solid var(--rule); pointer-events: none; }
 .lf-conversation-msg { margin: var(--sp-3) 0; }
-.lf-conversation-msg.claude { position: relative; }
+.lf-conversation-msg.agent { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
 .lf-conversation-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
@@ -1536,11 +1536,11 @@ leaf-anchor-note { display: contents; }
 .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
-.lf-conversation-msg.claude:is(:hover, :focus-within)
+.lf-conversation-msg.agent:is(:hover, :focus-within)
           > .lf-react-strip > .lf-react-trigger,
 .lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
           opacity: 1; }
-.lf-conversation-msg.claude:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
+.lf-conversation-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
 .lf-react-strip.lf-react-open > .lf-react-palette {
           position: absolute; z-index: 3;
           inset-block-start: calc(max(28px, var(--aim-floor)) + 2px);

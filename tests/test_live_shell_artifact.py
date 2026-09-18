@@ -61,7 +61,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
             page_dir,
             {
                 "kind": "note",
-                "author": "claude",
+                "author": "agent",
                 "version": version,
                 "revision": activation.revision,
                 "text": "Published",
@@ -234,7 +234,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 1,
             "revision": activation.revision,
             "text": "Published",

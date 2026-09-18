@@ -523,7 +523,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 d,
                 {
                     "kind": "note",
-                    "author": "claude",
+                    "author": "agent",
                     "version": 1,
                     "revision": 1,
                     "text": "t",

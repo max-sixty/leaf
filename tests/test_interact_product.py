@@ -709,7 +709,7 @@ def test_reply_validates_widget_markup(page_dir):
     assert good.exit_code == 0, good.output
     event = events_model.read_events(page_dir)[-1]
     assert event["kind"] == "reply"
-    assert event["author"] == "claude"
+    assert event["author"] == "agent"
     assert event["text"] == "See:"
     assert event["markup"].startswith("<lf-diagram")
 
@@ -1541,7 +1541,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "No recorded session owns this.",
         },
@@ -1569,7 +1569,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Indexer",
             "session": "worker-1",
             "revision": 1,
@@ -1641,7 +1641,7 @@ def test_export_prints_threads_and_versions(page_dir):
         {
             "kind": "reply",
             "id": "r1",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": "c1",
             "text": "reversibility",

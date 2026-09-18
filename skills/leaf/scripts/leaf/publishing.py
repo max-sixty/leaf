@@ -107,7 +107,7 @@ def _stamp_event(
 ) -> dict:
     event = {
         "kind": "note",
-        "author": "claude",
+        "author": "agent",
         **message_identity(),
         "version": version,
         "revision": revision,

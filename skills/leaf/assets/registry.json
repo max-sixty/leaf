@@ -241,12 +241,12 @@
           "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
           "dependentSchemas": {
             "token": {"not": {"required": ["markup"]}},
-            "failure": {"required": ["text", "responds"], "properties": {"author": {"const": "claude"}}},
+            "failure": {"required": ["text", "responds"], "properties": {"author": {"const": "agent"}}},
             "responds": {"not": {"required": ["initiates"]}},
             "initiates": {"not": {"required": ["responds"]}},
             "anchor": {
               "required": ["revision", "text"],
-              "properties": {"author": {"const": "claude"}}
+              "properties": {"author": {"const": "agent"}}
             }
           }
         },
@@ -261,7 +261,7 @@
           "properties": {
             "id": {"type": "string", "minLength": 1},
             "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "claude"},
+            "author": {"const": "agent"},
             "kind": {"const": "edit"},
             "seq": {"type": "integer", "minimum": 1},
             "message": {"type": "string", "minLength": 1},

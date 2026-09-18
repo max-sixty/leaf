@@ -387,7 +387,7 @@ def record(
         raise RuntimeError(f"the live page navigated from {live_url} to {page.url}")
     page.wait_for_function(
         "() => document.body.dataset.lfUpgraded === '1'"
-        " && document.querySelectorAll('.lf-thread .lf-msg.claude').length > 0"
+        " && document.querySelectorAll('.lf-thread .lf-msg.agent').length > 0"
     )
     shot(2300)
 
@@ -494,7 +494,7 @@ def shoot_stills(
             ".textContent.includes('awaits')"
         )
         page.locator(".lf-banner .lf-threads-toggle").click()
-        page.wait_for_selector(".lf-thread .lf-msg.claude")
+        page.wait_for_selector(".lf-thread .lf-msg.agent")
         page.locator("#top").scroll_into_view_if_needed()
         # Ask the shared motion lifecycle rather than waiting a duration: a finished move
         # has left the list, and this context asks for reduced motion, so the carried

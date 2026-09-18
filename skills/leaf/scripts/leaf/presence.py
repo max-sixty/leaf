@@ -16,7 +16,7 @@ from .files import (
 )
 from .host import state_home
 from .leases import wait_is_live
-from .schema import STATUS_FILE, VIEWED_FILE, WAITER_LOCK
+from .schema import STATUS_FILE, UNCLAIMED_AGENT, VIEWED_FILE, WAITER_LOCK
 from .server import running_server
 from .service import (
     claim_is_active,
@@ -92,7 +92,7 @@ def other_leaves(page_dir: Path) -> list:
             info = running_server(candidate)
             claim = page_claim(candidate)
             active = claim if claim_is_active(claim) else None
-            listening = wait_is_live(candidate, active)
+            listening = wait_is_live(candidate, active["id"] if active else None)
             key = (
                 _page_stamp(candidate, claim),
                 info["url"] if info else None,
@@ -208,7 +208,7 @@ def presence_with_activity(
     reading = {
         "status": status,
         "claims": claim_update_sources(stored_status),
-        "listening": wait_is_live(page_dir, active),
+        "listening": wait_is_live(page_dir, active["id"] if active else None),
         "cursor": cursor,
         # The reader's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
@@ -216,10 +216,10 @@ def presence_with_activity(
         "pending": sum(
             1 for e in unacknowledged(events, cursor) if e["author"] == "user"
         ),
-        "agent": claim.get("agent", "Claude") if claim else "Claude",
-        # The claimant's host program, for behavior that keys on it — the display
-        # name above is anyone's to choose, so nothing may dispatch on it.
-        "host": claim.get("host") if claim else None,
+        # The claimant's chosen display name. Harness-specific facts stay out of
+        # this reading: it is what a browser seat may know, and the browser has
+        # never had a use for which program is running the agent.
+        "agent": claim["agent"] if claim else UNCLAIMED_AGENT,
         # None when nothing claimed the page — leaf run outside an agent host.
         "session_alive": active is not None if claim else None,
         # Which session the turn-closed evidence belongs to. Thread updates carry
@@ -296,7 +296,7 @@ def presence_reading(page_dir: Path) -> str:
         # stream; the lock and pid checks remain part of this fresh observation.
         active = claim if claim_is_active(claim) else None
         reading = presence_fingerprint(
-            wait_is_live(page_dir, active),
+            wait_is_live(page_dir, active["id"] if active else None),
             active is not None if claim else None,
             other_leaves(page_dir),
         )

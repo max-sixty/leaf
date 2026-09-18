@@ -42,7 +42,11 @@ export const runtime = {
     return readApplication().effective.activity;
   },
   get agent() {
-    return readApplication().authoritative?.agent || "Claude";
+    // The claimant's own name where a claim answers for the page. Nothing has
+    // claimed an exported or never-served page, and "Agent" is what the
+    // conversation already calls a message whose author left no name
+    // (`UNCLAIMED_AGENT`, `conversation/messages.js`).
+    return readApplication().authoritative?.agent || "Agent";
   },
   get browser() {
     return readApplication().authoritative?.browser ?? null;

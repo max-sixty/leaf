@@ -90,7 +90,7 @@ export function threadReading(
       : null,
     resolved,
     resolvedBy:
-      thread.resolved?.author === "claude"
+      thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent || "Agent"}`
         : panel
           ? ""

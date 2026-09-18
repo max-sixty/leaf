@@ -40,10 +40,11 @@ The main owners are:
 - `mcp_page`: the capability-scoped canonical page server and private MCP result;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;
-- `host`: local paths, process readings, the agent harness declarations — session
-  identity, lifetime, delivery carrier, hook remedies, and the nudge that reaches a
-  session with nothing watching — and the Claude Code messaging socket behind one of
-  them;
+- `machine`: this machine — the state home Leaf keeps on it, and the process readings
+  that say whether a recorded pid still runs and what sits above this one;
+- `host`: the agent harness declarations — session identity, lifetime, delivery
+  carrier, hook remedies, and the nudge that reaches a session with nothing watching —
+  and the Claude Code messaging socket behind one of them;
 - `leases`: process-backed page, transition, and waiter leases;
 - `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, plus durable and

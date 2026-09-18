@@ -64,6 +64,7 @@ from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import presence as presence_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -5860,7 +5861,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
-        "FAKE_CODEX_EXPECT_CWD": str(host_model.state_home()),
+        "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
     }
     if delivery_fault == "retry":
         environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(
@@ -6585,7 +6586,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
     for name in CLAUDE_IDENTITY + CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "thread-nobody")
-    monkeypatch.setattr(host_model, "process_info", lambda _pid: (1, "python"))
+    monkeypatch.setattr(machine_model, "process_info", lambda _pid: (1, "python"))
     refused = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert refused.exit_code == 1, refused.output
     assert "no codex process runs above this one" in refused.output

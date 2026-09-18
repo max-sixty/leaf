@@ -16,9 +16,9 @@ from interact_support import record_claim, running_http_server
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import scheme as render_gate_model
@@ -1158,7 +1158,7 @@ def live_leaf(tmp_path, monkeypatch):
     held = []
 
     def go(name, title):
-        d = host_model.state_home() / "pages" / name
+        d = machine_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
         stamp_page(

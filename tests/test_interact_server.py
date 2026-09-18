@@ -42,10 +42,10 @@ from leaf import data as data_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
-from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import media as media_model
 from leaf import page_snapshot as page_snapshot_model
 from leaf import presence as presence_model
@@ -3194,7 +3194,7 @@ def test_unchanged_neighbor_logs_are_read_once_until_their_stamp_moves(
     page_dir, monkeypatch
 ):
     """Neighbor presence reuses its parsed event window while its files are stable."""
-    neighbour = host_model.state_home() / "pages" / "neighbor-cache"
+    neighbour = machine_model.state_home() / "pages" / "neighbor-cache"
     neighbour_page(neighbour, title="Cached neighbor")
     real_read_events = presence_model.read_events
     reads = 0
@@ -3234,7 +3234,7 @@ def test_neighbor_activity_cache_expires_at_the_projected_transition(
     The browser asks when the canonical deadline arrives; the neighbor cache must
     then project a fresh server answer rather than returning the pre-deadline one.
     """
-    neighbour = host_model.state_home() / "pages" / "neighbor-deadline"
+    neighbour = machine_model.state_home() / "pages" / "neighbor-deadline"
     neighbour_page(neighbour, title="Timed neighbor")
     record_claim(neighbour, id="timed")
     files_model.write_json(
@@ -3275,7 +3275,7 @@ def test_neighbor_activity_cache_expires_when_status_loses_its_last_proof(
     page_dir, monkeypatch
 ):
     """A waiting declaration with no owner becomes unheld on its own deadline."""
-    neighbour = host_model.state_home() / "pages" / "neighbor-status-deadline"
+    neighbour = machine_model.state_home() / "pages" / "neighbor-status-deadline"
     neighbour_page(neighbour, title="Timed status neighbor")
     started = datetime.now().astimezone()
     files_model.write_json(
@@ -4291,7 +4291,7 @@ def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
         server_model.host_key()
 
     assert len(staged) == 1 and not staged[0].exists()
-    assert not (host_model.state_home() / "access.json").exists()
+    assert not (machine_model.state_home() / "access.json").exists()
 
 
 def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
@@ -4391,7 +4391,7 @@ def test_a_page_left_standing_is_the_sweeps_to_stop():
     ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
     watch that happen. Not `spawn`, whose teardown would end the holder before
     the sweep reached it."""
-    hold_standing(host_model.state_home() / "pages" / "left", subprocess.Popen)
+    hold_standing(machine_model.state_home() / "pages" / "left", subprocess.Popen)
 
 
 def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
@@ -4480,7 +4480,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     and that page's own banner judge from one shape — where the claiming session
     is working included, which is the one thing on a row's hover that no title
     could ever say."""
-    pages = host_model.state_home() / "pages"
+    pages = machine_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     files_model.write_json(
         pages / "live" / "status.json",
@@ -4624,7 +4624,9 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
 
 def test_others_ships_on_a_network_facing_bind_too(page_dir):
     """Neighbour discovery is independent of the server's network-facing bind."""
-    neighbour_page(host_model.state_home() / "pages" / "live", title="The other page")
+    neighbour_page(
+        machine_model.state_home() / "pages" / "live", title="The other page"
+    )
     httpd = hosting_model.LeafHTTPServer(
         ("0.0.0.0", 0), http_model.page_endpoint(page_dir, TOKEN)
     )

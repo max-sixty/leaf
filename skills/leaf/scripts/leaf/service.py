@@ -158,10 +158,10 @@ class PageTransaction:
     def take_claim(self, harness: Harness) -> tuple[dict | None, dict]:
         """Record this session as the page's watcher.
 
-        The record carries the claimant's harness and carrier as well as its id,
-        so every later reader — the page server, the append door, the Stop hook,
-        none of them necessarily the claimant's own process — dispatches on what
-        the claimant declared instead of on its own environment."""
+        The record carries the claimant's harness as well as its id, so every
+        later reader — the page server, the append door, the Stop hook, none of
+        them necessarily the claimant's own process — rebuilds what the claimant
+        declared instead of reading its own environment."""
         previous = self.claim
         path = claim_path(self.page_dir)
         path.parent.mkdir(parents=True, exist_ok=True)

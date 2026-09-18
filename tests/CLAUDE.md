@@ -523,6 +523,16 @@ ranges included, so wait on what the pass put in it
 (`(CSS.highlights.get(name)?.size ?? 0) > 0`, or `wait_for_pending_mark`),
 never on the name being there.
 
+A surface the page paints before the server answers is that surface too. A
+comment is rendered the turn it is sent, under the `pending:` identity
+`conversationForAttempt` gives it, so a `.lf-thread` count reads the same on the
+path where the request is refused. Wait on the identity the response replaced it
+with (`.lf-thread:not([data-id^="pending:"])`) or enclose the gesture in
+`sending`. Where the refusal under test is a request failure the outbox retries
+rather than settles, the identity is the only one of the two that answers:
+`round_trip` inside `sending` waits out its whole deadline on it
+(`test_the_captured_quote_is_prose_a_file_can_hold`).
+
 A retrying assertion that a paint has not happened is the same trap with the
 other sign, and worse: a negative assertion is satisfied by the first poll, and
 the first poll is before the frame. Wait on a positive fact the same frame

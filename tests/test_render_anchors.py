@@ -1160,13 +1160,32 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # And the round trip that proves it: the server has to accept the quote and write it
     # to a UTF-8 file. A half character fails there, reported to the reader as an offline
     # server, and no retry can ever succeed.
+    #
+    # So the card alone is not the fact to wait on: it is painted the turn the comment is
+    # sent, under an identity the response replaces. `sending` cannot stand in for that
+    # identity here — the refusal this test guards against is a request failure the
+    # outbox retries rather than settles, so its trip would sit out its whole deadline
+    # instead of reporting what the reader was told.
+    #
+    # The composer prints the quote inside quotation marks; what it captured is what
+    # lies within them, and that is what the file has to come back holding.
+    captured = composer_quote(page)["text"].strip("\u201c\u201d")
     page.locator(".lf-composer textarea").fill("a comment on the capped passage")
     page.keyboard.press("ControlOrMeta+Enter")
-    page.wait_for_function("""() => document.querySelectorAll('.lf-thread').length === 1
+    settled = page.locator('.lf-thread:not([data-id^="pending:"])')
+    page.wait_for_function("""() => document.querySelectorAll(
+            '.lf-thread:not([data-id^="pending:"])').length === 1
         || document.querySelector('.lf-notice').classList.contains('show')""")
-    assert page.locator(".lf-thread").count() == 1, (
+    assert settled.count() == 1, (
         f"the comment never posted — the page says {page.locator('.lf-notice').text_content()!r}"
     )
+
+    # And the file behind that answer, read back through Python's UTF-8 decoder, which is
+    # the reader a half character has no bytes for.
+    comments = [
+        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+    ]
+    assert [comment["anchor"]["quote"] for comment in comments] == [captured]
 
 
 def test_an_open_composer_does_not_eat_the_next_click(browser, serve):

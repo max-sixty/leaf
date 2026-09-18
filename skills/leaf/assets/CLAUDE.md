@@ -727,8 +727,13 @@ a state the reader must return to or act on, such as failure.
 
 Where the page can produce that result itself, it produces it in the gesture. A
 suggestion decision paints its projected outcome; a comment or reply paints the message
-and opens its thread. The application overlays pending work on the log and restores
-authoritative state on refusal. The content and its Undo control are the confirmation,
+and opens its thread. Drawing the result moves the words, so the box they were written
+in reads empty in that same turn. The reader's answer stands on screen once, rather than
+beside a copy of itself still waiting to be sent. The generation is unsettled until the
+log answers, and a refusal returns it to the box. The runtime's send owns both halves
+(`standGesture`), so no box empties or refills itself.
+The application overlays pending work on the log and restores authoritative state on
+refusal. The content and its Undo control are the confirmation,
 so neither path needs a success notice; announce the same outcome for a reader listening
 to the page. For a message that announcement is `post`'s, made where the gesture is first
 known to be a message, so a box that sends one adds no second announcement. A box whose

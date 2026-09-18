@@ -79,11 +79,19 @@ export function createConversationPresentation({
         // leaves this one returning early, so waiting on the reading it started would
         // commit over a page still being written — and would drop that reading's failure,
         // which has no other ticket to travel on.
+        //
+        // A superseded reading rejects rather than returning, so leaving on the first
+        // rejection would settle the ticket on a reading the page has already discarded
+        // while its replacement writes the region — the same commit-too-early on the
+        // failure path. Keep the first failure and raise it once the region is quiet,
+        // which is the first-failure the pass reports anyway.
+        let failure = null;
         let awaited = null;
         while (awaited !== latestRender) {
           awaited = latestRender;
-          await awaited;
+          await awaited.catch((error) => (failure ??= error));
         }
+        if (failure) throw failure;
       } finally {
         painting = false;
       }

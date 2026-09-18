@@ -141,9 +141,9 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert face["radius"] == button_radius(page)
     assert face["radius"] != circle_radius
     # The mark stands on the disc, so it reads against the disc rather than against the
-    # ink every injected control inherits from the chrome. The two rules that say so sit
-    # in different sheets, and the chrome's cascades last, so this is a specificity
-    # contest the disc has to win: losing it drew the mark near black on the accent.
+    # ink every injected control takes from the shared face. Both rules are the theme's,
+    # and this one wins by coming after it; when the face was stated in the adopted sheet
+    # instead, it outranked this rule and drew the mark near black on the accent.
     assert face["fill"] == token_colour(page, "--accent")
     assert face["glyph"] == token_colour(page, "--paper")
     page.keyboard.press("Tab")

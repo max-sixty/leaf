@@ -1188,7 +1188,7 @@ def live_leaf(tmp_path, monkeypatch):
             cwd=str(tmp_path / f"{name}-work"),
         )
         httpd = hosting_model.LeafHTTPServer(
-            ("127.0.0.1", 0), http_model.handler_for(d, TOKEN)
+            ("127.0.0.1", 0), http_model.page_endpoint(d, TOKEN)
         )
         servers.enter_context(running_http_server(httpd))
         port = httpd.server_address[1]

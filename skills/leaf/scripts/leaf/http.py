@@ -11,9 +11,10 @@ import re
 import secrets
 import time
 from collections.abc import Mapping
+from functools import partial
 from http.cookies import SimpleCookie
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs
 
 import anyio
 from starlette.concurrency import run_in_threadpool
@@ -402,63 +403,94 @@ def supervised_document(
     return (source[:offset] + supervised + source[offset:]).encode()
 
 
-class Handler:
+class PageEndpoint:
     """One request against one page, from its arrival to the response it becomes.
 
-    An instance is made per request by `page_app` and thrown away with it, so the
-    routes below read the request off `self` and leave their answer there. The
-    transport underneath is uvicorn's: framing, keep-alive, the peer that closes
-    mid-answer, and the body a route never asked for are its business, not this
-    file's. What stays here is the page's own boundary — selection, the key, the
-    layer gate, and the faults a banner has to be able to show.
+    `page_app` makes one per request and throws it away with it, so the routes below
+    read the request off `self` and return the response they answer with. The transport
+    underneath is uvicorn's: framing, keep-alive, the peer that closes mid-answer, and
+    the body a route never asked for are its business, not this file's. What stays here
+    is the page's own boundary — selection, the key, the layer gate, and the faults a
+    banner has to be able to show.
     """
 
-    page_dir = None
-    token = None
-    server_id = secrets.token_hex(16)
-    # Set by `authorized` when the key arrived in the query, cleared by the one
-    # writer that spends it.
-    set_cookie = False
-    page_snapshot = None
-    # Empty on the ordinary one-page server. The MCP delivery server sets this to
-    # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
-    page_root = ""
-    # Published website pages use the complete server contract without a Leaf work
-    # claim. Their banner reads this explicit presentation fact instead of mistaking
-    # the deliberately unattended page for an abandoned ordinary Leaf.
-    publication = None
-    # A website release spans its document, static layer and container image. Ordinary
-    # page servers have no release boundary beyond their vendored layer.
-    release = None
+    # One value for the whole transport rather than a per-request binding: the MCP
+    # delivery server clears it, because it serves into a frame it cannot name.
     frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
-    def __init__(self, request: Request, server) -> None:
+    def __init__(
+        self,
+        request: Request,
+        server,
+        *,
+        page_dir: Path | None = None,
+        token: str | None = None,
+        layer_identity: dict | None = None,
+        preview: dict | None = None,
+        page_snapshot=None,
+        publication=None,
+        release: str | None = None,
+        page_root: str = "",
+    ) -> None:
         self.request = request
         self.server = server
-        self.command = request.method
-        query = request.url.query
-        # The whole request target, because `_select_page` rewrites it: a multiplexed
-        # transport strips its own prefix here and every route below reads the page's
-        # own address, query included.
-        self.path = request.url.path + (f"?{query}" if query else "")
+        self.method = request.method
         self.headers = request.headers
-        self.response = None
-        self.close_connection = False
-        self._headers: list[tuple[str, str]] = []
+        # Path and query apart, because `_select_page` rewrites the path: a multiplexed
+        # transport strips its own prefix there and every route below reads the page's
+        # own address, while the query it arrived with is untouched either way.
+        self.path = request.url.path
+        self.query = parse_qs(request.url.query)
+        # The page this request is against. A one-page server binds it here for the
+        # life of the server, through `page_endpoint`; a multiplexed transport binds
+        # each request in `_select_page`, from the address it arrived at.
+        self.page_dir = page_dir
+        self.token = token
+        self.layer_identity = layer_identity
+        self.preview = preview
+        self.page_snapshot = page_snapshot
+        # Published website pages use the complete server contract without a Leaf work
+        # claim. Their banner reads this explicit presentation fact instead of mistaking
+        # the deliberately unattended page for an abandoned ordinary Leaf.
+        self.publication = publication
+        # A website release spans its document, static layer and container image.
+        # Ordinary page servers have no release boundary beyond their vendored layer.
+        self.release = release
+        # Empty on the ordinary one-page server. The MCP delivery server sets this to
+        # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
+        self.page_root = page_root
+        # The generation this answer speaks, which a route narrows to the revision it
+        # actually served.
+        self.response_layer = self.layer
+        # Set by `authorized` when the key arrived in the query.
+        self.set_cookie = False
+        # A declared body this request never drained. Those bytes would be read as the
+        # next request line on a reused connection, so the answer has to end it.
+        self.body_unread = False
+
+    @property
+    def layer(self) -> str:
+        """The generation the bound page's vendored layer was composed at.
+
+        Derived rather than stored, so binding a page in `_select_page` cannot leave
+        a second copy of it behind. Empty until a multiplexed transport has bound one.
+        """
+        return self.layer_identity["generation"] if self.layer_identity else ""
 
     def respond(self) -> Response:
         """Answer this request, on a worker thread of the serving loop's own pool."""
-        if self.command == "GET":
-            self._answer(self._get)
-        elif self.command == "POST":
-            self._answer(self._post, prepare=self._read_posted)
+        if self.method == "GET":
+            answer = self._answer(self._get)
+        elif self.method == "POST":
+            answer = self._answer(self._post, prepare=self._read_posted)
         else:
-            self._json({"error": f"unsupported method {self.command}"}, 501)
-        if self.response is None:
+            answer = self._json({"error": f"unsupported method {self.method}"}, 501)
+        if answer is None:
             # A route that returned without answering. Nothing sensible is left to
             # say, and the peer is owed a status rather than a dropped connection.
             return Response(b"", status_code=500)
-        return self.response
+        answer.headers.update(self._delivery_headers())
+        return answer
 
     def read_body(self, limit: int | None = None) -> bytes | None:
         """The request body, read from inside the route that has earned it, and
@@ -479,9 +511,6 @@ class Handler:
             return bytes(body)
 
         return anyio.from_thread.run(read)
-
-    def send_header(self, name: str, value: str) -> None:
-        self._headers.append((name, value))
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -519,7 +548,7 @@ class Handler:
         raw = (
             self.headers.get("Leaf-View-Revision")
             if header
-            else parse_qs(urlsplit(self.path).query).get("revision", [None])[-1]
+            else self.query.get("revision", [None])[-1]
             or self.headers.get("Leaf-View-Revision")
         )
         if raw in (None, ""):
@@ -527,20 +556,19 @@ class Handler:
         return _query_int(raw, "view revision", 1)
 
     def requested_view_sequence(self) -> int:
-        raw = parse_qs(urlsplit(self.path).query).get("through_seq", [None])[-1]
+        raw = self.query.get("through_seq", [None])[-1]
         if raw in (None, ""):
             raise ValueError("view sequence is required")
         return _query_int(raw, "view sequence", 0)
 
     def data_fragment(self) -> dict:
         """One contract-declared payload from the data revision the tab holds."""
-        query = parse_qs(urlsplit(self.path).query)
         data_revision = _query_int(
-            query.get("data_revision", [None])[-1], "data_revision", 0
+            self.query.get("data_revision", [None])[-1], "data_revision", 0
         )
-        source = query.get("source", [None])[-1]
-        key = query.get("key", [None])[-1]
-        snapshot = query.get("snapshot", [None])[-1]
+        source = self.query.get("source", [None])[-1]
+        key = self.query.get("key", [None])[-1]
+        snapshot = self.query.get("snapshot", [None])[-1]
         if not isinstance(source, str) or not source:
             raise ValueError("source is required")
         if not isinstance(key, str) or not key:
@@ -581,7 +609,7 @@ class Handler:
                 snapshot_id=snapshot,
             )
 
-    def _news(self) -> None:
+    def _news(self) -> StreamingResponse:
         """The page's reading, named on an open stream each time it changes.
 
         What a tab listens on instead of asking on a timer. The stream carries no
@@ -606,17 +634,14 @@ class Handler:
         transport reports without this loop watching the socket for it. `ALIVE_S` is
         the whole of the keepalive, so the stream carries no comment frames beside it.
         """
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.response = StreamingResponse(
+        return StreamingResponse(
             self._readings(),
             media_type="text/event-stream",
-            headers=dict(self._headers),
+            headers={"Cache-Control": "no-store"},
         )
 
     async def _readings(self):
         """Every reading this stream owes its listener, as each becomes true."""
-        cls = type(self)
         said = files_said = presence = None
         looked = spoke = 0.0
         try:
@@ -638,10 +663,12 @@ class Handler:
                 # one is a browser the page already counts as holding it open.
                 if (
                     self.page_snapshot is None
-                    and time.time() - getattr(cls, "viewed_at", 0) > 30
+                    and time.time() - self.server.viewed_at > 30
                 ):
-                    cls.viewed_at = time.time()
-                    write_json(self.page_dir / VIEWED_FILE, {"t": cls.viewed_at})
+                    self.server.viewed_at = time.time()
+                    write_json(
+                        self.page_dir / VIEWED_FILE, {"t": self.server.viewed_at}
+                    )
                 if reading != said or now - spoke >= ALIVE_S:
                     yield f"data: {reading}\n\n"
                     said, files_said, spoke = reading, files, now
@@ -658,9 +685,7 @@ class Handler:
         relative and carry no query, and a reader who reloads or bookmarks the bare
         address is the same reader. So nothing has to thread the key through the
         page, and `leaf.js` never learns there is one."""
-        if secrets.compare_digest(
-            parse_qs(urlsplit(self.path).query).get("t", [""])[0], self.token
-        ):
+        if secrets.compare_digest(self.query.get("t", [""])[0], self.token):
             self.set_cookie = True
         else:
             jar = SimpleCookie(self.headers.get("Cookie", ""))
@@ -670,30 +695,35 @@ class Handler:
                 return False
         return True
 
-    def end_headers(self):
-        # Every response ends here — answered, redirected, or refused — so the
-        # cookie has one writer rather than one per path that sends a header.
-        path = urlsplit(self.path).path
-        if path.startswith(("/api/", "/versions/", "/revisions/")) or path in {
-            "/registry.json",
-            "/",
-        }:
-            self.send_header("Leaf-Layer", getattr(self, "response_layer", self.layer))
-            self.send_header("Leaf-Server", self.server_id)
+    def _delivery_headers(self) -> dict[str, str]:
+        """What every response carries, whichever route it came from.
+
+        Answered or refused, a response passes through here exactly once, so the
+        delivery identity and the key cookie have one writer rather than one per
+        route that remembers them.
+        """
+        headers = {}
+        if self.path.startswith(
+            ("/api/", "/versions/", "/revisions/")
+        ) or self.path in {"/registry.json", "/"}:
+            headers["Leaf-Layer"] = self.response_layer
+            headers["Leaf-Server"] = self.server.server_id
             if self.release is not None:
-                self.send_header("Leaf-Release", self.release)
+                headers["Leaf-Release"] = self.release
         if self.set_cookie:
-            self.send_header(
-                "Set-Cookie",
-                f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; SameSite=Strict",
+            headers["Set-Cookie"] = (
+                f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; SameSite=Strict"
             )
-            self.set_cookie = False
+        if self.body_unread:
+            headers["Connection"] = "close"
         # Data and media are distinct from executable page source. Strict MIME
         # handling keeps a response from becoming code merely because authored
         # JavaScript tries to import it.
-        self.send_header("X-Content-Type-Options", "nosniff")
+        headers["X-Content-Type-Options"] = "nosniff"
+        return headers
 
-    def _send(self, status: int, ctype: str, body: bytes) -> None:
+    def _content(self, status: int, ctype: str, body: bytes) -> Response:
+        """One body, its Leaf routes rewritten for wherever this page is mounted."""
         is_html = ctype.startswith("text/html")
         if is_html:
             body = scope_document_routes(body, self.page_root)
@@ -701,20 +731,13 @@ class Handler:
             body = scope_stylesheet_routes(body, self.page_root)
         elif ctype.startswith(("text/javascript", "application/javascript")):
             body = scope_script_routes(body, self.page_root)
-        self._headers = []
-        self.send_header("Content-Type", ctype)
-        self.send_header("Cache-Control", "no-store")
+        headers = {"Content-Type": ctype, "Cache-Control": "no-store"}
         if is_html and self.frame_ancestors_policy:
-            self.send_header("Content-Security-Policy", self.frame_ancestors_policy)
-        if self.close_connection:
-            # A declared body this route refused to read leaves the connection
-            # unsafe to reuse: those bytes would be read as the next request.
-            self.send_header("Connection", "close")
-        self.end_headers()
-        self.response = Response(body, status_code=status, headers=dict(self._headers))
+            headers["Content-Security-Policy"] = self.frame_ancestors_policy
+        return Response(body, status_code=status, headers=headers)
 
-    def _json(self, obj, status: int = 200) -> None:
-        self._send(
+    def _json(self, obj, status: int = 200) -> Response:
+        return self._content(
             status,
             "application/json",
             json.dumps(
@@ -722,20 +745,21 @@ class Handler:
             ).encode(),
         )
 
-    def _select_page(self) -> bool | None:
+    def _select_page(self) -> Response | None:
         """Bind this request to a page before entering its HTTP boundary.
 
-        A one-page server is already bound by its handler class. Multiplexed
-        transports override this hook and return false for an unknown route, or
-        ``None`` after answering a transport-owned route such as a health check.
+        A one-page server is bound already, by the constructor `page_endpoint` binds.
+        Multiplexed transports override this hook and answer instead of binding: with
+        the refusal an unknown route has earned, or with a transport-owned route's own
+        response, such as a health check.
         """
-        return True
+        return None
 
-    def _not_found(self) -> None:
+    def _not_found(self) -> Response:
         # An unread body makes the connection unsafe to reuse.
         if self.headers.get("Content-Length") or self.headers.get("Transfer-Encoding"):
-            self.close_connection = True
-        self._json({"error": "not found"}, 404)
+            self.body_unread = True
+        return self._json({"error": "not found"}, 404)
 
     def _read_posted(self) -> tuple:
         """The route's POSTed body, or the refusal it has already earned.
@@ -744,7 +768,7 @@ class Handler:
         Each earns a deterministic refusal; an unexpected exception remains inside
         `_answer`, where the event outbox treats it as retryable.
         """
-        if urlsplit(self.path).path == "/api/media":
+        if self.path == "/api/media":
             return self._read_uploaded_media()
         # A declared length the door will not take, refused before the read rather
         # than after it: an event is prose, markup and passages, and a body past this
@@ -754,7 +778,7 @@ class Handler:
         if int(self.headers.get("Content-Length", 0)) <= MAX_MEDIA_UPLOAD_BYTES:
             body = self.read_body(MAX_MEDIA_UPLOAD_BYTES)
         if body is None:
-            self.close_connection = True
+            self.body_unread = True
             return {}, "event exceeds the 10 MiB limit"
         try:
             posted = json.loads(body, parse_constant=reject_json_constant)
@@ -769,68 +793,62 @@ class Handler:
         try:
             length = int(self.headers.get("Content-Length", ""))
         except (TypeError, ValueError):
-            self.close_connection = True
+            self.body_unread = True
             return b"", "invalid Content-Length"
         if length < 1:
-            self.close_connection = True
+            self.body_unread = True
             return b"", "image body is empty"
         if length > MAX_MEDIA_UPLOAD_BYTES:
-            self.close_connection = True
+            self.body_unread = True
             return b"", "image exceeds the 10 MiB limit"
         body = self.read_body()
         if len(body) != length:
-            self.close_connection = True
+            self.body_unread = True
             return b"", "incomplete image body"
         return body, None
 
-    def _refuse(self, error: str, status: int = 400) -> None:
+    def _refuse(self, error: str, status: int = 400) -> Response:
         """Answer a refusal in the shape spoken by the route that produced it."""
-        if self.command == "POST" and urlsplit(self.path).path == "/api/event":
+        if self.method == "POST" and self.path == "/api/event":
             status, body = event_rejection(self.posted, error, status)
-            self._json(body, status)
-        else:
-            self._json({"error": error}, status)
+            return self._json(body, status)
+        return self._json({"error": error}, status)
 
-    def _answer(self, route, prepare=None) -> None:
+    def _answer(self, route, prepare=None) -> Response | None:
         """One boundary for page selection, authorization, preparation, and faults.
 
         Unanswered, a fault would reach the transport, which has no page to say it
         about — and the banner would read "Server offline" about a server that is
         up. So every fault becomes a 500 naming itself, which the banner can show to
-        the one person still looking. The key is checked here for `end_headers`'s
+        the one person still looking. The key is checked here for `_delivery_headers`'s
         reason: every request passes through, so there is one gate rather than one
         per method, and a route added later cannot be the one that forgot to ask.
         POST preparation is deliberately after that gate, so an unknown peer cannot
         choose a body-read cost.
         """
         prepared = False
-        self.response_layer = self.layer
         try:
-            selected = self._select_page()
-            if selected is None:
-                return
-            if not selected:
-                self._not_found()
-                return
+            answered = self._select_page()
+            if answered is not None:
+                return answered
             if prepare:
                 self.posted, self.posted_error = {}, None
             if not self.authorized():
                 if prepare:
-                    self.close_connection = True
-                self._refuse(NO_KEY, 403)
-                return
+                    self.body_unread = True
+                return self._refuse(NO_KEY, 403)
             if prepare:
                 self.posted, self.posted_error = prepare()
                 prepared = True
-            route()
+            return route()
         except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
             # Not a refusal: a fault may have landed either side of the append, so the
             # browser must retry the same attempt instead of putting its gesture back.
             if prepare and not prepared:
-                self.close_connection = True
-            self._json({"error": f"{type(error).__name__}: {error}"}, 500)
+                self.body_unread = True
+            return self._json({"error": f"{type(error).__name__}: {error}"}, 500)
 
-    def _serve_root(self) -> None:
+    def _serve_root(self) -> Response:
         if self.page_snapshot is not None:
             revision = self.page_snapshot.active["revision"]
             artifact = self.page_snapshot.artifacts[revision]
@@ -841,11 +859,10 @@ class Handler:
                 events = page.events
             revision = latest_revision(self.page_dir)
             if revision is None:
-                self._json({"error": missing_revision(self.page_dir)}, 404)
-                return
+                return self._json({"error": missing_revision(self.page_dir)}, 404)
             artifact = read_artifact(self.page_dir, revision)
             version = stamped_version(events, revision)
-        self._send_document(artifact, revision, version)
+        return self._serve_document(artifact, revision, version)
 
     def _revision_name(self, revision: int) -> str:
         if self.page_snapshot is not None:
@@ -861,9 +878,9 @@ class Handler:
         name = self._revision_name(revision).removesuffix(".html")
         return self.page_root.rstrip("/") + f"/revisions/{name}"
 
-    def _send_document(
+    def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
-    ) -> None:
+    ) -> Response:
         """Serve one immutable document under the current delivery boundary."""
         try:
             self.response_layer = artifact.registry["$layer"]["generation"]
@@ -875,7 +892,7 @@ class Handler:
                 version,
                 executable=artifact.executable,
                 widgets=artifact.widgets,
-                server_id=self.server_id,
+                server_id=self.server.server_id,
                 layer_id=artifact.registry["$layer"]["generation"],
                 resources=artifact.resources,
                 release_id=self.release,
@@ -884,18 +901,17 @@ class Handler:
                 before_runtime=self._document_head(),
             )
         except ValueError as error:
-            self._json({"error": str(error)}, 500)
-            return
-        self._send(200, "text/html; charset=utf-8", projected)
+            return self._json({"error": str(error)}, 500)
+        return self._content(200, "text/html; charset=utf-8", projected)
 
-    def _serve_artifact_resource(self, path: str) -> bool:
+    def _serve_artifact_resource(self) -> Response | None:
         match = re.fullmatch(
             r"/revisions/(?P<name>r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16})/"
             r"(?P<resource>.+)",
-            path,
+            self.path,
         )
         if match is None:
-            return False
+            return None
         revision = int(match.group("revision"))
         revisions = (
             set(self.page_snapshot.artifacts)
@@ -903,15 +919,15 @@ class Handler:
             else set(list_revisions(self.page_dir))
         )
         if revision not in revisions:
-            return False
+            return None
         expected = self._revision_name(revision).removesuffix(".html")
         if match.group("name") != expected:
-            return False
+            return None
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
         logical = "/" + match.group("resource")
         if probe_source := PROBE_SOURCES.get(logical):
-            self._send(
+            return self._content(
                 200,
                 "text/javascript; charset=utf-8",
                 scope_script_routes(
@@ -920,7 +936,6 @@ class Handler:
                     asset_root=self._artifact_root(revision),
                 ),
             )
-            return True
         source = logical
         widget = re.fullmatch(r"/widgets/(?P<tag>lf-[a-z0-9-]+)\.js", logical)
         if widget is not None:
@@ -929,15 +944,14 @@ class Handler:
                 source = implementation["path"]
         if source != logical:
             target = json.dumps(self._artifact_root(revision) + source)
-            self._send(
+            return self._content(
                 200,
                 "application/javascript; charset=utf-8",
                 f"export * from {target};\n".encode(),
             )
-            return True
         resource = artifact.resources.get(source)
         if resource is None:
-            return False
+            return None
         root = self._artifact_root(revision)
         body = deliver_resource(resource, source, root)
         if resource.mime == "application/javascript" and not source.startswith(
@@ -949,16 +963,17 @@ class Handler:
         ctype = resource.mime
         if ctype not in BINARY_TYPES:
             ctype += "; charset=utf-8"
-        self._send(200, ctype, body)
-        return True
+        return self._content(200, ctype, body)
 
     def _document_head(self) -> str:
         """Transport-specific delivery metadata inserted before the runtime entry."""
         return ""
 
-    def _serve_page_path(self, path: str) -> bool:
-        if self._serve_artifact_resource(path):
-            return True
+    def _serve_page_path(self) -> Response | None:
+        path = self.path
+        served = self._serve_artifact_resource()
+        if served is not None:
+            return served
         if path.startswith("/versions/"):
             version = version_num(Path(path).name)
             events = (
@@ -973,21 +988,18 @@ class Handler:
                 else set(published_versions(self.page_dir, events))
             )
             if version not in published:
-                self._json(
+                return self._json(
                     {"error": "not stamped yet; run `leaf version stamp` first"},
                     404,
                 )
-                return True
             artifact = self._artifact(mapping[version])
-            self._send_document(artifact, mapping[version], version)
-            return True
+            return self._serve_document(artifact, mapping[version], version)
         if path.startswith("/revisions/"):
             if (
                 re.fullmatch(r"/revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html", path)
                 is None
             ):
-                self._json({"error": "unknown revision resource"}, 404)
-                return True
+                return self._json({"error": "unknown revision resource"}, 404)
             name = Path(path).name
             revision = revision_num(name)
             revisions = (
@@ -996,24 +1008,23 @@ class Handler:
                 else set(list_revisions(self.page_dir))
             )
             if revision not in revisions:
-                self._json({"error": "unknown revision"}, 404)
-                return True
+                return self._json({"error": "unknown revision"}, 404)
             expected_name = (
                 self.page_snapshot.revision_names.get(revision)
                 if self.page_snapshot is not None
                 else revision_path(self.page_dir, revision).name
             )
             if expected_name != name:
-                self._json({"error": "unknown revision"}, 404)
-                return True
+                return self._json({"error": "unknown revision"}, 404)
             artifact = self._artifact(revision)
             events = (
                 list(self.page_snapshot.events)
                 if self.page_snapshot is not None
                 else read_events(self.page_dir)
             )
-            self._send_document(artifact, revision, stamped_version(events, revision))
-            return True
+            return self._serve_document(
+                artifact, revision, stamped_version(events, revision)
+            )
         if path == "/registry.json":
             revision = (
                 self.page_snapshot.active["revision"]
@@ -1021,11 +1032,10 @@ class Handler:
                 else latest_revision(self.page_dir)
             )
             if revision is None:
-                return False
+                return None
             registry = self._artifact(revision).registry
             self.response_layer = registry["$layer"]["generation"]
-            self._json(registry)
-            return True
+            return self._json(registry)
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
         # boundary for a page directory edited or symlinked after vendoring.
@@ -1035,46 +1045,38 @@ class Handler:
             # have one. On a PNG it is noise.
             if ctype not in BINARY_TYPES:
                 ctype += "; charset=utf-8"
-            self._send(200, ctype, file.read_bytes())
-            return True
-        return False
+            return self._content(200, ctype, file.read_bytes())
+        return None
 
-    def _get(self):
-        path = urlsplit(self.path).path
+    def _get(self) -> Response | None:
+        path = self.path
         if probe_source := PROBE_SOURCES.get(path):
-            self._send(
+            return self._content(
                 200,
                 "text/javascript; charset=utf-8",
                 probe_source.read_bytes(),
             )
-            return
         if path == "/":
-            self._serve_root()
-            return
+            return self._serve_root()
         if path == "/api/news":
-            self._news()
-            return
+            return self._news()
         if path == "/api/state":
-            # Versions pass through the handler's own view, so a preview state
+            # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.
             try:
                 revision = self.requested_view_revision()
                 state = self.page_state(revision)
                 self.response_layer = state["layer"]["generation"]
             except ValueError as error:
-                self._json({"error": str(error)}, 400)
-                return
-            self._json(state)
-            return
+                return self._json({"error": str(error)}, 400)
+            return self._json(state)
         if path == "/api/data":
             try:
                 fragment = self.data_fragment()
             except (DataError, ValueError) as error:
                 status = 409 if " is stale; current revision is " in str(error) else 400
-                self._json({"error": str(error)}, status)
-                return
-            self._json(fragment)
-            return
+                return self._json({"error": str(error)}, status)
+            return self._json(fragment)
         if path == "/api/view":
             try:
                 revision = self.requested_view_revision()
@@ -1086,44 +1088,37 @@ class Handler:
                     "generation"
                 ]
             except ValueError as error:
-                self._json({"error": str(error)}, 400)
-                return
-            self._json({"browser": browser})
-            return
+                return self._json({"error": str(error)}, 400)
+            return self._json({"browser": browser})
         # Browsers ask for this unprompted, and go on asking where nothing in the
         # markup names an icon — the runtime's link is written as the chrome is built,
         # which is after the parse. Answering "no content" rather than letting it fall
         # through to 404 keeps the console clean, which is what makes an empty console
         # worth asserting on (the browser render suite).
         if path == "/favicon.ico":
-            self._send(204, "image/x-icon", b"")
-            return
-        if (
-            path.startswith("/revisions/") or SERVED_PATH.fullmatch(path)
-        ) and self._serve_page_path(path):
-            return
-        self._json({"error": "not found"}, 404)
+            return self._content(204, "image/x-icon", b"")
+        if path.startswith("/revisions/") or SERVED_PATH.fullmatch(path):
+            served = self._serve_page_path()
+            if served is not None:
+                return served
+        return self._json({"error": "not found"}, 404)
 
-    def _post(self):
-        path = urlsplit(self.path).path
+    def _post(self) -> Response | None:
+        path = self.path
         if path not in {"/api/event", "/api/media"}:
-            self._json({"error": "not found"}, 404)
-            return
+            return self._json({"error": "not found"}, 404)
         # Preview requests have passed authentication and body preparation. An event
         # refusal can therefore name its attempt; media uses the route's generic shape.
         if self.page_snapshot is not None:
-            self._refuse("the preview server is read-only", 403)
-            return
+            return self._refuse("the preview server is read-only", 403)
         try:
             view_revision = self.requested_view_revision(header=True)
         except ValueError as error:
-            self._refuse(str(error))
-            return
+            return self._refuse(str(error))
         if view_revision is not None and view_revision not in list_revisions(
             self.page_dir
         ):
-            self._refuse(f"unknown view revision r{view_revision}")
-            return
+            return self._refuse(f"unknown view revision r{view_revision}")
         if view_revision is not None:
             current_layer = self._artifact(view_revision).registry["$layer"][
                 "generation"
@@ -1139,11 +1134,9 @@ class Handler:
         if self.headers.get("Leaf-Layer") != current_layer:
             # Preparation already consumed the body. A stale runtime needs the
             # current generation, not a verdict in a vocabulary it no longer speaks.
-            self._json({"layer": current_layer})
-            return
+            return self._json({"layer": current_layer})
         if self.posted_error:
-            self._refuse(self.posted_error)
-            return
+            return self._refuse(self.posted_error)
         if path == "/api/media":
             try:
                 media_path = store_uploaded_media(
@@ -1152,61 +1145,56 @@ class Handler:
                     self.headers.get("Content-Type", ""),
                 )
             except MediaUploadError as error:
-                self._refuse(str(error))
-                return
-            self._json({"path": media_path})
-            return
+                return self._refuse(str(error))
+            return self._json({"path": media_path})
         status, answer = accept_event(
             self.page_dir, self.posted, lambda: self.page_state(view_revision)
         )
-        self._json(answer, status)
+        return self._json(answer, status)
 
 
-def handler_for(
+def page_endpoint(
     page_dir: Path,
     token: str,
     page_snapshot=None,
     publication=None,
-):
-    """A request handler bound to one page, publication view, and key. The key has no
-    default: every server over a page directory is reachable by whatever reached the
-    machine, so there is no construction that should quietly go without one."""
+    endpoint: type[PageEndpoint] = PageEndpoint,
+) -> partial[PageEndpoint]:
+    """Bind one page, publication view, and key to the endpoint each request becomes.
+
+    The layer identity and the preview reading are read once here rather than per
+    request: they are facts about the vendored page this server was started over. The
+    key has no default: every server over a page directory is reachable by whatever
+    reached the machine, so there is no construction that should quietly go without
+    one."""
     identity = (
         page_snapshot.layer if page_snapshot is not None else layer_metadata(page_dir)
     )
-    return type(
-        "PageHandler",
-        (Handler,),
-        {
-            "page_dir": page_dir,
-            "token": token,
-            "server_id": secrets.token_hex(16),
-            "bootstrap": (page_dir / "runtime" / "bootstrap.js").read_text(
-                encoding="utf-8"
-            ),
-            "page_snapshot": page_snapshot,
-            "layer": identity["generation"],
-            "layer_identity": identity,
-            "preview": preview_metadata(page_dir),
-            "publication": publication,
-        },
+    return partial(
+        endpoint,
+        page_dir=page_dir,
+        token=token,
+        layer_identity=identity,
+        preview=preview_metadata(page_dir),
+        page_snapshot=page_snapshot,
+        publication=publication,
     )
 
 
-def page_app(handler_class, server):
-    """The ASGI application one handler class serves, on one server's behalf.
+def page_app(endpoint, server):
+    """The ASGI application one bound endpoint serves, on one server's behalf.
 
-    Every request becomes a `Handler` and nothing else: no state crosses between
-    two of them. The routes are ordinary blocking code — page transactions, log
-    reads, atomic writes — so they run on the serving loop's worker threads, and
+    Every request becomes its own `PageEndpoint` and nothing else: no state crosses
+    between two of them. The routes are ordinary blocking code — page transactions,
+    log reads, atomic writes — so they run on the serving loop's worker threads, and
     an open news stream is the one response that stays on the loop itself.
     """
 
     async def app(scope, receive, send) -> None:
         if scope["type"] != "http":
             raise ValueError(f"leaf serves HTTP, not {scope['type']}")
-        handler = handler_class(Request(scope, receive), server)
-        response = await run_in_threadpool(handler.respond)
+        answering = endpoint(Request(scope, receive), server)
+        response = await run_in_threadpool(answering.respond)
         await response(scope, receive, send)
 
     return app

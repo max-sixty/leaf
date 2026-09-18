@@ -262,17 +262,20 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     asked = threading.Event()
     release = threading.Event()
 
-    class Drops(http_model.handler_for(serve.page_dir, TOKEN)):
+    class Drops(http_model.PageEndpoint):
         """Answers everything but the Leaf entry, which it accepts and drops."""
 
         def _get(self):
-            if urlsplit(self.path).path.endswith("/leaf.js"):
+            if self.path.endswith("/leaf.js"):
                 asked.set()
                 release.wait()
-                return
-            super()._get()
+                return None
+            return super()._get()
 
-    httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Drops)
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0),
+        http_model.page_endpoint(serve.page_dir, TOKEN, endpoint=Drops),
+    )
     dropped = (
         urlsplit(served)
         ._replace(netloc=f"127.0.0.1:{httpd.server_address[1]}")
@@ -693,17 +696,17 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     release_answer = threading.Event()
     reload_committed = threading.Event()
     document_path = urlsplit(url).path
-    native_json = http_model.Handler._json
+    native_json = http_model.PageEndpoint._json
 
-    def hold_first_event_answer(handler, *args, **kwargs):
+    def hold_first_event_answer(endpoint, *args, **kwargs):
         if (
-            handler.command == "POST"
-            and urlsplit(handler.path).path == "/api/event"
+            endpoint.method == "POST"
+            and endpoint.path == "/api/event"
             and not answer_ready.is_set()
         ):
             answer_ready.set()
             release_answer.wait()
-        return native_json(handler, *args, **kwargs)
+        return native_json(endpoint, *args, **kwargs)
 
     def release_after_reload(frame):
         if (
@@ -714,7 +717,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
             reload_committed.set()
             release_answer.set()
 
-    monkeypatch.setattr(http_model.Handler, "_json", hold_first_event_answer)
+    monkeypatch.setattr(http_model.PageEndpoint, "_json", hold_first_event_answer)
     page.on("framenavigated", release_after_reload)
     try:
         page.locator(".lf-answer-all").first.click()

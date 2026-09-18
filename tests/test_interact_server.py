@@ -3319,7 +3319,7 @@ def test_neighbor_activity_cache_expires_when_status_loses_its_last_proof(
 def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
     """An idle server stops on request rather than outliving the call."""
     httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
+        ("127.0.0.1", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     try:
@@ -3379,13 +3379,13 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
     release = threading.Event()
     closed = threading.Event()
     responses = []
-    original_get = server.httpd.handler_class._get
+    original_get = http_model.PageEndpoint._get
 
-    def delayed_get(handler):
+    def delayed_get(endpoint):
         entered.set()
         release.wait()
         files_model.write_json(page_dir / "request-finished.json", {"done": True})
-        original_get(handler)
+        return original_get(endpoint)
 
     def request():
         responses.append(fetch(f"{server.origin}/api/state"))
@@ -3394,7 +3394,7 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         server.close()
         closed.set()
 
-    monkeypatch.setattr(server.httpd.handler_class, "_get", delayed_get)
+    monkeypatch.setattr(http_model.PageEndpoint, "_get", delayed_get)
     requester = threading.Thread(target=request, daemon=True)
     closer = threading.Thread(target=close, daemon=True)
     try:
@@ -3579,7 +3579,7 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
     # get to choose how much a handler allocates or park it waiting for bytes that never
     # arrive merely by declaring a large body before authentication.
     http11 = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
+        ("127.0.0.1", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
     with running_http_server(http11):
         peer = http.client.HTTPConnection(
@@ -3636,7 +3636,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     )
     preview = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
-        http_model.handler_for(
+        http_model.page_endpoint(
             page_dir,
             TOKEN,
             page_snapshot=snapshot,
@@ -3893,7 +3893,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     with hosting_model.TemporaryPageServer(
         page_dir,
         token=TOKEN,
-        handler_options={"page_snapshot": snapshot},
+        page_options={"page_snapshot": snapshot},
     ) as server:
         status, state = fetch(f"{server.origin}/api/state")
         assert status == 200
@@ -3938,7 +3938,7 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
         artifact=checked.artifact,
     )
     with hosting_model.TemporaryPageServer(
-        page_dir, token=TOKEN, handler_options={"page_snapshot": snapshot}
+        page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
         root = "/revisions/" + snapshot.revision_names[revision].removesuffix(".html")
         status, document = fetch(preview.origin + "/")
@@ -4199,7 +4199,7 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
         occupied.listen()
         with pytest.raises(OSError) as refused:
             hosting_model.LeafHTTPServer(
-                occupied.getsockname(), http_model.handler_for(page_dir, TOKEN)
+                occupied.getsockname(), http_model.page_endpoint(page_dir, TOKEN)
             )
     assert refused.value.errno == errno.EADDRINUSE
 
@@ -4211,7 +4211,7 @@ def test_the_stated_host_wildcard_accepts_an_ipv4_reader(page_dir):
     serve records answers only the readers who arrive over IPv6.
     """
     httpd = hosting_model.LeafHTTPServer(
-        ("::", 0), http_model.handler_for(page_dir, TOKEN)
+        ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
     assert httpd.socket.family == socket.AF_INET6
     with running_http_server(httpd):
@@ -4235,7 +4235,7 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
     monkeypatch.setattr(socket, "socket", kernel_without_ipv6)
     with pytest.raises(OSError) as refused:
         hosting_model.LeafHTTPServer(
-            ("fd7a:115c:a1e0::1", 0), http_model.handler_for(page_dir, TOKEN)
+            ("fd7a:115c:a1e0::1", 0), http_model.page_endpoint(page_dir, TOKEN)
         )
     # Name the errno, or the assertion is satisfied on a v6-capable machine by
     # EADDRNOTAVAIL from an address that is local nowhere — a bare OSError says
@@ -4243,7 +4243,7 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
     assert refused.value.errno == errno.EAFNOSUPPORT
 
     httpd = hosting_model.LeafHTTPServer(
-        ("::", 0), http_model.handler_for(page_dir, TOKEN)
+        ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
     try:
         assert httpd.socket.family == socket.AF_INET
@@ -4454,7 +4454,7 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
 
     servers = [
         hosting_model.LeafHTTPServer(
-            ("127.0.0.1", 0), http_model.handler_for(directory, key)
+            ("127.0.0.1", 0), http_model.page_endpoint(directory, key)
         )
         for directory in (page_dir, second)
     ]
@@ -4629,7 +4629,7 @@ def test_others_ships_on_a_network_facing_bind_too(page_dir):
     """Neighbour discovery is independent of the server's network-facing bind."""
     neighbour_page(host_model.state_home() / "pages" / "live", title="The other page")
     httpd = hosting_model.LeafHTTPServer(
-        ("0.0.0.0", 0), http_model.handler_for(page_dir, TOKEN)
+        ("0.0.0.0", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
     with running_http_server(httpd):
         port = httpd.server_address[1]

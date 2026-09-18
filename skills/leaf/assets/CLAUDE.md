@@ -236,7 +236,12 @@ which would move page modules after `DOMContentLoaded`;
 `runtime/chrome.css` is the comment layer's private stylesheet, which the boot module
 adopts, and keeps the chrome's paint hosts out of the containing-block chain for
 document-positioned chrome. It also keeps page-attached paint below covering auxiliary surfaces
-and paint for chrome targets above them.
+and paint for chrome targets above them. Being adopted, it cascades after `theme.css`
+and after every package theme concatenated onto it, so a face stated there at ordinary
+specificity beats each component's own rule and nothing renders to gate the loser: the
+shared vocabulary's faces belong in `theme.css`, and what stays here is what has to beat
+the page. A test relocates these rules to the front of the head and reads the corpus
+again, so anything winning on position rather than on its selectors is a failure.
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
 `theme.css` is the render-blocking default theme: the live shell's final page claims,

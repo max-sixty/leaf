@@ -8,7 +8,8 @@
    reading and stable identity is the registration plus entry key.
 
    Behavior, tone, rank, and interaction state are independent contributor axes. Reader
-   selection and agent workflow are independent presentation fields. Ordering follows
+   selection, agent workflow, and whose turn a reading waits on are independent
+   presentation fields, written by the projection rather than declared. Ordering follows
    interaction state, then rank, contribution key, and entry key. Registration and DOM
    order never decide which unrelated action becomes primary. */
 
@@ -417,6 +418,16 @@ export function syncMarginAgentWorkflow(control, receipt) {
 
 export function syncMarginEntrySelection(control, selected) {
   control.toggleAttribute("data-lf-target-selected", Boolean(selected));
+}
+
+// Whose word a reading is waiting on. Projection state like agent workflow, and written
+// the same way: the projection decides it, both surfaces paint the same attribute, and a
+// carrier that stops waiting loses it rather than keeping a stale colour. Only the
+// reader's turn is named, because that is the one a page has to point at; a thread with
+// the agent already says so through pickup and work.
+export function syncMarginTurn(control, awaitsReader) {
+  if (awaitsReader) keeps(control, "data-lf-turn", "reader");
+  else control.removeAttribute("data-lf-turn");
 }
 
 function iconFor(control, icon) {

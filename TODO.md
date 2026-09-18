@@ -99,6 +99,27 @@ ordering contract these items extend.
   choose deliberately or list the standing claims in the status disclosure with their
   subjects and ages.
 
+- **Settle what a margin entry's colour says about whose turn it is.** A thread reading
+  is now blue while `awaitsReader` holds and green while the agent is working on it, and
+  those two colours were chosen one at a time. Decide the scheme as one thing: whether
+  the reader's turn deserves a hue of its own rather than the accent's, and whether a
+  thread on nobody should say so at all. The third surface is the Threads panel's On you
+  facet chip, which declares an `lf-needs` class (`conversation/narrowing.js`) that no
+  stylesheet reads — a hook left for the colour this decision would give it.
+
+- **Decide whether a later agent turn should hide an earlier agent question.** With no
+  structural Ask, `_thread_awaits_reader` reads only the latest spoken turn, so a thread
+  whose root is an agent comment and whose latest spoken turn is an agent reply carrying
+  no `awaits` reads as on nobody, however plainly the root asked. A structural Ask
+  deliberately survives a later plain turn; the comment-is-a-question rule does not.
+  Either make the two agree or say why they should differ. This decides the banner's
+  count and the panel's On you filter as well as the margin, so it is one change in
+  `events.py`'s projection rather than a second reading beside it. No page in the corpus
+  stands that shape today, so seeding one is the first step and the evidence the
+  decision needs. The nearest thread, the feature gallery's `bg-resolved-text`, is both
+  answered and resolved, and `resolved` clears only on an explicit `unresolve`, so it is
+  not a shortcut to one.
+
 - **Decide whether delegated work may hold a reader move open across turns.** The Stop
   hook refuses to end a turn over an acknowledged move with no answer, so a coordinator
   replies with what it started before its worker runs. A live worker claim on the move's

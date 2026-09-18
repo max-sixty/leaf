@@ -721,6 +721,14 @@ receipts carry it beside the triggering message; thread cards do not repeat it a
 colored edge. Quiet or ended work releases the control. Reduced motion suppresses
 arrival, and repainting or replacing a carrier cannot replay it.
 
+A thread reading whose next word is the reader's wears the same two channels in blue —
+icon and interior — in Margin and in Page Map. It reads `awaitsReader`, the server's one
+answer to whose turn a conversation is, rather than deriving a second one. Agent workflow
+outranks it on the same carrier: live work is what the reader needs first, and one
+interior carries one wash. Colour is never the only channel, so the reading also says
+"On you" in its label and accessible name. An aggregated thread control takes the turn of
+any member, as it takes the most urgent member's workflow stage.
+
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
 a state the reader must return to or act on, such as failure.

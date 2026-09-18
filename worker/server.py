@@ -426,11 +426,12 @@ class HostedTurn:
         host,
         page_dir: Path,
         thread_id: str,
-        turn_id: str | None,
-        leaf_turn: str | None,
-        event_ids: tuple[str, ...],
-        reply_target: dict | None,
         delivery_id: str | None,
+        event_ids: tuple[str, ...],
+        *,
+        turn_id: str | None = None,
+        leaf_turn: str | None = None,
+        reply_target: dict | None = None,
     ):
         self.host = host
         self.page_dir = page_dir
@@ -931,11 +932,10 @@ class WebsiteCodexHost:
             if before_close is not None:
                 follow = before_close(socket, result, pending)
                 if follow is not None:
-                    thread_id = follow[1]
-                    self.following_threads.add(thread_id)
+                    self.following_threads.add(follow.thread_id)
                     threading.Thread(
                         target=self._run_follow_turn,
-                        args=(socket, *follow, tuple(pending)),
+                        args=(socket, follow, tuple(pending)),
                         daemon=True,
                     ).start()
                     followed = True
@@ -944,15 +944,20 @@ class WebsiteCodexHost:
             if not followed:
                 socket.close()
 
-    def _run_follow_turn(self, socket, *follow) -> None:
+    def _run_follow_turn(
+        self,
+        socket,
+        turn: HostedTurn,
+        initial_messages: tuple[dict, ...] = (),
+    ) -> None:
         """Hold one thread's delivery scheduling seat while its turn is observed."""
-        page_dir = follow[0]
-        thread_id = follow[1]
-        event_ids = follow[4]
+        page_dir = turn.page_dir
+        thread_id = turn.thread_id
+        event_ids = turn.event_ids
         continuation = None
         completed = False
         try:
-            self._follow_turn(socket, *follow)
+            self._follow_turn(turn, socket, initial_messages)
             completed = True
         finally:
             with self.lock:
@@ -1023,29 +1028,13 @@ class WebsiteCodexHost:
 
     def _follow_turn(
         self,
+        turn: HostedTurn,
         socket,
-        page_dir: Path,
-        thread_id: str,
-        turn_id: str | None,
-        leaf_turn: str | None,
-        event_ids: tuple[str, ...],
-        reply_target: dict | None = None,
-        delivery_id: str | None = None,
         initial_messages: tuple[dict, ...] = (),
     ) -> None:
         """Project notifications and account for the turn's terminal outcome."""
-        turn = HostedTurn(
-            self,
-            page_dir,
-            thread_id,
-            turn_id,
-            leaf_turn,
-            event_ids,
-            reply_target,
-            delivery_id,
-        )
         stream = TurnStream(
-            self, thread_id, socket, initial_messages, turn.stream_record
+            self, turn.thread_id, socket, initial_messages, turn.stream_record
         )
         turn.record("turn_following_started")
         terminal: dict
@@ -1118,15 +1107,7 @@ class WebsiteCodexHost:
         thread_id: str,
         process: subprocess.Popen,
         pending: list[dict] | None = None,
-    ) -> tuple[
-        Path,
-        str,
-        str | None,
-        str | None,
-        tuple[str, ...],
-        dict | None,
-        str,
-    ]:
+    ) -> HostedTurn:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
@@ -1145,36 +1126,37 @@ class WebsiteCodexHost:
         reply_target = stream_reply_target(prepared.payload)
         if reply_target is not None:
             reserve_delivery_reply(thread_id, prepared.payload["id"], reply_target)
+        # The follower learns which App Server turn took this delivery from the
+        # notification stream, which is the one reading that survives a lost
+        # acknowledgement. The turn id below is therefore a timing record rather
+        # than this turn's name, and the turn is the same object either way.
+        turn = HostedTurn(
+            self,
+            page_dir,
+            thread_id,
+            prepared.payload["id"],
+            prepared_events,
+            reply_target=reply_target,
+        )
         try:
-            turn = self._send(
+            started_turn = self._send(
                 socket,
                 "turn/start",
                 app_server_turn_start_params(thread_id, prepared.payload),
                 pending,
             )["turn"]
-        except AppServerRequestRejected:
+        except (
+            AppServerRequestRejected,
+            OSError,
+            TimeoutError,
+            ValueError,
+            WebSocketException,
+        ):
+            # Refused or lost, the offer stands and the delivery is still this
+            # turn's; the follower reconciles against the thread to find out which.
             _clear_stream_activity(thread_id, starting_turn)
-            return (
-                page_dir,
-                thread_id,
-                None,
-                None,
-                prepared_events,
-                reply_target,
-                prepared.payload["id"],
-            )
-        except (OSError, TimeoutError, ValueError, WebSocketException):
-            _clear_stream_activity(thread_id, starting_turn)
-            return (
-                page_dir,
-                thread_id,
-                None,
-                None,
-                prepared_events,
-                reply_target,
-                prepared.payload["id"],
-            )
-        turn_id = turn.get("id")
+            return turn
+        turn_id = started_turn.get("id")
         if not turn_id:
             raise RuntimeError("Codex App Server returned no turn id")
         log_agent(
@@ -1183,32 +1165,14 @@ class WebsiteCodexHost:
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
-        return (
-            page_dir,
-            thread_id,
-            None,
-            None,
-            prepared_events,
-            reply_target,
-            prepared.payload["id"],
-        )
+        return turn
 
     def _start_thread(
         self, page_dir: Path, process: subprocess.Popen, event_id: str
     ) -> str:
         started = time.monotonic()
 
-        def attach(
-            socket, result: dict, pending: list[dict]
-        ) -> tuple[
-            Path,
-            str,
-            str | None,
-            str | None,
-            tuple[str, ...],
-            dict | None,
-            str,
-        ]:
+        def attach(socket, result: dict, pending: list[dict]) -> HostedTurn:
             thread_id = result["thread"]["id"]
             return self._start_turn(socket, page_dir, thread_id, process, pending)
 
@@ -1243,11 +1207,7 @@ class WebsiteCodexHost:
         started = time.monotonic()
         resumed = False
 
-        def attach(
-            socket, result: dict, pending: list[dict]
-        ) -> (
-            tuple[Path, str, str, str, tuple[str, ...], dict | None, str | None] | None
-        ):
+        def attach(socket, result: dict, pending: list[dict]) -> HostedTurn:
             nonlocal resumed
             resumed = True
             status = result["thread"]["status"]["type"]
@@ -1277,14 +1237,15 @@ class WebsiteCodexHost:
                 for batch in prepared.payload["batches"]
                 for event in batch["events"]
             )
-            return (
+            # A turn already running owns the page's activity reading, so this
+            # delivery waits behind it without announcing a start of its own.
+            return HostedTurn(
+                self,
                 page_dir,
                 thread_id,
-                None,
-                None,
-                prepared_events,
-                reply_target,
                 prepared.payload["id"],
+                prepared_events,
+                reply_target=reply_target,
             )
 
         try:

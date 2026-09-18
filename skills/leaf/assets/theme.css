@@ -189,9 +189,11 @@
      that the arrangement read as a centred page with something in the margin rather
      than as a page with a margin. */
   --note: 384px;
-  /* A page thread uses a wider reading card than an authored sidenote. The minimum is
-     the narrowest card Leaf will put in a free margin; below it the conversation keeps
-     its full measure and overlays the document above or below its controls instead. */
+  /* A page thread uses a wider reading card than an authored sidenote. The card takes
+     the room beside its margin cluster down to the minimum; with less than that it
+     stacks under or over the cluster, its right edge on the visible edge and its width
+     the room from the cluster's left edge within these two measures, so it crosses the
+     column by only what the rail lacks (thread-card-geometry.js). */
   --thread-card: 460px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,

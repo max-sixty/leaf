@@ -1721,8 +1721,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
   .lf-thread-transition-text { display: block; }
-  /* Floating UI measures the conversation against its selected page lane or the
-     source controls when the document leaves no free side lane. */
+  /* margin-projection.js measures the card at the width and height cap its posture
+     allows (thread-card-geometry.js) and writes them here; these are the fallbacks for
+     a card no placement has measured yet. */
   .lf-margin-preview[data-lf-thread] { inset: 0 auto auto 0;
     width: min(var(--lf-thread-width, var(--thread-card)), calc(100vw - 16px));
     max-height: var(--lf-thread-max-height,

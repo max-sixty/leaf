@@ -490,6 +490,55 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
         ), (width, panel_open, "the notice is covered by the panel or its scrim")
 
 
+def test_the_thread_card_rule_is_one_piece_of_arithmetic(browser, serve):
+    """Beside, stacked, clamped, and detached follow from the cluster and boundary alone."""
+    page = open_page(browser, serve(LONG_PAGE))
+    answers = page.evaluate(
+        """async () => {
+          const {threadCardGeometry} =
+            await window.__lfRuntimeImport('/runtime/thread-card-geometry.js');
+          // A 900px-tall viewport: the banner ends at 42, the bottom chrome starts at 855.
+          const boundary = (width) => new DOMRect(8, 50, width - 16, 797);
+          const cluster = (left, top) => new DOMRect(left, top, 37, 32);
+          const ask = (width, at, natural) => threadCardGeometry({
+            cluster: at, boundary: boundary(width), gap: 8, minWidth: 320,
+            preferredWidth: 460, heightAt: () => natural});
+          return {
+            besideClamped: ask(1440, cluster(934, 436), 500),
+            besideFits: ask(1440, cluster(934, 100), 500),
+            besideWide: ask(2000, cluster(1400, 100), 500),
+            stackedInRail: ask(1160, cluster(794, 436), 500),
+            stackedCrossing: ask(1024, cluster(871, 436), 500),
+            stackedBelowFits: ask(1024, cluster(871, 100), 300),
+            stackedOverTheTop: ask(1024, cluster(871, 30), 300),
+            narrowBoundary: ask(316, cluster(100, 100), 200),
+            gone: [cluster(934, 900), cluster(934, 0)].map(at => ask(1440, at, 500).detached),
+          };
+        }"""
+    )
+    beside = answers["besideClamped"]
+    assert (beside["placement"], beside["x"], beside["width"]) == ("right", 979, 453)
+    assert (beside["y"], beside["maxHeight"], beside["detached"]) == (347, 797, False)
+    assert answers["besideFits"]["y"] == 100
+    wide = answers["besideWide"]
+    assert (wide["x"], wide["width"]) == (1445, 460)
+    rail = answers["stackedInRail"]
+    assert (rail["placement"], rail["x"], rail["width"]) == ("above", 794, 358)
+    assert (rail["y"], rail["maxHeight"]) == (50, 378)
+    crossing = answers["stackedCrossing"]
+    assert (crossing["placement"], crossing["x"], crossing["width"]) == (
+        "above",
+        696,
+        320,
+    )
+    below = answers["stackedBelowFits"]
+    assert (below["placement"], below["y"], below["maxHeight"]) == ("below", 140, 707)
+    over = answers["stackedOverTheTop"]
+    assert (over["placement"], over["y"], over["detached"]) == ("below", 70, False)
+    assert answers["narrowBoundary"]["width"] == 300
+    assert answers["gone"] == [True, True]
+
+
 PHONE_PAGE = leaf_page(
     "phone",
     "<h1 id='t'>Phone</h1><p id='p1'>Paragraph one. " + "Filler. " * 40 + "</p>",

@@ -49,9 +49,24 @@ def claim_path(page_dir: Path) -> Path:
     return state_home() / "claims" / f"{page_key(page_dir)}.json"
 
 
+def _claim_record(path: Path) -> dict | None:
+    """One claim file as a claim, or None where there is none to read.
+
+    A record written before claims named their harness carries `host` instead,
+    and every reader since dispatches on `harness`; such a record reads as no
+    claim at all, so the page stands unheld and the next `server start` or
+    named `leaf wait` writes a current one. This decodes data already on disk
+    across the change, nothing more. TODO(2026-09-18): drop the shape test once
+    installs from before it have restarted their sessions."""
+    claim = read_json(path)
+    if claim is None or "harness" not in claim:
+        return None
+    return claim
+
+
 def page_claim(page_dir: Path) -> dict | None:
     """The page's last claim, including one released or whose lifetime ended."""
-    return read_json(claim_path(page_dir))
+    return _claim_record(claim_path(page_dir))
 
 
 def claim_is_active(claim: dict | None) -> bool:
@@ -109,7 +124,9 @@ def claim_records() -> list:
     directory = state_home() / "claims"
     if not directory.is_dir():
         return []
-    return [claim for path in directory.glob("*.json") if (claim := read_json(path))]
+    return [
+        claim for path in directory.glob("*.json") if (claim := _claim_record(path))
+    ]
 
 
 class PageTransaction:

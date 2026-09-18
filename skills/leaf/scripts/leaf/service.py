@@ -1,4 +1,7 @@
-"""Page claims, serialized transactions, status, and event admission."""
+"""Page claims, serialized transactions, and status.
+
+The transaction holds the page's append lease; what may be appended under it is
+`event_contracts`' to say."""
 
 import hashlib
 import os
@@ -15,7 +18,6 @@ from leaf.event_log import (
     now_iso,
     read_cursor,
 )
-from leaf.event_meaning import admit_widget_event
 from leaf.files import read_json, write_json
 from leaf.host import (
     host_identity,
@@ -29,7 +31,6 @@ from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,
     STATUS_FILE,
-    WIDGET_KINDS,
 )
 
 # A repeated live detail carries only liveness. Renew it comfortably before the
@@ -569,16 +570,13 @@ class PageTransaction:
         """An accepted retry, read under this transaction's log lease."""
         return _matching_attempt(self.events, event)
 
-    def append_event(self, event: dict, registry: dict | None = None) -> dict:
-        """Append under this transaction without re-entering its log lease.
+    def _append_record(self, event: dict) -> dict:
+        """Write one admitted record under this transaction's log lease.
 
-        A widget command is admitted against `registry`, the vendored vocabulary
-        its caller already read for its own validation; every other kind needs
-        none."""
-        if event["kind"] in WIDGET_KINDS:
-            if accepted := self.matching_attempt(event):
-                return accepted
-            event = admit_widget_event(self.page_dir, event, self.events, registry)
+        The lease is this class's to hold, so the write is this class's to make;
+        what makes a record admissible is not. `event_contracts.append_admitted`
+        is the one caller — every writer reaches the log through that door, and
+        nothing else here may append."""
         try:
             accepted, appended = _append_event_unlocked(self._log, event, self.events)
         except Exception:

@@ -31,6 +31,7 @@ from interact_support import (
     check,
     declare_data_input,
     fetch,
+    let_a_pick_settle_a_thread,
     live_versions,
     neighbour_page,
     publish,
@@ -1606,11 +1607,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         1: structure_model.SourceDocument(old_page),
         2: structure_model.SourceDocument(new_page),
     }
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["resolves"] = {
-        "type": "string"
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    let_a_pick_settle_a_thread(page_dir)
     (page_dir / "index.html").write_text(old_page)
     publish(page_dir, 1)
     reaction = event_model.append_event(
@@ -3544,7 +3541,7 @@ def test_a_transaction_reloads_after_an_append_fault_that_may_have_landed(
         with monkeypatch.context() as patch:
             patch.setattr(event_model.os, "fsync", sync_then_fail)
             with pytest.raises(OSError, match="failed after syncing"):
-                page.append_event(
+                page._append_record(
                     {"kind": "comment", "author": "user", "text": "landed"}
                 )
         assert [(event["text"], event["seq"]) for event in page.events] == [
@@ -4671,7 +4668,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     def resolve_then_claim():
         writer_entered.set()
         with service_model.PageTransaction(page_dir) as page:
-            page.append_event({"kind": "resolve", "author": "claude", "parent": "c1"})
+            page._append_record({"kind": "resolve", "author": "claude", "parent": "c1"})
             page.set_status(
                 "working",
                 "checking",

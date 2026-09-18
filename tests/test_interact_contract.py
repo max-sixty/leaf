@@ -54,7 +54,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
-from leaf import event_endpoint as event_endpoint_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -253,7 +253,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     # same standing target and proceed, while the transactional handler keeps the
     # second outside until the first append is visible. A bounded wait keeps the
     # correct serialization from deadlocking the probe itself.
-    real_undo_error = event_endpoint_model.undo_error
+    real_undo_error = event_contracts_model.undo_error
     validation_lock = threading.Lock()
     second_validation = threading.Event()
     validation_calls = 0
@@ -270,7 +270,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
             second_validation.set()
         return error
 
-    monkeypatch.setattr(event_endpoint_model, "undo_error", expose_validation_gap)
+    monkeypatch.setattr(event_contracts_model, "undo_error", expose_validation_gap)
     start = threading.Barrier(3)
     results = []
 
@@ -907,14 +907,14 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     report_validated = threading.Event()
     release_report = threading.Event()
     init_waiting = threading.Event()
-    real_append = service_model.PageTransaction.append_event
+    real_append = service_model.PageTransaction._append_record
     real_flocked = vendoring_model.flocked
 
-    def paused_append(page, event, registry=None):
+    def paused_append(page, event):
         if event["kind"] == "report":
             report_validated.set()
             assert release_report.wait(5)
-        return real_append(page, event, registry)
+        return real_append(page, event)
 
     @contextlib.contextmanager
     def observed_flocked(path):
@@ -923,7 +923,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
         with real_flocked(path) as held:
             yield held
 
-    monkeypatch.setattr(service_model.PageTransaction, "append_event", paused_append)
+    monkeypatch.setattr(service_model.PageTransaction, "_append_record", paused_append)
     monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
     outcomes, errors = [], []
 

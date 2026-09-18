@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .delivery import batch_data, freeze_delivery, read_delivery
+from .event_contracts import append_admitted
 from .files import read_json, write_json
 from .host import host_identity
 from .hosting import start_server
@@ -403,7 +404,8 @@ def record_pickup(
     )
     if not fresh:
         return None
-    return page.append_event(
+    return append_admitted(
+        page,
         {
             "kind": "pickup",
             "author": "page",
@@ -411,7 +413,7 @@ def record_pickup(
             "phase": phase,
             "session": session,
             "turn": turn,
-        }
+        },
     )
 
 

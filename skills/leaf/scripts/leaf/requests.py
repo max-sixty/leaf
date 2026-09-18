@@ -1,7 +1,6 @@
 """Durable one-shot requests and their terminal host receipts."""
 
 import json
-import sys
 from pathlib import Path
 
 from .asks import quoted_in
@@ -207,17 +206,21 @@ def request_lifecycles(events: list) -> list[dict]:
 @contract_writer
 def cmd_receipt(page_dir: Path, request: str, status: str, text) -> None:
     """Append the one terminal host outcome linked to a reader request."""
+    # The door reads this module's request and receipt contracts, so the writer
+    # beside them reaches it here rather than at import.
+    from leaf.event_contracts import append_admitted
+
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
-        event = {
-            "kind": "receipt",
-            "author": "claude",
-            **message_identity(),
-            "request": request,
-            "status": status,
-            "text": body,
-        }
-        if error := receipt_contract_error(event, page.events):
-            sys.exit(error)
-        accepted = page.append_event(event)
+        accepted = append_admitted(
+            page,
+            {
+                "kind": "receipt",
+                "author": "claude",
+                **message_identity(),
+                "request": request,
+                "status": status,
+                "text": body,
+            },
+        )
     print(json.dumps(accepted, ensure_ascii=False))

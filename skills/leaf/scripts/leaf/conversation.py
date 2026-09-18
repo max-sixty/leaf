@@ -6,7 +6,7 @@ from pathlib import Path
 
 from leaf.asks import local_ask_entry, page_awaiting_values
 from leaf.delivery import current_responses
-from leaf.event_contracts import report_contract_error
+from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import (
@@ -363,7 +363,7 @@ def cmd_comment(
             event["anchor"] = anchor
         if markup:
             event["markup"] = markup
-        accepted = page.append_event(event)
+        accepted = append_admitted(page, event)
     print(json.dumps(accepted, ensure_ascii=False))
 
 
@@ -675,7 +675,7 @@ def cmd_reply(
             event["revision"] = revision or latest_revision(page_dir)
         if relocating:
             event["anchor"] = anchor
-        return page.append_event(event)
+        return append_admitted(page, event)
 
 
 @contract_writer
@@ -701,7 +701,8 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
             sys.exit(f"message {to!r} has no agent session identity")
         if owner != identity.get("session"):
             sys.exit(f"message {to!r} belongs to agent session {owner!r}")
-        return page.append_event(
+        return append_admitted(
+            page,
             {
                 "kind": "edit",
                 "author": "claude",
@@ -736,7 +737,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
             **message_identity(),
             "parent": to,
         }
-        accepted = page.append_event(event)
+        accepted = append_admitted(page, event)
     print(json.dumps(accepted, ensure_ascii=False))
 
 
@@ -750,14 +751,13 @@ def cmd_report(
     references: str | None = None,
 ) -> None:
     """A worker's provisional news: a declared state change folded onto a page
-    widget, validated at this door the way the POST door validates an action,
+    widget, admitted the way the append door admits a reader's action,
     stamped with the posting session's voice, and made against the active revision —
     the page the reader is looking at. The runtime paints it live; it stands until
     a stamped revision absorbs or overrules it by id (see `version stamp`), and the
     page's watcher wakes to fold it in. Field values
     are strings — the declared detail schemas for reports speak in attribute
     values, which is all a report may move."""
-    from leaf.registry.storage import require_registry
     from leaf.revisioning import activate_source
 
     detail = {}
@@ -775,8 +775,6 @@ def cmd_report(
     with PageTransaction(page_dir) as page:
         events = page.events
         activate_source(page_dir, events)
-        revision = require_revision(page_dir)
-        registry = require_registry(page_dir)
         event = {
             "kind": "report",
             "author": "claude",
@@ -784,12 +782,8 @@ def cmd_report(
             "widget": widget,
             "action": verb,
             "detail": detail,
-            "revision": revision,
+            "revision": require_revision(page_dir),
             **({"references": parsed_references} if references is not None else {}),
         }
-        if error := report_contract_error(
-            event, parse_revision(page_dir, revision), registry
-        ):
-            sys.exit(error)
-        accepted = page.append_event(event, registry)
+        accepted = append_admitted(page, event)
     print(json.dumps(accepted, ensure_ascii=False))

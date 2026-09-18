@@ -1,7 +1,28 @@
-"""Browser and CLI event contracts against page and thread state."""
+"""Event admission: the one door every writer appends a page event through.
+
+`append_admitted` is that door. The browser endpoint, each CLI writer, the
+delivery carrier, and `version stamp` all reach the log through it, so a rule
+stated here holds for every writer rather than for whichever one remembered it.
+`service.PageTransaction` holds the append lease and makes the write; nothing
+else appends.
+
+Admission runs in one order for every kind: an accepted retry short-circuits;
+the event's own document supplies the vocabulary that admits it; that vocabulary
+has to declare the kind; the kind's gates run against the page and the standing
+log under the append lease; server-owned meaning is derived; and the finished
+record is validated against its stored-record contract. Downstream code reads
+those fields directly.
+
+The gates themselves stay with the domains that own them — request lifecycles in
+`requests`, undo in `events`, widget meaning in `event_meaning`. What lives here
+is the one statement of which gates an event of each kind passes, so a new kind
+is an entry in `admission_error` rather than a check in the writer that happens
+to send it.
+"""
 
 from pathlib import Path
 
+from leaf.anchor_capture import capture_anchor
 from leaf.asks import (
     asking,
     completion_met,
@@ -11,49 +32,84 @@ from leaf.asks import (
     thread_ask_projection,
 )
 from leaf.data import read_data
-from leaf.event_meaning import direct_dependencies
-from leaf.events import build_threads
-from leaf.passages import enclosing_ids
-from leaf.projection import frozen_thread_reading, page_reading
+from leaf.document_reading import read_document
+from leaf.event_log import EventRefused
+from leaf.event_meaning import admit_widget_event, direct_dependencies
+from leaf.events import build_threads, undo_error
+from leaf.files import latest_revision, list_revisions, version_revisions
+from leaf.passages import active_enclosing, enclosing_ids
+from leaf.projection import (
+    frozen_thread_reading,
+    generated_children,
+    page_reading,
+    retirement_outcomes,
+    rewritten_bodies,
+)
 from leaf.registry.contract import (
     created_children,
     schema_error,
     state_specs,
     visual_parts,
 )
-from leaf.requests import request_lifecycles_for, request_phases
-from leaf.schema import EVENT_REFERENCES_SCHEMA
-from leaf.structure import parse_revision, resolve_source_target_reference
+from leaf.registry.reactions import reaction_tokens
+from leaf.registry.storage import load_registry
+from leaf.requests import (
+    receipt_contract_error,
+    request_contract_error,
+    request_lifecycles_for,
+    request_phases,
+)
+from leaf.revision_artifact import read_registry
+from leaf.schema import EVENT_REFERENCES_SCHEMA, MESSAGE_KINDS, WIDGET_KINDS
+from leaf.served_state.conversation import browser_conversation
+from leaf.structure import (
+    parse_revision,
+    resolve_source_target_reference,
+    revision_review_mode,
+)
 from leaf.validation.instances import target_reference_contract_error
 
+# The envelope the append lease itself assigns. Admission validates the complete
+# record, so it supplies placeholders for the three fields that cannot exist
+# until the write: an id proved unique against this log, the moment it landed,
+# and its line number. A caller that supplies one of them is held to the
+# contract's own reading of it.
+APPEND_STAMPED = {"id": "pending", "ts": "pending", "seq": 1}
 
-def event_record_error(contract: dict, event: dict, browser: bool = False):
+
+def event_record_error(contract: dict, event: dict):
     """The first complaint from one event kind's stored-record contract."""
+    return schema_error(contract["record"], event)
+
+
+def browser_command_error(contract: dict, event: dict):
+    """The first complaint from what a browser client is allowed to post.
+
+    A command is not yet a record: the server owns the envelope, the author, and
+    every field admission derives. This reads the record contract with those
+    fields supplied or lifted, beside the kind's own browser assertions — which
+    are narrower than the record, because the fields a reply carries from the
+    CLI are not a tab's to send."""
     schema = contract["record"]
-    instance = event
-    if browser:
-        # Supply the fields the server and reader add so the full record schema
-        # can validate the unstamped request beside its browser assertions.
-        schema = {
-            **schema,
-            "properties": {
-                key: value
-                for key, value in schema["properties"].items()
-                if key not in {"meaning", "generated"}
-            },
-            "required": [
-                key for key in schema["required"] if key not in {"meaning", "generated"}
-            ],
-        }
-        schema = {"allOf": [schema, contract["browser"]]}
-        instance = {
+    schema = {
+        **schema,
+        "properties": {
+            key: value
+            for key, value in schema["properties"].items()
+            if key not in {"meaning", "generated"}
+        },
+        "required": [
+            key for key in schema["required"] if key not in {"meaning", "generated"}
+        ],
+    }
+    return schema_error(
+        {"allOf": [schema, contract["browser"]]},
+        {
             **event,
-            "id": "browser",
-            "ts": "browser",
+            **APPEND_STAMPED,
             "author": "page" if event.get("kind") == "error" else "user",
-            "seq": 1,
-        }
-    return schema_error(schema, instance)
+        },
+    )
 
 
 def declared_event_error(
@@ -531,10 +587,10 @@ def report_contract_error(
     event: dict, page, registry: dict, *, resolve_references: bool = True
 ):
     """Why a structurally complete report violates its widget's declaration —
-    the CLI door's mirror of the POST door's action_contract_error. Page markup
-    only, never a reply's: a report has to be answerable, and thread markup is
-    frozen in the log, so no version could ever absorb or overrule one made
-    there."""
+    an action's `action_contract_error` for the kind only an agent sends. Page
+    markup only, never a reply's: a report has to be answerable, and thread
+    markup is frozen in the log, so no version could ever absorb or overrule one
+    made there."""
     rec = page.by_id.get(event["widget"])
     tag = rec["tag"] if rec else None
     if tag is None:
@@ -551,3 +607,236 @@ def report_contract_error(
         if error := event_reference_error(event, spec, page, registry):
             return f"<{tag}> report {event['action']!r} is invalid: {error}"
     return None
+
+
+def admitting_registry(page_dir: Path, event: dict) -> dict:
+    """The vocabulary that admits one event: the one its own document captured.
+
+    An event names the revision it was made against, and that revision's artifact
+    holds the registry its page was rendered from — so a re-vendor, which replaces
+    the layer without touching a standing revision, cannot reinterpret a command
+    the reader made against the document in front of them. `stored_meaning_error`
+    reads the recorded side from that same capture. An event naming no revision
+    takes the newest, which is the document any writer of one is looking at, and a
+    page with no revision yet has only the layer it carries.
+
+    Read through `read_registry`, which opens the one captured file rather than
+    materializing the whole bundle: this runs on every append."""
+    revision = event.get("revision")
+    if type(revision) is not int or revision not in set(list_revisions(page_dir)):
+        revision = latest_revision(page_dir)
+    registry = (
+        read_registry(page_dir, revision)
+        if revision is not None
+        else load_registry(page_dir)
+    )
+    if registry is None:
+        raise EventRefused("the page has no registry.json")
+    return registry
+
+
+def _revision_error(page_dir: Path, event: dict) -> str | None:
+    """Why the document an event was made against is not one this page holds."""
+    if "revision" not in event:
+        return None
+    live = list_revisions(page_dir)
+    if event["revision"] not in live:
+        return f"{event['kind']} revision must be one of {live}"
+    return None
+
+
+def _approval_error(page_dir: Path, event: dict, events: list, registry: dict):
+    """Why a sign-off cannot record approval of the version it names."""
+    if event["kind"] != "done":
+        return None
+    if version_revisions(events).get(event["version"]) != event["revision"]:
+        return f"v{event['version']} does not stamp revision r{event['revision']}"
+    if revision_review_mode(page_dir, event["revision"]) != "sign-off":
+        return (
+            f"v{event['version']} does not declare "
+            '<meta name="lf-review" content="sign-off">, so it has no '
+            "approval to record"
+        )
+    document = parse_revision(page_dir, event["revision"])
+    page = page_reading(document, events, registry, event["revision"])
+    threads = build_threads(events, page.within)
+    document_state = read_document(page, threads)
+    conversation, _reading = browser_conversation(events, registry, threads)
+    unanswered = [
+        *document_state.asks["unanswered"],
+        *conversation["asks"]["unanswered"],
+    ]
+    if unanswered:
+        identities = ", ".join(ask["id"] for ask in unanswered)
+        return f"v{event['version']} still has unanswered Asks: {identities}"
+    return None
+
+
+def _action_error(page_dir: Path, event: dict, events: list, registry: dict):
+    if event["kind"] != "action":
+        return None
+    return action_contract_error(page_dir, event, events, registry)
+
+
+def _request_error(page_dir: Path, event: dict, events: list, registry: dict):
+    if event["kind"] != "request":
+        return None
+    return request_contract_error(page_dir, event, events, registry)
+
+
+def _report_error(page_dir: Path, event: dict, registry: dict) -> str | None:
+    if event["kind"] != "report":
+        return None
+    return report_contract_error(
+        event, parse_revision(page_dir, event["revision"]), registry
+    )
+
+
+def _receipt_error(event: dict, events: list) -> str | None:
+    if event["kind"] != "receipt":
+        return None
+    return receipt_contract_error(event, events)
+
+
+def _reaction_error(event: dict, registry: dict) -> str | None:
+    if not event.get("token"):
+        return None
+    tokens = reaction_tokens(registry)
+    if event["token"] not in tokens:
+        return (
+            f"unknown reaction token {event['token']!r}; this layer "
+            f"declares {sorted(tokens)}"
+        )
+    return None
+
+
+def _anchored_comment_error(
+    page_dir: Path, event: dict, events: list, registry: dict, capture_anchors: bool
+):
+    """Why a comment's declared target is not a place on the page it names.
+
+    A passage anchor a runtime resolved against the rendered page is already
+    answered: the page holds words no file reading can produce — a widget's label,
+    a module's own rendering — and an earlier runtime may spell the same words in
+    whitespace this reading collapses away. Reading it back off the file would
+    refuse both. A transport that resolves nothing (the MCP surface, which renders
+    the authored source with no runtime behind it) asks for the capture here
+    instead; `leaf comment` has already made it against the same reading.
+    """
+    if event["kind"] != "comment":
+        return None
+    anchor = event.get("anchor") or {}
+    recapture = bool(capture_anchors and anchor) and not (
+        anchor.get("datum") or anchor.get("visual") or anchor.get("part")
+    )
+    if not (
+        recapture
+        or event.get("holds")
+        or event.get("response")
+        or anchor.get("visual")
+        or anchor.get("source")
+    ):
+        return None
+    page_by_id = parse_revision(page_dir, event["revision"]).by_id
+    for error in (
+        datum_anchor_error(page_dir, event, page_by_id, registry),
+        held_comment_error(event, page_by_id, registry),
+        version_response_comment_error(event, page_by_id, registry),
+        visual_anchor_error(event, page_by_id, registry),
+    ):
+        if error:
+            return error
+    if not recapture:
+        return None
+    document = parse_revision(page_dir, event["revision"])
+    page = page_reading(document, events, registry, event["revision"])
+    try:
+        canonical = capture_anchor(
+            document,
+            registry,
+            anchor.get("quote", ""),
+            anchor.get("section"),
+            retirement_outcomes(page.projection.actions, registry),
+            rewritten_bodies(page.projection.actions),
+            prefix=anchor.get("prefix") if "prefix" in anchor else None,
+            suffix=anchor.get("suffix") if "suffix" in anchor else None,
+            additions=generated_children(page.projection.desired, page.document.ids),
+        )
+    except ValueError as error:
+        return f"comment anchor is not in the current page reading: {error}"
+    if "quote" in anchor and anchor["quote"] != canonical.get("quote"):
+        return "comment anchor quote does not match the current page reading"
+    # Store the file-side reading, not the client's abbreviated proof. Compact
+    # clients may name only quote and section; capture adds the context needed to
+    # keep that passage attached when the same words occur elsewhere later.
+    event["anchor"] = canonical
+    return None
+
+
+def _parent_error(event: dict, events: list) -> str | None:
+    if "parent" not in event:
+        return None
+    messages = {logged["id"] for logged in events if logged["kind"] in MESSAGE_KINDS}
+    if event["parent"] not in messages:
+        return f"unknown parent {event['parent']!r}"
+    return None
+
+
+def _withdrawal_error(page_dir: Path, event: dict, events: list) -> str | None:
+    if event["kind"] != "undo":
+        return None
+    return undo_error(event, events, active_enclosing(page_dir))
+
+
+def admission_error(
+    page, event: dict, registry: dict, *, capture_anchors: bool = False
+) -> str | None:
+    """The first failing gate for one event, in append-door order.
+
+    Every gate is stated once for every writer: one that names a kind runs
+    wherever an event of that kind comes from, and one that names a field runs
+    wherever the field is set. A gate a given kind cannot reach costs a
+    comparison, which is what keeps this a list of the contract's rules rather
+    than a routing table per transport.
+    """
+    page_dir, events = page.page_dir, page.events
+    return (
+        _revision_error(page_dir, event)
+        or _approval_error(page_dir, event, events, registry)
+        or _action_error(page_dir, event, events, registry)
+        or _request_error(page_dir, event, events, registry)
+        or _report_error(page_dir, event, registry)
+        or _receipt_error(event, events)
+        or _reaction_error(event, registry)
+        or _anchored_comment_error(page_dir, event, events, registry, capture_anchors)
+        or _parent_error(event, events)
+        or _withdrawal_error(page_dir, event, events)
+    )
+
+
+def append_admitted(page, event: dict, *, capture_anchors: bool = False) -> dict:
+    """Admit one event and append it, under the page transaction's log lease.
+
+    The one door. `page` is an open `service.PageTransaction`, whose lease makes
+    every decision here one transaction: the standing log the gates read, the
+    meaning derived from it, and the write. A refusal raises `EventRefused` with
+    what to do about it — `contract_writer` turns that into a CLI exit and the
+    browser endpoint into a final 400.
+    """
+    # Ahead of the gates, not only ahead of the write: a retry asks for the event
+    # its attempt already carried, and the page it was admitted against may since
+    # have moved past admitting it.
+    if accepted := page.matching_attempt(event):
+        return accepted
+    registry = admitting_registry(page.page_dir, event)
+    contracts = registry["$events"]["kinds"]
+    kind = event.get("kind")
+    if kind not in contracts:
+        raise EventRefused(f"kind must be one of {sorted(contracts)}")
+    if error := admission_error(page, event, registry, capture_anchors=capture_anchors):
+        raise EventRefused(error)
+    if kind in WIDGET_KINDS:
+        event = admit_widget_event(page.page_dir, event, page.events, registry)
+    if error := event_record_error(contracts[kind], {**APPEND_STAMPED, **event}):
+        raise EventRefused(f"{kind} event is invalid: {error}")
+    return page._append_record(event)

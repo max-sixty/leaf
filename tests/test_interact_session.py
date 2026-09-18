@@ -40,6 +40,7 @@ from interact_support import (
     check,
     fetch,
     fifo_writer,
+    let_a_pick_settle_a_thread,
     page_state,
     publish,
     record_claim,
@@ -4015,7 +4016,13 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     """A host request is meaningful only beside the message that declared its
     package widget. Keep that message even when a long conversation would normally
     elide it from the delivery envelope."""
-    (page_dir / "index.html").write_text(PAGE)
+    subjects = (
+        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</section>", subjects + "</section>")
+    )
     publish(page_dir)
     serving(page_dir, 1)
     root = events_model.append_event(
@@ -4309,6 +4316,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     in what they agree on, so neither can be passing on a delivery that never
     settles anything."""
     (page_dir / "index.html").write_text(PICKS_PAGE)
+    let_a_pick_settle_a_thread(page_dir)
     serving(page_dir, 1)
     opened = events_model.append_event(
         page_dir,
@@ -7416,6 +7424,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     answered, and the hook must say nothing. Without it a guard that blocked on
     every acknowledged comment would pass the other arm."""
     (claimed / "index.html").write_text(PICKS_PAGE)
+    let_a_pick_settle_a_thread(claimed)
     session_model.cmd_status(claimed, "waiting", "")
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.

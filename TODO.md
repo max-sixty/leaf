@@ -188,17 +188,6 @@ the workspace research below, which reaches #23, so a new item starts above that
   locally and `page.js` names again. It moves about 900 lines and deletes about 170,
   including the `rung()` ladder whose own guard stands down for the layer stack.
 
-- **#27 — Admit every event through one door.** Six of the nine `append_event` callers
-  check no contract: `cmd_comment`, `cmd_reply`, `cmd_edit` and `cmd_resolve` in
-  `conversation.py`, the `pickup` in `session.py`, and the `note` in `publishing.py`. Of
-  the three that do check, `cmd_report` reaches `event_contracts.py` and `cmd_receipt`
-  uses a validator `requests.py` defines itself, so the rules are in two homes as well as
-  the gate being in three — `event_endpoint.accept_event` for browser events and
-  `service.append_event` for widget kinds, with the CLI going through neither.
-  `event_log` stamps an id and a timestamp and checks no schema, so whatever a caller
-  hands it lands in the log. Validate once at the edge: one admission door the CLI writers
-  share, not a validator added per caller.
-
 ## Platform and dependency cutover
 
 The 2026-09-16 survey of what Leaf could hand to a dependency found the browser defect

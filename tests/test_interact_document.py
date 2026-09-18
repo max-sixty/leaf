@@ -46,6 +46,7 @@ from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
+from leaf import requests as requests_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -1966,7 +1967,57 @@ def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
     assert "this turn's opened delivery" in result.output
 
 
+def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
+    """One door, so a rule is stated once and holds for whoever appends.
+
+    The `leaf` writers used to append with whatever contract each of them
+    remembered: four with none at all, and the two that checked reaching two
+    different homes. Nothing between them and the log read the event's own
+    record schema, so a shape the browser door has always refused could still
+    land — and stay, because `page init` re-reads every stored record before it
+    will replace a layer, and refuses the re-vendor rather than the event.
+
+    Each arm below is a writer that reaches the log by a different route: a reply
+    whose gate is the record contract alone, a receipt whose gate belongs to
+    `requests`, and a report whose gate belongs to `event_contracts`. All three
+    are refused in the writer's own voice.
+    """
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "claude", "revision": 1, "text": "?"},
+    )
+    with pytest.raises(SystemExit) as refused:
+        conversation_model.cmd_reply(
+            page_dir,
+            "c1",
+            "Answered.",
+            "",
+            initiates=True,
+            for_event=None,
+            attempt="r1",
+        )
+    assert "'r1' does not match" in str(refused.value)
+
+    with pytest.raises(SystemExit) as unknown_request:
+        requests_model.cmd_receipt(page_dir, "no-such-request", "succeeded", "done")
+    assert "unknown request 'no-such-request'" in str(unknown_request.value)
+
+    with pytest.raises(SystemExit) as unknown_widget:
+        conversation_model.cmd_report(page_dir, "no-such-widget", "status", ())
+    assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
+
+    assert [event["kind"] for event in events_model.read_events(page_dir)] == [
+        "note",
+        "comment",
+    ]
+
+
 def test_inferred_reply_attempt_is_idempotent(page_dir):
+    """An attempt is an opaque durable key, and the append door holds every
+    writer to the record contract's shape for one — the delivery carriers mint
+    theirs from a digest, so a short hand-written label is not a retry key."""
+    attempt = "retry-inferred-reply-1"
     comment = events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
@@ -1987,7 +2038,7 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
         "Updated.",
         "",
         for_event=None,
-        attempt="retry-1",
+        attempt=attempt,
     )
     retried = conversation_model.cmd_reply(
         page_dir,
@@ -1995,7 +2046,7 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
         "Updated.",
         "",
         for_event=None,
-        attempt="retry-1",
+        attempt=attempt,
     )
 
     assert retried["id"] == first["id"]
@@ -2741,16 +2792,16 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     _tasks_version(page_dir, "review")
     at_commit = threading.Event()
     resume = threading.Event()
-    original_append_event = service_model.PageTransaction.append_event
+    original_append_record = service_model.PageTransaction._append_record
 
-    def held_append_event(page, event, registry=None):
+    def held_append_record(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
             at_commit.set()
             assert resume.wait(timeout=10), "the report did not enter the publish gap"
-        return original_append_event(page, event, registry)
+        return original_append_record(page, event)
 
     monkeypatch.setattr(
-        service_model.PageTransaction, "append_event", held_append_event
+        service_model.PageTransaction, "_append_record", held_append_record
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")

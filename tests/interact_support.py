@@ -29,6 +29,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from leaf import cli as cli_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -42,7 +43,6 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
-from leaf.registry import storage as registry_storage_model
 from leaf.served_state import page as served_page
 from leaf.validation import instances as validation_model
 
@@ -90,15 +90,13 @@ from leaf import cli as cli_model
 
 
 def append_command(page_dir, command):
-    """Seed a widget command through the real transaction's admission step.
+    """Seed a widget command through the real append door.
 
     A test of raw storage or retired vocabulary passes an explicitly admitted
     event, including meaning, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
-        return page.append_event(
-            command, registry_storage_model.require_registry(page_dir)
-        )
+        return event_contracts_model.append_admitted(page, command)
 
 
 def run_async(entry):
@@ -366,6 +364,24 @@ def publish(d, version=1):
     )
 
 
+def let_a_pick_settle_a_thread(page_dir):
+    """Declare `resolves` on `lf-options`' `choose`, before the page publishes.
+
+    A settling answer rests on its widget and on the ids that widget's detail
+    names inside itself, so a version rewriting one of those takes the answer
+    back. Nothing shipped exercises both halves: of every verb in an
+    `x-awaits.answers` list, only `lf-suggestion`'s `accept` declares a
+    `resolves` detail, and its answer rests on the widget alone. A test of the
+    two together declares the verb it needs on the page it is about to publish,
+    which is where the append door reads the vocabulary that admits an action.
+    """
+    registry = files_model.read_json(page_dir / "registry.json")
+    registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["resolves"] = {
+        "type": "string"
+    }
+    files_model.write_json(page_dir / "registry.json", registry)
+
+
 def stamp(d, text="stamped", completes=()):
     """Stamp the fixture's canonical authored source through the CLI."""
     return CliRunner().invoke(
@@ -596,14 +612,14 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     resume = threading.Event()
     checked_without_writer = threading.Event()
     finish_vendoring = threading.Event()
-    original_append_event = service_model.PageTransaction.append_event
+    original_append_record = service_model.PageTransaction._append_record
     original_composed_theme = layer_model.composed_theme
 
-    def held_append_event(page, event, registry=None):
+    def held_append_record(page, event):
         if event.get("kind") == kind:
             entering.set()
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
-        return original_append_event(page, event, registry)
+        return original_append_record(page, event)
 
     def held_composed_theme(sources):
         checked_without_writer.set()
@@ -618,7 +634,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         return None
 
     monkeypatch.setattr(
-        service_model.PageTransaction, "append_event", held_append_event
+        service_model.PageTransaction, "_append_record", held_append_record
     )
     monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
     with ThreadPoolExecutor(max_workers=2) as executor:

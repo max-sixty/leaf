@@ -2,9 +2,10 @@
 
 import functools
 import hashlib
+import sys
 from pathlib import Path
 
-from leaf.event_log import flocked, require_cross_process_locking
+from leaf.event_log import EventRefused, flocked, require_cross_process_locking
 from leaf.host import state_home
 from leaf.schema import WAITER_LOCK
 
@@ -53,12 +54,21 @@ def transition_lock(page_dir: Path) -> Path:
 
 
 def contract_writer(function):
-    """Keep a CLI event's validation and append on one vendored contract."""
+    """Keep a CLI event's validation and append on one vendored contract, and
+    report the append door's refusal the way these writers report their own.
+
+    The door raises, because it is shared with the browser endpoint, which owes
+    its caller a status rather than an exit. Every writer this decorates already
+    answers its own refusals with `sys.exit`, so a refusal from the door reaches
+    the agent as one more line of the same kind."""
 
     @functools.wraps(function)
     def locked(page_dir: Path, *args, **kwargs):
         with flocked(transition_lock(page_dir)):
-            return function(page_dir, *args, **kwargs)
+            try:
+                return function(page_dir, *args, **kwargs)
+            except EventRefused as error:
+                sys.exit(str(error))
 
     return locked
 

@@ -78,6 +78,15 @@ def jsonl_line(event: dict) -> str:
     return line
 
 
+class EventRefused(ValueError):
+    """The append door turned one event down, with what to do about it.
+
+    Raised by `event_contracts.append_admitted`, the one door every writer
+    appends through. It lives beside the log rather than beside the gates so that
+    a layer between a writer and the file — `contract_writer`, which answers a
+    command's refusal — can name one without importing the contracts."""
+
+
 class AttemptConflict(ValueError):
     """One browser attempt was reused for a different event payload."""
 

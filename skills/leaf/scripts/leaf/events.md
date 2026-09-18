@@ -73,6 +73,20 @@ and the transcript.
 
 ## Admission
 
+Every event reaches the log through one door. The browser endpoint, each `leaf`
+writer, the delivery carrier, and `version stamp` all append through it, under the
+page transaction's lease, and nothing else appends. It admits in one order for
+every kind: an accepted retry returns its own event and repeats no gesture; the
+revision the event names supplies the vocabulary that admits it, so a re-vendor
+cannot reinterpret a document its reader is still looking at; that vocabulary has
+to declare the kind; the kind's gates run against the page and the standing log;
+server-owned meaning is derived; and the finished record is checked against the
+stored-record contract for its kind. A refusal says what to do about it, as a
+command's exit or a final 400 — a gate is stated once and holds for every writer,
+rather than for whichever one remembered it. Only the transport differs above the
+door: which kinds a browser may post, which fields it may send, and how a retry is
+answered.
+
 Browser POSTs are commands. The append transaction stamps the accepted event with
 server-owned `meaning`; callers cannot send it or `generated`, and retry identity
 compares the original command fields rather than this enrichment. Actions and

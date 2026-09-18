@@ -196,10 +196,10 @@ and failure returns it through that same projection.
 
 ### Validate once and share readings
 
-Validate each input at its boundary: browser commands at `POST /api/event`,
-authored markup at `version check`, and message markup at `check_markup`.
-Admission derives server-owned event meaning after validation; downstream code
-reads those fields directly. Event dependencies name declared identities;
+Validate each input at its boundary: every event at the one append door, whether a
+browser posted it or a command wrote it; authored markup at `version check`; and
+message markup at `check_markup`. Admission derives server-owned event meaning
+after validation; downstream code reads those fields directly. Event dependencies name declared identities;
 ordinary detail text is never interpreted as a reference.
 
 A passage is one sequence of `{node, start, end}` segments. The file and browser

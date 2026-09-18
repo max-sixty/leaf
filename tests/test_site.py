@@ -143,8 +143,8 @@ def hosted(site, tmp_path_factory):
     """One reader's private copy, matching the container boundary in production."""
     session_site = tmp_path_factory.mktemp("website-session") / "site"
     shutil.copytree(site, session_site)
-    httpd = hosting_model.server_at(
-        "127.0.0.1", 0, website_server.handler_for(session_site)
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.handler_for(session_site)
     )
     with running_http_server(httpd):
         yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -160,8 +160,8 @@ def served_example(site, tmp_path):
     manifest = session_site / website_server.SITE_MANIFEST
     manifest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(site / website_server.SITE_MANIFEST, manifest)
-    httpd = hosting_model.server_at(
-        "127.0.0.1", 0, website_server.handler_for(session_site)
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.handler_for(session_site)
     )
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 

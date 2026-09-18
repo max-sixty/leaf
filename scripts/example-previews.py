@@ -28,7 +28,7 @@ from pathlib import Path
 from example_assets import LOCK, specification
 from example_assets import example_previews as locked_previews
 from example_data import catalog_sources
-from leaf.hosting import server_at
+from leaf.hosting import LeafHTTPServer
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
@@ -69,7 +69,7 @@ def serve_examples(site: Path) -> Iterator[str]:
         os.environ["XDG_STATE_HOME"] = state_home
         try:
             website_server.page_binding.cache_clear()
-            server = server_at("127.0.0.1", 0, website_server.handler_for(site))
+            server = LeafHTTPServer(("127.0.0.1", 0), website_server.handler_for(site))
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             try:

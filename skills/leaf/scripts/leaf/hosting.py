@@ -1,21 +1,22 @@
 """Durable and process-owned page servers."""
 
 import errno
+import logging
 import secrets
 import socket
 import subprocess
 import sys
 import threading
 import zlib
-from contextlib import suppress
-from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+
+import uvicorn
 
 from .event_log import flocked, require_cross_process_locking
 from .files import read_json, write_json
 from .host import host_identity
-from .http import handler_for
+from .http import handler_for, page_app
 from .layer import payload_provenance
 from .leases import lock_is_held, transition_lock
 from .registry.storage import layer_metadata
@@ -39,61 +40,109 @@ except ImportError:  # pragma: no cover - unsupported non-POSIX platform
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
 
-class LeafHTTPServer(ThreadingHTTPServer):
-    """Leaf's HTTP server, with the stopping state a held-open stream reads.
+def listening_socket(bind: str, port: int) -> socket.socket:
+    """Open the recorded bind, using IPv4 for `::` when IPv6 is unavailable.
 
-    The request queue uses the kernel's maximum backlog so concurrent browser and
-    event requests are accepted by the same server used in production. The poll
-    interval below sets how long a stop waits for the serving loop to notice it;
-    it is short enough that stopping a page reads as immediate, and an idle
-    selector timeout costs nothing worth measuring.
-
-    Closing the server closes the connections it is still holding. That is what
-    lets a connection wait as long as the peer wants without a deadline of its
-    own: the alternative, a read timeout every connection carries, cannot tell a
-    socket that will never speak from one a browser opened ahead of need and is
-    about to write a real request onto. Chromium preconnects, so both exist here,
-    and a request written onto a connection this server had already closed is
-    dropped with no response, no console entry, and no error — the document stops
-    at `interactive` and its load event never fires.
+    A literal IPv6 address still fails rather than widening to every interface.
+    The record keeps `::`; each serve chooses the family the current kernel has.
+    A stated host binds the wildcard of both families, so IPV6_V6ONLY is cleared
+    before the bind that a v4 client would otherwise never reach.
     """
 
-    request_queue_size = socket.SOMAXCONN
+    def bound(family: int, host: str) -> socket.socket:
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if family == socket.AF_INET6:
+                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            sock.bind((host, port))
+            sock.listen(socket.SOMAXCONN)
+        except BaseException:
+            sock.close()
+            raise
+        return sock
 
-    # Whether this server has been told to stop. A news stream held open for a tab
-    # needs to see it; otherwise the stream outlives the server stop.
-    stopping = False
+    if ":" not in bind:
+        return bound(socket.AF_INET, bind)
+    try:
+        return bound(socket.AF_INET6, bind)
+    except OSError as e:
+        if e.errno != errno.EAFNOSUPPORT or bind != "::":
+            raise
+        return bound(socket.AF_INET, "0.0.0.0")
 
-    def __init__(self, *args, **kwargs):
-        self.open_connections = set()
-        super().__init__(*args, **kwargs)
 
-    def shutdown(self):
-        self.stopping = True
-        super().shutdown()
+class LeafHTTPServer:
+    """One page's HTTP server: uvicorn over the handler class it is given.
 
-    def serve_forever(self, poll_interval=0.02):
+    The listening socket is opened here rather than by uvicorn, so the address is
+    a fact before anything serves on it — a port the caller records, and a taken one
+    that raises out of the constructor instead of exiting the process. Serving hands
+    uvicorn a duplicate: the two halves then close their own, and a caller that
+    releases the socket cannot pull it out from under a loop still winding down.
+
+    `stopping` is the state a held-open news stream reads. A stop has to reach a
+    response that is deliberately never finishing, and the stream looks at this
+    between its own looks; uvicorn's graceful shutdown then has nothing left to
+    wait for.
+    """
+
+    def __init__(self, address, handler_class) -> None:
+        self.handler_class = handler_class
+        self.socket = listening_socket(address[0], address[1])
+        self.server_address = self.socket.getsockname()[:2]
         self.stopping = False
-        super().serve_forever(poll_interval)
+        self._uvicorn = None
+        # Leaf says what it has to say on its own streams: the URL, the lifetime
+        # note, and the page's own errors. A server with a logging voice of its own
+        # would write into the handshake those are read from, and a detached serve's
+        # stderr is a pipe nobody drains, so a refused request line repeated often
+        # enough would fill it and stop the page answering. Silenced here rather than
+        # drained there, because the writes are uvicorn's own and nothing reads them:
+        # `log_config=None` configures no handler, which leaves logging's last-resort
+        # one printing to stderr.
+        for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+            logger = logging.getLogger(name)
+            logger.handlers = [logging.NullHandler()]
+            logger.propagate = False
+        self._config = uvicorn.Config(
+            page_app(handler_class, self),
+            log_config=None,
+            access_log=False,
+            lifespan="off",
+            # A page speaks HTTP. Left on, an upgrade would arrive as a scope the
+            # page's own gate never sees, ahead of the key and the route scoping.
+            ws="none",
+        )
 
-    def process_request(self, request, client_address):
-        self.open_connections.add(request)
-        super().process_request(request, client_address)
+    def fileno(self) -> int:
+        return self.socket.fileno()
 
-    def shutdown_request(self, request):
-        self.open_connections.discard(request)
-        super().shutdown_request(request)
+    def serve_forever(self) -> None:
+        """Serve on the current thread until `shutdown` or a handled signal."""
+        self._uvicorn = uvicorn.Server(self._config)
+        # A signal reaches uvicorn alone, and its graceful shutdown has no bound:
+        # a news stream that never learns of the stop holds the process open.
+        handled_exit = self._uvicorn.handle_exit
 
-    def server_close(self):
-        # Before the join ThreadingHTTPServer does for non-daemon request threads: a
-        # thread reading a connection that has said nothing has nothing else to wake
-        # it. Only the reading half is closed, so this ends a wait for words that are
-        # not coming without taking the answer away from a request already being
-        # served — the close still owns those, and waits for them below.
-        for connection in list(self.open_connections):
-            with suppress(OSError):
-                connection.shutdown(socket.SHUT_RD)
-        super().server_close()
+        def stop(sig, frame):
+            self.stopping = True
+            handled_exit(sig, frame)
+
+        self._uvicorn.handle_exit = stop
+        if self.stopping:
+            return
+        self._uvicorn.run(sockets=[self.socket.dup()])
+
+    def shutdown(self) -> None:
+        """Ask the serving loop to stop, and tell open streams to end."""
+        self.stopping = True
+        if self._uvicorn is not None:
+            self._uvicorn.should_exit = True
+
+    def server_close(self) -> None:
+        """Release the listening socket this server has kept."""
+        self.socket.close()
 
 
 class TemporaryPageServer:
@@ -140,12 +189,6 @@ class TemporaryPageServer:
         """Start the server in a thread owned by this object."""
         if self._closed or self._thread is not None:
             raise RuntimeError("temporary page server cannot be started twice")
-        # ThreadingHTTPServer normally leaves daemon request threads behind when its
-        # socket closes. A threaded server shares its process with its caller, which
-        # may reuse or remove the page as soon as close() returns, so close owns those
-        # requests too. The foreground run() keeps the default: its process owns the
-        # page, and must be able to exit when that process is interrupted.
-        self.httpd.daemon_threads = False
         self._thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self._thread.start()
         return self
@@ -161,14 +204,18 @@ class TemporaryPageServer:
             self._closed = True
 
     def close(self) -> None:
-        """Stop a threaded server and release its socket."""
+        """Stop a threaded server and release its socket.
+
+        A threaded server shares its process with its caller, which may reuse or
+        remove the page as soon as this returns, so the stop waits for the requests
+        already in flight rather than leaving them writing into a page nobody owns.
+        """
         if self._closed:
             return
-        if self._thread is not None and self._thread.is_alive():
-            self.httpd.shutdown()
-        self.httpd.server_close()
+        self.httpd.shutdown()
         if self._thread is not None:
-            self._thread.join(timeout=2)
+            self._thread.join(timeout=5)
+        self.httpd.server_close()
         self._closed = True
 
     def __enter__(self):
@@ -219,32 +266,6 @@ def startup_note(page_dir: Path) -> str:
         )
         if line
     )
-
-
-class DualStackHTTPServer(LeafHTTPServer):
-    """An IPv6 server whose wildcard also accepts IPv4 connections."""
-
-    address_family = socket.AF_INET6
-
-    def server_bind(self):
-        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        super().server_bind()
-
-
-def server_at(bind: str, port: int, handler) -> LeafHTTPServer:
-    """Open the recorded bind, using IPv4 for `::` when IPv6 is unavailable.
-
-    A literal IPv6 address still fails rather than widening to every interface.
-    The record keeps `::`; each serve chooses the family the current kernel has.
-    """
-    if ":" not in bind:
-        return LeafHTTPServer((bind, port), handler)
-    try:
-        return DualStackHTTPServer((bind, port), handler)
-    except OSError as e:
-        if e.errno != errno.EAFNOSUPPORT or bind != "::":
-            raise
-        return LeafHTTPServer(("0.0.0.0", port), handler)
 
 
 def _serve_claim(
@@ -331,11 +352,7 @@ def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
     """Bind the first available port, preserving a recorded address contract."""
     for port in ports:
         try:
-            return server_at(
-                access["bind"],
-                port,
-                handler_for(page_dir, token, protocol_version="HTTP/1.1"),
-            )
+            return LeafHTTPServer((access["bind"], port), handler_for(page_dir, token))
         except OSError as error:
             if error.errno == errno.EADDRINUSE and "port" not in access:
                 continue
@@ -474,8 +491,9 @@ def start_server(
         return None
     # Nothing drains the child's streams from here on, which is safe because the
     # URL and the note printed beside it are everything a server ever says — the
-    # handler logs nothing (`log_message`) — so there is nothing left to write
-    # into pipes this process closes on its way out.
+    # page's own routes print nothing and uvicorn's loggers are silenced where the
+    # server is built — so there is nothing left to write into pipes this process
+    # closes on its way out.
     return url, startup_note(page_dir)
 
 

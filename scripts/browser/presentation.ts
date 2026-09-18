@@ -356,7 +356,12 @@ export function createPresentationCoordinator<
           const proof = await completion;
           finish(ticket, "committed", proof);
         } catch (reason) {
-          if (!currentTicket(ticket)) return;
+          // A newer reading may already own this region. Its predecessor still left the
+          // document in whatever state the failure reached, so the fault is reported
+          // either way; only a renderer replaced outright has nothing to say about this
+          // document. What a superseded ticket may not do is commit.
+          const superseded = !currentTicket(ticket);
+          if (superseded && regions.get(record.region) !== record) return;
           let proof: Proof | undefined;
           let reported = reason;
           let recovered = false;
@@ -373,6 +378,7 @@ export function createPresentationCoordinator<
             }
           }
           reportFailure(reported);
+          if (superseded) return;
           // A renderer that supplies fallback proof has presented an explicit failure
           // state. Without that proof the region remains pending: declaring the page
           // presented would expose the partial rendering that just failed.
@@ -533,4 +539,194 @@ export function createPresentationCoordinator<
     whenCurrentRegionsPresented,
     read,
   });
+}
+
+/** Epoch presenters and the one pass that paints them.
+ *
+ * Every renderer owes the same three moves — open a ticket inside the synchronous
+ * publication that opened the epoch, replace the hold it inherited, and paint the newest
+ * value once that publication has settled. A schedule runs the presenters it collected
+ * in ascending `order`, each awaited before the next and repeated while painting has
+ * collected more. Two facts follow. A renderer that reads DOM another renderer
+ * materializes states that dependency once, beside the coordinator, rather than at every
+ * site that publishes. And `passed` says the page has caught up with the root it is
+ * reading, which is what a caller waits for instead of naming renderers.
+ *
+ * A claim supersedes whatever the region was drawing. It cannot wait for it: a renderer
+ * may be holding its reading open — on a widget that has not prepared, on a gesture the
+ * reader has not finished — and a newer reading that queued behind it would never be
+ * drawn at all. The coordinator still reports the superseded paint's failure, because
+ * the DOM keeps whatever state that failure reached.
+ */
+export const PRESENTATION_HELD = Symbol("presentation held");
+
+export interface EpochPresenter<Value> {
+  /** Claim this value's ticket now and paint it on the pass that follows. */
+  sync(value: Value): Promise<void>;
+  /** Retire this renderer: release what it holds and leave the region to its successor. */
+  disconnect(): void;
+}
+
+export function createPresentationSchedule({
+  schedule = queueMicrotask,
+}: { schedule?: (run: () => void) => void } = {}) {
+  let queued: { order: number; run: () => Promise<void> }[] = [];
+  let running: Promise<void>[] = [];
+  let scheduled = false;
+  let settling = false;
+  let pass: {
+    readonly promise: Promise<void>;
+    readonly settle: () => void;
+    readonly refuse: (reason: unknown) => void;
+  } | null = null;
+
+  function open() {
+    pass ??= (() => {
+      let settle!: () => void;
+      let refuse!: (reason: unknown) => void;
+      const promise = new Promise<void>((resolve, reject) => {
+        settle = resolve;
+        refuse = reject;
+      });
+      // A caller that ignores this promise reads the failure from the coordinator's
+      // report instead, so it must not raise a browser-level unhandled rejection.
+      void promise.catch(() => undefined);
+      return { promise, settle, refuse };
+    })();
+  }
+
+  function collect(order: number, run: () => Promise<void>) {
+    open();
+    queued.push({ order, run });
+    if (scheduled) return;
+    scheduled = true;
+    schedule(() => {
+      scheduled = false;
+      const round = queued;
+      queued = [];
+      round.sort((left, right) => left.order - right.order);
+      // Start them in rank order, so a renderer that reads DOM another materializes runs
+      // after those writes are in the document. Nothing here waits for them: a renderer
+      // may hold its reading open on a widget that has not prepared, and a later turn's
+      // paint queued behind that hold would never reach the page at all.
+      for (const { run } of round) {
+        const started = run();
+        void started.catch(() => undefined);
+        running.push(started);
+      }
+      void drain();
+    });
+  }
+
+  async function drain() {
+    if (settling) return;
+    settling = true;
+    let failure: unknown = null;
+    let failed = false;
+    while (running.length || queued.length || scheduled) {
+      const started = running;
+      running = [];
+      for (const outcome of await Promise.allSettled(started))
+        if (outcome.status === "rejected" && !failed) {
+          failed = true;
+          failure = outcome.reason;
+        }
+    }
+    settling = false;
+    const finished = pass!;
+    pass = null;
+    if (failed) finished.refuse(failure);
+    else finished.settle();
+  }
+
+  /** The page has caught up with the root it is reading. */
+  const passed = () => pass?.promise ?? Promise.resolve();
+
+  function presenter<Value, Proof>({
+    attach,
+    paint,
+    failSoft,
+    order = 0,
+  }: {
+    attach: () => PresentationHandle<Value, Proof> | null;
+    paint: (
+      value: Value,
+      current: () => boolean,
+    ) => Proof | PromiseLike<Proof> | typeof PRESENTATION_HELD;
+    failSoft?: (reason: unknown) => Proof;
+    order?: number;
+  }): EpochPresenter<Value> {
+    interface Ticket {
+      readonly claimed: number;
+      readonly value: Value;
+      readonly resolve: (proof: Proof | undefined) => void;
+      readonly reject: (reason: unknown) => void;
+      readonly ready: Promise<void>;
+    }
+    let handle: PresentationHandle<Value, Proof> | null = null;
+    let held: ((proof: Proof | undefined) => void) | null = null;
+    let generation = 0;
+
+    function claim(value: Value): Ticket {
+      const claimed = ++generation;
+      let resolve!: (proof: Proof | undefined) => void;
+      let reject!: (reason: unknown) => void;
+      const completion = new Promise<Proof | undefined>((done, fail) => {
+        resolve = done;
+        reject = fail;
+      });
+      const inherited = held;
+      held = resolve;
+      handle ??= attach();
+      const ready =
+        handle?.present(value, completion as PromiseLike<Proof>, failSoft) ??
+        Promise.resolve();
+      // The coordinator reports every rejection. Observe it here so a renderer can
+      // deliberately leave its region pending without also raising a browser-level
+      // unhandled rejection.
+      void ready.catch(() => undefined);
+      // Install the replacement hold before releasing the one it supersedes, so an
+      // obsolete value cannot briefly acknowledge this epoch between two claims.
+      inherited?.(undefined);
+      return { claimed, value, resolve, reject, ready };
+    }
+
+    async function run(ticket: Ticket) {
+      if (ticket.claimed !== generation) return;
+      let withheld = false;
+      try {
+        const painted = paint(ticket.value, () => ticket.claimed === generation);
+        if (painted === PRESENTATION_HELD) withheld = true;
+        else ticket.resolve(await painted);
+      } catch (error) {
+        ticket.reject(error);
+      }
+      // The coordinator's answer is the verdict on this reading. It resolves once the
+      // region has committed one, fail-soft proof included, and rejects when the failure
+      // stands with the region still pending. A withheld reading keeps its ticket open
+      // instead, so there is no answer to wait for.
+      if (!withheld) await ticket.ready;
+    }
+
+    function sync(value: Value): Promise<void> {
+      // The claim is synchronous, inside the publication that opened the epoch. Only
+      // the paint waits for the pass.
+      const ticket = claim(value);
+      collect(order, () => run(ticket));
+      return passed();
+    }
+
+    function disconnect() {
+      generation += 1;
+      const inherited = held;
+      held = null;
+      inherited?.(undefined);
+      handle?.disconnect();
+      handle = null;
+    }
+
+    return Object.freeze({ sync, disconnect });
+  }
+
+  return Object.freeze({ presenter, passed });
 }

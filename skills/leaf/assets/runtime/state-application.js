@@ -1,13 +1,20 @@
-/* Prepare asynchronously, adopt one semantic root synchronously, then present it.
+/* Prepare asynchronously, adopt one semantic root synchronously, then wait for the page
+   to show it.
 
    Complete readings are ordered by transaction time, event sequence, and active
    revision. Preparation may overlap; the adoption boundary judges the candidate
-   again and folds it with the latest local attempts. Accepted truth never rolls back
-   when a view fails. Failed presentation reports visibly and leaves pending receipt
-   accounting untouched, so another reading can retry from that same semantic root. */
+   again and folds it with the latest local attempts. Adoption is also where every
+   document region claims this epoch, so what remains here is to wait for their proof
+   rather than to name renderers or order them. Accepted truth never rolls back when a
+   view fails. Failed presentation reports visibly and leaves pending receipt accounting
+   untouched, so another reading can retry from that same semantic root. */
 import { LIVE_ROOT } from "./storage.js";
 import { runtime } from "./context.js";
-import { applicationState, readApplication } from "./semantic-state.js";
+import {
+  applicationState,
+  documentPresented,
+  readApplication,
+} from "./semantic-state.js";
 import { reportPageError, sameLayer } from "./layer-client.js";
 import { importWidgets } from "./widget-loader.js";
 import { observeServerNow } from "./presence.js";
@@ -22,15 +29,10 @@ export function createStateApplication({
   acceptData,
   notifyDataSubscribers,
   isSignoffDeclared,
-  paintApproval,
   renderStatus,
   renderVersions,
   stateSignoff,
   renderOthers,
-  applyConversation,
-  renderAsks,
-  prepareProjection,
-  presentProjection,
   accountPending,
   panelIsOpen,
   paintKeys,
@@ -139,24 +141,16 @@ export function createStateApplication({
       }
       observeServerNow(state.now);
       stateApplying = true;
-      // Hold chrome presentation while every renderer consumes the newly adopted
-      // document and server reading as one semantic epoch.
-      const preparedProjection = prepareProjection();
       try {
         settleAcceptedDrafts();
         renderStatus(state);
         renderVersions(state);
         stateSignoff(isSignoffDeclared());
-        paintApproval();
         renderOthers(state);
-        // Frozen thread widgets join the already-adopted document here; connection is
-        // presentation only because their authored semantics were captured above.
-        await applyConversation();
-        presentProjection(preparedProjection);
-        await applyConversation();
-        // Present the already-derived Ask inventory before recording this accepted
-        // reading on the document.
-        await renderAsks();
+        // Adoption already claimed every document region for this epoch, and frozen
+        // thread widgets joining the document reopen the ones they change. Waiting for
+        // that proof is what replaces naming the renderers and the order they run in.
+        await documentPresented();
         await notifyDataSubscribers();
         if (runtime.reading !== null)
           document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);

@@ -2,8 +2,11 @@
 
    This owner receives records and narrow view capabilities. It never reads delivery,
    assembles protocol events, or imports state application. It reads the published fold
-   for every textual/geometry view. Its presentation ticket commits the conversation
-   surfaces together with preparation for frozen widgets newly joined to the panel. */
+   for every textual/geometry view. It is an epoch presenter: the publication claims its
+   region and the pass paints it, after the projection whose provenance words its
+   passages resolve over. Its presentation ticket commits the conversation surfaces
+   together with preparation for frozen widgets newly joined to the panel. A mechanical
+   repaint — a draft, a hover, a narrowing — claims the same region through `present`. */
 import { clocked } from "../presence.js";
 import { elementById, inChrome } from "../passages.js";
 import { conversationState } from "./state.js";
@@ -23,8 +26,9 @@ import {
 import { threadsBox } from "./panel-elements.js";
 import { revealThread } from "./narrowing.js";
 import {
+  applicationPresenter,
   applicationState,
-  attachApplicationPresentation,
+  PRESENTATION_ORDER,
   readApplication,
 } from "../semantic-state.js";
 
@@ -52,57 +56,40 @@ export function createConversationPresentation({
   renderMargin,
   renderSurfaces,
 }) {
-  let presentationHandle = null;
-  let activePresentation = null;
-  const presentation = () => {
-    presentationHandle ??= attachApplicationPresentation("conversation", document);
-    return presentationHandle;
-  };
+  let painting = false;
 
-  // Accepted and optimistic conversation changes owe a fresh generated presentation.
-  // Register that obligation before publication seals; apply() may run later behind
-  // a serialized state application. Unchanged values can retain their prior proof.
+  const presenter = applicationPresenter({
+    region: "conversation",
+    order: PRESENTATION_ORDER.conversation,
+    failSoft: retainedThreadListProof,
+    paint: async (value) => {
+      if (!available) return value;
+      painting = true;
+      try {
+        const phase = readApplication().phase;
+        // The claimed value is the conversation this pass owes. What it draws comes from
+        // the current semantic root, which may already carry a newer local gesture.
+        await (phase === "ready" ? paintCurrent() : setUnavailable(phase));
+      } finally {
+        painting = false;
+      }
+      return value;
+    },
+  });
+
+  // Every epoch owes a fresh generated presentation, because this owner reads more of
+  // the root than its own fold: thread receipts come from canonical activity and the
+  // margin draws the Ask rows beside them. The claim registers that obligation inside
+  // the publication that seals membership; the pass paints it. Before the page has read
+  // the log there is no conversation to claim.
   applicationState
-    .select((snapshot) =>
-      snapshot.phase === "waiting"
-        ? null
-        : JSON.stringify([snapshot.phase, snapshot.effective.conversation]),
-    )
+    .select((snapshot) => (snapshot.phase === "waiting" ? null : snapshot.semanticEpoch))
     .subscribe((value) => {
-      if (value === null) return;
-      let resolve;
-      const completion = new Promise((done) => {
-        resolve = done;
-      });
-      const prior = activePresentation;
-      activePresentation = { resolve };
-      void presentation().present(readApplication().effective.conversation, completion);
-      prior?.resolve();
+      if (value !== null) void present();
     });
 
-  function present(value, paint) {
-    let resolve, reject;
-    const completion = new Promise((done, fail) => {
-      resolve = done;
-      reject = fail;
-    });
-    const pending = { resolve };
-    const prior = activePresentation;
-    activePresentation = pending;
-    const ready = presentation().present(value, completion, retainedThreadListProof);
-    prior?.resolve();
-    let painted;
-    try {
-      painted = paint();
-      void Promise.resolve(painted).then(resolve, reject);
-    } catch (error) {
-      reject(error);
-    }
-    const clear = () => {
-      if (activePresentation === pending) activePresentation = null;
-    };
-    void ready.then(clear, clear);
-    return ready;
+  function present() {
+    return presenter.sync(readApplication().effective.conversation);
   }
 
   function finishListRecovery(candidate) {
@@ -164,54 +151,23 @@ export function createConversationPresentation({
   }
   const renderCurrent = () => renderReading();
 
-  // Each clock tick reads the current semantic root, never a retained presentation
-  // input that could omit later local gestures or a newer accepted reading.
+  // A clock tick outside the pass claims its own ticket; inside it, the pass already
+  // holds one and claiming a second would be this paint waiting on the pass it is part
+  // of. Either way the reading comes from the current semantic root rather than a
+  // retained input that could omit a later local gesture or accepted reading.
   const paintCurrent = clocked(document.body, () =>
-    activePresentation
-      ? renderCurrent()
-      : present(readApplication().effective.conversation, renderCurrent),
+    painting ? renderCurrent() : present(),
   );
-
-  function apply(snapshot) {
-    return present(snapshot.effective.conversation, () => {
-      if (!available) return;
-      if (snapshot.phase !== "ready") {
-        return setUnavailable(snapshot.phase);
-      }
-      return paintCurrent();
-    });
-  }
-
-  function repaintCurrent() {
-    return present(readApplication().effective.conversation, () => {
-      if (available) return paintCurrent();
-    });
-  }
-
-  function refreshNarrowing() {
-    return present(readApplication().effective.conversation, () => {
-      if (!available) return;
-      const threads = conversationState().all;
-      const prepared = renderThreads(threads, listView);
-      return Promise.resolve(prepared).then((candidate) => {
-        candidate?.commit();
-        finishListRecovery(candidate);
-      });
-    });
-  }
 
   function mount() {
     threadsBox.addEventListener("lf-reveal", (event) => {
       const hidden = event.detail?.target?.closest?.(".lf-thread[hidden]");
-      if (hidden)
-        event.detail?.present?.(revealThread(hidden.dataset.id, refreshNarrowing));
+      if (hidden) event.detail?.present?.(revealThread(hidden.dataset.id, present));
     });
   }
 
   return {
-    apply,
     mount,
-    refreshNarrowing,
-    repaintCurrent,
+    present,
   };
 }

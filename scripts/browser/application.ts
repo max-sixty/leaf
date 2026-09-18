@@ -982,6 +982,10 @@ export function createSemanticApplication({
   return Object.freeze({
     read: publisher.read,
     select: publisher.select,
+    // Whether a publication is still running its synchronous subscribers. A renderer
+    // driven by one paints after it, so every region has claimed this epoch before any
+    // of them touches the document.
+    publishing: () => publicationDepth > 0,
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.

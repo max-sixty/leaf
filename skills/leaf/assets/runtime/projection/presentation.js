@@ -2,12 +2,20 @@
 
    Widget controllers render total state and own their presentation proof. This adapter
    retains the coordinate commits needed by coverage, provenance, chrome, and pending
-   release. Its one document-wide drag gate withholds that global projection work while
-   the gesture's own controller holds its local reading. */
+   release. It is an epoch presenter and paints first in the pass, because the words it
+   materializes inside authored elements are nodes the conversation then resolves its
+   passages over. Its one document-wide drag gate withholds that global projection work
+   while the gesture's own controller holds its local reading; the region stays open
+   until the gesture ends and a fresh claim supersedes it. */
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
 import { projectionDeferred, setProjectionDeferred } from "./state.js";
-import { applicationState, attachApplicationPresentation } from "../semantic-state.js";
+import {
+  applicationPresenter,
+  applicationState,
+  PRESENTATION_HELD,
+  PRESENTATION_ORDER,
+} from "../semantic-state.js";
 import { runtime } from "../context.js";
 import { authored, elementById, inChrome, pageQueryAll } from "../passages.js";
 import {
@@ -52,52 +60,26 @@ export function createProjectionPresentation({ onDeferredReady }) {
   const committedProjection = new Map();
 
   let projectionDragObserver = null;
-  let presentationHandle = null;
-  let activePresentation = null;
 
-  const presentation = () => {
-    presentationHandle ??= attachApplicationPresentation("projection:chrome", document);
-    return presentationHandle;
-  };
+  const presenter = applicationPresenter({
+    region: "projection:chrome",
+    order: PRESENTATION_ORDER.projection,
+    paint: () => paintReading(applicationState.read()),
+  });
 
-  // A semantic publication precedes the imperative adapter that paints it. Claim
-  // changed projection work inside the publisher's synchronous subscription phase,
-  // before it seals presentation membership. Delivery rejection may queue that
-  // adapter behind another application, so inheriting its prior commit is unsound.
+  // A semantic publication precedes the imperative adapter that paints it. The claim
+  // happens in the publisher's synchronous subscription phase, before it seals
+  // presentation membership, so an inherited commit cannot acknowledge the new reading
+  // while frozen widget markup is still joining the document; the pass paints it after.
+  // Every epoch owes one: the coverage stamp reads the server's view of the log beside
+  // the fold, so an unchanged fold is not an unchanged chrome reading.
   applicationState
     .select((snapshot) =>
-      snapshot.authoritative === null
-        ? null
-        : JSON.stringify(snapshot.effective.projection, (_key, value) =>
-            value instanceof Map ? [...value] : value,
-          ),
+      snapshot.authoritative === null ? null : snapshot.semanticEpoch,
     )
     .subscribe((value) => {
-      if (value !== null) prepare(applicationState.read());
+      if (value !== null) void present();
     });
-
-  // State application sometimes has to prepare frozen widget markup before it can
-  // project it. Claim this epoch synchronously after semantic adoption so an inherited
-  // chrome commit cannot acknowledge the new reading during that preparation.
-  function prepare(snapshot) {
-    let resolve;
-    const completion = new Promise((done) => {
-      resolve = done;
-    });
-    const pending = {
-      epoch: snapshot.semanticEpoch,
-      value: snapshot.effective.projection,
-      resolve,
-      claimed: false,
-    };
-    const prior = activePresentation;
-    activePresentation = pending;
-    void presentation().present(pending.value, completion);
-    // Install the newer ticket before completing obsolete work. Its late completion
-    // can no longer satisfy the active region.
-    prior?.resolve();
-    return pending;
-  }
 
   function coordinateProjectionCommitted(projection, entry) {
     const desired = projection.desired.get(entry.coordinate);
@@ -243,37 +225,27 @@ export function createProjectionPresentation({ onDeferredReady }) {
     return projection;
   }
 
-  function present(snapshot, prepared = null) {
-    const pending =
-      prepared !== null &&
-      prepared === activePresentation &&
-      !prepared.claimed &&
-      prepared.epoch === snapshot.semanticEpoch
-        ? prepared
-        : prepare(snapshot);
-    pending.claimed = true;
+  // A throw leaves this region pending and preserves the application error boundary;
+  // the next claim supersedes the hold and tries the current semantic root again.
+  function paintReading(snapshot) {
     const prior = runtime.restoringState;
     if (snapshot.unresolved.some((entry) => entry.rejected && entry.projection))
       runtime.restoringState = true;
     try {
       const projection = presentCurrent(snapshot);
-      if (!projectionDeferred()) {
-        if (activePresentation === pending) activePresentation = null;
-        pending.resolve(projection);
-      }
-      return projection;
-    } catch (error) {
-      // There is no complete chrome result to commit. Keep this ticket pending and
-      // preserve the existing application error boundary; a later presentation first
-      // supersedes this hold, then tries the current semantic root again.
-      throw error;
+      // A drag holds this region open at the reader's own gesture rather than
+      // committing a document-wide reading their own controller has not taken yet.
+      return projectionDeferred() ? PRESENTATION_HELD : projection;
     } finally {
       runtime.restoringState = prior;
     }
   }
 
+  function present() {
+    return presenter.sync(applicationState.read().effective.projection);
+  }
+
   return {
-    prepare,
     present,
     stageOptimistic,
     forgetAuthoredOwners,

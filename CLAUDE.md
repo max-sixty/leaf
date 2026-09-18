@@ -145,6 +145,12 @@ from it. Presentation proof is separate: it records whether required renderers h
 committed the active document's current semantic epoch. Renderer nodes, promises, and
 DOM attributes never enter the semantic snapshot.
 
+A publication is also what starts a renderer. Each one claims its region inside that
+synchronous publication and paints the current root on the pass that follows, so a
+caller that changes what the page shows publishes and waits for proof rather than
+naming renderers or sequencing them. Where one renderer reads DOM another materializes,
+that order is declared once, beside the coordinator, not repeated at each publisher.
+
 Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their
 mechanical browser owners until a gesture becomes a declared application fact. Their
 renderings are not semantic authority, and repainting them does not create a semantic

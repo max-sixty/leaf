@@ -538,7 +538,17 @@ body { position: static !important; box-sizing: border-box !important;
  * before, and the fixed panel paints over the strip the border reserves. What changes is
  * only that the browser goes on anchoring, which is what it is for. Anything reading the
  * shell's own right edge therefore reads the content box (`shellRight`, geometry.js);
- * `getBoundingClientRect().right` is now the outside of the border. */
+ * `getBoundingClientRect().right` is now the outside of the border.
+ *
+ * The hold also rests on an ordering, and it is worth knowing before moving anything
+ * below. `main`'s `left` (through `--lf-shift`) and its `width` do change when the strip
+ * is taken, and both are on Chromium's suppression list. They do not suppress because
+ * they are container-driven: Chromium walks the anchor's ancestors once, just before
+ * layout (`ScrollAnchor::NotifyBeforeLayout`), and the container-query recalc that moves
+ * `main` runs inside layout, after that walk. So a `--lf-shift` or column width set some
+ * other way — a class toggled from script, an inline style, an animation — would switch
+ * anchoring off again. `test_taking_the_panels_strip_leaves_the_reader_on_the_same_words`
+ * is the guard, and passes with no script holding the reader's place. */
 @media screen and (not (width <= 840px)) {
   :is(
     html[data-lf-restore-panel],

@@ -536,30 +536,22 @@ EDGE_IDS = [edge.name for edge in EDGES]
 
 
 def edge_settled(page, edge):
-    """Wait for the region to stand and for the page to finish making room for it.
+    """Wait for the region to stand, including its own arrival slide.
 
-    Two animations, on two elements, and `panel_settled`'s reasoning covers both: the
-    final shell carries `main` into place, and the region's arrival is its own slide. A
-    geometry read between them is a read of a box still under a presentation offset.
-
-    Both are finished rather than waited out, which is that reasoning in full. Each is
-    presentation over a layout the gesture already installed, so the end frame is the
-    settled page either way, and finishing is the only thing that terminates when the
-    test is holding the clock still — `setOpenTray` and a drawn edge reach the same shell
-    carry the panel does, so a held-motion test that came through here would sit out the
-    same stopped clock. Polling, because a carry starts inside the gesture's own task
-    and a finished fill leaves `getAnimations` a turn later.
+    The page makes room for it in the same pass as the state change, so the page needs
+    no wait; the region's slide is the one motion left, and a geometry read during it is a
+    read of a box still under a presentation offset. It is finished rather than waited
+    out, because it is presentation over a layout the gesture already installed and
+    finishing is the only thing that terminates when a test is holding the clock still.
+    Polling, because the slide starts inside the gesture's own task and a finished fill
+    leaves `getAnimations` a turn later.
     """
     expect(page.locator(edge.region)).to_be_visible()
     page.wait_for_function(
         """(region) => {
-          const carried = [
-            document.querySelector('body > main'),
-            document.querySelector(region),
-          ];
-          for (const box of carried)
-            for (const move of box.getAnimations()) move.finish();
-          return carried.every((box) => box.getAnimations().length === 0);
+          const box = document.querySelector(region);
+          for (const move of box.getAnimations()) move.finish();
+          return box.getAnimations().length === 0;
         }""",
         arg=edge.region,
     )

@@ -3533,8 +3533,9 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     # What a covered document must not do is move under these gestures, so each one is
     # read against the position the document was in when the gesture started. Comparing
     # against a reading taken before the panel opened would assert something else: that
-    # nothing ever writes the scroller, which crossing the beside line deliberately does
-    # (moveContentFrame carries the reading place across the reflow it causes).
+    # nothing ever moves the scroller. Crossing the beside line does move it — the strip
+    # reflows the page, and the browser's scroll anchoring adjusts the scroller to keep
+    # the reader on their words — so a raw offset is the wrong thing to hold equal.
     threads.evaluate("el => el.scrollTop = 0")
     page.locator(".lf-threads").focus()
     covered_at = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -3598,10 +3599,13 @@ def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, se
     """The panel's strip reflows the page; the reader stays on the words they were on.
 
     Narrowing the shell narrows the reading column inside it, so the text re-wraps and
-    the document grows above wherever the reader is standing. The browser cannot absorb
-    that here: scroll anchoring is suppressed for any frame in which a box on the
-    anchor's ancestor chain changes its margin, and taking the strip is that change to
-    body. So the runtime carries the reading place itself.
+    the document grows above wherever the reader is standing. The browser's scroll
+    anchoring absorbs that, and nothing in the runtime does: this passes with no script
+    holding the reader's place. That is what makes it the guard. Anchoring is suppressed
+    for any frame in which a box on the anchor's ancestor chain changes a property on the
+    suppression list — `margin`, `padding`, `width`, an inset, a transform — so the strip
+    is a border and the column does not glide (theme.css, at the body strip). The day
+    either regresses, this goes red.
 
     A re-wrap moves every paragraph by a different amount, so only one of them can be
     held. The one the reader's place means is the block under the top of the window,

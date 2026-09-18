@@ -217,11 +217,8 @@ def test_the_page_policy_admits_a_driver_poll_that_outlives_its_evaluate(
     page = open_page(
         browser, live_url(serve(leaf_page("Driver poll", "<h1>Driver poll</h1>")))
     )
-    try:
-        page.evaluate("() => setTimeout(() => { window.lateFact = true }, 250)")
-        page.wait_for_function("window.lateFact === true", timeout=5_000)
-    finally:
-        page.close()
+    page.evaluate("() => setTimeout(() => { window.lateFact = true }, 250)")
+    page.wait_for_function("window.lateFact === true", timeout=5_000)
 
 
 def test_a_website_example_names_its_limited_agent(browser, serve):

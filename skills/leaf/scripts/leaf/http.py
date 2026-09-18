@@ -375,7 +375,9 @@ def supervised_document(
     # script-src without the allowance therefore refuses any wait whose fact is not
     # already true when the poll is installed, which surfaces as an intermittent red
     # suite rather than as a policy refusal. Leaf's own runtime never evals, so the
-    # nonce still decides which script runs.
+    # nonce still decides which script runs. `write_live_shell` composes published
+    # documents here too, so the site's static pages carry the allowance to readers
+    # no driver polls.
     csp = PAGE_CSP + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval'"
     release = (
         f' data-lf-release="{html.escape(release_id, quote=True)}"'

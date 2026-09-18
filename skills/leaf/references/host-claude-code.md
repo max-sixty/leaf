@@ -3,6 +3,11 @@
 Read this immediately before handing a page over in Claude Code, and when
 recovering its wait process.
 
+## Launcher
+
+The skill directory's `../../bin/leaf` launcher resolves to
+`${CLAUDE_SKILL_DIR}/../../bin/leaf`. Claude Code also puts it on `PATH`.
+
 ## Serve the page
 
 ```bash
@@ -15,6 +20,9 @@ reaches you and there is no turn to end. `references/serving-pages.md` owns the
 key, the address it binds, and a URL the reader cannot reach.
 
 ## Wait loop
+
+New reader input reaches you only between your own operations, at the next tool
+result.
 
 One unnamed `leaf wait` watches every page the host session owns. It prints one
 complete `leaf-delivery-v1` envelope, the same object an App Server carries

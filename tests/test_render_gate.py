@@ -72,6 +72,7 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOTH_STAMPS,
+    CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
@@ -2146,6 +2147,141 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     assert not set(idioms) - held, (
         f"no example holds {', '.join(sorted(set(idioms) - held))}"
         " — see examples/CLAUDE.md"
+    )
+
+
+# Computed values, so a shorthand in one sheet and its longhands in the other read as
+# one answer, and a var() and the length it resolves to are the same reading.
+ORDER_SENSITIVE = (
+    "display",
+    "visibility",
+    "position",
+    "zIndex",
+    "width",
+    "height",
+    "minWidth",
+    "minHeight",
+    "color",
+    "backgroundColor",
+    "borderTopColor",
+    "borderTopWidth",
+    "borderTopStyle",
+    "borderTopLeftRadius",
+    "boxShadow",
+    "outlineColor",
+    "outlineWidth",
+    "fontFamily",
+    "fontSize",
+    "fontWeight",
+    "lineHeight",
+    "letterSpacing",
+    "textAlign",
+    "paddingTop",
+    "paddingLeft",
+    "opacity",
+    "cursor",
+    "resize",
+)
+
+COMPUTED_FACES = """([properties]) => {
+    const faces = {};
+    const counted = new Map();
+    for (const element of document.querySelectorAll('body *')) {
+        // getAttribute, because an SVG element's className is an SVGAnimatedString and
+        // every one of them would key as the same element.
+        const stem =
+            element.tagName.toLowerCase() + '.' + (element.getAttribute('class') ?? '');
+        const nth = (counted.get(stem) ?? 0) + 1;
+        counted.set(stem, nth);
+        const computed = getComputedStyle(element);
+        faces[stem + '#' + nth] = properties.map((name) => computed[name]);
+    }
+    return faces;
+}"""
+
+RELOCATE_ADOPTED = """async () => {
+    const rules = document.adoptedStyleSheets.flatMap((sheet) => [...sheet.cssRules]);
+    const style = document.createElement('style');
+    style.nonce = document.querySelector('script[nonce], style[nonce]')?.nonce ?? '';
+    style.textContent = rules.map((rule) => rule.cssText).join('\\n');
+    // A copy: adoptedStyleSheets is a live array, so the assignment below would empty
+    // the saved reference along with it.
+    window.__lfAdopted = {sheets: [...document.adoptedStyleSheets], style};
+    document.head.prepend(style);
+    document.adoptedStyleSheets = [];
+    await new Promise((settled) =>
+        requestAnimationFrame(() => requestAnimationFrame(settled)));
+    return {adopted: rules.length, linked: style.sheet?.cssRules.length ?? 0};
+}"""
+
+RESTORE_ADOPTED = """async () => {
+    const {sheets, style} = window.__lfAdopted;
+    style.remove();
+    document.adoptedStyleSheets = sheets;
+    await new Promise((settled) =>
+        requestAnimationFrame(() => requestAnimationFrame(settled)));
+    return document.adoptedStyleSheets.length;
+}"""
+
+
+def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
+    """The runtime's sheets are adopted, so they cascade after theme.css and after every
+    package theme concatenated onto it. That position is an accident of how they are
+    delivered, and a rule that wins by it beats the page's own rule at equal specificity
+    — a default outranking the thing it is a default for. Nothing catches that, because
+    no test and no browser gate can read a rule that never applied: .lf-ui's face stated
+    there drew .lf-ref at 14px ink where its own rule asked for 11.5px muted, and
+    .lf-margin-more's ink never reached the `…` it was written for.
+
+    So the same rules are served from a stylesheet standing first in the head instead.
+    Specificity does not change, so every computed value that moves was decided by sheet
+    order alone. Zero of them is the contract: what the runtime lays over the page has
+    to beat page and widget alike, and it must do that on its selectors rather than on
+    where it is delivered.
+
+    Layer order is the one other thing the move reverses — theme.css opens an anonymous
+    layer and chrome.css a named `lf-reset`, and the first one declared wins an
+    important declaration. The two never meet on this page: every rule in that anonymous
+    layer asks for a body without `data-lf-presented` or `data-lf-upgraded`, and
+    open_page has waited for both.
+
+    The corpus, because a tie shows only where both rules meet one element, and it is
+    the page that holds every widget and every idiom at once."""
+    page = open_page(browser, serve(CORPUS_PAGE))
+    try:
+        page.evaluate("() => document.getAnimations().forEach((one) => one.pause())")
+        adopted = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+        rules = page.evaluate(RELOCATE_ADOPTED)
+        assert rules["adopted"] and rules["adopted"] == rules["linked"], (
+            f"{rules['adopted']} adopted rules became {rules['linked']} linked ones,"
+            " so the comparison below is between a page and itself"
+        )
+        linked = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+        # Put the sheets back. The corpus is still going about its business — the
+        # gallery builds a replay frame, a pulse reaches its next step — and those
+        # values move whatever this test does to the cascade. A value the sheet's
+        # position decided comes back when the position does; one the page moved by
+        # itself stays where it went.
+        assert page.evaluate(RESTORE_ADOPTED), "the sheets were not put back"
+        restored = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+    finally:
+        page.close()
+
+    assert len(adopted) > 1000, f"only {len(adopted)} elements read from the corpus"
+    decided = []
+    for key in adopted.keys() & linked.keys() & restored.keys():
+        moved = [
+            f"{ORDER_SENSITIVE[at]} {was} -> {now}"
+            for at, (was, now, back) in enumerate(
+                zip(adopted[key], linked[key], restored[key], strict=True)
+            )
+            if was != now and back == was
+        ]
+        if moved:
+            decided.append(f"{key}: {', '.join(moved)}")
+    assert not decided, (
+        f"{len(decided)} of {len(adopted)} elements are drawn by the adopted sheet's"
+        " position rather than by its selectors:\n" + "\n".join(sorted(decided)[:20])
     )
 
 

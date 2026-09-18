@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 
 from .files import json_bytes, read_json
-from .host import state_home
 from .leases import lock_is_held
+from .machine import state_home
 from .schema import ORPHAN_GRACE_SECS, PREVIEW_FILE, SERVER_LOCK, SERVICE_FILE
 from .service import PageTransaction, claim_is_active, page_claim
 

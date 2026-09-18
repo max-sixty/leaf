@@ -1786,7 +1786,6 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             "install_url": "/#install",
         }
         assert state["claims"] == []
-        assert state["host"] is None
         assert state["session_alive"] is None
         assert not state["listening"]
         assert not (page_dir / "service.json").exists()
@@ -1906,7 +1905,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
         expect(page.locator(".lf-threads-toggle")).to_have_text(
             f"Threads ({opened_with + 1})"
         )
-        expect(thread.locator(".lf-msg.claude")).to_have_count(0)
+        expect(thread.locator(".lf-msg.agent")).to_have_count(0)
         page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
         thread = page.locator(
@@ -1914,7 +1913,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
         )
         expect(thread).to_contain_text("Can the migration fix ship first?")
         expect(thread.locator("blockquote")).to_contain_text(selected)
-        expect(thread.locator(".lf-msg.claude")).to_have_count(0)
+        expect(thread.locator(".lf-msg.agent")).to_have_count(0)
     finally:
         page.close()
 

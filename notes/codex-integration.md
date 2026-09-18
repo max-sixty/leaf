@@ -41,7 +41,9 @@ Codex still calls Leaf commands to revise the page, report status, and perform o
 typed operations. Multi-conversation and disconnected deliveries keep the existing
 file-pointer queue fallback. Leaf does not answer approvals or user-input requests.
 
-The implementation is in `skills/leaf/scripts/leaf/codex.py`. The operating
+The implementation is in `skills/leaf/scripts/leaf/codex.py`, which the detached
+carrier in `skills/leaf/scripts/leaf/codex_adapter.py` and the website host in
+`worker/server.py` both drive. The operating
 contract is `skills/leaf/references/host-codex.md`; activity and delivery state are
 specified in `skills/leaf/scripts/leaf/session-lifetime.md`.
 

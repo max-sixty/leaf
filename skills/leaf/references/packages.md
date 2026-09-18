@@ -550,8 +550,9 @@ immediately, invokes it again after one complete Ask projection replaces another
 the subscription lifetime to `owner`, and returns an explicit cleanup function. Each
 Ask is an immutable `{id, tag, sourceId, sourceTag, thread}` record; resolve a node only
 to present or focus it, never to decide membership or answered state. The set is empty
-until the page's first server reading is admitted, because only the log says which
-authored Asks still stand. Package semantic behavior subscribes only through its
+until the page's first server reading is admitted, and it changes with each later
+reading rather than when a gesture is sent, because only the log says which authored
+Asks still stand and which of them are answered. Package semantic behavior subscribes only through its
 controller.
 
 `x-visual` exposes stable Comment targets on a rendered picture. The value `whole` uses

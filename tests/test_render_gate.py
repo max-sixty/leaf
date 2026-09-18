@@ -1362,7 +1362,7 @@ flowchart LR
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-paint",
             "revision": 1,
             "text": "Here it is:",
@@ -1542,7 +1542,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
         {
             "kind": "reply",
             "id": "r-anonymous",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-anonymous",
             "revision": 1,
             "text": "Here they are:",
@@ -1636,7 +1636,7 @@ def test_action_and_report_state_do_not_excuse_unrelated_verbatim_corruption(
     )
     command = {
         "kind": kind,
-        "author": "user" if kind == "action" else "claude",
+        "author": "user" if kind == "action" else "agent",
         "revision": 1,
         "widget": "owner",
         "action": "change" if kind == "action" else "status",
@@ -1762,7 +1762,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
         {
             "kind": "reply",
             "id": "r-scope",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-scope",
             "revision": 1,
             "text": "Here it is:",
@@ -1971,7 +1971,7 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-wrapper",
             "revision": 1,
             "text": "Here it is:",
@@ -3243,9 +3243,6 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     page.locator(f"{edge.region} .lf-edge").press(
         "ArrowRight" if edge.side == "right" else "ArrowLeft"
     )
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     stepped = geometry(page, edge)
 
     page.reload(wait_until="load")
@@ -3297,15 +3294,9 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     drawn = geometry(page, edge)
 
     resized(page, narrow, 900)
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     squeezed = geometry(page, edge)
 
     resized(page, 1400, 900)
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     roomy = geometry(page, edge)
     page.close()
 
@@ -3375,9 +3366,6 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
 
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     given_back = page.evaluate(posture)
     page.close()
 
@@ -3391,10 +3379,10 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
 def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_leaf):
     """The shell adopts a workspace's final room in one layout pass.
 
-    The first sample precedes the press. Every later frame should read the final room while
-    the presentation offset carries the column there. More than those two values means the
-    shell is moving through transient widths and making its container queries repeatedly
-    lay out the page.
+    The first sample precedes the press. Every later frame should read the final room,
+    which the column is already laid out in. More than those two values means the shell is
+    moving through transient widths and making its container queries repeatedly lay out
+    the page.
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
@@ -3632,7 +3620,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-list",
             "revision": 1,
             "text": "Tick what belongs and press Done:",

@@ -25,6 +25,14 @@ ORPHAN_GRACE_SECS = 1
 # expire is re-served by the next command that reaches it, and one meant to
 # outlive its session is `--standing`.
 ACTIVITY_GRACE_SECS = 4 * 60 * 60
+# What the page calls the agent before anything has claimed it. A claim always
+# carries a name, so this stands only where there is no claimant to ask, and it
+# is deliberately the harness-neutral word: a page served from a bare shell
+# belongs to whoever picks it up next, and guessing at a product name there
+# would be the page saying something it does not know. A served state carries
+# this word already; `context.js` says the same one where the browser has no
+# authoritative reading at all, as on an exported page.
+UNCLAIMED_AGENT = "Agent"
 # The kinds a reader can take back. A message is not among them: a comment is
 # speech, and the agent may already have read it — what a reader regrets there
 # they say, rather than unsay. A reaction is the exception the message kinds

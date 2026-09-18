@@ -578,7 +578,7 @@ def watch_preview(
 ) -> None:
     from leaf.event_log import flocked
     from leaf.files import read_json, write_json
-    from leaf.host import host_identity
+    from leaf.host import session_harness
     from leaf.hosting import (
         TEMPORARY_SERVER_NOTE,
         TemporaryPageServer,
@@ -715,7 +715,7 @@ def watch_preview(
                     # A refused restart has no service watching the claim's
                     # lifetime. Lost ownership ends this watcher as well.
                     with PageTransaction(page) as state:
-                        if not state.owned_by(host_identity()):
+                        if not state.owned_by(session_harness()):
                             return
                 if not reported:
                     continue  # the idle wake-up that carried the two checks above

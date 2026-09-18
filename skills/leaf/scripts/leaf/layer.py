@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from .host import package_store
 from .locations import located, locations_overlap
+from .machine import package_store
 from .schema import (
     ASSETS,
     BROWSER_DIRS,

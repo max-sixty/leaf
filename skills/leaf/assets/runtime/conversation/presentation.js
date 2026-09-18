@@ -79,7 +79,8 @@ export function createConversationPresentation({
         // leaves this one returning early, so waiting on the reading it started would
         // commit over a page still being written — and would drop that reading's failure,
         // which has no other ticket to travel on.
-        for (let awaited = null; awaited !== latestRender; ) {
+        let awaited = null;
+        while (awaited !== latestRender) {
           awaited = latestRender;
           await awaited;
         }

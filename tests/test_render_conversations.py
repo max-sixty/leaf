@@ -19,6 +19,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
+    CONVERSATION_DIFF_PAGE,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
@@ -1687,6 +1688,42 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     page.close()
 
 
+def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, serve):
+    """An accepted approval is a semantic fact, so it moves the epoch on its own.
+
+    Nothing else about this state read changes: no thread, no Ask, no widget facet, no
+    pending gesture of this reader's. The approval is another tab's, so there is no
+    receipt to account and no ledger entry to remove — the two paints that show it have
+    only the published fold to hear it from.
+    """
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page = open_page(browser, serve(html, comments=1))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    approve = page.locator(".lf-signoff")
+    expect(approve).to_have_text("Approve version")
+    expect(page.locator(".lf-threads")).not_to_contain_text("Approved")
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "done",
+            "author": "user",
+            "revision": 1,
+            "version": 1,
+            "text": "Looks good",
+        },
+    )
+    told(page)
+
+    expect(page.locator(".lf-threads")).to_contain_text("Approved")
+    expect(approve).to_have_text("✓ Version approved")
+    page.close()
+
+
 def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
     """A system-row age is presented mechanically without advancing semantic time."""
     url = serve(LONG_PAGE, comments=1)
@@ -2447,6 +2484,79 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     round_trip(page)
     expect(page.locator(".lf-needs")).to_have_text("On you")
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
+
+
+def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
+    """A reply saying no answer is coming is marked as one, in both faces of the head.
+
+    Nothing else in the message says it: a host receipt is a reply event, written
+    under the thread's own agent name, in the same bubble as a real answer, and its
+    prose is the only other difference. So a reader skimming a thread reads an
+    apology from the agent rather than a notice that their message went nowhere, and
+    the page's own record of the failure — `failure` — went unread. The mark belongs
+    in the head because that is the part of a message a reader takes on trust.
+    """
+    url = serve(CONVERSATION_DIFF_PAGE)
+    answered, unanswered = (
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": text,
+                "anchor": {"section": "cd-q"},
+            },
+        )
+        for text in ("Widen the north bracket?", "And the south pair?")
+    )
+    answer = conversation_model.cmd_reply(
+        serve.page_dir,
+        answered["id"],
+        "Widened it to forty.",
+        None,
+        for_event=answered["id"],
+    )
+    receipt = conversation_model.cmd_reply(
+        serve.page_dir,
+        unanswered["id"],
+        "The agent's turn ended without an answer to this message. "
+        "Send it again to retry.",
+        None,
+        for_event=unanswered["id"],
+        failure="turn_failed",
+    )
+
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    inline = page.locator(f'#cd-q .lf-conversation-msg[data-event="{receipt["id"]}"]')
+    expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
+    assert inline.get_attribute("data-failure") == "turn_failed"
+    # The real answer above it wears nothing, so the mark is a difference the reader
+    # can see rather than a decoration every agent message carries.
+    real = page.locator(f'#cd-q .lf-conversation-msg[data-event="{answer["id"]}"]')
+    expect(real.locator(".lf-msg-failure")).to_have_count(0)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel = page.locator(f'.lf-msg[data-mid="{receipt["id"]}"]')
+    expect(panel.locator(".lf-msg-failure")).to_have_text("Not answered")
+
+    # And it is dressed rather than bare: an unmarked span among a head of muted
+    # metadata would be the same invisibility in another shape.
+    head = page.evaluate(
+        """(id) => {
+          const head = document.querySelector(`.lf-msg[data-mid="${id}"] .lf-msg-head`);
+          const chip = getComputedStyle(head.querySelector(".lf-msg-failure"));
+          return {
+            chip: chip.color,
+            border: chip.borderTopWidth,
+            clock: getComputedStyle(head.querySelector("time")).color,
+          };
+        }""",
+        receipt["id"],
+    )
+    assert head["chip"] != head["clock"] and head["border"] != "0px"
 
 
 def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
@@ -3331,8 +3441,18 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # structure when the margin projects it into the chrome.
         "lf-conversation-body",
         "lf-conversation-head",
+        # The message's own box. The theme gives the authored and margin-projected copies
+        # their spacing while the chrome's scoped rules dress the panel's. The runtime
+        # sheet used to name it at document level too, in a `.lf-conversation-msg.lf-ui`
+        # spelling of the shared face that answered nothing once that face moved to the
+        # theme: no rule anywhere states a face on this class, so the extra weight was
+        # only weight.
+        "lf-conversation-msg",
         "lf-conversation-thread",
         "lf-edited",
+        # A host receipt's mark is part of that same shared message structure: the
+        # head carries it in the panel and inline, so the theme dresses it here.
+        "lf-msg-failure",
         "lf-fab",
         "lf-fab-bar",
         "lf-focus-within",
@@ -3406,9 +3526,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-aiming",
         "lf-over-item",
         "lf-quiet",
-        # Shared textual thread boxes render both in page-owned widget seats and in the
-        # chrome-owned margin preview.
-        "lf-conversation-msg",
+        # The shared textual thread box renders both in page-owned widget seats and in
+        # the chrome-owned margin preview, so its pasted-image shelf is dressed here.
+        # Its message rows are not: they take the shared face from the theme like every
+        # other injected element, and the chrome dresses only the margin preview's copy,
+        # from inside its own scope.
         "lf-say",
         # A pasted image's writing projection and inspection control cross the same
         # seam: widget conversation boxes live in the page, while general comments,

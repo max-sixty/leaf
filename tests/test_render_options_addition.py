@@ -13,9 +13,13 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     button_radius,
+    token_colour,
 )
 from render_harness import (
     EXAMPLE_MEDIA,
+    STORED_DRAFT_TEXT,
+    consume_browser_errors,
+    holding,
     open_page,
     round_trip,
     sending,
@@ -121,7 +125,9 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
           const fill = getComputedStyle(el, '::before');
           return {
             button: button.backgroundColor,
+            glyph: button.color,
             fill: fill.backgroundColor,
+            fillWidth: fill.width,
             radius: fill.borderRadius,
           };
         }"""
@@ -134,6 +140,12 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert face["fill"] != face["button"]
     assert face["radius"] == button_radius(page)
     assert face["radius"] != circle_radius
+    # The mark stands on the disc, so it reads against the disc rather than against the
+    # ink every injected control takes from the shared face. Both rules are the theme's,
+    # and this one wins by coming after it; when the face was stated in the adopted sheet
+    # instead, it outranked this rule and drew the mark near black on the accent.
+    assert face["fill"] == token_colour(page, "--accent")
+    assert face["glyph"] == token_colour(page, "--paper")
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 
@@ -143,6 +155,68 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert form_box["height"] >= 44
     assert add_box["y"] >= form_box["y"]
     assert add_box["y"] + add_box["height"] <= form_box["y"] + form_box["height"]
+    # A coarse pointer widens what the reader may hit, not what the page draws: the press
+    # keeps painting nothing of its own, so the disc stays the size it was rather than
+    # becoming a square as wide as its target.
+    coarse = add.evaluate(
+        """el => ({
+             button: getComputedStyle(el).backgroundColor,
+             fillWidth: getComputedStyle(el, '::before').width,
+           })"""
+    )
+    assert add_box["width"] >= 44
+    assert coarse["button"] == "rgba(0, 0, 0, 0)"
+    assert coarse["fillWidth"] == face["fillWidth"]
+
+
+def test_the_draft_send_press_holds_the_row_s_inline_end(browser, serve):
+    """Both presentations of the group end the draft row where every text box ends.
+
+    A binding badge is off screen until a reader asks for bindings, so a layout that
+    gives it the row's edge and seats the press inside it reads, for almost the whole of
+    a page's life, as a send button that missed the corner. The badge waits inside the
+    press instead, in room the draft's own trailing padding already holds, so asking for
+    bindings still moves nothing.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    # The second Ask carries the card presentation, which is where the row's trailing
+    # room is contested: its options wear their binding badges at the corner, so the
+    # draft's badge is the one that had the edge.
+    page.keyboard.press("a")
+    page.keyboard.press("a")
+    expect(page.locator("#bracket > .lf-another > .lf-key-badge")).to_be_visible()
+    shown = page.locator("#bracket > .lf-another").evaluate(
+        """el => {
+             const press = el.querySelector('.lf-compose-submit').getBoundingClientRect();
+             const mark = el.querySelector('.lf-key-badge').getBoundingClientRect();
+             return {inside: press.left - mark.right, right: press.right};
+           }"""
+    )
+    assert shown["inside"] > 0, shown
+
+    page.keyboard.press("Escape")
+    gaps = {}
+    for group in ("#jobs", "#bracket"):
+        row = page.locator(f"{group} > .lf-another")
+        row.locator("textarea").fill("Something the author missed")
+        expect(row.locator(".lf-compose-submit")).to_be_visible()
+        gaps[group] = row.evaluate(
+            """el => {
+                 const style = getComputedStyle(el);
+                 const inner = el.getBoundingClientRect().right
+                   - parseFloat(style.borderRightWidth);
+                 const press = el.querySelector('.lf-compose-submit');
+                 return {
+                   end: inner - press.getBoundingClientRect().right,
+                   right: press.getBoundingClientRect().right,
+                 };
+               }"""
+        )
+    assert abs(gaps["#jobs"]["end"] - gaps["#bracket"]["end"]) < 0.5, gaps
+    assert 0 <= gaps["#bracket"]["end"] < 8, gaps
+    # Writing in the row and putting the bindings away leave the press where the badge
+    # found it: the room is held whether or not anything is standing in it.
+    assert abs(gaps["#bracket"]["right"] - shown["right"]) < 0.5, (gaps, shown)
 
 
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
@@ -252,6 +326,86 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
+
+
+def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve):
+    """The reader's answer stands on screen once, as the option the press drew.
+
+    The press paints that option before the log has answered, so the words have moved and
+    the box they came from is empty in that same turn; a reader who saw both would read
+    their own answer as still unsent. The generation is standing rather than settled, and
+    the refusal shows the difference. It takes the option away and gives the words back,
+    out of a record that never left the store.
+    """
+    browser, held = held_events
+    page = open_page(browser, serve(ASK_PAGE))
+    form = page.locator("#jobs > .lf-another")
+    field = form.get_by_role("textbox", name="Another option", exact=True)
+    words = "Insulate the camera battery"
+    field.fill(words)
+    form.get_by_role("button", name="Add option", exact=True).click(no_wait_after=True)
+    holding(page, held, 1, "the added option")
+
+    added = page.locator("#jobs > lf-option[data-lf-added]")
+    expect(added).to_have_count(1)
+    expect(added).to_contain_text(words)
+    expect(field).to_have_value("")
+    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") == words
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(added).to_have_count(0)
+    expect(field).to_have_value(words)
+    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") == words
+    assert not [
+        event
+        for event in sent_events(serve.page_dir)
+        if event.get("kind") == "action" and event.get("widget") == "jobs"
+    ]
+    consume_browser_errors(page, "400")
+
+
+def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, serve):
+    """A pick made while the send is open leaves the sent generation alone.
+
+    Every pick rewrites the add field's draft, because the choice that draft would submit
+    has changed. A pick made while the added option was in the wire used to write over
+    the generation that send owned, so its answer settled nothing and the words it had
+    already carried into an option stayed in the box for good. A sent generation is no
+    longer the box's to write — the same mask that empties the box keeps the pick out of
+    it.
+    """
+    browser, held = held_events
+    page = open_page(browser, serve(ASK_PAGE))
+    form = page.locator("#jobs > .lf-another")
+    field = form.get_by_role("textbox", name="Another option", exact=True)
+    words = "Insulate the camera battery"
+    field.fill(words)
+    form.get_by_role("button", name="Add option", exact=True).click(no_wait_after=True)
+    holding(page, held, 1, "the added option")
+
+    # The queue holds this second action behind the first, so the pick's own paint, not
+    # another held route, is what says the gesture was taken while the send was open.
+    page.locator("#job-heater").click()
+    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
+    expect(field).to_have_value("")
+
+    while held:
+        held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(field).to_have_value("")
+    assert page.evaluate(STORED_DRAFT_TEXT, "option:jobs") is None
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
 
 
 PASTE_IMAGE = """(textarea, encoded) => {

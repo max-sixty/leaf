@@ -239,9 +239,9 @@ export function narrowingModel(threads, groups = new Map()) {
   });
 }
 
-function renarrow(refreshNarrowing) {
+function renarrow(repaintConversation) {
   if (runtime.statePhase !== "ready") return;
-  const ready = refreshNarrowing();
+  const ready = repaintConversation();
   // Reset after the keyed list has committed. The coordinator owns rejection reporting;
   // observe this continuation on both paths so an event listener that discards the
   // returned ticket cannot create another page-level rejection.
@@ -256,7 +256,7 @@ function replaceIntent(changes) {
   intent = Object.freeze({ ...intent, ...changes });
 }
 
-const chooseFacet = (kind, value, refreshNarrowing) => {
+const chooseFacet = (kind, value, repaintConversation) => {
   if (kind === "state")
     replaceIntent({
       state: intent.state === value && value !== "open" ? "open" : value,
@@ -266,18 +266,18 @@ const chooseFacet = (kind, value, refreshNarrowing) => {
   else if (kind === "subject")
     replaceIntent({ subject: intent.subject === value ? null : value });
   else if (kind === "gone") replaceIntent({ onlyGone: !intent.onlyGone });
-  renarrow(refreshNarrowing);
+  renarrow(repaintConversation);
 };
 
-export function mountNarrowing(refreshNarrowing) {
+export function mountNarrowing(repaintConversation) {
   narrowingView.configure({
     initial: narrowingModel([], new Map()).presentation,
     changeWords: (words) => {
       replaceIntent({ words, finding: words.trim().toLowerCase() });
-      renarrow(refreshNarrowing);
+      renarrow(repaintConversation);
     },
-    chooseFacet: (kind, value) => chooseFacet(kind, value, refreshNarrowing),
-    reset: () => widen(refreshNarrowing),
+    chooseFacet: (kind, value) => chooseFacet(kind, value, repaintConversation),
+    reset: () => widen(repaintConversation),
   });
 }
 
@@ -295,7 +295,7 @@ function clearNarrowing(nextState = "open") {
 // transition captures this reading before it reveals that destination, so refusal can
 // put back the exact list the reader was operating rather than merely selecting the
 // thread's lifecycle again.
-export function retainNarrowing(refreshNarrowing) {
+export function retainNarrowing(repaintConversation) {
   const retained = intent;
   let replacement = null;
   return {
@@ -317,27 +317,27 @@ export function retainNarrowing(refreshNarrowing) {
       if (intent !== prepared) return false;
       intent = retained;
       narrowingView.setSearchWords(retained.words);
-      await renarrow(refreshNarrowing);
+      await renarrow(repaintConversation);
       return true;
     },
   };
 }
 
-export function widen(refreshNarrowing) {
+export function widen(repaintConversation) {
   if (!clearNarrowing()) return false;
-  renarrow(refreshNarrowing);
+  renarrow(repaintConversation);
   return true;
 }
 
 // A direct destination overrides the current view, including the default Open state.
 // It clears unrelated refinements and selects the lifecycle value that can contain the
 // requested thread, rather than making Resolved a special disclosure outside filtering.
-export function revealThread(id, refreshNarrowing) {
+export function revealThread(id, repaintConversation) {
   const thread = threadList().find(
     (candidate) =>
       candidate.root.id === id || candidate.msgs.some((message) => message.id === id),
   );
   if (!thread) return false;
   clearNarrowing(thread.resolved ? "resolved" : "open");
-  return renarrow(refreshNarrowing);
+  return renarrow(repaintConversation);
 }

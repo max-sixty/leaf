@@ -1420,13 +1420,17 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         # Remember this demo beside the reader's open outer workspace, reload, and play
         # as soon as the frame declares itself ready. The contained thread surface may
         # finish rendering after the page's presentation edge; the replay waits for it
-        # instead of failing its first attempt.
+        # instead of failing its first attempt. The reader here still asks for stillness,
+        # which is what makes the ready state a resting one: a gallery that may move
+        # plays itself the moment it is both loaded and on screen, and where the reload's
+        # restored reading position leaves it is not something this test arranges.
         comment_tab.click()
-        page.emulate_media(reduced_motion="no-preference")
         page.reload(wait_until="domcontentloaded")
         gallery = page.locator("#bg-interactions")
         status = gallery.locator("[data-interaction-status]")
-        expect(status).to_have_text("Ready", timeout=15_000)
+        expect(status).to_have_text(
+            "Ready — motion will start only when you press Play", timeout=15_000
+        )
         gallery.locator("[data-interaction-toggle]").evaluate(
             "toggle => toggle.click()"
         )
@@ -1445,8 +1449,11 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     try:
         gallery = page.locator("#bg-interactions")
         gallery.get_by_role("tab", name="Send a comment").click()
+        # An init script is source rather than a function Playwright calls, so a bare
+        # arrow here is an expression the document evaluates and throws away, and the
+        # delay this test is named for never reaches the frame.
         context.add_init_script(
-            """() => {
+            """(() => {
                 const append = Element.prototype.append;
                 Element.prototype.append = function(...nodes) {
                     if (
@@ -1458,7 +1465,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
                     }
                     return append.apply(this, nodes);
                 };
-            }"""
+            })();"""
         )
         page.reload(wait_until="domcontentloaded")
         toggle = gallery.locator("[data-interaction-toggle]")
@@ -1979,7 +1986,7 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
     try:
         page.locator(".lf-threads-toggle").click()  # the box lives in the panel
         page.locator(".lf-general textarea").fill("Where does this go?")
-        page.locator(".lf-general .lf-btn.primary").click()
+        page.locator(".lf-general .lf-compose-submit").click()
         # One, and typed: this example ships no log, so the count is the comment
         # just written and nothing else.
         expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")

@@ -22,6 +22,7 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     in_threads_scrollport,
+    token_colour,
 )
 from render_cases_navigation import (
     DRAFT_EDITED,
@@ -116,7 +117,12 @@ def choose_comment_target(page, selector):
 
 @pytest.mark.parametrize("box", ["general", "reply", "composer"])
 def test_a_single_space_is_message_content_in_every_composer(browser, serve, box):
-    """The shared field and both drawing-aware variants admit the smallest message."""
+    """The shared field and both drawing-aware variants admit the smallest message.
+
+    Each box sends from the one press the shared field dresses, and that press paints
+    nothing of its own: the disc behind the glyph is the whole of what a reader sees,
+    which is why it stays the same size as the target around it grows.
+    """
     page = open_page(browser, serve(LONG_PAGE, comments=box == "reply"))
     if box == "composer":
         select_words(page, "#p0")
@@ -136,6 +142,22 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
     send = surface.locator(".lf-compose-submit")
     field.fill(" ")
     expect(send).to_have_attribute("aria-disabled", "false")
+    face = send.evaluate(
+        """el => {
+             const press = getComputedStyle(el);
+             const disc = getComputedStyle(el, '::before');
+             return {
+               press: press.backgroundColor,
+               glyph: press.color,
+               disc: disc.backgroundColor,
+               discWidth: disc.width,
+             };
+           }"""
+    )
+    assert face["press"] == "rgba(0, 0, 0, 0)", face
+    assert face["glyph"] == token_colour(page, "--paper"), face
+    assert face["disc"] == token_colour(page, "--accent"), face
+    assert face["discWidth"] == "28px", face
     with sending(page, f"the {box} message"):
         send.click()
 

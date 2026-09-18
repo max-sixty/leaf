@@ -1429,20 +1429,14 @@ export function createVersionController({
     );
     syncLayout();
     restoreView(view);
-    // Focus is not restored, because a patch does not take it: a control the revision
-    // kept is the same element, still holding it, with the tab stop it was lent. One the
-    // revision replaced drops focus to `body`, where the page's own keys are live, which
-    // is the honest answer for a reader whose control the revision took away.
-    //
-    // A reader working an Ask has named more than a control, and the revision that
-    // rewrote the question is exactly the revision they most need to stay with. Their
-    // standing is restored by the Ask's declared id, so it is not the shape guess the
-    // module header rules out; an Ask the revision dropped leaves them on `body` like any
-    // other replaced control.
-    // The exact control and the words in it first, where the author named them; the
-    // Ask's own opening after, for a reader whose control carried no name of its own.
-    // The standing restore reads focus, so a carry that has already put them back
-    // inside the Ask leaves it with nothing to do.
+    // A control the revision kept is the same element, still holding the focus and the
+    // words the reader put in it, and needs nothing from here. One the revision replaced
+    // gets back whatever the author named: the exact element first, by its id, with the
+    // reader's own state on it, and then the Ask's own opening, for a reader whose
+    // control carried no name to be found again by. The standing restore reads focus, so
+    // a carry that has already put them back inside the Ask leaves it nothing to do, and
+    // a control the author left unnamed inside an Ask the revision dropped leaves them on
+    // `body`, where the page's own keys are live.
     restoreCarry(carry.records, carry.held);
     restoreAskStanding(askStanding);
     if (comparedFrom !== null) showComparison(comparedFrom);

@@ -110,7 +110,7 @@ const composerInput = fabInput;
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a reader at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
-const composerSend = el("button", "lf-btn primary", "Comment");
+const composerSend = el("button", "lf-btn", "Comment");
 composer.append(composerQuote, suggestRow, composerInput, composerSend);
 fabBar.prepend(composer);
 

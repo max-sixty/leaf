@@ -73,22 +73,25 @@
    body. Body is the page shell and may move or narrow for standing auxiliary surfaces; the
    document coordinate system does neither, and root scrolling still carries absolute
    chrome with the passage it stands beside. */
-/* The chrome's line box, said once, because one control in the banner cannot be
-   told it. Chrome computes a select's inner height from its own metrics and
-   refuses line-height outright — the computed value stays normal however the
-   rule is written — so the chooser stood 3.3px shorter than every button beside
-   it, centred, and read as sunk into the row. Its height is stated instead, from
-   this and its own padding (see the chooser's rule), which is the same number
-   .lf-btn arrives at through the line box. Stated in one place so the two cannot
-   come apart: a third copy of 1.45 is exactly the drift the reserve comment below
-   is about, and this one would show as the chooser sinking again. */
-:root { --lf-ui-lh: 1.45; }
 /* Rules at this level are the shared vocabulary: classes whose whole job is
    elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
    runtime marks the page's own elements (lf-mark-el, lf-ins-block). Adding one
    widens the vocabulary; a rule that styles the runtime's own layer goes in the
-   @scope block below instead. */
-.lf-ui, .lf-conversation-msg.lf-ui, .lf-say.lf-ui { font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); color: var(--ink); box-sizing: border-box; }
+   @scope block below instead.
+
+   This sheet is adopted (leaf.js), so it cascades after the theme and after every
+   package theme concatenated onto it. A shared face stated here at ordinary class
+   specificity therefore beats each component's own rule — a default outranking the
+   thing it is a default for — and nothing catches it, since a rule that never applies
+   renders nothing to gate. So a face for these page-standing elements belongs in
+   theme.css beside .lf-btn's, where a component that names the same property wins by
+   coming later, and this sheet keeps the paint the runtime lays over the page, which
+   has to beat page and widget alike. The .lf-ui face has moved; .lf-chip's,
+   .lf-mark-note's and .lf-key-badge's have not yet — the first two restated in
+   theme.css meanwhile for the shadow roots this sheet never reaches, and the third
+   only here. `box-sizing` stays because it is the layer's reset rather than its face,
+   and it travels with its own `*` companion below. */
+.lf-ui { box-sizing: border-box; }
 .lf-ui *, .lf-ui *::before, .lf-ui *::after { box-sizing: inherit; }
 /* Clearing the UA's form-control face is a different kind of declaration from
    choosing one, so the clearing lives in a layer, which any unlayered choice
@@ -223,7 +226,7 @@
   cursor: pointer;
 }
 .lf-margin-entry:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {
-  background: var(--lf-agent-tint, var(--chip));
+  background: var(--lf-entry-tint, var(--chip));
 }
 .lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(:hover, [aria-expanded="true"]):not([aria-disabled="true"]) {
   border-color: var(--accent);
@@ -261,11 +264,23 @@
   border-color: var(--danger-ink);
 }
 .lf-margin-entry[data-lf-agent-workflow="working"] {
-  --lf-agent-tint: var(--ok-wash);
-  background: var(--lf-agent-tint);
+  --lf-entry-tint: var(--ok-wash);
+  background: var(--lf-entry-tint);
 }
 .lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+}
+/* A thread whose next word is the reader's wears the same two channels in blue: the
+   glyph and the interior. Agent workflow outranks it, because a carrier the agent has
+   picked up or is working on is reporting something happening now, and one interior
+   cannot carry two washes. The entry's own contour still says what the press does. */
+.lf-margin-entry[data-lf-turn="reader"]:not([data-lf-agent-workflow])
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
+  color: var(--turn-ink);
+}
+.lf-margin-entry[data-lf-turn="reader"]:not([data-lf-agent-workflow]) {
+  --lf-entry-tint: var(--turn-wash);
+  background: var(--lf-entry-tint);
 }
 .lf-margin-entry[data-lf-agent-arrival] {
   animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
@@ -1337,6 +1352,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
   .lf-msg time { color: var(--muted-2); }
   .lf-msg-head .lf-edited { color: var(--muted-2); }
+  /* The one mark in a message head that is not muted metadata. Everything else there
+     — the clock, `edited`, a stream's last state — is about a message the reader can
+     read anyway; this says the message in front of them answers nothing, and it is
+     the only thing in the head they have to act on. */
+  .lf-msg-head .lf-msg-failure { padding: 1px 5px;
+    border: 1px solid var(--warn); border-radius: var(--chip-r);
+    color: var(--warn-ink); background: var(--warn-tint);
+    font: 600 var(--t-6)/1.25 var(--sans); }
   /* A message body is rendered Markdown, which is why this dresses a box and not a
      paragraph. The theme's element rules are at document level and reach in here, so a
      reply's lists, code, quotes and tables already read as the page's do; what is left
@@ -1768,8 +1791,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--ok-ink);
   }
   .lf-page-map-action[data-lf-agent-workflow="working"] {
-    --lf-agent-tint: var(--ok-wash);
-    background: var(--lf-agent-tint);
+    --lf-entry-tint: var(--ok-wash);
+    background: var(--lf-entry-tint);
+  }
+  .lf-page-map-action[data-lf-turn="reader"]:not([data-lf-agent-workflow])
+    > .lf-margin-kind {
+    color: var(--turn-ink);
+  }
+  .lf-page-map-action[data-lf-turn="reader"]:not([data-lf-agent-workflow]) {
+    --lf-entry-tint: var(--turn-wash);
+    background: var(--lf-entry-tint);
   }
   .lf-page-map-action[data-lf-agent-arrival] {
     animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
@@ -1778,7 +1809,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-page-map-action[data-lf-agent-arrival] { animation: none; }
   }
   .lf-page-map-action:is(button, [role="button"]):is(:hover, :focus-visible):not([aria-disabled="true"]) {
-    background: var(--lf-agent-tint, var(--chip)); }
+    background: var(--lf-entry-tint, var(--chip)); }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
     align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;
     stroke-linecap: round; stroke-linejoin: round; }

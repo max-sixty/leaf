@@ -2305,6 +2305,159 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     )
 
 
+MARKED_SENTENCE = (
+    "First pass: when the deploy fails again in the night, the run is retried "
+    "until it lands."
+)
+
+
+def mark_the_first_sentence(browser, serve):
+    """`EDGE_PAGE` with its opening sentence commented on, Threads open.
+
+    The sentence's own tail is left unmarked, which is where the shift-click below starts
+    so that only its extension reaches the painted words."""
+    url = serve(EDGE_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the retry.",
+            "anchor": {"section": "edge", "quote": MARKED_SENTENCE},
+        },
+    )
+    page = open_page(browser, url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    return page
+
+
+def marked_run(page):
+    """The painted mark's first line, to aim a gesture inside."""
+    return page.evaluate(
+        """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
+                   return {left: r.left, right: r.right, y: r.top + r.height / 2}; }"""
+    )
+
+
+def words_in_hand(page):
+    return page.evaluate(
+        """() => {
+          const sel = getSelection();
+          return {
+            selected: sel && !sel.isCollapsed ? sel.toString() : "",
+            inPanel: Boolean(
+              document.querySelector('.lf-thread-panel')?.contains(document.activeElement)
+            ),
+          };
+        }"""
+    )
+
+
+def word_at(page, selector, word):
+    """The middle of `word` inside `selector`'s own text, for a real press on it."""
+    return page.evaluate(
+        """([selector, word]) => {
+          const words = document.querySelector(selector).firstChild;
+          const at = words.data.indexOf(word);
+          const want = document.createRange();
+          want.setStart(words, at);
+          want.setEnd(words, at + word.length);
+          const r = want.getClientRects()[0];
+          return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+        }""",
+        [selector, word],
+    )
+
+
+def take_by_drag(page):
+    run = marked_run(page)
+    select(
+        page,
+        (run["left"] + 4, run["y"]),
+        (run["left"] + (run["right"] - run["left"]) / 2, run["y"]),
+        steps=10,
+    )
+
+
+def take_by_double_click(page):
+    # A named word rather than the middle of the painted run: which character the midpoint
+    # falls on is the font's business, and a double-click on the space between two words
+    # takes nothing at all. Measured, it is a letter on this Mac's Charter and a space on
+    # CI's Linux Chromium — so the run's geometry aims the drag, which only needs to end
+    # among words, and never a gesture that has to land on one.
+    #
+    # The first click of the pair is a press by the door's own rule, and opens the mark's
+    # thread; the second takes the word and is refused, and focus comes back to the page
+    # with it. What the reader is left holding is what this arm asserts.
+    at = word_at(page, "#edge p", "deploy")
+    page.mouse.dblclick(at["x"], at["y"])
+
+
+def take_by_shift_click(page):
+    # Start in the sentence's unmarked tail, then extend back into the mark, so the
+    # click that reaches the door lands on painted words.
+    tail = word_at(page, "#edge p", "Nothing")
+    page.mouse.click(tail["x"], tail["y"])
+    run = marked_run(page)
+    page.keyboard.down("Shift")
+    page.mouse.click(run["left"] + (run["right"] - run["left"]) / 2, run["y"])
+    page.keyboard.up("Shift")
+
+
+@pytest.mark.parametrize(
+    "take",
+    [take_by_drag, take_by_double_click, take_by_shift_click],
+    ids=["drag", "double-click", "shift-click"],
+)
+def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_thread(
+    browser, serve, take
+):
+    """Marked words are still words to comment on: every way of taking them leaves the
+    reader holding them, with the 💬 on what was taken and the page still under them.
+
+    What the reader ends up with, rather than where the gesture went on the way: a
+    double-click's first click is a press by the door's own rule and opens the mark's
+    thread, and only its second click takes a word. Measured, that excursion costs the
+    reader a focus round trip through the reply box and no movement of the reading column
+    at all, and refusing it would mean holding every press on a mark for the length of the
+    double-click interval — the ordinary gesture made sluggish for the rarer one. So each
+    arm asserts the standing result, and the press below asserts that the mark still opens.
+
+    A click ends a gesture that took words as surely as it ends a press, and the mark's
+    door read every one of them as a press. With Threads open the thread it opened landed
+    the reader in the panel's reply box, and focusing a textarea collapses the document's
+    selection — so the words went, the 💬 with them, and marked passages became the one
+    part of a page a reader could not quote. The panel is why it shows here and not on a
+    closed one, where the same travel focuses a card and leaves the selection standing;
+    both doors are the one misreading, so this asserts the open panel, where it is visible.
+
+    All three gestures, because the first reading written for this covered only the drag:
+    it asked how far the pointer had travelled, and a double-click's second press and a
+    shift-click's extension both take words without moving it. Each arm then makes the
+    press the mark is for, where the gesture's own words still stand selected — a reading
+    taken off the standing selection rather than off what the press changed refuses that
+    press as a gesture of its own, and the mark stops opening at all."""
+    page = mark_the_first_sentence(browser, serve)
+    take(page)
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    wait_for_pending_mark(page)
+    took = words_in_hand(page)
+    assert took["selected"].strip(), (
+        "the gesture took no words, so this says nothing about what the door did with them"
+    )
+    assert not took["inPanel"], "the gesture sent the reader into the conversation"
+    assert pending_text(page) == took["selected"].strip(), (
+        f"the 💬 is about {pending_text(page)!r} rather than the words that were taken"
+    )
+
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    expect(page.locator(".lf-threads .lf-thread textarea")).to_be_focused()
+    expect(page.locator(".lf-threads .lf-thread")).to_contain_text("About the retry.")
+
+
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
     click lands back in the conversation. The mark must not look deselected in that gap.
@@ -2505,7 +2658,7 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     expect(fab).to_be_visible()
     fab.focus()
     page.locator(".lf-composer textarea").fill("is this idempotent?")
-    page.locator(".lf-composer button.primary").click()
+    page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -2579,7 +2732,7 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").focus()
     page.locator(".lf-composer textarea").fill("why is this section here?")
-    page.locator(".lf-composer button.primary").click()
+    page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -2893,7 +3046,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
         const box = document.querySelector('.lf-composer textarea');
         box.value = 'does this hold?';
         box.dispatchEvent(new Event('input', {bubbles: true}));
-        document.querySelector('.lf-composer button.primary').click();
+        document.querySelector('.lf-composer button.lf-compose-submit').click();
         return true;
     }""")
     assert posted is True, f"couldn't post the comment ({posted})"
@@ -4744,8 +4897,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    # The same draft has two views, across the shadow boundary. Empty Sends keep the
-    # paper's neutral ground; typing enables the same primary face in either view.
+    # The same draft has two views, across the shadow boundary. An empty Send paints
+    # nothing, showing whatever ground it stands on; typing fills the same disc in
+    # either view. The press's own box never paints, so the disc is read off ::before.
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     inline_send = thread.get_by_role("button", name="Send", exact=True)
@@ -4756,7 +4910,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         'backgroundColor', 'color', 'borderTopColor', 'borderRadius', 'padding',
         'opacity', 'cursor', 'filter',
       ].map(property => [property, style[property]]));
-      face.fillBorderRadius = getComputedStyle(button, '::before').borderRadius;
+      const fill = getComputedStyle(button, '::before');
+      face.fillBorderRadius = fill.borderRadius;
+      face.fill = fill.backgroundColor;
       return face;
     }"""
     expect(inline_send).to_be_disabled()
@@ -4764,7 +4920,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     quiet = inline_send.evaluate(button_face)
     assert quiet == panel_send.evaluate(button_face)
     assert quiet["borderRadius"] == quiet["fillBorderRadius"] == button_radius(page)
-    assert quiet["backgroundColor"] == palette["page"]
+    assert quiet["backgroundColor"] == quiet["fill"] == "rgba(0, 0, 0, 0)"
     assert quiet["opacity"] == "1"
     assert quiet["filter"] == "none"
     for send in (inline_send, panel_send):
@@ -4777,7 +4933,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(panel_send).to_be_enabled()
     ready = inline_send.evaluate(button_face)
     assert ready == panel_send.evaluate(button_face)
-    assert ready["backgroundColor"] != quiet["backgroundColor"]
+    assert ready["backgroundColor"] == quiet["backgroundColor"]
+    assert ready["fill"] != quiet["fill"]
     assert ready["cursor"] == "pointer"
 
     # The reply is a text box in either seat, so it wears the text box's one band:

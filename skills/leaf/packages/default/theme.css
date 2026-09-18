@@ -721,11 +721,14 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); }
+   /* The draft's send press keeps the inline end it holds in every other Leaf text box,
+    * and the badge takes the room just inside it, which is the same room the draft's own
+    * trailing padding below reserves, so asking for bindings still moves nothing. The
+    * badge cannot have the edge instead: it is off screen until a reader asks for it,
+    * and the press would stand 35px short of the corner explaining nothing. */
    & > .lf-another > .lf-key-badge {
-                     inset-inline-start: auto; inset-inline-end: var(--sp-2); }
-   & > .lf-another .lf-compose-submit {
-                     inset-inline-end:
-                       calc(var(--sp-2) + var(--lf-key-badge-size) + var(--sp-2)); }
+                     inset-inline-start: auto;
+                     inset-inline-end: calc(var(--aim-floor) + var(--sp-4)); }
    & > .lf-another textarea {
                      padding-inline-end:
                        calc(var(--aim-floor) + var(--sp-4) + var(--lf-key-badge-size) + var(--sp-2)); }
@@ -2087,8 +2090,15 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; --lf-block-frame: 1; }
 lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-pre-light;
              outline-offset: calc(-1 * var(--here-ring-w)); }
-/* The same max-content floor as the shadow slice's line spans: an hi range's tint has
-   to run the whole scrolled line, not stop at the fold. */
+/* An hi range's tint has to run the whole scrolled line, not stop at the fold. The diff
+   package answers the same question on its own rows, but from the track rather than the
+   line, because there every row has to end where the widest one does: this block's lines
+   are their own width, so a short hi line still stops at the scrollport rather than at
+   the block's own width.
+   TODO: give the rendered <pre> one column with that same floor, so every line ends
+   where the widest one does. A note shares the column and would need the diff outlet's
+   inline-size containment to stay out of its measure; notes also position sticky, which
+   is the part a grid could move. */
 lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
              width: max-content; min-width: 100%; box-sizing: border-box; }
 lf-code .lf-code-line::before { counter-increment: lf-code-line;

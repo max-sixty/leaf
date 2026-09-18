@@ -97,6 +97,13 @@ export function foldThreads(threads, messages, reactions, settlements) {
     if (!thread) continue;
     thread.resolved =
       settlement.kind === "resolve" ? { author: "user", pending: true } : null;
+    // Which way the thread is being settled, as well as where it lands. `resolved` alone
+    // cannot say: a reopen leaves it null, exactly as an open thread the reader has not
+    // touched does. Views read this to draw the gesture as unfinished, so it has to be a
+    // fact of the published fold — the ledger empties after the answer lands without
+    // changing anything else, and a view reading the ledger would keep the state it drew
+    // before that.
+    thread.settling = settlement.kind;
   }
   return [...copies, ...opened];
 }

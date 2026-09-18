@@ -63,6 +63,7 @@ from render_cases_widgets import (
     DIFF_CLIPPING,
     DIFF_LANDING,
     DIFF_PRESS,
+    DIFF_ROW_FILL,
     DIFF_ROW_PLACEMENT,
     LONG_LINE_DIFF_PAGE,
     MANIFEST_DIFF_PAGE,
@@ -7287,7 +7288,13 @@ def test_every_ask_decision_consumes_one_contextual_binding_slot(browser, serve)
 def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
     browser, serve
 ):
-    """Tab keeps every Ask binding badge in the titled card's trailing column."""
+    """Tab leaves every Ask binding badge where the Ask itself put it.
+
+    The cards share one trailing column. The draft row below them does not: its send
+    press holds that column, as it does in every other Leaf text box, and the row's own
+    badge waits just inside the press. Both seats are held before either mark appears,
+    so entering the group moves neither.
+    """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 900, 900)
 
@@ -7298,24 +7305,19 @@ def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
     )
     ask = page.locator(selector)
     expect(ask).to_have_text(["1", "2", "3"])
-    ask_centers = ask.evaluate_all(
-        """nodes => nodes.map(node => {
+    centers = """nodes => nodes.map(node => {
           const box = node.getBoundingClientRect();
-          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
+          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY,
+                  right: box.right};
         })"""
-    )
+    ask_centers = ask.evaluate_all(centers)
 
     page.keyboard.press("Tab")
     focused = page.locator(selector)
     expect(focused).to_have_text(["1", "2", "3"])
-    focused_centers = focused.evaluate_all(
-        """nodes => nodes.map(node => {
-          const box = node.getBoundingClientRect();
-          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
-        })"""
-    )
+    focused_centers = focused.evaluate_all(centers)
     assert len(ask_centers) == len(focused_centers) == 3
-    assert len({round(point["x"], 1) for point in ask_centers}) == 1
+    assert len({round(point["x"], 1) for point in ask_centers[:-1]}) == 1
     for ask_point, focused_point in zip(ask_centers, focused_centers, strict=True):
         assert ask_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert ask_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
@@ -7331,10 +7333,14 @@ def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
     submit_box = submit.bounding_box()
     assert badge_box is not None
     assert submit_box is not None
+    # The press reaches the cards' trailing column and a little past it, the way it ends
+    # every other text box; the draft's badge stands inside the press, and neither has
+    # moved since the Ask first showed them.
+    assert submit_box["x"] + submit_box["width"] > ask_centers[0]["right"]
+    assert badge_box["x"] + badge_box["width"] <= submit_box["x"]
     assert badge_box["x"] + badge_box["width"] / 2 == pytest.approx(
         ask_centers[-1]["x"], abs=0.5
     )
-    assert submit_box["x"] + submit_box["width"] < badge_box["x"]
 
 
 def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve):
@@ -9515,7 +9521,7 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
 
 
 def _bound_diff(browser, serve):
-    """The review the three diff tests below read, with its feed in place before the page
+    """The review the four diff tests below read, with its feed in place before the page
     loads. Bound rather than written inline because that is the form a review arrives in,
     and the only one whose rows are commentable data — `projectData` keys each by file,
     side and source line, which is the coordinate a remark on a line is recorded at."""
@@ -9526,6 +9532,107 @@ def _bound_diff(browser, serve):
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
     return page
+
+
+# A phrase late in the diff's longest line: unwrapped it is off the right of the box, and
+# wrapped it is on a line box of its own — the two states the test below is about.
+_DIFF_TAIL = "whichever remote it came from"
+# The line is one row split across syntax spans inside a shadow root, so the range is built
+# over its text nodes rather than dragged: a pointer drag cannot reach words that are off
+# the box in the state this starts in.
+_SELECT_IN_ROW = """(row, phrase) => {
+    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+    const nodes = [], starts = [];
+    let flat = '';
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      starts.push(flat.length); nodes.push(node); flat += node.data;
+    }
+    const start = flat.indexOf(phrase);
+    if (start < 0) return null;
+    const at = (offset) => {
+      const index = starts.findLastIndex((value) => value <= offset);
+      return [nodes[index], offset - starts[index]];
+    };
+    const range = document.createRange();
+    range.setStart(...at(start));
+    range.setEnd(...at(start + phrase.length));
+    const selection = getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    // The row is a block, so it has one client rectangle however many line boxes are in
+    // it, and its height is what says how many. Whether the words selected were on screen
+    // is the range's own right edge against the file's scrolling box — not the row's,
+    // which is sized to the longest line in the file so its fill reaches the end of it.
+    const box = row.closest('code[data-code]').getBoundingClientRect();
+    return { text: selection.toString(),
+             height: Math.round(row.getBoundingClientRect().height),
+             cut: range.getBoundingClientRect().right > box.right };
+}"""
+
+
+def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
+    browser, serve
+):
+    """A changed row says it changed by the colour behind it, and that colour is the row's
+    own background, so it stops where the row's box stops. The renderer sizes the code
+    column to the box that scrolls, which is the width the reader could already see: on
+    this patch the fill ran out 2,563px short of the line's end, so scrolling right left
+    every addition and deletion sitting on the file's plain paper with nothing to say
+    which it was.
+
+    Every direction in one reading, because they are one track. The floor that carries the
+    fill past the scrollport would, left alone, shrink a short file's rows to its own
+    longest line and leave the rest of the box blank; and it measures whatever stands in
+    that column, so a reader's own remark would size the file too. Then again with the
+    rows wrapped, where the scrollbar is gone and the room is all there is."""
+    page = _bound_diff(browser, serve)
+
+    filled = page.evaluate(DIFF_ROW_FILL)
+    assert filled["rows"] > 20 and filled["scrolls"] > 0, (
+        f"no file runs past its box, so a filled result would prove nothing: {filled}"
+    )
+    assert filled["short"] == 0, (
+        f"a row's fill stops before its own text ends, worst by {filled['gap']}px: "
+        f"{filled}"
+    )
+    assert filled["narrow"] == 0, f"a row's fill stops before its box does: {filled}"
+
+    # A thread stands in the code column with the lines, and its prose unwrapped is far
+    # wider than any of them, so the floor would take it for a line and size the file by
+    # the longest remark. `app/routes.py` is what makes that reading sharp: its rows fit
+    # their box, so a comment that reached the measure starts a file the reader could see
+    # whole scrolling sideways — 671px of rows in a 718px box became 796px in 843px.
+    page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
+        _SELECT_IN_ROW, "new route"
+    )
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-composer textarea").fill(
+        "A remark of the ordinary length a reviewer writes, long enough that the line it "
+        "would make unwrapped runs well past the longest line in this file, which is the "
+        "whole of what the column is supposed to be measuring."
+    )
+    with sending(page, "the comment on the short file's line"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_be_visible()
+
+    remarked = page.evaluate(DIFF_ROW_FILL)
+    assert remarked["scrolls"] == filled["scrolls"], (
+        f"a remark sized the code, so a file that fit its box now scrolls: {remarked}"
+    )
+    assert (remarked["short"], remarked["narrow"]) == (0, 0), (
+        f"the rows do not fill their box with a thread among them: {remarked}"
+    )
+
+    page.locator("lf-diff .lf-diff-wrap").click()
+    wrapped = page.evaluate(DIFF_ROW_FILL)
+    assert wrapped["rows"] == filled["rows"] and wrapped["scrolls"] == 0, (
+        wrapped,
+        filled,
+    )
+    assert (wrapped["short"], wrapped["narrow"]) == (0, 0), (
+        f"wrapped rows do not fill the box they wrapped into: {wrapped}"
+    )
 
 
 def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_switch_says(
@@ -9551,6 +9658,14 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
     assert cut["rows"] > 20, f"nothing to read: {cut}"
     assert cut["cut"] > 0 and cut["worst"] > 300, (
         f"no line runs past its box, so a wrapped result would prove nothing: {cut}"
+    )
+    # Which line, not just how many. The rows are all one width now — each is sized to the
+    # longest line in its file so its fill reaches the end of it — so a reading taken off
+    # the row's box rather than its text reports the file's overhang for every row alike
+    # and still satisfies the count above. Naming the line is what tells the two apart.
+    assert cut["widest"].strip().startswith('return "The comparison base'), (
+        f"the reading does not name the line that overflows, so it is measuring the rows' "
+        f"boxes rather than their text: {cut}"
     )
 
     switch.click()
@@ -9751,41 +9866,6 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     assert len(fetched) == 1, (
         f"one file's lines were needed, {len(fetched)} were fetched"
     )
-
-
-# A phrase late in the diff's longest line: unwrapped it is off the right of the box, and
-# wrapped it is on a line box of its own — the two states the test below is about.
-_DIFF_TAIL = "whichever remote it came from"
-# The line is one row split across syntax spans inside a shadow root, so the range is built
-# over its text nodes rather than dragged: a pointer drag cannot reach words that are off
-# the box in the state this starts in.
-_SELECT_IN_ROW = """(row, phrase) => {
-    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-    const nodes = [], starts = [];
-    let flat = '';
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      starts.push(flat.length); nodes.push(node); flat += node.data;
-    }
-    const start = flat.indexOf(phrase);
-    if (start < 0) return null;
-    const at = (offset) => {
-      const index = starts.findLastIndex((value) => value <= offset);
-      return [nodes[index], offset - starts[index]];
-    };
-    const range = document.createRange();
-    range.setStart(...at(start));
-    range.setEnd(...at(start + phrase.length));
-    const selection = getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    // The row is a block, so it has one client rectangle however many line boxes are in
-    // it. Its height is what says how many, and its overhang says whether the words
-    // selected were on screen at all.
-    return { text: selection.toString(),
-             height: Math.round(row.getBoundingClientRect().height),
-             cut: row.scrollWidth > row.clientWidth };
-}"""
 
 
 def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(

@@ -117,8 +117,9 @@ by the public semantic projection watchers;
 `runtime/composing/surface.js` owns floating comment geometry, addressable-element comment entry,
 and page-click routing;
 `runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text
-search, including their synchronous keyed Lit overlay and the mechanical geometry applied
-to its retained hint and match nodes;
+search: the scene, chip, and activation it declares over the shared hint session in
+`runtime/keyboard/hints.js`, and the synchronous keyed Lit overlay and mechanical
+geometry of the search marks that share its layer;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
 `runtime/composing/drawing.js` owns one-stroke pointer capture and drawing commands;
 `composing/drawing-record.js` owns drawing payload shape and validation; `composing/drawing-paint.js` owns their
@@ -181,10 +182,11 @@ and the deadline at which canonical activity asks for another server read;
 `runtime/state-feed.js` owns state reads, offline handling, the shared clock and deferred retries,
 event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, application serialization,
-accepted-state publication, projection, notification, presentation-failure reporting,
+accepted-state publication, notification, presentation-failure reporting,
 and pending accounting after presentation proof;
 `runtime/semantic-state.js` owns the single application publisher, its read-only
-semantic selectors, and the document-wide presentation coordinator;
+semantic selectors, the document-wide presentation coordinator, and the one pass its
+epoch presenters paint on, including the order they paint in;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a status
 kind that has changed; `runtime/banner-status-view.js` owns the Lit-rendered status
 surface, its tone paint, native disclosure, and publication layout;
@@ -274,6 +276,8 @@ revision patches into the page;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
 conversion from viewport boxes to document-positioned chrome;
+`runtime/keyboard/key-badge-placement.js` adds the readings that account for fixed
+chrome, which every target hint and Ask binding badge is admitted and seated by;
 `runtime/navigation.js` owns reader travel; `reading-regions.js` selects its scroller;
 `runtime/anchor-resolution.js` resolves anchors without importing paint or travel;
 `runtime/anchor-paint.js` owns their placed readings and marks;
@@ -325,8 +329,9 @@ passive panel elements, its one narrowing-view seat, and geometry readings;
 source markup before upgrade and owns authored parentage;
 `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
 `runtime/projection/model.js` folds authored, canonical, and pending records without DOM;
-`runtime/projection/state.js` selects the publisher's desired semantic reading and holds
-only deferred projection-chrome state; `runtime/projection/presentation.js` records
+`runtime/projection/state.js` selects the publisher's desired semantic reading, holds
+only deferred projection-chrome state, and tells its watchers when that deferral moves;
+`runtime/projection/presentation.js` records
 coordinate commit proof, paints provenance and coverage, and defers that global work
 while a drag owns the document;
 `runtime/projection/commands.js` owns action eligibility and undo commands.
@@ -353,6 +358,7 @@ Each mutable fact has one writer:
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
+| when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region inside that publication and paints on the pass after it, projection before conversation before Asks; no caller orders a paint |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
@@ -736,14 +742,27 @@ receipts carry it beside the triggering message; thread cards do not repeat it a
 colored edge. Quiet or ended work releases the control. Reduced motion suppresses
 arrival, and repainting or replacing a carrier cannot replay it.
 
+A thread reading whose next word is the reader's wears the same two channels in blue —
+icon and interior — in Margin and in Page Map. It reads `awaitsReader`, the server's one
+answer to whose turn a conversation is, rather than deriving a second one. Agent workflow
+outranks it on the same carrier: live work is what the reader needs first, and one
+interior carries one wash. Colour is never the only channel, so the reading also says
+"On you" in its label and accessible name. An aggregated thread control takes the turn of
+any member, as it takes the most urgent member's workflow stage.
+
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
 a state the reader must return to or act on, such as failure.
 
 Where the page can produce that result itself, it produces it in the gesture. A
 suggestion decision paints its projected outcome; a comment or reply paints the message
-and opens its thread. The application overlays pending work on the log and restores
-authoritative state on refusal. The content and its Undo control are the confirmation,
+and opens its thread. Drawing the result moves the words, so the box they were written
+in reads empty in that same turn. The reader's answer stands on screen once, rather than
+beside a copy of itself still waiting to be sent. The generation is unsettled until the
+log answers, and a refusal returns it to the box. The runtime's send owns both halves
+(`standGesture`), so no box empties or refills itself.
+The application overlays pending work on the log and restores authoritative state on
+refusal. The content and its Undo control are the confirmation,
 so neither path needs a success notice; announce the same outcome for a reader listening
 to the page. For a message that announcement is `post`'s, made where the gesture is first
 known to be a message, so a box that sends one adds no second announcement. A box whose
@@ -752,6 +771,29 @@ because a later write replaces the live region rather than joining it. A gesture
 result only the log can supply waits instead, with
 `aria-busy` on the surface, which `chrome.css` paints on a delay so a fast answer shows
 nothing at all.
+
+### Motion
+
+Nothing the reader must read, press, or decide waits on a clock. Motion runs from a state
+that is already true: a fold collapses room the reader has already been told is going, a
+carry moves a card that has already arrived. Motion that has to finish before the result
+can be read is a pause.
+
+A motion the reader is waiting to end runs as long as the eye needs to follow a box from
+where it was to where it is, and stays under 300ms. A motion that moves nothing carries
+no such bound, so a landing flash or an arrival pulse may run longer; the reader reads
+straight through it.
+
+The `aria-busy` wait above withholds a look rather than a result. It removes a flicker a
+fast answer would otherwise paint and leave, and a delay may subtract that way. A minimum
+spinner time, a staged reveal, or a pause that makes work read as substantial adds one
+instead.
+
+`runtime/motion.js` owns the shared gate, the ease, and the reduced-motion answer for the
+motion it plays; the theme's guard answers for CSS. A duration two motions share belongs
+there under one name, as `FOLD_MS` is, because two numbers written for one reason are free
+to disagree. A duration one motion uses states its reason where it is passed. CSS
+transitions answer to the same ceiling.
 
 ## Standalone copies and print
 

@@ -10,6 +10,13 @@ code. Prefer the simpler interface even when it is incompatible. Delete and
 regenerate stale state. Add a guard only for a reachable condition with a useful
 response.
 
+The suite does not constrain new code either. Agents wrote every test in
+`tests/`, and most are overfit on the implementation they were written against:
+they assert the shape the code happened to take rather than the behavior a
+reader depends on. Changing or deleting a test is an ordinary part of a code
+change. Read what the assertion was holding, rewrite it where that leaves a
+better app, and say in the commit which behavior moved.
+
 Use this freedom to try coherent new features and learn from them without
 settling every product detail first. Surface architectural problems, but fix
 them separately when the experiment leaves the architecture easy to change.
@@ -144,6 +151,12 @@ unresolved ledger into current state; browser components consume read-only selec
 from it. Presentation proof is separate: it records whether required renderers have
 committed the active document's current semantic epoch. Renderer nodes, promises, and
 DOM attributes never enter the semantic snapshot.
+
+A publication is also what starts a renderer. Each one claims its region inside that
+synchronous publication and paints the current root on the pass that follows, so a
+caller that changes what the page shows publishes and waits for proof rather than
+naming renderers or sequencing them. Where one renderer reads DOM another materializes,
+that order is declared once, beside the coordinator, not repeated at each publisher.
 
 Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their
 mechanical browser owners until a gesture becomes a declared application fact. Their

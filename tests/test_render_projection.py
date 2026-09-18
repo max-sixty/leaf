@@ -3599,6 +3599,43 @@ def test_a_revision_gives_back_the_apparatus_the_reader_was_working_with(
     assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
 
 
+def test_a_revision_that_opens_a_box_the_reader_never_touched_arrives_open(
+    browser, serve
+):
+    """The other half of the carry: what the reader did not change is the author's to say.
+
+    A disclosure has no `defaultOpen` to answer with, so the state the carry reads off the
+    live box is the author's own until the reader moves it. Reading the box alone would
+    carry the outgoing revision's shut over an arriving revision that opens it, and the
+    reader would never see the box the author opened for them — only where it sits inside
+    a widget the install replaces whole, since a box the patch keeps is already right.
+    The baseline is the authored markup of the revision the reader stands in, so an
+    untouched box is left to the arriving revision while the words they typed still cross.
+    """
+    opened = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
+        '<details id="lk-why">', '<details id="lk-why" open>'
+    )
+    version_url = serve(LIVE_KEYS_APPARATUS)
+    page = open_page(browser, live_url(version_url))
+    # The reader stands in the widget and writes, but never touches the box: the case is
+    # about the author's change to it, not theirs.
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+    assert page.locator("#lk-why").evaluate("el => el.open") is False
+
+    (serve.page_dir / "index.html").write_text(opened)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The widget did go whole, so the carry is what decides the box.
+    expect(page.locator("#lk-decision h2")).to_have_text(
+        "Which one, now the costs are in?"
+    )
+    assert page.locator("#lk-why").evaluate("el => el.open") is True
+    # What the reader did put in crosses as before.
+    expect(page.locator("#lk-note")).to_have_value("half a thought")
+
+
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
     """A revision that opens a fresh document carries the same named state across.
 

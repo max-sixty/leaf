@@ -1299,8 +1299,10 @@ export function createVersionController({
     if (comparedFrom !== null) setDiff(false);
     const live = document.querySelector("body > main");
     // The reader's own state on the nodes this patch is about to take away, read
-    // while they are still standing there.
-    const carry = captureCarry(live);
+    // while they are still standing there, against the same authored side `patchTree`
+    // diffs: what the reader has that the author of the revision they stand in did not
+    // write is theirs, and the rest is the arriving revision's to say again.
+    const carry = captureCarry(live, authoredSource);
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = artifactRoot(doc);
@@ -1555,7 +1557,8 @@ export function createVersionController({
         view,
         retainedStanding: captureRetainedStanding(),
         askStanding: captureAskStanding(),
-        carry: captureCarry(document.querySelector("body > main")).records,
+        carry: captureCarry(document.querySelector("body > main"), authoredSource)
+          .records,
         comparison: selectedBase(),
         pointer: pointerAt(),
       }),

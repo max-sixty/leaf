@@ -21,11 +21,21 @@
  * the apparatus they were reaching for it with. So a carry never creates a gesture, and a
  * value it puts back is exactly as unsent as it was before.
  *
- * Reader-changed state only, wherever the platform says what the author wrote: a field
- * matching its own `defaultValue` has nothing of the reader's in it, and the arriving
- * revision's text is the better answer. Where there is no such default the reader's state
- * is the more recent of the two and wins — a disclosure they opened stays open even if
- * the revision wrote it shut.
+ * Reader-changed state only, and what the reader changed is what the live node no longer
+ * agrees with the author about. A field answers that itself: `defaultValue` and
+ * `defaultChecked` are what the author wrote, so a field still matching one holds nothing
+ * of the reader's, and the arriving revision's text is the better answer. A disclosure
+ * answers nothing — `open` reflects, so the attribute moves with the reader — and the
+ * baseline comes instead from the authored markup of the revision the reader is standing
+ * in. That is the same `before` side `dom-children.js` diffs against, and for the same
+ * reason it gives there: the live page differs from the author in everything the reader,
+ * the runtime and every module have done to it since it loaded, so the page is never one
+ * side of this comparison. Read the live box alone and a box the reader never touched is
+ * carried over the arriving revision that opened it, which arrives shut.
+ *
+ * The baseline is also what the authored id means here. An id the outgoing source does
+ * not carry was made by a module rather than by the author, and what a module makes is
+ * the module's to put back from its own store; this carries nothing for it.
  *
  * Deliberately not carried: a `<select>`, whose authored default is an attribute on one
  * of its options rather than a property of the control, and a `contenteditable`, whose
@@ -42,17 +52,21 @@ const holdsTick = (node) =>
   node.tagName === "INPUT" && (node.type === "checkbox" || node.type === "radio");
 
 // Read the reader's state off the standing document, before the patch takes its nodes
-// away. The records are plain JSON because the other install has to put them in a store
-// and open a new document with them; the nodes they came from stay here, in a map the
-// in-place install uses to tell a replaced node from one the patch kept.
-export function captureCarry(root) {
+// away, against `authored` — the inert authored `main` of the revision the reader is
+// standing in. The records are plain JSON because the other install has to put them in a
+// store and open a new document with them; the nodes they came from stay here, in a map
+// the in-place install uses to tell a replaced node from one the patch kept.
+export function captureCarry(root, authored) {
   const active = document.activeElement;
   const records = [];
   const held = new Map();
   for (const node of root.querySelectorAll("[id]")) {
+    const wrote = authored.querySelector(`#${CSS.escape(node.id)}`);
+    if (!wrote) continue;
     const record = { id: node.id, name: node.localName };
     if (node === active) record.focus = true;
-    if (node.localName === "details") record.open = node.open;
+    if (node.localName === "details" && node.open !== wrote.hasAttribute("open"))
+      record.open = node.open;
     if (node.scrollTop) record.scrollTop = node.scrollTop;
     if (node.scrollLeft) record.scrollLeft = node.scrollLeft;
     if (holdsWords(node) && node.value !== node.defaultValue) record.value = node.value;

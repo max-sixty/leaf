@@ -10,6 +10,13 @@ code. Prefer the simpler interface even when it is incompatible. Delete and
 regenerate stale state. Add a guard only for a reachable condition with a useful
 response.
 
+The suite does not constrain new code either. Agents wrote every test in
+`tests/`, and most are overfit on the implementation they were written against:
+they assert the shape the code happened to take rather than the behavior a
+reader depends on. Changing or deleting a test is an ordinary part of a code
+change. Read what the assertion was holding, rewrite it where that leaves a
+better app, and say in the commit which behavior moved.
+
 Use this freedom to try coherent new features and learn from them without
 settling every product detail first. Surface architectural problems, but fix
 them separately when the experiment leaves the architecture easy to change.

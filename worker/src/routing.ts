@@ -8,7 +8,7 @@ export const ACTIVE_COOKIE_PREFIX = "__Host-leaf-active";
 export const HTTP_ACTIVE_COOKIE_PREFIX = "leaf-active-local";
 
 const PAGE_RESOURCE =
-  /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$/;
+  /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|shadow\.css|sitenote\.js|theme\.css)$/;
 const SESSION_ID = /^[0-9a-f]{32}$/;
 const RELEASE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const PAGE_ROOT = /^(?:\/|\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)$/;

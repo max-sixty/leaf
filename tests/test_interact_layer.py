@@ -1065,6 +1065,89 @@ def _stated_faces(sheet, *, only_top_level):
     return stated
 
 
+_PAGE_SIDE_SHEETS = [
+    schema_model.ASSETS / "theme.css",
+    schema_model.ASSETS / "shadow.css",
+    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
+    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/shadow.css")),
+]
+
+
+def _declared_rules(sheet, *, scoped):
+    """{(conditions, complex selector): [declarations]} for one sheet.
+
+    `scoped` reads only what stands inside chrome.css's `@scope`; otherwise the whole
+    sheet. Values are kept, because a scoped rule that answers a page-side one with a
+    different value is an override rather than a copy."""
+    found = {}
+
+    def visit(rules, conditions, inside):
+        for rule in rules:
+            if rule.type == "at-rule":
+                if rule.lower_at_keyword not in _HOLDS_RULES or rule.content is None:
+                    continue
+                query = " ".join(tinycss2.serialize(rule.prelude).split())
+                nested = tinycss2.parse_rule_list(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+                if rule.lower_at_keyword == "scope":
+                    visit(nested, conditions, True)
+                else:
+                    visit(nested, (*conditions, f"@{rule.lower_at_keyword} {query}"), inside)
+                continue
+            if rule.type != "qualified-rule" or (scoped and not inside):
+                continue
+            declarations = [
+                (declaration.lower_name, tinycss2.serialize(declaration.value).strip())
+                for declaration in tinycss2.parse_declaration_list(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+                if declaration.type == "declaration"
+            ]
+            for selector in _selector_list(rule.prelude):
+                found.setdefault((conditions, selector), []).append(declarations)
+
+    visit(
+        tinycss2.parse_stylesheet(
+            sheet.read_text(), skip_comments=True, skip_whitespace=True
+        ),
+        (),
+        False,
+    )
+    return found
+
+
+def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
+    """A rule inside chrome.css's `@scope` reaches the chrome root; the same rule in
+    theme.css or shadow.css reaches the page, the widget trees, and the chrome root too.
+    Written in both, the shape has two statements to keep in step and the chrome's is the
+    one anybody reading the page's sheet cannot see — which is how the whole reaction
+    vocabulary came to be written twice, identically, in nineteen rules.
+
+    Equality is the reading, because a scoped rule that says something different is the
+    chrome answering the page on purpose: the margin projection's z-index above the
+    page's is that, and is not a copy."""
+    chrome = _declared_rules(
+        schema_model.ASSETS / "runtime" / "chrome.css", scoped=True
+    )
+    assert chrome, "no scoped rules read from chrome.css — the reading is broken"
+    restated = []
+    for sheet in _PAGE_SIDE_SHEETS:
+        for key, blocks in _declared_rules(sheet, scoped=False).items():
+            for block in blocks:
+                if block and block in chrome.get(key, []):
+                    conditions, selector = key
+                    where = f"{sheet.parent.name}/{sheet.name}"
+                    restated.append(
+                        f"`{' '.join((*conditions, selector))}` is stated identically "
+                        f"in chrome.css and {where}"
+                    )
+    assert not restated, (
+        "a rule written twice, once where the page cannot see it:\n"
+        + "\n".join(sorted(set(restated)))
+    )
+
+
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     """chrome.css is adopted, so it cascades after theme.css and after every package
     theme concatenated onto it. One selector dressed for the same property in both
@@ -1077,10 +1160,11 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     had drifted: theme.css's chip cleared the platform's button face and chrome.css's
     did not, so in the light DOM that reset had never once run.
 
-    Only chrome.css's top level is asked. A rule inside its `@scope` is private to the
-    chrome root and matches nothing a page-side sheet dresses, and a rule inside its
-    `@layer` loses to any unlayered choice whatever its specificity, so neither can win
-    this way.
+    Only chrome.css's top level is asked here. A rule inside its `@layer` loses to any
+    unlayered choice whatever its specificity, and a rule inside its `@scope` wins
+    inside the chrome root while the page-side copy still dresses the same shape
+    everywhere else — one statement in two files rather than one that never applies,
+    which the test below reads instead.
 
     One selector spelled the same on both sides is what this reads, which is the shape
     a copy takes. Two different selectors that tie on one element are the same defect
@@ -1091,10 +1175,7 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     )
     assert adopted, "no top-level faces read from chrome.css — the reading is broken"
     twice = []
-    for sheet in [
-        schema_model.ASSETS / "theme.css",
-        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
-    ]:
+    for sheet in _PAGE_SIDE_SHEETS:
         for selector, properties in _stated_faces(sheet, only_top_level=False).items():
             both = properties & adopted.get(selector, set())
             if both:

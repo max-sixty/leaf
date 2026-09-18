@@ -172,23 +172,32 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
     return winners
 
 
-def composed_theme(inputs: list[Path]) -> str:
-    """One stylesheet whose input order is the layer precedence."""
-    stylesheets = [
-        root / "theme.css" for root in inputs if (root / "theme.css").is_file()
-    ]
-    if not stylesheets:
+def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
+    """The layer's two stylesheets, each in layer precedence order.
+
+    A root's shadow.css holds the rules a declared shadow tree has to see as well as
+    the document: the stage copies the composed shadow.css into each tree, and the
+    document's theme.css reads each root's shadow.css just ahead of its theme.css.
+    """
+    if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
-    parts = []
-    for source in stylesheets:
-        try:
-            css = source.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            sys.exit(f"{source} must be UTF-8")
-        if errors := css_syntax_errors(css, str(source)):
-            sys.exit(errors[0])
-        parts.append(css if css.endswith("\n") else css + "\n")
-    return "".join(parts)
+    sheets = {"theme.css": [], "shadow.css": []}
+    for root in inputs:
+        for name in ("shadow.css", "theme.css"):
+            source = root / name
+            if not source.is_file():
+                continue
+            try:
+                css = source.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                sys.exit(f"{source} must be UTF-8")
+            if errors := css_syntax_errors(css, str(source)):
+                sys.exit(errors[0])
+            css = css if css.endswith("\n") else css + "\n"
+            sheets["theme.css"].append(css)
+            if name == "shadow.css":
+                sheets["shadow.css"].append(css)
+    return {name: "".join(parts).encode() for name, parts in sheets.items()}
 
 
 def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
@@ -330,7 +339,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
             + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
         )
 
-    top_files = {"theme.css": composed_theme(roots).encode()}
+    top_files = composed_sheets(roots)
     for name in VENDORED_FILES:
         if name == "registry.json" or name in top_files:
             continue

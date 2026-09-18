@@ -110,6 +110,7 @@ Every package has the same partial layout:
 package/
 ├── registry.json       element declarations and shared $ declarations
 ├── theme.css           rules appended to the cascade
+├── shadow.css          rules that also reach declared shadow trees
 ├── guidance/           Markdown guides named for their audiences
 ├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and their private helpers
@@ -119,7 +120,9 @@ package/
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
-needs. Theme files concatenate. Runtime, icon, widget, and vendor files replace by
+needs. Theme files concatenate, and so do shadow files: a declared `x-shadow` root built
+with `shadowStage` receives every package's `shadow.css` in layer order, and the document
+reads each package's `shadow.css` just ahead of its `theme.css`. Runtime, icon, widget, and vendor files replace by
 path. A later package replaces a tag's complete element declaration and one member inside
 a shared `$` declaration. A tag can be added or replaced whole, but it has no deletion marker.
 Shared `$` entries compose by member, and map-valued members compose one level further

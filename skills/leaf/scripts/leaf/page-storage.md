@@ -50,6 +50,8 @@ A page directory holds:
                          therefore never moves while later source saves become live.
     leaf.js              the browser entry, served at /leaf.js
     theme.css            tokens, element styles, class idioms, element-widget CSS
+    shadow.css           the rules declared shadow trees also need; theme.css
+                         carries them too, ahead of each package's own rules
     registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the
                          layer-wide facts under $ — $idioms, $languages, $keys (what
                          each x- key means), and the page's vocabulary stamp ($events,

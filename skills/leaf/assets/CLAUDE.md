@@ -245,8 +245,10 @@ again, so anything winning on position rather than on its selectors is a failure
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
 `theme.css` is the render-blocking default theme: the live shell's final page claims,
-tokens, element styles, class idioms, and the element-widgets CSS alone renders, with the
-shadow slice widgets adopt; a package's `theme.css` is appended after it;
+tokens, element styles, class idioms, and the element-widgets CSS alone renders; a
+package's `theme.css` is appended after it. `shadow.css` holds the rules a declared shadow
+tree needs as well as the document: every root's copy is composed into `/shadow.css` for
+the stage, and into `/theme.css` just ahead of that root's `theme.css`;
 `runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
 into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;
@@ -262,7 +264,7 @@ the words it projects;
 `runtime/reach.js` owns keyboard access to overflow, the containing block a
 scroller owes what it scrolls, and the mark a box wears while it shows less
 than it holds across;
-`runtime/shadow.js` owns declared shadow roots, their theme slice, shared
+`runtime/shadow.js` owns declared shadow roots, their `shadow.css` rules, shared
 highlight rules, the parent walk that crosses a root, and the chrome question
 (`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
 owns the stage an x-shadow widget renders into;

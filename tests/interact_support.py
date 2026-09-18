@@ -597,7 +597,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     checked_without_writer = threading.Event()
     finish_vendoring = threading.Event()
     original_append_event = service_model.PageTransaction.append_event
-    original_composed_theme = layer_model.composed_theme
+    original_composed_sheets = layer_model.composed_sheets
 
     def held_append_event(page, event, registry=None):
         if event.get("kind") == kind:
@@ -605,10 +605,10 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
         return original_append_event(page, event, registry)
 
-    def held_composed_theme(sources):
+    def held_composed_sheets(sources):
         checked_without_writer.set()
         assert finish_vendoring.wait(timeout=10), "the writer never resumed"
-        return original_composed_theme(sources)
+        return original_composed_sheets(sources)
 
     def init_result():
         try:
@@ -620,14 +620,14 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     monkeypatch.setattr(
         service_model.PageTransaction, "append_event", held_append_event
     )
-    monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
+    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     with ThreadPoolExecutor(max_workers=2) as executor:
         writing = executor.submit(write)
         assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
         vendoring = executor.submit(init_result)
         passed_check = checked_without_writer.wait(timeout=2)
         # Release either acquisition order without relying on a scheduler: a
-        # broken re-vendor may already own the page lease at composed_theme.
+        # broken re-vendor may already own the page lease at composed_sheets.
         finish_vendoring.set()
         resume.set()
         written = writing.result(timeout=10)

@@ -88,10 +88,10 @@
    renders nothing to gate. So the shared vocabulary's faces are stated in theme.css,
    where a component that names the same property wins by coming later: .lf-ui, .lf-btn
    and its focus ring, .lf-chip, .lf-key-badge, a thread mark's note, and the whole
-   margin-entry family are all there, the chip and the note inside the shadow slice for
-   the widget trees this sheet never reaches. What stays here is the paint the runtime
-   lays over the page, which has to beat page and widget alike, and the aim floor,
-   which is the layer's reach rather than its look. `box-sizing` stays for the same
+   margin-entry family are all there, the chip, the note and the aim floor in shadow.css
+   for the widget trees this sheet never reaches. What stays here is the paint the
+   runtime lays over the page, which has to beat page and widget alike. `box-sizing`
+   stays for the same
    reason — the layer's reset, not its face — and it travels with its own `*`
    companion below.
 
@@ -123,7 +123,8 @@
    quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
    so it holds no room; the covered-words gate skips this class the way it skips a
    thread mark's own note, which keeps the same one-pixel geometry (theme.css states
-   that one, because it is written into shadow trees this sheet never reaches).
+   that one in shadow.css, because it is written into shadow trees this sheet never
+   reaches).
 
    And out of the selection, which the clip does not do on its own: a word standing
    among the page's own words is inside any selection drawn across them, so the
@@ -494,29 +495,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      to reserve the room it takes beside the status sentence. */
   :scope { cursor: auto; user-select: none; -webkit-user-select: none; --lf-mark-w: 16px;
     font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
-  /* The floor under every aim the layer offers, stated once for all of them rather
-     than left to whatever each control's type and padding happened to add up to.
-     Measured before it existed: a thread's Reopen and the panel's reaction chips stood
-     at 20 and 22 pixels, a version's Compare and a command in the reference at about seven —
-     all of them presses a reader has to land on with a mouse, and none of them a
-     control anybody chose the size of.
-
-     --aim-floor is the length, and it is the only thing a coarse pointer changes about
-     any of this (theme.css asks that query once). So there is no second rule at the
-     foot of this file repeating the list at the other number, and a control cannot
-     reach one floor without reaching the other.
-
-     A floor and not a size: every one of these is free to be bigger, and most are. It
-     is written as a minimum on both axes because a target is a box and a control that
-     is tall and two pixels wide is as hard to hit as a short one. Margin entries centre their
-     own label, so nothing here has to say where the words go.
-
-     .lf-chip is halved on how it is spelled, because the class dresses a standing chip
-     as well as a press and a chip is not something to aim at. */
-  :is(.lf-btn, .lf-chip:is(button, [role="button"]), .lf-thread-action,
-    .lf-preview, .lf-layer-reference, .lf-react, .lf-version-diff, .lf-version-row,
-    .lf-command-reference-command,
-    .lf-quote, .lf-margin-entry) { min-height: var(--aim-floor); min-width: var(--aim-floor); }
   /* Page paint belongs under a covering auxiliary surface. Paint whose target is inside the
      chrome belongs above that auxiliary surface, including when the same aim or response bar moves
      between the two. The target owner states the plane; document order keeps aim,
@@ -1266,7 +1244,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar .lf-compose-submit {
     inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
     inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
-  .lf-response-action { min-width: 30px; padding-inline: 9px;
+  .lf-response-action { min-width: max(30px, var(--aim-floor)); padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     white-space: nowrap; cursor: pointer; }
   .lf-response-action[hidden] { display: none; }
@@ -1290,72 +1268,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-response-options .lf-response-action {
     min-height: var(--lf-response-height);
   }
-  /* A reaction surface offers one quiet trigger. It disappears when its list opens;
-     a standing token remains visible in a closed message strip as the reader's receipt
-     and eraser. */
-  .lf-react-trigger { color: var(--muted); }
-  .lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
-    color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
-  .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+  /* The reaction vocabulary is shadow.css's, where a thread seated in a widget tree
+     reads it too. A panel message and the response bar add only what is theirs. */
   .lf-response-options > .lf-react-palette { flex-wrap: wrap; }
-  .lf-react-open > .lf-react-trigger { display: none; }
-  .lf-react-surface:not(.lf-react-open) .lf-react:not([aria-pressed="true"]) {
-    display: none; }
-  .lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
-    display: none; }
-  /* A standing token keeps a neutral fill. The floating response bar names choices in
-     words through its own response-control anatomy; a message strip stays emoji-sized
-     and carries the full meaning through its accessible name and hover title. */
-  .lf-react { display: inline-flex; align-items: center; gap: 4px; min-width: 26px;
-    justify-content: center; }
-  .lf-react[aria-pressed="true"] { background: var(--chip); }
-  .lf-react[aria-busy="true"] { opacity: .55; }
-  /* A reply with no feedback keeps no row. Its add control sits over the unused
-     top-right corner and appears only for the message under pointer or keyboard focus.
-     The picker is an overlaid menu below that control; opening it never moves this
-     message or the conversations after it. At rest only feedback already left earns
-     flow space. */
-  .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-    margin-top: 0; }
-  .lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
-  .lf-react-strip > .lf-react-trigger {
-    appearance: none; position: absolute; z-index: 2;
-    inset-block-start: -3px; inset-inline-end: -2px;
-    box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
-    display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid transparent; border-radius: var(--r); background: var(--card);
-    opacity: 0; cursor: pointer;
-  }
-  .lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
-  .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
-    fill: none; stroke: currentColor; stroke-width: 1.6;
-    stroke-linecap: round; stroke-linejoin: round; }
-  .lf-msg.claude:is(:hover, :focus-within) > .lf-react-strip > .lf-react-trigger,
-  .lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
-    opacity: 1;
-  }
+  .lf-msg.claude:is(:hover, :focus-within) > .lf-react-strip > .lf-react-trigger {
+    opacity: 1; }
   .lf-msg.claude:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
-  .lf-react-strip.lf-react-open > .lf-react-palette {
-    position: absolute; z-index: 3;
-    inset-block-start: calc(max(28px, var(--aim-floor)) + 2px);
-    inset-inline-end: -2px; width: max-content; max-width: calc(100% + 4px);
-    padding: 4px;
-    border: 1px solid var(--border-2); border-radius: var(--r);
-    background: var(--card); box-shadow: 0 4px 12px var(--shade);
-  }
-  .lf-react-strip.lf-react-open > .lf-react-palette > .lf-react {
-    box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
-    border-color: transparent; background: transparent; font-size: 16px; }
-  @media (hover: none) {
-    .lf-react-strip > .lf-react-trigger { opacity: 1; }
-  }
-  .lf-react-palette > .lf-react:not(.lf-margin-entry, [aria-pressed="true"]) { border-color: transparent;
-    background: transparent; color: var(--muted); }
-  .lf-react-palette > .lf-react:not(.lf-margin-entry, [aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]) {
-    border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
   .lf-fab-bar .lf-react-palette > .lf-response-action:not([aria-pressed="true"]) {
     background: var(--card); }
-  .lf-react-palette > .lf-react[aria-pressed="true"]:hover { background: var(--chip); }
   /* A thread whose root is a mark: the glyph and its word where the comment's words
      would stand, in the chrome's face. */
   .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
@@ -1853,8 +1773,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
       align-items: center; justify-content: center; }
     /* Forty on the covering row, or the aim floor where a finger raises that past
-       forty: this rule outranks the shared AIMS floor by standing later at the same
-       weight, so it has to carry the floor itself or a touch shelf loses four pixels.
+       forty: this rule outranks the shared floor (shadow.css) by weight, so it has to
+       carry the floor itself or a touch shelf loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 6px; }
     /* The control run starts at the left on this two-row banner. Keep its menu under
@@ -1876,14 +1796,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      changing sides when a covering sheet meets a phone, and its line remains on the seam
      rather than following the middle of the hit box. */
   @media (pointer: coarse) {
-    /* What is left here is what a finger changes besides the floor. The floor itself
-       moved out: this block used to name three controls at 44px and the resting layer
-       named none at all, so Reopen, the page preview, a version's Compare, a command in the
-       reference, a quote and the panel's chips were small under both pointers. They
-       are all in AIMS now, and AIMS reads --aim-floor, which is where the query lives. */
-    .lf-margin-entry { width: 44px; height: 44px; }
+    /* What is left here is what a finger changes besides the floor, which reads
+       --aim-floor (shadow.css) and so needs no rule here. */
     :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 44px; }
-    .lf-chip:is(button, [role="button"]) { display: inline-flex; align-items: center; }
     .lf-shortcut-more { min-width: 44px; min-height: 44px; align-items: center; }
     .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
       transform: translateY(-50%); }

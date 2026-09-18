@@ -2250,11 +2250,9 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     population: a page that asked for nothing would satisfy every refusal below and
     say nothing about which of them holds.
 
-    The theme is here for a second reason. The document's `<link>` fetches it and
-    `loadShadowRules` used to fetch it again for the rules an `x-shadow` widget
-    renders under, whether or not the page had one — 235KB twice over on a page with
-    no shadow tree in it. The rules load where such a widget stands and are read once
-    for the tab.
+    The shadow rules follow the same line: `/shadow.css` is what an `x-shadow` widget
+    renders under, so a page with no such widget never asks for it, and the theme
+    arrives once, through the document's `<link>`.
     """
     example = next(p for p in EXAMPLES if p.stem == "triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
@@ -2266,6 +2264,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert not [p for p in asked if "pierre-diffs" in p], asked
     assert not [p for p in asked if "beautiful-mermaid" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
+    assert "/shadow.css" not in asked, asked
     assert asked.count("/registry.json") == 1, [
         p for p in asked if p == "/registry.json"
     ]

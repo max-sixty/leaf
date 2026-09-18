@@ -71,13 +71,12 @@ export const uiInside = (el, within) => {
 export const inUi = (node) =>
   uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
 
-// The theme's rules for shadow trees, sliced out once at load (see the markers in
-// theme.css). Every layer may contribute a block; concatenating them in theme order
-// preserves the same cascade inside a declared shadow root as in the document. Read
-// from the theme rather than written here so a project override travels with the widget,
-// and fetched during upgrade so the stage below stays synchronous for its callers.
+// The layer's rules for shadow trees: every root's shadow.css, composed in layer order
+// (layer.py's `composed_sheets`), which the document also reads at the head of each
+// root's part of the theme. Read from the layer rather than written here so a project
+// override travels with the widget, and fetched during upgrade so the stage below stays
+// synchronous for its callers.
 export let shadowRules = "";
-const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//g;
 // A top-layer element no longer composites through its light/shadow ancestors, so the
 // document's rules cannot withhold generated interface, or a dialog or popover promoted
 // out of an x-shadow widget. Every legitimate page shadow tree is built here; repeat
@@ -116,18 +115,8 @@ export function loadShadowRules() {
 }
 async function readShadowRules() {
   const { runtimeResource } = await import("./context.js");
-  const response = await fetch(runtimeResource("/theme.css"));
-  if (!response.ok) throw new Error(`leaf: theme failed to load (${response.status})`);
-  // Refused rather than defaulted to nothing. A project theme that drops the markers
-  // still styles the document, so the page looks right everywhere except inside the
-  // widgets this slice feeds — which would arrive unstyled with no error anywhere, the
-  // failure that reads as a widget nobody finished rather than as a theme missing a
-  // block. Whichever theme is vendored, either it carries these or the page says so.
-  const found = [...(await response.text()).matchAll(SHADOW_CSS)];
-  if (!found.length)
-    throw new Error(
-      "leaf: the theme carries no /* lf-shadow:start */…/* lf-shadow:end */ block, " +
-        "which is where the rules an x-shadow widget renders under are read from",
-    );
-  shadowRules = found.map((match) => match[1]).join("\n");
+  const response = await fetch(runtimeResource("/shadow.css"));
+  if (!response.ok)
+    throw new Error(`leaf: shadow.css failed to load (${response.status})`);
+  shadowRules = await response.text();
 }

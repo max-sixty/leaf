@@ -9,7 +9,6 @@ document therefore works at the live, stamped-version, and immutable-revision UR
 import html
 import json
 from collections.abc import Callable, Mapping
-from functools import lru_cache
 from urllib.parse import quote, urlsplit
 
 import tinycss2
@@ -142,15 +141,6 @@ def json_script(value) -> str:
     )
 
 
-# Keyed on the sheet's own bytes, so a re-vendor is a new entry rather than a stale
-# one. Two sheets a layer: room for the four most recent, and a miss is one parse.
-@lru_cache(maxsize=8)
-def _uncommented(css: bytes) -> str:
-    return tinycss2.serialize(
-        tinycss2.parse_stylesheet(css.decode("utf-8"), skip_comments=True)
-    )
-
-
 def delivery_sheets(
     resources: Mapping[str, Resource],
     rewrite: Callable[[str, str], str] = lambda css, _path: css,
@@ -162,11 +152,10 @@ def delivery_sheets(
     scripts to import them with, and a fetch awaited at module scope would make every
     page module that imports the widget API evaluate after `DOMContentLoaded`. Like the
     identity above, every delivery writes this. `rewrite` addresses the sheet's own
-    URLs for that delivery; comments go, since they are most of the chrome's sheet and
-    the browser discards them anyway.
+    URLs for that delivery.
     """
     sheets = {
-        name: rewrite(_uncommented(resources[path].data), path)
+        name: rewrite(resources[path].data.decode("utf-8"), path)
         for name, path in (
             ("chrome", "/runtime/chrome.css"),
             ("marks", "/runtime/marks.css"),

@@ -9654,6 +9654,14 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
     assert cut["cut"] > 0 and cut["worst"] > 300, (
         f"no line runs past its box, so a wrapped result would prove nothing: {cut}"
     )
+    # Which line, not just how many. The rows are all one width now — each is sized to the
+    # longest line in its file so its fill reaches the end of it — so a reading taken off
+    # the row's box rather than its text reports the file's overhang for every row alike
+    # and still satisfies the count above. Naming the line is what tells the two apart.
+    assert cut["widest"].strip().startswith('return "The comparison base'), (
+        f"the reading does not name the line that overflows, so it is measuring the rows' "
+        f"boxes rather than their text: {cut}"
+    )
 
     switch.click()
     wrapped = page.evaluate(DIFF_CLIPPING)

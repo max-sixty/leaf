@@ -707,22 +707,28 @@ MANIFEST_DIFF_PAGE = leaf_page(
 )
 
 # Which of a diff's source lines run past what the reader can see. A row is one line of
-# the patch however many line boxes it takes, and the box that clips it is the file's
-# scrolling code box, not the row: the row is sized to the longest line in its file so
-# its fill reaches the end of it, which is why the room is measured out here — the code
-# box's own width less the gutter standing in front of the content column. A row wider
-# than that room is text the reader cannot see without scrolling the file sideways, and
-# on paper, text that is simply gone. `worst` and `widest` are for the failure to say
-# which line and by how much, since "some row overflows" sends its reader back to the
-# browser.
+# the patch however many line boxes it takes, and neither box in play is the line: the
+# row is sized to the longest line in its file so its fill reaches the end of it, and the
+# code box is the scrollport. So the room is measured out here — the code box's own width
+# less the gutter standing in front of the content column — and the line is measured by a
+# Range over the row's contents, which is what `_SELECT_IN_ROW` reads for the same reason.
+# Reading the row's own box instead gives every row in a file the file's overhang, which
+# is how this last went wrong: 18 of 24 rows counted cut where one line overflowed, and
+# `widest` named a trailing-context line the reader could see whole. Text wider than the
+# room is text the reader cannot reach without scrolling the file sideways, and on paper,
+# text that is simply gone. `worst` and `widest` are for the failure to say which line and
+# by how much, since "some row overflows" sends its reader back to the browser.
 DIFF_CLIPPING = """() => {
     const diff = document.querySelector('lf-diff');
     const rows = [];
     for (const code of diff.shadowRoot.querySelectorAll('code[data-code]')) {
         const gutter = code.querySelector('[data-gutter]');
         const room = code.clientWidth - (gutter ? gutter.getBoundingClientRect().width : 0);
-        for (const row of code.querySelectorAll('[data-content] [data-line]'))
-            rows.push({ row, over: Math.round(row.scrollWidth - room) });
+        const range = document.createRange();
+        for (const row of code.querySelectorAll('[data-content] [data-line]')) {
+            range.selectNodeContents(row);
+            rows.push({ row, over: Math.round(range.getBoundingClientRect().width - room) });
+        }
     }
     const cut = rows.filter((entry) => entry.over > 0);
     return { rows: rows.length, cut: cut.length,

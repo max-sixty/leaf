@@ -2670,15 +2670,13 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     undo = suggestion_control(page, "sug-refill", "undo")
     expect(undo).to_be_enabled()
     assert [event["action"] for event in actions(serve.page_dir)] == ["accept"]
+    # One fault, one report, from the region whose renderer raised it. The gesture's own
+    # promise carries the same rejection for a caller that restores a draft from it, and
+    # accounts for it no second time.
     errors = take_browser_errors(page)
-    expected = [
-        error
-        for error in errors
-        if "leaf: optimistic presentation" in error
-        and "injected optimistic presentation fault" in error
-    ]
-    assert len(expected) == 1, errors
-    assert errors == expected
+    assert errors == [
+        "leaf: Presentation failed: injected optimistic presentation fault"
+    ], errors
 
 
 def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, serve):

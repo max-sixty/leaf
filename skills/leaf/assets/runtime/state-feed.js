@@ -101,8 +101,7 @@ export function createStateFeed({
   retryProjection,
   stateApplying,
   releasePending,
-  renderConversation,
-  presentProjection,
+  invalidateDom,
   receiveState,
   prepareActivation,
   notifyDataSubscribers,
@@ -130,8 +129,7 @@ export function createStateFeed({
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
     renderStatus(null);
-    presentProjection();
-    await renderConversation();
+    await invalidateDom();
     await tick();
   }
 

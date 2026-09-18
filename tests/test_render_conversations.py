@@ -1688,6 +1688,42 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     page.close()
 
 
+def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, serve):
+    """An accepted approval is a semantic fact, so it moves the epoch on its own.
+
+    Nothing else about this state read changes: no thread, no Ask, no widget facet, no
+    pending gesture of this reader's. The approval is another tab's, so there is no
+    receipt to account and no ledger entry to remove — the two paints that show it have
+    only the published fold to hear it from.
+    """
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page = open_page(browser, serve(html, comments=1))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    approve = page.locator(".lf-signoff")
+    expect(approve).to_have_text("Approve version")
+    expect(page.locator(".lf-threads")).not_to_contain_text("Approved")
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "done",
+            "author": "user",
+            "revision": 1,
+            "version": 1,
+            "text": "Looks good",
+        },
+    )
+    told(page)
+
+    expect(page.locator(".lf-threads")).to_contain_text("Approved")
+    expect(approve).to_have_text("✓ Version approved")
+    page.close()
+
+
 def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
     """A system-row age is presented mechanically without advancing semantic time."""
     url = serve(LONG_PAGE, comments=1)
@@ -3392,6 +3428,15 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # as explicit as the runtime sheet's shared vocabulary below.
     assert set(surface["themed"]) == {
         "claude",
+        # The shared vocabulary's faces are the theme's, for the reason chrome.css's
+        # header gives: stated in the adopted sheet they beat each component's own rule
+        # on nothing better than that sheet arriving last. The runtime sheet still names
+        # each of these inside its scope — the chip and the badge to say where the
+        # chrome's own copies stand, the margin entry to give a finger a bigger box —
+        # and the movement the theme's rule causes is that deliberate face.
+        "lf-chip",
+        "lf-key-badge",
+        "lf-margin-entry",
         "lf-compose-field",
         "lf-compose-submit",
         # The one canonical composer can be seated in a widget's own Thread outlet,
@@ -3451,9 +3496,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # enter chrome rows whose quiet controls deliberately clear that paint.
         "primary",
     }, "the authored-theme class surface changed: widen the exception on purpose"
-    # Every one of these is worn by something the runtime puts inside the page rather than
-    # inside its own container — or, for lf-key-badge, on both sides of that line at once,
-    # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
+    # Every one of these is worn by something the runtime puts inside the page rather
+    # than inside its own container: a scoped rule cannot reach the copy in the page.
+    # What is not here is the shared vocabulary, whose faces the theme states — see the
+    # exception above, and chrome.css's header for why. Except the
     # first two, which document level names only to hold a rule off them and which are here
     # for the other half of the sentence. lf-copy is the medium `version export` marks on
     # the root, and the runtime names it under a negation to withhold the live page's
@@ -3476,8 +3522,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-focus",
         "lf-focus-visible",
         "lf-btn",
-        "lf-chip",
-        "lf-key-badge",
         "lf-over-mark",
         "lf-mark-el",
         "lf-projected-mark",  # an element mark projects above authored paint
@@ -3485,7 +3529,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-mark-here",  # the same element mark, for the comment the reader is in
         "lf-pending",
         "lf-ins-block",
-        "lf-mark-note",
         "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
         "lf-over-item",
@@ -3512,19 +3555,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-el",
         "lf-react-mark",
         "lf-react",
-        # Target actions are contributed outside the chrome scope and share one complete
-        # item. These names are the deliberate document-level half of that seam.
-        "lf-margin-options",
-        "lf-margin-entry",
-        "lf-margin-entry-glyph",
-        "lf-margin-entry-icon",
-        "lf-margin-entry-space",
-        "lf-margin-entry-label",
-        # The label's two lines: the role's own word, and the context under it that says
-        # which item the role is on. Both are inside the label the seam already names.
-        "lf-margin-entry-label-word",
-        "lf-margin-entry-context",
-        "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",

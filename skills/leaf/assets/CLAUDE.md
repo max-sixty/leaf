@@ -177,10 +177,11 @@ and the deadline at which canonical activity asks for another server read;
 `runtime/state-feed.js` owns state reads, offline handling, the shared clock and deferred retries,
 event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, application serialization,
-accepted-state publication, projection, notification, presentation-failure reporting,
+accepted-state publication, notification, presentation-failure reporting,
 and pending accounting after presentation proof;
 `runtime/semantic-state.js` owns the single application publisher, its read-only
-semantic selectors, and the document-wide presentation coordinator;
+semantic selectors, the document-wide presentation coordinator, and the one pass its
+epoch presenters paint on, including the order they paint in;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a status
 kind that has changed; `runtime/banner-status-view.js` owns the Lit-rendered status
 surface, its tone paint, native disclosure, and publication layout;
@@ -235,7 +236,12 @@ which would move page modules after `DOMContentLoaded`;
 `runtime/chrome.css` is the comment layer's private stylesheet, which the boot module
 adopts, and keeps the chrome's paint hosts out of the containing-block chain for
 document-positioned chrome. It also keeps page-attached paint below covering auxiliary surfaces
-and paint for chrome targets above them.
+and paint for chrome targets above them. Being adopted, it cascades after `theme.css`
+and after every package theme concatenated onto it, so a face stated there at ordinary
+specificity beats each component's own rule and nothing renders to gate the loser: the
+shared vocabulary's faces belong in `theme.css`, and what stays here is what has to beat
+the page. A test relocates these rules to the front of the head and reads the corpus
+again, so anything winning on position rather than on its selectors is a failure.
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
 `theme.css` is the render-blocking default theme: the live shell's final page claims,
@@ -324,8 +330,9 @@ passive panel elements, its one narrowing-view seat, and geometry readings;
 source markup before upgrade and owns authored parentage;
 `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
 `runtime/projection/model.js` folds authored, canonical, and pending records without DOM;
-`runtime/projection/state.js` selects the publisher's desired semantic reading and holds
-only deferred projection-chrome state; `runtime/projection/presentation.js` records
+`runtime/projection/state.js` selects the publisher's desired semantic reading, holds
+only deferred projection-chrome state, and tells its watchers when that deferral moves;
+`runtime/projection/presentation.js` records
 coordinate commit proof, paints provenance and coverage, and defers that global work
 while a drag owns the document;
 `runtime/projection/commands.js` owns action eligibility and undo commands.
@@ -352,6 +359,7 @@ Each mutable fact has one writer:
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
+| when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region inside that publication and paints on the pass after it, projection before conversation before Asks; no caller orders a paint |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |

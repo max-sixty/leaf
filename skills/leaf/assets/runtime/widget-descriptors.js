@@ -70,76 +70,6 @@ const quotedBy = (element) => {
   return false;
 };
 
-// An Ask or other declared descendant can stand inside an unnamed retiring slot. The
-// slot itself needs no global identity: capture the semantic edge from the descendant
-// to the identified owner and declared outcome while authored ancestry is intact.
-const retirementAncestors = (element) => {
-  const captured = [];
-  for (let member = element; member; member = parentOf(member)) {
-    const declaration = runtime.registry[member.localName];
-    const outcome = declaration?.["x-retired-when"];
-    if (!outcome) continue;
-    const owners = new Set(declaration["x-owners"] ?? []);
-    for (let owner = parentOf(member); owner; owner = parentOf(owner)) {
-      if (!owners.has(owner.localName)) continue;
-      if (owner.id) captured.push({ ownerId: owner.id, outcome });
-      break;
-    }
-  }
-  return captured;
-};
-
-const conditionMatches = (attributes, when = {}) =>
-  Object.entries(when).every(([attribute, values]) =>
-    values.some((value) =>
-      typeof value === "boolean"
-        ? (attributes[attribute] !== null) === value
-        : attributes[attribute] === value,
-    ),
-  );
-
-const predicateAttributes = (element, ...conditions) =>
-  Object.fromEntries(
-    [...new Set(conditions.flatMap((condition) => Object.keys(condition ?? {})))].map(
-      (attribute) => [attribute, element.getAttribute(attribute)],
-    ),
-  );
-
-function askDescriptor(element, declaration, documentContext) {
-  const ask = declaration["x-awaits"];
-  if (!ask || ask.rollup) return null;
-  const until = documentContext.kind === "thread" && ask.until;
-  const completionVerbs = [
-    ...new Set([...(ask.answers ?? []), until?.verb].filter(Boolean)),
-  ];
-  return {
-    authored: predicateAttributes(element, ask.when, until?.when),
-    when: structuredClone(ask.when ?? {}),
-    answers: structuredClone(ask.answers ?? []),
-    until: until ? structuredClone(until) : null,
-    empty: Object.fromEntries(
-      completionVerbs.flatMap((verb) => {
-        const empty = declaration["x-state"][verb].completion?.empty;
-        if (!empty) return [];
-        const containers = [...element.querySelectorAll(empty.within)].filter(
-          (container) =>
-            conditionMatches(predicateAttributes(container, empty.when), empty.when),
-        );
-        return [[verb, containers.length === 1 ? containers[0].id : null]];
-      }),
-    ),
-  };
-}
-
-function conversationDescriptor(element, declaration) {
-  const conversation = declaration["x-conversation"];
-  if (!conversation) return null;
-  return {
-    authored: predicateAttributes(element, conversation.when),
-    when: structuredClone(conversation.when ?? {}),
-  };
-}
-
 // `boundary` is the document region this markup's target references resolve within.
 // It is derived from the markup itself wherever the markup is already standing in that
 // region. A live revision activation is the one caller that holds them apart: it reads
@@ -182,9 +112,6 @@ export function stageWidgetDescriptors(
       parent: ancestors[0] ?? null,
       ancestors,
       quoted: quotedBy(element),
-      retiredBy: retirementAncestors(element),
-      ask: askDescriptor(element, declaration, documentContext),
-      conversation: conversationDescriptor(element, declaration),
       bindings: requestBindings(element, declaration),
       offers: requestOffers(element, declaration),
     };

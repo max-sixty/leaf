@@ -74,8 +74,14 @@ binding invoke the original command through its stable identity and source scope
   pass, and the arming, prefix, audible walk, scroll freeze, and keyed Lit paint over
   them. `go-to-sequence.js` and `composing/target-chooser.js` each declare one scene,
   chip, and activation over that session and hold nothing of the interaction themselves.
-  `key-badge-placement.js` owns what the reader can see of a target once fixed chrome is
-  accounted for, and the reserved placement Ask binding badges use.
+  `key-badge-placement.js` owns what the reader can see of a target — the room the banner
+  leaves, and the hit test that catches a member covered without being clipped — and the
+  reserved placement Ask binding badges use. Both maps admit and seat members by that one
+  reading, so "visible" means the same thing wherever the reader is offered a letter.
+  Chrome at the foot is deliberately outside it: the bar states the armed map's own keys,
+  so a map that read it would lose members as it armed. A chip that would land there is
+  moved by the placement pass instead. A page-search mark is drawn where it stands rather
+  than moved, so it alone reads a box with that chrome taken out (`clearPart`).
 - `disclosure.js` owns the shared native disclosure reading and bindings.
 
 Before changing a binding, inspect the complete register for conflicting meanings,

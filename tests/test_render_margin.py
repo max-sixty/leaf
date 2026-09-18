@@ -3713,6 +3713,23 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
         "icon": token_colour(page, "--ok-ink"),
     }, "pickup did not take the carrier back from the reader's turn"
 
+    # Answering is what ends the reader's turn, and the gallery tells a developer to
+    # watch for exactly that. Both agent threads have to be answered, because the
+    # aggregate takes the turn of any member.
+    for root in roots:
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": root["id"],
+                "text": "Answered, so this one is back with the agent.",
+            },
+        )
+    told(page)
+    expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    expect(marker.locator(".lf-margin-entry-context")).to_have_count(0)
+
 
 def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):
     """Two moved cards share a widget claim, but each receipt arrives only once.

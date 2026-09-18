@@ -836,8 +836,12 @@ export function createMarginProjection({
       !previewMarginEntry?.isConnected
     )
       return Promise.resolve(false);
-    const controls =
+    // A withheld row has no place on the page, so its box is empty and a card placed
+    // against it stands in the viewport's corner, over whatever the reader pressed. It
+    // stands by what the row is about instead.
+    const row =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
+    const controls = row.checkVisibility() ? row : (previewEntry?.target ?? row);
     const target = controls.getBoundingClientRect();
     const readingRegion = containingReadingRegionFor(previewEntry?.target);
     const regionBounds = readingRegion && shownRegionBounds(readingRegion);

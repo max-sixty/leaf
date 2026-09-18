@@ -137,15 +137,14 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     )
     assert circle_radius == "50%"
     assert face["button"] == "rgba(0, 0, 0, 0)"
-    assert face["fill"] != face["button"]
     assert face["radius"] == button_radius(page)
     assert face["radius"] != circle_radius
-    # The mark stands on the disc, so it reads against the disc rather than against the
-    # ink every injected control takes from the shared face. Both rules are the theme's,
-    # and this one wins by coming after it; when the face was stated in the adopted sheet
-    # instead, it outranked this rule and drew the mark near black on the accent.
-    assert face["fill"] == token_colour(page, "--accent")
-    assert face["glyph"] == token_colour(page, "--paper")
+    # This press is the composer's glyph action, so it wears that face: the accent as its
+    # own ink, over a disc that stays clear until the pointer is on it. The mark therefore
+    # reads against the page rather than against a disc, and it is the ink that says the
+    # press is live — the disc says the same thing in both states and cannot.
+    assert face["fill"] == face["button"] == "rgba(0, 0, 0, 0)"
+    assert face["glyph"] == token_colour(page, "--accent")
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 

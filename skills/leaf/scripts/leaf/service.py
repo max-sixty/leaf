@@ -18,7 +18,6 @@ from leaf.event_log import (
 from leaf.event_meaning import admit_widget_event
 from leaf.files import read_json, write_json
 from leaf.host import (
-    HARNESSES,
     Harness,
     message_identity,
     session_harness,
@@ -49,23 +48,9 @@ def claim_path(page_dir: Path) -> Path:
     return state_home() / "claims" / f"{page_key(page_dir)}.json"
 
 
-def _claim_record(path: Path) -> dict | None:
-    """One claim file as a claim, or None where there is none to read.
-
-    Every reader rebuilds the claimant's harness from the record, so a record
-    naming one this install cannot rebuild — written before claims named a
-    harness, or by an install that knows one this one does not — reads as no
-    claim at all. The page stands unheld, and the next `server start` or named
-    `leaf wait` writes a current one."""
-    claim = read_json(path)
-    if claim is None or claim.get("harness") not in HARNESSES:
-        return None
-    return claim
-
-
 def page_claim(page_dir: Path) -> dict | None:
     """The page's last claim, including one released or whose lifetime ended."""
-    return _claim_record(claim_path(page_dir))
+    return read_json(claim_path(page_dir))
 
 
 def claim_is_active(claim: dict | None) -> bool:
@@ -123,9 +108,7 @@ def claim_records() -> list:
     directory = state_home() / "claims"
     if not directory.is_dir():
         return []
-    return [
-        claim for path in directory.glob("*.json") if (claim := _claim_record(path))
-    ]
+    return [claim for path in directory.glob("*.json") if (claim := read_json(path))]
 
 
 class PageTransaction:

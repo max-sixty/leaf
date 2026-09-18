@@ -183,8 +183,7 @@ A page directory holds:
                          A later reader rebuilds that harness's declaration from
                          the name and asks it how input reaches the session,
                          rather than re-deriving one from its own environment,
-                         which need not be the claimant's. A record naming a
-                         harness this install cannot rebuild reads as no claim.
+                         which need not be the claimant's.
                          Keeping provenance outside the disposable page lets
                          ownership discovery survive a page moving between sessions
 

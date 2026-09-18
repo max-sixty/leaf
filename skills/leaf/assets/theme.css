@@ -1373,6 +1373,11 @@ leaf-anchor-note { display: contents; }
           color: var(--ink); overflow-wrap: anywhere; }
 .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
           outline: none; border-radius: var(--r); background: var(--here-surface); }
+/* The thread itself holding the keyboard's focus wears the ring, inset over the quiet
+   ground its containing state paints; chrome.css says the same of the panel's card. */
+.lf-conversation-thread:is(:focus-visible, .lf-focus-visible) {
+          outline: var(--here-ring); --lf-here-ring: conversation-thread;
+          outline-offset: calc(-1 * var(--here-ring-w)); }
 @media (forced-colors: active) {
   .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
           outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }

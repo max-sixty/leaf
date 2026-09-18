@@ -1,4 +1,4 @@
-import { focusedThread } from "../conversation/focus.js";
+import { focusedThread, focusedThreadOf } from "../conversation/focus.js";
 import { takesLetters, letGo } from "../focus.js";
 import { EVERYTHING, TEXT_ENTRY } from "./text-entry.js";
 import { ELEMENTS } from "./register.js";
@@ -7,7 +7,7 @@ import { SHORTCUT_HELP, CLOSE_SHORTCUT_SHELF } from "./shortcut-bar.js";
 import { containsAcross, elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "../conversation/state.js";
 import { openThreads } from "../conversation/thread-list.js";
-import { documentFocused, focused, keys } from "./scopes.js";
+import { claimsEsc, documentFocused, focused, keys } from "./scopes.js";
 import { anchoringIsReady, addressableWord } from "../anchor-resolution.js";
 import { currentTray } from "../trays.js";
 import {
@@ -27,7 +27,7 @@ import {
   standingConversation,
 } from "../conversation/landing.js";
 import { pageSelection } from "../composing/capture.js";
-import { current, RETURN } from "./layer-stack.js";
+import { current, heldStanding, nativeLayers, RETURN } from "./layer-stack.js";
 import {
   ariaShortcuts,
   bindings,
@@ -107,7 +107,9 @@ export function createPageKeys({
   NEWEST,
   VERSIONS,
   activeInlineThread,
+  inlineThreadView,
   keyboardRung,
+  standingAsk,
   standingElement,
   actionRow,
 }) {
@@ -295,16 +297,11 @@ export function createPageKeys({
   // pointer-opened auxiliary surfaces, captured targets, and ordinary focus traversal. Commanded
   // entries use the return stack and never infer their inverse from this resulting scene.
   //
-  // So the first rung is theirs: out on the page, the innermost thing they are in is the Ask
-  // they are standing on, and a panel behind them is a layer they are not in. Nothing said
-  // this before — a reader the walk had brought to an Ask could press Escape all day and the
-  // ring stayed on it, the one place in the runtime a key put the reader somewhere with no
-  // key to take them out again.
-  //
-  // Inside the chrome it is the open auxiliary surface first. Trays and Threads replace one
-  // another, so a standing tray is the one auxiliary layer Escape can unwind.
-  //
-  // Then the last rung leaves the chrome, because closing the panel does not put the reader
+  // Standing on something is not this ladder's: STANDING below is the inner step that lets
+  // go of a destination, and it stands ahead of every frame. What this ladder unwinds
+  // is the chrome: the open auxiliary surface first — trays and Threads replace one
+  // another, so a standing tray is the one auxiliary layer Escape can unwind — and then
+  // the last rung leaves the chrome, because closing the panel does not put the reader
   // back on the page: it lands them on the control that closes it, deliberately (setPanel
   // says why), and the closing keypress rings a button a pointer-borne reader never chose.
   // Their next Space is then that button rather than the page's scroll. CLAUDE.md's "The
@@ -318,8 +315,6 @@ export function createPageKeys({
         does: "Clear the selection",
         out: dismissFab,
       };
-    if (holding && !inChrome(active))
-      return { says: "let go", does: "Let go of what you are standing on", out: letGo };
     // Whichever tray holds the edge, named by the rung so the reader is told what the
     // press will take rather than being told "close the tray" over two of them.
     const tray = currentTray();
@@ -377,6 +372,60 @@ export function createPageKeys({
     promoteEscape: () => !Boolean(fabAnchorAt()) || reactionTokens().length === 0,
     when: () => !current() && Boolean(rung()),
     run: () => rung().out(),
+  };
+
+  // What the reader is standing on, and the one press that lets go of it. Standing is
+  // holding a destination — an Ask or a heading out on the page, a card in the panel and
+  // anything inside one — as against a chrome control such as the panel's toggle, which
+  // is answered by the ladder above once the layers are down. Letting go puts the reader
+  // on the floor of the layer they are in: the page's body, or the panel's list.
+  //
+  // It is the innermost step because standing is the newest thing the reader did: a Tab,
+  // a hint, a pointer press. What stands nearer still answers first: a widget's own
+  // Escape declared over the control, a mode the reader is in, the Page Map's own rung
+  // over an unfolded margin cluster or its conversation view — a margin cluster's
+  // controls sit outside `.lf-chrome` (measured on the panel fixture), so that rung is
+  // asked by name — a text box with a place to go back to, and the frame of a press that
+  // stood them there — the `t` and `a` walks, `g T` carrying an inline thread — which
+  // holds the standing and answers in its turn, so `t` then `w` unwinds the narrowing
+  // before the walk. A native layer standing over the page is the browser's mode, and
+  // its own Escape is not ours to pre-empt with a let-go beneath it.
+  //
+  // The scope's `at` is the cheap half, whether anything is held at all; the row's `when`
+  // is the dear one, asked only of a reader who is holding something.
+  const holding = () => {
+    const active = documentFocused();
+    return Boolean(active) && active !== document.body;
+  };
+  const standingFloor = () => {
+    if (!holding()) return null;
+    if (pageSelection() || fabAnchorAt()) return null;
+    if (designModeActive() || drawModeActive() || pageMapRung()) return null;
+    if (nativeLayers().length || heldStanding()) return null;
+    if (takesLetters(focused()) && (backFromBox() || inTheBox())) return null;
+    if (claimsEsc(focused())) return null;
+    if (inPanel()) return focusedThreadOf() ? threadsBox : null;
+    return inChrome(documentFocused()) ? null : document.body;
+  };
+  const STANDING = {
+    title: "Standing on something",
+    root: focused,
+    escape: "inner",
+    at: holding,
+    rows: [
+      {
+        id: "navigation.release",
+        keys: ["Escape"],
+        does: "Let go of what you are standing on",
+        line: () => (standingFloor() === threadsBox ? "back to list" : "let go"),
+        when: () => Boolean(standingFloor()),
+        run: () => {
+          const floor = standingFloor();
+          if (floor === document.body) letGo();
+          else floor.focus({ preventScroll: true });
+        },
+      },
+    ],
   };
 
   const PAGE_MOVE = {
@@ -989,6 +1038,49 @@ export function createPageKeys({
         (!coveringAuxiliarySurface() || inPanel()) &&
         !(threadSearchActive() && inPanel()),
       repeat: true,
+      // The press that puts the reader on a thread is one rung, however many threads the
+      // walk then visits: the press made off the threads pushes the frame, and a later
+      // one, made standing on a thread, pushes nothing. In the panel the walk moves focus
+      // and opens nothing, so the frame closes nothing and Escape hands back the place the
+      // press displaced — the list after `g T`, or the page place the reader pressed from
+      // with the panel already standing beside them. With the panel shut the walk reaches
+      // a thread on the page where a widget seats one and opens the margin's conversation
+      // view for the rest, so a press that opened that view is an entry even from a
+      // standing on a seated thread, and the frame dismisses the view on the way back;
+      // the rail control the view hangs from is nowhere the reader stood, so it is
+      // nowhere on the way out. The frame is its own entry rather than the view's,
+      // because the walk outlives the view when it steps on to a seated thread.
+      returnFrame: () => {
+        if (panelIsOpen()) {
+          if (focusedThreadOf()) return null;
+          const fromList = threadsBox === focused();
+          return {
+            active: () => panelIsOpen() && Boolean(focusedThreadOf()),
+            close: () => {},
+            does: "Let go of the thread",
+            line: fromList ? "back to list" : "let go",
+          };
+        }
+        const standingBefore = Boolean(activeInlineThread());
+        const showingBefore = inlineThreadView.showing();
+        // Whether the press was an entry is read once, on the stack's first look after
+        // the run: it stood the reader on a thread, or it opened the view.
+        let entered = null;
+        return {
+          active: () => {
+            entered ??=
+              !standingBefore || (!showingBefore && inlineThreadView.showing());
+            return entered && Boolean(activeInlineThread());
+          },
+          close: () => inlineThreadView.dismiss(),
+          does: () =>
+            inlineThreadView.showing()
+              ? "Dismiss the conversation view"
+              : "Let go of the thread",
+          line: () => (inlineThreadView.showing() ? "dismiss conversation" : "let go"),
+          ownEntry: true,
+        };
+      },
       run: (binding) => stepThread(binding === "t" ? 1 : -1),
     };
     const PANEL = {
@@ -1049,6 +1141,9 @@ export function createPageKeys({
             close: () => narrowingView.readerControl.click(),
             does: "Show every thread again",
             line: "show all",
+            // The narrowing moves nobody, so a card the reader then stands on is theirs
+            // to let go of before the narrowing comes off.
+            standing: false,
           }),
           run: () => narrowingView.readerControl.click(),
         },
@@ -1153,6 +1248,29 @@ export function createPageKeys({
           line: "asks",
           when: () => openAsks().length > 0,
           repeat: true,
+          // The same shape as the thread walk: the press made off the Asks is the entry
+          // and hands back the place it displaced, a later press made standing on an Ask
+          // is a step within that standing. An Ask seated in a thread is reached through
+          // the panel, so a press made with the panel shut opens it on the way, and that
+          // opening is the press's own to undo in the same one Escape. The arrival is
+          // asynchronous, and `run` returns it, so the stack judges this frame once the
+          // reader is standing.
+          returnFrame: () => {
+            if (standingAsk()) return null;
+            const panelWasShut = !panelIsOpen();
+            const opened = () => panelWasShut && panelIsOpen();
+            return {
+              active: () => Boolean(standingAsk()),
+              close: () => {
+                if (opened()) setPanel(false);
+              },
+              does: () =>
+                opened()
+                  ? "Close the thread panel"
+                  : "Let go of what you are standing on",
+              line: () => (opened() ? "close threads" : "let go"),
+            };
+          },
           run: (binding) => stepAsk(binding === "a" ? 1 : -1),
         },
         // Scrolling is available in the page and in a covering auxiliary surface. The latter
@@ -1256,6 +1374,7 @@ export function createPageKeys({
       DISCLOSURE,
       DRAW_MODE_SCOPE,
       DESIGN_MODE_SCOPE,
+      STANDING,
       PAGE,
     ];
     // Core's scopes are checked as the list is built by the rule every widget's are checked

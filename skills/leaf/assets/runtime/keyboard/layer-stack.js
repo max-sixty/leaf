@@ -90,12 +90,23 @@
    as one Escape rung. A multi-letter generated hint narrows the visible target map
    instead; Escape removes one typed letter before another Escape closes the sequence.
 
-   The stack records entry history; `rung()` is only the fallback for state reached
-   without a registered entry, such as a pointer-opened panel or focus the reader moved by
-   ordinary traversal. A keyboard command with `returnFrame` never asks `rung()` to guess
-   its inverse. Moving within an entered surface—`t` walking from the Threads list to a
-   thread, for example—does not push another frame, so Escape still returns through the
-   entry that opened the surface.
+   The stack records entry history; `rung()` is only the fallback for chrome state reached
+   without a registered entry, such as a pointer-opened panel. A keyboard command with
+   `returnFrame` never asks `rung()` to guess its inverse.
+
+   Standing — holding a destination inside a layer: a card in the list, an Ask or a
+   heading on the page — is one rung of its own, however the reader got there. The page's
+   STANDING scope lets go of it onto the floor of the layer they are in, the list or the
+   body, and that step is inner: it stands ahead of every frame, because standing is the
+   newest thing the reader did with a Tab, a hint, or a pointer. A press that stood them
+   there instead records itself as a frame, and a frame holds the standing unless it
+   declares `standing: false`, so it answers in the stack's order: `t` from the list
+   pushes one frame for the whole walk, a second `t` made standing on a thread pushes
+   nothing, `t` then `w` unwinds the narrowing before the walk, and `a` opening the panel
+   for an Ask closes the panel in the one Escape that undoes the one press. A frame says
+   false when its press stood the reader nowhere: `g T` and the trays land on a floor or
+   a chrome row, and `w` moves nobody. `heldStanding` is that reading, and a `standing`
+   that reads focus retires with it, as `a`'s does once the reader Tabs off its Ask.
 
    `restoreReturnPlace` restores the exact connected control a command displaced. When the
    reader had no control focused it restores the captured reading block without leaving
@@ -231,28 +242,61 @@ function descriptorFor(row, binding) {
     throw new TypeError(
       `leaf: ${row.id} must return active, close, does, and line from returnFrame`,
     );
+  if (!["undefined", "boolean", "function"].includes(typeof frame.standing))
+    throw new TypeError(
+      `leaf: ${row.id} must return standing as a boolean or a function from returnFrame`,
+    );
+  if (!["undefined", "boolean"].includes(typeof frame.ownEntry))
+    throw new TypeError(
+      `leaf: ${row.id} must return ownEntry as a boolean from returnFrame`,
+    );
   return frame;
 }
 
 // The caller captures the origin before the command runs. Evaluate the frame before the
 // run too, because its descriptor may preserve pre-entry auxiliary chrome state; publish it only
 // after the command has really entered the layer. A liveness guard that changed during
-// the command therefore cannot leave a phantom frame behind.
+// the command therefore cannot leave a phantom frame behind. A command whose entry lands
+// asynchronously — the Ask walk opens the panel and reveals its destination across
+// several awaits — says so by returning its promise, and its frame is judged when that
+// settles, which is the first moment the layer it declared is either standing or not.
 export function invoke(row, binding, run, suppliedOrigin = null) {
   const frame = descriptorFor(row, binding);
   const origin = frame ? suppliedOrigin : null;
   const before = new Set(entries);
   const result = run();
-  prune();
-  if (frame?.active()) {
+  // What the run itself pushed, read now: a settle that lands later must not adopt a
+  // layer something else opened in the meantime.
+  const pushed = entries.at(-1);
+  const settle = () => {
+    prune();
+    if (!frame?.active()) return;
     const top = entries.at(-1);
     // One gesture, one entry: a command that opened a native layer is that layer's way
     // out, so it takes over the entry its own run pushed rather than stacking a second
-    // rung the reader never asked for.
-    if (top && top.root && !top.does && !before.has(top))
+    // rung the reader never asked for. A frame whose life is not the layer's — the
+    // thread walk outlives the conversation view it opened when it walks on to a thread
+    // seated on the page — says `ownEntry` and stands above the layer as its own.
+    if (
+      top &&
+      top === pushed &&
+      top.root &&
+      !top.does &&
+      !before.has(top) &&
+      !frame.ownEntry
+    )
       Object.assign(top, frame, { origin, active: top.active, holds: frame.active });
     else entries.push({ ...frame, origin, holds: frame.active });
-  }
+  };
+  if (frame && typeof result?.then === "function")
+    result.then(
+      () => {
+        settle();
+        repaint();
+      },
+      () => {},
+    );
+  else settle();
   return result;
 }
 
@@ -260,6 +304,19 @@ export function current() {
   prune();
   const top = entries.at(-1);
   return top?.does && top.holds() ? top : null;
+}
+
+// Whether a live frame holds what the reader is standing on. A frame does unless it says
+// `standing: false`: the press that pushed it is what stood the reader where they are —
+// the `t` walk on a card, `a` on an Ask it opened the panel for, a widget command in the
+// layer it opened — so the scene's own "let go" stands down and Escape goes back through
+// that press instead. `g T` says false because its arrival is the list, the panel's own
+// floor, and what the reader then stands on in that panel is theirs to let go of first.
+export function heldStanding() {
+  prune();
+  return entries.some(
+    (entry) => entry.does && word(entry.standing) !== false && entry.holds(),
+  );
 }
 
 function back() {

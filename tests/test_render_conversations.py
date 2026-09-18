@@ -4376,14 +4376,19 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
         context.close()
 
 
-def thread_mark_fault(reading):
-    """Why a current thread is indistinguishable from a resting card, if it is."""
+def thread_mark_fault(reading, ring="solid"):
+    """Why a current thread is indistinguishable from a resting card, if it is.
+
+    The card the keyboard stands on wears the inset ring every keyboard target wears,
+    over the quiet ground that says the reader is in it; a pointer arrival paints the
+    ground alone, and its caller says so with `ring="none"`. `rings_drawn` reads whether
+    a ring is whole; this reads that the marks the arrival owes are there."""
     if not reading:
         return "focus is not inside a thread"
     if reading["restingBackground"] is None:
         return "there is no resting peer to distinguish the current thread from"
-    if reading["outline"] != "none":
-        return f"the thread draws a {reading['outline']} outline around the whole card"
+    if reading["outline"] != ring:
+        return f"the current thread wears a {reading['outline']} outline, not {ring}"
     if reading["background"] == reading["restingBackground"]:
         return "the current thread's surface is the same as a resting card's"
     if reading["cuts"]:
@@ -4446,9 +4451,10 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     browser, serve
 ):
     """Where the reader is standing has to be visible from wherever they walked to it.
-    A current thread paints its own surface; compact controls inside the list
-    keep the focus ring. Either treatment can disappear at a scroll edge or beneath a
-    neighbour, and the thread list has had both failures in both directions.
+    A walked-to thread wears the inset ring over its own quiet ground; compact controls
+    inside the list draw the ring outside themselves. Either treatment can disappear at
+    a scroll edge or beneath a neighbour, and the thread list has had both failures in
+    both directions.
 
     So this walks the list the way a reader does and asks the invariant at every landing,
     rather than naming the collisions one at a time. A rule stated once is a rule a new
@@ -4602,8 +4608,8 @@ def test_go_page_returns_without_unwinding_the_panel(browser, serve):
 
 def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     """A covering panel locks the page scroller, so focus cannot honestly return to
-    that page while keeping the panel open. Its ordinary Escape rung remains the one
-    route back and closes the covering panel."""
+    that page while keeping the panel open. Escape remains the one route back: it lets
+    go of the card onto the list, then closes the covering panel."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
@@ -4619,6 +4625,9 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
         page.keyboard.press("g")
         page.keyboard.press("p")
         expect(thread).to_be_focused()
+        expect(page.locator(".lf-thread-panel")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-threads")).to_be_focused()
         expect(page.locator(".lf-thread-panel")).to_be_visible()
         page.keyboard.press("Escape")
         expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -4780,7 +4789,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         assert page.evaluate(
             "() => document.activeElement?.classList.contains('lf-thread')"
         ), "the press did not land the reader on a thread"
-        mark_fault = thread_mark_fault(standing_thread(page))
+        mark_fault = thread_mark_fault(standing_thread(page), ring="none")
         assert not mark_fault, mark_fault
         assert not ring_faults(
             rings_drawn(page), "after a press on a card under the run heading"

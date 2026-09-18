@@ -145,6 +145,8 @@ spine instead.
 | **Target chooser** | The `s` interaction that presents addressable elements and ends when the reader chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among same-kind destinations |
+| **Standing** | Holding a destination inside a layer, or a control inside one: an Ask or heading on the page, a card in the thread panel; a banner or panel-head control is not one |
+| **Floor** | The place in a layer where the reader stands on nothing: the page's body, the thread panel's list |
 | **Return** | Restoration of the origin captured before an entered transition; Escape unwinds an inner interaction before returning when necessary |
 | **Layer stack** | The one ordered record of the popovers, modal dialogs, and return frames standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |
 | **Key badge** | A keycap-shaped carrier for a binding or transient hint code |

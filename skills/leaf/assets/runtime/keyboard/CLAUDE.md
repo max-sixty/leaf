@@ -38,6 +38,19 @@ control or active mode may consume one inner step, followed by the latest eligib
 frame and then containing fallbacks. Browser modal and popover boundaries remain outside
 that order. One press closes one layer.
 
+The way out is as deep as the way in, counted in the reader's presses. A press's whole
+effect is one rung: a command that opens a container and stands the reader in it is
+undone by one Escape, which closes the container and restores the place the press
+displaced. Standing on a destination — a card in the list, an Ask or a heading on the
+page — is one rung whatever put the reader there: letting go lands them on the floor of
+the layer they are in, the panel's list or the page's body, and it is an inner step
+because standing is the newest thing they did. A press that stood them there records a
+frame, and a frame holds the standing unless it says `standing: false` because its
+press stood the reader nowhere, so that frame answers in the stack's order instead; a
+walk pushes one such frame for however many steps it takes. A keyboard press's way out
+never lands the reader on a control they never stood on; a pointer's way out lands on
+the control the pointer pressed. `layer-stack.js` carries the mechanism.
+
 ## Page grammar
 
 Page scope contains commands whose subject is the page. Surface scopes contain commands

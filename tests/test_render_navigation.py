@@ -788,6 +788,12 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+    # The viewer handed focus back to a control inside a card the pointer chose, so
+    # the reader is standing there: one Escape lets go onto the list, the next closes
+    # the panel through the entry that opened it.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-asks")).to_be_focused()
@@ -2417,6 +2423,210 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(first.locator("textarea")).to_be_focused()
 
 
+def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
+    """One press in is one press out, and nothing on the way out is a control the reader
+    never stood on.
+
+    From the page, `t` opens the margin's conversation view to reach the thread. However
+    many threads the walk then visits, one Escape dismisses the view and hands back the
+    place the press displaced — the heading the reader stood on, or the page — and never
+    the rail control the view hung from, which the pointer's close lands on because the
+    pointer pressed it.
+
+    In the panel, `g T` is one press and `t` a second, so it takes two to come back:
+    the first lets go of the card onto the list, the second closes the panel. A `w`
+    narrowing put on after the walk comes off first, in the order the reader put things
+    on. Standing the reader reached by Tab or by pointer has the same let-go, ahead of
+    the frame that opened the panel.
+    """
+    url = serve(
+        INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    # An agent's comment asks by construction, so one thread waits on the reader, which
+    # is what gives the panel's `w` narrowing something to narrow to. It shares the second
+    # passage, so the walk's first two landings stay the reader's own threads in order.
+    panel_comment(
+        serve.page_dir,
+        "Is this the passage you meant?",
+        {"section": "p2", "quote": "neighbouring block"},
+        "claude",
+    )
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1200, "height": 844})
+    preview = page.locator(".lf-margin-preview")
+    # The view holds one thread at a time, so the walk's landings are told apart by id.
+    threads = [
+        page.locator(
+            f'.lf-margin-preview .lf-conversation-thread[data-thread="{root}"]'
+        )
+        for root in roots
+    ]
+    line = page.locator(".lf-shortcut-bar")
+
+    # From the page: the whole walk is one rung.
+    page.keyboard.press("t")
+    expect(threads[0]).to_be_focused()
+    expect(line).to_contain_text("dismiss conversation")
+    page.keyboard.press("t")
+    expect(threads[1]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert not page.evaluate(
+        "() => document.activeElement.closest('.lf-margin-projection')"
+    )
+
+    # From a heading the reader stood on, the walk hands that heading back.
+    heading = page.locator("main h2").first
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    expect(heading).to_be_focused()
+    page.keyboard.press("t")
+    expect(threads[0]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(heading).to_be_focused()
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    # In the panel: g T, t, w — three presses on, three off, newest first.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    threads_list = page.locator(".lf-threads")
+    expect(threads_list).to_be_focused()
+    page.keyboard.press("t")
+    card = page.locator(".lf-threads > .lf-thread:not([hidden])").first
+    expect(card).to_be_focused()
+    expect(line).to_contain_text("back to list")
+    page.keyboard.press("t")
+    page.keyboard.press("Shift+t")
+    expect(card).to_be_focused()
+    page.keyboard.press("w")
+    expect(line).to_contain_text("show all")
+    page.keyboard.press("Escape")
+    expect(card).to_be_focused()
+    expect(line).to_contain_text("back to list")
+    page.keyboard.press("Escape")
+    expect(threads_list).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    # Standing reached by Tab is let go of before the panel closes.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    expect(threads_list).to_be_focused()
+    while not page.evaluate("() => document.activeElement.closest('.lf-thread')"):
+        page.keyboard.press("Tab")
+    expect(line).to_contain_text("back to list")
+    page.keyboard.press("Escape")
+    expect(threads_list).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+    # And by pointer, over a panel the pointer opened: the card first, then the panel.
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
+    card.locator(".lf-msg").first.click()
+    assert page.evaluate("() => document.activeElement.closest('.lf-thread') !== null")
+    expect(line).to_contain_text("back to list")
+    page.keyboard.press("Escape")
+    expect(threads_list).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+
+def test_an_ask_walk_that_opens_the_panel_closes_it_in_one_escape(browser, serve):
+    """`a` from the page reaches an Ask seated in a thread through the panel, so the
+    press opens the panel on the way. That opening is the press's own to undo: one
+    Escape closes the panel and hands the page back, rather than leaving the reader
+    standing in a panel they never asked to open, two presses and a toggle button from
+    where they were."""
+    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    page.keyboard.press("a")
+    ask = page.locator(".lf-thread lf-ask[data-lf-ask]")
+    expect(ask).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close threads")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_a_frame_holds_only_the_standing_its_own_press_made(browser, serve):
+    """A press that moved nobody, or landed on a floor or a chrome row, leaves what the
+    reader then stands on theirs to let go of first: the `w` narrowing, and a tray
+    opened by `g A`. A press that did stand them somewhere — `a` reaching an Ask in a
+    thread from a heading — hands that heading back."""
+    url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
+    panel_comment(
+        serve.page_dir,
+        "Is this the passage you meant?",
+        {"section": "p2", "quote": "neighbouring block"},
+        "claude",
+    )
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1200, "height": 844})
+    line = page.locator(".lf-shortcut-bar")
+    threads_list = page.locator(".lf-threads")
+
+    # g T, w, then Tab into a card: the card comes off before the narrowing.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.keyboard.press("w")
+    expect(line).to_contain_text("all threads")
+    while not page.evaluate("() => document.activeElement.closest('.lf-thread')"):
+        page.keyboard.press("Tab")
+    expect(line).to_contain_text("back to list")
+    page.keyboard.press("Escape")
+    expect(threads_list).to_be_focused()
+    expect(line).to_contain_text("all threads")
+    page.keyboard.press("Escape")
+    expect(line).to_contain_text("waiting on you")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+    # A page Ask stood on while a tray the keyboard opened stands beside the page.
+    page = open_page(browser, serve(ASKS_PAGE))
+    line = page.locator(".lf-shortcut-bar")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    expect(page.locator(".lf-asks-panel.open")).to_be_visible()
+    ask = page.locator("#live-question-decision")
+    ask.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    expect(ask).to_be_focused()
+    expect(line).to_contain_text("let go")
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-asks-panel.open")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-asks-panel.open")).to_have_count(0)
+
+    # `a` from a heading into a thread's Ask, with the panel already beside the page.
+    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    line = page.locator(".lf-shortcut-bar")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
+    heading = page.locator("main h2").first
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    expect(heading).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
+    expect(line).to_contain_text("let go")
+    page.keyboard.press("Escape")
+    expect(heading).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+
+
 def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, serve):
     """A missing visual destination leaves the caller's announcement path live."""
     url = serve(NOTED_PAGE)
@@ -2453,24 +2663,29 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     expect(page.locator(".lf-live")).to_contain_text("Thread 1 of 1")
 
 
-def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser, serve):
-    """A thread is a current region; its reply is the control taking the next press."""
+def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
+    browser, serve
+):
+    """A thread is a current region, and its quiet ground says so however the reader
+    arrived. The ring is the keyboard's: the thread wears it inset while the keyboard
+    stands on the thread itself, and gives it to the reply box once that control takes
+    the next press. A pointer arrival paints the ground and no ring, as on every other
+    pointer-focused control."""
     page = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text")]),
     )
     thread = page.locator(".lf-margin-preview .lf-conversation-thread")
     note = page.locator("#p .lf-mark-note")
+    paint = """el => { const s = getComputedStyle(el); return {
+      outline: s.outlineStyle, offset: s.outlineOffset, background: s.backgroundColor,
+      shadow: s.boxShadow,
+    }; }"""
 
     note.click()
     expect(thread).to_be_focused()
     assert not thread.evaluate("el => el.matches(':focus-visible')")
-    pointer = thread.evaluate(
-        """el => { const s = getComputedStyle(el); return {
-          outline: s.outlineStyle, background: s.backgroundColor,
-          shadow: s.boxShadow,
-        }; }"""
-    )
+    pointer = thread.evaluate(paint)
     # The preview builds the thread when it opens it, and opening it from the mark
     # makes it current, so the resting tint is only readable from the same element
     # once the region gives the focus back.
@@ -2484,31 +2699,24 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
-    current = thread.evaluate(
-        """el => { const s = getComputedStyle(el); return {
-          outline: s.outlineStyle, background: s.backgroundColor,
-          shadow: s.boxShadow,
-        }; }"""
-    )
-    assert current["outline"] == "none"
-    assert current == pointer
+    assert thread.evaluate("el => el.matches(':focus-visible')")
+    current = thread.evaluate(paint)
+    assert current["outline"] == "solid"
+    assert current["offset"] == "-2px"
+    assert current["background"] == pointer["background"]
+    assert current["shadow"] == "none"
 
     page.keyboard.press("Enter")
     reply = thread.locator("textarea")
     expect(reply).to_be_focused()
-    writing = thread.evaluate(
-        """el => { const s = getComputedStyle(el); return {
-          outline: s.outlineStyle, background: s.backgroundColor,
-          shadow: s.boxShadow,
-        }; }"""
-    )
+    writing = thread.evaluate(paint)
     reply_ring = reply.evaluate(
         """el => { const s = getComputedStyle(el); return {
           style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
           border: s.borderColor,
         }; }"""
     )
-    assert writing == current
+    assert writing == pointer
     # One ring and no accented border: the reply wears the text box's band, which
     # replaces the resting border rather than standing off it. `theme.css` states
     # that inside `.lf-conversation-thread` so a thread seated in a widget's shadow
@@ -2727,8 +2935,9 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     assert "reply" in shortcut_bar_text(page)
-    # The walk itself made no return frame. Its Page Map fallback is still live, but a
-    # sequence armed afterwards is an inner interaction and Escape cancels that sequence first.
+    # The pointer opened this view and the walk stepped within it, so the walk made no
+    # frame and the Page Map rung is the way out; a sequence armed afterwards is an inner
+    # interaction and Escape cancels that sequence first.
     page.keyboard.press("g")
     assert "cancel" in shortcut_bar_text(page)
     page.keyboard.press("Escape")
@@ -6023,8 +6232,10 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     expect(origin).to_be_focused()
     assert page.locator("main").evaluate("main => main.inert")
     page.evaluate(RENDERED)
+    # The card was reached by focus the `g T` entry never placed, so Escape's first
+    # step there is letting go of it, ahead of that entry's return.
     hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
-    assert {"thread.primary", "navigation.return"} <= hints, hints
+    assert {"thread.primary", "navigation.release"} <= hints, hints
     assert not any(command.startswith("version.") for command in hints), hints
 
     page.keyboard.press("g")
@@ -6040,6 +6251,8 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     panel_settled(page)
     expect(origin).to_be_focused()
     assert not page.locator("main").evaluate("main => main.inert")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")

@@ -247,6 +247,11 @@ export function createGoToSequence({
       },
       active: (...args) => panelIsOpen(...args),
       close: () => setPanel(false),
+      // The arrival is the list, the panel's own floor, so what the reader then stands on
+      // in the panel is theirs to let go of before this frame answers — unless the press
+      // carried an inline thread into the panel and stood them on its card, which the
+      // one Escape then gives back.
+      standing: () => Boolean(activeInlineThread()),
       toggle: true,
     },
     {
@@ -760,6 +765,10 @@ export function createGoToSequence({
               },
               does: `Return from ${word(destination.line)}`,
               line: "back",
+              // A direct destination lands on a floor or a chrome row — the list, a tray's
+              // first row, a version — so what the reader then stands on is theirs to let
+              // go of first, unless the destination says its arrival was a standing.
+              standing: destination.standing?.() ?? false,
             };
           },
           run: () => {

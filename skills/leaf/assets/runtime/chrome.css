@@ -1301,14 +1301,20 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      jump: nothing above it moves, and the newcomer settles rather than appears. */
   .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
   /* The card of the comment the reader is standing in, which is the panel's half of
-     the pair the page paints as lf-mark-here. A thread is a composite region rather
-     than one control: another perimeter around a large card reads as a blue box, not
-     focus. Give it a quiet ground instead, preserving its geometry and leaving the
-     compact ring for the actual controls inside it. :focus-within keeps
-     the page and panel halves paired whether the reader arrived by key or pointer. */
+     the pair the page paints as lf-mark-here. A thread is a composite region: the
+     quiet ground says the reader is in this card, whichever control inside it holds
+     focus and whether they arrived by key or pointer, so :focus-within paints it and
+     keeps the two halves paired. The card itself holding the keyboard's focus is the
+     walk's landing and the card's own presses — Enter, r — act on it, so it wears the
+     ring every other keyboard target wears, inset because the list's edges touch it,
+     over that same ground. */
   .lf-thread:is(:focus-within, .lf-focus-within) {
     outline: none;
     background: var(--here-surface);
+  }
+  .lf-thread:is(:focus-visible, .lf-focus-visible) {
+    outline: var(--here-ring); --lf-here-ring: thread-card;
+    outline-offset: calc(-1 * var(--here-ring-w));
   }
   .lf-quote { margin: 0 0 12px; padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2); color: var(--muted);

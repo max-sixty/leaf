@@ -710,7 +710,9 @@ pageKeys = createPageKeys({
   NEWEST: version.NEWEST,
   VERSIONS: version.VERSIONS,
   activeInlineThread: app.margin.activeInlineThread,
+  inlineThreadView: app.margin.inlineThreadView,
   keyboardRung: app.margin.keyboardRung,
+  standingAsk: asks.standingIn,
   standingElement,
   actionRow: asks.actionRow,
 });

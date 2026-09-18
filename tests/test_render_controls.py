@@ -3590,6 +3590,11 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
+    # Standing on a card the keyboard entry never put them on is its own rung: the first
+    # Escape lets go of it onto the list, and the entry's frame then hands the page back.
+    page.keyboard.press("Escape")
+    expect(threads).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -5438,6 +5443,16 @@ RING_CASES = (
         {"pr-walkthrough": (("textarea.lf-fab-input", "inline-response"),)},
     ),
     ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
+    # The card the walk lands on wears the ring inset, over its quiet ground; a pointer
+    # arrival paints only the ground, so the specimen is the walk's own landing.
+    (
+        "a walked thread",
+        ("g", "Shift+t", "t"),
+        {"ship-review": ((None, "thread-card"),)},
+    ),
+    # The same walk with the panel shut lands in the margin's conversation view, on the
+    # thread itself rather than a control inside it.
+    ("an inline thread", ("t",), {"ship-review": ((None, "conversation-thread"),)}),
     ("passage search", ("/",), {"corpus": ((".lf-page-search-box", "target-search"),)}),
     # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -5573,6 +5588,8 @@ RING_SCOPE_SURFACE = {
         None,
     ),
     "the thread list": (".lf-thread-panel.open", None),
+    "a walked thread": (".lf-thread-panel.open", None),
+    "an inline thread": (".lf-margin-preview:popover-open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the Page Map dialog": (".lf-page-map-dialog[open]", None),
     "passage search": (".lf-page-search:not([hidden])", None),
@@ -5608,12 +5625,15 @@ RING_VIEWPORT = (1200, 900)
 RING_SCOPES_STARTING_WITHOUT_PANEL = {
     "an inline response",
     "the thread list",
+    "a walked thread",
+    "an inline thread",
     "a contents link",
     "a thread card",
     "the Page Map dialog",
 }
 RING_SCOPE_WIDTH = {
     "a contents link": 1600,
+    "an inline thread": 1600,
     "a thread card": 1600,
     "the Page Map dialog": 760,
 }

@@ -2660,6 +2660,9 @@ export function createMarginProjection({
   function closePreview(returnFocus = false) {
     clearThreadTransition();
     const button = previewMarginEntry;
+    // A cluster the walk unfolded to hang the view from folds with the view; one the
+    // reader unfolded stays, and is its own rung.
+    const forcedOptionsKey = forcedInlineOptionsKey;
     pinnedKey = null;
     forcedInlineKey = null;
     forcedInlineOptionsKey = null;
@@ -2670,6 +2673,8 @@ export function createMarginProjection({
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
     if (preview.matches(":popover-open")) preview.hidePopover();
+    if (forcedOptionsKey && expandedOptionsKey === forcedOptionsKey)
+      setOptionsOpen(null, false);
     refreshHighlight();
     for (const row of rows.values())
       syncReadingRelation(row, primaryReading(row.lfEntry));
@@ -2682,6 +2687,16 @@ export function createMarginProjection({
     }
     paintKeys();
   }
+
+  // The way back out of the conversation view a walk opened from the page. The pointer's
+  // close hands focus to the margin entry the view hangs from, because that is where the
+  // pointer pressed; a `t` from the page never stood there, so its frame closes the view
+  // and leaves the reader's place to the frame that captured it.
+  const inlineThreadView = {
+    showing: () =>
+      preview.matches(":popover-open") && preview.hasAttribute("data-lf-thread"),
+    dismiss: () => closePreview(),
+  };
 
   // The card and its owning margin entry cluster are one page-map stack even though the card
   // is hoisted into the chrome. Expose the current rung to the one keyboard register so
@@ -2814,10 +2829,7 @@ export function createMarginProjection({
     if (!panelIsOpen()) {
       const local = focusSurface(id, { focus });
       if (local) {
-        const optionsKey = forcedInlineOptionsKey;
         closePreview();
-        if (optionsKey && expandedOptionsKey === optionsKey)
-          setOptionsOpen(null, false);
         scrollToThread(id);
         return local;
       }
@@ -3057,6 +3069,7 @@ export function createMarginProjection({
     marginEntryKind,
     activateMarginEntry,
     closePreview,
+    inlineThreadView,
     keyboardRung,
     openInlineThread,
     openPageThread,

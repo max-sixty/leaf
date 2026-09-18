@@ -440,10 +440,6 @@ def test_authored_html_paints_while_runtime_startup_is_held(
 
         boot.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
-        page.wait_for_function(
-            "() => document.querySelector('body > main').getAnimations()"
-            ".every(animation => animation.playState !== 'running')"
-        )
         presented = page.locator("body > main").bounding_box()
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
@@ -501,10 +497,6 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
 
         held.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
-        page.wait_for_function(
-            "() => document.querySelector('body > main').getAnimations()"
-            ".every(animation => animation.playState !== 'running')"
-        )
         expect(page.locator("html")).not_to_have_attribute(
             root_attribute, re.compile(".*")
         )

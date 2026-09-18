@@ -3019,9 +3019,6 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     page.locator(f"{edge.region} .lf-edge").press(
         "ArrowRight" if edge.side == "right" else "ArrowLeft"
     )
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     stepped = geometry(page, edge)
 
     page.reload(wait_until="load")
@@ -3073,15 +3070,9 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     drawn = geometry(page, edge)
 
     resized(page, narrow, 900)
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     squeezed = geometry(page, edge)
 
     resized(page, 1400, 900)
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     roomy = geometry(page, edge)
     page.close()
 
@@ -3151,9 +3142,6 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
 
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     given_back = page.evaluate(posture)
     page.close()
 

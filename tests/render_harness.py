@@ -1557,13 +1557,43 @@ def margins_laid_out(page):
     )
 
 
-def panel_settled(page, open=True):
-    """Wait for the panel to reach `open`.
+# The page shell's box on screen: where the document's room starts and ends. Body's
+# padding box, not the box it draws, because a standing panel or tray takes its strip as a
+# transparent border inside body (theme.css, at the body strip, says why it has to be one),
+# so `getBoundingClientRect()` now reaches the window. The runtime reads the same edge as
+# `shellRight` (geometry.js). This is the suite's one spelling of it, read off the DOM
+# rather than through that function, so a test comparing it with a region's box compares
+# two independent readings. An expression, so a larger evaluate can embed it and take it in
+# the same pass as what it is compared against.
+SHELL_BOX = """(() => {
+  const b = document.body, s = getComputedStyle(b);
+  const left = b.getBoundingClientRect().left + (parseFloat(s.borderLeftWidth) || 0);
+  return { left, right: left + b.clientWidth, width: b.clientWidth,
+           centre: left + b.clientWidth / 2 };
+})()"""
 
-    The layout the panel stands in lands in the same pass as the state change, with no
-    motion after it: the column used to glide to its new position, and that glide went
-    because animating `main`'s `left` switched off the browser's scroll anchoring (theme.css,
-    at the body strip). So once the panel reads `open`, the page is settled."""
+
+def page_right(page):
+    """Where the page shell ends on the right; see `SHELL_BOX`."""
+    return page.evaluate(f"() => {SHELL_BOX}.right")
+
+
+def panel_settled(page, open=True):
+    """Wait for the panel to reach `open`, which is the settled page.
+
+    The panel's class, the shell, and the paint that follows the column all change in the
+    one gesture: `moveContentFrame` applies the state and then places the margin's rows
+    and the page's marks against the column where it now stands, synchronously, before
+    the gesture returns. So there is no pending frame for a geometry read to race, and
+    nothing to wait on past the class.
+
+    That is a property of the runtime, and this helper relies on it rather than papering
+    over its absence. It was not always so: the column used to glide into place, the
+    repaint was deferred to follow it, and a read taken straight after the class flipped
+    could find the margin standing where the column had been. The glide went because
+    animating `main`'s `left` switched off the browser's scroll anchoring (theme.css, at
+    the body strip), and the deferral went with it.
+    `test_closing_the_panel_lands_the_margin_where_the_column_lands` holds the property."""
     page.wait_for_function(
         "(open) => document.querySelector('.lf-thread-panel').classList.contains('open') === open",
         arg=open,

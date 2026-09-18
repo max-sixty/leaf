@@ -31,6 +31,7 @@ from render_harness import (
     CARRIED_PAGE,
     LONG_PAGE,
     RENDERED,
+    SHELL_BOX,
     TOKEN,
     leaf_page,
     stamp_page,
@@ -572,14 +573,13 @@ def geometry(page, edge):
     return page.evaluate(
         """([region, side, store]) => {
             const box = document.querySelector(region).getBoundingClientRect();
-            const body = document.body.getBoundingClientRect();
-            const border = getComputedStyle(document.body);
-            const left = body.left + (parseFloat(border.borderLeftWidth) || 0);
+            const shell = """
+        + SHELL_BOX
+        + """;
             return {
                 width: Math.round(box.width),
                 edge: Math.round(side === 'right' ? box.left : box.right),
-                page: Math.round(
-                    side === 'right' ? left + document.body.clientWidth : left),
+                page: Math.round(side === 'right' ? shell.right : shell.left),
                 chosen: localStorage.getItem(store),
             };
         }""",
@@ -602,11 +602,6 @@ def draw_edge(page, edge, by):
     page.mouse.down()
     page.mouse.move(x + (by if edge.side == "left" else -by), y, steps=8)
     page.mouse.up()
-    # A drag follows the hand directly, so it starts no carried column motion. What is
-    # waited on is the page holding still, which is empty here on both counts.
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
 
 
 # The room sampled across an auxiliary-surface motion. The shell owns the value in CSS, so a

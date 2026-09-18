@@ -1994,10 +1994,6 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     # on the Threads button is a comment about the button.
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations()"
-        ".every(a => a.playState !== 'running')"
-    )
     page.wait_for_function(LEGEND_TRUE)
     # The legend's repaint above consumed the reflow's edge, and the aim was refreshed
     # in the same pageShifted, so one plain read is the settled answer: the pointer

@@ -74,6 +74,7 @@ from render_harness import (
     RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
+    SHELL_BOX,
     _traffic,
     _until,
     consume_browser_errors,
@@ -4263,18 +4264,20 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    geom = page.evaluate("""() => {
+    geom = page.evaluate(
+        """() => {
         const box = el => el.getBoundingClientRect();
         const body = document.body, threads = document.querySelector('.lf-threads');
-        const border = getComputedStyle(body);
         return { rootIsScroller: document.scrollingElement === document.documentElement,
                  rootScrolls: document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight,
                  bodyOverflow: getComputedStyle(body).overflowY,
                  threadsScroll: threads.scrollHeight > threads.clientHeight,
-                 bodyRight: box(body).left
-                   + (parseFloat(border.borderLeftWidth) || 0) + body.clientWidth,
+                 bodyRight: """
+        + SHELL_BOX
+        + """.right,
                  threadsLeft: box(threads).left };
-    }""")
+    }"""
+    )
 
     assert geom["rootIsScroller"] and geom["rootScrolls"]
     assert geom["bodyOverflow"] == "visible", geom

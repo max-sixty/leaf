@@ -83,6 +83,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_right,
     panel_settled,
     post_event,
     refuse,
@@ -5771,13 +5772,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         ".every(r => !r.classList.contains('lf-docked'))"
     )
     narrowed = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
-    # Where the page ends: body's content box, since the strip the panel stands in is a
-    # border on body and the box body draws reaches the window.
-    room = page.evaluate(
-        "() => { const b = document.body, s = getComputedStyle(b);"
-        " return b.getBoundingClientRect().left"
-        " + (parseFloat(s.borderLeftWidth) || 0) + b.clientWidth; }"
-    )
+    room = page_right(page)
     for i in range(2):
         rect = margin_rows.nth(i).evaluate(box)
         assert rect["left"] > narrowed and rect["right"] <= room, (

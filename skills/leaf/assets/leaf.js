@@ -179,7 +179,11 @@ import { FOCUSABLE } from "./runtime/reach.js";
 
 let app;
 const paintVersionApproval = () =>
-  paintApproval(app.pendingApprovals(), app.approvalBlockingAsks());
+  paintApproval(
+    app.pendingApprovals(),
+    app.approvalBlockingAsks(),
+    app.acceptedApprovals(),
+  );
 let threadPanelController;
 let trays;
 let layout;
@@ -294,7 +298,7 @@ const anchorTravel = createAnchorTravel({
 landing = createConversationLanding({
   setPanel: (...args) => threadPanelController.setPanel(...args),
   scrollToThread: anchorTravel.scrollToThread,
-  revealThread: (id) => revealThread(id, app.refreshNarrowing),
+  revealThread: (id) => revealThread(id, app.presentConversation),
 });
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
@@ -339,9 +343,6 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   conversationAvailable: !offlineInteractive,
-  // An offline copy has no Ask chrome to present. Keep its semantic application
-  // complete without opening a presentation ticket for disconnected generated faces.
-  renderAsks: offlineInteractive ? () => undefined : () => asks.syncAsks(),
   reportPageError,
   createEngagement,
   targetChooserOpen: () => targets.targetChooserOpen(),
@@ -377,7 +378,7 @@ app = mountApplication({
   panelCovers: () => layout.panelCovers(),
   onConversationChanged: repaint,
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
-  retainThreadNarrowing: () => retainNarrowing(app.refreshNarrowing),
+  retainThreadNarrowing: () => retainNarrowing(app.presentConversation),
   retainConversationFocus: () => retainConversationFocus(panelIsOpen),
   revealReplyEditor: (input, behavior) =>
     revealConversation(
@@ -412,7 +413,6 @@ app = mountApplication({
     acceptData,
     notifyDataSubscribers,
     isSignoffDeclared,
-    paintApproval: paintVersionApproval,
     renderStatus,
     renderVersions: version.renderVersions,
     stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
@@ -616,7 +616,7 @@ trays = createTrays({
   closePreview: app.margin.closePreview,
   leavesOffered,
   presentLeaves,
-  renderAsks: asks.renderAsks,
+  syncAsks: asks.syncAsks,
   renderMargin: app.margin.renderMargin,
   registerAuxiliarySurface: auxiliaryModality.registerAuxiliarySurface,
 });
@@ -668,7 +668,7 @@ pageKeys = createPageKeys({
   setOpenTray: trays.setOpenTray,
   captureAuxiliaryChromeState: auxiliaryChrome.captureAuxiliaryChromeState,
   restoreAuxiliaryChromeState: auxiliaryChrome.restoreAuxiliaryChromeState,
-  widen: () => widen(app.refreshNarrowing),
+  widen: () => widen(app.presentConversation),
   landIn: landing.landIn,
   stepAsk: asks.stepAsk,
   stepThread: (dir) =>
@@ -808,7 +808,7 @@ if (!offlineInteractive) {
   app.mountConversation();
   mountThreadList(panelIsOpen);
   wireThreadLanding();
-  mountNarrowing(app.refreshNarrowing);
+  mountNarrowing(app.presentConversation);
   trays.mountTrays();
   threadPanelController.mountThreadPanel();
   layout.mountLayoutObservers();

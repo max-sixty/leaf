@@ -143,8 +143,9 @@ import { availableCommandRoutes } from "../keyboard/dispatch.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainReaderIntent } from "../reader-intent.js";
 import {
-  attachApplicationPresentation,
+  applicationPresenter,
   failSoftAfterRetention,
+  PRESENTATION_ORDER,
   PresentationRetentionError,
   readApplication,
   watchSemantic,
@@ -221,11 +222,14 @@ export function createAskView({
     fallback: asksBtn,
   });
   const asksRenderer = Object.freeze({ banner: bannerControls, list: asksList });
-  let asksPresentation = null;
-  const presentation = () => {
-    asksPresentation ??= attachApplicationPresentation("asks", asksRenderer);
-    return asksPresentation;
-  };
+  const presenter = applicationPresenter({
+    region: "asks",
+    renderer: asksRenderer,
+    order: PRESENTATION_ORDER.asks,
+    current: () => (mounted ? readApplication().semanticEpoch : null),
+    failSoft: failSoftAfterRetention(asksRenderer),
+    paint: (epoch, current) => paintAsks(current),
+  });
 
   // One blanket answer per verb a widget declares one for (x-awaits.all), each deciding
   // its asks one at a time so the log records what was consented to rather than one
@@ -312,9 +316,7 @@ export function createAskView({
     });
   };
 
-  let askPaintGeneration = 0;
-  async function paintAsks(generation) {
-    const current = () => generation === askPaintGeneration;
+  async function paintAsks(current) {
     const asks = openAsks();
     const all = allAsks();
     const unanswered = unansweredIds();
@@ -373,36 +375,10 @@ export function createAskView({
   // Every semantic notification opens the region's ticket synchronously, before its
   // deferred read. Package subscribers therefore finish their own synchronous updates
   // first, while the application barrier already knows this inherited Ask paint is stale.
-  // A newer signal replaces and releases the obsolete completion before either paint.
-  let scheduled = null;
+  // The pass runs this reading after the conversation whose markup its rows stand on.
   function syncAsks() {
-    let resolve;
-    let reject;
-    const completion = new Promise((done, fail) => {
-      resolve = done;
-      reject = fail;
-    });
-    const pending = { generation: ++askPaintGeneration, resolve, reject };
-    const prior = scheduled;
-    scheduled = pending;
-    const ready = presentation().present(
-      readApplication().semanticEpoch,
-      completion,
-      failSoftAfterRetention(asksRenderer),
-    );
-    prior?.resolve();
-    queueMicrotask(() => {
-      if (scheduled !== pending) return;
-      scheduled = null;
-      try {
-        Promise.resolve(paintAsks(pending.generation)).then(resolve, reject);
-      } catch (error) {
-        reject(error);
-      }
-    });
-    return ready;
+    return presenter.present();
   }
-  const renderAsks = syncAsks;
 
   // The walk over what the page is waiting on the reader for. It wraps at both ends,
   // because asks are a worklist rather than a document to read through: answering one takes
@@ -1211,10 +1187,7 @@ export function createAskView({
       globalThis.removeEventListener("scroll", pageScrolled, { capture: true });
       globalThis.removeEventListener("resize", repaint);
     }
-    scheduled?.resolve();
-    scheduled = null;
-    asksPresentation?.disconnect();
-    asksPresentation = null;
+    presenter.disconnect();
     clearActionProjections();
     askActionLayer.replaceChildren();
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
@@ -1227,7 +1200,6 @@ export function createAskView({
     destroy,
     buildBulkAnswers,
     syncAsks,
-    renderAsks,
     standsWith,
     askPlace,
     standingIn,

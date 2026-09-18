@@ -1,4 +1,42 @@
-/* The return stack: what a keyboard entry owes the reader on the way back out.
+/* The layer stack: what stands over the page, and what each entry owes the reader on the
+   way back out.
+
+   One ordered list holds every layer standing over the page, oldest at the bottom. A
+   popover or a modal dialog pushes an entry as it opens, and a keyboard command that
+   enters a temporary surface pushes a return frame. Both are entries on the same stack,
+   so their order against each other is recorded when it happens rather than inferred
+   from focus ancestry and open state at every read.
+
+   An entry carrying a `root` is a native layer, `popover` or `modal` by its `kind`. An
+   entry carrying `does` is a return frame: the descriptor its command declared, the
+   origin the dispatcher captured, and the guard that retires it. A command that opened a
+   native layer adopts that layer's entry instead of pushing a second one, so `g V` leaves
+   one entry that is both the versions popover and the route back out of it. A native
+   layer stands while the browser holds it open, whatever the frame it carries says: a
+   frame whose guard has gone stops answering Escape without surrendering the popover's
+   ownership of the keyboard.
+
+   A layer may open through a prototype method or through declarative popover activation,
+   and a popover need not move focus into itself, so every opener declares its own
+   opening: the `showModal` and `showPopover` patches, and `beforetoggle` and `toggle` at
+   the document and at each declared shadow boundary. `beforetoggle` makes a declarative
+   opening visible synchronously to the command that caused it; `toggle` follows the
+   completed native transition and corrects the order if that opening reentered another
+   popover's handler. Dismissal stays each layer's own `popover` or `closedby` value.
+
+   Every read prunes first, and an entry whose surface no longer stands is removed
+   wherever it sits, so a dialog closed by script beneath a re-shown popover cannot linger
+   as a false floor. The exception is an entry under an active modal: `showModal` hides
+   the auto popovers beneath it and the command reference re-shows the ones it displaced,
+   so those entries wait with their frames intact rather than retiring. `current()` is the
+   top entry when it carries a live frame and nothing otherwise, which is the whole
+   suspension rule: a frame is unavailable because something stands above it, not because
+   of an order comparison.
+
+   A covering auxiliary surface is not an entry. It takes modal semantics without entering
+   the browser's top layer, and a frame entered while its panel stood beside the page has
+   to survive a resize into the covering posture and back. The dispatcher reads that
+   surface as the floor when no modal entry stands; this stack never sees it.
 
    A press that takes the reader in pushes one layer. Escape pops one. The way out is
    therefore as deep as the way in, and the reader walks it back without having counted:
@@ -13,10 +51,9 @@
    destination the reader requested.
 
    A frame is active only while its owning surface still stands and the reader remains in
-   the layer it entered. A newer native layer suspends that reading: its modal focus cannot
-   retire the frame underneath, and closing it exposes the same return route again. A latent
-   filter value or mode flag is not enough: closing a panel or leaving a widget must retire
-   its frame so core Escape cannot advertise or mutate hidden state elsewhere on the page.
+   the layer it entered. A latent filter value or mode flag is not enough: closing a panel
+   or leaving a widget must retire its frame so core Escape cannot advertise or mutate
+   hidden state elsewhere on the page.
 
    Two independently requested entries remain two frames. `g T` enters the Threads list;
    `c` from that list enters its page-comment box. Two Escapes return first to the list
@@ -46,7 +83,7 @@
    as one Escape rung. A multi-letter generated hint narrows the visible target map
    instead; Escape removes one typed letter before another Escape closes the sequence.
 
-   The return stack records entry history; `rung()` is only the fallback for state reached
+   The stack records entry history; `rung()` is only the fallback for state reached
    without a registered entry, such as a pointer-opened panel or focus the reader moved by
    ordinary traversal. A keyboard command with `returnFrame` never asks `rung()` to guess
    its inverse. Moving within an entered surface—`t` walking from the Threads list to a
@@ -64,18 +101,7 @@
    from a control the reader reaches during that upgrade. */
 import { word } from "./bindings.js";
 import { focusDestination } from "../focus.js";
-import { focused } from "./scopes.js";
 import { repaint } from "../repaint.js";
-import {
-  currentNativeLayer,
-  nativeLayerFor,
-  nativeLayerOrder,
-} from "../native-layers.js";
-import { coveringAuxiliarySurface, openAuxiliarySurfaceFor } from "./register.js";
-
-// A native layer opened above a covering auxiliary surface owns entries made inside it. The
-// auxiliary surface remains the fallback floor when no browser top layer stands.
-const currentLayer = () => currentNativeLayer(focused()) ?? coveringAuxiliarySurface();
 
 export function restoreReturnPlace({ control, reading }) {
   if (control) {
@@ -99,7 +125,67 @@ export function restoreReturnPlace({ control, reading }) {
 // The stack itself. Commands declare their second half as `returnFrame`; the dispatcher
 // is the only code that captures and pushes it, which keeps one entry one frame and one
 // successful Escape one pop, instead of asking the resulting scene to guess how it arose.
-const frames = [];
+const entries = [];
+const watchedRoots = new WeakSet();
+
+const held = (node) =>
+  Boolean(node?.isConnected) && node.matches(":popover-open, dialog:modal");
+
+// Top down, so the newest modal is known before the entries it covers are judged.
+function prune() {
+  let covered = false;
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry.active()) {
+      covered ||= entry.kind === "modal";
+      continue;
+    }
+    if (!covered) entries.splice(index, 1);
+  }
+}
+
+// An opening that names a node already on the stack keeps that entry, frame and all: the
+// command reference re-shows the popovers a modal displaced, and the way back out of one
+// is the way the reader entered it, not a fresh layer with no history. Lifting the entry
+// before the prune keeps that history across the moment between the modal's close and the
+// popover's return, when neither stands.
+export function pushNativeLayer(node, kind) {
+  const at = entries.findIndex((entry) => entry.root === node);
+  const standing = at < 0 ? null : entries[at];
+  if (standing && standing === entries.at(-1) && standing.active()) return;
+  if (standing) {
+    entries.splice(at, 1);
+    standing.kind = kind;
+  }
+  prune();
+  entries.push(standing ?? { root: node, kind, active: () => held(node) });
+}
+
+export function watchLayers(root) {
+  if (watchedRoots.has(root)) return;
+  watchedRoots.add(root);
+  const opened = (event) => {
+    if (event.newState === "open" && event.target?.matches?.("[popover]"))
+      pushNativeLayer(event.target, "popover");
+  };
+  root.addEventListener("beforetoggle", opened, true);
+  root.addEventListener("toggle", opened, true);
+}
+
+watchLayers(document);
+
+// The layers the browser is holding, bottom to top. A suspended entry is not one of them:
+// its surface is hidden under a modal, so no scope is standing inside it.
+export function nativeLayers() {
+  prune();
+  return entries.filter((entry) => entry.root && entry.active());
+}
+
+// Modal owners close pre-existing popovers before establishing a new floor.
+export const openPopovers = () =>
+  nativeLayers()
+    .filter((entry) => entry.kind === "popover")
+    .map((entry) => entry.root);
 
 function descriptorFor(row, binding) {
   if (!row.returnFrame) return null;
@@ -125,36 +211,25 @@ function descriptorFor(row, binding) {
 export function invoke(row, binding, run, suppliedOrigin = null) {
   const frame = descriptorFor(row, binding);
   const origin = frame ? suppliedOrigin : null;
+  const before = new Set(entries);
   const result = run();
   prune();
   if (frame?.active()) {
-    const root = currentLayer() ?? document;
-    frames.push({ ...frame, origin, root, order: nativeLayerOrder(root) });
+    const top = entries.at(-1);
+    // One gesture, one entry: a command that opened a native layer is that layer's way
+    // out, so it takes over the entry its own run pushed rather than stacking a second
+    // rung the reader never asked for.
+    if (top && top.root && !top.does && !before.has(top))
+      Object.assign(top, frame, { origin, active: top.active, holds: frame.active });
+    else entries.push({ ...frame, origin, holds: frame.active });
   }
   return result;
 }
 
-function prune() {
-  const layer = currentLayer();
-  while (frames.length) {
-    const frame = frames.at(-1);
-    if (layer && frame.root !== layer && nativeLayerOrder(layer) > frame.order) return;
-    if (
-      frame.root !== document &&
-      !openAuxiliarySurfaceFor(frame.root) &&
-      nativeLayerFor(frame.root) !== frame.root
-    ) {
-      frames.pop();
-      continue;
-    }
-    if (frame.active()) return;
-    frames.pop();
-  }
-}
-
 export function current() {
   prune();
-  return frames.at(-1) ?? null;
+  const top = entries.at(-1);
+  return top?.does && top.holds() ? top : null;
 }
 
 function back() {
@@ -167,7 +242,8 @@ function back() {
     repaint();
     return true;
   }
-  frames.pop();
+  const at = entries.lastIndexOf(frame);
+  if (at >= 0) entries.length = at;
   restoreReturnPlace(
     replacement instanceof Element
       ? { ...frame.origin, control: replacement }
@@ -179,7 +255,6 @@ function back() {
 
 export const RETURN = {
   title: "After entering a surface",
-  root: () => current()?.root ?? document,
   when: () => Boolean(current()),
   at: () => Boolean(current()),
   rows: [

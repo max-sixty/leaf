@@ -106,17 +106,16 @@ ordering contract these items extend.
 
 ## Architecture simplification
 
-- **#24 — Give the keyboard an explicit layer stack.** Let whatever opens a surface push a
-  layer carrying its close and its restore, let closing pop it, and have `stack()` read the
-  bindings from the top layer instead of inferring which surfaces are open. The reader
-  keeps every key, sequence, hint, and the one-press-per-layer Escape. Ten of the 24
-  keyboard fixes since 2026-08-29 landed in the inference this removes (`stack()` in
-  `keyboard/dispatch.js`, `keyboard/return-stack.js`, and `native-layers.js`), and about
-  600 to 900 of the system's 6,085 lines go with it. A surface opened by pointer has to
-  declare itself first, which is the invoker-commands row under the cutover. First step:
-  fold `native-layers.js` into the return stack and drop `stack()`'s popover and modal
-  branches. The fix rate here has fallen and nothing planned waits on it, so it sits
-  behind the reading work above; the reason to do it is the implementation's own weight.
+- **#24 — Let a pointer-opened surface declare itself to the layer stack.**
+  `keyboard/layer-stack.js` now holds one ordered list of the popovers, modal dialogs and
+  command return frames standing over the page, and `stack()` tiers the scopes over it
+  instead of inferring the layer situation from focus ancestry on every press. What is
+  left is the declaration: a surface opened by pointer reaches the stack through the
+  `showModal` and `showPopover` patches and the `beforetoggle` listeners, which are
+  open-time declarations rather than the command that asked for the surface. Invoker
+  commands (`command`/`commandfor`) would let the opener carry its own close and restore,
+  and they need Chrome 135 against Leaf's floor of 125, which is the dependency-cutover
+  row. Nothing planned waits on this.
 
 - **#25 — Finish the starlette cutover in `http.py`.** #774 moved the transport to
   starlette and uvicorn, but `Handler` still wears `BaseHTTPRequestHandler`'s shape:

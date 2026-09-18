@@ -6415,7 +6415,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     # older dialog does not move it back to the top.
     assert page.evaluate(
         """async () => {
-          const { currentNativeLayer } = await window.__lfRuntimeImport('/runtime/native-layers.js');
+          const { nativeLayers } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
           const first = document.createElement('dialog');
           const second = document.createElement('dialog');
           const focus = document.createElement('button');
@@ -6425,9 +6425,9 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           document.body.append(first, second);
           focus.addEventListener('focus', () => second.showModal(), {once: true});
           first.showModal();
-          const nested = currentNativeLayer() === second;
+          const nested = nativeLayers().at(-1)?.root === second;
           first.showModal();
-          const idempotent = currentNativeLayer() === second;
+          const idempotent = nativeLayers().at(-1)?.root === second;
           second.close();
           first.close();
           return nested && idempotent;
@@ -6444,7 +6444,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(page.locator(".lf-version-menu")).to_be_visible()
     assert page.evaluate(
         """async () => {
-          const { current } = await window.__lfRuntimeImport('/runtime/keyboard/return-stack.js');
+          const { current } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
           return current()?.root === document.querySelector('.lf-version-menu');
         }"""
     )
@@ -6454,7 +6454,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     # older modal now visible beneath it. The outer frame consequently owns Escape.
     current = page.evaluate(
         """async () => {
-          const { invoke, current } = await window.__lfRuntimeImport('/runtime/keyboard/return-stack.js');
+          const { invoke, current } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
           const outer = document.createElement('dialog');
           const inner = document.createElement('dialog');
           outer.id = 'return-outer';
@@ -6499,7 +6499,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const { activeRows, answers: bindingAnswers, canonicalBinding } =
             await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
-          const { invoke } = await window.__lfRuntimeImport('/runtime/keyboard/return-stack.js');
+          const { invoke } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
           const { paintKeys } = await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
           const declare = (id, rows) => {
             const button = document.createElement('button');

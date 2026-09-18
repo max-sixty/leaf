@@ -13,7 +13,7 @@
    Entering the boundary dismisses pre-existing outside popovers. Native dialogs, and
    popovers deliberately opened after entry, remain available to their top-layer owner. */
 
-import { openNativePopovers } from "./native-layers.js";
+import { openPopovers } from "./keyboard/layer-stack.js";
 import { under } from "./shadow.js";
 
 export function createAuxiliaryModality({ chromeRoot, focusable }) {
@@ -95,7 +95,7 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
       throw new Error("leaf: two covering auxiliary surfaces cannot be modal together");
     if (active === controller) return;
 
-    for (const popover of openNativePopovers())
+    for (const popover of openPopovers())
       if (!layerAllowedBy(controller, popover)) popover.hidePopover();
     active = controller;
     syncBackground(controller);
@@ -204,13 +204,6 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
   const coveringFocus = () => (active ? (active.focus() ?? active.surface) : null);
   const allowsNativeLayer = (node, establishedOver = null) =>
     layerAllowedBy(active, node, establishedOver);
-  const openSurfaceFor = (node) => {
-    for (const controller of controllers)
-      if (controller.open && controller.surface.contains(node))
-        return controller.surface;
-    return null;
-  };
-
   return {
     scrim,
     registerAuxiliarySurface,
@@ -220,6 +213,5 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
     coveringScroller,
     coveringFocus,
     allowsNativeLayer,
-    openSurfaceFor,
   };
 }

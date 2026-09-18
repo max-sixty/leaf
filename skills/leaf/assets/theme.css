@@ -220,6 +220,16 @@
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
   --wide: 1080px;
+  /* The chrome's line box, said once, because one control in the banner cannot be
+     told it. Chrome computes a select's inner height from its own metrics and
+     refuses line-height outright — the computed value stays normal however the
+     rule is written — so the chooser stood 3.3px shorter than every button beside
+     it, centred, and read as sunk into the row. Its height is stated instead, from
+     this and its own padding (see the chooser's rule), which is the same number
+     .lf-btn arrives at through the line box. Stated in one place so the two cannot
+     come apart: a third copy of 1.45 is exactly the drift the reserve comment in
+     chrome.css is about, and this one would show as the chooser sinking again. */
+  --lf-ui-lh: 1.45;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
      --t-working-label is the shared compact heading between its two smallest rungs. A size
@@ -791,6 +801,19 @@ h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
 p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
+/* The face every widget-injected control wears. `offer()` writes `lf-ui` on each one it
+ * builds, so this is the layer's answer for a control standing in the page's own prose:
+ * the chrome's family, size and ink rather than the document's serif.
+ *
+ * It is a default, and it stands this early so that it behaves like one — a component
+ * that names the same property below, or in a package theme concatenated after this
+ * file, wins on ordinary cascade order. It cannot live in chrome.css, which is adopted
+ * and so cascades after both: the same declarations there beat every component's own
+ * rule instead, and .lf-ref drew ink at 14px where it asked for muted at 11.5px while
+ * .lf-worktree-head and .lf-swipe-progress drew sans where they asked for mono. Nothing
+ * catches that, because no test and no browser gate reads a rule that never applied. */
+.lf-ui { font-family: var(--sans); font-size: var(--t-5);
+    line-height: var(--lf-ui-lh); color: var(--ink); }
 a { color: var(--accent); text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 a:hover { text-decoration-color: currentColor; }
@@ -2081,6 +2104,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-close-action { border: 0; background: transparent;
           color: var(--muted); }
 .lf-close-action:hover { background: var(--chip); color: var(--ink); }
+/* The glyph stands on the disc below, so it takes the disc's colour and not the chrome's
+   ink, which the .lf-ui face states above and this rule outranks by coming later. */
 .lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
           inset-block-end: 6px; border: 0;
           background: transparent; color: var(--paper); filter: none; }

@@ -341,6 +341,31 @@ def verify_cross_tab_activation(browser, *, origin: str) -> None:
     context.close()
 
 
+# What a container allocated before the image rollout reached it gives back, in the
+# words the gate's own wait reports. Both readings are the same tail: one is read off
+# a container that answered, the other is the edge answering in its place.
+STILL_STARTING = "was a container the image rollout had not reached"
+
+
+def rolling_out(response) -> bool:
+    """Whether the edge answered for itself because the rollout has not landed here.
+
+    Activating a session allocates a container, and until the image rollout reaches it
+    that container answers for the previous release. Rather than hand a foreign release
+    on, the Worker unseats the session and answers every request but `GET api/state`
+    with `503` and a `Retry-After`, so on this path the rollout arrives as a status
+    rather than as a release header to compare. `worker/README.md` states that
+    contract, and `worker/test/index.test.ts` holds the Worker to it.
+    """
+    return response.status == 503 and response.headers.get("retry-after") is not None
+
+
+def served_instead(reached: str | None, release: str) -> str:
+    """What an allocation on the wrong release gave back, for the wait reporting it."""
+    served = f"release {reached[:8]}" if reached else "no release"
+    return f"served {served}, not {release[:8]}"
+
+
 def reader_session(
     browser,
     url: str,
@@ -349,7 +374,7 @@ def reader_session(
     *,
     direct_agent: bool = False,
 ) -> AgentSession | str:
-    """One activated reader session, or the release its container served instead."""
+    """One activated reader session, or why this allocation cannot admit a turn."""
     context = browser.new_context()
     page = context.new_page()
     failures = observe_startup(page)
@@ -362,10 +387,16 @@ def reader_session(
         reached = passive.headers.get("leaf-release")
         if release is not None and reached != release:
             context.close()
-            return reached or "no release"
+            return served_instead(reached, release)
         return AgentSession(context, page, failures, url, state_url, passive.json())
     activation = activation_url(url, passive.json())
     activated = context.request.get(activation, timeout=120_000)
+    # This is the request that allocates the container, so it is where an unreached
+    # rollout surfaces. The reads below are past it: the session is pinned to the
+    # container this one activated, which has already answered for its own release.
+    if rolling_out(activated):
+        context.close()
+        return STILL_STARTING
     check(activated.ok, f"{activation} returned {activated.status}")
     check(
         activated.headers.get("leaf-session") == "active",
@@ -384,7 +415,7 @@ def reader_session(
     reached = state_response.headers.get("leaf-release")
     if release is not None and reached != release:
         context.close()
-        return reached or "no release"
+        return served_instead(reached, release)
     return AgentSession(context, page, failures, url, state_url, state_response.json())
 
 
@@ -396,8 +427,9 @@ def agent_session(
     The Worker keys containers by reader and release. This activates a session and
     reads the release back from the container that will admit the turn; a rollout may
     still be propagating between edge locations, so the gate retries with a fresh
-    context until both readings agree. Nothing here writes: the turn is posted once,
-    afterwards.
+    context until both readings agree. An allocation the rollout has not reached says
+    so either way — as another release, or as the edge's own `503` — and both end in
+    the same wait. Nothing here writes: the turn is posted once, afterwards.
     """
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
@@ -411,11 +443,10 @@ def agent_session(
         )
         if isinstance(session, AgentSession):
             return session
-        check(release is not None, f"{url} returned no active release")
         check(
             time.monotonic() < deadline,
-            f"{url} reached no container serving release {release[:8]} for its "
-            f"agent; the last allocation served {session[:8]}",
+            f"{url} reached no container able to admit its agent's turn; "
+            f"the last allocation {session}",
         )
         time.sleep(10)
 

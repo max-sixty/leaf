@@ -86,6 +86,7 @@ import { reachScrollers } from "../reach.js";
 import { hasFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
 import { narrowingModel } from "./narrowing.js";
+import { conversationState } from "./state.js";
 import { threadReading } from "./thread-card.js";
 
 // The open threads, in the order t/T walk either surface. The panel's children are the
@@ -386,7 +387,7 @@ const rowModel = (all, commands) => {
       }),
     );
   }
-  for (const e of runtime.browser?.conversation?.done ?? [])
+  for (const e of conversationState().done)
     rows.push(
       Object.freeze({
         kind: "system",

@@ -3835,6 +3835,120 @@ class _DeployedSite:
         return self.context
 
 
+class _RollingOutContainer:
+    """An allocation the image rollout has not reached, so the edge answers for it."""
+
+    def __init__(self, release: str, page: _DeployedPage):
+        self.release = release
+        self.page = page
+        self.request = self
+        self.closed = False
+
+    def new_page(self) -> _DeployedPage:
+        return self.page
+
+    def get(self, url: str, headers: dict | None = None, **kwargs) -> _Read:
+        if "api/view" not in url:
+            return _Read(
+                {
+                    "active": {"revision": 1, "url": "revisions/1.html"},
+                    "layer": {"generation": "generation-1"},
+                    "release": self.release,
+                    "events": [],
+                },
+                headers={"leaf-release": self.release, "leaf-session": "passive"},
+            )
+        # What `rollingOut` in `worker/src/index.ts` sends: the deployed release
+        # rather than this container's, no session at all, and `Retry-After` naming
+        # the rollout as the reason there is nothing to compare.
+        starting = _Read(
+            {},
+            "this release is still starting",
+            headers={"retry-after": "5", "leaf-release": self.release},
+        )
+        starting.ok = False
+        starting.status = 503
+        return starting
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _RollingSite:
+    """Successive allocations, so the gate's retry gets a fresh one each time."""
+
+    def __init__(self, contexts: list):
+        self.contexts = list(contexts)
+        self.opened: list = []
+
+    def new_context(self):
+        context = self.contexts.pop(0) if len(self.contexts) > 1 else self.contexts[0]
+        self.opened.append(context)
+        return context
+
+
+def _rolling_clock(monkeypatch, samples: list[float], slept: list[float]) -> None:
+    readings = iter(samples)
+    monkeypatch.setattr(
+        verify_site,
+        "time",
+        SimpleNamespace(monotonic=readings.__next__, sleep=slept.append),
+    )
+
+
+def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(
+    monkeypatch,
+):
+    """A rollout answered by the edge is the same wait as one read off a container.
+
+    `publish-site` deployed release `a471af1a…` and its release pass verified
+    leaf.page in Chrome; six seconds later the agent pass failed outright on
+    `https://leaf.page/examples/triage-board/api/view?revision=1&through_seq=1
+    returned 503` (run 35320758891). `api/view` activates a session, and until the
+    container image rollout reaches the allocation it gets, the Worker unseats the
+    session and answers `503` rather than handing a foreign release on. That is the
+    condition this loop already waits out when the container answers for itself, so
+    it has to end in the same retry rather than in a red deploy.
+    """
+    release = "a471af1a" + "0" * 56
+    starting = _RollingOutContainer(
+        release, _DeployedPage("", revision=1, presented_at=900.0)
+    )
+    ready = _DeployedContainer(
+        release, _DeployedPage("", revision=1, presented_at=900.0)
+    )
+    slept: list[float] = []
+    _rolling_clock(monkeypatch, [0.0, 12.0], slept)
+
+    site = _RollingSite([starting, ready])
+    session = verify_site.agent_session(site, release, origin="https://leaf.page")
+
+    assert session.context is ready
+    # The unseated allocation is dropped rather than carried into the turn.
+    assert starting.closed and not ready.closed
+    assert site.opened == [starting, ready]
+    assert slept == [10]
+
+
+def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
+    """The bound still holds, and the message says which reading ran it out."""
+    release = "a471af1a" + "0" * 56
+    starting = _RollingOutContainer(
+        release, _DeployedPage("", revision=1, presented_at=900.0)
+    )
+    slept: list[float] = []
+    _rolling_clock(monkeypatch, [0.0, 400.0], slept)
+
+    with pytest.raises(RuntimeError) as failure:
+        verify_site.agent_session(
+            _RollingSite([starting]), release, origin="https://leaf.page"
+        )
+
+    assert "reached no container able to admit its agent's turn" in str(failure.value)
+    assert verify_site.STILL_STARTING in str(failure.value)
+    assert slept == []
+
+
 def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(
     monkeypatch, capsys
 ):

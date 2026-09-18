@@ -241,7 +241,8 @@ export function createAnchorTravel({
         (focused() !== startingFocus && focused() !== document.body)
       )
         return false;
-      refreshConversation();
+      await refreshConversation();
+      if (intent !== threadTravelIntent) return false;
     }
 
     let where = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element;
@@ -249,7 +250,12 @@ export function createAnchorTravel({
     let holder = destinationHolder(where);
     if (!holder) return false;
     reveal(holder);
-    refreshConversation();
+    // The marks, the placement and the widget outlet this arrival lands in are all
+    // written by the conversation pass. Wait for it: a claim is synchronous but its
+    // paint is not, so reading the destination in this turn would find the page as the
+    // press left it.
+    await refreshConversation();
+    if (intent !== threadTravelIntent) return false;
     where = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element;
     if (!where) return false;
     holder = destinationHolder(where);

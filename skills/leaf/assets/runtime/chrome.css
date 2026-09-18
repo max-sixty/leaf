@@ -73,22 +73,25 @@
    body. Body is the page shell and may move or narrow for standing auxiliary surfaces; the
    document coordinate system does neither, and root scrolling still carries absolute
    chrome with the passage it stands beside. */
-/* The chrome's line box, said once, because one control in the banner cannot be
-   told it. Chrome computes a select's inner height from its own metrics and
-   refuses line-height outright — the computed value stays normal however the
-   rule is written — so the chooser stood 3.3px shorter than every button beside
-   it, centred, and read as sunk into the row. Its height is stated instead, from
-   this and its own padding (see the chooser's rule), which is the same number
-   .lf-btn arrives at through the line box. Stated in one place so the two cannot
-   come apart: a third copy of 1.45 is exactly the drift the reserve comment below
-   is about, and this one would show as the chooser sinking again. */
-:root { --lf-ui-lh: 1.45; }
 /* Rules at this level are the shared vocabulary: classes whose whole job is
    elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
    runtime marks the page's own elements (lf-mark-el, lf-ins-block). Adding one
    widens the vocabulary; a rule that styles the runtime's own layer goes in the
-   @scope block below instead. */
-.lf-ui, .lf-conversation-msg.lf-ui, .lf-say.lf-ui { font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); color: var(--ink); box-sizing: border-box; }
+   @scope block below instead.
+
+   This sheet is adopted (leaf.js), so it cascades after the theme and after every
+   package theme concatenated onto it. A shared face stated here at ordinary class
+   specificity therefore beats each component's own rule — a default outranking the
+   thing it is a default for — and nothing catches it, since a rule that never applies
+   renders nothing to gate. So a face for these page-standing elements belongs in
+   theme.css beside .lf-btn's, where a component that names the same property wins by
+   coming later, and this sheet keeps the paint the runtime lays over the page, which
+   has to beat page and widget alike. The .lf-ui face has moved; .lf-chip's,
+   .lf-mark-note's and .lf-key-badge's have not yet — the first two restated in
+   theme.css meanwhile for the shadow roots this sheet never reaches, and the third
+   only here. `box-sizing` stays because it is the layer's reset rather than its face,
+   and it travels with its own `*` companion below. */
+.lf-ui { box-sizing: border-box; }
 .lf-ui *, .lf-ui *::before, .lf-ui *::after { box-sizing: inherit; }
 /* Clearing the UA's form-control face is a different kind of declaration from
    choosing one, so the clearing lives in a layer, which any unlayered choice

@@ -14,11 +14,11 @@ import {
 } from "./messages.js";
 import { reactionReading } from "./reaction-strips.js";
 import { messageReceipts } from "./acknowledgments.js";
-import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
+import { offer, reachedForWords } from "../widget-elements.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
-import { settleThread, pendingSettlement } from "./folding.js";
+import { settleThread } from "./folding.js";
 import { groupFor, pageOutline } from "./placement.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
@@ -68,20 +68,15 @@ export function threadReading(
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
-  const pending = pendingSettlement(
-    commands.settlement.pendingEntries(),
-    thread.root.id,
-  );
+  // A settlement in flight has already flipped `resolved`, because what the page can
+  // draw of a gesture stands in the turn that sends it. The control the reader is left
+  // looking at is therefore the opposite one, offering to take the gesture back, and it
+  // wears the word for that: a delivery status is not the result, so there is no
+  // "Resolving…" state to name.
+  const settling = Boolean(thread.settling);
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
-  const label =
-    pending?.event.kind === kind
-      ? resolved
-        ? "Reopening…"
-        : "Resolving thread…"
-      : resolved
-        ? word
-        : "Resolve thread";
+  const label = resolved ? word : "Resolve thread";
   return Object.freeze({
     key: threadKey(thread),
     id: thread.root.id,
@@ -100,7 +95,7 @@ export function threadReading(
         : panel
           ? ""
           : "✓ Resolved",
-    settlement: Object.freeze({ kind, word, label, pending: Boolean(pending) }),
+    settlement: Object.freeze({ kind, word, label, pending: settling }),
     reply: !resolved && (panel || thread.root.response?.kind !== "version"),
     messages: Object.freeze(
       turns(thread).map((message) =>
@@ -339,20 +334,10 @@ export class ThreadView {
           keys: PRESS,
           does: `${word} it`,
           line: word.toLowerCase(),
-          when: () =>
-            !pendingSettlement(
-              this.#commands.settlement.pendingEntries(),
-              this.#model.id,
-            ),
+          when: () => !this.#model.settlement.pending,
           run: () => button.click(),
         },
       ]);
-      if (reopen)
-        measure(button, () =>
-          requestAnimationFrame(() =>
-            measure(button, () => reserve(button, ["Reopen", "Reopening…"])),
-          ),
-        );
     }
   }
 
@@ -365,11 +350,7 @@ export class ThreadView {
       : null;
     const input = offer("textarea");
     input.name = "reply";
-    const send = offer(
-      "button",
-      panel ? "lf-btn primary lf-thread-send" : "lf-btn primary",
-      "Send",
-    );
+    const send = offer("button", panel ? "lf-btn lf-thread-send" : "lf-btn", "Send");
     if (disclosure) row.append(disclosure);
     row.append(input, send);
     const hasDraft = () => loadDraft("reply:" + model.key) !== null;

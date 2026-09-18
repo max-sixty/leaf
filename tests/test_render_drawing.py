@@ -248,7 +248,7 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
 
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(page.locator(".lf-general textarea")).to_be_focused()
-    expect(page.locator(".lf-general .primary")).to_have_attribute(
+    expect(page.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
 
@@ -362,7 +362,7 @@ def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_reader
     expect(remote.locator(".lf-drawing-pending")).to_have_count(1)
     remote.locator(".lf-threads-toggle").click()
     panel_settled(remote)
-    expect(remote.locator(".lf-general .primary")).to_have_attribute(
+    expect(remote.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
     local.close()
@@ -475,7 +475,7 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
 
     expect(page.locator(".lf-fab-input")).to_be_focused()
     with sending(page, "the margin drawing"):
-        page.locator(".lf-composer .lf-compose-field .primary").evaluate(
+        page.locator(".lf-composer .lf-compose-field .lf-compose-submit").evaluate(
             "button => button.click()"
         )
     event = events_model.read_events(serve.page_dir)[-1]
@@ -695,7 +695,7 @@ def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
     expect(field).to_have_value("Keep these words.")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     with sending(page, "the text-only recovered draft"):
-        page.locator(".lf-general .primary").click()
+        page.locator(".lf-general .lf-compose-submit").click()
 
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["text"] == "Keep these words."
@@ -752,9 +752,9 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     field = page.locator(".lf-fab-input")
     expect(field).to_have_value("")
     expect(field).to_be_focused()
-    expect(page.locator(".lf-composer .lf-compose-field .primary")).to_have_attribute(
-        "aria-disabled", "false"
-    )
+    expect(
+        page.locator(".lf-composer .lf-compose-field .lf-compose-submit")
+    ).to_have_attribute("aria-disabled", "false")
     with sending(page, "the drawing-only comment"):
         page.keyboard.press("ControlOrMeta+Enter")
 

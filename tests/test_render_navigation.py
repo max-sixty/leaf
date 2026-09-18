@@ -1090,7 +1090,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     expect(thread).to_contain_text(
         "Keep this review note beside the line that changes it."
     )
-    send = thread.locator(".primary")
+    send = thread.locator(".lf-compose-submit")
     expect(send).to_be_disabled()
     disabled_palette = send.evaluate(
         """button => {
@@ -2849,6 +2849,39 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         assert not landing["crossedLines"], (
             f"the pinned heading cut through a text line: {landing}"
         )
+
+
+def test_a_late_popover_toggle_keeps_the_frame_entered_from_it(browser, serve):
+    """A native `toggle` is queued rather than synchronous, so an opening's last
+    declaration can land after a command entered from that layer has pushed its return
+    frame. The late declaration names a layer the stack already holds, so it leaves that
+    entry where it sits: Escape gives back the card the reply was opened from, rather
+    than dismissing the surface the reader is standing in."""
+    url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
+    page = open_page(browser, url)
+    first_id = page.locator(
+        ".lf-threads > .lf-thread:not([hidden])"
+    ).first.get_attribute("data-id")
+    thread = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{first_id}"]'
+    )
+    reply = thread.locator("textarea")
+
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    expect(thread).to_be_focused()
+    wait_standing(page, "bold text")
+    page.keyboard.press("Enter")
+    expect(reply).to_be_focused()
+
+    # The opening's own queued event, delivered a frame late — after Enter pushed the
+    # reply's return frame.
+    page.evaluate(
+        """() => document.querySelector('.lf-margin-preview').dispatchEvent(
+             new ToggleEvent('toggle', {oldState: 'closed', newState: 'open'}))"""
+    )
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
 
 
 def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
@@ -8595,7 +8628,7 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
-    send = composer.locator(".lf-compose-field .primary")
+    send = composer.locator(".lf-compose-field .lf-compose-submit")
     send.evaluate(
         """control => control.addEventListener('click', () => {
           document.body.dataset.composerShortcutClicks =

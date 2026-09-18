@@ -148,12 +148,6 @@ the workspace research below, which reaches #23, so a new item starts above that
   this rather than preceding it: built first, it would police an implementation that is
   about to go.
 
-- **#2 — Finish the epoch presenters.** The coordinator and monotone epochs exist; six
-  hand-ordered choreography sites survive beside them, including `state-application.js`
-  running `applyConversation()` on either side of one `presentProjection` call and the
-  `prepareProjection`/`presentProjection` split that sandwich exists to hold. About 130
-  lines, and it retires the second mechanism for something that already has one.
-
 - **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
   imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the
   connection lifecycle `AppServerClient` owns: the `initialize`/`initialized`/`thread/resume`
@@ -193,12 +187,6 @@ the workspace research below, which reaches #23, so a new item starts above that
   registers through `keys()` and costs none. Eleven of the 53 are scopes a feature declared
   locally and `page.js` names again. It moves about 900 lines and deletes about 170,
   including the `rung()` ladder whose own guard stands down for the layer stack.
-
-- **#26 — Unify the two generated-hint machines.** `keyboard/go-to-sequence.js` and
-  `composing/target-chooser.js` implement one arming, prefix, walk and paint interaction
-  twice, sharing 24 identically named declarations and the same three helpers from
-  `keyboard/hints.js` before rebuilding everything above them. About 225 lines, and it pays
-  in both subsystems.
 
 - **#27 — Admit every event through one door.** Six of the nine `append_event` callers
   check no contract: `cmd_comment`, `cmd_reply`, `cmd_edit` and `cmd_resolve` in

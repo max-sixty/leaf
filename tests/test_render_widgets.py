@@ -7288,7 +7288,13 @@ def test_every_ask_decision_consumes_one_contextual_binding_slot(browser, serve)
 def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
     browser, serve
 ):
-    """Tab keeps every Ask binding badge in the titled card's trailing column."""
+    """Tab leaves every Ask binding badge where the Ask itself put it.
+
+    The cards share one trailing column. The draft row below them does not: its send
+    press holds that column, as it does in every other Leaf text box, and the row's own
+    badge waits just inside the press. Both seats are held before either mark appears,
+    so entering the group moves neither.
+    """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 900, 900)
 
@@ -7299,24 +7305,19 @@ def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
     )
     ask = page.locator(selector)
     expect(ask).to_have_text(["1", "2", "3"])
-    ask_centers = ask.evaluate_all(
-        """nodes => nodes.map(node => {
+    centers = """nodes => nodes.map(node => {
           const box = node.getBoundingClientRect();
-          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
+          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY,
+                  right: box.right};
         })"""
-    )
+    ask_centers = ask.evaluate_all(centers)
 
     page.keyboard.press("Tab")
     focused = page.locator(selector)
     expect(focused).to_have_text(["1", "2", "3"])
-    focused_centers = focused.evaluate_all(
-        """nodes => nodes.map(node => {
-          const box = node.getBoundingClientRect();
-          return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
-        })"""
-    )
+    focused_centers = focused.evaluate_all(centers)
     assert len(ask_centers) == len(focused_centers) == 3
-    assert len({round(point["x"], 1) for point in ask_centers}) == 1
+    assert len({round(point["x"], 1) for point in ask_centers[:-1]}) == 1
     for ask_point, focused_point in zip(ask_centers, focused_centers, strict=True):
         assert ask_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert ask_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
@@ -7332,10 +7333,14 @@ def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
     submit_box = submit.bounding_box()
     assert badge_box is not None
     assert submit_box is not None
+    # The press reaches the cards' trailing column and a little past it, the way it ends
+    # every other text box; the draft's badge stands inside the press, and neither has
+    # moved since the Ask first showed them.
+    assert submit_box["x"] + submit_box["width"] > ask_centers[0]["right"]
+    assert badge_box["x"] + badge_box["width"] <= submit_box["x"]
     assert badge_box["x"] + badge_box["width"] / 2 == pytest.approx(
         ask_centers[-1]["x"], abs=0.5
     )
-    assert submit_box["x"] + submit_box["width"] < badge_box["x"]
 
 
 def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve):

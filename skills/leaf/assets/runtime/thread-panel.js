@@ -89,8 +89,9 @@ export function createThreadPanelController({
     // The panel is one of the two surfaces the hover reads, so its arriving or going away
     // is the pointer moving even when the pointer has not: closing it with the keyboard,
     // from a hand resting on a card, took the card out from under the pointer and left the
-    // page lit about a comment with no panel to explain it. The open half came free through
-    // refreshConversation; this is the half that has no render.
+    // page lit about a comment with no panel to explain it. The open half comes free from
+    // the conversation paint, which reads :hover once the list it drew has laid out
+    // (thread-list.js's postPaint); this is the half that has no render.
     refreshHover();
     return played;
   }

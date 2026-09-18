@@ -4296,7 +4296,13 @@ def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serv
     """
     url = serve(REPORT_PAGE)
     d = serve.page_dir
-    CliRunner().invoke(cli_model.cli, ["page", "init", str(d)], catch_exceptions=False)
+    # The whole premise is that this second init really re-vendors. Were it ever refused,
+    # the base of the comparison would not be foreign and the case would pass against the
+    # runtime it exists to pin.
+    revendored = CliRunner().invoke(
+        cli_model.cli, ["page", "init", str(d)], catch_exceptions=False
+    )
+    assert revendored.exit_code == 0, revendored.output
     stamp_page(
         d,
         REPORT_PAGE.replace("</main>", '<p id="new-copy">A new prose line.</p></main>'),

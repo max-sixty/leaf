@@ -1460,8 +1460,10 @@ export function createVersionController({
   // The move a state asks of the live root, prepared ahead of the commit that makes it.
   // Null where there is nothing to follow — no newer revision, or a document that failed
   // to load, which is reported; the commit's own render then lights the chip as the way
-  // to try again. `stale` where the document came from a re-vendored layer, so the page
-  // is reloading and the state belongs to the layer it is leaving. Whether the move
+  // to try again. A re-vendored layer needs no answer of its own here: it changes the
+  // revision's executable identity, which takes the fresh-document install above, and a
+  // state that belongs to another layer is refused before it reaches this at all.
+  // Whether the move
   // happens now is asked at the commit: an unresolved delivery, `midComposition`, or an
   // open menu defers it, unless the chip was pressed (goActive) — the one override,
   // spent by the install it forced.
@@ -1483,21 +1485,10 @@ export function createVersionController({
     // against it afterwards, so the document's revision and the state that speaks for it
     // become current in one reading.
     if (!servedExecutable || target.executable !== servedExecutable)
-      return {
-        stale: false,
-        revision: target.revision,
-        activates,
-        install: reloadInto(target),
-      };
+      return { revision: target.revision, activates, install: reloadInto(target) };
     let doc;
     try {
       doc = await revisionDocument(target);
-      if (doc === null)
-        // Every answer carries `activates`, so no caller has to know which shapes this
-        // can return. `stale` says why this one refuses — the document came from a
-        // re-vendored layer and the page is already reloading — and the heartbeat, which
-        // asks nothing but `activates`, is right without a second reading of that fact.
-        return { stale: true, activates: () => false };
       // Step 6 of the startup order, on the same background stretch as the document
       // itself: this revision may carry a tag the standing document never held, and
       // insertion is where its element is constructed. Asked for here so the install
@@ -1512,7 +1503,6 @@ export function createVersionController({
       return null;
     }
     return {
-      stale: false,
       revision: target.revision,
       activates,
       install: () => {

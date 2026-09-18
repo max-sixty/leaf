@@ -102,10 +102,6 @@ export function createStateApplication({
       );
     }
     const [activation] = await Promise.all(preparations);
-    if (activation?.stale) {
-      await notifyChangedData();
-      return;
-    }
 
     return runSerialized(async () => {
       if (stale(state)) {

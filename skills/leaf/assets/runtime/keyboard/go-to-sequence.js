@@ -532,23 +532,24 @@ export function createGoToSequence({
     read: () => visibleCandidates(targetFilter),
     identity: (candidate) => candidate.member,
     scene: keyBadgePlacement,
-    plan: (candidate, { current, fresh, reading }) => {
-      const rect = fresh ? candidate.rect : reading.badgeBox(candidate.member);
-      if (
-        !fresh &&
-        (!candidate.member.checkVisibility() ||
+    layout: (candidates, { current, reading }) =>
+      candidates.flatMap((candidate) => {
+        const rect = reading.badgeBox(candidate.member);
+        if (
+          !candidate.member.checkVisibility() ||
           !rect ||
-          !exposed(candidate.member, rect, candidate.exposure))
-      )
-        return null;
-      return {
-        model: goToHintModel(candidate, current),
-        target: rect,
-        belowTarget: false,
-        left: rect.left,
-        top: rect.top,
-      };
-    },
+          !exposed(candidate.member, rect, candidate.exposure)
+        )
+          return [];
+        return {
+          candidate,
+          model: goToHintModel(candidate, candidate === current),
+          target: rect,
+          belowTarget: false,
+          left: rect.left,
+          top: rect.top,
+        };
+      }),
     template: goToHintTemplate,
     take: (candidate) => {
       setGoToSequence(false);
@@ -824,9 +825,9 @@ export function createGoToSequence({
             if (hints.backOneLetter()) return;
             if (targetFilter) {
               targetFilter = null;
-              hints.refresh();
+              hints.invalidate();
               announce("All go-to targets.");
-              return repaint();
+              return;
             }
             setGoToSequence(false);
             announce("Go to cancelled");

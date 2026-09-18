@@ -67,9 +67,9 @@ pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 // target whose visible box is strictly smaller and fully enclosed by another steps its
 // chip right once per enclosing box, so nested corners stay apart; equal boxes outside
 // one containment chain stay at the same depth and the shared placement pass separates
-// their chips. A member the bottom chrome's lane covers has no visible part left to name
-// and leaves the map, which is why the reading here is the whole box rather than the
-// corner the Go-to map hangs a chip on.
+// their chips. Both the seat and that step are read off one box per paint, which is why
+// the reading here is a member's whole box rather than the corner the Go-to map hangs a
+// chip on; a member the bottom chrome's lane covers has no box left and leaves the map.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
 // page or from the visible target hints. Tab walks repeated occurrences and Enter makes a
@@ -166,21 +166,24 @@ export function createTargetChooser({
         ),
     );
     const codes = hintCodes(unique.length);
-    return unique.map((target, index) => ({
-      ...target,
-      code: codes[index],
-      nesting: unique.filter(
-        (outer) =>
-          outer !== target &&
-          outer.rect.left <= target.rect.left &&
-          outer.rect.top <= target.rect.top &&
-          outer.rect.right >= target.rect.right &&
-          outer.rect.bottom >= target.rect.bottom &&
-          (outer.rect.right - outer.rect.left > target.rect.right - target.rect.left ||
-            outer.rect.bottom - outer.rect.top > target.rect.bottom - target.rect.top),
-      ).length,
-    }));
+    return unique.map((target, index) => ({ ...target, code: codes[index] }));
   }
+
+  // How many of the map's other members enclose this one, counted over the boxes of one
+  // paint. Two corners in the same place would name two different targets, so each
+  // enclosed chip steps right once per box around it. Strictly larger in one dimension,
+  // because an equal box is the same place rather than a box around it.
+  const enclosedBy = (box, boxes) =>
+    boxes.filter(
+      (outer) =>
+        outer !== box &&
+        outer.left <= box.left &&
+        outer.top <= box.top &&
+        outer.right >= box.right &&
+        outer.bottom >= box.bottom &&
+        (outer.right - outer.left > box.right - box.left ||
+          outer.bottom - outer.top > box.bottom - box.top),
+    ).length;
 
   // `withHints` opens the shared mode without a target map: a direct slash is page
   // search over the whole document, and reading a viewport-local map it would then hide
@@ -223,9 +226,9 @@ export function createTargetChooser({
       matches = [];
       active = -1;
       document.body.focus({ preventScroll: true });
-      // Search may have travelled to a match, so the map the reader comes back to is the
-      // one in front of them now rather than the one search covered.
-      hints.refresh();
+      // Search may have travelled to a match, so the map the reader comes back to is read
+      // again rather than being the one search covered.
+      hints.invalidate();
       announce("Choose a target — type a hint, or slash to search the page.");
     }
     repaint();
@@ -455,30 +458,36 @@ export function createTargetChooser({
     read: visibleTargets,
     identity: (target) => target.element,
     scene: room,
-    plan: (target, { current, fresh, reading }) => {
-      let rect = target.rect;
-      if (!fresh) {
-        if (!targetShown(target)) return null;
-        rect = reading.visibleBounds(target.element);
-        if (!exposed(rect)) return null;
-      }
-      const steps = [...target.code];
-      return {
-        model: Object.freeze({
-          key: hintRenderKey(target.element),
-          className: `lf-key-badge lf-key-hint lf-target-chooser-hint${
-            current ? " lf-current" : ""
-          }${rect.clippedTop || rect.top < chromeTop() ? " lf-in" : ""}`,
-          hintCode: target.code,
-          sequence: keySequenceModel(steps, progressStates(steps, [...hints.prefix()])),
-        }),
-        target: rect,
-        belowTarget: false,
-        // A target whose visible box is enclosed by another steps its chip right once
-        // per enclosing box, so a nested pair does not name one corner twice.
-        left: Math.max(10, rect.left + target.nesting * HINT_INDENT),
-        top: Math.max(chromeTop(), rect.top),
-      };
+    layout: (candidates, { current, reading }) => {
+      const seated = candidates
+        .map((target) => [
+          target,
+          targetShown(target) ? reading.visibleBounds(target.element) : null,
+        ])
+        .filter(([, rect]) => exposed(rect));
+      const boxes = seated.map(([, rect]) => rect);
+      const top = chromeTop();
+      return seated.map(([target, rect]) => {
+        const steps = [...target.code];
+        return {
+          candidate: target,
+          model: Object.freeze({
+            key: hintRenderKey(target.element),
+            className: `lf-key-badge lf-key-hint lf-target-chooser-hint${
+              target === current ? " lf-current" : ""
+            }${rect.clippedTop || rect.top < top ? " lf-in" : ""}`,
+            hintCode: target.code,
+            sequence: keySequenceModel(
+              steps,
+              progressStates(steps, [...hints.prefix()]),
+            ),
+          }),
+          target: rect,
+          belowTarget: false,
+          left: Math.max(10, rect.left + enclosedBy(rect, boxes) * HINT_INDENT),
+          top: Math.max(top, rect.top),
+        };
+      });
     },
     template: hintTemplate,
     take: chooseTarget,
@@ -690,6 +699,16 @@ export function createTargetChooser({
   function mount() {
     pageSearchInput.addEventListener("input", search);
     hints.mount();
+    // The open search's mark is page-attached paint in a layer no ancestor scrolls, so it
+    // follows the page only while something asks for a frame. The hint session's own door
+    // answers for the map, and a slash pressed from the page arms no map — so search asks
+    // for its own. Capture, because a panel's list and a board's own overflow scroll in
+    // boxes of their own and a scroll event does not bubble.
+    const followMatch = () => {
+      if (pageSearchOpen) repaint();
+    };
+    addEventListener("scroll", followMatch, { capture: true, passive: true });
+    addEventListener("resize", followMatch);
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
   return {

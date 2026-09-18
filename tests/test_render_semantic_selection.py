@@ -922,6 +922,72 @@ def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serv
     assert page.evaluate(codes) == ["a", "s"]
 
 
+def test_an_open_search_mark_follows_the_page_it_marks(browser, serve):
+    """The mark is paint in a layer no ancestor scrolls, so it stays where the page put
+    it until something asks for a frame. Slash pressed from the page raises no target
+    map, so nothing else on screen is watching the scroll on the mark's behalf."""
+    html = leaf_page(
+        "search mark travel",
+        """
+<div style="height: 600px" aria-hidden="true"></div>
+<p id="mid">the solitary copper needle sits here</p>
+<div style="height: 2400px" aria-hidden="true"></div>
+""",
+    )
+    page = open_page(browser, serve(html))
+    gap = """() => {
+      const mark = document.querySelector('.lf-page-search-match');
+      const text = document.querySelector('#mid');
+      return Math.round(mark.getBoundingClientRect().top
+                        - text.getBoundingClientRect().top);
+    }"""
+
+    page.keyboard.press("/")
+    page.keyboard.type("copper needle")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-page-search-match")).to_have_count(1)
+    seated = page.evaluate(gap)
+    assert abs(seated) < 6, f"the mark did not land on its own words: {seated}"
+
+    page.evaluate("() => { document.scrollingElement.scrollTop += 60; }")
+
+    page.wait_for_function(f"() => Math.abs(({gap})() - {seated}) < 6")
+
+
+def test_a_nested_target_restates_its_indent_when_the_nesting_changes(browser, serve):
+    """A chip enclosed by another steps right once per box around it. That step and the
+    box it starts from are one measurement: read a paint apart, they put the chip where
+    neither reading said."""
+    html = leaf_page(
+        "nested targets",
+        '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
+        head="<style>section { padding-bottom: 5rem; } section, p { margin: 0; }</style>",
+    )
+    page = open_page(browser, serve(html))
+    # The chip's own corner against the corner it names, so the step is the only thing
+    # that moves when the box does.
+    step = """() => {
+      const chip = [...document.querySelectorAll('.lf-target-chooser-hint')]
+        .find(node => node.dataset.lfHintCode === 's');
+      return Math.round(chip.getBoundingClientRect().left
+                        - document.querySelector('#inner').getBoundingClientRect().left);
+    }"""
+
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-chooser-hint")).to_have_count(2)
+    indented = page.evaluate(step)
+
+    # Break the containment and ask for a frame, without scrolling or resizing the window.
+    page.evaluate(
+        """() => {
+          document.querySelector('#inner').style.marginLeft = '-60px';
+          document.querySelector('.lf-shortcut-bar').style.height = '80px';
+        }"""
+    )
+
+    page.wait_for_function(f"() => ({step})() === {indented - 10}")
+
+
 def test_a_letter_naming_no_target_leaves_the_hints_standing(browser, serve):
     """A letter the map does not hold is reported and costs the reader nothing else.
     Resetting instead would throw away the letters they had already typed right."""

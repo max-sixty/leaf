@@ -175,23 +175,31 @@ const SETTLE_MS = 80;
 
 /* One armed map over a caller's scene.
 
-   `read` returns this scene's members, each already carrying the `code` that names it:
-   the caller owns that assignment because a scene can be a subset of a wider reading
-   whose codes it keeps. `identity` names the element a walk and a re-read recognize a
-   member by. `plan` draws one member — the chip's immutable model and where its corner
-   starts — or nothing where the member is no longer paintable. `extras` are chips the
-   caller keeps outside the coded map, such as named destinations on fixed chrome; they
-   are seated first and become barriers for the coded ones. `chrome` reads the standing
-   furniture the placement pass must keep clear. `followsScroll` says whether the coded
-   chips are redrawn while the page moves or withheld until it settles; either way their
-   membership is frozen for the length of the scroll. */
+   Membership and seating are separate readings, and the difference is how often each is
+   taken. `read` answers which members the map holds and what codes name them, each
+   member already carrying its `code` because a scene can be a subset of a wider reading
+   whose codes it keeps; that answer is held until something invalidates it. `layout`
+   answers where those members are, and runs every paint over the whole standing set from
+   one `scene` reading, because a chip's place among its neighbours and its own box are
+   the same measurement: derived from different readings they put the chip where neither
+   reading said. `identity` names the element a walk and a re-read recognize a member by.
+
+   `extras` are chips the caller keeps outside the coded map, such as named destinations
+   on fixed chrome; they are seated first and become barriers for the coded ones.
+   `chrome` reads the standing furniture the placement pass must keep clear.
+   `followsScroll` redraws the coded chips while the page moves rather than withholding
+   them until it settles. Either way membership is frozen for the length of the scroll;
+   what the flag buys is the cost of the layout pass, which hit-tests once per standing
+   member per frame. The chooser's map is bounded by a viewport's addressable blocks and
+   can afford it; the Go-to map reads every link, control and fold on a dense page and
+   cannot. */
 export function createHintSession({
   layer,
   walk: walkKey,
   read,
   identity,
-  scene = () => null,
-  plan,
+  scene,
+  layout,
   template,
   take: takeCandidate,
   words,
@@ -210,38 +218,47 @@ export function createHintSession({
 
   const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
 
-  // Every way the map is replaced whole puts the reader back at its head: no letters
-  // typed, nothing heard, and nothing held over from a scroll that was under way.
-  //
-  // The reading it carries was taken outside a paint, so the caller can speak the map's
-  // size in the same press that arms it — but that is a frame before the line explaining
-  // the map has been laid out, and the room the reader has is measured net of that line.
-  // The frame that paints the map therefore reads the scene again: a chip whose place
-  // among its neighbours came from one reading and whose box came from another sits
-  // where neither reading put it.
+  // Every way the map is replaced whole puts the reader back at its head, with no letters
+  // typed and nothing heard. Whether the page is moving is a fact about the page rather
+  // than about the map, so replacing the map does not end a scroll the page has not
+  // ended: only arming and disarming answer for that.
   function hold(found) {
     prefix = "";
     at = -1;
-    scrolling = false;
-    stale = true;
-    clearTimeout(settleTimer);
+    stale = false;
     return (candidates = found);
+  }
+
+  function rest() {
+    scrolling = false;
+    clearTimeout(settleTimer);
   }
 
   function arm() {
     armed = true;
+    rest();
     return hold(read());
   }
 
   function disarm() {
     armed = false;
+    rest();
     hold([]);
     render(nothing, layer);
   }
 
-  // The scene the caller reads has changed meaning — a filter came or went — so the map
-  // is rebuilt now rather than at the next paint, and the caller can speak its size.
+  // The scene the caller reads has changed meaning — a filter came or went. `refresh`
+  // rebuilds the map now, for a caller that must speak its new size in this press;
+  // `invalidate` leaves the reading to the frame that paints it, which is the whole of
+  // what a caller needs when it has nothing to say about the result.
   const refresh = () => hold(read());
+
+  function invalidate() {
+    prefix = "";
+    at = -1;
+    stale = true;
+    repaint();
+  }
 
   function take(candidate) {
     const current = read();
@@ -339,8 +356,7 @@ export function createHintSession({
     const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
     // Only with the map whole: a partly typed code freezes it until the reader
     // completes or backs out of that prefix, so `hinted()` and `candidates` agree here.
-    const fresh = !prefix && !scrolling && (stale || detached || !candidates.length);
-    if (fresh) {
+    if (!prefix && !scrolling && (stale || detached || !candidates.length)) {
       candidates = read();
       stale = false;
       at = heard
@@ -351,15 +367,8 @@ export function createHintSession({
         : -1;
     }
     const current = hinted()[at];
-    const reading = scene();
-    const plans = [];
-    const drawn = new Set();
-    for (const candidate of hinted()) {
-      const chip = plan(candidate, { current: candidate === current, fresh, reading });
-      if (!chip) continue;
-      plans.push(chip);
-      drawn.add(candidate);
-    }
+    const plans = layout(hinted(), { current, reading: scene() });
+    const drawn = new Set(plans.map((chip) => chip.candidate));
     if (wasWalking && current && !drawn.has(current)) at = -1;
     draw(extraPlans, plans);
     // The shortcut bar was painted before geometry retired the browsed hint, and a map
@@ -419,6 +428,7 @@ export function createHintSession({
     candidates: () => candidates,
     choose: () => take(hinted()[at]),
     disarm,
+    invalidate,
     mount,
     paint,
     prefix: () => prefix,

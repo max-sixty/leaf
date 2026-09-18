@@ -358,7 +358,7 @@ def publish(d, version=1):
         d,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": version,
             "revision": activated.revision,
             "text": "published",
@@ -925,7 +925,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
             directory,
             {
                 "kind": "note",
-                "author": "claude",
+                "author": "agent",
                 "version": 1,
                 "revision": 1,
                 "text": "t",

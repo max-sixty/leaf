@@ -1559,7 +1559,7 @@ def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which region?",
             "markup": '<lf-options id="region" choose>'
@@ -1637,7 +1637,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which region?",
             "markup": '<lf-options id="region" choose>'
@@ -2885,7 +2885,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert appended == {"status": "appended", "event": reply["id"]}
         assert reply == {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Leaf guide",
             "session": "leaf-website-agent",
             "parent": comment["id"],
@@ -3259,7 +3259,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
                 content_type="text/html",
                 body="""<div class="lf-threads" style="height: 100px; overflow: auto">
                   <div style="height: 500px"></div>
-                  <div class="lf-msg claude"><span class="lf-msg-text">Visible reply</span></div>
+                  <div class="lf-msg agent"><span class="lf-msg-text">Visible reply</span></div>
                 </div>""",
             ),
         )
@@ -3268,7 +3268,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
         page.wait_for_timeout(100)
         assert page.evaluate("window.__leafVerifier.visibleReplyAt") is None
 
-        page.locator(".lf-msg.claude").scroll_into_view_if_needed()
+        page.locator(".lf-msg.agent").scroll_into_view_if_needed()
         page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
         assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
     finally:

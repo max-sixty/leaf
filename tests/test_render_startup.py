@@ -3169,7 +3169,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": first_comment["id"],
             "responds": first_comment["id"],
             "text": "Handled before the next turn.",
@@ -3535,7 +3535,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": held,
             "responds": followup["id"],
             "revision": 1,
@@ -3543,9 +3543,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.claude')).to_have_count(
-        1
-    )
+    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.agent')).to_have_count(1)
     expect(held_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
 
@@ -4187,7 +4185,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
                     {
                         "id": "surface-reply",
                         "kind": "reply",
-                        "author": "claude",
+                        "author": "agent",
                         "parent": roots[0],
                         "revision": 1,
                         "text": "The first datum deserves a closer look.",
@@ -4218,7 +4216,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": roots[2],
             "revision": 1,
             "text": "The healthy conversation still updates.",
@@ -4280,7 +4278,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             serve.page_dir,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "parent": roots[2],
                 "revision": 1,
                 "text": "A later reading retries the repaired adapter.",

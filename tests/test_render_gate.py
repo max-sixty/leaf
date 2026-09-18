@@ -1360,7 +1360,7 @@ flowchart LR
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-paint",
             "revision": 1,
             "text": "Here it is:",
@@ -1540,7 +1540,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
         {
             "kind": "reply",
             "id": "r-anonymous",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-anonymous",
             "revision": 1,
             "text": "Here they are:",
@@ -1634,7 +1634,7 @@ def test_action_and_report_state_do_not_excuse_unrelated_verbatim_corruption(
     )
     command = {
         "kind": kind,
-        "author": "user" if kind == "action" else "claude",
+        "author": "user" if kind == "action" else "agent",
         "revision": 1,
         "widget": "owner",
         "action": "change" if kind == "action" else "status",
@@ -1760,7 +1760,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
         {
             "kind": "reply",
             "id": "r-scope",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-scope",
             "revision": 1,
             "text": "Here it is:",
@@ -1969,7 +1969,7 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-wrapper",
             "revision": 1,
             "text": "Here it is:",
@@ -3408,7 +3408,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-list",
             "revision": 1,
             "text": "Tick what belongs and press Done:",

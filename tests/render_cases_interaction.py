@@ -58,7 +58,7 @@ LIST_RUNS = """() => [...document.querySelector(".lf-threads").children]
 def panel_comment(d, text, anchor=None, author="user"):
     """One thread's opening message, written straight to the log."""
     event = {"kind": "comment", "author": author, "revision": 1, "text": text}
-    if author == "claude":
+    if author == "agent":
         event["agent"] = "Claude"
     if anchor:
         event["anchor"] = anchor
@@ -1003,7 +1003,7 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "wren",
             "widget": widget,
             "action": "state",
@@ -1484,7 +1484,7 @@ THREAD_ASKS = [
     {
         "kind": "comment",
         "id": "c-which",
-        "author": "claude",
+        "author": "agent",
         "revision": 1,
         "text": "Which store?",
         "markup": '<lf-ask id="tq-one-decision"><h3>Which store?</h3>'
@@ -1496,7 +1496,7 @@ THREAD_ASKS = [
     {
         "kind": "comment",
         "id": "c-any",
-        "author": "claude",
+        "author": "agent",
         "revision": 1,
         "text": "Pick any that apply.",
         "markup": '<lf-ask id="tq-set-decision"><h3>Which extras apply?</h3>'

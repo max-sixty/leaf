@@ -31,7 +31,7 @@ def _thread_awaits_reader(
     if thread_id in open_ask_threads:
         return True
     turns = spoken_turns(thread)
-    if not turns or turns[-1]["author"] != "claude":
+    if not turns or turns[-1]["author"] != "agent":
         return False
     last = turns[-1]
     if last["kind"] == "reply":
@@ -124,7 +124,7 @@ def browser_conversation(
                     "attempt": live_reply["attempt"],
                     "kind": "reply",
                     "addressable": False,
-                    "author": "claude",
+                    "author": "agent",
                     "agent": live_reply.get("agent") or "Codex",
                     "parent": live_reply["reply_to"],
                     "text": live_reply.get("text", ""),

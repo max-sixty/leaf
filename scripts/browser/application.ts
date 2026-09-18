@@ -556,7 +556,7 @@ function deriveThreadReaderObligations(
       else {
         const turns = thread.msgs.filter((message: any) => !isReaction(message));
         const last = turns.at(-1);
-        if (last?.author === "claude") {
+        if (last?.author === "agent") {
           const declared =
             last.kind === "reply" ? (asksByMessage.get(last.id) ?? []) : [];
           const structuralAnswered =

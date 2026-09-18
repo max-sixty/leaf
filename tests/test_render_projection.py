@@ -4259,7 +4259,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             d,
             {
                 "kind": "report",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "widget": "t-parser",
                 "action": "status",
@@ -4502,7 +4502,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": thread["id"],
             "revision": 1,
@@ -5118,7 +5118,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
-        ("report", "claude", "tally-fitted", "measure", "9"),
+        ("report", "agent", "tally-fitted", "measure", "9"),
         ("action", "user", "tally-seen", "set", "5"),
     ]:
         append_command(
@@ -6408,7 +6408,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-decision",
             "revision": 1,
             "text": MARKDOWN_REPLY,
@@ -6416,7 +6416,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
-    body = page.locator(".lf-msg.claude .lf-msg-body")
+    body = page.locator(".lf-msg.agent .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
     expect(body.locator("blockquote")).to_have_text("which one wins?")
@@ -6686,7 +6686,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "body-question",
             "text": "Edit these words.",
@@ -6800,7 +6800,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
             {
                 "kind": "reply",
                 "parent": "draft-question",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "text": "Edit this draft.",
                 "markup": '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n</pre></lf-draft>',
@@ -6886,7 +6886,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-decision",
             "revision": 1,
             "text": SPECIMEN_TEXT,
@@ -7288,7 +7288,7 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
     events_model.append_event(
-        serve.page_dir, {"kind": "resolve", "author": "claude", "parent": "c-which"}
+        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
     expect(page.locator(".lf-asks")).to_be_hidden()
@@ -7384,7 +7384,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
         {
             "kind": "comment",
             "id": "c-tree",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "The worker's evidence, for the record.",
             "markup": '<lf-roster id="msg-team"><lf-agent id="msg-worker" '
@@ -7737,7 +7737,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "Choose the host operation.",
@@ -7755,7 +7755,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "The operation above remains ready when you are.",
@@ -8477,7 +8477,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Relay",
             "parent": root["id"],
             "revision": 1,
@@ -8523,7 +8523,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
         d,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "worker",
             "revision": 1,
             "widget": "parser-dedupe",
@@ -8550,7 +8550,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
         d,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "worker",
             "revision": 3,
             "widget": "parser-dedupe",
@@ -8639,7 +8639,7 @@ def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, s
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": root["id"],
             "revision": 1,
             "text": "The hunk is ready.",

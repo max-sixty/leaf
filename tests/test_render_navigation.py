@@ -307,7 +307,7 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": root,
             "revision": 1,
             "text": "\n\n".join(
@@ -1001,7 +1001,7 @@ def test_command_hub_exercises_request_failure_retry_and_success(browser, serve)
         serve.page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": request["id"],
             "status": "failed",
             "text": "The branch is protected by another review",
@@ -1024,7 +1024,7 @@ def test_command_hub_exercises_request_failure_retry_and_success(browser, serve)
         serve.page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": retried["id"],
             "status": "succeeded",
             "text": "Started a fresh worker",
@@ -2157,7 +2157,7 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": root,
             "revision": 1,
             "text": "\n\n".join(
@@ -2684,7 +2684,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             serve.page_dir,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "parent": root,
                 "revision": 1,
                 "text": "\n\n".join(
@@ -5827,7 +5827,7 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
         {
             "kind": "comment",
             "id": "c-diff",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "The patch, for the record.",
             "markup": '<lf-diff id="msg-diff"><pre>'
@@ -7501,7 +7501,7 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "And one for you in here.",
             "markup": '<lf-ask id="reply-decision"><h3>Which baffle?</h3>'
@@ -8904,7 +8904,7 @@ def test_r_resolves_a_thread_from_wherever_the_reader_stands_in_it(browser, serv
             d,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "agent": "Claude",
                 "parent": root,
                 "revision": 1,
@@ -8936,7 +8936,7 @@ def test_r_resolves_a_thread_from_wherever_the_reader_stands_in_it(browser, serv
     expect(card(0)).to_be_focused()
 
     # A pointer on the reply's words stands the reader on the message, not the card.
-    message = card(0).locator(".lf-msg.claude")
+    message = card(0).locator(".lf-msg.agent")
     message.locator(".lf-msg-head").click()
     expect(message).to_be_focused()
     assert "resolve" in shortcut_bar_text(page)
@@ -9230,7 +9230,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             d,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "parent": root,
                 "text": "Sealing is an afternoon.",
@@ -9374,7 +9374,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
             d,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "parent": said[-1],
                 "text": "Noted.",

@@ -944,7 +944,7 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "frozen-widget-question",
             "text": "This widget prepares inside the conversation.",
@@ -1028,7 +1028,7 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "failing-widget-question",
             "text": "This widget fails its preparation.",
@@ -1163,7 +1163,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         {
             "kind": "reply",
             "id": "held-widget-reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "held-widget-thread",
             "text": "This preparation remains held.",

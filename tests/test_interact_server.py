@@ -478,7 +478,7 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 1,
             "revision": first.revision,
             "text": "first",
@@ -759,7 +759,7 @@ def test_server_round_trip(server, page_dir):
             {
                 "kind": "comment",
                 "id": "c9",
-                "author": "claude",
+                "author": "agent",
                 "agent": "Codex",
                 "session": "s-forged",
                 "ts": "1900-01-01T00:00:00Z",
@@ -1641,7 +1641,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 2,
             "revision": 2,
             "text": "Restated the option under its new owner.",
@@ -1704,7 +1704,7 @@ def test_undo_candidates_keep_only_standing_reader_gestures():
         {
             "id": "reply",
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "rx2",
             "text": "answered",
         },
@@ -2273,7 +2273,7 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": first["id"],
             "status": "failed",
             "text": "Worker lease disappeared",
@@ -2287,7 +2287,7 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": retry["id"],
             "status": "succeeded",
             "text": "Archived the branch",
@@ -2332,7 +2332,7 @@ def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "Choose the host operation.",
@@ -2399,7 +2399,7 @@ def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "Choose.",
@@ -2474,7 +2474,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
     assert message in json.loads(state)["source_error"]
 
 
-def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
+def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     publish(page_dir)
     event_model.append_event(
         page_dir,
@@ -4671,7 +4671,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     def resolve_then_claim():
         writer_entered.set()
         with service_model.PageTransaction(page_dir) as page:
-            page.append_event({"kind": "resolve", "author": "claude", "parent": "c1"})
+            page.append_event({"kind": "resolve", "author": "agent", "parent": "c1"})
             page.set_status(
                 "working",
                 "checking",
@@ -4918,7 +4918,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         {
             "kind": "reply",
             "id": "r-kept",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-lost",
             "revision": 1,
             "text": "the answer that survived it",

@@ -77,12 +77,12 @@ HTMLElement.prototype.showPopover = function (...args) {
   if (!document.body.hasAttribute(presentedAttribute) && inAuthoredMain(this)) {
     deferredPopovers.add(this);
   }
-  const opening = !this.matches(":popover-open");
-  const result = nativePopoverShow.apply(this, args);
-  // `toggle` is the canonical route and preserves reentrant declarative order. This
+  // Declared before the native call, as a modal is, so the stack sees the surface closed
+  // and starts a fresh entry rather than lifting one a light dismissal left behind.
+  // `toggle` is the canonical route and preserves reentrant declarative order; this
   // fallback covers an undeclared shadow root whose non-composed event Leaf cannot see.
-  if (opening && this.matches(":popover-open")) pushNativeLayer(this, "popover");
-  return result;
+  if (!this.matches(":popover-open")) pushNativeLayer(this, "popover");
+  return nativePopoverShow.apply(this, args);
 };
 HTMLElement.prototype.hidePopover = function (...args) {
   deferredPopovers.delete(this);

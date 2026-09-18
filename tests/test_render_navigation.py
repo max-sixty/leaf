@@ -6484,6 +6484,39 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(page.locator("#return-outer")).to_be_hidden()
     expect(page.locator("body")).to_have_attribute("data-closed-frame", "outer")
 
+    # A popover a command opened by script keeps that command's frame only while it
+    # stands. Closed and reopened in one task, with no read in between, it starts a fresh
+    # entry: the frame and the origin it would restore do not come back with it. The
+    # popover sits in a shadow root nobody staged, so only the patched method declares it.
+    assert page.evaluate(
+        """async () => {
+          const { invoke, current } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
+          const host = document.createElement('div');
+          const popover = document.createElement('div');
+          popover.popover = 'auto';
+          popover.textContent = 'Reopened popover';
+          host.attachShadow({mode: 'open'}).append(popover);
+          document.body.append(host);
+          const row = {
+            id: 'reopen',
+            returnFrame: () => ({
+              active: () => popover.matches(':popover-open'),
+              close: () => popover.hidePopover(),
+              does: 'Close the reopened popover',
+              line: 'close',
+            }),
+          };
+          invoke(row, 'x', () => popover.showPopover(), {control: null, reading: null});
+          const adopted = current()?.does === 'Close the reopened popover';
+          popover.hidePopover();
+          popover.showPopover();
+          const fresh = current() === null;
+          popover.hidePopover();
+          host.remove();
+          return adopted && fresh;
+        }"""
+    )
+
 
 def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     """An ambiguous row set is refused at the scope's first paint, gated or not.

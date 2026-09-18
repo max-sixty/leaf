@@ -135,12 +135,15 @@ const watchedRoots = new WeakSet();
 const held = (node) =>
   Boolean(node?.isConnected) && node.matches(":popover-open, dialog:modal");
 
-// Top down, so the newest modal is known before the entries it covers are judged.
+// Top down, so the newest modal is known before the entries it covers are judged. An
+// entry seen standing sheds its suspension mark: the mark is for the gap between a modal
+// hiding a surface and that surface's return, and an opening after this one starts fresh.
 function prune() {
   let covered = false;
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (entry.active()) {
+      entry.suspended = false;
       covered ||= entry.kind === "modal";
       continue;
     }
@@ -159,7 +162,9 @@ function prune() {
 //
 // A modal marks what it covers as it is pushed, before the native call hides the auto
 // popovers beneath it, so the mark is set by the cause rather than by whichever read
-// happens to run while the modal stands.
+// happens to run while the modal stands. The mark stays through the return: one opening
+// is declared twice, by the patched method before the native call and by `beforetoggle`
+// during it, and the second declaration finds the entry lifted but not yet open.
 export function pushNativeLayer(node, kind) {
   const at = entries.findIndex((entry) => entry.root === node);
   const standing = at < 0 ? null : entries[at];
@@ -169,7 +174,6 @@ export function pushNativeLayer(node, kind) {
   if (lifted) {
     entries.splice(at, 1);
     lifted.kind = kind;
-    lifted.suspended = false;
   }
   prune();
   if (kind === "modal") for (const entry of entries) entry.suspended = true;

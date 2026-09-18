@@ -1130,6 +1130,39 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     expect(thread).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
+    # A thread the margin projects, standing before the diff in page order: the walk
+    # opens the margin's view to reach it and then steps on to the diff's own seat,
+    # closing that view on the way. The way back is still the one press's, however
+    # many surfaces the walk crossed, and it hands back the heading the press left.
+    prose = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "And one on the prose above the patch.",
+            "anchor": {"section": "pr-scale-intro", "quote": "Risk is concentrated"},
+        },
+    )
+    told(page)
+    heading = page.locator("main h2").first
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    expect(heading).to_be_focused()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            f'.lf-margin-preview .lf-conversation-thread[data-thread="{prose["id"]}"]'
+        )
+    ).to_be_focused()
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(heading).to_be_focused()
+    assert not page.evaluate(
+        "() => document.activeElement.closest('.lf-margin-projection')"
+    )
+
 
 def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, serve):
     """A contextual thread has one side and only lives while its anchor is visible."""

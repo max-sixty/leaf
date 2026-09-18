@@ -520,12 +520,30 @@ body { position: static !important; box-sizing: border-box !important;
 /* A standing workspace narrows the body's page shell on wide screens and covers it on
  * compact ones. Bootstrap root attributes supply the same geometry before the runtime
  * replaces them with body state; stored widths are capped by the same responsive
- * bargain as the live resizable edges. */
+ * bargain as the live resizable edges.
+ *
+ * The strip is a border and not a margin, and that is the whole of what keeps the reader
+ * where they were standing. Narrowing the shell reflows the page inside it — residents
+ * hand their strips back, prose re-wraps — and the browser absorbs that for free through
+ * scroll anchoring. Except that the spec's suppression triggers include `margin`,
+ * `padding`, `width` and `height` on the path from the anchor up to the scroller, and
+ * body is on every such path, so the page yielding its strip that way switched off the
+ * one mechanism that was going to carry the reader across the reflow it caused. Measured
+ * on a page with both margin residents: the reader's paragraph fell 149px at 1728 and
+ * 1409px at 900.
+ *
+ * `border-width` is in neither the spec's list nor Chromium's. Body is `border-box`, so
+ * the `lf-shell` container's inline size is the same number either way (measured: 1308 at
+ * a 1728px window, both spellings), every container query below reads what it read
+ * before, and the fixed panel paints over the strip the border reserves. What changes is
+ * only that the browser goes on anchoring, which is what it is for. Anything reading the
+ * shell's own right edge therefore reads the content box (`shellRight`, geometry.js);
+ * `getBoundingClientRect().right` is now the outside of the border. */
 @media screen and (not (width <= 840px)) {
   :is(
     html[data-lf-restore-panel],
     html[data-lf-live]:has(body[data-lf-auxiliary-surface="threads"])
-  ) body { margin-right: var(--lf-thread-panel-width); }
+  ) body { border-right: var(--lf-thread-panel-width) solid transparent; }
 }
 @media screen and (width <= 840px) {
   html[data-lf-restore-panel] { overflow-y: hidden; }
@@ -542,7 +560,7 @@ body { position: static !important; box-sizing: border-box !important;
     html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])
   ) body {
     --lf-shell-inset-left: var(--lf-tray-slot-width);
-    margin-left: var(--lf-tray-slot-width);
+    border-left: var(--lf-tray-slot-width) solid transparent;
   }
 }
 @media screen and (width <= 600px) {
@@ -624,13 +642,13 @@ main {
   max-width: var(--col);
   margin: 0 auto;
   padding: 72px var(--col-pad) 96px;
-  /* A workspace changes the shell's responsive state in one layout pass. The runtime
-   * then carries this final column from its old horizontal position to its new one
-   * through --lf-shell-motion-x. Keeping that presentation offset out of the shell's
-   * inline size prevents container-query postures from appearing and disappearing in
-   * the middle of the motion. A static copy has no runtime registration and reads the
-   * zero fallback. */
-  left: calc(var(--lf-shift) + var(--lf-shell-motion-x, 0px));
+  /* A workspace changes the shell's responsive state in one layout pass, and the column
+   * arrives at its new horizontal position in that pass. It used to glide there over
+   * 180ms, which cost more than it bought: an animation on `left` is a scroll-anchoring
+   * suppression trigger on every frame it runs, so the glide was what threw the reader
+   * when the panel closed, and a page that jumps sideways and holds its words is the
+   * better trade. */
+  left: var(--lf-shift);
   position: relative;
   --lf-block-frame: 1;
   --lf-reading-column: 1;

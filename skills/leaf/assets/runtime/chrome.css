@@ -61,14 +61,6 @@
    Suggest restores it in replacement-text mode. Their structural icons use the same
    stroked SVG vocabulary as target margin entries; only authored reaction tokens supply text
    glyphs. */
-/* Auxiliary chrome state changes the shell's size immediately; only this presentation
-   offset moves. Registering the length lets Web Animations interpolate it while
-   container queries continue to read the one final shell width. */
-@property --lf-shell-motion-x {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
 /* Page-attached chrome is absolute against the initial containing block, not against
    body. Body is the page shell and may move or narrow for standing auxiliary surfaces; the
    document coordinate system does neither, and root scrolling still carries absolute

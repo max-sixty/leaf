@@ -568,18 +568,26 @@ def edge_settled(page, edge):
 def geometry(page, edge):
     """What the edge reads back as, and what the page has left beside it.
 
-    The two numbers are one fact asked from both sides: the strip is body's margin and
+    The two numbers are one fact asked from both sides: the strip is the page shell's and
     the region's own box, and the whole point of the width being the reader's is that
     nothing may hold a copy of it their gesture doesn't reach.
+
+    The page's own edge is body's content box, not the box it draws. The strip a standing
+    region takes is a transparent border on body (theme.css says why it has to be one,
+    rather than the margin it used to be), so the border box now reaches the window and it
+    is the content edge that meets the region.
     """
     return page.evaluate(
         """([region, side, store]) => {
             const box = document.querySelector(region).getBoundingClientRect();
             const body = document.body.getBoundingClientRect();
+            const border = getComputedStyle(document.body);
+            const left = body.left + (parseFloat(border.borderLeftWidth) || 0);
             return {
                 width: Math.round(box.width),
                 edge: Math.round(side === 'right' ? box.left : box.right),
-                page: Math.round(side === 'right' ? body.right : body.left),
+                page: Math.round(
+                    side === 'right' ? left + document.body.clientWidth : left),
                 chosen: localStorage.getItem(store),
             };
         }""",

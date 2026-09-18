@@ -3,11 +3,12 @@
 // container, `main` composes its left and right claims, and queries grant or withdraw
 // margin postures. JavaScript may hear the shell's content-box size without deriving a
 // posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
-// repaint after a width change. `moveContentFrame` lands the final responsive shell in one pass,
-// then animates only the reading column's presentation offset and repaints page-attached
-// chrome along that route, and carries the reader's place across the reflow that lands
-// with the new shell, which the browser's own scroll anchoring cannot do in the frame
-// the shell's margin changes. A height-only change sends `pageShifted` directly so a content
+// repaint after a width change. `moveContentFrame` lands the final responsive shell in one
+// pass and repaints page-attached chrome on the frame after it. Nothing here holds the
+// reader's place across the reflow that lands with the new shell: the browser does, because
+// the strip the shell yields is a transparent border rather than a margin, and `border-width`
+// is not a scroll-anchoring suppression trigger (theme.css, at the body strip, carries the
+// measurement and the reasoning). A height-only change sends `pageShifted` directly so a content
 // reflow re-places document-attached paint without re-running chrome reservation.
 //
 // `syncLayout` measures only chrome whose placement or reservation depends on rendered
@@ -42,9 +43,7 @@
 // auxiliary surfaces, send commands, or reconcile conversation DOM.
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps } from "./geometry.js";
-import { motion } from "./motion.js";
 import { setRuntimeRootStyle } from "./root-state.js";
-import { moveScrollerBy, pageScroller } from "./scrolling.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -101,45 +100,7 @@ export function createChromeLayout({
   repaint,
   repaintPage,
 }) {
-  let shellMotion = null;
   const panelCovers = () => panelIsOpen() && commentsEdge.over.matches;
-  // The box the document moved under, for the carry in `moveContentFrame`. Walk the
-  // page's own boxes in order, descend into the first the viewport is showing, and take
-  // the deepest one, which is how the browser's scroll anchoring picks its own: a deep box
-  // travels with the words around it, while a section's top holds still while its text
-  // re-wraps inside it.
-  //
-  // Not `readingBlock`. That one reports what the reader is reading, so it leaves a
-  // bounded region's words to the region and returns null for a reader looking into a
-  // board or a chooser that fills the window — and the page moved under them too. This
-  // walk stops at such a widget's boundary instead. A region carries its own contents, and
-  // the page carries the region.
-  //
-  // Only what the flow carries. The runtime's own furniture is not the document, and a
-  // positioned box has its own reasons to move: the sidebar is sticky while it holds the
-  // margin, so it stands in the viewport at every scroll position.
-  const flowAnchor = () => {
-    const main = document.querySelector("body > main");
-    if (!main) return null;
-    // The visible top edge, which the root already states for native focus navigation.
-    const edge =
-      Number.parseFloat(getComputedStyle(pageScroller).scrollPaddingTop) || 0;
-    let deepest = null;
-    const descend = (parent) => {
-      for (const el of parent.children) {
-        if (el.classList.contains("lf-ui") || el.hasAttribute("data-lf-gen")) continue;
-        const { position } = getComputedStyle(el);
-        if (position !== "static" && position !== "relative") continue;
-        const box = el.getBoundingClientRect();
-        if (!box.height || box.bottom <= edge || box.top >= innerHeight) continue;
-        deepest = el;
-        descend(el);
-        return;
-      }
-    };
-    descend(main);
-    return deepest;
-  };
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
   // it yields to a margin idiom is stated above.
@@ -254,79 +215,19 @@ export function createChromeLayout({
     if (syncReactLayout()) return;
     refreshFab();
   }
-  // A auxiliary chrome state is a responsive-layout boundary, not a sequence of temporary
-  // viewport sizes. Apply the state first, so every container query reads the final
-  // shell in one pass, then carry the reading column from the box it occupied before
-  // the change. Animating body's margin crosses sidebar and sidenote breakpoints during
-  // motion and can reverse the column's direction. The offset moves only paint already
-  // laid out against the final shell.
+  // An auxiliary chrome state is a responsive-layout boundary, not a sequence of temporary
+  // viewport sizes. Apply the state and every container query reads the final shell in one
+  // pass; the reading column arrives at its new horizontal position in that same pass.
+  //
+  // It used to glide there over 180ms. That glide animated `main`'s `left`, which is a
+  // scroll-anchoring suppression trigger on every frame it ran, so the page bought a
+  // moving column at the price of dropping the reader each time the panel closed. The
+  // browser carries them now (theme.css, at the body strip), and the column jumps — which
+  // is what every editor with a side panel does, and cheaper than it looks against words
+  // that stay put. This exists only to keep the shell change and its repaint in one place.
   function moveContentFrame(change) {
-    const main = document.querySelector("body > main");
-    const before = main?.getBoundingClientRect();
-    // Where the reader is standing, read before the shell changes. The page answers a
-    // narrower shell by handing margin postures back, and that moves the words: a sidebar
-    // leaving the margin returns a sticky 320px rail to the flow as a column-wide block,
-    // and everything below it drops. Measured on a page holding both margin residents, at
-    // a 1728px window the reader's own paragraph fell 149px, and further at narrower
-    // windows, where the reading column gives up width as well.
-    //
-    // The browser would ordinarily absorb that. Scroll anchoring works on these pages, but
-    // it is suppressed for any frame in which a box on the anchor's ancestor chain changes
-    // its margin or its width, and narrowing `body` by the panel's strip is that change.
-    // The carry below restores what anchoring would have done in the frame our own margin
-    // write cost it. It declares nothing and keeps no reading position of its own.
-    //
-    // Skipped at the top of the document, where anchoring also selects no anchor.
-    const reading = pageScroller.scrollTop > 0 ? flowAnchor() : null;
-    const readingTop = reading?.getBoundingClientRect().top;
-    const readingPosition = reading && getComputedStyle(reading).position;
-    // A second auxiliary surface can replace the first before its motion finishes. Preserve the
-    // currently drawn position, then release the old effect before reading the next
-    // layout; otherwise two animations would both own the same offset.
-    if (shellMotion) {
-      shellMotion.cancel();
-      shellMotion = null;
-    }
     change();
-    // A box the flow now holds differently cannot measure where the flow went. The sidebar
-    // is that case: sticky in the margin, static once it hands the margin back, and a
-    // viewport's height of travel between the two.
-    if (
-      reading?.isConnected &&
-      getComputedStyle(reading).position === readingPosition
-    ) {
-      const carried = reading.getBoundingClientRect().top - readingTop;
-      if (Math.abs(carried) >= 1) moveScrollerBy(pageScroller, carried);
-    }
-    if (!main || !before) {
-      scheduleShellRepaint();
-      return null;
-    }
-    const after = main.getBoundingClientRect();
-    const distance = before.left - after.left;
-    const moved = Math.abs(distance) >= 0.5;
-    const played = moved
-      ? motion(
-          main,
-          [
-            { "--lf-shell-motion-x": `${distance}px` },
-            { "--lf-shell-motion-x": "0px" },
-          ],
-          180,
-        )
-      : null;
-    shellMotion = played;
-    if (played) {
-      const settled = () => {
-        if (shellMotion === played) shellMotion = null;
-        // The carry changes position without another resize; the repaint's frames lay
-        // the margin's rows out along it and once more at rest (repaintMovingShell).
-        scheduleShellRepaint();
-      };
-      played.finished.then(settled, settled);
-    }
     scheduleShellRepaint();
-    return played;
   }
   // Field sizing and every other chrome-size change feed the one layout pass.
   // The document shell's size also feeds the page repaint door: content landing can move
@@ -388,22 +289,17 @@ export function createChromeLayout({
     layoutSizes.observe(bottomStatusEl);
   }
   let shellFrame = 0;
-  function repaintMovingShell() {
+  // The shell landed somewhere new. Page-attached paint follows it, and the margin's rows
+  // are placed off the column's box, which a resize observer cannot report: it hears a box
+  // change size, not place. One frame after the change is the settled page, the column
+  // having arrived in the same layout pass that moved it.
+  function repaintShell() {
     shellFrame = 0;
     pageShifted();
-    // The margin's rows are placed off the column's box, and the column's box is in
-    // flight: the body's width change laid them out on the carry's first frame, against
-    // a column a few pixels into its move, and nothing asked again once it had arrived —
-    // a resize observer hears a box change size, not place. So the rows stood where the
-    // column had been until the next poll or pointer move, over the prose the column had
-    // moved under them. Laid out on each carried frame, they ride with the column, and
-    // the last call here is the one taken at rest.
     layoutMarginRows();
-    if (shellMotion?.playState === "running")
-      shellFrame = requestAnimationFrame(repaintMovingShell);
   }
   function scheduleShellRepaint() {
-    if (!shellFrame) shellFrame = requestAnimationFrame(repaintMovingShell);
+    if (!shellFrame) shellFrame = requestAnimationFrame(repaintShell);
   }
 
   // The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps

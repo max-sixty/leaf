@@ -4363,11 +4363,11 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     panel_settled(page)
     resized(page, 1000, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.scrollingElement).overflowY !== 'hidden' && getComputedStyle(document.body).marginRight !== '0px'"
+        "() => getComputedStyle(document.scrollingElement).overflowY !== 'hidden' && getComputedStyle(document.body).borderRightWidth !== '0px'"
     )
     resized(page, 500, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden' && getComputedStyle(document.body).marginRight === '0px'"
+        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden' && getComputedStyle(document.body).borderRightWidth === '0px'"
     )
 
 

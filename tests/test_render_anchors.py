@@ -2443,21 +2443,14 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     page = mark_the_first_sentence(browser, serve)
     take(page)
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    page.wait_for_function(
-        "() => Boolean(document.getElementById('lf-composer-quote')?.textContent)"
-    )
+    wait_for_pending_mark(page)
     took = words_in_hand(page)
     assert took["selected"].strip(), (
         "the gesture took no words, so this says nothing about what the door did with them"
     )
     assert not took["inPanel"], "the gesture sent the reader into the conversation"
-    # What the 💬 says it is about, rather than the paint: a selection the length of one
-    # word inside a mark draws no pending range, while the same word outside one does.
-    # The capture trims the edges of what a gesture hands it, so the words match rather
-    # than the string.
-    quote = composer_quote(page)["text"]
-    assert took["selected"].strip() in quote, (
-        f"the 💬 says {quote!r} rather than the words that were taken"
+    assert pending_text(page) == took["selected"].strip(), (
+        f"the 💬 is about {pending_text(page)!r} rather than the words that were taken"
     )
 
     page.mouse.click(*mark_point(page, "lf-mark"))

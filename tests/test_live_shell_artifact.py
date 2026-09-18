@@ -245,7 +245,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         write_live_shell(
             page_dir,
             destination,
-            server_id=server.httpd.handler_class.server_id,
+            server_id=server.httpd.server_id,
         )
         root = "/revisions/" + revision_path(page_dir, activation.revision).stem
         if bundled:

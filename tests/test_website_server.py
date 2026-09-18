@@ -2493,7 +2493,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
 
     agent_host = FakeCodexHost()
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.handler_for(site, agent_host)
+        ("127.0.0.1", 0), website_server.site_endpoint(site, agent_host)
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
@@ -2719,7 +2719,7 @@ def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.handler_for(site, FakeCodexHost())
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHost())
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
@@ -2756,7 +2756,7 @@ def test_a_product_route_uses_the_same_real_page_server(
 
     agent_host = FakeCodexHost()
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.handler_for(site, agent_host)
+        ("127.0.0.1", 0), website_server.site_endpoint(site, agent_host)
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
@@ -2821,7 +2821,7 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
     accept_codex_delivery("already-started-thread")
     agent_host = FakeCodexHost()
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.handler_for(site, agent_host)
+        ("127.0.0.1", 0), website_server.site_endpoint(site, agent_host)
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
@@ -2843,7 +2843,7 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
     shutil.copytree(page_dir, published)
     (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
-    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.handler_for(site))
+    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
     with running_http_server(httpd):
         state = json.loads(get(f"{root}/api/state")[0])

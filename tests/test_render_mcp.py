@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 from urllib.request import urlopen
 
 from interact_support import ROOT
+from leaf import mcp_page as mcp_page_model
 from leaf.anchor_capture import capture_anchor
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
@@ -117,16 +118,16 @@ def test_process_state_waits_for_a_serialized_activation(page_dir, monkeypatch):
     answer = {}
     try:
         url = pages.open(page_dir)
-        handler = pages._httpd.handler_class
-        original_select = handler._select_page
+        endpoint = mcp_page_model.RoutedPageEndpoint
+        original_select = endpoint._select_page
 
-        def observe_state_request(request_handler):
-            result = original_select(request_handler)
-            if result and urlsplit(request_handler.path).path == "/api/state":
+        def observe_state_request(routed):
+            answered = original_select(routed)
+            if answered is None and routed.path == "/api/state":
                 selected.set()
-            return result
+            return answered
 
-        monkeypatch.setattr(handler, "_select_page", observe_state_request)
+        monkeypatch.setattr(endpoint, "_select_page", observe_state_request)
         source = page_dir / "index.html"
         source.write_text(source.read_text().replace("<h2>Plan</h2>", "<h2>Next</h2>"))
 

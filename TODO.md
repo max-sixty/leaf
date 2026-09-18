@@ -106,15 +106,6 @@ ordering contract these items extend.
 
 ## Architecture simplification
 
-- **#25 — Finish the starlette cutover in `http.py`.** #774 moved the transport to
-  starlette and uvicorn, but `Handler` still wears `BaseHTTPRequestHandler`'s shape:
-  `send_header`, `end_headers`, `close_connection`, and a `_headers` list assembled and
-  then handed to a `Response`, 25 times here and 3 in `worker/server.py`, behind the
-  `handler_for` and `page_app(handler_class, …)` indirection. Let each route return a
-  starlette response and put the shared `Leaf-*` headers, the key gate, and the layer gate
-  in middleware. It is a compatibility layer inside a finished cutover, which is the one
-  thing this repository does not keep.
-
 - **#1 — Keep the semantic application root thin.** Let the application publisher own
   ordering, adoption, and publication while pure Ask, conversation, projection, and widget
   models retain their own modules. Do not replace DOM authority with one module containing

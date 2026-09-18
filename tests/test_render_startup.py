@@ -2622,7 +2622,7 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     # counts as reader attention. Reopening the stream below must replace it.
     page.wait_for_timeout(100)
     files_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
-    serve.httpd.handler_class.viewed_at = 0
+    serve.httpd.viewed_at = 0
     events_model.append_event(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "While away."},

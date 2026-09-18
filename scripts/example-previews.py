@@ -69,7 +69,9 @@ def serve_examples(site: Path) -> Iterator[str]:
         os.environ["XDG_STATE_HOME"] = state_home
         try:
             website_server.page_binding.cache_clear()
-            server = LeafHTTPServer(("127.0.0.1", 0), website_server.handler_for(site))
+            server = LeafHTTPServer(
+                ("127.0.0.1", 0), website_server.site_endpoint(site)
+            )
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             try:

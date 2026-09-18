@@ -1560,6 +1560,11 @@ def test_a_fault_record_keeps_the_end_of_an_oversized_message():
     assert bounded["detail"].startswith("\u2026")
     assert len(bounded["detail"]) == website_server.FAULT_DETAIL_LIMIT + 1
 
+    # The other boundary that writes a `detail` is App Server reporting its own turn
+    # failed, and the record's size contract is the record's, not one writer's.
+    reported = website_server.terminal_fault({"error": {"message": log}})
+    assert reported == {"detail": bounded["detail"]}
+
 
 def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
     page_dir, monkeypatch

@@ -151,12 +151,25 @@ def starting_turn_key(delivery_id: str) -> str:
     return f"delivery:{delivery_id}"
 
 
+def bounded_detail(message: str) -> str:
+    """Keep a refusal's own words, and only as much of them as a record carries.
+
+    An exception message is not always a sentence: a spawn that never became ready
+    raises with App Server's whole log as its message. A record is not where a log
+    file belongs, and the reason a process exited is at the end of its log rather
+    than the start, so the tail is the part worth keeping.
+    """
+    if len(message) <= FAULT_DETAIL_LIMIT:
+        return message
+    return f"…{message[-FAULT_DETAIL_LIMIT:]}"
+
+
 def terminal_fault(terminal: dict) -> dict:
     """Read why a turn App Server itself reports as failed did not complete."""
     error = terminal.get("error")
     if not isinstance(error, dict) or not error.get("message"):
         return {}
-    return {"detail": error["message"]}
+    return {"detail": bounded_detail(error["message"])}
 
 
 def fault_fields(error: BaseException) -> dict:
@@ -164,19 +177,15 @@ def fault_fields(error: BaseException) -> dict:
 
     A boundary this adapter does not own — App Server, the container runtime — says
     why it refused in the exception's message, and the class alone cannot carry that.
+    Every `detail` a record carries passes through `bounded_detail`, whichever of the
+    two boundaries wrote it, so the size the contract states is the size it holds.
     `AppServerRequestRejected: thread/resume` and `AppServerRequestRejected: unknown
     thread` are one record without it, so a rejection is diagnosable down to the class
     and no further. The message is the provider's own sentence about the call, and the
     calls this adapter makes carry no page content, so recording it keeps the
     execution path readable without putting a reader's words in the log.
     """
-    message = str(error)
-    if len(message) > FAULT_DETAIL_LIMIT:
-        # An exception message is not always a sentence: a spawn that never became
-        # ready raises with App Server's whole log as its message. A record is not
-        # where a log file belongs, and the reason a process exited is at the end of
-        # its log rather than the start, so the tail is the part worth keeping.
-        message = f"…{message[-FAULT_DETAIL_LIMIT:]}"
+    message = bounded_detail(str(error))
     return {"error": type(error).__name__, **({"detail": message} if message else {})}
 
 

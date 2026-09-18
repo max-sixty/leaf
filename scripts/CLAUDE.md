@@ -58,11 +58,11 @@ rules a new or changed example has to meet.
   exact release again after deployment. That production pass also sends one private
   comment and requires the hosted Codex task to publish a revision and reply. With
   `verify_site.py --agent`, the verifier prints the request acknowledgement, activity
-  transitions, publication, reply, and changed-page presentation timings. The Worker's
-  `startup_failed` receipt triggers one retry; rate limits and all other
-  unsuccessful endings fail the deployment on the first ask. The gate reads the
-  receipt's `failure` code, never its wording. `worker/README.md` owns the failure
-  contract.
+  transitions, publication, reply, and changed-page presentation timings. The
+  `startup_failed` and `turn_failed` receipts — the two that tell the reader to send
+  the message again — trigger one retry; rate limits and all other unsuccessful
+  endings fail the deployment on the first ask. The gate reads the receipt's `failure`
+  code, never its wording. `worker/README.md` owns the failure contract.
   `uv run scripts/verify_site.py local` runs the same delivery, App Server, edit,
   publication,
   reply, and browser-reload path against the host's Codex login. It bypasses the

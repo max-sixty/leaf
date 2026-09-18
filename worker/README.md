@@ -235,9 +235,11 @@ it followed to nothing, which is a claim only the code that followed it can make
 three go through one writer, `write_failure_receipt`, so a reader meets every
 giving-up boundary in one shape and the page has one thing to draw — a reply carrying
 `failure` is marked in its head as answering nothing, rather than reading as the
-answer it stands in for. The deployment verifier retries `startup_failed` once and
-fails immediately on `rate_limited`; it reads the code and never the words, and
-ordinary agent answers omit `failure` entirely.
+answer it stands in for. The deployment verifier asks again, once, for the two
+receipts whose words tell the reader to send the message again — `startup_failed` and
+`turn_failed`, a message nothing answered either way — and fails immediately on
+`rate_limited`, which names a load condition a second ask would meet again. It reads
+the code and never the words, and ordinary agent answers omit `failure` entirely.
 The accepted event and active turn are not yet mirrored into Durable Object storage,
 and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.

@@ -566,12 +566,27 @@ def agent_profile(profile: AgentProfile) -> dict:
     }
 
 
-def startup_failed(replies: list[dict]) -> bool:
-    """Whether the container settled this ask by reporting a turn that never ran."""
-    return any(reply.get("failure") == "startup_failed" for reply in replies)
+# The failure codes whose own words end in "Send it again to retry" — the host saying
+# that nothing answered this message and that a fresh ask opens a fresh turn. Which
+# boundary gave up separates them: `startup_failed` is a turn that never began, and
+# `turn_failed` a turn the container followed to nothing. Neither says anything about
+# the release that would settle a second ask differently, so a release that truly
+# cannot run a hosted turn still fails the deploy — on the second receipt instead of
+# the first. `rate_limited` is the code left out: it names a load condition a second
+# ask inside this same pass would meet again.
+ASK_AGAIN = frozenset({"startup_failed", "turn_failed"})
 
 
-def turn_failed(replies: list[dict]) -> bool:
+def worth_asking_again(replies: list[dict]) -> bool:
+    """Whether the receipt that settled this ask is one the host invites a retry of.
+
+    Exactly one terminal receipt names each accepted request, so this reads that one
+    receipt rather than weighing a set of them.
+    """
+    return any(reply.get("failure") in ASK_AGAIN for reply in replies)
+
+
+def settled_by_failure(replies: list[dict]) -> bool:
     """Whether the host closed the turn with one of its failure receipts."""
     return any("failure" in reply for reply in replies)
 
@@ -742,7 +757,7 @@ def await_turn(
         # A host failure receipt closes the turn. Either half of a successful outcome
         # can otherwise arrive first — the agent reply or the requested publication —
         # so a reading with only one waits for the other under the bounds below.
-        if turn_failed(replies):
+        if settled_by_failure(replies):
             break
         if time.monotonic() >= deadline:
             break
@@ -768,9 +783,10 @@ def ask_until_answered(
 ) -> AgentAsks:
     """Ask the deployed agent for `heading` until it answers or stops answering.
 
-    A Worker startup failure is retried once while the pass has enough time for a
-    healthy turn. Rate limits and turns that stop without answering fail the pass
-    on the first ask. The reply's failure code owns this decision, not its wording.
+    A receipt that tells the reader to send the message again is sent again, once,
+    while the pass has enough time for a healthy turn. A rate limit, and a turn that
+    ends with no receipt at all, fail the pass on the first ask. The reply's failure
+    code owns this decision, not its wording.
     """
     published = None
     asks = 0
@@ -814,7 +830,7 @@ def ask_until_answered(
         # than opening a turn it cannot wait for.
         if answer is not None or not (
             asks < TURN_ASKS
-            and startup_failed(replies)
+            and worth_asking_again(replies)
             and deadline - time.monotonic() >= TURN_PATIENCE
         ):
             return AgentAsks(
@@ -824,10 +840,12 @@ def ask_until_answered(
                 profile,
             )
         if report:
-            print(
-                f"↻ {url} settled its ask with a startup failure; "
-                "sending one new message"
+            settled = next(
+                reply["failure"]
+                for reply in replies
+                if reply.get("failure") in ASK_AGAIN
             )
+            print(f"↻ {url} settled its ask with {settled}; sending one new message")
 
 
 def verify_agent_turn(

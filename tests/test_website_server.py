@@ -2902,7 +2902,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             event for event in json.loads(served)["events"] if "failure" in event
         ]
         assert [event["id"] for event in failures] == [reply["id"]]
-        assert verify_site.startup_failed(failures)
+        assert verify_site.worth_asking_again(failures)
         assert verify_site.deployment_answer(failures) is None
         repeated, _ = post(
             f"{root}/examples/decision/_leaf/agent/reply",
@@ -3354,7 +3354,7 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     assert not verify_site.still_answering({}, "comment-id")
 
 
-@pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
+@pytest.mark.parametrize("failure", sorted(website_server.FAILURE_RECEIPTS))
 def test_the_deploy_gate_reads_a_durable_host_failure(page_dir, failure):
     from leaf.event_contracts import event_record_error
     from leaf.registry.storage import load_registry
@@ -3370,8 +3370,8 @@ def test_the_deploy_gate_reads_a_durable_host_failure(page_dir, failure):
     assert [event["id"] for event in replies] == [reply["id"]]
     contract = load_registry(page_dir)["$events"]["kinds"]["reply"]
     assert event_record_error(contract, replies[0]) is None
-    assert verify_site.turn_failed(replies)
-    assert verify_site.startup_failed(replies) == (failure == "startup_failed")
+    assert verify_site.settled_by_failure(replies)
+    assert verify_site.worth_asking_again(replies) == (failure != "rate_limited")
     assert verify_site.deployment_answer(replies) is None
     assert not state["activity"]["obligations"]
 
@@ -3424,7 +3424,7 @@ class _StateReads:
 
 
 class _FailedFirstTurn:
-    """A deployed page whose first startup fails and whose second ask succeeds."""
+    """A deployed page whose first ask gets a failure receipt and whose second works."""
 
     def __init__(self, heading: str, failure: str = "startup_failed"):
         self.failure = failure
@@ -3519,9 +3519,16 @@ class _FailedFirstTurn:
         }
 
 
-@pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
-def test_the_deploy_gate_retries_only_startup_failures(failure):
-    """A startup retry gets a fresh attempt; a rate limit ends the pass immediately."""
+@pytest.mark.parametrize("failure", sorted(website_server.FAILURE_RECEIPTS))
+def test_the_deploy_gate_asks_again_for_every_receipt_that_invites_one(failure):
+    """A receipt inviting a retry gets a fresh attempt; a rate limit ends the pass.
+
+    Which boundary gave up is what separates `startup_failed` from `turn_failed`, and
+    the gate is downstream of that distinction: both name a message nothing answered,
+    and neither says anything about the release that would settle a second ask
+    differently. Parametrized over the receipt table itself so a fourth code cannot be
+    declared without this case saying which side it falls on.
+    """
     heading = "Deployment abcd1234 verified"
     context = _FailedFirstTurn(heading, failure)
     asked = verify_site.ask_until_answered(
@@ -3560,11 +3567,11 @@ def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
     ):
         answer = {"text": text}
         assert verify_site.deployment_answer([answer]) is answer
-        assert not verify_site.turn_failed([answer])
-        for failure in ("startup_failed", "rate_limited"):
+        assert not verify_site.settled_by_failure([answer])
+        for failure in website_server.FAILURE_RECEIPTS:
             receipt = {"text": text, "failure": failure}
             assert verify_site.deployment_answer([receipt]) is None
-            assert verify_site.turn_failed([receipt])
+            assert verify_site.settled_by_failure([receipt])
 
 
 def test_startup_line_distinguishes_an_unobserved_state_request():
@@ -3620,7 +3627,7 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
 
 @pytest.mark.parametrize(
     "failure",
-    ["startup_failed", "rate_limited"],
+    sorted(website_server.FAILURE_RECEIPTS),
 )
 def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     failure,
@@ -3670,7 +3677,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     assert context.reads == 1
     assert verify_site.still_answering(working, "comment-id")
     assert turn.answer is None
-    assert verify_site.turn_failed(turn.replies)
+    assert verify_site.settled_by_failure(turn.replies)
 
 
 class _PresentationWait:

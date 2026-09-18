@@ -301,7 +301,8 @@ STATE_PAINT = """el => {
 
 
 def test_signoff_enabled_face_is_readable(browser, serve):
-    """The banner's committing action keeps its positive face in the everyday gate."""
+    """The banner's committing action carries the accent as ink on the ordinary
+    card, never as a solid accent fill."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -314,8 +315,8 @@ def test_signoff_enabled_face_is_readable(browser, serve):
         "        fill: getComputedStyle(el).backgroundColor})"
     )
     assert paint == {
-        "ink": token_colour(page, "--paper"),
-        "fill": token_colour(page, "--accent"),
+        "ink": token_colour(page, "--accent"),
+        "fill": token_colour(page, "--card"),
     }, f"the banner's primary action lost its readable face: {paint}"
 
 

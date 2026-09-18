@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,13 @@ from playwright.sync_api import sync_playwright
 # The canonical subprocess command. Tests of the installed host boundary invoke
 # that payload's `bin/leaf`; every other process test runs the checkout directly.
 LEAF_COMMAND = [sys.executable, "-m", "leaf"]
+# Start every child the way a terminal starts one. A run launched as a shell's
+# background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
+# survives both Python startup and `exec`, so everything the run spawns ignores
+# the signal too: a test that interrupts its own child would pass or fail on how
+# the run was launched, and the child would outlive it still serving its page.
+# A caught signal is what `exec` resets to the default in each child.
+signal.signal(signal.SIGINT, signal.default_int_handler)
 # Domain test modules import their assertions explicitly. Register only the modules
 # that own fixtures once for the complete suite.
 pytest_plugins = (
@@ -284,6 +292,28 @@ def codex_env():
     return {k: v for k, v in os.environ.items() if k not in CLAUDE_IDENTITY}
 
 
+def _retire(process: subprocess.Popen) -> None:
+    """End one started process, and anything still in the group it leads.
+
+    A child given a session of its own leads a group, and what it spawns joins
+    that group: `scripts/preview.py` re-executes into `uv run`, which holds the
+    watcher as a child, so the handle the test keeps names the launcher rather
+    than the process doing the work. Ending the handle alone leaves the watcher
+    running — past the test, past the run, still serving its page and still
+    watching the checkout every later test reads. A child that shares the run's
+    own group is ended through its handle, because signalling that group would
+    signal the worker running the test.
+    """
+    if process.poll() is None:
+        # Read the group only while the process is running and unreaped, so the
+        # pid cannot have become someone else's by the time it is signalled.
+        if os.getpgid(process.pid) == process.pid:
+            os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+    process.wait(timeout=5)
+
+
 @pytest.fixture
 def spawn():
     """A process the test starts, ended when the test ends — the ones it expects
@@ -298,9 +328,7 @@ def spawn():
 
     yield start
     for process in reversed(started):
-        if process.poll() is None:
-            process.terminate()
-        process.wait(timeout=5)
+        _retire(process)
 
 
 @pytest.fixture

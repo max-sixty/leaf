@@ -34,7 +34,9 @@ The main owners are:
 - `activity`: the canonical page-level fold over acknowledgments, status, claim,
   turn, and watcher evidence;
 - `work`: transient subject claims and widget work seats;
-- `asks`: declaration-driven page and thread Ask projections;
+- `asks`: the declaration-driven page and thread Ask projections, and the one
+  implementation of them — the CLI, the Stop hook, `version check`, the MCP surface,
+  event admission, and the browser all read this fold;
 - `mcp_page`: the capability-scoped canonical page server and private MCP result;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;

@@ -1144,7 +1144,13 @@ def test_a_closed_thread_stops_asking(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
+        {
+            "id": "gm-decision",
+            "tag": "lf-ask",
+            "source": "gm",
+            "source_tag": "lf-options",
+            "conversation": root["id"],
+        }
     ]
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
@@ -1175,8 +1181,20 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             )
         )
     assert state_json(page_dir)["asks"] == [
-        {"id": "group-a-decision", "tag": "lf-ask", "conversation": roots[0]["id"]},
-        {"id": "group-b-decision", "tag": "lf-ask", "conversation": roots[1]["id"]},
+        {
+            "id": "group-a-decision",
+            "tag": "lf-ask",
+            "source": "group-a",
+            "source_tag": "lf-options",
+            "conversation": roots[0]["id"],
+        },
+        {
+            "id": "group-b-decision",
+            "tag": "lf-ask",
+            "source": "group-b",
+            "source_tag": "lf-options",
+            "conversation": roots[1]["id"],
+        },
     ]
 
     append_command(
@@ -1191,7 +1209,13 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "group-b-decision", "tag": "lf-ask", "conversation": roots[1]["id"]}
+        {
+            "id": "group-b-decision",
+            "tag": "lf-ask",
+            "source": "group-b",
+            "source_tag": "lf-options",
+            "conversation": roots[1]["id"],
+        }
     ]
 
 

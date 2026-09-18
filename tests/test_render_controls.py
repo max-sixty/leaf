@@ -2293,14 +2293,22 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     try:
         page.keyboard.press("z")
         holding(page, held, 1, "the undo that reopens the choice")
+        # The reader sees their withdrawal in the widget at once. Whether the Ask is
+        # open again is the log's reading, and this withdrawal has not reached it, so
+        # the prerequisite this verb declares is still unmet and its control shut.
         expect(page.locator("#pick-a")).not_to_have_attribute("chosen", "")
-        page.get_by_role("checkbox", name=re.compile(r"^choose one: B")).click()
-        expect(page.locator("#pick-b")).to_have_attribute("chosen", "")
+        expect(
+            page.get_by_role("checkbox", name=re.compile(r"^choose one: B"))
+        ).to_be_disabled()
     finally:
         for route in held:
             route.continue_()
         page.unroute("**/api/event", hold_undo)
     round_trip(page)
+    # With the withdrawal in the log the Ask is open again and the same press lands.
+    page.get_by_role("checkbox", name=re.compile(r"^choose one: B")).click()
+    round_trip(page)
+    expect(page.locator("#pick-b")).to_have_attribute("chosen", "")
     assert [event["action"] for event in actions(serve.page_dir)] == [
         "choose",
         "choose",

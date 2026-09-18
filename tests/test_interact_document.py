@@ -3431,9 +3431,16 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         "sources": {},
     }
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
-    # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
+    # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The ask
+    # names the region the reader is sent to and the group that answers it.
     assert state["asks"] == [
-        {"id": "g1-decision", "tag": "lf-ask", "conversation": None}
+        {
+            "id": "g1-decision",
+            "tag": "lf-ask",
+            "source": "g1",
+            "source_tag": "lf-options",
+            "conversation": None,
+        }
     ]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == []
@@ -4341,7 +4348,13 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
 
     state = state_json(page_dir)
     assert state["asks"] == [
-        {"id": "plan-decision", "tag": "lf-ask", "conversation": None}
+        {
+            "id": "plan-decision",
+            "tag": "lf-ask",
+            "source": "g1",
+            "source_tag": "lf-options",
+            "conversation": None,
+        },
     ]
 
     append_command(
@@ -4537,7 +4550,13 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
+        {
+            "id": "gm-decision",
+            "tag": "lf-ask",
+            "source": "gm",
+            "source_tag": "lf-options",
+            "conversation": root["id"],
+        },
     ]
     append_command(
         page_dir,
@@ -4551,7 +4570,13 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
+        {
+            "id": "gm-decision",
+            "tag": "lf-ask",
+            "source": "gm",
+            "source_tag": "lf-options",
+            "conversation": root["id"],
+        },
     ]
     append_command(
         page_dir,
@@ -4595,8 +4620,20 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     publish(page_dir)
 
     assert state_json(page_dir)["asks"] == [
-        {"id": "future-decision", "tag": "lf-ask", "conversation": None},
-        {"id": "decision-decision", "tag": "lf-ask", "conversation": None},
+        {
+            "id": "future-decision",
+            "tag": "lf-ask",
+            "source": "future-review",
+            "source_tag": "lf-options",
+            "conversation": None,
+        },
+        {
+            "id": "decision-decision",
+            "tag": "lf-ask",
+            "source": "decision-options",
+            "source_tag": "lf-options",
+            "conversation": None,
+        },
     ]
 
 
@@ -4872,7 +4909,13 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == [
-        {"id": "real-decision", "tag": "lf-ask", "conversation": None}
+        {
+            "id": "real-decision",
+            "tag": "lf-ask",
+            "source": "real",
+            "source_tag": "lf-options",
+            "conversation": None,
+        },
     ]
 
 
@@ -4895,7 +4938,13 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == [
-        {"id": "cargo", "tag": "lf-draft", "conversation": None}
+        {
+            "id": "cargo",
+            "tag": "lf-draft",
+            "source": "cargo",
+            "source_tag": "lf-draft",
+            "conversation": None,
+        },
     ]
 
     append_command(

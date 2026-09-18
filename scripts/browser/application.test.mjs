@@ -621,7 +621,7 @@ test("a pending reader reply hands an accepted question to the agent until it le
   const root = {
     kind: "comment",
     id: "question",
-    author: "claude",
+    author: "agent",
     text: "Which one?",
     ts: "now",
   };
@@ -678,7 +678,7 @@ test("a pending prose reply preserves a frozen structural Ask", () => {
   const root = {
     kind: "comment",
     id: "question",
-    author: "claude",
+    author: "agent",
     text: "Choose in the options below.",
     ts: "now",
   };
@@ -903,7 +903,7 @@ test("a pending frozen-widget answer updates its thread obligation immediately",
     kind: "reply",
     id: "choice-reply",
     parent: root.id,
-    author: "claude",
+    author: "agent",
     text: "Choose one.",
     ts: "now",
   };
@@ -950,7 +950,7 @@ test("a reaction root is not a spoken turn awaiting the reader", () => {
   const root = {
     kind: "comment",
     id: "reaction-root",
-    author: "claude",
+    author: "agent",
     token: "ack",
     parent: "passage",
     ts: "now",
@@ -1112,7 +1112,7 @@ test("a frozen Ask selects its completion verb from projected values", () => {
   const root = {
     kind: "comment",
     id: "batch-question",
-    author: "claude",
+    author: "agent",
     text: "Choose the batch.",
     ts: "now",
   };
@@ -1306,7 +1306,7 @@ test("a pending reply moves the Ask worklist in the same publication as its thre
   const root = {
     kind: "comment",
     id: "question",
-    author: "claude",
+    author: "agent",
     text: "Which one?",
     ts: "now",
   };

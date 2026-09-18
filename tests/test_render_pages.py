@@ -336,10 +336,10 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # An action-only log owes no thread: inventing one would misstate the history
         # whose decisions this same gate is meant to replay.
         if any(
-            event["kind"] == "reply" and event["author"] == "claude" for event in events
+            event["kind"] == "reply" and event["author"] == "agent" for event in events
         ):
             replied.append(example.stem)
-            expect(page.locator(".lf-thread .lf-msg.claude")).not_to_have_count(0)
+            expect(page.locator(".lf-thread .lf-msg.agent")).not_to_have_count(0)
 
         # The other thing a log carries. A widget can arrive as a message's markup
         # rather than as authored page content, and it draws in the body the panel
@@ -528,7 +528,7 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
             d,
             {
                 "kind": "comment",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "id": f"written{i}",
                 "anchor": anchor,
@@ -626,7 +626,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(toggle).to_have_text("Threads (1)")  # counted as open, like any other thread
     toggle.click()
     thread = page.locator(".lf-thread").first
-    expect(thread.locator(".lf-msg.claude .lf-msg-head b")).to_have_text("Codex")
+    expect(thread.locator(".lf-msg.agent .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
     thread.locator("textarea").fill("three is the retry budget, not a guess")
@@ -640,7 +640,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
     kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
-    assert ("comment", "claude") in kinds
+    assert ("comment", "agent") in kinds
     assert ("reply", "user") in kinds and ("resolve", "user") in kinds
 
 
@@ -704,7 +704,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
             d,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "agent": "Codex",
                 "parent": root["id"],
                 "text": "this one does",
@@ -719,7 +719,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)
 
-    expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_count(0)
+    expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
     expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
         "which host answers?"
     )
@@ -740,7 +740,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     told(page)
     expect(notice_el).to_have_text("Codex replied — open Threads")
     expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
-    expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_text("this one does")
+    expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 
 
 @pytest.mark.parametrize("draft", [False, True], ids=["empty", "draft"])
@@ -794,7 +794,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
             serve.page_dir,
             {
                 "kind": "comment",
-                "author": "claude",
+                "author": "agent",
                 "agent": "Codex",
                 "revision": 1,
                 "anchor": {"section": "proposal"},
@@ -875,7 +875,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     ) as fault:
         events_model.append_event(
             serve.page_dir,
-            {"kind": "resolve", "author": "claude", "parent": root["id"]},
+            {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)
@@ -932,7 +932,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     ) as fault:
         events_model.append_event(
             page_dir,
-            {"kind": "resolve", "author": "claude", "parent": root["id"]},
+            {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
 
     assert fault.value.text in page.lf_errors
@@ -2589,7 +2589,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         {
             "kind": "reply",
             "id": "r-fix",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-fix",
             "revision": 1,
             "text": "Like this:",
@@ -2647,7 +2647,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
         {
             "kind": "reply",
             "id": "r-stores",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-stores",
             "revision": 1,
             "text": "Side by side:",

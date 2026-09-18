@@ -1068,7 +1068,7 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
         claimed,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": comment["id"],
             "responds": comment["id"],
             "text": "answered",
@@ -3286,7 +3286,7 @@ def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(pag
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": comment["id"],
             "text": "Because the retry won.",
             "ts": work["ts"],
@@ -3367,7 +3367,7 @@ def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
     )
     events_model.append_event(
         page_dir,
-        {"kind": "resolve", "author": "claude", "parent": comment["id"]},
+        {"kind": "resolve", "author": "agent", "parent": comment["id"]},
     )
     events_model.append_event(
         page_dir,
@@ -3455,7 +3455,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "Indexer",
             "session": "worker-1",
             "widget": "t1",
@@ -3531,7 +3531,7 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
     )
     parent = root["id"]
     messages = [root]
-    for author, text in (("claude", "two"), ("user", "three")):
+    for author, text in (("agent", "two"), ("user", "three")):
         message = events_model.append_event(
             page_dir,
             {"kind": "reply", "author": author, "parent": parent, "text": text},
@@ -3556,7 +3556,7 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
         messages[0]["id"],
         messages[1]["id"],
     ]
-    assert [item["author"] for item in reading["content"]] == ["user", "claude"]
+    assert [item["author"] for item in reading["content"]] == ["user", "agent"]
     assert reading["content"][1]["parent"] == messages[0]["id"]
     assert reading["activity"]["obligations"][0]["response"] == {
         "kind": "reply",
@@ -3643,7 +3643,7 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which region?",
             "markup": '<lf-options id="region" choose>'
@@ -3699,7 +3699,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which regions?",
             "markup": '<lf-options id="regions" choose multiple>'
@@ -3765,7 +3765,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": opened["id"],
             "text": "the vendor has acknowledged it without naming a date",
         },
@@ -3798,7 +3798,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
     assert thread["resolved"] is None
     assert [(m["id"], m["author"]) for m in thread["messages"]] == [
         (opened["id"], "user"),
-        (answered["id"], "claude"),
+        (answered["id"], "agent"),
     ]
     assert "without naming a date" in thread["messages"][1]["text"]
 
@@ -3848,7 +3848,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "And which region first?",
             "markup": '<lf-options id="rg" choose>'
@@ -3860,7 +3860,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which mitigations should I carry into the patch?",
             "markup": '<lf-options id="gm" choose multiple>'
@@ -3946,7 +3946,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Here is the proposed answer.",
             "markup": '<lf-suggestion id="thread-answer" resolves="c-target">'
@@ -4022,7 +4022,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "How should I recover this branch?",
         },
@@ -4032,7 +4032,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     for index in range(11):
         message = {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": parent,
             "text": f"Recovery context {index}.",
         }
@@ -4079,7 +4079,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
         page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": requested["id"],
             "status": "succeeded",
             "text": "restarted",
@@ -4261,7 +4261,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 2,
             "revision": 2,
             "text": "rewrote the suggestion",
@@ -4335,7 +4335,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     # not the thing on the page any more. Leaving it alone is the other arm.
     note = {
         "kind": "note",
-        "author": "claude",
+        "author": "agent",
         "version": 2,
         "revision": 2,
         "text": "rewrote the first option" if rewritten else "tidied the prose",
@@ -4398,7 +4398,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
             page_dir,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "parent": parent,
                 "text": "x" * 532,  # the shipped ship-review example's reply length
                 "markup": markup.format(i=f"w{turn}"),
@@ -4447,7 +4447,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": root["id"],
             "text": "Which mitigations?",
             "markup": '<lf-options id="gm" choose multiple>'
@@ -4473,7 +4473,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             page_dir,
             {
                 "kind": "reply",
-                "author": "user" if turn % 2 else "claude",
+                "author": "user" if turn % 2 else "agent",
                 "parent": parent,
                 "text": f"turn {turn}",
             },
@@ -4502,7 +4502,7 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 1,
             "revision": 1,
             "text": "published",
@@ -4538,7 +4538,7 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "widget": "t1",
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
@@ -7440,7 +7440,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     )
     note = {
         "kind": "note",
-        "author": "claude",
+        "author": "agent",
         "version": 2,
         "revision": 2,
         "text": "rewrote the first option" if rewritten else "tidied the prose",
@@ -7566,7 +7566,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # it is the last word rather than any reading of the root that says so.
     ask = events_model.append_event(
         claimed,
-        {"kind": "comment", "author": "claude", "text": "which storage engine?"},
+        {"kind": "comment", "author": "agent", "text": "which storage engine?"},
     )
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -7605,7 +7605,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
         claimed,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "anchor": {"section": "choice"},
             "text": "Should the existing camera job include mounting?",
@@ -7628,14 +7628,14 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
     assert proposal["id"] in json.loads(capsys.readouterr().out)["reason"]
     events_model.append_event(
         claimed,
-        {"kind": "resolve", "author": "claude", "parent": older_question["id"]},
+        {"kind": "resolve", "author": "agent", "parent": older_question["id"]},
     )
 
     question = events_model.append_event(
         claimed,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "anchor": {"section": "choice"},
             "text": "Should the mounting cost be part of the option?",
@@ -8105,7 +8105,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         claimed,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "widget": "t1",
             "meaning": {
                 "document": {"kind": "page", "revision": 1},

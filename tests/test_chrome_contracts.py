@@ -388,7 +388,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()

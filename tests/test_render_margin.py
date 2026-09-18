@@ -3660,7 +3660,7 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "Two of them can share a visit; the third cannot.",
@@ -4673,7 +4673,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "Second thread joined while the first card was open.",
@@ -6115,7 +6115,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "A second reading arrived while the map was open.",
@@ -6153,7 +6153,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "A second reading arrived while the preview was pinned.",

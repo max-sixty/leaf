@@ -864,7 +864,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     )
     url = serve(html)
     stamp_page(serve.page_dir, html, "two")
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     resized(page, 1280, 900)
     # The complete real action set, wherever the fold has put each of them: what this is
@@ -1269,7 +1269,7 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
             "started": "2026-09-06T12:00:00+00:00",
         },
     )
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     expect(page.locator(".lf-preview")).to_have_count(1)
 
@@ -1532,7 +1532,7 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     resized(page, 390, 800)
 
@@ -1603,7 +1603,7 @@ def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     resized(page, 1440, 900)
     answer_all = page.locator(".lf-answer-all")
@@ -2896,7 +2896,7 @@ def test_a_panel_row_follows_its_pages_status_live(
             other_dir,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "parent": comment["id"],
                 "responds": comment["id"],
                 "revision": 1,
@@ -4069,7 +4069,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-diff",
             "revision": 1,
             "text": "The one line that decides it:",

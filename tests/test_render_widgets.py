@@ -7795,7 +7795,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-which",
             "revision": 1,
             "text": "The second, but the cost lands on you either way:",
@@ -7853,7 +7853,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-room",
             "revision": 1,
             "text": "These, and who is on them:",
@@ -7922,7 +7922,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-store",
             "revision": 1,
             "text": "Depends what you want to keep:",
@@ -8005,7 +8005,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "cd-thread",
             "revision": 1,
             "text": "It does, with the wider plate.",
@@ -8054,7 +8054,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
         {
             "kind": "comment",
             "id": "edited-agent-message",
-            "author": "claude",
+            "author": "agent",
             "agent": "Indexer",
             "session": "worker-1",
             "revision": 1,
@@ -8090,7 +8090,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
         d,
         {
             "kind": "edit",
-            "author": "claude",
+            "author": "agent",
             "agent": "Indexer",
             "session": "worker-1",
             "message": message["id"],
@@ -8156,7 +8156,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-sent",
             "revision": 1,
             "text": "Depends what you want to keep:",
@@ -9495,7 +9495,7 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-chart",
             "revision": 1,
             "text": "Like this:",

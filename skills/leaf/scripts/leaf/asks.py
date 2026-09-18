@@ -22,8 +22,8 @@ def local_ask_entry(entry: dict) -> bool:
 
 
 def asking(attrs: dict, when: dict) -> bool:
-    """The runtime's `asking`: every attribute `when` names holds one of the
-    values that ask, a flag's two values being its presence and its absence."""
+    """Every attribute `when` names holds one of the values that ask, a flag's
+    two values being its presence and its absence."""
     return all(
         any(
             (attr in attrs) == value
@@ -117,10 +117,10 @@ def seat_with_agent(
 ) -> bool:
     """Whether this widget's own conversation seat holds a thread now with the agent.
 
-    Declaration-driven at both ends, the runtime's `seatWithAgent`: a widget with no
-    x-conversation offers no seat, and one whose attributes miss the predicate has none
-    placed on this instance either — so an element anchor written onto some other widget
-    reaches nothing here. The seat's placement asks the same question of the same
+    Declaration-driven at both ends: a widget with no x-conversation offers no
+    seat, and one whose attributes miss the predicate has none placed on this
+    instance either — so an element anchor written onto some other widget reaches
+    nothing here. The seat's placement asks the same question of the same
     declaration, so the cell the reader can see and the request this takes off their
     list are one."""
     declaration = entry.get("x-conversation")
@@ -133,16 +133,17 @@ def seat_with_agent(
 
 
 def quoted_in(rec: dict, registry: dict) -> bool:
-    """The runtime's `quoted`: inside an element the registry marks x-exhibit,
-    a widget is a mention rather than a use, and asks nothing.
+    """Inside an element the registry marks x-exhibit, a widget is a mention
+    rather than a use, and asks nothing.
 
     The holder chain answers it, which is the walk `enclosing_slot` makes and the
-    one the runtime makes over the DOM. Asked of `spoken` instead, containment
-    became a question about the page's words: the reading that says what stands
-    around one widget walks every character of the version to do it, so an action
-    POST on a 90KB page spent forty milliseconds finding out what a single id sat
-    in. It reads a record rather than an id for the same reason the runtime takes
-    an element — an element the author left unnamed stands where it stands."""
+    one `quotedBy` makes over the DOM for a descriptor's own `quoted` flag. Asked of
+    `spoken` instead, containment became a question about the page's words: the
+    reading that says what stands around one widget walks every character of the
+    version to do it, so an action POST on a 90KB page spent forty milliseconds
+    finding out what a single id sat in. It reads a record rather than an id for the
+    same reason `quotedBy` takes an element — an element the author left unnamed
+    stands where it stands."""
     return any(
         (registry.get(node["tag"]) or {}).get("x-exhibit")
         for node in enclosing_widgets(rec)
@@ -348,10 +349,17 @@ class _AskReducer:
         return values[key]
 
     def _surfaces(self, records):
+        """Each visible ask as `(surface, source)`.
+
+        The surface is the reading and arrival region the reader is sent to; the
+        source is the widget that answers. They are the same record unless an
+        `x-ask-surface` holder encloses it. One surface stands for one ask, so a
+        later source inside a region already listed is dropped.
+        """
         visible = [
             record for record in records if not self._declaration(record).get("rollup")
         ]
-        surfaces = []
+        pairs = []
         seen = set()
         for record in visible:
             surface = record
@@ -363,8 +371,8 @@ class _AskReducer:
                 holder = self._holder(holder)
             if id(surface) not in seen:
                 seen.add(id(surface))
-                surfaces.append(surface)
-        return surfaces
+                pairs.append((surface, record))
+        return pairs
 
     def inventory(self, settled_away: set[str]) -> list:
         """Every active Ask, including ones the reader has answered.
@@ -396,14 +404,16 @@ class _AskReducer:
                 active.append(record)
         return self._items(self._surfaces(active))
 
-    def _items(self, surfaces):
+    def _items(self, pairs):
         return [
             {
-                "id": record["attrs"].get("id"),
-                "tag": record["tag"],
+                "id": surface["attrs"].get("id"),
+                "tag": surface["tag"],
+                "source": source["attrs"].get("id"),
+                "source_tag": source["tag"],
                 "thread": None,
             }
-            for record in surfaces
+            for surface, source in pairs
         ]
 
     def result(self, with_agent: set[str]) -> tuple[list, dict[str, bool]]:
@@ -423,45 +433,6 @@ class _AskReducer:
         )
 
 
-def page_ask_projection(
-    source,
-    projection,
-    byid,
-    spk,
-    registry: dict,
-    dropped: set,
-    *,
-    thread: bool = False,
-    request_phases: dict[str, str] | None = None,
-) -> tuple[list, dict[str, bool]]:
-    """The page's visible asks and exact awaiting value for every declared target.
-
-    An ordinary x-awaits instance is its local condition minus an explicit answer.
-    A roll-up projects the logical OR of its nearest local asks and child roll-ups
-    through a nested plan without originating one.
-
-    An x-request.ask instance is local exactly while its canonical lifecycle is ready.
-    Its pending and completed phases hand the turn away from the reader; failure
-    returns the lifecycle to ready and therefore reopens the ask.
-
-    No conversation seat answers anything here, so this is whether the ask is
-    answered at all — what an action's `requires` reads. Frozen thread markup seats
-    no conversation of its own either: the thread's reply box is already where the
-    reader answers, so only an action closes a request there.
-    `page_ask_readings` is where a reader's own seats come in.
-    """
-    return _AskReducer(
-        source,
-        projection,
-        byid,
-        spk,
-        registry,
-        dropped,
-        thread=thread,
-        request_phases=request_phases,
-    ).result(set())
-
-
 def page_awaiting_values(
     document,
     projection,
@@ -469,44 +440,33 @@ def page_awaiting_values(
     registry: dict,
     request_phases: dict[str, str] | None = None,
 ) -> dict:
-    """Each current page ask's declaration-driven awaiting value."""
+    """Each current page ask's declaration-driven awaiting value.
+
+    An ordinary x-awaits instance awaits its local condition minus an explicit
+    answer. A roll-up projects the logical OR of its nearest local asks and child
+    roll-ups through a nested plan without originating one.
+
+    An x-request.ask instance is local exactly while its canonical lifecycle is ready.
+    Its pending and completed phases hand the turn away from the reader; failure
+    returns the lifecycle to ready and therefore reopens the ask.
+
+    No conversation seat answers anything here, so this is whether the ask is
+    answered at all — what an action's `requires` reads. `page_ask_readings` is
+    where a reader's own seats come in.
+    """
     passages = page_passages(
         document, registry, retirement_outcomes(projection.actions, registry)
     )
-    return page_ask_projection(
+    return _AskReducer(
         document,
         projection,
         document.by_id,
         spk,
         registry,
         set(passages.retired) | set(passages.gone),
+        thread=False,
         request_phases=request_phases,
-    )[1]
-
-
-def page_ask_inventory(
-    source,
-    projection,
-    byid,
-    spk,
-    registry: dict,
-    dropped: set,
-    *,
-    thread: bool = False,
-    request_phases: dict[str, str] | None = None,
-    settled_away: set[str] | None = None,
-) -> list:
-    """Every active Ask surface, answered or not, for progress and review."""
-    return _AskReducer(
-        source,
-        projection,
-        byid,
-        spk,
-        registry,
-        dropped,
-        thread=thread,
-        request_phases=request_phases,
-    ).inventory(settled_away or set())
+    ).result(set())[1]
 
 
 def page_ask_readings(
@@ -573,15 +533,15 @@ def _thread_ask_records(
     return records, {rec["attrs"].get("id"): thread for thread, rec in records}
 
 
-def thread_ask_projection(
+def thread_ask_readings(
     events: list,
     registry: dict,
     settled: set,
     *,
     reading: FrozenThreadReading | None = None,
     request_phases: dict[str, str] | None = None,
-) -> tuple[list, dict]:
-    """Open Asks standing in thread markup, read from the log.
+) -> dict:
+    """Every ask reading of the open frozen thread markup, over one shared fold.
 
     A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
@@ -589,43 +549,20 @@ def thread_ask_projection(
     holds a matching action ask open until the reader has posted the verb it names,
     while a request ask follows its frozen-document request lifecycle.
 
+    Frozen thread markup seats no conversation of its own — the thread's reply box
+    is already where the reader answers — so the reader's list and the unanswered
+    list are one reading here. `page_ask_readings` is where the seats separate them.
+
     `settled` is the root ids of the closed threads, whose asks went with them —
     the question was the thread's, and the panel's own reading takes a closed
     thread's mark off the page for the same reason. Without it, a question the
     agent asked and then withdrew by resolving stays on the banner's count for
     the life of the page, and the walk that steps to it lands in a shut
-    disclosure."""
+    disclosure.
+    """
     thread_reading = reading or frozen_thread_reading(events, registry)
     records, thread_by_id = _thread_ask_records(events, settled, thread_reading)
-
-    asks, values = page_ask_projection(
-        [rec for _thread, rec in records],
-        thread_reading.projection,
-        thread_reading.by_id,
-        thread_reading.spoken,
-        registry,
-        dropped=set(),
-        thread=True,
-        request_phases=request_phases,
-    )
-    return (
-        [{**ask, "thread": thread_by_id[ask["id"]]} for ask in asks],
-        values,
-    )
-
-
-def thread_ask_inventory(
-    events: list,
-    registry: dict,
-    settled: set,
-    *,
-    reading: FrozenThreadReading | None = None,
-    request_phases: dict[str, str] | None = None,
-) -> list:
-    """Every active Ask in unresolved frozen thread markup."""
-    thread_reading = reading or frozen_thread_reading(events, registry)
-    records, thread_by_id = _thread_ask_records(events, settled, thread_reading)
-    asks = page_ask_inventory(
+    reducer = _AskReducer(
         [rec for _thread, rec in records],
         thread_reading.projection,
         thread_reading.by_id,
@@ -635,21 +572,15 @@ def thread_ask_inventory(
         thread=True,
         request_phases=request_phases,
     )
-    return [{**ask, "thread": thread_by_id[ask["id"]]} for ask in asks]
+    asks, awaiting = reducer.result(set())
 
+    def seated(items: list) -> list:
+        return [{**ask, "thread": thread_by_id[ask["source"]]} for ask in items]
 
-def thread_asks(
-    events: list,
-    registry: dict,
-    settled: set,
-    request_phases: dict[str, str] | None = None,
-    *,
-    reading: FrozenThreadReading | None = None,
-) -> list:
-    return thread_ask_projection(
-        events,
-        registry,
-        settled,
-        reading=reading,
-        request_phases=request_phases,
-    )[0]
+    return {
+        "all": seated(reducer.inventory(set())),
+        "reader": seated(asks),
+        "unanswered": seated(asks),
+        "awaiting": awaiting,
+        "unanswered_awaiting": awaiting,
+    }

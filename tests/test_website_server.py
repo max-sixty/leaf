@@ -2806,7 +2806,15 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "revision": revision,
             "through_seq": state["events"][-1]["seq"] if state["events"] else 0,
         }
-        assert "asks" not in view["browser"]["views"][str(revision)]["document"]
+        # The comparison base carries its own Ask reading, because the browser reads
+        # which Asks a revision holds rather than folding the declarations again.
+        assert set(view["browser"]["views"][str(revision)]["document"]["asks"]) == {
+            "all",
+            "reader",
+            "unanswered",
+            "awaiting",
+            "unanswered_awaiting",
+        }
 
         posted = {
             "kind": "comment",

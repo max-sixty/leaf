@@ -3854,6 +3854,78 @@ def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
     page.wait_for_url(re.compile(r"#s1$"))
 
 
+def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
+    """A map that blanked while the page moved would take the codes off the screen the
+    reader is reading them from, though every one of them still works: membership is
+    frozen for the length of the scroll either way, so nothing is gained by hiding it.
+    The chips ride with the things they name instead, in both maps, dropping out one by
+    one as their members leave the screen."""
+    links = "".join(
+        f'<p><a id="lk{i}" href="#top">Link number {i} on a dense page</a></p>'
+        for i in range(120)
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("dense links", f'<h1 id="top">Dense</h1>{links}')),
+    )
+    resized(page, 1280, 900)
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    # Longer than the session's settle, so the map has stood still and the reader has had
+    # the chance to read it. A map armed into a page already moving is a different case,
+    # covered by test_inflight_native_paging_hides_hints_until_the_scene_settles.
+    page.wait_for_timeout(200)
+
+    # A smooth scroll is the case that holds the session in motion: a programmatic step
+    # ends in its own frame, and Chrome sends `scrollend` for each one.
+    travel = page.evaluate(
+        """async () => {
+          const sel = '.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]';
+          // A chip whose target sits well inside the room, so neither reading is held
+          // against the banner at one end or the window's foot at the other.
+          const code = [...document.querySelectorAll(sel)]
+            .map(chip => chip.dataset.lfGoToTarget)
+            .find(id => {
+              const top = document.querySelector('#' + id).getBoundingClientRect().top;
+              return top > 300 && top < 500;
+            });
+          const chipTop = () => {
+            const chip = document.querySelector(
+              `.lf-go-to-hint[data-lf-go-to-target="${code}"]`);
+            return chip ? chip.getBoundingClientRect().top : null;
+          };
+          const targetTop = () =>
+            document.querySelector('#' + code).getBoundingClientRect().top;
+          const before = {chip: chipTop(), target: targetTop()};
+          const standing = [];
+          document.scrollingElement.scrollTo({top: 260, behavior: 'smooth'});
+          for (let frame = 0; frame < 8; frame++) {
+            // After the frame's own callbacks, not inside one: a reading taken from a
+            // callback registered a frame earlier is queued ahead of the runtime's
+            // repaint, and reads the chip where the last frame put it against a target
+            // already at this frame's offset — one frame's travel of pure measurement.
+            await new Promise(painted =>
+              requestAnimationFrame(() => setTimeout(painted, 0)));
+            if (frame >= 3)
+              standing.push({
+                chips: document.querySelectorAll(sel).length,
+                gap: chipTop() === null ? null : targetTop() - chipTop(),
+              });
+          }
+          return {before, standing};
+        }"""
+    )
+
+    assert travel["before"]["chip"] is not None, travel
+    blank = [seen for seen in travel["standing"] if not seen["chips"]]
+    assert not blank, f"the map blanked while the page was still moving: {travel}"
+    # The chip keeps the offset it had at rest, to the pixel, every frame of the way.
+    resting = travel["before"]["target"] - travel["before"]["chip"]
+    assert all(abs(seen["gap"] - resting) < 2 for seen in travel["standing"]), (
+        f"a chip came off the target it names while the page moved: {travel}"
+    )
+
+
 def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
     """The sequence's own legend remains clear while visible hints follow a scroll."""
     page = open_page(browser, serve(FOOTED_PAGE))

@@ -136,7 +136,6 @@ export function createMarginProjection({
   goToAsk,
   scrollToElement,
   scrollToThread,
-  landInConversation,
 }) {
   const KINDS = {
     action: { label: "Action", icon: "dot", priority: -1 },
@@ -2809,8 +2808,13 @@ export function createMarginProjection({
   // opened on demand. Threads remains the complete fallback for a detached or otherwise
   // unaddressable conversation. Callers choose only the landing within the conversation;
   // this function owns the surface choice so a mark, its accessibility note, and t/T
-  // cannot drift into different policies.
-  function openPageThread(id, { focus = "reply" } = {}) {
+  // cannot drift into different policies. The margin card always lands on the thread
+  // itself.
+  //
+  // A press on marked words passes `travel: false`: the words are already under the
+  // reader's hand, and centring them moves everything the reader was looking at. The
+  // card needs no trip, since placeThreadPreview keeps it inside the viewport.
+  function openPageThread(id, { focus = "reply", travel = true } = {}) {
     if (!panelIsOpen()) {
       const local = focusSurface(id, { focus });
       if (local) {
@@ -2818,33 +2822,18 @@ export function createMarginProjection({
         closePreview();
         if (optionsKey && expandedOptionsKey === optionsKey)
           setOptionsOpen(null, false);
-        scrollToThread(id);
+        if (travel) scrollToThread(id);
         return local;
       }
       const thread = openInlineThread(id, null, (positionedThread) => {
-        const destination =
-          focus === "thread"
-            ? positionedThread
-            : (positionedThread.querySelector("textarea:not([disabled])") ??
-              positionedThread);
-        if (destination === positionedThread) {
-          positionedThread.focus({ preventScroll: true });
-          positionedThread.scrollIntoView({
-            behavior: scrollBehavior(),
-            block: "nearest",
-          });
-          scrollToThread(id);
-        } else {
-          landInConversation(destination);
-        }
+        positionedThread.focus({ preventScroll: true });
+        positionedThread.scrollIntoView({
+          behavior: scrollBehavior(),
+          block: "nearest",
+        });
+        if (travel) scrollToThread(id);
       });
-      if (thread) {
-        const destination =
-          focus === "thread"
-            ? thread
-            : (thread.querySelector("textarea:not([disabled])") ?? thread);
-        return destination;
-      }
+      if (thread) return thread;
     }
     showThread(id, { focus });
     return null;

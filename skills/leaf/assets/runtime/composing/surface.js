@@ -1056,24 +1056,25 @@ export function createResponseSurface({
     // textarea and collapse the still-unsnapped Selection before mouseup can finish it.
     // Touch/pen and cancellation owe us no compatibility mouse event, so they keep this
     // direct route.
+    // Released on the next task either way, which keeps selectionchange in the
+    // in-progress branch until the compatibility mouseup has been and gone.
+    const releasePress = () =>
+      setTimeout(() => {
+        actionPress = false;
+      });
     if (
       primaryPointerPressed &&
       ev.type === "pointerup" &&
       ev.pointerType === "mouse"
     ) {
-      // Keep selectionchange in the in-progress branch until compatibility mouseup.
-      setTimeout(() => {
-        actionPress = false;
-      });
+      releasePress();
       return;
     }
     if (primaryPointerPressed) scheduleSelectionUpdate();
     primaryPointerPressed = false;
     pointerSelecting = false;
     selectionGestureClaimed = false;
-    setTimeout(() => {
-      actionPress = false;
-    });
+    releasePress();
   };
 
   // Touch handles and browser selection commands do not owe the page a mouseup or keyup.
@@ -1303,6 +1304,7 @@ export function createResponseSurface({
       if (threadId)
         return openPageThread(threadId, {
           focus: panel.classList.contains("open") ? "reply" : "thread",
+          travel: false,
         });
     });
     wireFabInput();

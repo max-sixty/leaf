@@ -146,7 +146,11 @@ one transaction-consistent browser view. JavaScript combines that view with
 authored initial values and unresolved local gestures to derive complete widget
 and conversation state. Every forward gesture whose semantic result the page can draw is on
 screen in the turn that sends it, before the log answers; a disabled control, spinner,
-or other delivery status is not that result. Refusal restores the authoritative state.
+or other delivery status is not that result. What the page can draw is what its own
+document settles: a widget's state, a thread's turn. Which Asks the document still holds
+and which of them the reader owes are settled by the whole log, so that reading moves
+when the state a gesture's own POST returns is adopted, and the browser never folds a
+second answer to it. Refusal restores the authoritative state.
 Widgets render that state, including unset and undecided values; undo
 does not reconstruct widgets or replay baseline actions into the DOM. Page-widget
 state is bounded by document version; widgets frozen into thread markup use the

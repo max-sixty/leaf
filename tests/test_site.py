@@ -1979,7 +1979,7 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
     try:
         page.locator(".lf-threads-toggle").click()  # the box lives in the panel
         page.locator(".lf-general textarea").fill("Where does this go?")
-        page.locator(".lf-general .lf-btn.primary").click()
+        page.locator(".lf-general .lf-compose-submit").click()
         # One, and typed: this example ships no log, so the count is the comment
         # just written and nothing else.
         expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")

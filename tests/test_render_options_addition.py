@@ -13,6 +13,7 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     button_radius,
+    token_colour,
 )
 from render_harness import (
     EXAMPLE_MEDIA,
@@ -121,7 +122,9 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
           const fill = getComputedStyle(el, '::before');
           return {
             button: button.backgroundColor,
+            glyph: button.color,
             fill: fill.backgroundColor,
+            fillWidth: fill.width,
             radius: fill.borderRadius,
           };
         }"""
@@ -134,6 +137,12 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert face["fill"] != face["button"]
     assert face["radius"] == button_radius(page)
     assert face["radius"] != circle_radius
+    # The mark stands on the disc, so it reads against the disc rather than against the
+    # ink every injected control inherits from the chrome. The two rules that say so sit
+    # in different sheets, and the chrome's cascades last, so this is a specificity
+    # contest the disc has to win: losing it drew the mark near black on the accent.
+    assert face["fill"] == token_colour(page, "--accent")
+    assert face["glyph"] == token_colour(page, "--paper")
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 
@@ -143,6 +152,68 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert form_box["height"] >= 44
     assert add_box["y"] >= form_box["y"]
     assert add_box["y"] + add_box["height"] <= form_box["y"] + form_box["height"]
+    # A coarse pointer widens what the reader may hit, not what the page draws: the press
+    # keeps painting nothing of its own, so the disc stays the size it was rather than
+    # becoming a square as wide as its target.
+    coarse = add.evaluate(
+        """el => ({
+             button: getComputedStyle(el).backgroundColor,
+             fillWidth: getComputedStyle(el, '::before').width,
+           })"""
+    )
+    assert add_box["width"] >= 44
+    assert coarse["button"] == "rgba(0, 0, 0, 0)"
+    assert coarse["fillWidth"] == face["fillWidth"]
+
+
+def test_the_draft_send_press_holds_the_row_s_inline_end(browser, serve):
+    """Both presentations of the group end the draft row where every text box ends.
+
+    A binding badge is off screen until a reader asks for bindings, so a layout that
+    gives it the row's edge and seats the press inside it reads, for almost the whole of
+    a page's life, as a send button that missed the corner. The badge waits inside the
+    press instead, in room the draft's own trailing padding already holds, so asking for
+    bindings still moves nothing.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    # The second Ask carries the card presentation, which is where the row's trailing
+    # room is contested: its options wear their binding badges at the corner, so the
+    # draft's badge is the one that had the edge.
+    page.keyboard.press("a")
+    page.keyboard.press("a")
+    expect(page.locator("#bracket > .lf-another > .lf-key-badge")).to_be_visible()
+    shown = page.locator("#bracket > .lf-another").evaluate(
+        """el => {
+             const press = el.querySelector('.lf-compose-submit').getBoundingClientRect();
+             const mark = el.querySelector('.lf-key-badge').getBoundingClientRect();
+             return {inside: press.left - mark.right, right: press.right};
+           }"""
+    )
+    assert shown["inside"] > 0, shown
+
+    page.keyboard.press("Escape")
+    gaps = {}
+    for group in ("#jobs", "#bracket"):
+        row = page.locator(f"{group} > .lf-another")
+        row.locator("textarea").fill("Something the author missed")
+        expect(row.locator(".lf-compose-submit")).to_be_visible()
+        gaps[group] = row.evaluate(
+            """el => {
+                 const style = getComputedStyle(el);
+                 const inner = el.getBoundingClientRect().right
+                   - parseFloat(style.borderRightWidth);
+                 const press = el.querySelector('.lf-compose-submit');
+                 return {
+                   end: inner - press.getBoundingClientRect().right,
+                   right: press.getBoundingClientRect().right,
+                 };
+               }"""
+        )
+    assert abs(gaps["#jobs"]["end"] - gaps["#bracket"]["end"]) < 0.5, gaps
+    assert 0 <= gaps["#bracket"]["end"] < 8, gaps
+    # Writing in the row and putting the bindings away leave the press where the badge
+    # found it: the room is held whether or not anything is standing in it.
+    assert abs(gaps["#bracket"]["right"] - shown["right"]) < 0.5, (gaps, shown)
 
 
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(

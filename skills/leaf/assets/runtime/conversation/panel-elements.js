@@ -32,7 +32,7 @@ threadsFrame.append(threadsBox);
 export const generalRow = el("div", "lf-general");
 export const generalInput = document.createElement("textarea");
 generalInput.name = "comment";
-export const generalSend = el("button", "lf-btn primary", "Send");
+export const generalSend = el("button", "lf-btn", "Send");
 generalRow.append(generalInput, generalSend);
 export const panelFoot = el("div", "lf-thread-panel-foot");
 panelFoot.append(generalRow);

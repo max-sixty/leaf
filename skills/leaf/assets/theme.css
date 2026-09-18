@@ -2065,7 +2065,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-close-action:hover { background: var(--chip); color: var(--ink); }
 .lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
           inset-block-end: 6px; border: 0;
-          background: transparent; color: var(--paper); filter: none; }
+          background: transparent; filter: none; }
+/* The glyph stands on the disc below, so it takes the disc's colour and not the chrome's
+   ink. `.lf-ui` states that ink for every injected control and rides the adopted sheet,
+   which cascades after this one, so the disc's own colour has to outrank it on
+   specificity, as `.lf-btn.primary` above does for a filled press. Both names here are
+   ones `wireInput` writes on the button itself, so the pair holds wherever a Leaf text
+   box dresses its send press, and nothing about the caller has to be true for it. */
+.lf-icon-action.lf-compose-submit { color: var(--paper); }
 .lf-compose-submit::before { content: ""; position: absolute; box-sizing: border-box;
           width: 28px; height: 28px; border-radius: var(--r); background: var(--accent); }
 .lf-compose-submit:hover { background: transparent; filter: none; }

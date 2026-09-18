@@ -3900,7 +3900,12 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
           const standing = [];
           document.scrollingElement.scrollTo({top: 260, behavior: 'smooth'});
           for (let frame = 0; frame < 8; frame++) {
-            await new Promise(paint => requestAnimationFrame(paint));
+            // After the frame's own callbacks, not inside one: a reading taken from a
+            // callback registered a frame earlier is queued ahead of the runtime's
+            // repaint, and reads the chip where the last frame put it against a target
+            // already at this frame's offset — one frame's travel of pure measurement.
+            await new Promise(painted =>
+              requestAnimationFrame(() => setTimeout(painted, 0)));
             if (frame >= 3)
               standing.push({
                 chips: document.querySelectorAll(sel).length,
@@ -3914,11 +3919,9 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     assert travel["before"]["chip"] is not None, travel
     blank = [seen for seen in travel["standing"] if not seen["chips"]]
     assert not blank, f"the map blanked while the page was still moving: {travel}"
-    # Each chip is seated from a reading taken in the frame that paints it, so it trails
-    # its target by about the distance the page travels in one frame. It stays on the
-    # thing it names; it does not keep station on it to the pixel.
+    # The chip keeps the offset it had at rest, to the pixel, every frame of the way.
     resting = travel["before"]["target"] - travel["before"]["chip"]
-    assert all(abs(seen["gap"] - resting) < 40 for seen in travel["standing"]), (
+    assert all(abs(seen["gap"] - resting) < 2 for seen in travel["standing"]), (
         f"a chip came off the target it names while the page moved: {travel}"
     )
 

@@ -248,8 +248,9 @@ into the current document;
 `runtime/visual-parts.js` owns the package-declared semantic parts of a rendered
 visual;
 `runtime/chrome-layout.js` owns chrome geometry, the document room left after the panel
-and trays, the final-layout column motion between auxiliary chrome states, and page repaint
-caused by shell motion or reflow;
+and trays, the final-layout column motion between auxiliary chrome states, page repaint
+caused by shell motion or reflow, and the reading place carried across that reflow, which
+the browser's scroll anchoring cannot hold in the frame the shell's margin changes;
 `runtime/thread-panel.js` owns panel visibility and workspace transitions;
 `runtime/auxiliary-chrome.js` captures and restores the reader's workspace for navigation;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and

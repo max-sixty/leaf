@@ -3660,7 +3660,7 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "Two of them can share a visit; the third cannot.",
@@ -4673,7 +4673,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "Second thread joined while the first card was open.",
@@ -6115,7 +6115,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "A second reading arrived while the map was open.",
@@ -6153,7 +6153,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "A second reading arrived while the preview was pinned.",
@@ -6284,68 +6284,78 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
 
 
 def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serve):
-    """The margin's rows ride the shell carry and are laid out once more at rest.
+    """The margin's rows land with the column, in the gesture that moves it.
 
-    Closing Threads carries the reading column back across the window. The body's
-    width change laid the margin rows out on the carry's first frame, against a
-    column a few pixels into its move, and nothing asked again once it had arrived:
-    a resize observer hears a box change size, not place. So two thread margin entries
-    stood over the prose the column had moved under them, until the next poll or
-    pointer move — a screenshot a blind drive took, and the kind of frame the
-    movement tests do not compare because no control was pressed.
+    Closing Threads moves the reading column back across the window, and a thread on
+    plain prose stands in the toolbar host, which is placed off the column's box — so a
+    row placed against the column where it was stands over the prose the column moved
+    under it. A resize observer cannot catch that: it hears a box change size, not place.
 
-    On the shipped page it happened on: a thread on plain prose stands in the
-    toolbar host, which is placed off the column's box, where a contributed
-    cluster is hoisted into the column and rides it for free."""
+    The column arrives in the same layout pass as the state change now, and the margin is
+    placed against it before the gesture returns (`moveContentFrame`). So the read is taken
+    in the very task that closes the panel, with no frame between: a repaint deferred to
+    the next frame, which is how this used to be done while the column was still gliding,
+    would leave the row at its open-panel place here. Every route that closes the panel
+    is walked, because each is its own caller."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "log-retention"))
     )
     resized(page, 1440, 900)
     margins_laid_out(page)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first
-    rest = marker.bounding_box()["x"]
-    # Every margin layout the page makes, timestamped, and the carry's end from the
-    # animation itself: the fact to consume is a layout after the column came to
-    # rest, not a number of frames.
-    page.evaluate(
-        """() => {
-          window.__lfLayouts = [];
-          document.addEventListener('lf-margin-layout',
-            () => window.__lfLayouts.push(performance.now()));
-        }"""
-    )
-    for close in ("Close threads", "toggle", "Escape"):
+    marker = '.lf-margin-marker[data-lf-kinds="comment"]'
+    rest = page.locator(marker).first.bounding_box()["x"]
+    # Close, then read the row's place in the same task, before any frame can run.
+    close_and_read = {
+        "toggle": "document.querySelector('.lf-threads-toggle').click()",
+        "Close threads": (
+            "[...document.querySelectorAll('.lf-thread-panel button')]"
+            ".find(b => b.getAttribute('aria-label') === 'Close threads').click()"
+        ),
+    }
+    for route, close in close_and_read.items():
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        if close == "toggle":
-            page.locator(".lf-threads-toggle").click()
-        elif close == "Escape":
-            page.locator(".lf-threads").focus()
-            page.keyboard.press("Escape")
-        else:
-            page.get_by_role("button", name=close, exact=True).click()
-        # The carry runs to its own end rather than being finished for it: the stale
-        # placement is the one the body's resize laid out two frames into the move,
-        # and finishing the carry before that frame would settle the column first
-        # and read a page the reader never sees.
-        page.evaluate(
-            """() => {
-              window.__lfCarryEnd = null;
-              const carries = document.querySelector('body > main').getAnimations();
-              if (!carries.length) { window.__lfCarryEnd = performance.now(); return; }
-              Promise.all(carries.map(carry => carry.finished)).then(
-                () => { window.__lfCarryEnd = performance.now(); });
-            }"""
+        opened = page.locator(marker).first.bounding_box()["x"]
+        assert opened != pytest.approx(rest, abs=1), (
+            "opening the panel did not move the row, so closing it cannot show whether the"
+            f" row follows the column: {opened} against {rest}"
         )
-        page.wait_for_function(
-            "() => !document.querySelector('.lf-thread-panel').classList.contains('open')"
+        landed = page.evaluate(
+            f"""(sel) => {{
+              {close};
+              return document.querySelector(sel).getBoundingClientRect().x;
+            }}""",
+            marker,
         )
-        page.wait_for_function(
-            "() => window.__lfCarryEnd !== null"
-            " && window.__lfLayouts.some(t => t >= window.__lfCarryEnd)",
-            timeout=5000,
-        )
-        landed = marker.bounding_box()["x"]
         assert landed == pytest.approx(rest, abs=1), (
-            f"after {close}: the thread margin entry stands at {landed}, the column's rest is {rest}"
+            f"after {route}: in the closing task the thread margin entry stands at "
+            f"{landed}, but the column's rest is {rest}"
         )
+    # Escape reaches the panel through the keyboard dispatcher rather than a click, so it
+    # is the one route walked with a real key, and the one that would catch a keyboard
+    # caller closing the panel without going through `moveContentFrame`.
+    #
+    # Pressing and then reading is two round trips with a frame free between them, which
+    # is enough for a deferred repaint to land and the read to pass whatever the runtime
+    # does. So the read rides the press: the dispatcher's own listener is a plain document
+    # keydown registered at boot that never stops propagation, so one added afterwards
+    # runs after it and inside the same task.
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate(
+        """(sel) => {
+          document.addEventListener("keydown", () => {
+            window.__lfEscapeLanded =
+              document.querySelector(sel).getBoundingClientRect().x;
+          }, { once: true });
+        }""",
+        marker,
+    )
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("Escape")
+    landed = page.evaluate("() => window.__lfEscapeLanded")
+    assert landed is not None, "the read never rode the press"
+    assert landed == pytest.approx(rest, abs=1), (
+        f"after Escape: in the closing task the thread margin entry stands at {landed}, "
+        f"but the column's rest is {rest}"
+    )

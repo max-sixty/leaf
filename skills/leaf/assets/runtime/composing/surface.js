@@ -59,7 +59,7 @@ import {
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
-import { shownBox, shownParts, shownRect } from "../geometry.js";
+import { shellRight, shownBox, shownParts, shownRect } from "../geometry.js";
 import {
   targetElement,
   targetParts,
@@ -170,7 +170,7 @@ export function createResponseSurface({
     (bounds?.right ??
       (panelCovers()
         ? innerWidth - panel.offsetWidth
-        : Math.min(innerWidth, document.body.getBoundingClientRect().right))) - 8;
+        : Math.min(innerWidth, shellRight()))) - 8;
   // The response surface lives in the viewport plane and Floating UI follows the passage
   // through every scroll ancestor. Every caller therefore reasons in the same coordinates:
   // rects, the pointer, and the banner's own band. The fixed floor covers the ordinary

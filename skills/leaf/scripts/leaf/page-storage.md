@@ -178,7 +178,12 @@ A page directory holds:
                          remains when the command returns
     claims/              outside the page, one atomic record per resolved page:
                          its last claimant, release time, and the lifetime it
-                         rests on.
+                         rests on. `id` is the session, `agent` the display name
+                         it chose, and `harness` which agent host took the page.
+                         A later reader rebuilds that harness's declaration from
+                         the name and asks it how input reaches the session,
+                         rather than re-deriving one from its own environment,
+                         which need not be the claimant's.
                          Keeping provenance outside the disposable page lets
                          ownership discovery survive a page moving between sessions
 

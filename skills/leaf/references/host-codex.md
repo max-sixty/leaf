@@ -58,7 +58,8 @@ Leaf resumes the current task as a second client. Plan updates, tool starts,
 reasoning summaries, and waits for approval or user input are watched as the task's
 current step. The page's sentence stays the one you declare with `leaf status`, and the
 step stands beside it in the banner's disclosure; where you have declared nothing for
-this work, the step is the sentence. If the task is idle, Leaf starts one turn with the
+this work, the step is the sentence. New reader input reaches you only once the current
+turn ends, because a delivery starts a turn of its own. If the task is idle, Leaf starts one turn with the
 complete delivery as a structured `leaf_delivery` tool output. If the task is
 already active, Leaf retains the immutable delivery in its own durable queue, observes
 the current turn, and starts the delivery directly as soon as the task is idle. It does

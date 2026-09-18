@@ -41,7 +41,7 @@ function presented() {
 function neutralChrome() {
   commands.detachComposer();
   commands.closePreview();
-  commands.setPanel(false, { remember: false })?.finish();
+  commands.setPanel(false, { remember: false });
   if (commands.currentTray()) commands.setOpenTray(null, { remember: false });
 }
 
@@ -82,6 +82,6 @@ window.leafInteractionGalleryFrame = {
     return commands.panelIsOpen();
   },
   setThreads(open) {
-    return commands.setPanel(open, { remember: false });
+    commands.setPanel(open, { remember: false });
   },
 };

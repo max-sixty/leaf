@@ -349,7 +349,6 @@ def _write_page_state(
             "cursor",
             "pending",
             "agent",
-            "host",
             "session_alive",
             "claim_session",
             "claim_turn",

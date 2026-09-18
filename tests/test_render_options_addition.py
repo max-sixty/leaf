@@ -228,7 +228,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "anchor": {"section": "storage-options"},
             "text": "Archive them locally or remotely?",
@@ -470,7 +470,7 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
         d,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Indexer",
             "revision": 1,
             "anchor": {"section": "jobs"},

@@ -74,6 +74,7 @@ from render_harness import (
     RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
+    SHELL_BOX,
     _traffic,
     _until,
     consume_browser_errors,
@@ -477,19 +478,21 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
 
 
 @pytest.mark.parametrize("resident", ["sidebar", "sidenote"])
-def test_an_auxiliary_surface_lands_one_responsive_layout_and_carries_the_column_to_it(
-    browser, serve, resident
-):
-    """Opening Threads never makes the page visit intermediate responsive postures.
+def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, resident):
+    """Opening Threads never makes the page visit an intermediate responsive posture.
 
-    The two cases supply a left sidebar and a right sidenote. Opening the panel at
-    1440px withdraws either real margin resident, making the column move in opposite
-    directions across the two cases. Animating the shell's width crossed that breakpoint
-    in mid-flight, which made the column jump or reverse.
+    The two cases supply a left sidebar and a right sidenote. Opening the panel at 1440px
+    withdraws either real margin resident, and the column moves in opposite directions
+    across the two cases, so a shell that arrived in stages would be caught going the
+    wrong way in one of them.
 
-    Hold the runtime motion and seek it deterministically. The shell should already
-    have its final width and responsive state at the opening frame, while the column
-    starts where the reader left it and travels monotonically to its final position.
+    It cannot arrive in stages any more, and that is the assertion. The shell used to
+    reach its final width at once and then glide the column there over 180ms, which is
+    where the intermediate postures came from and what this test grew up watching; the
+    glide is gone, because animating the column's `left` suppressed the browser's scroll
+    anchoring and cost the reader their place every time the panel closed. So the page
+    has exactly one layout, held motion has nothing to hold, and the column is already
+    where it belongs on the frame the panel opens.
     """
     source = leaf_page(
         "Responsive resident",
@@ -499,58 +502,45 @@ def test_an_auxiliary_surface_lands_one_responsive_layout_and_carries_the_column
     width = 1440
     resized(page, width, 900)
     initial = page.evaluate(
-        """() => {
-          const main = document.querySelector('main');
-          return {
-            x: main.getBoundingClientRect().x,
-            resident: getComputedStyle(document.querySelector('aside')).float,
-          };
-        }"""
+        """() => ({
+          resident: getComputedStyle(document.querySelector('aside')).float,
+        })"""
     )
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    assert page.evaluate("() => window.__lfHeld.length") == 1, (
-        "opening the auxiliary surface did not produce one controllable column motion"
-    )
-    final_layout = page.evaluate(
+    landed = page.evaluate(
         """() => {
           const main = document.querySelector('main');
+          const body = document.body;
+          const border = getComputedStyle(body);
           return {
-            shell: document.body.getBoundingClientRect().width,
+            shell: body.clientWidth,
+            moving: main.getAnimations().length + window.__lfHeld.length,
+            columnX: main.getBoundingClientRect().x,
+            strip: parseFloat(border.borderRightWidth) || 0,
             resident: getComputedStyle(document.querySelector('aside')).float,
           };
         }"""
     )
-    assert final_layout["shell"] == width - 420
-    assert initial["resident"] != final_layout["resident"], (
+    assert landed["shell"] == width - 420
+    assert landed["strip"] == 420, (
+        "the page yielded the strip as something other than the border that keeps the "
+        f"reader's place: {landed}"
+    )
+    assert initial["resident"] != landed["resident"], (
         "the fixture crossed no responsive posture, so it cannot expose the regression"
     )
-
-    positions = page.evaluate(
-        """() => {
-          const motion = window.__lfHeld[0];
-          const duration = motion.effect.getComputedTiming().duration;
-          return [0, .25, .5, .75, 1].map(part => {
-            motion.currentTime = duration * part;
-            return document.querySelector('main').getBoundingClientRect().x;
-          });
-        }"""
+    assert landed["moving"] == 0, (
+        "the column is travelling to its position rather than starting there, which is "
+        "the intermediate posture this case exists to refuse"
     )
-    assert positions[0] == pytest.approx(initial["x"], abs=1)
-    if positions[-1] < positions[0]:
-        assert positions == sorted(positions, reverse=True), positions
-    else:
-        assert positions == sorted(positions), positions
-    assert all(
-        min(positions[0], positions[-1]) <= position <= max(positions[0], positions[-1])
-        for position in positions
-    ), f"the reading column overshot its two settled positions: {positions}"
 
-    page.evaluate("() => window.__lfHeld[0].finish()")
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
+    # And it is where the settled page puts it, with nothing left to finish.
+    settled = page.evaluate(
+        "() => document.querySelector('main').getBoundingClientRect().x"
     )
+    assert settled == pytest.approx(landed["columnX"], abs=1)
 
 
 def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve):
@@ -864,7 +854,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     )
     url = serve(html)
     stamp_page(serve.page_dir, html, "two")
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     resized(page, 1280, 900)
     # The complete real action set, wherever the fold has put each of them: what this is
@@ -936,7 +926,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         assert read["down"]["shown"] == pytest.approx(read["lineHeight"], abs=1), read
         assert read["down"]["shown"] == read["down"]["needed"], read
         assert read["ellipsis"] == "ellipsis", read
-        assert read["text"] == f"Claude working — {detail}", read
+        assert read["text"] == f"Agent working — {detail}", read
         assert detail.strip() in read["title"], read
         assert read["actions"]["shown"] >= read["actions"]["needed"], read
         expect(door).to_have_attribute("aria-describedby", "lf-status-detail")
@@ -1269,7 +1259,7 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
             "started": "2026-09-06T12:00:00+00:00",
         },
     )
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     expect(page.locator(".lf-preview")).to_have_count(1)
 
@@ -1532,7 +1522,7 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     resized(page, 390, 800)
 
@@ -1603,7 +1593,7 @@ def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     resized(page, 1440, 900)
     answer_all = page.locator(".lf-answer-all")
@@ -2904,7 +2894,7 @@ def test_a_panel_row_follows_its_pages_status_live(
             other_dir,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "parent": comment["id"],
                 "responds": comment["id"],
                 "revision": 1,
@@ -3496,7 +3486,6 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     page = open_page(browser, serve(LONG_PAGE, comments=12))
     resized(page, 1000, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 240")
-    document_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -3550,12 +3539,19 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(open_filter).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
+    # What a covered document must not do is move under these gestures, so each one is
+    # read against the position the document was in when the gesture started. Comparing
+    # against a reading taken before the panel opened would assert something else: that
+    # nothing ever moves the scroller. Crossing the beside line does move it — the strip
+    # reflows the page, and the browser's scroll anchoring adjusts the scroller to keep
+    # the reader on their words — so a raw offset is the wrong thing to hold equal.
     threads.evaluate("el => el.scrollTop = 0")
     page.locator(".lf-threads").focus()
+    covered_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
     page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
     after_key = threads.evaluate("el => el.scrollTop")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == covered_at
 
     page.keyboard.press("PageDown")
     page.wait_for_function(
@@ -3580,7 +3576,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
         " return performance.now() - window.__lfAuxiliaryScrollSince > hold; }",
         arg=50,
     )
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == covered_at
 
     # Focus already inside the auxiliary surface is not a reason to move it at either crossing.
     thread = page.locator(f'.lf-thread[data-id="{identity}"]')
@@ -3598,11 +3594,66 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
+    # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
+    # it was and the reading place needs no carry across the close.
+    closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert not page.locator("main").evaluate("el => el.inert")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == closing_at
+
+
+def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, serve):
+    """The panel's strip reflows the page; the reader stays on the words they were on.
+
+    Narrowing the shell narrows the reading column inside it, so the text re-wraps and
+    the document grows above wherever the reader is standing. The browser's scroll
+    anchoring absorbs that, and nothing in the runtime does: this passes with no script
+    holding the reader's place. That is what makes it the guard. Anchoring is suppressed
+    for any frame in which a box on the anchor's ancestor chain changes a property on the
+    suppression list — `margin`, `padding`, `width`, an inset, a transform — so the strip
+    is a border and the column does not glide (theme.css, at the body strip). The day
+    either regresses, this goes red.
+
+    A re-wrap moves every paragraph by a different amount, so only one of them can be
+    held. The one the reader's place means is the block under the top of the window,
+    which is the block the platform's own anchoring would have chosen; what is further
+    down has grown taller and is expected to have moved.
+    """
+    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    resized(page, 1000, 640)
+    page.evaluate("() => document.scrollingElement.scrollTop = 900")
+    # The reader's place: the page's own block under the window's visible top edge, which
+    # the root states as scroll-padding for native focus navigation.
+    at_the_top = """
+    () => {
+      const edge = Number.parseFloat(
+        getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0;
+      const p = [...document.querySelectorAll('main p')]
+        .find((p) => p.getBoundingClientRect().bottom > edge);
+      return p && { id: p.id, top: p.getBoundingClientRect().top };
+    }
+    """
+    reading = page.evaluate(at_the_top)
+    assert reading, "the fixture put no paragraph under the top of the window"
+    tall = page.evaluate("() => document.documentElement.scrollHeight")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate("() => document.documentElement.scrollHeight") > tall, (
+        "the window is wide enough that the strip reflowed nothing, so nothing is proved"
+    )
+    opened = page.evaluate(at_the_top)
+    assert opened["id"] == reading["id"]
+    assert opened["top"] == pytest.approx(reading["top"], abs=2)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    assert page.evaluate("() => document.documentElement.scrollHeight") == tall
+    closed = page.evaluate(at_the_top)
+    assert closed["id"] == reading["id"]
+    assert closed["top"] == pytest.approx(reading["top"], abs=2)
 
 
 def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
@@ -4077,7 +4128,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-diff",
             "revision": 1,
             "text": "The one line that decides it:",
@@ -4211,21 +4262,30 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     """The browser root scrolls the document and the panel keeps its own scrollport.
 
     Body is the yielding page shell rather than a third scroll region: beside a wide
-    panel its right edge ends where the panel begins, while native document scrolling
-    remains rooted in html."""
+    panel the room it gives the document ends where the panel begins, while native
+    document scrolling remains rooted in html.
+
+    That room is body's content box. The strip is a transparent border (theme.css, at the
+    body strip, says why it has to be one rather than the margin it was), so the box body
+    draws now reaches the window and the border is the strip the panel stands in."""
     page = open_page(browser, serve(LONG_PAGE, comments=12))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    geom = page.evaluate("""() => {
+    geom = page.evaluate(
+        """() => {
         const box = el => el.getBoundingClientRect();
         const body = document.body, threads = document.querySelector('.lf-threads');
         return { rootIsScroller: document.scrollingElement === document.documentElement,
                  rootScrolls: document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight,
                  bodyOverflow: getComputedStyle(body).overflowY,
                  threadsScroll: threads.scrollHeight > threads.clientHeight,
-                 bodyRight: box(body).right, threadsLeft: box(threads).left };
-    }""")
+                 bodyRight: """
+        + SHELL_BOX
+        + """.right,
+                 threadsLeft: box(threads).left };
+    }"""
+    )
 
     assert geom["rootIsScroller"] and geom["rootScrolls"]
     assert geom["bodyOverflow"] == "visible", geom
@@ -4314,11 +4374,11 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     panel_settled(page)
     resized(page, 1000, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.scrollingElement).overflowY !== 'hidden' && getComputedStyle(document.body).marginRight !== '0px'"
+        "() => getComputedStyle(document.scrollingElement).overflowY !== 'hidden' && getComputedStyle(document.body).borderRightWidth !== '0px'"
     )
     resized(page, 500, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden' && getComputedStyle(document.body).marginRight === '0px'"
+        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden' && getComputedStyle(document.body).borderRightWidth === '0px'"
     )
 
 

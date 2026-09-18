@@ -373,12 +373,16 @@ def browser(_browser):
     teardown makes health and lifetime fixture guarantees instead of conventions
     repeated at the end of each journey. Closing may itself cancel outstanding requests,
     so it happens after the health reading.
+
+    Handed over wrapped, because the health half of that guarantee has to be installed
+    on each page before it navigates: a test that makes its own page gets one already
+    reporting to the collector this reads (`render_harness.WatchedBrowser`).
     """
-    from render_harness import clean_browser
+    from render_harness import WatchedBrowser, clean_browser
 
     try:
         with clean_browser():
-            yield _browser
+            yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
             context.close()
@@ -389,13 +393,13 @@ def iphone(_playwright):
     """A WebKit context shaped like an iPhone: its viewport, pixel ratio, touch, and
     user agent. WebKit is the engine iPhone browsers run on, so this is what a phone
     reader meets whichever browser they open the page in. Browser problems are rejected
-    as in `browser`."""
-    from render_harness import clean_browser
+    as in `browser`, and its pages arrive readable for the same reason."""
+    from render_harness import WatchedContext, clean_browser
 
     webkit = _playwright.webkit.launch()
     try:
         with clean_browser():
-            yield webkit.new_context(**_playwright.devices["iPhone 15"])
+            yield WatchedContext(webkit.new_context(**_playwright.devices["iPhone 15"]))
     finally:
         webkit.close()
 

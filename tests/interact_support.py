@@ -16,6 +16,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -805,6 +806,21 @@ def server(page_dir):
     temporary = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
     yield temporary.origin
     temporary.close()
+
+
+@pytest.fixture
+def socket_dir():
+    """A directory short enough to hold a Unix socket, gone when the test ends.
+
+    `sun_path` is 104 bytes, and pytest spends most of them before the test's own
+    files begin: a socket under `tmp_path` is refused outright, with `AF_UNIX path
+    too long` naming the length rather than the directory that made it. So the
+    sockets go under a short root — and, because that root is outside every sweep
+    the run makes, they are this fixture's to remove rather than the test's.
+    """
+    directory = Path(tempfile.mkdtemp(prefix="lf", dir="/tmp"))
+    yield directory
+    shutil.rmtree(directory, ignore_errors=True)
 
 
 def fetch(url, data=None, token=TOKEN, layer=None, headers=None):

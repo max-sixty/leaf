@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -1604,17 +1605,39 @@ def initial_state(
     return scope_page_urls(state, page_root)
 
 
+def close_on_signal(agent_host: WebsiteCodexHost) -> None:
+    """Close the App Server on the path a stop signal takes out of this process.
+
+    uvicorn handles the signal while the serving loop runs: it stops the loop, puts
+    the handler that was there before it back, and re-raises the signal — so the
+    process dies where it stood and an ordinary `finally` never runs. The App Server
+    is in a session of its own, so nothing else reaps it: inside a container that is
+    invisible, because the container takes every process away with it, but
+    `scripts/verify_site.py local` runs this adapter on a developer's machine and
+    stops it exactly this way. Three App Servers were found alive there, fifteen
+    hours and 95MB of resident memory each after the runs that started them.
+
+    The handler runs at the re-raise, once serving has ended, and then dies of the
+    signal it was sent rather than turning it into an ordinary return.
+    """
+
+    def stop(signum, _frame):
+        agent_host.close()
+        signal.signal(signum, signal.SIG_DFL)
+        signal.raise_signal(signum)
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+
+
 def main() -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     agent_host = website_codex_host()
     httpd = LeafHTTPServer(("0.0.0.0", PORT), site_endpoint(site_root, agent_host))
     log_agent("container_http_ready")
+    close_on_signal(agent_host)
     agent_host.prewarm()
-    # SIGTERM is uvicorn's: it stops the serving loop, then re-raises the signal with
-    # the original handler back in place, so this process dies where it stood. The
-    # close below is for the ordinary return; a container taken away takes the socket
-    # and the App Server child with it.
     try:
         httpd.serve_forever()
     finally:

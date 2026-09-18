@@ -84,6 +84,7 @@ from render_harness import (
     _traffic,
     _until,
     author_test_widget,
+    consume_browser_errors,
     leaf_page,
     open_page,
     panel_settled,
@@ -191,7 +192,7 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
     wrote onto a socket it had already closed reaches the gate.
     """
     source = leaf_page("held module", "<h1>Waiting on a module</h1>")
-    page = browser.new_page()
+    page = browser.unwatched.new_page()
     page.set_default_timeout(5_000)
     holding = []
 
@@ -227,7 +228,7 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     beside what the page is waiting for would point a reader at the hold rather than
     at the file that never came."""
     source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
-    page = browser.new_page()
+    page = browser.unwatched.new_page()
     page.set_default_timeout(5_000)
     holding = []
 
@@ -282,7 +283,7 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
         ._replace(netloc=f"127.0.0.1:{httpd.server_address[1]}")
         .geturl()
     )
-    page = browser.new_page()
+    page = browser.unwatched.new_page()
     page.set_default_timeout(5_000)
     with running_http_server(httpd):
         try:
@@ -318,7 +319,7 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     refused = served.split("?")[0] + "?t=not-the-page-key"
 
     failures, _notices, completed = render_gate_scheme._render_scheme(
-        browser, refused, "light", {"width": 1200, "height": 900}, 3_000, []
+        browser.unwatched, refused, "light", {"width": 1200, "height": 900}, 3_000, []
     )
 
     assert completed is False
@@ -533,7 +534,7 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
         )
 
     failures = render_gate_model.render_version(
-        primed(browser, make_readiness_async),
+        primed(browser.unwatched, make_readiness_async),
         serve(LONG_PAGE),
         served_timeout_ms=500,
     )
@@ -807,7 +808,7 @@ def test_every_restore_case_a_reader_can_return_to_is_arrived_in(browser, serve)
     assert suggestion_state == "accept"
     assert option_transition == "box-shadow, transform"
 
-    arrived = [f for f in arrival_findings(primed(browser, prepare), url)]
+    arrived = [f for f in arrival_findings(primed(browser.unwatched, prepare), url)]
     assert [f.split("]")[0].lstrip("[") for f in arrived] == [
         a["name"] for a in restore_cases
     ]
@@ -1019,7 +1020,7 @@ def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     assert failures == []
@@ -1040,7 +1041,7 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     assert len(pages) == 8
@@ -1055,7 +1056,7 @@ def test_a_console_warning_fails_the_render_gate(browser, serve):
         )
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     warnings = [
@@ -1072,7 +1073,7 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     assert len(pages) == 8
@@ -1103,7 +1104,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     assert any(
@@ -1273,7 +1274,7 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
         )
     }
     failures = render_gate_model.render_version(
-        browser,
+        browser.unwatched,
         serve(
             markup,
             layer_registry=GENERIC_VISUAL_LAYER,
@@ -2141,6 +2142,10 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
         )
         held |= set(answer["held"])
         invalid |= set(answer["bad"])
+    # The sources carry the page's own module entry, which resolves against nothing
+    # on the blank document this asks its selector questions of. Consumed here rather
+    # than avoided: what this page is for is the engine, not the load.
+    consume_browser_errors(page, "Failed to resolve module specifier")
     page.close()
 
     assert not invalid, f"not selectors, so nothing can ask for them: {sorted(invalid)}"

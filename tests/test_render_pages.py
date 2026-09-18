@@ -71,6 +71,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     TOKEN,
     author_test_widget,
+    consume_browser_errors,
     leaf_page,
     margins_laid_out,
     nudge,
@@ -83,7 +84,6 @@ from render_harness import (
     stamp_page,
     told,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1616,6 +1616,9 @@ def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
             f"#{source['id']}'s source starts at {source['at']:.0f}px and the column at "
             f"{at['left']:.0f}px: it is set as a drawing is placed rather than read"
         )
+    # The blocked module is the state under test, and what the page says about it is
+    # the refusal itself.
+    consume_browser_errors(page, "lf-diagram.js", "net::ERR_FAILED")
 
 
 def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
@@ -2090,7 +2093,6 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(
@@ -2139,7 +2141,6 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     moment it makes the claim."""
     url = serve(RAIL_AND_WIDE_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.add_init_script(AT_THE_HANDOVER)
 
     laid_out = []
@@ -2198,7 +2199,6 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(LATE_MARGIN_WIDGET)
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.add_init_script(AT_THE_HANDOVER)
     answered = []
 
@@ -2922,7 +2922,6 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1400, "height": 900})
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     stated = page.evaluate("() => document.documentElement.getAttribute('style') ?? ''")
@@ -3594,3 +3593,5 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     page.goto(url.rsplit("?", 1)[0], wait_until="load")
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
+    # The refusal is the subject: a reader without the key is answered 403.
+    consume_browser_errors(page, "403")

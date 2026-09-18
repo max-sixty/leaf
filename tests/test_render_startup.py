@@ -290,14 +290,18 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
 
 
 @pytest.mark.parametrize(
-    ("response", "status_words"),
+    ("response", "status_words", "problem"),
     [
-        ({"status": 503, "body": ""}, "Server offline — reconnecting"),
-        ({"status": 200, "body": "{"}, "Page couldn't apply current state"),
+        ({"status": 503, "body": ""}, "Server offline — reconnecting", "503"),
+        (
+            {"status": 200, "body": "{"},
+            "Page couldn't apply current state",
+            "read failed",
+        ),
     ],
 )
 def test_a_website_session_reference_survives_a_failed_first_read(
-    browser, serve, response, status_words
+    browser, serve, response, status_words, problem
 ):
     url = live_url(serve(leaf_page("Failed website read", "<h1>Still a page</h1>")))
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -319,6 +323,9 @@ def test_a_website_session_reference_survives_a_failed_first_read(
         )
     finally:
         page.close()
+    # The route stands for the whole test and the page asks again every two seconds,
+    # so what it said is a complete list only once the page is gone.
+    consume_browser_errors(page, problem)
 
 
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
@@ -1628,6 +1635,7 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
             == "none"
         )
+        consume_browser_errors(page, "page failed to start")
     finally:
         page.close()
 
@@ -1689,6 +1697,7 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve
         expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
         expect(page.locator(".lf-visual-actions")).to_have_count(0)
         assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+        consume_browser_errors(page, "registered part outer twice")
     finally:
         page.close()
 
@@ -1733,13 +1742,14 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator(".lf-signoff")).to_be_disabled()
     finally:
         page.close()
+    # As above: the malformed answer is given to every read, and the page keeps
+    # asking, so the list is settled by the page ending rather than by a wait.
+    consume_browser_errors(page, "read failed: Unexpected token")
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):
     """CSS never turns a broken root module into a blank or blocking page."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    failures = []
-    page.on("pageerror", lambda error: failures.append(error))
     page.route(
         "**/leaf.js",
         lambda route: route.fulfill(
@@ -1750,7 +1760,7 @@ def test_a_root_module_failure_leaves_authored_document_readable(browser, serve)
     )
     try:
         page.goto(serve(SHORT_SUGGESTION), wait_until="load")
-        assert failures and "root module failed" in str(failures[0])
+        consume_browser_errors(page, "root module failed")
         expect(page.locator("main")).to_be_visible()
         expect(page.locator("h1")).to_have_text("Short")
         assert (

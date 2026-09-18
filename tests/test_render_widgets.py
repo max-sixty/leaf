@@ -96,7 +96,6 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1737,7 +1736,6 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
     )
     held = []
     page = browser.new_page(viewport={"width": 1400, "height": 900})
-    watched(page)
     page.add_init_script(
         """
         window.__tocFirstPaint = null;

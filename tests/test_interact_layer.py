@@ -1489,6 +1489,41 @@ def test_every_test_runs_against_a_throwaway_state_home(tmp_path_factory):
     assert host_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
 
 
+def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
+    """Each of these has one owner in the suite, and the owner is what ends it.
+
+    A process, a browser, and a directory short enough to hold a socket: what a test
+    gets by asking for the fixture is a teardown, and what it gets by calling the
+    primitive itself is a resource the run has no way to take back — a server still
+    serving after the test that started it, a browser held for the rest of the
+    worker, a directory under a root neither sweep walks. A fixture cannot stop a
+    test making its own, so the call is read for here instead, which is the only
+    place the rule can be enforced rather than written down.
+
+    A new exception is a line in this list naming the file it belongs to and the
+    reason, not a call that quietly joins the others.
+    """
+    owners = {
+        "Popen": ("spawn", {"conftest.py"}),
+        "mkdtemp": ("socket_dir", {"interact_support.py"}),
+        "TemporaryDirectory": ("socket_dir", {"interact_support.py"}),
+        "launch": ("browser, iphone", {"conftest.py"}),
+    }
+    bypassed = []
+    for path in sorted((ROOT / "tests").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            called = (
+                node.func.attr
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                else None
+            )
+            if called in owners and path.name not in owners[called][1]:
+                owner = owners[called][0]
+                bypassed.append(f"{path.name}:{node.lineno} {called} — {owner} owns it")
+    assert not bypassed, bypassed
+
+
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     home = tmp_path / "home"

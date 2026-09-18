@@ -55,7 +55,6 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1284,7 +1283,6 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     this page never saw."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
-    watched(page)
     cut = CutOff().hold(page)
     page.goto(serve(BOARD_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
@@ -1332,7 +1330,6 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     authoritative read has released it."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
-    watched(page)
     cut = CutOff().hold(page)
     page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")

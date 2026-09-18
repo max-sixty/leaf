@@ -80,7 +80,6 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1241,7 +1240,7 @@ def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
     tab = opened_tab(page, destination, press)
     assert presses == 1
     assert len(native) == 1
-    assert tab.context is one_reader
+    assert tab.context is page.context
     assert tab.url == destination
     after = targets()
     assert not (native.keys() & after.keys())
@@ -9640,7 +9639,6 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     Offline rather than mid-load, because it is the state that stays: a loading page
     answers a moment later, and a page whose server has stopped is where a reader sits."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.route("**/api/state*", refuse)
     try:
         page.goto(serve(NOTED_PAGE), wait_until="load")

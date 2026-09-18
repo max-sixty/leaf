@@ -93,7 +93,6 @@ from render_harness import (
     take_browser_errors,
     told,
     undo,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -424,7 +423,6 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
     )
     held = []
     page = browser.new_page()
-    watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         with page.expect_request("**/api/state*"):

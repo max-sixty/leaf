@@ -5,6 +5,9 @@ import importlib.util
 import json
 import os
 import shutil
+import signal
+import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -25,10 +28,12 @@ from leaf.codex import delivery_pointer_prompt as delivery_prompt
 from leaf.delivery import DELIVERY_FORMAT
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
+from leaf.host import pid_alive
 from leaf.hosting import LeafHTTPServer
 from leaf.http import supervised_document
 from leaf.revision_artifact import Resource
 from leaf.schema import ASSETS
+from render_harness import consume_browser_errors
 
 ROOT = Path(__file__).parent.parent
 _spec = importlib.util.spec_from_file_location(
@@ -1198,6 +1203,94 @@ def test_closing_the_website_host_stops_its_app_server(tmp_path):
     assert process.stopped
     assert host.process is None
     assert not host.socket_path.exists()
+
+
+def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
+    tmp_path, socket_dir, spawn
+):
+    """The stop signal reaches the App Server, not only the adapter that started it.
+
+    `close` covers the ordinary return, and inside a container nothing else is
+    needed. On a host it is: `scripts/verify_site.py local` runs this adapter and
+    stops it with SIGTERM, and uvicorn answers that signal by stopping its loop and
+    re-raising it, so the process dies before any `finally`. The App Server is in a
+    session of its own, which is what makes it the one child that survives that —
+    three of them were alive on a developer's machine, fifteen hours after their runs.
+
+    The whole adapter runs here, with a stand-in for the App Server itself: the fault
+    was in how this process dies, so uvicorn's signal handling, the handler beneath
+    it, and the real `_stop_server` are the parts that have to be real.
+    """
+    site = tmp_path / "site"
+    site.mkdir()
+    write_manifest(site, {})
+    (site / "sitenote.js").write_bytes(b"")
+    listening = tmp_path / "app-server.pid"
+    codex = tmp_path / "codex"
+    codex.write_text(
+        f"""#!{sys.executable}
+import os, socket, sys, time
+from pathlib import Path
+
+address = sys.argv[sys.argv.index("--listen") + 1].removeprefix("unix://")
+listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+listener.bind(address)
+listener.listen()
+Path({str(listening)!r}).write_text(str(os.getpid()))
+while True:
+    time.sleep(3600)
+"""
+    )
+    codex.chmod(0o755)
+    adapter = spawn(
+        [
+            sys.executable,
+            "-c",
+            f"""
+import importlib.util, sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location(
+    "website_server", {str(ROOT / "worker" / "server.py")!r}
+)
+module = importlib.util.module_from_spec(spec)
+sys.modules["website_server"] = module
+spec.loader.exec_module(module)
+module.PORT = 0
+module._agent_host = module.WebsiteCodexHost(
+    {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),
+    Path({str(tmp_path / "app-server.log")!r}),
+)
+module.main()
+""",
+        ],
+        env=os.environ | {"LEAF_SITE_ROOT": str(site)},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + STATED_TIMEOUT
+    while not listening.is_file():
+        if adapter.poll() is not None or time.monotonic() >= deadline:
+            adapter.kill()
+            pytest.fail(
+                "the adapter never started an App Server:\n"
+                f"{adapter.communicate()[1]}\n"
+                f"{(tmp_path / 'app-server.log').read_text(errors='replace')}"
+            )
+        time.sleep(0.05)
+    app_server = int(listening.read_text())
+
+    adapter.terminate()
+
+    assert adapter.wait(timeout=STATED_TIMEOUT) == -signal.SIGTERM
+    deadline = time.monotonic() + STATED_TIMEOUT
+    while pid_alive(app_server):
+        assert time.monotonic() < deadline, (
+            "the App Server outlived the adapter that started it"
+        )
+        time.sleep(0.05)
+    assert not (socket_dir / "app-server.sock").exists()
 
 
 def test_closing_a_host_that_started_no_server_preserves_the_shared_socket(tmp_path):
@@ -3244,6 +3337,10 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
         assert "widget resource unavailable" in str(caught.value)
         assert "runtime initialization failed" in str(caught.value)
         assert "no startup milestone" in str(caught.value)
+        # The same two faults the verifier reported are what this page said.
+        consume_browser_errors(
+            page, "widget resource unavailable", "runtime initialization failed"
+        )
     finally:
         page.close()
 

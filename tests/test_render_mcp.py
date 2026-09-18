@@ -22,6 +22,7 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
+    consume_browser_errors,
     leaf_page,
     open_page,
 )
@@ -617,6 +618,9 @@ def test_adaptive_app_falls_back_when_the_complete_page_never_signals_ready(
             if call["method"] == "ui/open-link"
         )
         assert opened["params"]["url"] == private["inline_url"]
+        # The page this app was pointed at is the one the fixture blocked, so the
+        # only thing the browser has to say here is that it never arrived.
+        consume_browser_errors(page, "404")
     finally:
         page.close()
         pages.close()

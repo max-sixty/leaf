@@ -44,7 +44,6 @@ from render_harness import (
     open_page,
     select,
     sending,
-    watched,
 )
 
 ROOT = Path(__file__).parent.parent
@@ -664,6 +663,8 @@ def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, brow
             "Leaf couldn't start. Waiting for the server to update."
         )
         assert page.evaluate("() => window.__leafStartupFailures") == 1
+        # The mismatch this planted is what the page says on the console too.
+        consume_browser_errors(page, "belong to different layers")
     finally:
         page.close()
 
@@ -674,8 +675,6 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
     context = browser.new_context()
     leader = context.new_page()
     follower = context.new_page()
-    watched(leader)
-    watched(follower)
     try:
 
         def passive_session(route):
@@ -720,7 +719,6 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     """Each product route runs the canonical runtime and exposes its page state."""
     names = list(site_build.PRODUCT_ROUTES)
     page = browser.new_page()
-    watched(page)
     failed = []
     page.on(
         "response",
@@ -764,7 +762,6 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
 def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
     """The architecture is one sequence, so the diagram must fit its content box."""
     page = browser.new_page()
-    watched(page)
     try:
         page.set_viewport_size({"width": 1200, "height": 900})
         page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")
@@ -854,7 +851,6 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     """
     boot = []
     page = browser.new_page(viewport={"width": 1724, "height": 1036})
-    watched(page)
     page.route("**/examples/revisions/*/leaf.js", lambda route: boot.append(route))
     try:
         with page.expect_request("**/examples/revisions/*/leaf.js"):
@@ -934,7 +930,6 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     }
 
     page = browser.new_page()
-    watched(page)
     try:
         page.goto(f"{hosted}/examples/", wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
@@ -1495,7 +1490,6 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
-    watched(page)
     held = []
     held_once = False
 
@@ -1563,7 +1557,6 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
-    watched(page)
     failed = []
     news_frames = []
     context.on(
@@ -1612,7 +1605,6 @@ def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
-    watched(page)
 
     def stop_inner_leaf(route):
         if route.request.frame.name == "interaction-send-comment":
@@ -1693,7 +1685,6 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     state = []
     _, url = served_example("pr-walkthrough")
     page = browser.new_page(viewport={"width": 1724, "height": 900})
-    watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
     page.route("**/api/state*", lambda route: state.append(route))
 
@@ -2020,7 +2011,6 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_the_site_takes_its_palette_from_the_theme(site, hosted, browser, scheme):
     page = browser.new_page(color_scheme=scheme)
-    watched(page)
     try:
         for name in site_build.PRODUCT_ROUTES:
             page.goto(product_url(hosted, name), wait_until="load")
@@ -2036,7 +2026,6 @@ def test_the_pages_fit_a_phone(site, hosted, browser):
     """Nothing scrolls sideways at 390px — the nav wraps, the screenshots scale,
     and a command too long for the column scrolls inside its own block."""
     page = browser.new_page(viewport=PHONE)
-    watched(page)
     try:
         for name in site_build.PRODUCT_ROUTES:
             page.goto(product_url(hosted, name), wait_until="load")

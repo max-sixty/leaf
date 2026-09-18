@@ -112,7 +112,6 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -392,7 +391,6 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
     page = browser.new_page(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
     )
-    watched(page)
     held = []
     page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
     try:
@@ -5636,6 +5634,8 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     assert page.evaluate("() => document.body.dataset.lfPresented") is None, (
         "the page presented anyway, so the words with nothing over them are in it"
     )
+    # The refusal asserted above reaches the collector as well.
+    consume_browser_errors(page, '<lf-drift id="drift-note">')
 
 
 def test_the_render_gate_reads_a_page_that_has_finished_arriving(

@@ -26,7 +26,6 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
-    watched,
 )
 
 PAGE_MODULE = """\
@@ -222,7 +221,6 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     )
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         page.goto(url, wait_until="load")
@@ -312,7 +310,6 @@ def test_approval_waits_for_a_reading_of_the_log(browser, serve):
     still stands, and approval stays shut rather than reading that silence as every Ask
     answered."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.route("**/api/state*", refuse)
     try:
         page.goto(serve(APPROVAL_PAGE), wait_until="load")

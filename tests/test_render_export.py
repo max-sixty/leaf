@@ -44,6 +44,7 @@ from render_harness import (
     CORPUS_SOURCES,
     LONG_PAGE,
     REPLAYED_PAGE,
+    consume_browser_errors,
     leaf_page,
     open_page,
     panel_settled,
@@ -53,7 +54,6 @@ from render_harness import (
     restarting,
     round_trip,
     sending,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -471,7 +471,6 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
 
         for url, runtime in zip(urls, runtimes, strict=True):
             page = browser.new_page(viewport={"width": 1200, "height": 900})
-            watched(page)
             page.goto(url, wait_until="load")
             expect(page.locator(".lf-preview")).to_contain_text(
                 f"Preview · {runtime.name}"
@@ -962,26 +961,34 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     page.route(
         "**/" + ("leaf.js" if resource == "syntax" else resource), interrupt_resource
     )
-    page.goto(url, wait_until="load")
-    status = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
-    expect(status).to_be_visible()
-    # Hearing the same server does not loop on a persistent syntax/startup fault.
-    with page.expect_response("**/registry.json") as response:
-        pass
-    assert response.value.ok
-    assert len(navigations) == 1
-    expect(status).to_be_visible()
-    generation = json.loads((directory / "registry.json").read_text())["$layer"][
-        "generation"
-    ]
-    # A refused re-vendor still replaces the server; the old layer is now loadable.
-    (runtime / "skills" / "leaf" / "packages" / "default" / "registry.json").write_text(
-        "{", encoding="utf-8"
-    )
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=30000
-    )
-    expect(status).not_to_be_visible()
+    # The interruption and the replacement server between them are a restart, and
+    # what the browser says inside one is the fetch that was in flight rather than
+    # the condition: a refused resource, a connection to a server that has gone, a
+    # decoding that stopped halfway. The span is bracketed rather than the wordings
+    # listed (tests/CLAUDE.md, "A test cannot assert over noise it makes itself").
+    with restarting(page):
+        page.goto(url, wait_until="load")
+        status = page.get_by_text(
+            "Leaf couldn't start. Waiting for the server to update."
+        )
+        expect(status).to_be_visible()
+        # Hearing the same server does not loop on a persistent syntax/startup fault.
+        with page.expect_response("**/registry.json") as response:
+            pass
+        assert response.value.ok
+        assert len(navigations) == 1
+        expect(status).to_be_visible()
+        generation = json.loads((directory / "registry.json").read_text())["$layer"][
+            "generation"
+        ]
+        # A refused re-vendor still replaces the server; the old layer is now loadable.
+        (
+            runtime / "skills" / "leaf" / "packages" / "default" / "registry.json"
+        ).write_text("{", encoding="utf-8")
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-presented", "1", timeout=30000
+        )
+        expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert len(navigations) == 2
@@ -1028,12 +1035,17 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
 
     page.route("**/leaf.js", interrupt_entry)
     page.route("**/registry.json", static_registry)
-    page.goto(url, wait_until="load")
-    status = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
-    expect(status).to_be_visible()
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
-    )
+    # As above: the refused entry and the server that replaces it are one restart,
+    # and its noise belongs to the span rather than to a list of wordings.
+    with restarting(page):
+        page.goto(url, wait_until="load")
+        status = page.get_by_text(
+            "Leaf couldn't start. Waiting for the server to update."
+        )
+        expect(status).to_be_visible()
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-presented", "1", timeout=10000
+        )
     assert len(probes) >= 2
     assert len(navigations) == 2
     expect(status).not_to_be_visible()
@@ -1053,7 +1065,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     """
     _, _, _, command, url = watched_preview
     page = browser.new_page()
-    errors = watched(page)
+    errors = page.lf_errors
     stopped = []
 
     def stop_the_service(route):
@@ -1315,7 +1327,6 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
     assert result.exit_code == 0, result.output
 
     page = browser.new_page()
-    watched(page)
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=10000
@@ -1382,7 +1393,6 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert "<script" not in static.lower()
 
     page = browser.new_page(viewport={"width": 1000, "height": 800})
-    watched(page)
     external = []
     document_url = interactive.as_uri()
     page.on(
@@ -1466,7 +1476,6 @@ def test_interactive_export_hydrates_captured_data_fragments_offline(
     assert result.exit_code == 0, result.output
 
     page = browser.new_page()
-    watched(page)
     external = []
     document_url = interactive.as_uri()
     page.on(
@@ -1519,7 +1528,6 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
     live.close()
 
     record = browser.new_page(viewport={"width": 480, "height": 700})
-    watched(record)
     record.goto(static_path.as_uri(), wait_until="load")
     expect(record.locator("script")).to_have_count(0)
     expect(record.locator("lf-playground").get_by_role("button")).to_have_count(0)
@@ -1554,7 +1562,6 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
     assert result.exit_code == 0, result.output
 
     offline = browser.new_page(viewport={"width": 900, "height": 700})
-    watched(offline)
     external = []
     document_url = interactive_path.as_uri()
     offline.on(
@@ -1612,7 +1619,6 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     assert result.stdout.splitlines()[-1] == str(out.resolve())
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.on(
         "requestfailed",
         lambda request: page.lf_errors.append(f"unfetched {request.url}"),
@@ -1895,7 +1901,6 @@ body { --export-tone: rgb(12, 34, 56); }
     out = tmp_path / "captured.html"
     out.write_text(exported, encoding="utf-8")
     page = browser.new_page()
-    watched(page)
     requests = []
     page.on("request", lambda request: requests.append(request.url))
     try:
@@ -1940,7 +1945,8 @@ document.querySelector('#external').src = 'https://outside.invalid/evidence.svg'
         SystemExit,
         match="could not embed its captured assets: export resource is outside the page",
     ):
-        exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+        # The export's own page, which is where the blocked image is reported.
+        exporting_model.export_page(browser.unwatched, url, serve.page_dir, "v1.html")
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -2064,7 +2070,6 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
@@ -2103,7 +2108,6 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
     out = tmp_path / "gloss-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
     expect(copy.locator(".lf-gloss-popover")).to_be_visible()
     expect(copy.locator(".lf-gloss-mark")).to_have_count(0)
@@ -2143,7 +2147,6 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     out = tmp_path / "work-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator(".lf-receipt")).to_have_count(0)
@@ -2211,7 +2214,6 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
     out = tmp_path / "thread-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page()
-    watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
     thread = copy.locator(selector)
     expect(thread).to_have_count(1)
@@ -2297,7 +2299,6 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
@@ -2333,7 +2334,6 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     card = page.locator("#card-importer")
     expect(card).to_have_attribute("data-lf-reader-override", "1")
@@ -2408,7 +2408,11 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
     )
     url = serve(source)
     out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    # The authored `<base>` is refused on the live page too, and that page is the
+    # export's own to read.
+    out.write_text(
+        exporting_model.export_page(browser.unwatched, url, serve.page_dir, "v1.html")
+    )
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.add_init_script(
@@ -2434,6 +2438,8 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
         page.locator("#escape").evaluate("form => form.requestSubmit()")
         page.wait_for_function("() => window.__cspViolations.includes('form-action')")
         assert escaped == []
+        # Both refusals asserted above are reported on the console as well.
+        consume_browser_errors(page, "violates the following Content Security Policy")
     finally:
         page.close()
 
@@ -2458,7 +2464,6 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900}, bypass_csp=True)
-    watched(page)
     page.on("requestfailed", lambda r: page.lf_errors.append(f"unfetched {r.url}"))
     render_checks_model.prepare_standalone_probes(page)
     page.goto(out.as_uri(), wait_until="load")
@@ -2648,7 +2653,6 @@ def test_comparison_export_keeps_both_results_and_the_recorded_choice(
     )
 
     page = browser.new_page(viewport={"width": 760, "height": 900}, bypass_csp=True)
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     current = page.locator("#comparison-current")
     proposed = page.locator("#comparison-proposed")

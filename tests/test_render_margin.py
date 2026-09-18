@@ -6332,12 +6332,30 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
             f"{landed}, but the column's rest is {rest}"
         )
     # Escape reaches the panel through the keyboard dispatcher rather than a click, so it
-    # is walked with a real key; the read follows the press with nothing waited on.
+    # is the one route walked with a real key, and the one that would catch a keyboard
+    # caller closing the panel without going through `moveContentFrame`.
+    #
+    # Pressing and then reading is two round trips with a frame free between them, which
+    # is enough for a deferred repaint to land and the read to pass whatever the runtime
+    # does. So the read rides the press: the dispatcher's own listener is a plain document
+    # keydown registered at boot that never stops propagation, so one added afterwards
+    # runs after it and inside the same task.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.evaluate(
+        """(sel) => {
+          document.addEventListener("keydown", () => {
+            window.__lfEscapeLanded =
+              document.querySelector(sel).getBoundingClientRect().x;
+          }, { once: true });
+        }""",
+        marker,
+    )
     page.locator(".lf-threads").focus()
     page.keyboard.press("Escape")
-    landed = page.locator(marker).first.bounding_box()["x"]
+    landed = page.evaluate("() => window.__lfEscapeLanded")
+    assert landed is not None, "the read never rode the press"
     assert landed == pytest.approx(rest, abs=1), (
-        f"after Escape: the thread margin entry stands at {landed}, the column's rest is {rest}"
+        f"after Escape: in the closing task the thread margin entry stands at {landed}, "
+        f"but the column's rest is {rest}"
     )

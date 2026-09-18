@@ -227,11 +227,14 @@ lf-diff:not(.lf-rendered) > pre {
                           min-width: 0; border-block: 1px solid var(--rule);
                           background: var(--paper); }
 .lf-diff-thread-gutter { border-inline-end: 1px solid var(--rule); }
-/* The outlet stands in the code column with the lines, and its max-content is the whole
-   thread set on one line, so the floor above would size the code by the longest comment
-   rather than the longest line — 1579px where the lines wanted 745px. Inline-size
-   containment takes the outlet's own text out of that measure; it still stretches to
-   whatever the code settles on, and wraps inside it. */
+/* The outlet stands in the code column with the lines, so the floor above measures it
+   too, and what it measures is not the remark's own length: the thread inside caps
+   itself at 760px (below), which with this padding is a 796px contribution from any
+   remark long enough to reach that cap. On the fixture this was measured on that is
+   wider than the file's own 671px of rows, so one ordinary remark on a file that fit
+   its box set it scrolling sideways, 843px of content in 718px of room. Inline-size
+   containment takes the outlet out of the measure; it still stretches to whatever the
+   code settles on, and wraps inside it. */
 .lf-diff-thread-outlet { padding: 10px clamp(10px, 2vw, 18px); white-space: normal;
                           contain: inline-size; }
 .lf-diff-file-thread-outlet { margin-top: 8px; border: 1px solid var(--rule);

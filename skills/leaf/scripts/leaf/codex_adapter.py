@@ -61,7 +61,7 @@ from .codex import (
 from .conversation import delivery_reply_reserved, reserve_delivery_reply
 from .event_log import flocked, read_cursor
 from .files import read_json
-from .host import host_identity, state_home
+from .host import CodexHarness, session_harness, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
 from .schema import EVENTS_FILE
 from .service import (
@@ -720,13 +720,13 @@ def run_adapter(
     app_server: str | None = None,
 ) -> int:
     """Own the session watch until every claimed page ends or transfers."""
-    identity = host_identity()
-    if identity is None or identity["host"] != "codex":
+    harness = session_harness()
+    if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("the Codex adapter needs a Codex task identity")
-    lease = take_waiter_lease(adapter_lease_path(identity["id"]))
+    lease = take_waiter_lease(adapter_lease_path(harness.session))
     if lease is None:
         raise RuntimeError("a Codex delivery adapter is already active")
-    watch = Watch(identity)
+    watch = Watch(harness)
     if not watch.acquire():
         lease.close()
         raise RuntimeError(
@@ -734,11 +734,11 @@ def run_adapter(
         )
     leases_released = False
     app_client = None
-    start_lock = adapter_start_lock_path(identity["id"])
+    start_lock = adapter_start_lock_path(harness.session)
     start_lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         if app_server is not None:
-            app_client = AppServerClient(app_server, identity["id"])
+            app_client = AppServerClient(app_server, harness.session)
             app_client.start()
         else:
             check_queue_command(codex_path)
@@ -749,10 +749,10 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                recovered = _recover_receipt(identity["id"])
+                recovered = _recover_receipt(harness.session)
                 if not recovered:
                     with flocked(start_lock):
-                        if not owned_pages(identity["id"]):
+                        if not owned_pages(harness.session):
                             watch.release()
                             lease.close()
                             leases_released = True
@@ -763,7 +763,7 @@ def run_adapter(
                         )
                     recovered = _offer_queued_delivery(
                         codex_path,
-                        identity["id"],
+                        harness.session,
                         app_client,
                     )
             except (OSError, RuntimeError) as error:
@@ -785,7 +785,7 @@ def run_adapter(
             def capture(reading) -> bool:
                 """Persist the batch without claiming that a turn opened."""
                 nonlocal captured
-                captured = capture_batch(identity["id"], reading)
+                captured = capture_batch(harness.session, reading)
                 return False
 
             reading = read_watch_pass(watch, None, deliver=capture)
@@ -797,8 +797,8 @@ def run_adapter(
                     reading = read_watch_pass(watch, None, deliver=capture)
                     if captured or (reading.outcome is None and reading.live):
                         continue
-                    if owned_pages(identity["id"]) and _has_delivery_work(
-                        identity["id"]
+                    if owned_pages(harness.session) and _has_delivery_work(
+                        harness.session
                     ):
                         time.sleep(1)
                         continue
@@ -829,14 +829,14 @@ def cmd_codex_start(
     app_server: str | None = None,
 ) -> str:
     """Claim PAGE and start one detached delivery carrier for this task."""
-    identity = host_identity()
-    if identity is None or identity["host"] != "codex":
+    harness = session_harness()
+    if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("`leaf codex start` must run inside a Codex task")
     executable = codex_path or shutil.which("codex")
     if executable is None:
         raise RuntimeError("cannot find the `codex` executable on PATH")
     executable = str(Path(executable).absolute())
-    session_id = identity["id"]
+    session_id = harness.session
     app_server = app_server or os.environ.get(APP_SERVER_ENV)
     if app_server is not None:
         check_app_server_endpoint(app_server)

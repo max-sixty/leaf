@@ -32,6 +32,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import passages as passages_model
@@ -386,12 +387,28 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
-def record_claim(page, **fields):
-    """Write the canonical claim shape for lifecycle fixtures."""
+HARNESSES = {
+    declaration.name: declaration
+    for declaration in (
+        host_model.ClaudeCodeHarness,
+        host_model.CodexHarness,
+        host_model.EmbeddedHarness,
+    )
+}
+
+
+def record_claim(page, harness="claude-code", **fields):
+    """Write the canonical claim shape for lifecycle fixtures.
+
+    The carrier comes from the named harness's own declaration rather than from
+    a second table here, so a fixture cannot record a pairing `take_claim` would
+    never write."""
+    declaration = HARNESSES[harness]
     record = {
         "page": str(page.resolve()),
         "id": "s1",
-        "host": "claude-code",
+        "harness": declaration.name,
+        "carrier": declaration.carrier,
         "pid": os.getpid(),
         "agent": "Claude",
         "cwd": str(Path.cwd()),

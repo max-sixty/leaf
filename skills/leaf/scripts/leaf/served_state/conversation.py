@@ -125,7 +125,7 @@ def browser_conversation(
                     "kind": "reply",
                     "addressable": False,
                     "author": "agent",
-                    "agent": live_reply.get("agent") or "Codex",
+                    "agent": live_reply["agent"],
                     "parent": live_reply["reply_to"],
                     "text": live_reply.get("text", ""),
                     "ts": live_reply["ts"],

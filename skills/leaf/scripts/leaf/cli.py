@@ -559,7 +559,7 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     goes down with the session that claimed it besides. A page already served
     prints that server's URL and is left alone.
     """
-    from leaf.host import host_identity
+    from leaf.host import session_harness
     from leaf.hosting import start_server
     from leaf.service import PageTransaction, restore_page_claim, take_page_claim
 
@@ -570,7 +570,7 @@ def start(dir: str, host: str | None, standing: bool) -> None:
         # own transaction, so SessionEnd winning the spawn gap makes startup
         # fail instead of reviving a released page.
         with PageTransaction(page_dir) as page:
-            if not page.owned_by(host_identity()):
+            if not page.owned_by(session_harness()):
                 raise SystemExit(
                     f"this session no longer owns {page_dir}; the server was not started"
                 )

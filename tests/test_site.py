@@ -1786,7 +1786,6 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             "install_url": "/#install",
         }
         assert state["claims"] == []
-        assert state["host"] is None
         assert state["session_alive"] is None
         assert not state["listening"]
         assert not (page_dir / "service.json").exists()

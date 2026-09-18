@@ -308,25 +308,10 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
-    identity = {
-        "id": "hosted-thread",
-        "host": "codex",
-        "agent": "Leaf guide",
-    }
+    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
 
-    prompt = codex_model.prepare_codex_delivery(
-        page_dir,
-        identity,
-        {"pid": os.getpid()},
-    )
-    assert (
-        codex_model.prepare_codex_delivery(
-            page_dir,
-            identity,
-            {"pid": os.getpid()},
-        )
-        == prompt
-    )
+    prompt = codex_model.prepare_codex_delivery(page_dir, harness)
+    assert codex_model.prepare_codex_delivery(page_dir, harness) == prompt
     [accepted] = codex_model.accept_codex_delivery("hosted-thread")
 
     assert prompt.prompt.startswith("```xml\n<leaf-delivery ")
@@ -342,9 +327,12 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     }
     assert batch["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
-    assert {key: claim[key] for key in ("id", "host", "pid", "agent")} == {
+    assert {
+        key: claim[key] for key in ("id", "harness", "carrier", "pid", "agent")
+    } == {
         "id": "hosted-thread",
-        "host": "codex",
+        "harness": "embedded",
+        "carrier": "embedded",
         "pid": os.getpid(),
         "agent": "Leaf guide",
     }
@@ -446,8 +434,7 @@ def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
 
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
 
     [batch] = prepared.payload["batches"]
@@ -459,12 +446,12 @@ def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
 
 
 def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir):
-    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
     first = events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
-    codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    codex_model.prepare_codex_delivery(page_dir, harness)
     codex_model.accept_codex_delivery("hosted-thread")
     first_turn = service_model.page_claim(page_dir)["turn"]
 
@@ -472,7 +459,7 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
         page_dir,
         {"kind": "comment", "author": "user", "text": "also change the title"},
     )
-    codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    codex_model.prepare_codex_delivery(page_dir, harness)
     codex_model.accept_codex_delivery("hosted-thread")
 
     claim = service_model.page_claim(page_dir)
@@ -493,12 +480,10 @@ def test_embedded_codex_delivery_retries_the_same_immutable_pointer(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
-    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
-    first = codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+    first = codex_model.prepare_codex_delivery(page_dir, harness)
 
-    second = codex_model.prepare_codex_delivery(
-        page_dir, identity, {"pid": os.getpid()}
-    )
+    second = codex_model.prepare_codex_delivery(page_dir, harness)
 
     assert second == first
     [(path, queue)] = codex_model.queue_records("hosted-thread")
@@ -514,10 +499,8 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_queue_record(page_dir
         page_dir,
         {"kind": "comment", "author": "user", "text": "first"},
     )
-    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
-    first_prompt = codex_model.prepare_codex_delivery(
-        page_dir, identity, {"pid": os.getpid()}
-    )
+    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+    first_prompt = codex_model.prepare_codex_delivery(page_dir, harness)
     [(first_path, _)] = codex_model.queue_records("hosted-thread")
     first_payload = delivery_model.delivery_path(first_path.stem)
 
@@ -534,9 +517,7 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_queue_record(page_dir
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
     )
-    second_prompt = codex_model.prepare_codex_delivery(
-        page_dir, identity, {"pid": os.getpid()}
-    )
+    second_prompt = codex_model.prepare_codex_delivery(page_dir, harness)
 
     assert codex_model.queue_records("hosted-thread")[0][1]["state"] == "offering"
     assert second_prompt != first_prompt
@@ -566,8 +547,7 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
 
     codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
 
     [(path, _queue)] = codex_model.queue_records("hosted-thread")
@@ -605,8 +585,7 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
 
     codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
 
     [(path, _queue)] = codex_model.queue_records("hosted-thread")
@@ -1083,7 +1062,7 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     assert ended["obligations"][0]["dropped"] is True
 
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
     events_model.append_event(
@@ -1125,7 +1104,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
     session_model.cmd_status(claimed, "waiting", "Comment on the page")
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
     with service_model.PageTransaction(claimed) as transaction:
@@ -1151,7 +1130,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     session_model.cmd_status(claimed, "waiting", "comment on the page")
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
 
@@ -1230,7 +1209,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
 
@@ -1292,7 +1271,7 @@ def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
     comment = events_model.append_event(
@@ -1325,7 +1304,7 @@ def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
     events_model.append_event(
@@ -1779,12 +1758,11 @@ def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     claim = service_model.page_claim(page_dir)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page_dir, claim)
+        leases_model.waiter_lease_path(page_dir, claim["id"])
     )
     assert lease
     request.addfinalizer(lease.close)
@@ -1998,8 +1976,7 @@ def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     client = codex_adapter_model.AppServerClient("ws://127.0.0.1:1", "codex-thread")
     pointer = {
@@ -2060,8 +2037,7 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     client = codex_adapter_model.AppServerClient("ws://127.0.0.1:1", "codex-thread")
 
@@ -2130,7 +2106,7 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer the first turn"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     target = {
         "page": str(page_dir),
         "reply_to": comment["id"],
@@ -2163,7 +2139,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer the first turn"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     target = {
         "page": str(page_dir),
         "reply_to": comment["id"],
@@ -2204,7 +2180,7 @@ def test_a_delivery_bound_final_is_the_only_plain_reply_writer(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Move this reply too"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-1")
     target = {
@@ -2254,7 +2230,7 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer this once"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     target = {
         "page": str(page_dir),
         "reply_to": comment["id"],
@@ -2282,7 +2258,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer this"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
@@ -2328,7 +2304,7 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
         page_dir,
         {"kind": "comment", "author": "user", "text": "Change this page"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-1")
     target = {
@@ -2360,7 +2336,7 @@ def test_partial_text_is_not_committed_without_a_completed_final(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer this"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
@@ -2404,7 +2380,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
     refreshed = created + timedelta(minutes=10)
     moments = iter((created.isoformat(), refreshed.isoformat()))
     monkeypatch.setattr(service_model, "now_iso", lambda: next(moments))
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
 
     with service_model.PageTransaction(page_dir) as page:
         page.set_stream_reply(
@@ -2807,8 +2783,7 @@ def test_an_active_app_server_turn_starts_the_delivery_once_idle(page_dir):
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     observer = codex_adapter_model.AppServerClient.__new__(
         codex_adapter_model.AppServerClient
@@ -2878,8 +2853,7 @@ def test_a_binding_failure_keeps_the_delivery_waiter_reachable(page_dir, monkeyp
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     payload = prepared.payload
     answer = queue.Queue(maxsize=1)
@@ -4626,7 +4600,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
         text=True,
         env=os.environ,
     )
-    lease_path = leases_model.waiter_lease_path(page_dir, host_model.host_identity())
+    lease_path = leases_model.waiter_lease_path(
+        page_dir, host_model.session_harness().session
+    )
     wait_for(
         lambda: (leases_model.lock_is_held(lease_path), acknowledging.poll()),
         lambda reading: reading[0] or reading[1] is not None,
@@ -4655,9 +4631,9 @@ def test_ack_success_outlives_a_refused_rearm(page_dir):
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
-    identity = host_model.host_identity()
+    identity = host_model.session_harness()
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page_dir, identity)
+        leases_model.waiter_lease_path(page_dir, identity.session)
     )
     assert lease
     with lease:
@@ -4719,8 +4695,8 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
         text=True,
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
-    identity = host_model.host_identity()
-    lease_path = leases_model.waiter_lease_path(page_dir, identity)
+    identity = host_model.session_harness()
+    lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
@@ -4772,8 +4748,8 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
         text=True,
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
-    identity = host_model.host_identity()
-    lease_path = leases_model.waiter_lease_path(page_dir, identity)
+    identity = host_model.session_harness()
+    lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
@@ -5253,7 +5229,7 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
             claim
             and claim["id"] == "host-owner"
             and leases_model.lock_is_held(
-                leases_model.waiter_lease_path(page_dir, claim)
+                leases_model.waiter_lease_path(page_dir, claim["id"])
             )
         ),
         failure="the host wait never claimed the page and took its lease",
@@ -5280,7 +5256,7 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
     )
     delivered = events_model.read_events(page_dir)[-1]
     session_model.cmd_status(page_dir, "waiting", "successor is listening")
-    successor = record_claim(page_dir, id="successor", host="codex", agent="Codex")
+    successor = record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
             page_dir,
@@ -6304,7 +6280,7 @@ def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
         failure="the accepted receipt never entered the fake Codex queue",
     )
 
-    successor = record_claim(page, id="successor", host="codex", agent="Codex")
+    successor = record_claim(page, id="successor", harness="codex", agent="Codex")
     queue_wait.with_name(f"{queue_wait.name}.release").write_text("", encoding="utf-8")
     assert adapter.wait(timeout=10) == 0
 
@@ -6562,12 +6538,14 @@ def test_failed_codex_delivery_start_restores_the_previous_page_claim(
 def test_a_codex_command_claims_the_page_for_its_thread(codex_claimed_page):
     session = service_model.page_claim(codex_claimed_page)
     assert session["id"] == "codex-thread"
-    assert session["agent"] == "Codex" and session["host"] == "codex"
+    assert session["agent"] == "Codex"
+    assert (session["harness"], session["carrier"]) == ("codex", "adapter")
     assert set(session) == {
         "page",
         "id",
         "agent",
-        "host",
+        "harness",
+        "carrier",
         "pid",
         "cwd",
         "ts",
@@ -6727,7 +6705,7 @@ def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
     assert waited.wait(timeout=60) == 0
     session = service_model.page_claim(page)
     assert session["id"] == "thread-9"
-    assert session["agent"] == "Indexer" and session["host"] == "codex"
+    assert session["agent"] == "Indexer" and session["harness"] == "codex"
 
 
 def test_hook_remedies_follow_the_host_not_the_display_name(
@@ -6761,7 +6739,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     session_model.cmd_status(page, "waiting", "")
     session = service_model.page_claim(page)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page, session)
+        leases_model.waiter_lease_path(page, session["id"])
     )
     assert lease
 
@@ -6804,7 +6782,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     # Pending output still has to cross context and be acknowledged before handling.
     events_model.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page, session)
+        leases_model.waiter_lease_path(page, session["id"])
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
@@ -7002,7 +6980,9 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     lease_path = (
         page_dir / "waiter.lock"
         if identity_names
-        else leases_model.waiter_lease_path(page_dir, host_model.host_identity())
+        else leases_model.waiter_lease_path(
+            page_dir, host_model.session_harness().session
+        )
     )
     first = spawn(
         [*LEAF_COMMAND, "wait", str(page_dir)],
@@ -7039,10 +7019,10 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "first")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    first = host_model.host_identity()
+    first = host_model.session_harness()
     first_turn = service_model.page_claim(page_dir)["turn"]
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page_dir, first)
+        leases_model.waiter_lease_path(page_dir, first.session)
     )
     assert lease and page_state(page_dir)["listening"]
 
@@ -7086,7 +7066,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
         assert service_model.claim_page(page_dir)
         claim = service_model.page_claim(page_dir)
         assert not leases_model.lock_is_held(
-            leases_model.waiter_lease_path(page_dir, claim)
+            leases_model.waiter_lease_path(page_dir, claim["id"])
         )
         assert leases_model.lock_is_held(page_dir / "waiter.lock")
         assert not page_state(page_dir)["listening"]
@@ -7122,7 +7102,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
@@ -7343,7 +7323,7 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     # A live watcher, and a closed page, each end the turn cleanly.
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
@@ -7456,7 +7436,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, service_model.page_claim(claimed))
+        leases_model.waiter_lease_path(claimed, service_model.page_claim(claimed)["id"])
     )
     assert lease
     asked = events_model.append_event(
@@ -7515,7 +7495,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # clears nothing here.
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     asked = events_model.append_event(
@@ -7634,7 +7614,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     older_question = events_model.append_event(
@@ -7718,7 +7698,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     asked = events_model.append_event(
@@ -7748,7 +7728,7 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
     # second `leaf wait` would print every unacknowledged event twice.
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
@@ -7821,7 +7801,7 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         # A live watcher delivers it.
         claim = record_claim(page_dir, turn_closed=closed)
         lease = leases_model.take_waiter_lease(
-            leases_model.waiter_lease_path(page_dir, claim)
+            leases_model.waiter_lease_path(page_dir, claim["id"])
         )
         assert lease
         react("while a wait holds the lease")
@@ -7829,7 +7809,7 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         assert messages("s1") is None
 
         # Codex's detached adapter queues its own turns; the socket is Claude Code's.
-        record_claim(page_dir, host="codex", turn_closed=closed)
+        record_claim(page_dir, harness="codex", turn_closed=closed)
         react("to a Codex task")
         assert messages("s1") is None
 
@@ -7945,7 +7925,7 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
 
     app = claimed("app-thread", app_server=True)
     assert "pid" not in app
-    assert app["activity"] == "codex-app-server"
+    assert app["activity"] == "multiplexed"
 
 
 def test_a_claim_is_active_while_the_lifetime_it_names_holds(
@@ -7996,8 +7976,8 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     record_claim(
         activity,
         id="multiplexed",
-        host="codex",
-        activity="codex-app-server",
+        harness="codex",
+        activity="multiplexed",
         ts=events_model.now_iso(),
     )
     claim = service_model.page_claim(activity)
@@ -8011,8 +7991,8 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     record_claim(
         activity,
         id="multiplexed",
-        host="codex",
-        activity="codex-app-server",
+        harness="codex",
+        activity="multiplexed",
         ts=stale,
     )
     assert not service_model.claim_is_active(service_model.page_claim(activity))
@@ -8820,7 +8800,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     events_model.append_event(

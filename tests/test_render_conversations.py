@@ -103,11 +103,11 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
     claim = record_claim(
         serve.page_dir,
         id="codex-thread",
-        host="codex",
+        harness="codex",
         agent="Codex",
     )
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(serve.page_dir, claim)
+        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease
     request.addfinalizer(lease.close)

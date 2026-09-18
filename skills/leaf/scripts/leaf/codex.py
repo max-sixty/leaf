@@ -42,7 +42,7 @@ from .delivery import (
 )
 from .event_log import flocked
 from .files import read_json, write_json
-from .host import state_home
+from .host import Harness, state_home
 from .service import (
     PageTransaction,
     owned_pages,
@@ -600,8 +600,14 @@ def project_app_server_activity(
 
 
 @contextmanager
-def _locked_codex_pages(session_id: str):
-    """Lock the current Codex-owned page set in its stable path order."""
+def _locked_task_pages(session_id: str):
+    """Lock this task's current page set in its stable path order.
+
+    Ownership is the whole test. Both carriers that reach here — the detached
+    adapter and an embedded host — write App Server readings onto the pages
+    their own session holds, and the claim's session id says which those are.
+    Discovery is only a candidate read, so each claim is checked again under
+    its lock."""
     with ExitStack() as stack:
         pages = []
         for page_dir in owned_pages(session_id):
@@ -610,35 +616,35 @@ def _locked_codex_pages(session_id: str):
             except FileNotFoundError:
                 continue
             claim = page.active_claim
-            if claim and claim["id"] == session_id and claim["host"] == "codex":
+            if claim and claim["id"] == session_id:
                 pages.append(page)
         yield pages
 
 
 def set_stream_activity(session_id: str, turn_id: str, detail: str) -> None:
     """Show what one turn is doing on every page this task claims."""
-    with _locked_codex_pages(session_id) as pages:
+    with _locked_task_pages(session_id) as pages:
         for page in pages:
             page.set_stream_activity(session_id, turn_id, detail)
 
 
 def clear_stream_activity(session_id: str, turn_id: str | None = None) -> None:
     """Take a turn's activity reading back off the pages showing it."""
-    with _locked_codex_pages(session_id) as pages:
+    with _locked_task_pages(session_id) as pages:
         for page in pages:
             page.clear_stream_activity(session_id, turn_id)
 
 
 def open_stream_turn(session_id: str, turn_id: str) -> None:
     """Open one observed provider turn on every page this task claims."""
-    with _locked_codex_pages(session_id) as pages:
+    with _locked_task_pages(session_id) as pages:
         for page in pages:
             page.open_turn(session_id, turn_id)
 
 
 def close_stream_turn(session_id: str, turn_id: str) -> None:
     """Close one observed provider turn on the pages holding it open."""
-    with _locked_codex_pages(session_id) as pages:
+    with _locked_task_pages(session_id) as pages:
         for page in pages:
             page.close_turn(session_id, turn_id)
 
@@ -884,17 +890,13 @@ def delivery_queue_state(session_id: str, delivery_id: str) -> str | None:
     return record.get("state") if record is not None else None
 
 
-def prepare_codex_delivery(
-    page_dir: Path,
-    identity: dict,
-    lifetime: dict,
-) -> PreparedDelivery:
+def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery:
     """Claim PAGE and freeze the input for an embedded task's first turn."""
-    session_id = identity["id"]
+    session_id = harness.session
     transition = None
     try:
         with PageTransaction(page_dir) as page:
-            transition = page.take_claim(identity, lifetime)
+            transition = page.take_claim(harness)
             batch = unacknowledged(page.events, page.cursor)
             if not batch:
                 raise RuntimeError("the page has no Leaf input to deliver")

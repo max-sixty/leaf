@@ -49,6 +49,7 @@ from leaf.conversation import (
     reserve_delivery_reply,
 )
 from leaf.delivery import read_delivery
+from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import take_waiter_lease, waiter_lease_path
@@ -64,6 +65,19 @@ from websockets.exceptions import WebSocketException
 PORT = 8080
 WEBSITE_AGENT = "Leaf guide"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
+
+
+def website_harness(thread_id: str, pid: int) -> EmbeddedHarness:
+    """This container's own harness declaration, for the pages it claims.
+
+    Nothing in the environment says what this is: the container drives App
+    Server itself and starts every turn, so it states its own carrier, the name
+    a reader sees, and the App Server process its session lives and dies with.
+    Leaf's claim readers then dispatch on that declaration exactly as they do on
+    a session the environment did imply."""
+    return EmbeddedHarness(session=thread_id, agent=WEBSITE_AGENT, pid=pid)
+
+
 PUBLICATION = {
     "agent": WEBSITE_AGENT,
     "install_url": "/#install",
@@ -309,7 +323,7 @@ def write_failure_receipt(page_dir: Path, responds: str, failure: str) -> dict |
         identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
     )
     claim = page_claim(page_dir)
-    if claim and claim.get("host") == "codex":
+    if claim and claim["carrier"] == EmbeddedHarness.carrier:
         abandon_codex_delivery(claim["id"], responds)
     return accepted
 
@@ -915,7 +929,7 @@ class WebsiteCodexHost:
     def _hold_waiter(self, page_dir: Path, thread_id: str) -> None:
         if thread_id in self.waiter_leases:
             return
-        path = waiter_lease_path(page_dir, {"id": thread_id})
+        path = waiter_lease_path(page_dir, thread_id)
         lease = take_waiter_lease(path)
         if lease is None:
             raise RuntimeError("another Leaf waiter already owns this Codex task")
@@ -1179,9 +1193,10 @@ class WebsiteCodexHost:
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
                 page.set_status("waiting", "")
-        identity = {"id": thread_id, "host": "codex", "agent": WEBSITE_AGENT}
         self._hold_waiter(page_dir, thread_id)
-        prepared = prepare_codex_delivery(page_dir, identity, {"pid": process.pid})
+        prepared = prepare_codex_delivery(
+            page_dir, website_harness(thread_id, process.pid)
+        )
         prepared_events = tuple(
             event["id"]
             for batch in prepared.payload["batches"]
@@ -1285,12 +1300,10 @@ class WebsiteCodexHost:
             with PageTransaction(page_dir) as page:
                 if page.status["state"] == "idle":
                     page.set_status("waiting", "")
-            identity = {"id": thread_id, "host": "codex", "agent": WEBSITE_AGENT}
             self._hold_waiter(page_dir, thread_id)
             prepared = prepare_codex_delivery(
                 page_dir,
-                identity,
-                {"pid": process.pid},
+                website_harness(thread_id, process.pid),
             )
             reply_target = stream_reply_target(prepared.payload)
             if reply_target is not None:
@@ -1358,8 +1371,8 @@ class WebsiteCodexHost:
                         )
                         claim = page_claim(page_dir)
                         thread_id = (
-                            claim.get("id")
-                            if claim and claim.get("host") == "codex"
+                            claim["id"]
+                            if claim and claim["carrier"] == EmbeddedHarness.carrier
                             else None
                         )
                         if thread_id not in self.following_threads:

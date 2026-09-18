@@ -73,7 +73,16 @@ export function createConversationPresentation({
         const phase = readApplication().phase;
         // The claimed value is the conversation this pass owes. What it draws comes from
         // the current semantic root, which may already carry a newer local gesture.
-        await (phase === "ready" ? paintCurrent() : setUnavailable(phase));
+        void (phase === "ready" ? paintCurrent() : setUnavailable(phase));
+        // The ticket answers for what stands in the region, not for the reading this
+        // paint happened to start. A clock tick landing inside it starts a newer one and
+        // leaves this one returning early, so waiting on the reading it started would
+        // commit over a page still being written — and would drop that reading's failure,
+        // which has no other ticket to travel on.
+        for (let awaited = null; awaited !== latestRender; ) {
+          awaited = latestRender;
+          await awaited;
+        }
       } finally {
         painting = false;
       }
@@ -106,6 +115,11 @@ export function createConversationPresentation({
   }
 
   let surfaceGeneration = 0;
+  // The reading the region is currently being written from. Every entry goes through
+  // `startRender`, so whoever is waiting on the region can wait for the last word.
+  let latestRender = Promise.resolve();
+  const startRender = (phase) => (latestRender = renderReading(phase));
+
   async function renderReading(phase = "ready") {
     const generation = ++surfaceGeneration;
     const current = () => generation === surfaceGeneration;
@@ -155,9 +169,9 @@ export function createConversationPresentation({
 
   function setUnavailable(phase) {
     paintCurrent.stop();
-    return renderReading(phase);
+    return startRender(phase);
   }
-  const renderCurrent = () => renderReading();
+  const renderCurrent = () => startRender();
 
   // A clock tick outside the pass claims its own ticket; inside it, the pass already
   // holds one and claiming a second would be this paint waiting on the pass it is part
@@ -167,10 +181,9 @@ export function createConversationPresentation({
   // A tick can also land in the middle of a pass paint, while it waits on a frozen
   // widget. That runs `renderReading` again, and `surfaceGeneration` settles which of
   // the two the page keeps: the newer one, exactly as a newer claim supersedes an older
-  // reading a rank up. The pass paint then returns having drawn nothing and commits on
-  // the strength of a reading that is still in flight, which is the one gap here: a
-  // failure in that newer reading arrives after the commit with no ticket to carry it.
-  // The clock has to reach `renderReading` synchronously either way — `clocked`
+  // reading a rank up. The pass paint waits for that newer reading rather than the one
+  // it started, which is what keeps its ticket true and gives the tick's own failure a
+  // ticket to travel on. The clock has to reach `renderReading` synchronously — `clocked`
   // records which relative-time readings a paint made while that paint runs, and a claim
   // that returns before the pass would record none and unsubscribe the conversation from
   // the clock altogether.

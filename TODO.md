@@ -148,12 +148,6 @@ the workspace research below, which reaches #23, so a new item starts above that
   this rather than preceding it: built first, it would police an implementation that is
   about to go.
 
-- **#2 — Finish the epoch presenters.** The coordinator and monotone epochs exist; six
-  hand-ordered choreography sites survive beside them, including `state-application.js`
-  running `applyConversation()` on either side of one `presentProjection` call and the
-  `prepareProjection`/`presentProjection` split that sandwich exists to hold. About 130
-  lines, and it retires the second mechanism for something that already has one.
-
 - **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
   imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the
   connection lifecycle `AppServerClient` owns: the `initialize`/`initialized`/`thread/resume`

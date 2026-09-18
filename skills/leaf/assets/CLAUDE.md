@@ -738,6 +738,28 @@ result only the log can supply waits instead, with
 `aria-busy` on the surface, which `chrome.css` paints on a delay so a fast answer shows
 nothing at all.
 
+### Motion
+
+Nothing the reader must read, press, or decide waits on a clock. Motion runs from a state
+that is already true: a fold collapses room the reader has already been told is going, a
+carry moves a card that has already arrived. Motion that has to finish before the result
+can be read is a pause.
+
+A motion the reader is waiting to end runs as long as the eye needs to follow a box from
+where it was to where it is, and stays under 300ms. A motion that moves nothing carries
+no such bound, so a landing flash or an arrival pulse may run longer; the reader reads
+straight through it.
+
+The `aria-busy` wait above withholds a look rather than a result. It removes a flicker a
+fast answer would otherwise paint and leave, and a delay may subtract that way. A minimum
+spinner time, a staged reveal, or a pause that makes work read as substantial adds one
+instead.
+
+`runtime/motion.js` owns the shared gate, the ease, and the reduced-motion answer. A
+duration two motions share belongs there under one name, as `FOLD_MS` is, because two
+numbers written for one reason are free to disagree. A duration one motion uses states
+its reason where it is passed. CSS transitions answer to the same ceiling.
+
 ## Standalone copies and print
 
 `version export` waits for the already-presented DOM, drops scripts, and marks the root

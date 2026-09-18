@@ -130,6 +130,10 @@ A page directory holds:
                          commit clears it after the canonical reply event is appended.
                          `reply_bindings` keeps each response's session and attempt
                          independent of that one display slot until it commits or fails.
+                         A delivery that ends without ever reaching a provider turn does
+                         neither, so its host gives the reservation up explicitly;
+                         until it does, the address it holds also refuses the receipt
+                         that would tell the reader no answer is coming.
                          Delivery pickup
                          never writes this file; its queued/opened phase, session,
                          and turn are page-owned evidence in events.jsonl

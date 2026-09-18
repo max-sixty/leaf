@@ -116,7 +116,10 @@ text written into the addressed thread, which is the user-visible response miles
 `turn_stream_completed` and `turn_reply_commit_failed` distinguish provider completion
 from Leaf's durable validation and append. `turn_stream_reconnect_failed` records each
 failed recovery attempt, and `turn_stream_reconnected` records recovery of the dropped
-App Server subscription.
+App Server subscription. `turn_delivery_unbound` names a turn that ended before any
+provider turn took its delivery; `turn_failure_reported` follows it with how many of
+that delivery's moves the host settled with a failure receipt and how many it left to
+the turn already handling them.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
 first-byte, first-output, and completion records. Those records carry Codex's thread

@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 import verify_site
 from click.testing import CliRunner
-from interact_support import STATED_TIMEOUT, running_http_server
+from interact_support import STATED_TIMEOUT, append_command, running_http_server
 from leaf.codex import _queues as codex_queues
 from leaf.codex import accept_codex_delivery
 from leaf.codex import delivery_pointer_prompt as delivery_prompt
@@ -1518,14 +1518,91 @@ def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
     )
     assert completed["detail"] == "no thread by that id"
 
+    reported = next(r for r in records if r["event"] == "turn_failure_reported")
+    assert (reported["settled"], reported["outstanding"]) == (1, 0)
+
     # The delivery's own reading is gone, so the page no longer tells the reader the
-    # agent is starting on a move it will never answer.
+    # agent is starting on a move it will never answer, and the move itself carries a
+    # receipt saying so rather than waiting on a reply that is not coming.
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
     assert (activity["kind"], activity["detail"]) != ("working", "Starting")
-    assert [item["phase"] for item in activity["interactions"]] == ["sent"]
-    assert [event["kind"] for event in read_events(page_dir)] == ["comment"]
-    assert comment["id"] == activity["interactions"][0]["event"]
+    assert activity["interactions"] == []
+    [reply] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert reply["responds"] == comment["id"]
+    assert reply["failure"] == "turn_failed"
+    assert "Send it again to retry." in reply["text"]
     host.close()
+
+
+def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
+    page_dir, monkeypatch
+):
+    """A receipt is addressed where the gesture is answered, not at the gesture.
+
+    A widget frozen into thread markup is answered on the conversation holding it,
+    so the address a reply is written to and the move it settles are two different
+    events. Writing the receipt at the gesture refuses instead of settling it.
+    """
+    website_server.activate_source(page_dir, read_events(page_dir))
+    asked = append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "text": "Which region?",
+            "markup": '<lf-options id="region" choose>'
+            '<lf-option id="east"><strong>East</strong></lf-option>'
+            '<lf-option id="west"><strong>West</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    chose = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "region",
+            "action": "choose",
+            "detail": {"options": ["east"]},
+        },
+    )
+    with website_server.PageTransaction(page_dir) as page:
+        page.set_status("idle", "")
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+    )
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
+    assert follow[5] is not None
+    assert follow[5]["reply_to"] != follow[5]["responds"]
+
+    class LostSocket:
+        def recv(self, timeout):
+            raise OSError("connection lost")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        host,
+        "_resume_turn_stream",
+        lambda _thread: (_ for _ in ()).throw(
+            website_server.AppServerRequestRejected("no thread by that id")
+        ),
+    )
+    host._follow_turn(LostSocket(), *follow)
+    host.close()
+
+    [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert (receipt["parent"], receipt["responds"]) == (asked["id"], chose["id"])
+    assert receipt["failure"] == "turn_failed"
 
 
 def test_notifications_before_start_response_reach_the_turn_follower(

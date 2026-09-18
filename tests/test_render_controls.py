@@ -3488,7 +3488,6 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     page = open_page(browser, serve(LONG_PAGE, comments=12))
     resized(page, 1000, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 240")
-    document_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -3542,12 +3541,18 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(open_filter).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
+    # What a covered document must not do is move under these gestures, so each one is
+    # read against the position the document was in when the gesture started. Comparing
+    # against a reading taken before the panel opened would assert something else: that
+    # nothing ever writes the scroller, which crossing the beside line deliberately does
+    # (moveContentFrame carries the reading place across the reflow it causes).
     threads.evaluate("el => el.scrollTop = 0")
     page.locator(".lf-threads").focus()
+    covered_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
     page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
     after_key = threads.evaluate("el => el.scrollTop")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == covered_at
 
     page.keyboard.press("PageDown")
     page.wait_for_function(
@@ -3572,7 +3577,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
         " return performance.now() - window.__lfAuxiliaryScrollSince > hold; }",
         arg=50,
     )
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == covered_at
 
     # Focus already inside the auxiliary surface is not a reason to move it at either crossing.
     thread = page.locator(f'.lf-thread[data-id="{identity}"]')
@@ -3590,11 +3595,63 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
+    # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
+    # it was and the reading place needs no carry across the close.
+    closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert not page.locator("main").evaluate("el => el.inert")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == closing_at
+
+
+def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, serve):
+    """The panel's strip reflows the page; the reader stays on the words they were on.
+
+    Narrowing the shell narrows the reading column inside it, so the text re-wraps and
+    the document grows above wherever the reader is standing. The browser cannot absorb
+    that here: scroll anchoring is suppressed for any frame in which a box on the
+    anchor's ancestor chain changes its margin, and taking the strip is that change to
+    body. So the runtime carries the reading place itself.
+
+    A re-wrap moves every paragraph by a different amount, so only one of them can be
+    held. The one the reader's place means is the block under the top of the window,
+    which is the block the platform's own anchoring would have chosen; what is further
+    down has grown taller and is expected to have moved.
+    """
+    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    resized(page, 1000, 640)
+    page.evaluate("() => document.scrollingElement.scrollTop = 900")
+    # The reader's place: the page's own block under the window's visible top edge, which
+    # the root states as scroll-padding for native focus navigation.
+    at_the_top = """
+    () => {
+      const edge = Number.parseFloat(
+        getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0;
+      const p = [...document.querySelectorAll('main p')]
+        .find((p) => p.getBoundingClientRect().bottom > edge);
+      return p && { id: p.id, top: p.getBoundingClientRect().top };
+    }
+    """
+    reading = page.evaluate(at_the_top)
+    assert reading, "the fixture put no paragraph under the top of the window"
+    tall = page.evaluate("() => document.documentElement.scrollHeight")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate("() => document.documentElement.scrollHeight") > tall, (
+        "the window is wide enough that the strip reflowed nothing, so nothing is proved"
+    )
+    opened = page.evaluate(at_the_top)
+    assert opened["id"] == reading["id"]
+    assert opened["top"] == pytest.approx(reading["top"], abs=2)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    assert page.evaluate("() => document.documentElement.scrollHeight") == tall
+    closed = page.evaluate(at_the_top)
+    assert closed["id"] == reading["id"]
+    assert closed["top"] == pytest.approx(reading["top"], abs=2)
 
 
 def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(

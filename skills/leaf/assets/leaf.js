@@ -143,6 +143,7 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
+import { chromeTop } from "./runtime/keyboard/key-badge-placement.js";
 import { createPageKeys } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
 import { registerPageScopes } from "./runtime/keyboard/register.js";
@@ -218,6 +219,14 @@ const targetPaintCaps = {
   setTargets: targetPaint.setTargets,
   shifted: targetPaint.shifted,
   geometryChanged: targetPaint.geometryChanged,
+};
+// The standing furniture every generated-hint map is spread around. Both maps read the
+// same three boxes, and they are passed rather than imported so the hint machine keeps
+// no ownership edge back to the shortcut bar it is placed against.
+const hintChrome = {
+  barriers: standingStatusBoxes,
+  lineBox: () => shortcutBarEl.getBoundingClientRect(),
+  viewportTop: chromeTop,
 };
 const focusedAnchorThreadId = () =>
   focused()?.closest?.(".lf-conversation-thread")?.dataset.thread ??
@@ -527,10 +536,7 @@ reactions = createReactionController({
 });
 targets = createTargetChooser({
   scrollToRange: anchorTravel.scrollToRange,
-  banner,
-  bottomChromeBoxes,
-  shortcutBarEl,
-  standingStatusBoxes,
+  hintChrome,
   commentOnTarget: responseSurface.commentOnTarget,
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
@@ -624,8 +630,8 @@ const auxiliaryChrome = createAuxiliaryChromeNavigation({
 goToSequence = createGoToSequence({
   panelIsOpen,
   panelCovers: navigation.panelCovers,
-  elements: { banner, toggleBtn, shortcutBarEl },
-  standingStatusBoxes,
+  elements: { banner, toggleBtn },
+  hintChrome,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
   captureAuxiliaryChromeState: auxiliaryChrome.captureAuxiliaryChromeState,
   restoreAuxiliaryChromeState: auxiliaryChrome.restoreAuxiliaryChromeState,

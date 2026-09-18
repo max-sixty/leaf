@@ -194,12 +194,6 @@ the workspace research below, which reaches #23, so a new item starts above that
   locally and `page.js` names again. It moves about 900 lines and deletes about 170,
   including the `rung()` ladder whose own guard stands down for the layer stack.
 
-- **#26 — Unify the two generated-hint machines.** `keyboard/go-to-sequence.js` and
-  `composing/target-chooser.js` implement one arming, prefix, walk and paint interaction
-  twice, sharing 24 identically named declarations and the same three helpers from
-  `keyboard/hints.js` before rebuilding everything above them. About 225 lines, and it pays
-  in both subsystems.
-
 - **#27 — Admit every event through one door.** Six of the nine `append_event` callers
   check no contract: `cmd_comment`, `cmd_reply`, `cmd_edit` and `cmd_resolve` in
   `conversation.py`, the `pickup` in `session.py`, and the `note` in `publishing.py`. Of

@@ -768,10 +768,11 @@ fast answer would otherwise paint and leave, and a delay may subtract that way. 
 spinner time, a staged reveal, or a pause that makes work read as substantial adds one
 instead.
 
-`runtime/motion.js` owns the shared gate, the ease, and the reduced-motion answer. A
-duration two motions share belongs there under one name, as `FOLD_MS` is, because two
-numbers written for one reason are free to disagree. A duration one motion uses states
-its reason where it is passed. CSS transitions answer to the same ceiling.
+`runtime/motion.js` owns the shared gate, the ease, and the reduced-motion answer for the
+motion it plays; the theme's guard answers for CSS. A duration two motions share belongs
+there under one name, as `FOLD_MS` is, because two numbers written for one reason are free
+to disagree. A duration one motion uses states its reason where it is passed. CSS
+transitions answer to the same ceiling.
 
 ## Standalone copies and print
 

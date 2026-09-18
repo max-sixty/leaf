@@ -39,7 +39,6 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     needs: lint
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
 

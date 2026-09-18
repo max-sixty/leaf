@@ -21,8 +21,11 @@
    opening: the `showModal` and `showPopover` patches, and `beforetoggle` and `toggle` at
    the document and at each declared shadow boundary. `beforetoggle` makes a declarative
    opening visible synchronously to the command that caused it; `toggle` follows the
-   completed native transition and corrects the order if that opening reentered another
-   popover's handler. Dismissal stays each layer's own `popover` or `closedby` value. A
+   completed native transition, and carries an opening whose earlier declarations this
+   module was not yet listening for. An opening arrives once, so a declaration naming a
+   layer the stack already holds leaves its entry where the arrival put it, however many
+   more times that same opening is declared. Dismissal stays each layer's own `popover`
+   or `closedby` value. A
    popover opened declaratively inside a shadow root nobody staged fires a `toggle` this
    module cannot hear, so it never reaches the stack; `shadowStage` is the declared route
    for a widget's shadow tree.
@@ -162,15 +165,21 @@ function prune() {
 //
 // A modal marks what it covers as it is pushed, before the native call hides the auto
 // popovers beneath it, so the mark is set by the cause rather than by whichever read
-// happens to run while the modal stands. The mark stays through the return: one opening
-// is declared twice, by the patched method before the native call and by `beforetoggle`
-// during it, and the second declaration finds the entry lifted but not yet open.
+// happens to run while the modal stands. The mark stays through the return: one opening is
+// declared more than once — by the patched method before the native call, by `beforetoggle`
+// during it, and by `toggle` once the native transition completes — and a later declaration
+// finds the entry lifted but not yet open.
+//
+// A standing entry is left alone wherever it sits, and not merely where it is already on
+// top. `toggle` is queued rather than synchronous, so a command entered from the layer can
+// push its return frame in the gap before that last declaration lands; lifting the layer
+// there made it the newest thing on the stack, and the reader's Escape dismissed the
+// surface they were standing in instead of handing back the place the command displaced.
 export function pushNativeLayer(node, kind) {
   const at = entries.findIndex((entry) => entry.root === node);
   const standing = at < 0 ? null : entries[at];
-  if (standing && standing === entries.at(-1) && standing.active()) return;
-  const lifted =
-    standing && (standing.active() || standing.suspended) ? standing : null;
+  if (standing?.active()) return;
+  const lifted = standing?.suspended ? standing : null;
   if (lifted) {
     entries.splice(at, 1);
     lifted.kind = kind;

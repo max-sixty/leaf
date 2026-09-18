@@ -104,8 +104,8 @@ Two are still open.
   are next revisited.
 
 The rest are decided. Comments match text exactly or detach, and agents write HTML: both
-stay. The keyboard stays vim-like, and the layer inference behind ten of its 24 fixes is
-item #24 in `TODO.md`. The margin's cluster layout is an arm of the region-aware
+stay. The keyboard stays vim-like, and the layer inference behind ten of its 24 fixes went
+in #780, which gave the keyboard an explicit layer stack. The margin's cluster layout is an arm of the region-aware
 annotation placement item. Every revision keeps its own copy of the layer, and sharing
 those copies by digest is in Rejected above with what it would have saved.
 

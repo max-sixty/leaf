@@ -269,8 +269,9 @@ export function createAskView({
       });
     });
   }
-  // The banner's reading of that one list. Every semantic publication refreshes it:
-  // that is where both the fold and a send whose optimism was taken back change.
+  // The banner's reading of that one list. Every semantic publication refreshes it,
+  // and a publication is where the server's Ask reading changes, so a send moves
+  // these counts once the state its POST returns has been adopted.
   let shortcutsOffered = false;
   let rowWalkOffered = false;
   const ANSWER_CAP = 120;

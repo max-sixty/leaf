@@ -136,7 +136,7 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     # agent closed with `leaf resolve` is not theirs to reopen by pressing undo.
     events_model.append_event(
         serve.page_dir,
-        {"kind": "resolve", "author": "claude", "agent": "A", "parent": comments[1]},
+        {"kind": "resolve", "author": "agent", "agent": "A", "parent": comments[1]},
     )
     told(page)
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
@@ -2349,7 +2349,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "question",
             "text": "Here is the detail.",
@@ -2464,7 +2464,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "approval-question",
             "text": "Here is the detail.",
@@ -2558,7 +2558,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "question",
             "text": "Here is the detail.",
@@ -2730,7 +2730,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "wake-question",
             "text": "This candidate still has a fallible preparation.",

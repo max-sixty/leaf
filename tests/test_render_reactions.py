@@ -670,7 +670,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": root,
             "text": "Because the finches take it through the cold.",
@@ -1892,7 +1892,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": root,
             "text": "The one we ship to schools.",
@@ -1903,7 +1903,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": quiet_root,
             "text": "And nothing stands on the earlier answer here.",
@@ -2012,7 +2012,7 @@ def _thread(page_dir):
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": root,
             "text": "Forty is what the slowest device we ship on can hold.",

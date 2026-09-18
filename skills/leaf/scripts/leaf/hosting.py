@@ -15,7 +15,7 @@ import uvicorn
 
 from .event_log import flocked, require_cross_process_locking
 from .files import read_json, write_json
-from .host import host_identity
+from .host import session_harness
 from .http import page_app, page_endpoint
 from .layer import payload_provenance
 from .leases import lock_is_held, transition_lock
@@ -284,16 +284,16 @@ def _serve_claim(
     if revive and (not service or not service["enabled"]):
         sys.exit("service was stopped; not reviving")
 
-    identity = host_identity()
+    harness = session_harness()
     claim = page.claim
     claimed = bool(
         not standing
-        and identity is not None
+        and harness is not None
         and claim is not None
         and claim["released"] is None
-        and (claim["host"], claim["id"]) == (identity["host"], identity["id"])
+        and (claim["harness"], claim["id"]) == (harness.name, harness.session)
     )
-    if not standing and identity is not None and not claimed:
+    if not standing and harness is not None and not claimed:
         sys.exit(
             f"this host session no longer owns {page_dir}; the server was not started"
         )

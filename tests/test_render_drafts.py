@@ -275,11 +275,11 @@ def test_page_round_trip(browser, serve):
         json.loads(line) for line in (d / "events.jsonl").read_text().splitlines()
     ]
     assert [(e["kind"], e["author"], e["revision"]) for e in events] == [
-        ("note", "claude", 1),
+        ("note", "agent", 1),
         ("comment", "user", 1),
         ("action", "user", 1),
         ("action", "user", 1),
-        ("note", "claude", 2),
+        ("note", "agent", 2),
     ]
     # The board after the paragraph is module-rendered and therefore an opaque
     # passage cell. Context stops at that shared browser/file fence.

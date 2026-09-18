@@ -162,7 +162,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 1,
             "revision": 1,
             "text": "published",
@@ -199,7 +199,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "revision": 2,
             "text": (
@@ -306,7 +306,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         assert page.locator("#message-shot").get_attribute("before") == (
             f"{root}/media/051bee487bfb5d13.png"
         )
-        pasted = page.locator(".lf-msg.claude .lf-msg-text img")
+        pasted = page.locator(".lf-msg.agent .lf-msg-text img")
         page.wait_for_function(
             "image => image.naturalWidth > 0", arg=pasted.element_handle()
         )
@@ -315,7 +315,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         assert media_open.get_attribute("data-lf-media-url") == (
             f"{root}/media/051bee487bfb5d13.png"
         )
-        original = page.locator(".lf-msg.claude .lf-msg-text a")
+        original = page.locator(".lf-msg.agent .lf-msg-text a")
         expect(original).to_have_text("Open the original")
         expect(original).to_have_attribute("href", f"{root}/media/051bee487bfb5d13.png")
         url_before = page.url

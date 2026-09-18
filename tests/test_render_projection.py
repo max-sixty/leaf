@@ -2806,6 +2806,10 @@ def test_a_live_revision_reapplies_the_authored_conversation_seat_predicate(
         composer.get_by_role("button", name="Send", exact=True).click()
 
     def reader_asks():
+        # The Ask reading is the log's, so ask it of a page that has taken in what the
+        # server holds: a trip is over when the outbox empties, one beat before the
+        # answer it carried has been applied.
+        told(page)
         return page.evaluate(
             """async () => {
               const {openAsks} = await window.__lfRuntimeImport('/runtime/application.js');
@@ -4257,7 +4261,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             d,
             {
                 "kind": "report",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "widget": "t-parser",
                 "action": "status",
@@ -4500,7 +4504,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": thread["id"],
             "revision": 1,
@@ -5116,7 +5120,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
-        ("report", "claude", "tally-fitted", "measure", "9"),
+        ("report", "agent", "tally-fitted", "measure", "9"),
         ("action", "user", "tally-seen", "set", "5"),
     ]:
         append_command(
@@ -6408,7 +6412,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-decision",
             "revision": 1,
             "text": MARKDOWN_REPLY,
@@ -6416,7 +6420,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
-    body = page.locator(".lf-msg.claude .lf-msg-body")
+    body = page.locator(".lf-msg.agent .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
     expect(body.locator("blockquote")).to_have_text("which one wins?")
@@ -6686,7 +6690,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "body-question",
             "text": "Edit these words.",
@@ -6800,7 +6804,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
             {
                 "kind": "reply",
                 "parent": "draft-question",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "text": "Edit this draft.",
                 "markup": '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n</pre></lf-draft>',
@@ -6886,7 +6890,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-decision",
             "revision": 1,
             "text": SPECIMEN_TEXT,
@@ -7032,19 +7036,20 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     ), "replaying the answer left an attribute the entry never declared"
     other.close()
 
-    # Taking back a recordless chrome answer rebuilds its authored controls and the
-    # same standing projection opens the decision again. The selection is another facet,
-    # so it survives that rebuild. Hold the command at the wire: reopening belongs to
-    # the local projection, not to a later server read. In particular, the surviving
-    # `choose` action cannot answer a thread set whose `x-awaits.until` names `answer`.
+    # Taking back a recordless chrome answer rebuilds its authored controls at once —
+    # the withdrawal is the reader's own gesture on their own widget. The selection is
+    # another facet, so it survives that rebuild. Whether the decision is open again is
+    # the log's reading, so the count moves when the withdrawal reaches it and not while
+    # it is held at the wire. In particular, the surviving `choose` action cannot answer
+    # a thread set whose `x-awaits.until` names `answer`.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.keyboard.press("z")
-    expect(decisions).to_have_text("Asks 1/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
+    expect(decisions).to_have_text("Asks 2/2")
     holding(page, held, 1, "the thread answer's withdrawal")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -7288,7 +7293,7 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
     events_model.append_event(
-        serve.page_dir, {"kind": "resolve", "author": "claude", "parent": "c-which"}
+        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
     expect(page.locator(".lf-asks")).to_be_hidden()
@@ -7384,7 +7389,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
         {
             "kind": "comment",
             "id": "c-tree",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "The worker's evidence, for the record.",
             "markup": '<lf-roster id="msg-team"><lf-agent id="msg-worker" '
@@ -7469,7 +7474,10 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     browser, serve
 ):
     """A typed host request paints and locks its siblings before the log answers,
-    then waits for its exact receipt."""
+    then waits for its exact receipt.
+
+    The tray row is the other half: whether the Ask the request stands for is still the
+    reader's is the log's reading, so the row turns over when the request reaches it."""
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
@@ -7493,13 +7501,14 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     operations.get_by_role("button", name="Restart with a fresh worker").click()
     holding(page, held, 1, "the restart request")
     expect(operations).to_contain_text("restart requested · waiting for the host")
+    expect(request_row).to_have_attribute("data-lf-answer-state", "open")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
     expect(request_row.locator(".lf-asks-answer")).to_have_text(
         "Restart with a fresh worker"
     )
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
     requests = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -7737,7 +7746,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "Choose the host operation.",
@@ -7755,7 +7764,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "The operation above remains ready when you are.",
@@ -8477,7 +8486,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Relay",
             "parent": root["id"],
             "revision": 1,
@@ -8523,7 +8532,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
         d,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "worker",
             "revision": 1,
             "widget": "parser-dedupe",
@@ -8550,7 +8559,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
         d,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "worker",
             "revision": 3,
             "widget": "parser-dedupe",
@@ -8639,7 +8648,7 @@ def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, s
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": root["id"],
             "revision": 1,
             "text": "The hunk is ready.",

@@ -132,22 +132,6 @@ carries. A 2026-09-18 survey measured what remains and added #25 to #27; its evi
 the `leaf-simplification` page directory in the state home. Ids here share one space with
 the workspace research below, which reaches #23, so a new item starts above that.
 
-- **#4 — Delete the browser's second derivation of the server's semantics.** The server
-  already folds the Ask inventory, winner and retraction resolution, and each thread's
-  `awaits_reader`, and ships all three on `/api/state`; the browser discards them and
-  derives them again in `scripts/browser/application.ts` — `deriveAsks` across lines 342 to
-  517, `deriveThreadReaderObligations` 528 to 582, the ask predicates between them, plus a
-  re-fold of the `actions` and `desired` id lists the wire carries for exactly that purpose.
-  Roughly 750 lines, arrived in #746. The two copies of the `when` predicate already
-  disagree, Python testing presence and TypeScript testing non-null, so an attribute
-  recorded as `null` reads differently on each side. Nothing on either side compares them.
-  Keep the pending-attempt ledger and the DOM-captured authored baseline, which are the
-  browser's real work. Restore the ~35 lines of page-ask serialization
-  `served_state/document.py` computes and drops, and delete the ask payload
-  `served_state/conversation.py` ships that nothing reads. A shared parity corpus follows
-  this rather than preceding it: built first, it would police an implementation that is
-  about to go.
-
 - **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
   imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the
   connection lifecycle `AppServerClient` owns: the `initialize`/`initialized`/`thread/resume`

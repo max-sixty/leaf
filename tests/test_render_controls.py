@@ -862,7 +862,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     )
     url = serve(html)
     stamp_page(serve.page_dir, html, "two")
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     resized(page, 1280, 900)
     # The complete real action set, wherever the fold has put each of them: what this is
@@ -934,7 +934,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         assert read["down"]["shown"] == pytest.approx(read["lineHeight"], abs=1), read
         assert read["down"]["shown"] == read["down"]["needed"], read
         assert read["ellipsis"] == "ellipsis", read
-        assert read["text"] == f"Claude working — {detail}", read
+        assert read["text"] == f"Agent working — {detail}", read
         assert detail.strip() in read["title"], read
         assert read["actions"]["shown"] >= read["actions"]["needed"], read
         expect(door).to_have_attribute("aria-describedby", "lf-status-detail")
@@ -1267,7 +1267,7 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
             "started": "2026-09-06T12:00:00+00:00",
         },
     )
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     expect(page.locator(".lf-preview")).to_have_count(1)
 
@@ -1530,7 +1530,7 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     resized(page, 390, 800)
 
@@ -1601,7 +1601,7 @@ def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     resized(page, 1440, 900)
     answer_all = page.locator(".lf-answer-all")
@@ -2291,14 +2291,22 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     try:
         page.keyboard.press("z")
         holding(page, held, 1, "the undo that reopens the choice")
+        # The reader sees their withdrawal in the widget at once. Whether the Ask is
+        # open again is the log's reading, and this withdrawal has not reached it, so
+        # the prerequisite this verb declares is still unmet and its control shut.
         expect(page.locator("#pick-a")).not_to_have_attribute("chosen", "")
-        page.get_by_role("checkbox", name=re.compile(r"^choose one: B")).click()
-        expect(page.locator("#pick-b")).to_have_attribute("chosen", "")
+        expect(
+            page.get_by_role("checkbox", name=re.compile(r"^choose one: B"))
+        ).to_be_disabled()
     finally:
         for route in held:
             route.continue_()
         page.unroute("**/api/event", hold_undo)
     round_trip(page)
+    # With the withdrawal in the log the Ask is open again and the same press lands.
+    page.get_by_role("checkbox", name=re.compile(r"^choose one: B")).click()
+    round_trip(page)
+    expect(page.locator("#pick-b")).to_have_attribute("chosen", "")
     assert [event["action"] for event in actions(serve.page_dir)] == [
         "choose",
         "choose",
@@ -2894,7 +2902,7 @@ def test_a_panel_row_follows_its_pages_status_live(
             other_dir,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "parent": comment["id"],
                 "responds": comment["id"],
                 "revision": 1,
@@ -4067,7 +4075,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-diff",
             "revision": 1,
             "text": "The one line that decides it:",

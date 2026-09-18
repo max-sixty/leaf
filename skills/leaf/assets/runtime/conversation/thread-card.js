@@ -18,7 +18,7 @@ import { offer, reachedForWords, measure, reserve } from "../widget-elements.js"
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
-import { settleThread, pendingSettlement } from "./folding.js";
+import { settleThread } from "./folding.js";
 import { groupFor, pageOutline } from "./placement.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
@@ -68,14 +68,11 @@ export function threadReading(
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
-  const pending = pendingSettlement(
-    commands.settlement.pendingEntries(),
-    thread.root.id,
-  );
+  const settling = thread.settling ?? null;
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
   const label =
-    pending?.event.kind === kind
+    settling === kind
       ? resolved
         ? "Reopening…"
         : "Resolving thread…"
@@ -100,7 +97,7 @@ export function threadReading(
         : panel
           ? ""
           : "✓ Resolved",
-    settlement: Object.freeze({ kind, word, label, pending: Boolean(pending) }),
+    settlement: Object.freeze({ kind, word, label, pending: Boolean(settling) }),
     reply: !resolved && (panel || thread.root.response?.kind !== "version"),
     messages: Object.freeze(
       turns(thread).map((message) =>
@@ -339,11 +336,7 @@ export class ThreadView {
           keys: PRESS,
           does: `${word} it`,
           line: word.toLowerCase(),
-          when: () =>
-            !pendingSettlement(
-              this.#commands.settlement.pendingEntries(),
-              this.#model.id,
-            ),
+          when: () => !this.#model.settlement.pending,
           run: () => button.click(),
         },
       ]);

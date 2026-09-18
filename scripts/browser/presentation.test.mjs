@@ -618,7 +618,10 @@ test("a reading held open does not keep the next one off the page", async () => 
   release();
   await ready;
 
-  assert.equal(coordinator.committed("conversation", renderer, "newer").status, "committed");
+  assert.equal(
+    coordinator.committed("conversation", renderer, "newer").status,
+    "committed",
+  );
   assert.equal(coordinator.read().presentedEpoch, 0);
 });
 
@@ -736,7 +739,10 @@ test("a fail-soft paint commits an explicit failure state", async () => {
 
   assert.equal(failures.length, 1);
   assert.equal(coordinator.read().presentedEpoch, 0);
-  assert.equal(coordinator.committed("conversation", renderer, "value").status, "failed");
+  assert.equal(
+    coordinator.committed("conversation", renderer, "value").status,
+    "failed",
+  );
 });
 
 test("a paint that claims another region joins the same pass", async () => {
@@ -802,5 +808,8 @@ test("a reading claimed mid-paint is installed before the finished one settles",
 
   assert.deepEqual(readings, [-1, -1]);
   assert.equal(coordinator.read().presentedEpoch, 0);
-  assert.equal(coordinator.committed("conversation", renderer, "second").status, "committed");
+  assert.equal(
+    coordinator.committed("conversation", renderer, "second").status,
+    "committed",
+  );
 });

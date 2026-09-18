@@ -83,7 +83,9 @@ export function createConversationPresentation({
   // the publication that seals membership; the pass paints it. Before the page has read
   // the log there is no conversation to claim.
   applicationState
-    .select((snapshot) => (snapshot.phase === "waiting" ? null : snapshot.semanticEpoch))
+    .select((snapshot) =>
+      snapshot.phase === "waiting" ? null : snapshot.semanticEpoch,
+    )
     .subscribe((value) => {
       if (value !== null) void present();
     });

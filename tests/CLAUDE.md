@@ -268,12 +268,25 @@ a test body.
 
 ### A process the suite starts ends with the run
 
+The run catches SIGINT itself, so every child starts at the default disposition
+a terminal gives. A run launched as a shell's background job inherits SIGINT set
+to SIG_IGN and passes it to everything it spawns, and a test that interrupts its
+own child would otherwise pass or fail on how the run was launched rather than
+on the code.
+
 Server ownership has two layers:
 
-- `spawn` owns every child process started directly by a test and terminates
-  any survivor during teardown.
+- `spawn` owns every child process started directly by a test and ends any
+  survivor during teardown — the group, for a child given a session of its own,
+  because such a child's own children join that group and the handle the test
+  keeps names only the launcher.
 - `_no_page_outlives_its_test` releases the suite's held leases, searches the
   temporary page and state roots, and stops every live leaf server it finds.
+- `preview_slot` discards the slots a preview test names, because those pages
+  live in the checkout's `.tmp/previews` rather than under a root that sweep
+  walks. It discards through `preview.retire_preview`, so a watcher that
+  outlived its test is retired rather than having its page pulled out from
+  under it.
 
 The search is intentional: a cleanup list catches only the server a test
 remembered to register. A page server is spawned into its own process session,

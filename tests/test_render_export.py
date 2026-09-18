@@ -5,13 +5,13 @@ import itertools
 import json
 import os
 import re
-import shutil
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+import preview as preview_model
 import pytest
 from click.testing import CliRunner
 from interact_support import install_payload, wait_for
@@ -20,7 +20,6 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
-from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import render_checks as render_checks_model
@@ -64,12 +63,36 @@ ROOT = Path(__file__).parent.parent
 
 @pytest.fixture
 def preview_slot(tmp_path):
+    """Every slot in one `slot` namespace, gone when the test ends.
+
+    `.tmp/previews` is shared by every run in this checkout and
+    `_no_page_outlives_its_test` does not reach it, so what a run leaves there
+    stays: a slot is a page directory plus its metadata, its log, and its two
+    locks, and at a few hundred entries
+    `test_a_detached_preview_restarts_under_its_original_codex_claim` stops
+    meeting its thirty-second reload.
+
+    Through `retire_preview`, which is the preview's own discard: it writes the
+    stop flag the watcher polls and waits for the lease, so it retires a watcher
+    that outlived its test instead of pulling the page out from under one. A
+    second preview a test opens is named `{slot}-reader`, `{slot}-before`, or
+    `{slot}-after`, and is this fixture's to discard too. The separator matters:
+    without it the sweep for `…1` would take the `…10` slot beside it.
+    """
     slot = f"pytest-{os.getpid()}-{tmp_path.name}"
     page = ROOT / ".tmp" / "previews" / slot
     yield slot, page
-    if server_model.running_server(page):
-        hosting_model.cmd_stop(page)
-    shutil.rmtree(page, ignore_errors=True)
+    named = {slot} | {
+        path.name.split(".preview.")[0] for path in page.parent.glob(f"{slot}[.-]*")
+    }
+    for name in sorted(named):
+        retired = page.parent / name
+        preview_model.retire_preview(retired, discard=True)
+        # The two locks outlive that discard on purpose — a concurrent `--stop`
+        # is excluded by the inode it waits on, and replacing it would exclude
+        # nobody. These slots are the run's alone, with nothing left waiting.
+        for path in page.parent.glob(f"{name}.preview.*"):
+            path.unlink(missing_ok=True)
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
@@ -379,7 +402,7 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
 
 
 def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
-    browser, tmp_path
+    browser, tmp_path, preview_slot
 ):
     """A developer can hold one fixture still while two vendored runtimes serve it.
 
@@ -393,7 +416,8 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         REPLAYED_PAGE.replace("Rollout", "Shared runtime comparison", 1),
         encoding="utf-8",
     )
-    prefix = f"pytest-{os.getpid()}-{tmp_path.name}"
+    # Both slots are derived from the fixture's, so its teardown discards them.
+    prefix, _ = preview_slot
     installed = install_payload(tmp_path / "other-runtime")
     runtime_marker = "/* preview runtime marker */"
     installed_runtime = installed / "skills" / "leaf" / "assets" / "leaf.js"
@@ -476,7 +500,6 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
                 text=True,
                 timeout=30,
             )
-            shutil.rmtree(page, ignore_errors=True)
 
 
 def test_automation_preview_records_real_gestures_outside_the_task(
@@ -587,7 +610,6 @@ def test_automation_preview_records_real_gestures_outside_the_task(
             text=True,
             timeout=30,
         )
-        shutil.rmtree(reader_dir, ignore_errors=True)
 
     request.addfinalizer(cleanup_reader)
     reader_result = subprocess.run(

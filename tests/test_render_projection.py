@@ -7032,19 +7032,20 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     ), "replaying the answer left an attribute the entry never declared"
     other.close()
 
-    # Taking back a recordless chrome answer rebuilds its authored controls and the
-    # same standing projection opens the decision again. The selection is another facet,
-    # so it survives that rebuild. Hold the command at the wire: reopening belongs to
-    # the local projection, not to a later server read. In particular, the surviving
-    # `choose` action cannot answer a thread set whose `x-awaits.until` names `answer`.
+    # Taking back a recordless chrome answer rebuilds its authored controls at once —
+    # the withdrawal is the reader's own gesture on their own widget. The selection is
+    # another facet, so it survives that rebuild. Whether the decision is open again is
+    # the log's reading, so the count moves when the withdrawal reaches it and not while
+    # it is held at the wire. In particular, the surviving `choose` action cannot answer
+    # a thread set whose `x-awaits.until` names `answer`.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.keyboard.press("z")
-    expect(decisions).to_have_text("Asks 1/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
+    expect(decisions).to_have_text("Asks 2/2")
     holding(page, held, 1, "the thread answer's withdrawal")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -7469,7 +7470,10 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     browser, serve
 ):
     """A typed host request paints and locks its siblings before the log answers,
-    then waits for its exact receipt."""
+    then waits for its exact receipt.
+
+    The tray row is the other half: whether the Ask the request stands for is still the
+    reader's is the log's reading, so the row turns over when the request reaches it."""
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
@@ -7493,13 +7497,14 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     operations.get_by_role("button", name="Restart with a fresh worker").click()
     holding(page, held, 1, "the restart request")
     expect(operations).to_contain_text("restart requested · waiting for the host")
+    expect(request_row).to_have_attribute("data-lf-answer-state", "open")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
     expect(request_row.locator(".lf-asks-answer")).to_have_text(
         "Restart with a fresh worker"
     )
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
     requests = [
         event
         for event in events_model.read_events(serve.page_dir)

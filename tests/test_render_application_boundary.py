@@ -328,33 +328,38 @@ def test_approval_waits_for_a_reading_of_the_log(browser, serve):
         page.close()
 
 
-def test_deferred_projection_holds_approval_until_its_paint_lands(browser, serve):
-    """Deferred projection paint, not admission, holds the irreversible approval."""
+def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):
+    """An answer the log has not taken in cannot open the irreversible approval.
+
+    The pick is the reader's at once — that is their own gesture drawn on their own
+    widget. Which Asks still stand is the server's fold, so the count and the gate
+    move when the state this POST returns is adopted, and not before."""
     page = open_page(browser, serve(APPROVAL_PAGE))
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_disabled()
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.evaluate("document.body.classList.add('lf-dragging')")
     page.locator("#release-ship .lf-pick").click()
     holding(page, held, 1, "the answer held outside the admitted log")
 
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(page.locator("#release-ship .lf-pick")).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
         "title", "Answer every Ask before approving this work"
     )
 
-    page.evaluate("document.body.classList.remove('lf-dragging')")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
     expect(approval).to_be_enabled()
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    expect(approval).to_be_enabled()
     page.close()
 
 

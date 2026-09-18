@@ -4958,6 +4958,8 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         {
             "id": "orphan-decision",
             "tag": "lf-ask",
+            "source": "orphan-choice",
+            "source_tag": "lf-options",
             "conversation": "c-lost",
         }
     ]

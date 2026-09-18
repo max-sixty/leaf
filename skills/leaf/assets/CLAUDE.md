@@ -90,8 +90,8 @@ reading, document-bound target-reference capture, declared-role dispatch validat
 subscription lifetime, total state rendering before auxiliary subscribers, generic
 settlement paint, and the widget presentation ticket through `updateComplete`;
 `runtime/widget-descriptors.js` captures each revision-bound widget's declaration,
-authored ancestry, Ask and conversation predicates, retirement edges, request offers,
-and stable target boundary before content modules upgrade or move its node;
+authored ancestry, exhibit fence, request offers and bindings, and stable target
+boundary before content modules upgrade or move its node;
 `runtime/target-references.js` owns stable id and structural target records, exact
 resolution, immutable page and frozen-fragment boundaries, and the shared pointer and
 keyboard candidate walk;
@@ -102,7 +102,7 @@ match before it may move focus or scroll the reader;
 each package supplies its words and bound detail;
 `runtime/asks/model.js` exposes immutable Ask selectors and the semantic subscription
 from the application publisher; inventory, answer state, retirement, and thread
-obligations are folded by that publisher;
+obligations are folded by Python and carried on the wire the publisher adopts;
 `runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and
 Ask-local contextual command projection; `asks/view-elements.js` owns its passive paint
 host and control selector;
@@ -352,6 +352,7 @@ Each mutable fact has one writer:
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
+| which Asks stand, which the reader owes, and whose turn each thread is | the server's one `leaf.asks` fold, shipped as the view's `document.asks`, the conversation's `asks`, and each thread's `awaits_reader` | the publisher concatenates the page and thread readings and publishes them unchanged; `foldThreads` hands a thread to the agent for the reader's own unsent reply |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region inside that publication and paints on the pass after it, projection before conversation before Asks; no caller orders a paint |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
@@ -469,11 +470,20 @@ record answers the Ask, so no private completion flag can diverge from the durab
 arrangement. An answer or thread-completion verb cannot require its own awaiting value, or
 an aggregate parent's awaiting value, to be false: either prerequisite is circular
 while the Ask stands. `x-awaits.rollup` carries the logical OR of its nearest
-local Asks and child roll-ups in both the admitted server projection and the
-application publisher's pending overlay; the aggregate owner never originates or
+local Asks and child roll-ups; the aggregate owner never originates or
 surfaces an Ask. Quoted, retired, and resolved-thread sources are absent from the
-inventory and the rollup through the same captured-descriptor existence reading. The
-browser receives the resulting ids and awaiting values.
+inventory and the rollup through the same existence reading.
+
+`leaf.asks` is the one implementation of all of that. It folds the page and
+frozen-thread readings under the page transaction that answers each state read, and
+`browser_state` serializes both: each view's `document.asks` and the conversation's
+`asks`, as `{all, reader, unanswered, awaiting, unanswered_awaiting}`. Each listed Ask
+names the surface the reader is sent to and the `source` that answers it. The browser
+concatenates the two, page before thread. No runtime module folds a declaration to
+decide which Asks stand, which of them the reader still owes, or whether one is
+answered, so an answer reaches the tray, the walk, the banner count, and an action's
+`requires` gate when the state its POST returns is adopted — one reading after the
+widget state the reader sees change at once.
 
 Python's `state_projection` is the durable derived view. Under the same page
 transaction as `/api/state`, `browser_state` serializes its classified events and
@@ -487,10 +497,10 @@ conversation coordinates use the unbounded frozen-markup window.
 
 `awaitsReader` first reads any standing local `x-awaits` or `x-request.ask`
 Ask carried anywhere in the unresolved thread; a later plain turn does not hide
-an earlier structural Ask. The publisher derives that obligation from its effective
-Ask reading, so a pending answer or Undo changes the thread and Ask list in one
-publication. Frozen descriptors name both their canonical thread root and containing
-message. With no such Ask, the obligation reads the latest spoken turn:
+an earlier structural Ask. Python derives that obligation beside the Ask reading it
+shares a fold with, and ships it as each thread's `awaits_reader`; the browser reads
+it. The one local correction is the reader's own unsent reply, which `foldThreads`
+hands to the agent. With no such Ask, the obligation reads the latest spoken turn:
 an agent comment is a question and an agent reply's explicit `awaits` field marks a
 prose request. A `settles` token standing on that latest prose request answers it
 without closing the thread.

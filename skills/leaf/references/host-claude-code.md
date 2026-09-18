@@ -25,8 +25,7 @@ New reader input reaches you only between your own operations, at the next tool
 result.
 
 One unnamed `leaf wait` watches every page the host session owns. It prints one
-complete `leaf-delivery-v1` envelope, the same object an App Server carries
-inline and a queued Codex task reads by id. Each batch names its `page`,
+complete `leaf-delivery-v1` envelope inline. Each batch names its `page`,
 `through_seq`, `conversations`, `handling`, and complete ordered `events`. Name a
 page only to pick up a page this session did not serve; `leaf wait <page>` claims
 it.

@@ -33,9 +33,9 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
-from leaf import host as host_model
 from leaf import layer as layer_model
 from leaf import locations as interact_locations
+from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
@@ -1486,7 +1486,7 @@ def test_the_layer_composer_is_the_browser_module_population():
 
 def test_every_test_runs_against_a_throwaway_state_home(tmp_path_factory):
     """Fixture claims and installed packages stay outside the developer's state."""
-    assert host_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
+    assert machine_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
 
 
 def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
@@ -2808,7 +2808,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
 
     installed = runner.invoke(cli_model.cli, ["package", "install", str(source)])
 
-    stored = host_model.package_store() / "callout"
+    stored = machine_model.package_store() / "callout"
     assert installed.exit_code == 0, installed.output
     assert installed.output == f"installed {stored}\n"
     assert sorted(path.name for path in stored.iterdir()) == [
@@ -2843,7 +2843,7 @@ def test_package_install_never_changes_which_directory_a_name_means(
     """
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    store = host_model.package_store()
+    store = machine_model.package_store()
     for name in ("callout", "diagram"):
         created = runner.invoke(cli_model.cli, ["package", "init", f"src/{name}"])
         assert created.exit_code == 0, created.output
@@ -2899,7 +2899,7 @@ def test_package_install_refuses_a_source_it_cannot_check_or_name(
     assert f"{broken / 'theme.css'} syntax error" in failed.output
     assert misnamed.exit_code != 0
     assert "'Callout Package' cannot be selected by name" in misnamed.output
-    assert not host_model.package_store().exists()
+    assert not machine_model.package_store().exists()
 
 
 def test_package_init_ignores_unselected_packages(tmp_path, monkeypatch):

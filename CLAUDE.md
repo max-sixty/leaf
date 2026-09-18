@@ -10,6 +10,13 @@ code. Prefer the simpler interface even when it is incompatible. Delete and
 regenerate stale state. Add a guard only for a reachable condition with a useful
 response.
 
+Nothing is owed to what an older version wrote. A change needs no migration, no
+shim that reads the old shape, and no dated note promising to remove one:
+claims, logs, and pages vendored against an earlier runtime are regenerated or
+thrown away. The handoff says nothing about them either. Steps for reviving
+stranded state are that same migration written in prose, and they spend the
+user's attention on state nobody needs.
+
 The suite does not constrain new code either. Agents wrote every test in
 `tests/`, and most are overfit on the implementation they were written against:
 they assert the shape the code happened to take rather than the behavior a

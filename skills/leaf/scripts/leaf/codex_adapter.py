@@ -61,8 +61,9 @@ from .codex import (
 from .conversation import delivery_reply_reserved, reserve_delivery_reply
 from .event_log import flocked, read_cursor
 from .files import read_json
-from .host import CodexHarness, session_harness, state_home
+from .host import CodexHarness, session_harness
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
+from .machine import state_home
 from .schema import EVENTS_FILE
 from .service import (
     PageTransaction,

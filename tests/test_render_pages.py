@@ -3190,8 +3190,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('body > main').getAnimations().length === 0
-          && document.querySelector('.lf-asks-panel').getAnimations().length === 0
+        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0
           && document.querySelector('lf-toc').getAnimations().length === 0"""
     )
     geometry = page.evaluate(

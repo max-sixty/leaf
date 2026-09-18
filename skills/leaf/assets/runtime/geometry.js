@@ -23,6 +23,22 @@ import { uiInside } from "./shadow.js";
    remaining the wrong semantic target, which is why `shownParts` takes the bounded
    chrome question (`uiInside`). `unmarkableElements`, in the render checks, detects
    declared items with no visible part on which a mark can land. */
+// Where the page's shell ends on the right — the far edge of the room the document has,
+// which is what a margin resident is placed against and what the response surface may not
+// overhang. Body's content box and not its border box, because the strip a standing panel
+// or tray takes is a transparent border (theme.css says why it has to be one), so
+// `getBoundingClientRect().right` is the window's edge rather than the page's. Read live
+// rather than derived from a panel width, since a reader may have drawn the edge
+// anywhere and the stylesheet decides whether the strip is taken at all.
+export const shellRight = () => {
+  const body = document.body;
+  const { borderLeftWidth } = getComputedStyle(body);
+  return (
+    body.getBoundingClientRect().left +
+    (Number.parseFloat(borderLeftWidth) || 0) +
+    body.clientWidth
+  );
+};
 // Whether two boxes share any pixel. The one spelling of a question three chrome passes
 // ask: placement, badge reservation, and the clear part left of a box behind furniture.
 export const overlaps = (a, b) =>

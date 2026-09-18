@@ -40,6 +40,7 @@ from playwright.sync_api import expect
 from render_harness import (
     BOTH_STAMPS,
     consume_browser_errors,
+    displayed,
     navigate,
     open_page,
     select,
@@ -855,6 +856,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     try:
         with page.expect_request("**/examples/revisions/*/leaf.js"):
             page.goto(f"{hosted}/examples/", wait_until="commit")
+        displayed(page)
         expect(page.locator("h1")).to_be_visible()
         assert boot, "the positive control did not hold the catalog boot module"
         catalog = page.locator(".example-catalog").first
@@ -1691,6 +1693,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(url, wait_until="commit")
+        displayed(page)
         expect(page.locator("h1")).to_have_text(example_title("pr-walkthrough"))
         expect(page.locator("h1")).to_be_visible()
 

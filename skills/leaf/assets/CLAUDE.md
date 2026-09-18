@@ -145,6 +145,9 @@ disclosed, and inline child order;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
 vertical packing, collision bands for wide page content, and transient margin-entry
 label placement;
+`runtime/thread-card-geometry.js` states, as arithmetic over client rectangles, where
+the inline thread card stands relative to the cluster that opened it and the visible
+boundary the margin projection supplies;
 `runtime/reactions.js` owns reaction vocabulary, composer choices, sending, keyboard
 mode, registered conversation-control mechanics, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
@@ -253,8 +256,10 @@ into the current document;
 `runtime/visual-parts.js` owns the package-declared semantic parts of a rendered
 visual;
 `runtime/chrome-layout.js` owns chrome geometry, the document room left after the panel
-and trays, the final-layout column motion between auxiliary chrome states, and page repaint
-caused by shell motion or reflow;
+and trays, and page repaint caused by shell motion or reflow. It does not own the reader's
+place across that reflow: the shell yields its strip as a transparent border rather than a
+margin, which keeps the change off the scroll-anchoring suppression list, so the browser
+holds the place and nothing here may take that back (theme.css, at the body strip);
 `runtime/thread-panel.js` owns panel visibility and workspace transitions;
 `runtime/auxiliary-chrome.js` captures and restores the reader's workspace for navigation;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and

@@ -193,12 +193,6 @@ def _parse_events(data: bytes) -> list[dict]:
             # skipped, not raised over, and the page keeps reading.
             continue
         event["seq"] = i + 1
-        # A log written before `author` named a role spelled the agent's side
-        # with the vendor token. The log is append-only and cannot be rewritten,
-        # so the old token is read as the role it meant. TODO(2026-09-18): drop
-        # once pages from before the rename have aged out.
-        if event.get("author") == "claude":
-            event["author"] = "agent"
         events.append(event)
     return events
 

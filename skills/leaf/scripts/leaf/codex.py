@@ -42,7 +42,8 @@ from .delivery import (
 )
 from .event_log import flocked
 from .files import read_json, write_json
-from .host import Harness, state_home
+from .host import Harness
+from .machine import state_home
 from .service import (
     PageTransaction,
     owned_pages,

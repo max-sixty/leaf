@@ -1000,6 +1000,27 @@ BOTH_STAMPS = """() => {
   const entry = document.querySelector('script[data-lf-entry]');
   return entry?.lfCurrentPresentationReady?.() ?? false;
 }"""
+FIRST_PAINT = """() => performance
+  .getEntriesByType('paint')
+  .some(entry => entry.name === 'first-contentful-paint')"""
+
+
+def displayed(page):
+    """Wait until the browser has painted the document the reader arrived on.
+
+    A box is not a paint. `getBoundingClientRect`, and every driver read built over it
+    including `to_be_visible`, forces layout from the stylesheets that have arrived so
+    far, while a render-blocking stylesheet still in flight holds the paint itself
+    back. A geometry read taken behind element visibility alone can therefore answer
+    with the user agent's own layout of the authored HTML, and a test that compares
+    that reading against the page's later one reports the theme arriving as the page
+    moving. First contentful paint is the browser's own record that the render-blocking
+    head has been applied and what it composed is on screen, which is the state a test
+    about what a reader sees before the runtime loads means to measure.
+    """
+    page.wait_for_function(FIRST_PAINT)
+
+
 HANDOVER_DEADLINE_MS = 90_000
 """How long a complete page handover may take before the page counts as wedged.
 
@@ -1652,40 +1673,46 @@ def margins_laid_out(page):
     )
 
 
+# The page shell's box on screen: where the document's room starts and ends. Body's
+# padding box, not the box it draws, because a standing panel or tray takes its strip as a
+# transparent border inside body (theme.css, at the body strip, says why it has to be one),
+# so `getBoundingClientRect()` now reaches the window. The runtime reads the same edge as
+# `shellRight` (geometry.js). This is the suite's one spelling of it, read off the DOM
+# rather than through that function, so a test comparing it with a region's box compares
+# two independent readings. An expression, so a larger evaluate can embed it and take it in
+# the same pass as what it is compared against.
+SHELL_BOX = """(() => {
+  const b = document.body, s = getComputedStyle(b);
+  const left = b.getBoundingClientRect().left + (parseFloat(s.borderLeftWidth) || 0);
+  return { left, right: left + b.clientWidth, width: b.clientWidth,
+           centre: left + b.clientWidth / 2 };
+})()"""
+
+
+def page_right(page):
+    """Where the page shell ends on the right; see `SHELL_BOX`."""
+    return page.evaluate(f"() => {SHELL_BOX}.right")
+
+
 def panel_settled(page, open=True):
-    """Wait for the panel to reach `open` and the page to finish making room for it.
+    """Wait for the panel to reach `open`, which is the settled page.
 
-    Two things happen, and they don't finish together: the dialog and final responsive
-    layout land at once, then a finite animation on `main` carries the reading column from
-    its old horizontal position. A geometry read taken on the flip reads that motion.
+    The panel's class, the shell, and the paint that follows the column all change in the
+    one gesture: `moveContentFrame` applies the state and then places the margin's rows
+    and the page's marks against the column where it now stands, synchronously, before
+    the gesture returns. So there is no pending frame for a geometry read to race, and
+    nothing to wait on past the class.
 
-    Ask the animation itself, via getAnimations(): the call flushes pending style, so the
-    motion the state change started is visible to the very first read, a finished one has
-    left the list, and a change that runs without motion — the
-    covering sheet, a pre-stamp load, reduced motion — reports empty and returns at
-    once. Waiting a duration instead would encode a number the stylesheet is free to
-    change, and still be a guess on a loaded machine; the frame-sampling this replaced
-    is the failure CLAUDE.md's wait norm is named for.
-
-    Finish that carry rather than sit out its clock. The carry is presentation only —
-    the layout it ends on is the layout the state change already installed — so its end
-    frame is the settled page either way, and this is the one wait a test can be holding
-    the clock still for: `HOLD_MOTION` pauses every animation the page starts at time
-    zero, which leaves a page whose reading column is parked mid-carry and a list that
-    never empties. Under it the panel is a step on the way to the gesture the test is
-    about, so the helper takes the carry to its end instead of waiting for a clock the
-    test has stopped. Finishing polls because the carry starts in the gesture's own
-    task: one that has not been made yet is finished on the next turn."""
+    That is a property of the runtime, and this helper relies on it rather than papering
+    over its absence. It was not always so: the column used to glide into place, the
+    repaint was deferred to follow it, and a read taken straight after the class flipped
+    could find the margin standing where the column had been. The glide went because
+    animating `main`'s `left` switched off the browser's scroll anchoring (theme.css, at
+    the body strip), and the deferral went with it.
+    `test_closing_the_panel_lands_the_margin_where_the_column_lands` holds the property."""
     page.wait_for_function(
         "(open) => document.querySelector('.lf-thread-panel').classList.contains('open') === open",
         arg=open,
-    )
-    page.wait_for_function(
-        """() => {
-          const main = document.querySelector('body > main');
-          for (const carry of main.getAnimations()) carry.finish();
-          return main.getAnimations().length === 0;
-        }"""
     )
 
 

@@ -14,8 +14,8 @@ from .files import (
     latest_revision,
     read_json,
 )
-from .host import state_home
 from .leases import wait_is_live
+from .machine import state_home
 from .schema import STATUS_FILE, UNCLAIMED_AGENT, VIEWED_FILE, WAITER_LOCK
 from .server import running_server
 from .service import (

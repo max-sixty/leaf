@@ -468,18 +468,17 @@ SHORT_SUGGESTION = leaf_page(
 )
 # Every animation the page starts, held at time zero so a test can read it rather than
 # race it. What it catches is everything through `motion()`, which is the layer's only
-# caller of `animate` — folds, the board's FLIP, and final-page shell motion, each
-# started synchronously inside the gesture that causes it. CSS animations run outside it
+# caller of `animate` — folds and the board's FLIP, each started synchronously inside
+# the gesture that causes it. Opening a panel or tray starts none. CSS animations run outside it
 # and are never seen, `grow` among them. Installed before anything runs, so the first
 # frame is already held.
 #
 # `__lfHeld` is what is still held, which is what a test asks it: a count is "the gesture
 # started one motion", an index is "the motion this gesture started", and a sweep over it
 # steps or releases the frame the test is holding. A motion the test has already let go of
-# — a fold it finished, the shell carry `panel_settled` takes to its end on the way to the
-# gesture under test — answers none of those, and left standing it makes the count one too
-# many, the index one place out, and a sweep rewind a finished carry into the middle of a
-# move the page has made. So a motion drops out of the list when it finishes. Cancelling
+# — a fold it finished on the way to the gesture under test — answers none of those, and
+# left standing it makes the count one too many, the index one place out, and a sweep
+# rewind a finished motion into the middle of a move the page has made. So a motion drops out of the list when it finishes. Cancelling
 # is the other way to end one, and it stays: `motion()` cancels its own last frame after
 # the caller's cleanup, and a cancelled motion is the positive control for a gesture the
 # page took back, which the board's refusal case reads out of this list by play state.

@@ -108,14 +108,16 @@ ordering contract these items extend.
   stylesheet reads — a hook left for the colour this decision would give it.
 
 - **Decide whether a later agent turn should hide an earlier agent question.** With no
-  structural Ask, `_thread_awaits_reader` reads only the latest spoken turn, so an agent
-  comment that asks something and then adds a second message reads as on nobody — the
-  feature gallery's `bg-thread-text`, whose root says "React to this reply or answer with
-  a note", is exactly that shape and wears no colour. A structural Ask deliberately
-  survives a later plain turn; the comment-is-a-question rule does not. Either make the
-  two agree or say why they should differ. This decides the banner's count and the
-  panel's On you filter as well as the margin, so it is one change in `events.py`'s
-  projection rather than a second reading beside it.
+  structural Ask, `_thread_awaits_reader` reads only the latest spoken turn, so a thread
+  whose root is an agent comment and whose latest spoken turn is an agent reply carrying
+  no `awaits` reads as on nobody, however plainly the root asked. A structural Ask
+  deliberately survives a later plain turn; the comment-is-a-question rule does not.
+  Either make the two agree or say why they should differ. This decides the banner's
+  count and the panel's On you filter as well as the margin, so it is one change in
+  `events.py`'s projection rather than a second reading beside it. No page in the corpus
+  stands that shape today, so seeding one is the first step and the evidence the
+  decision needs; `bg-resolved-text` is the near miss, excluded for being resolved
+  rather than by this rule.
 
 - **Decide whether delegated work may hold a reader move open across turns.** The Stop
   hook refuses to end a turn over an acknowledged move with no answer, so a coordinator

@@ -71,6 +71,7 @@ from render_harness import (
     _traffic,
     compare_with,
     consume_browser_errors,
+    displayed,
     holding,
     leaf_page,
     nudge,
@@ -419,6 +420,7 @@ def test_authored_html_paints_while_runtime_startup_is_held(
                 serve(leaf_page("Startup", "<h1>Startup</h1>")),
                 wait_until="commit",
             )
+        displayed(page)
         expect(page.locator("h1")).to_be_visible()
         assert page.locator("h1").evaluate(
             "element => element.checkVisibility({"
@@ -491,6 +493,7 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(url, wait_until="commit")
+        displayed(page)
         expect(page.locator("h1")).to_be_visible()
         expect(page.locator("html")).to_have_attribute(root_attribute, re.compile(".*"))
         initial = page.locator("body > main").bounding_box()

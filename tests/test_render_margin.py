@@ -4671,7 +4671,7 @@ def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser,
 def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks(
     browser, serve
 ):
-    """With less than the minimum beside its cluster, the card stacks at the visible edge."""
+    """A short rail narrows the card to its minimum at the visible edge, at full height."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1024, 900)
@@ -4692,9 +4692,14 @@ def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks
             '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect();
           const main = document.querySelector('main').getBoundingClientRect();
           const style = getComputedStyle(cardNode);
+          const list = cardNode.querySelector('.lf-margin-preview-list');
+          const foot = Math.min(...[...document.querySelectorAll(
+            '.lf-shortcut-bar, .lf-bottom-status')].filter(node => node.checkVisibility())
+            .map(node => node.getBoundingClientRect().top));
           return {placement: cardNode.dataset.lfThreadPlacement,
                   cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  cardTop: card.top, cardBottom: card.bottom,
+                  cardTop: card.top, cardBottom: card.bottom, foot,
+                  clipped: list.scrollHeight - list.clientHeight,
                   controlsTop: controls.top, controlsBottom: controls.bottom,
                   controlsRight: controls.right, mainRight: main.right, viewport: innerWidth,
                   minimum: parseFloat(style.getPropertyValue('--thread-card-min'))};
@@ -4704,10 +4709,16 @@ def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks
         geometry
     )
     assert geometry["placement"] in ("below", "above"), geometry
-    assert (
-        geometry["cardBottom"] <= geometry["controlsTop"] - 7
-        or geometry["cardTop"] >= geometry["controlsBottom"] + 7
+    # This conversation is taller than the room under or over its cluster. It keeps its
+    # whole height and holds at the foot, across the controls, rather than shrinking
+    # into either room.
+    assert geometry["cardBottom"] - geometry["cardTop"] > max(
+        geometry["controlsTop"] - 50, geometry["foot"] - geometry["controlsBottom"]
     ), geometry
+    assert geometry["clipped"] <= 0, geometry
+    assert geometry["cardBottom"] == pytest.approx(geometry["foot"] - 8, abs=0.5), (
+        geometry
+    )
     assert geometry["cardWidth"] == pytest.approx(geometry["minimum"], abs=0.5), (
         geometry
     )
@@ -5662,8 +5673,8 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     expect(page.locator(".lf-thread.flash")).to_have_count(0)
 
 
-def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, serve):
-    """The shipped exchange stays beside the page without obscuring its own controls."""
+def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
+    """The shipped exchange stands beside its controls, and crosses them before it shrinks."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page = open_page(browser, serve(example))
     page.emulate_media(reduced_motion="reduce")
@@ -5804,23 +5815,28 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
           const main = document.querySelector('main').getBoundingClientRect();
           const marker = document.querySelector('[data-lf-kinds="comment"]')
           const controls = marker.closest('[data-lf-margin-for]').getBoundingClientRect();
-          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const card = cardNode.getBoundingClientRect();
+          const list = cardNode.querySelector('.lf-margin-preview-list');
           return {mainLeft: main.left, mainRight: main.right,
                   controlsRight: controls.right, controlsTop: controls.top,
                   controlsBottom: controls.bottom, cardLeft: card.left,
                   cardRight: card.right, cardTop: card.top,
                   cardBottom: card.bottom, cardWidth: card.width,
+                  clipped: list.scrollHeight - list.clientHeight,
                   shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert beside["cardLeft"] >= beside["mainRight"], beside
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
     assert beside["cardWidth"] >= 319, beside
-    assert (
-        beside["cardLeft"] >= beside["controlsRight"] + 7
-        or beside["cardBottom"] <= beside["controlsTop"] - 7
-        or beside["cardTop"] >= beside["controlsBottom"] + 7
+    # This shell leaves less than the card's minimum beside the wide cluster, and the
+    # exchange is taller than the room under or over it. It keeps its whole height.
+    assert beside["shellWidth"] - 8 - beside["controlsRight"] < 320, beside
+    assert beside["cardBottom"] - beside["cardTop"] > max(
+        beside["controlsTop"] - 50, 847 - beside["controlsBottom"]
     ), beside
+    assert beside["clipped"] <= 0, beside
 
     resized(page, 1471, 900)
     expect(preview).to_be_visible()

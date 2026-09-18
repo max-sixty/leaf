@@ -36,11 +36,12 @@
 
    The thread card stays attached to its owning cluster. `thread-card-geometry.js` states
    where it stands: in the rail beside the cluster when the room there takes the card's
-   minimum measure, otherwise stacked under or over the cluster with its right edge on
-   the visible edge, so it crosses the column by no more than the rail's shortfall. This
-   module supplies the visible boundary — the reading region or the viewport under the
-   banner and over the bottom chrome — measures the card, and closes it once its cluster
-   has left that boundary. The card contains the complete inline conversation view; the
+   minimum measure, otherwise under or over the cluster with its right edge on the
+   visible edge, so it crosses the column by no more than the rail's shortfall. The card
+   keeps its height in every case; one too tall for its spot slides across its cluster
+   rather than shrinking. This module supplies the visible boundary — the reading region
+   or the viewport under the banner and over the bottom chrome — measures the card, and
+   closes it once its cluster has left that boundary. The card contains the complete inline conversation view; the
    Threads panel remains the complete index and takes over when already open.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
@@ -852,9 +853,8 @@ export function createMarginProjection({
       ) - CARD_GAP;
     return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
   }
-  function measureThreadCard(width, maxHeight) {
+  function measureThreadCard(width) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
-    preview.style.setProperty("--lf-thread-max-height", `${maxHeight}px`);
     return preview.getBoundingClientRect().height;
   }
   // The reply scrolls internally once it fills the conversation's remaining room. A
@@ -887,6 +887,9 @@ export function createMarginProjection({
     const boundary = threadCardBoundary(previewEntry?.target);
     if (!boundary.width || !boundary.height) return false;
     const style = getComputedStyle(preview);
+    // The boundary alone caps the card's height; the geometry measures it under that
+    // cap at the width it chose, which the card is then wearing.
+    preview.style.setProperty("--lf-thread-max-height", `${boundary.height}px`);
     const geometry = threadCardGeometry({
       cluster,
       boundary,
@@ -901,7 +904,6 @@ export function createMarginProjection({
         return false;
       }
     } else previewReferenceSeen = true;
-    measureThreadCard(geometry.width, geometry.maxHeight);
     preview.style.left = `${geometry.x}px`;
     preview.style.top = `${geometry.y}px`;
     preview.dataset.lfThreadPlacement = geometry.placement;

@@ -491,7 +491,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
 
 
 def test_the_thread_card_rule_is_one_piece_of_arithmetic(browser, serve):
-    """Beside, stacked, clamped, and detached follow from the cluster and boundary alone."""
+    """A preferred spot, then the boundary's clamp; the card's height is never cut."""
     page = open_page(browser, serve(LONG_PAGE))
     answers = page.evaluate(
         """async () => {
@@ -507,10 +507,11 @@ def test_the_thread_card_rule_is_one_piece_of_arithmetic(browser, serve):
             besideClamped: ask(1440, cluster(934, 436), 500),
             besideFits: ask(1440, cluster(934, 100), 500),
             besideWide: ask(2000, cluster(1400, 100), 500),
-            stackedInRail: ask(1160, cluster(794, 436), 500),
-            stackedCrossing: ask(1024, cluster(871, 436), 500),
-            stackedBelowFits: ask(1024, cluster(871, 100), 300),
-            stackedOverTheTop: ask(1024, cluster(871, 30), 300),
+            tallInRail: ask(1160, cluster(794, 436), 500),
+            tallCrossing: ask(1024, cluster(871, 436), 500),
+            fitsUnder: ask(1024, cluster(871, 100), 300),
+            fitsOver: ask(1024, cluster(871, 700), 300),
+            clusterOverTheTop: ask(1024, cluster(871, 30), 300),
             narrowBoundary: ask(316, cluster(100, 100), 200),
             gone: [cluster(934, 900), cluster(934, 0)].map(at => ask(1440, at, 500).detached),
           };
@@ -518,23 +519,27 @@ def test_the_thread_card_rule_is_one_piece_of_arithmetic(browser, serve):
     )
     beside = answers["besideClamped"]
     assert (beside["placement"], beside["x"], beside["width"]) == ("right", 979, 453)
-    assert (beside["y"], beside["maxHeight"], beside["detached"]) == (347, 797, False)
+    assert (beside["y"], beside["detached"]) == (347, False)
     assert answers["besideFits"]["y"] == 100
     wide = answers["besideWide"]
     assert (wide["x"], wide["width"]) == (1445, 460)
-    rail = answers["stackedInRail"]
-    assert (rail["placement"], rail["x"], rail["width"]) == ("above", 794, 358)
-    assert (rail["y"], rail["maxHeight"]) == (50, 378)
-    crossing = answers["stackedCrossing"]
-    assert (crossing["placement"], crossing["x"], crossing["width"]) == (
-        "above",
-        696,
-        320,
+    # Too tall for the room under or over its cluster, the card holds at the foot,
+    # across the cluster, rather than taking either room's height.
+    rail = answers["tallInRail"]
+    assert (rail["placement"], rail["x"], rail["width"], rail["y"]) == (
+        "below",
+        794,
+        358,
+        347,
     )
-    below = answers["stackedBelowFits"]
-    assert (below["placement"], below["y"], below["maxHeight"]) == ("below", 140, 707)
-    over = answers["stackedOverTheTop"]
-    assert (over["placement"], over["y"], over["detached"]) == ("below", 70, False)
+    crossing = answers["tallCrossing"]
+    assert (crossing["x"], crossing["width"], crossing["y"]) == (696, 320, 347)
+    under = answers["fitsUnder"]
+    assert (under["placement"], under["y"]) == ("below", 140)
+    over = answers["fitsOver"]
+    assert (over["placement"], over["y"]) == ("above", 392)
+    top = answers["clusterOverTheTop"]
+    assert (top["placement"], top["y"], top["detached"]) == ("below", 70, False)
     assert answers["narrowBoundary"]["width"] == 300
     assert answers["gone"] == [True, True]
 

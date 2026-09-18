@@ -5,7 +5,7 @@ import hashlib
 from pathlib import Path
 
 from leaf.event_log import flocked, require_cross_process_locking
-from leaf.host import state_home
+from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
 
 try:

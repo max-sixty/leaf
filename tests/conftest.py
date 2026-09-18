@@ -11,7 +11,7 @@ from typing import NamedTuple
 import pytest
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import host as host_model
+from leaf import machine as machine_model
 from playwright.sync_api import sync_playwright
 
 # The canonical subprocess command. Tests of the installed host boundary invoke
@@ -274,7 +274,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
     for name in CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
-    return host_model.state_home()
+    return machine_model.state_home()
 
 
 @pytest.fixture

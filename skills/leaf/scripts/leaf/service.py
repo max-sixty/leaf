@@ -21,11 +21,10 @@ from leaf.host import (
     HARNESSES,
     Harness,
     message_identity,
-    pid_alive,
     session_harness,
-    state_home,
 )
 from leaf.locations import page_key, paths_same
+from leaf.machine import pid_alive, state_home
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,

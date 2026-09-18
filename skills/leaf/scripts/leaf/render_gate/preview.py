@@ -44,8 +44,6 @@ def preview_server(
             ),
         }
         snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
-        server = TemporaryPageServer(
-            page_dir, handler_options={"page_snapshot": snapshot}
-        )
+        server = TemporaryPageServer(page_dir, page_options={"page_snapshot": snapshot})
         with server:
             yield server.url

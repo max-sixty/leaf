@@ -555,7 +555,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
         server = hosting_model.TemporaryPageServer(
             d,
             token=TOKEN,
-            handler_options={"publication": website_publication},
+            page_options={"publication": website_publication},
         ).start()
         servers.append(server)
         go.httpd = server.httpd

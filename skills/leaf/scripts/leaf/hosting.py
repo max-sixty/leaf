@@ -16,7 +16,7 @@ import uvicorn
 from .event_log import flocked, require_cross_process_locking
 from .files import read_json, write_json
 from .host import host_identity
-from .http import handler_for, page_app
+from .http import page_app, page_endpoint
 from .layer import payload_provenance
 from .leases import lock_is_held, transition_lock
 from .registry.storage import layer_metadata
@@ -73,7 +73,7 @@ def listening_socket(bind: str, port: int) -> socket.socket:
 
 
 class LeafHTTPServer:
-    """One page's HTTP server: uvicorn over the handler class it is given.
+    """One page's HTTP server: uvicorn over the endpoint each request becomes.
 
     The listening socket is opened here rather than by uvicorn, so the address is
     a fact before anything serves on it — a port the caller records, and a taken one
@@ -81,16 +81,21 @@ class LeafHTTPServer:
     uvicorn a duplicate: the two halves then close their own, and a caller that
     releases the socket cannot pull it out from under a loop still winding down.
 
-    `stopping` is the state a held-open news stream reads. A stop has to reach a
-    response that is deliberately never finishing, and the stream looks at this
-    between its own looks; uvicorn's graceful shutdown then has nothing left to
-    wait for.
+    `server_id` is this incarnation, which every answer names and a tab watches: a
+    replaced server has a log that starts again, so the old DOM has to go. `viewed_at`
+    is when a news stream last wrote the page's reader recency, throttled because it
+    needs a recency rather than a request log. `stopping` is the state a held-open news
+    stream reads. A stop has to reach a response that is deliberately never finishing,
+    and the stream looks at this between its own looks; uvicorn's graceful shutdown
+    then has nothing left to wait for.
     """
 
-    def __init__(self, address, handler_class) -> None:
-        self.handler_class = handler_class
+    def __init__(self, address, endpoint) -> None:
+        self.endpoint = endpoint
         self.socket = listening_socket(address[0], address[1])
         self.server_address = self.socket.getsockname()[:2]
+        self.server_id = secrets.token_hex(16)
+        self.viewed_at = 0.0
         self.stopping = False
         self._uvicorn = None
         # Leaf says what it has to say on its own streams: the URL, the lifetime
@@ -106,7 +111,7 @@ class LeafHTTPServer:
             logger.handlers = [logging.NullHandler()]
             logger.propagate = False
         self._config = uvicorn.Config(
-            page_app(handler_class, self),
+            page_app(endpoint, self),
             log_config=None,
             access_log=False,
             lifespan="off",
@@ -159,12 +164,12 @@ class TemporaryPageServer:
         *,
         token: str | None = None,
         port: int = 0,
-        handler_options: dict | None = None,
+        page_options: dict | None = None,
     ) -> None:
         self.token = token or secrets.token_urlsafe(16)
         self.httpd = LeafHTTPServer(
             ("127.0.0.1", port),
-            handler_for(page_dir, self.token, **(handler_options or {})),
+            page_endpoint(page_dir, self.token, **(page_options or {})),
         )
         self._thread = None
         self._closed = False
@@ -352,7 +357,9 @@ def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
     """Bind the first available port, preserving a recorded address contract."""
     for port in ports:
         try:
-            return LeafHTTPServer((access["bind"], port), handler_for(page_dir, token))
+            return LeafHTTPServer(
+                (access["bind"], port), page_endpoint(page_dir, token)
+            )
         except OSError as error:
             if error.errno == errno.EADDRINUSE and "port" not in access:
                 continue

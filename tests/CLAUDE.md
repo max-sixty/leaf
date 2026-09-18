@@ -322,7 +322,7 @@ init` once per worker for the ordinary layer, takes an initialized page of that
 shape from `initialized_page`, writes the document as v1, copies the example
 media that document
 names, adds the publishing note and any requested comments, then serves the
-directory with the real HTTP handler and page key at that version's immutable
+directory with the real HTTP routes and page key at that version's immutable
 URL. Handed an example's path rather than its markup it also lays in the
 external data and event log the example ships, and sets the cursor past the
 log. It lays in the media that log names too, which a message writes in its

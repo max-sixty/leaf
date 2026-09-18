@@ -34,6 +34,8 @@ from render_cases_interaction import (
     COMMAND_HUB_EXAMPLE,
     COMMAND_HUB_PAGE,
     KEPT_SECTION_PAGE,
+    LIVE_KEYS_APPARATUS,
+    LIVE_KEYS_APPARATUS_REWRITTEN,
     LIVE_KEYS_ASK_REWRITTEN,
     LIVE_KEYS_ASK_WITHDRAWN,
     LIVE_KEYS_V1,
@@ -3554,6 +3556,85 @@ def test_a_restated_ask_returns_a_reader_to_the_question_not_to_a_control(
     expect(page.locator("lf-option[chosen]")).to_have_count(0)
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
+
+
+def test_a_revision_gives_back_the_apparatus_the_reader_was_working_with(
+    browser, serve
+):
+    """What the author named survives the widget the revision replaced whole.
+
+    A patch keeps the nodes a revision did not rewrite, and a widget is never one of
+    them: a controller owns its children, so restating the question replaces the field
+    the reader was writing in, the box they had opened and the box they had scrolled.
+    None of that is in the log, so no projection puts it back. The authored id is what
+    makes it recoverable — the same identity the patch matches nodes on — so the carry
+    is a lookup, and an element the author left unnamed still keeps nothing.
+    """
+    version_url = serve(LIVE_KEYS_APPARATUS)
+    page = open_page(browser, live_url(version_url))
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+    page.locator("#lk-why").evaluate("el => { el.open = true; }")
+    page.locator("#lk-evidence").evaluate("el => { el.scrollTop = 40; }")
+    # Put the caret back inside the words rather than at their end, so a restore that
+    # merely refills the field is not mistaken for one that puts the reader back in it.
+    note.evaluate("el => el.setSelectionRange(4, 4)")
+    expect(note).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_APPARATUS_REWRITTEN)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The widget did go whole: the heading is the revision's.
+    expect(page.locator("#lk-decision h2")).to_have_text(
+        "Which one, now the costs are in?"
+    )
+    expect(page.locator("#lk-note")).to_have_value("half a thought")
+    expect(page.locator("#lk-note")).to_be_focused()
+    assert page.locator("#lk-note").evaluate("el => el.selectionStart") == 4
+    assert page.locator("#lk-why").evaluate("el => el.open") is True
+    assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
+    # Standing in the Ask is where the reader already is, so the Ask restore has nothing
+    # to do and does not pull them out of the field onto the question.
+    assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
+
+
+def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
+    """A revision that opens a fresh document carries the same named state across.
+
+    Nothing of the old document survives here, so every record in the handoff names
+    something the reader would otherwise have lost — there is no held node to skip. The
+    reader was told the same "Updated to …" either way and cannot tell the two installs
+    apart, so neither may answer differently.
+    """
+    module = """<script type="module">
+customElements.define('page-counter', class extends HTMLElement {
+  connectedCallback() { this.textContent = 'count 0'; }
+});
+</script>"""
+    first = LIVE_KEYS_APPARATUS.replace("</head>", module + "</head>")
+    second = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
+        "</head>", module.replace("count 0", "count 10") + "</head>"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+    page.locator("#lk-why").evaluate("el => { el.open = true; }")
+    page.locator("#lk-evidence").evaluate("el => { el.scrollTop = 40; }")
+    original_document = page.evaluate("performance.timeOrigin")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+
+    expect(page).to_have_title("Live keys rewritten")
+    assert page.evaluate("performance.timeOrigin") != original_document, (
+        "the revision was patched in, so this proves nothing about the other install"
+    )
+    expect(page.locator("#lk-note")).to_have_value("half a thought")
+    expect(page.locator("#lk-note")).to_be_focused()
+    assert page.locator("#lk-why").evaluate("el => el.open") is True
+    assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
 
 
 def test_a_withdrawn_ask_leaves_the_reader_on_the_page(browser, serve):

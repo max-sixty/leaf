@@ -62,13 +62,19 @@
  * has no identity a new document could be sure it had found again, only a shape — an
  * owner's id, a tag, a class, a count among its siblings, a string of its words — and a
  * guess that lands on the wrong control hands it the reader's next press. Focus goes to
- * the page instead, where its keys are live. The one standing that does cross is the Ask
- * the reader is working, which is named by a declared id rather than by a shape: the
- * inventory, the tray, and the ask walk all resolve it against whichever document is
- * standing, so putting the reader back on it is a lookup and not a guess. Explicit
- * historical travel carries neither focus nor a selection. Durable drafts and stored
- * chrome arrangement use their existing stores. Native selections and arbitrary module
- * state never cross documents.
+ * the page instead, where its keys are live.
+ *
+ * What does cross is what the author named. An authored id is not a shape: it is the
+ * identity the patch matches nodes on, that threads, the diff, `restated`, the tab store
+ * and drafts key on, and that a version check will not let a revision silently drop. So
+ * `carry.js` carries the mechanical state on any id'd element the install replaced — the
+ * words in a field and the caret in them, a disclosure, an inner scroll, focus — and the
+ * ask view carries the reader's standing on an Ask, which the inventory, the tray and the
+ * ask walk all resolve by that same kind of id. Both are lookups rather than guesses, and
+ * a control the author left unnamed still keeps nothing. Explicit historical travel
+ * carries neither. Durable drafts and stored chrome arrangement use their existing stores;
+ * a module's own state is the module's to write and read back. Native selections and
+ * arbitrary module state never cross documents.
  *
  * The handoff is scoped to this page and consumed once, even when a newer revision
  * overtakes the one that triggered navigation. Ordinary reloads and history travel
@@ -86,11 +92,13 @@
  * back navigation. `landArrival` applies that ranking only after final page geometry is
  * available.
  *
- * Neither install claims the reader still stands on an arbitrary control. A patch does
- * not have to claim it: focus the revision did not disturb was never lost, because the
- * control is the same element. A reload cannot, so it does not try. Both restore the Ask
- * the reader was working, by the same capture, because a reader told "Updated to …"
- * cannot tell the two installs apart and should not have to.
+ * Neither install claims the reader still stands on an unnamed control. A patch does not
+ * have to claim it: focus the revision did not disturb was never lost, because the control
+ * is the same element. A reload cannot, so it does not try. Both run the same two
+ * restores over what the author did name, because a reader told "Updated to …" cannot
+ * tell the two installs apart and should not have to. The in-place install passes the
+ * nodes it held so the carry skips them; the reload install passes none, having kept
+ * nothing.
  *
  * Served identity is read before boot mutates the document, and it includes what each
  * declared widget in this page was written as, one digest per id, decided by the capture
@@ -121,6 +129,7 @@ import {
   servedWidgets,
 } from "./document-identity.js";
 
+import { captureCarry, restoreCarry } from "./carry.js";
 import { patchTree } from "./dom-children.js";
 import { clippedRect, shownBox } from "./geometry.js";
 import { PRESS } from "./keyboard/bindings.js";
@@ -1289,6 +1298,9 @@ export function createVersionController({
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
     const live = document.querySelector("body > main");
+    // The reader's own state on the nodes this patch is about to take away, read
+    // while they are still standing there.
+    const carry = captureCarry(live);
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = artifactRoot(doc);
@@ -1427,6 +1439,11 @@ export function createVersionController({
     // standing is restored by the Ask's declared id, so it is not the shape guess the
     // module header rules out; an Ask the revision dropped leaves them on `body` like any
     // other replaced control.
+    // The exact control and the words in it first, where the author named them; the
+    // Ask's own opening after, for a reader whose control carried no name of its own.
+    // The standing restore reads focus, so a carry that has already put them back
+    // inside the Ask leaves it with nothing to do.
+    restoreCarry(carry.records, carry.held);
     restoreAskStanding(askStanding);
     if (comparedFrom !== null) showComparison(comparedFrom);
     // The same words the fresh document says on arrival. The page changing under a
@@ -1544,6 +1561,7 @@ export function createVersionController({
         view,
         retainedStanding: captureRetainedStanding(),
         askStanding: captureAskStanding(),
+        carry: captureCarry(document.querySelector("body > main")).records,
         comparison: selectedBase(),
         pointer: pointerAt(),
       }),
@@ -1919,6 +1937,9 @@ export function createVersionController({
         restorePointer(handoff.pointer);
         restoreView(handoff.view);
         restoreRetainedStanding(handoff.retainedStanding);
+        // No held nodes: this document kept none of the last one's, so every record
+        // in the handoff names something the reader lost.
+        restoreCarry(handoff.carry);
         restoreAskStanding(handoff.askStanding);
         if (handoff.comparison !== null && stamped(handoff.comparison))
           showComparison(handoff.comparison);

@@ -63,6 +63,10 @@ spans, a module's own output — is written over only where the author wrote; ev
 judgement it cannot make from the DOM alone is its caller's; conversation owners supply
 reaction teardown when removing their surfaces;
 `runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
+`runtime/carry.js` owns the mechanical reader state an install carries between two
+nodes the author gave the same id — a field's words and caret, a tick, a disclosure,
+an inner scroll, and focus — and carries nothing for an element the author left
+unnamed;
 `runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
 document roots so authored revision replacement can leave that live state in place;
 `runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
@@ -213,8 +217,8 @@ marked block discloses, version document loading, the one activation door and th
 installs behind it — the authored page patched in place, or a fresh document — which
 the arriving revision's executable identity decides, the per-widget digests each
 revision's delivery states that decide which widgets a patch may keep, the persisted
-semantic reading landmarks and Ask standing carried across either, and the page-block
-reading directional walks start from;
+semantic reading landmarks, the carried mechanical state and the Ask standing that cross
+either of them, and the page-block reading directional walks start from;
 `runtime/version-chooser.js` consumes one frozen version presentation reading and owns
 the retained native chooser button, versions popover, and latest-version chip in their
 separate chrome seats: their synchronous Lit paint, keyed rows, disclosure focus and
@@ -364,6 +368,16 @@ Each mutable fact has one writer:
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and return frames pushed; inner Escape steps, an eligible causal return frame, then fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
+
+Reader state that a document replacement would otherwise destroy has four routes, and
+which one a fact takes is decided by what the fact is, not by where it was noticed:
+the patch keeps the node, so state on a node it did not rewrite needs nothing; an
+authored id gets `carry.js`'s mechanical carry; a module's own state is the module's to
+write to its store and read back under that same id, as the tab store and the draft
+store already do; and a walk restores its standing by declared id on top of those. A
+hold — deferring the revision — is for a gesture that is not a value: an open composer,
+a drag, an unresolved delivery, an open menu. A value never justifies a hold, because a
+hold postpones the loss rather than preventing it: the words die when the reader blurs.
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts. A rendering may expose state,

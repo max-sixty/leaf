@@ -302,6 +302,12 @@ thread panel's touch grip has its own item under Later.
   continue to materialize the revision's logical paths. Prove crash recovery, digest
   collision refusal, revision replacement, repeated media, and a hundred-revision size
   profile before cutting over and deleting the per-revision resource copies.
+  Measured 2026-09-17: this buys disk and nothing else. Each save after the first would
+  write 2 objects and 38 KB in place of 189 files and 3.28 MB, taking the 283 revisions
+  across the local state home from about 930 MB to about 190 MB. Capture is not what a
+  save waits on — a captured save takes 0.22 s against 0.19 s for an unchanged page — and
+  the store is more mechanism than the directory of exact bytes it replaces. So this is
+  an answer to disk pressure, not a simplification; leave it until disk is what hurts.
 
 - **Decide whether suggested replacements need a proper diff.** Compare the current
   plain replacement with a before-and-after view in Threads and inline conversations.

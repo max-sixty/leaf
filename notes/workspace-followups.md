@@ -32,9 +32,9 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Next task:** Use a named two-pane example with header/footer controls; walk authored landmarks and controls, use reading keys, open Threads, return through Escape, then change posture. Check focus against actual modal/nonmodal behavior.
 
-  **Done when:** Every action is reachable with a comprehensible accessible name and visible focus. Covered content does not leave the reader lost. Avoid imposing a modal focus trap on a nonmodal panel.
+  **Done when:** Every action is reachable with a comprehensible accessible name and visible focus. Covered content does not leave the reader lost. Focus containment follows the shipped modality: held inside a workspace that covers the document, and never imposed on one that sits beside it.
 
-  **Owner / dependencies:** Sol. Run against the adaptive Threads placement [PR #520](https://github.com/max-sixty/leaf/pull/520) settled.
+  **Owner / dependencies:** Sol. The Threads placement this item waited on is settled: [PR #520](https://github.com/max-sixty/leaf/pull/520) kept Threads beside the document where there is room and covering it where there is not, and [PR #536](https://github.com/max-sixty/leaf/pull/536) then made a covering workspace modal. Verify the keyboard route against that modal boundary.
 
   **Sources:** [lf-pane.js:29](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/default/widgets/lf-pane.js#L29), [test_render_navigation.py:106](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/tests/test_render_navigation.py#L106), [panel.js:75](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/conversation/panel.js#L75).
 

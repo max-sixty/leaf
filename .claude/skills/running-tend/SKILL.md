@@ -28,6 +28,14 @@ is false. Omit bounded edge cases, exhaustive same-pattern cleanup, minor
 simplification, and prose or test polish unless they expose one of those
 problems.
 
+## Cloudflare logs
+
+`CLOUDFLARE_API_TOKEN` in the agent's environment is the `Leaf observability
+(Tend CI)` token in `worker/README.md`: it reads the deployed site's Workers
+Observability logs and Analytics Engine events and cannot deploy. When an issue
+or a red `publish-site` concerns the deployed site, query its logs as that
+README describes and diagnose from the records.
+
 ## Filing issues in other repos
 
 Standing exception granted: file directly in agent-equipped targets (per

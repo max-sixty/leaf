@@ -63,6 +63,8 @@ jobs:
           model: opus
           checkout_mode: review
           base_branch: ${{ github.event.pull_request.base.ref }}
+          sandbox_env: |2
+            CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}
           sandbox_setup: |2
             uv sync --frozen
             uv run playwright install chromium webkit --only-shell

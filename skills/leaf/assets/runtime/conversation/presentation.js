@@ -61,10 +61,10 @@ export function createConversationPresentation({
   const presenter = applicationPresenter({
     region: "conversation",
     order: PRESENTATION_ORDER.conversation,
-    current: () => {
-      const root = readApplication();
-      return root.phase === "waiting" ? null : root.effective.conversation;
-    },
+    // Every phase owes a reading, the ones before the log has been read included: what
+    // the panel says while it waits is this region's to draw. A copy with no chrome is
+    // the one page that owes nothing.
+    current: () => (available ? readApplication().effective.conversation : null),
     failSoft: retainedThreadListProof,
     paint: async (value) => {
       if (!available) return value;
@@ -86,8 +86,7 @@ export function createConversationPresentation({
   // Every epoch owes a fresh generated presentation, because this owner reads more of
   // the root than its own fold: thread receipts come from canonical activity and the
   // margin draws the Ask rows beside them. The claim registers that obligation inside
-  // the publication that seals membership; the pass paints it. Whether there is a
-  // conversation to claim at all is `current`'s answer, above.
+  // the publication that seals membership; the pass paints it.
   applicationState.select((snapshot) => snapshot.semanticEpoch).subscribe(present);
 
   function finishListRecovery(candidate) {

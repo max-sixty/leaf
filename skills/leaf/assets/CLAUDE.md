@@ -361,7 +361,7 @@ Each mutable fact has one writer:
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |
 | tray visibility | `trayIsOpenKey` | `setOpenTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
-| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and command entries pushed; inner Escape steps, an eligible causal return frame, then fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
+| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and return frames pushed; inner Escape steps, an eligible causal return frame, then fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM

@@ -22,16 +22,20 @@
    the document and at each declared shadow boundary. `beforetoggle` makes a declarative
    opening visible synchronously to the command that caused it; `toggle` follows the
    completed native transition and corrects the order if that opening reentered another
-   popover's handler. Dismissal stays each layer's own `popover` or `closedby` value.
+   popover's handler. Dismissal stays each layer's own `popover` or `closedby` value. A
+   popover opened declaratively inside a shadow root nobody staged fires a `toggle` this
+   module cannot hear, so it never reaches the stack; `shadowStage` is the declared route
+   for a widget's shadow tree.
 
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath a re-shown popover cannot linger
    as a false floor. The exception is an entry under an active modal: `showModal` hides
    the auto popovers beneath it and the command reference re-shows the ones it displaced,
-   so those entries wait with their frames intact rather than retiring. `current()` is the
-   top entry when it carries a live frame and nothing otherwise, which is the whole
-   suspension rule: a frame is unavailable because something stands above it, not because
-   of an order comparison.
+   so those entries wait with their frames intact rather than retiring. The modal marks
+   them suspended as it is pushed, and only a suspended or standing entry is lifted when
+   its node reopens. `current()` is the top entry when it carries a live frame and nothing
+   otherwise, which is the whole suspension rule: a frame is unavailable because something
+   stands above it, not because of an order comparison.
 
    A covering auxiliary surface is not an entry. It takes modal semantics without entering
    the browser's top layer, and a frame entered while its panel stood beside the page has
@@ -144,21 +148,34 @@ function prune() {
   }
 }
 
-// An opening that names a node already on the stack keeps that entry, frame and all: the
-// command reference re-shows the popovers a modal displaced, and the way back out of one
-// is the way the reader entered it, not a fresh layer with no history. Lifting the entry
-// before the prune keeps that history across the moment between the modal's close and the
-// popover's return, when neither stands.
+// An opening that names a node already on the stack keeps that entry, frame and all, when
+// the entry is standing or a modal suspended it: the command reference re-shows the
+// popovers its modal displaced, and the way back out of one is the way the reader entered
+// it, not a fresh layer with no history. Lifting a suspended entry before the prune keeps
+// that history across the moment between the modal's close and the popover's return, when
+// neither stands. An entry that simply closed, by light dismissal or by script, is not
+// lifted: the prune retires it and the reopening starts a fresh entry, so a stale frame
+// cannot restore an origin the reader never asked to return to.
+//
+// A modal marks what it covers as it is pushed, before the native call hides the auto
+// popovers beneath it, so the mark is set by the cause rather than by whichever read
+// happens to run while the modal stands.
 export function pushNativeLayer(node, kind) {
   const at = entries.findIndex((entry) => entry.root === node);
   const standing = at < 0 ? null : entries[at];
   if (standing && standing === entries.at(-1) && standing.active()) return;
-  if (standing) {
+  const lifted =
+    standing && (standing.active() || standing.suspended) ? standing : null;
+  if (lifted) {
     entries.splice(at, 1);
-    standing.kind = kind;
+    lifted.kind = kind;
+    lifted.suspended = false;
   }
   prune();
-  entries.push(standing ?? { root: node, kind, active: () => held(node) });
+  if (kind === "modal") for (const entry of entries) entry.suspended = true;
+  entries.push(
+    lifted ?? { root: node, kind, active: () => held(node), suspended: false },
+  );
 }
 
 export function watchLayers(root) {

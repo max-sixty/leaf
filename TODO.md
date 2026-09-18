@@ -106,17 +106,6 @@ ordering contract these items extend.
 
 ## Architecture simplification
 
-- **#24 — Let a pointer-opened surface declare itself to the layer stack.**
-  `keyboard/layer-stack.js` now holds one ordered list of the popovers, modal dialogs and
-  command return frames standing over the page, and `stack()` tiers the scopes over it
-  instead of inferring the layer situation from focus ancestry on every press. What is
-  left is the declaration: a surface opened by pointer reaches the stack through the
-  `showModal` and `showPopover` patches and the `beforetoggle` listeners, which are
-  open-time declarations rather than the command that asked for the surface. Invoker
-  commands (`command`/`commandfor`) would let the opener carry its own close and restore,
-  and they need Chrome 135 against Leaf's floor of 125, which is the dependency-cutover
-  row. Nothing planned waits on this.
-
 - **#25 — Finish the starlette cutover in `http.py`.** #774 moved the transport to
   starlette and uvicorn, but `Handler` still wears `BaseHTTPRequestHandler`'s shape:
   `send_header`, `end_headers`, `close_connection`, and a `_headers` list assembled and
@@ -189,7 +178,7 @@ ordered by confidence, then effort.
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
 | Order the cascade with `@layer` (theme, package, page). Needs the chrome isolated from page CSS first — a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)` — because a page's unlayered `<style>` otherwise outranks the chrome: tried 2026-09-16 and backed out when one page rule moved 53 chrome boxes. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |
-| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods, so a surface opened by pointer declares itself. The keyboard layer stack in item #24 needs that declaration. | S-M | ~50 to 100 est. | Low-Med | Chromium-only, so below Chrome 135 the button does nothing unless the module keeps its handler |
+| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods, so the control that opens a surface declares the opening. Today `keyboard/layer-stack.js` learns of a pointer-opened surface from the `showModal` and `showPopover` patches and the `beforetoggle` listeners, so the entry carries no origin to restore; an invoker could hand it one. | S-M | ~50 to 100 est. | Low-Med | Chromium-only, so below Chrome 135 the button does nothing unless the module keeps its handler |
 
 ### Both
 

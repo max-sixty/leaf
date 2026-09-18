@@ -145,6 +145,9 @@ disclosed, and inline child order;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
 vertical packing, collision bands for wide page content, and transient margin-entry
 label placement;
+`runtime/thread-card-geometry.js` states, as arithmetic over client rectangles, where
+the inline thread card stands relative to the cluster that opened it and the visible
+boundary the margin projection supplies;
 `runtime/reactions.js` owns reaction vocabulary, composer choices, sending, keyboard
 mode, registered conversation-control mechanics, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;

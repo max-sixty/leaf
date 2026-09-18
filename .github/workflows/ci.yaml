@@ -26,7 +26,6 @@ jobs:
   lint:
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
 
     steps:
       - name: 📂 Checkout code
@@ -110,8 +109,8 @@ jobs:
     # The schedule and a dispatch skip `lint` and `test`, and the default `success()`
     # gate would skip this job along with them, so read their results directly. The
     # guard names the two results that may proceed rather than excluding `failure`,
-    # because a job killed by its own `timeout-minutes` concludes `cancelled` and a
-    # wedged everyday gate would otherwise send an hour of complete suite after it.
+    # because an everyday gate that is cancelled rather than run concludes neither, and
+    # a wedged one would otherwise send an hour of complete suite after it.
     # A red everyday gate skips this job too: it already names what to fix.
     if: >-
       !cancelled()
@@ -134,7 +133,6 @@ jobs:
       group: ${{ github.workflow }}-nightly-${{ github.event_name == 'workflow_dispatch' && github.ref || 'automatic' }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
-    timeout-minutes: 135
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
 

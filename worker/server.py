@@ -1,10 +1,10 @@
-"""Serve leaf.page through Leaf's canonical HTTP handler.
+"""Serve leaf.page through Leaf's canonical HTTP endpoint.
 
 The Cloudflare Worker selects one container filesystem per browser session. This
 adapter selects the product or example page directory behind a clean public route,
-then hands the request to the same Handler and event admission as a locally served Leaf.
-Agent input comes from Leaf's shared projections; this adapter owns no parallel state
-store or event semantics.
+then hands the request to the same routes and event admission as a locally served
+Leaf. Agent input comes from Leaf's shared projections; this adapter owns no parallel
+state store or event semantics.
 """
 
 from __future__ import annotations
@@ -18,10 +18,9 @@ import sys
 import tempfile
 import threading
 import time
-from functools import cache
+from functools import cache, partial
 from html import escape
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from leaf.codex import (
     AppServerEvents,
@@ -48,7 +47,7 @@ from leaf.conversation import (
 )
 from leaf.delivery import read_delivery
 from leaf.hosting import LeafHTTPServer
-from leaf.http import Handler, scope_page_urls
+from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import take_waiter_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
@@ -56,6 +55,7 @@ from leaf.served_state.page import full_state
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import PageTransaction, close_session_turn, page_claim
+from starlette.responses import Response
 from websockets.exceptions import WebSocketException
 
 PORT = 8080
@@ -176,13 +176,9 @@ def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
 
 
 @cache
-def page_binding(page_dir: Path) -> tuple[dict, str, dict | None]:
+def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     """Read immutable delivery metadata once per published page and process."""
-    return (
-        layer_metadata(page_dir),
-        (page_dir / "runtime" / "bootstrap.js").read_text(encoding="utf-8"),
-        preview_metadata(page_dir),
-    )
+    return layer_metadata(page_dir), preview_metadata(page_dir)
 
 
 def site_metadata(page_root: str, page: dict) -> str:
@@ -1424,14 +1420,25 @@ def published_page(
     return None
 
 
-class WebsitePageHandler(Handler):
+class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
 
-    site_root: Path
-    pages: dict
-    sitenote: bytes
-    agent_host: WebsiteCodexHost
-    layer = ""
+    def __init__(
+        self,
+        request,
+        server,
+        *,
+        site_root: Path,
+        pages: dict,
+        sitenote: bytes,
+        release: str,
+        agent_host: WebsiteCodexHost,
+    ) -> None:
+        super().__init__(request, server, release=release)
+        self.site_root = site_root
+        self.pages = pages
+        self.sitenote = sitenote
+        self.agent_host = agent_host
 
     def page_state(self, view_revision: int | None = None) -> dict:
         state = super().page_state(view_revision)
@@ -1442,25 +1449,22 @@ class WebsitePageHandler(Handler):
         # The outer Worker has already selected this browser's isolated container.
         return True
 
-    def end_headers(self) -> None:
-        # Every response selected here is already inside this reader's private
+    def _delivery_headers(self) -> dict[str, str]:
+        # Every response this adapter sends is already inside this reader's private
         # container. Say so at the canonical HTTP boundary as the outer Worker does;
         # the local adapter has no Worker in front of it to add the same reading.
-        if hasattr(self, "page_root"):
-            self.send_header("Leaf-Session", "active")
-        super().end_headers()
+        return {"Leaf-Session": "active", **super()._delivery_headers()}
 
     def _document_head(self) -> str:
         return site_head(self.page_root, self.pages[self.page_root or "/"])
 
-    def _get(self) -> None:
-        if urlsplit(self.path).path == "/sitenote.js":
-            self._send(200, "text/javascript; charset=utf-8", self.sitenote)
-            return
-        super()._get()
+    def _get(self) -> Response | None:
+        if self.path == "/sitenote.js":
+            return self._content(200, "text/javascript; charset=utf-8", self.sitenote)
+        return super()._get()
 
-    def _post(self) -> None:
-        path = urlsplit(self.path).path
+    def _post(self) -> Response | None:
+        path = self.path
         if path == STARTUP_REPORT_PATH:
             # Every document the runtime delivers with a release carries the public
             # startup beacon, and the deployed site answers it at the edge, where the
@@ -1468,83 +1472,68 @@ class WebsitePageHandler(Handler):
             # so it owes the browser the same "recorded, nothing to read back" answer
             # the edge gives — otherwise every page served here loads with a 404 in its
             # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
-            self._send(204, "application/json", b"")
-            return
+            return self._content(204, "application/json", b"")
         if path not in {AGENT_START_PATH, AGENT_REPLY_PATH}:
-            super()._post()
-            return
+            return super()._post()
         if self.posted_error:
-            self._json({"error": self.posted_error}, 400)
-            return
+            return self._json({"error": self.posted_error}, 400)
         try:
             if path == AGENT_REPLY_PATH:
                 event_id, text, failure = _agent_failure(self.posted)
             else:
                 event_id, text = _agent_event(self.posted, with_text=False)
         except ValueError as error:
-            self._json({"error": str(error)}, 400)
-            return
+            return self._json({"error": str(error)}, 400)
         if path == AGENT_START_PATH:
             thread_id = self.agent_host.attach(self.page_dir, event_id)
             if thread_id is None:
-                self._json({"status": "settled"})
-                return
-            self._json({"status": "started", "thread": thread_id})
-            return
+                return self._json({"status": "settled"})
+            return self._json({"status": "started", "thread": thread_id})
 
         try:
             accepted = self.agent_host.fallback_reply(
                 self.page_dir, event_id, text, failure
             )
         except SystemExit as error:
-            self._json({"error": str(error)}, 400)
-            return
+            return self._json({"error": str(error)}, 400)
         if accepted is None:
-            self._json({"status": "settled"})
-            return
-        self._json({"status": "appended", "event": accepted["id"]})
+            return self._json({"status": "settled"})
+        return self._json({"status": "appended", "event": accepted["id"]})
 
-    def _select_page(self) -> bool | None:
-        external = urlsplit(self.path)
-        if self.command == "GET" and external.path == "/health":
-            self._send(200, "text/plain; charset=utf-8", b"ok\n")
-            return None
-        selected = published_page(self.site_root, self.pages, external.path)
+    def _select_page(self) -> Response | None:
+        if self.method == "GET" and self.path == "/health":
+            return self._content(200, "text/plain; charset=utf-8", b"ok\n")
+        selected = published_page(self.site_root, self.pages, self.path)
         if selected is None:
-            return False
+            return self._not_found()
         page_dir, page_root, inside, kind = selected
         if not (page_dir / "events.jsonl").is_file():
-            return False
+            return self._not_found()
 
-        identity, bootstrap, preview = page_binding(page_dir)
+        identity, preview = page_binding(page_dir)
         self.page_dir = page_dir
-        self.layer = identity["generation"]
         self.layer_identity = identity
-        self.bootstrap = bootstrap
         self.preview = preview
         self.publication = {**PUBLICATION, "kind": kind}
         self.page_root = page_root
-        self.path = inside + (f"?{external.query}" if external.query else "")
-        return True
+        self.path = inside
+        return None
 
 
-def handler_for(
+def site_endpoint(
     site_root: Path,
     agent_host: WebsiteCodexHost | None = None,
-) -> type[WebsitePageHandler]:
-    """Make one process handler over every page directory in a site build."""
+) -> partial[WebsitePageEndpoint]:
+    """Bind every page directory in one site build to the endpoint a request becomes."""
     root = site_root.resolve()
     manifest = json.loads((root / SITE_MANIFEST).read_text(encoding="utf-8"))
-    return type(
-        "PublishedPageHandler",
-        (WebsitePageHandler,),
-        {
-            "site_root": root,
-            "pages": manifest["pages"],
-            "sitenote": (root / "sitenote.js").read_bytes(),
-            "release": manifest["release"],
-            "agent_host": agent_host or website_codex_host(),
-        },
+    return partial(
+        WebsitePageEndpoint,
+        site_root=root,
+        pages=manifest["pages"],
+        sitenote=(root / "sitenote.js").read_bytes(),
+        release=manifest["release"],
+        agent_host=agent_host or website_codex_host(),
     )
 
 
@@ -1570,7 +1559,7 @@ def main() -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     agent_host = website_codex_host()
-    httpd = LeafHTTPServer(("0.0.0.0", PORT), handler_for(site_root, agent_host))
+    httpd = LeafHTTPServer(("0.0.0.0", PORT), site_endpoint(site_root, agent_host))
     log_agent("container_http_ready")
     agent_host.prewarm()
     # SIGTERM is uvicorn's: it stops the serving loop, then re-raises the signal with

@@ -144,7 +144,7 @@ def hosted(site, tmp_path_factory):
     session_site = tmp_path_factory.mktemp("website-session") / "site"
     shutil.copytree(site, session_site)
     httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.handler_for(session_site)
+        ("127.0.0.1", 0), website_server.site_endpoint(session_site)
     )
     with running_http_server(httpd):
         yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -161,7 +161,7 @@ def served_example(site, tmp_path):
     manifest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(site / website_server.SITE_MANIFEST, manifest)
     httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.handler_for(session_site)
+        ("127.0.0.1", 0), website_server.site_endpoint(session_site)
     )
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 

@@ -3,7 +3,8 @@
 What Leaf could hand to a dependency or a browser feature, and why the rest stays. The
 chosen candidates are scored in `TODO.md` under "Platform and dependency cutover"; this
 note keeps what that section leaves out: the evidence, the rejected candidates, and the
-Leaf choices worth reconsidering. Delete it once those are decided.
+two Leaf choices still open. A rejected row is one line and its deciding number, so that
+asking again costs a glance rather than a survey.
 
 ## Method
 
@@ -45,7 +46,7 @@ reason to change frameworks.
 | Area | Candidate | Why not |
 |---|---|---|
 | Anchoring | Hypothesis `dom-anchor-text-quote`, `approx-string-match` | Fuzzy; would replace ~150 lines of exact search |
-| Anchoring | Resolving a typed quote through the rendered page instead of `passages.py` | Spiked 2026-09-17 on `agent-a4111d25e33d466d2` (`3132c9af`): all three capture paths cut over with anchors identical to the Python capture and the suite green, but Python grew by 168 lines, because the section, part, retired, and gone refusals and the diagnostics for a quote the page does not show read authored source; a quoted `leaf comment` went from 0.2 s to 1.3 s and now needs Chrome, each MCP snapshot comment launches a browser, and the anchor tests went from 8 s to 37 s |
+| Anchoring | Resolving a typed quote through the rendered page instead of `passages.py` | Spiked `3132c9af`: anchors matched, but Python grew 168 lines, because the refusals and diagnostics read authored source, and a quoted `leaf comment` went from 0.2 s to 1.3 s and now needs Chrome |
 | Keyboard parsing | tinykeys, hotkeys-js | The key normaliser is 15 lines; the rest is domain |
 | Command palette | cmdk | React only |
 | Composer | CodeMirror, ProseMirror, Lexical, Tiptap | The composer is a textarea |
@@ -60,16 +61,17 @@ reason to change frameworks.
 | Positioning | Floating UI for the CSS-anchored menus | Tried: +80 lines of JS and async placement for what 10 CSS lines do synchronously |
 | Focus | tabbable for the covering surface's Tab wrap | Tried: a vendored startup module in place of a 7-line local filter |
 | Motion | `@starting-style` for the thread card and agent-arrival listeners | It replays whenever an ancestor leaves `display: none`, so the reopened panel needs the end listener anyway; the pulse is not an entrance |
-| Motion | Same-document View Transitions for the folds, trays, board moves, and column carry in `runtime/motion.js` | The update runs after the old state is captured, later than the gesture's turn; pointer input misses the page while it animates; a fold collapses height so later content slides, which a root cross-fade does not draw; board cards move inside their own scroller, whose clip a snapshot escapes under the Chrome 125 floor. #666 removed the paint-boundary transition version travel used |
-| Version patch | idiomorph with exclusion callbacks in place of `runtime/dom-children.js` | A live-tree diff keeps only the reader state an exclusion names; the source-to-source patch keeps all of it and has needed no fix since #514 split it out. After boot the live tree is not the source — highlight spans, controller-owned widget children, lent tab stops, a disclosure the reader opened — so each is one more exclusion. `patchTree` already takes nine domain callbacks that any morphing library would still need, leaving about 175 lines of diff loop to delete |
-| Version patch | Deleting the patch path so every revision arrives by reload | Rejected 2026-09-17. It is the larger deletion — `dom-children.js`, the patch branch of `activateRevision`, and the `executable` and per-widget digests that exist to choose between the two installs, about 600 to 900 lines across JS and Python — but a reload install cannot claim the reader still stands on a control, so caret, selection, focus, hover, open disclosures and an armed key sequence all go, and the page is away for a measured median 595 ms (338 to 925 over six warm reloads of a served page, document receipt 14 ms, so it is boot rather than transfer). The agent saving while a reader reads is the loop Leaf exists for |
-| Typecheck | `tsc --checkJs` over the runtime | It runs in under a second, but a bug-back over six runtime fixes (#404, #448, #625, #660, #676, #757) found no error the fix removed; the 272 errors outside vendored bundles are inference artifacts, and the typed `scripts/browser` core arrives through a bundle with no declarations |
+| Motion | Same-document View Transitions for `runtime/motion.js` | The update runs after the old state is captured, later than the gesture's turn, and a board card moves inside a scroller whose clip a snapshot escapes under the Chrome 125 floor |
+| Version patch | idiomorph in place of `runtime/dom-children.js` | A live-tree diff reverts what the runtime built into the page — highlight spans, controller-owned widget children, lent tab stops — which a source-to-source diff never sees. `patchTree`'s nine domain callbacks survive any swap, leaving ~175 lines of diff loop |
+| Version patch | Deleting the patch path so every revision arrives by reload | 600 to 900 lines, but a reload cannot claim the reader still stands on a control: caret, selection, focus and open disclosures go, and the page is away a measured median 595 ms |
+| Storage | A page-local `objects/sha256/<digest>` store in place of a resource copy per revision | Disk only: 2 objects and 38 KB per save after the first in place of 189 files and 3.28 MB, about 930 MB down to 190 MB across the local state home, with no effect on save time (0.22 s against 0.19 s). A stamped version keeps its exact bytes either way, and the store is more mechanism than the directory of bytes it replaces. Revisit if disk is what hurts |
+| Typecheck | `tsc --checkJs` over the runtime | A bug-back over six runtime fixes (#404, #448, #625, #660, #676, #757) found no error the fix removed; the 272 remaining errors are inference artifacts |
 | Keyboard | TanStack Hotkeys (alpha), `@github/hotkey`, tinykeys | They own key parsing, which has had no fix since 2026-08-29; the scope stack, Escape order, and go-to grammar stay in Leaf either way |
 | Focus walks | `focusgroup`, Tabster | `focusgroup` is Chrome 150 with no WebKit, so the published site would carry the 19 KB polyfill; Tabster's Groupper returns focus to a group rather than closing a surface and restoring the reader's place |
 | History | Navigation API for version travel | Three `history` and `popstate` sites; the gain needs intercept to replace the activation choreography |
-| Server | One user-level daemon on SQLite, starlette, and asyncio | Measured about 750 gross and -300 to +500 net: the browser already receives pushes over `EventSource`, the 70 µs stat loop serves CLI writers in other processes, pid probing and the wait, adapter, and delivery locks stay, Windows is not a goal, and a user-level database stops the page directory being the deployment unit |
+| Server | One user-level daemon on SQLite, starlette, and asyncio | The transport went to starlette and uvicorn in #774; what stays rejected is one daemon for every page. Measured ~750 gross and -300 to +500 net, and a user-level database stops the page directory being the deployment unit |
 | Server | The server rewritten in TypeScript | Not incremental; forfeits the pytest suite and render harness, and node is not guaranteed on Codex hosts |
-| Chrome library | Web Awesome, Spectrum, Lion, Zag | Not chosen over the platform-first direction; still open |
+| Chrome library | Web Awesome, Spectrum, Lion, Zag | The churn is not in the ~500 lines of `<dialog>` and popover glue they would own: 12 commits there since the rename against 88 across the margin, the keyboard and the trays. Zag's menu also pulls in `@floating-ui/dom`, rejected above. Worth reaching for where the platform has no primitive — a combobox, a typeahead — not as a retrofit |
 | Chrome framework | React, Radix, Base UI, shadcn, Preact + htm | A framework migration for the smallest defect bucket |
 | Build | Vite, Rollup | One entry, no dev server; esbuild suffices |
 | HTML parsing | lxml, selectolax, BeautifulSoup, html5lib | Lose source offsets and browser-parity recovery |
@@ -90,42 +92,22 @@ reason to change frameworks.
 
 ## Leaf choices worth reconsidering
 
-Each excluded a library or a simpler model. The proposal is what to do if the choice is
-reopened.
+Two are still open.
 
-- **Comments match text exactly or detach.** Excludes tolerant re-anchoring. Saves no
-  complexity (the exact search is ~150 lines); a UX question about fewer detached
-  comments. Proposal: leave it.
-- **The keyboard system is vim-like.** Letter chords, per-area scopes, go-to hints, and
-  an Escape that closes one layer; 6,085 lines and the largest fix bucket. The reader
-  keeps this behaviour, and no library owns the scope stack, the Escape order, or the
-  go-to grammar; the ones that came closest are in Rejected above. Ten of the 24 keyboard
-  fixes since 2026-08-29 landed in the code that infers the open layers: `stack()` in
-  `keyboard/dispatch.js`, `keyboard/return-stack.js`, and `native-layers.js`. Now item #24
-  in `TODO.md`.
-- **Comments float in the margin in clusters, and the reply box sits inside the page.**
-  6,600 lines and the second-largest bucket. Proposal: add a stacked side-column layout
-  with the reply box in the panel as one arm of the "Now" item on annotation placement.
-- **Every revision keeps its own copy of the layer.** Two versions of a new page measured
-  about 3.27 MB in 189 files each, with all 187 resource digests identical, beside a
-  3.24 MB page-level copy. The copy arrived with #666 so that activating a revision reads
-  no mutable file, and it lets `page init` skip checking old revisions' HTML against a new
-  layer. tree-sitter stays either way: it reads authored `page/` modules and builds
-  interactive exports. Open question: must a stamped version keep the exact JS, CSS, and
-  look it was approved with? If so, the "share by digest" item under Later keeps that at
-  one stored copy per digest. If not, serve one page-level layer and have `page init`
-  refuse a layer that an old revision's HTML cannot render under.
 - **Leaf joins the conversation the user has open in Codex.** Excludes the official SDK,
-  which starts its own Codex (and bundles a 113 to 138 MB binary per platform). Open
-  question: is the shared conversation a product requirement? If not, 758 lines of
-  hand-written protocol code go. The website host in `worker/server.py` already spawns
-  its own app-server, so the SDK's limit does not reach it; adopting the SDK there alone
-  would run two clients for one protocol beside `codex.py`.
+  which starts its own Codex and bundles a 113 to 138 MB binary per platform. Is the
+  shared conversation a product requirement? If not, 758 lines of hand-written protocol
+  go. The website host in `worker/server.py` already spawns its own app-server, so
+  adopting the SDK there alone would run two clients for one protocol.
 - **Package authors describe widgets in JSON Schema.** 474 lines of meta-schema check
-  those descriptions. Proposal: typed declarations (pydantic is installed through `mcp`)
-  when packages are next revisited.
-- **Agents write HTML.** The JSON-description alternative was not compared. Proposal:
-  keep HTML; the evidence favours it.
+  those descriptions; typed declarations (pydantic arrives through `mcp`) when packages
+  are next revisited.
+
+The rest are decided. Comments match text exactly or detach, and agents write HTML: both
+stay. The keyboard stays vim-like, and the layer inference behind ten of its 24 fixes is
+item #24 in `TODO.md`. The margin's cluster layout is an arm of the region-aware
+annotation placement item. Every revision keeps its own copy of the layer, and sharing
+those copies by digest is in Rejected above with what it would have saved.
 
 One incidental finding: the locked turbohtml build ships no macOS x86_64 wheel, so an
 Intel Mac install compiles it from source.

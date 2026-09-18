@@ -2,7 +2,10 @@
 
 Items are ordered by priority. Each names the result. When an item needs active
 investigation detail, keep it in a linked note. Completed work and rejected alternatives
-remain in git history.
+remain in git history. An item decided against leaves rather than staying with its
+reasoning attached: a dependency, platform, or storage choice goes to the Rejected table
+in [the survey note](notes/dependency-survey.md) as one line and the number that decided
+it, and anything else goes to git history.
 
 ## Now
 
@@ -80,16 +83,13 @@ ordering contract these items extend.
   disclosure already divide the two readings the way Codex's stream now uses, so a hook
   would write `observed` and change no wording.
 
-- **Teach the hosted website agent to declare its steps.** Its banner sentence comes
-  from the tool steps App Server watches, which is why `worker/server.py` keeps that
-  agent's instructions free of `$LEAF status`. Adding a "declare each step before you
-  start it" paragraph there produced four good sentences and a turn that ran a closing
-  `resolve` and never replied, which `verify_site.py local` caught (measured
-  2026-09-17); the same tree passed with the paragraph removed. Any wording tried here
-  has to keep the turn's response operations exactly as they were, and that check is
-  what says whether it did. What the reader gets meanwhile is the step verbatim —
-  `Running /bin/zsh -lc '$LEAF delivery claim … && rg --files …'` — which is the whole
-  argument for the agent saying it in its own words.
+- **Teach the hosted website agent to declare its steps.** Its banner sentence comes from
+  the tool steps App Server watches, so the reader gets the step verbatim — `Running
+  /bin/zsh -lc '$LEAF delivery claim … && rg --files …'` — which is the whole argument for
+  the agent saying it in its own words. A "declare each step before you start it"
+  paragraph in `worker/server.py` wrote four good sentences and cost the turn its reply
+  (2026-09-17), so any wording has to leave the turn's response operations exactly as they
+  were, and `verify_site.py local` is the check that says whether it did.
 
 - **Decide the banner's pick when several subject claims stand.** The guidance now has
   the coordinator write one sentence covering its workers, which leaves this to the
@@ -117,8 +117,6 @@ ordering contract these items extend.
   fold `native-layers.js` into the return stack and drop `stack()`'s popover and modal
   branches. The fix rate here has fallen and nothing planned waits on it, so it sits
   behind the reading work above; the reason to do it is the implementation's own weight.
-  The libraries that do not cover it, and the fix classification, are in
-  [the survey note](notes/dependency-survey.md).
 
 - **#1 — Keep the semantic application root thin.** Let the application publisher own
   ordering, adoption, and publication while pure Ask, conversation, projection, and widget
@@ -160,7 +158,7 @@ ordering contract these items extend.
 
 The 2026-09-16 survey of what Leaf could hand to a dependency found the browser defect
 record concentrated in margin placement, geometry timing, and the keyboard register, which
-no library owns; a component library would have covered about 13 of the last 175 fixes. The
+no library owns; a component library would have covered 15 to 20 of the last 175 fixes. The
 direction chosen: keep Lit, and replace hand-built behavior with settled libraries and
 browser features one at a time as each proves out. The evidence, the rejected
 candidates, and the Leaf choices worth reconsidering are in
@@ -182,8 +180,8 @@ ordered by confidence, then effort.
 
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
-| Order the cascade with `@layer` (theme, package, page). Tried 2026-09-16 and backed out: the page's unlayered `<style>` then outranks the chrome, so a page `div { position: relative }` moved 53 chrome boxes including the aim (`test_render_aim`), and putting `chrome.css` on its own rung flipped the specificity contests it was written against `theme.css` with. Needs the chrome isolated from page CSS first: a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)`. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |
-| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods, so a surface opened by pointer declares itself. The keyboard layer stack in [the survey note](notes/dependency-survey.md) needs that declaration. | S-M | ~50 to 100 est. | Low-Med | Chromium-only, so below Chrome 135 the button does nothing unless the module keeps its handler |
+| Order the cascade with `@layer` (theme, package, page). Needs the chrome isolated from page CSS first — a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)` — because a page's unlayered `<style>` otherwise outranks the chrome: tried 2026-09-16 and backed out when one page rule moved 53 chrome boxes. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |
+| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods, so a surface opened by pointer declares itself. The keyboard layer stack in item #24 needs that declaration. | S-M | ~50 to 100 est. | Low-Med | Chromium-only, so below Chrome 135 the button does nothing unless the module keeps its handler |
 
 ### Both
 
@@ -290,77 +288,43 @@ thread panel's touch grip has its own item under Later.
 ## Later
 
 - **Prefer a release tag when Leaf adopts named versions.** When the running payload's
-  commit has an exact Git tag, report that tag as its version and retain the commit hash
-  as the fallback for untagged builds.
-- **Share immutable revision resources by digest.** Two minimal default-layer
-  revisions currently store 3,200,741 and 3,200,749 bytes, with 179 identical
-  resource digests copied into both bundles. Put captured bytes in a page-local
-  `objects/sha256/<digest>` store and let each immutable manifest retain the logical
-  path, MIME type, dependency edges, and digest. Publication must write, verify, and
-  fsync collision-checked objects before the revision manifest and HTML marker become
-  discoverable. Historical HTTP routes, standalone export, and static-site output must
-  continue to materialize the revision's logical paths. Prove crash recovery, digest
-  collision refusal, revision replacement, repeated media, and a hundred-revision size
-  profile before cutting over and deleting the per-revision resource copies.
-  Measured 2026-09-17: this buys disk and nothing else. Each save after the first would
-  write 2 objects and 38 KB in place of 189 files and 3.28 MB, taking the 283 revisions
-  across the local state home from about 930 MB to about 190 MB. Capture is not what a
-  save waits on — a captured save takes 0.22 s against 0.19 s for an unchanged page — and
-  the store is more mechanism than the directory of exact bytes it replaces. So this is
-  an answer to disk pressure, not a simplification; leave it until disk is what hurts.
+  commit has an exact Git tag, report that tag as its version and keep the commit hash as
+  the fallback for untagged builds.
 
-- **Decide whether suggested replacements need a proper diff.** Compare the current
-  plain replacement with a before-and-after view in Threads and inline conversations.
-  Add the diff only if it makes nontrivial edits easier to review without duplicating
-  the quoted passage.
+- **Let readers disable character bindings.** One route filter with a complete persistence
+  and accessibility contract. Commands, non-character routes, and visible controls stay
+  available.
 
-- **Decide whether visual review needs expanded inspection.** Compare an embedded review
-  with the same run as a bounded root review. Add expansion only if focused workspaces do
-  not cover the real tasks, and keep it package-owned until a second interactive object
-  proves the same entry, state-preservation, return, narrow-screen, copy, and print
-  lifecycle.
-
-- **2026-09-15 — Reconsider whether “tabbed section” needs explicit vocabulary.** Keep
-  `lf-tabs` contextual while root placement and embedded placement fully distinguish
-  page navigation from local alternatives. Introduce a separate author-facing term or
-  element only if real pages expose an ambiguity that placement cannot resolve.
-
-- **Let readers disable character bindings.** Define one route filter with a complete
-  persistence and accessibility contract. Commands, non-character routes, and visible
-  controls remain available.
-
-- **Add disclosed masks to visual-review evidence.** Authored case-level focus areas now
-  make small changes findable without adding nested review units. Add masks only once
-  repeated reviews establish the smallest disclosure and export contract.
-
-- **Open visual-review targets beside Leaf through the host.** Coordinate the exact
-  case URL in a real browser pane and report mutable-preview staleness without treating
+- **Open visual-review targets beside Leaf through the host.** Coordinate the exact case
+  URL in a real browser pane and report mutable-preview staleness, without treating
   arbitrary iframes as live evidence.
 
-- **Add typed motion evidence after the media boundary supports it.** Define durable
-  video, poster, caption, transcript, and chapter handling in Leaf core; then let visual
-  runs attach motion only to cases whose timing or continuity is under review.
+- **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow for
+  any host that can run a command, then define a shared host adapter only if another
+  integration needs it.
 
-- **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow
-  for any host that can run a command, then use that experience to define a shared host
-  adapter only if another integration needs it.
-
-- **Give the touch grip room of its own, then fit more thread cards.** At a coarse
-  pointer the panel's resize grip is a 44px square laid over the list, and nothing
-  reserves that space: cards run under it at every scroll position, so whether its
-  focus ring lands on a button is luck. Tightening the cards' spacing moved one Send
-  button up onto it and
-  `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` said so,
-  which is why e4cd887f was reverted.
-  Reserving a full-height gutter would contradict the grip's own design — a local
-  handle, not a scroll-blocking wall — so settle what the phone sheet owes it first.
-  Spacing alone does not fit a third card either: the card's own content already
-  exceeds a third of the list's height, which is the reply box and Send/Resolve row
-  every card carries. Collapsing that to a single Reply affordance until the reader
-  enters the card is the change that would.
+- **Give the touch grip room of its own, then fit more thread cards.** At a coarse pointer
+  the panel's 44px resize grip lies over the list with nothing reserving its space, so
+  whether its focus ring lands on a button is luck. A full-height gutter would contradict
+  a local handle, and spacing alone cannot fit a third card — the reply box and
+  Send/Resolve row every card carries already exceed a third of the list. Collapse a card
+  to a single Reply affordance until the reader enters it.
 
 - **Make the experimental direct MCP bundle fail loud on an evaluation-order fault.**
-  `scripts/mcp-app/direct-build.mjs` bundles the full runtime for the direct-page
-  experiment; it is not the shipped MCP App. Esbuild hoists cross-module `let`/`const`
-  into `var`s, so a fault the ordinary page throws reads `undefined` in this experimental
-  bundle. Give its direct probe a reading that sees the fault, or preserve the dead zone.
+  Esbuild hoists cross-module `let`/`const` into `var`s in
+  `scripts/mcp-app/direct-build.mjs`, so a fault the ordinary page throws reads `undefined`
+  in that experimental bundle. Give its probe a reading that sees the fault, or preserve
+  the dead zone.
+
+Parked until something triggers them:
+
+- **A proper diff for suggested replacements**, if a before-and-after view in Threads and
+  inline conversations reviews nontrivial edits better than the plain replacement.
+- **Expanded inspection for visual review**, if focused workspaces turn out not to cover
+  the real tasks; package-owned until a second interactive object proves the lifecycle.
+- **Author-facing "tabbed section" vocabulary**, if a real page exposes an ambiguity that
+  root and embedded placement cannot resolve.
+- **Disclosed masks in visual-review evidence**, once repeated reviews establish the
+  smallest disclosure and export contract.
+- **Typed motion evidence**, once Leaf core has durable video, poster, caption, transcript,
+  and chapter handling.

@@ -4766,17 +4766,19 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     asked = threading.Event()
     release = threading.Event()
 
-    class Stalls(http_model.handler_for(d, TOKEN)):
+    class Stalls(http_model.PageEndpoint):
         """Answers everything but the earlier version, which it accepts and drops."""
 
         def _get(self):
             if self.path.startswith("/versions/v1.html"):
                 asked.set()
                 release.wait()
-                return
-            super()._get()
+                return None
+            return super()._get()
 
-    httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Stalls)
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0), http_model.page_endpoint(d, TOKEN, endpoint=Stalls)
+    )
     with running_http_server(httpd):
         try:
             failures = render_gate_model.render_version(
@@ -5674,7 +5676,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         "detail": {"offset": "0"},
     }
 
-    class TheLogArrivesLate(http_model.handler_for(serve.page_dir, TOKEN)):
+    class TheLogArrivesLate(http_model.PageEndpoint):
         """The action reaches the log between the page's first read and the gate's.
 
         A page whose first read brings nothing is presented on the authored markup
@@ -5699,13 +5701,17 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
             # below rather than by a gate whose server appeared to stop answering.
             if state_read and not page_read and not arrived.wait(10):
                 expired.append(self.path)
-            super()._get()
+            answer = super()._get()
             if page_read and not landed:
                 landed.append(self.headers["Referer"])
                 append_command(serve.page_dir, settle)
                 arrived.set()
+            return answer
 
-    httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0),
+        http_model.page_endpoint(serve.page_dir, TOKEN, endpoint=TheLogArrivesLate),
+    )
     with running_http_server(httpd):
         late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
         failures = render_gate_model.render_version(browser, late)

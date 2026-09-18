@@ -5,15 +5,16 @@ from __future__ import annotations
 import secrets
 import threading
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
+from starlette.responses import Response
 
 from .files import latest_revision, revision_path
 from .hosting import LeafHTTPServer
-from .http import Handler
+from .http import PageEndpoint
 from .registry.contract import RegistryError
 from .revision_artifact import read_artifact
 from .schema import EVENTS_FILE, MCP_APP
@@ -45,54 +46,52 @@ class _PageSession:
     preview: dict | None
 
 
-class _RoutedPageHandler(Handler):
+class RoutedPageEndpoint(PageEndpoint):
     """Select a page from an unguessable path before entering the HTTP boundary."""
 
-    router: ProcessPageServer
-    layer = ""
     # This transport exists to sit in a cross-origin MCP App frame. The host approves
     # the exact process origin, while the unguessable, process-lived path authorizes
     # the page; the server cannot name the host-assigned parent origin in a response.
     frame_ancestors_policy = None
 
+    def __init__(self, request, server, *, router: ProcessPageServer) -> None:
+        super().__init__(request, server)
+        self.router = router
+
     def authorized(self) -> bool:
         # `_select_page` already proved possession of the process-scoped capability.
         return True
 
-    def _select_page(self) -> bool:
-        external = urlsplit(self.path)
-        parts = external.path.split("/", 3)
+    def _select_page(self) -> Response | None:
+        parts = self.path.split("/", 3)
         if len(parts) < 3 or parts[1] != "p" or not parts[2]:
-            return False
+            return self._not_found()
         session = self.router.session(parts[2])
         if session is None:
-            return False
-        inside = f"/{parts[3]}" if len(parts) == 4 and parts[3] else "/"
+            return self._not_found()
         self.page_dir = session.page_dir
         revision = latest_revision(self.page_dir)
         if revision is None:
-            return False
+            return self._not_found()
         self.layer_identity = read_artifact(self.page_dir, revision).registry["$layer"]
-        self.layer = self.layer_identity["generation"]
         self.preview = session.preview
         self.page_root = f"/p/{session.capability}"
-        self.path = inside + (f"?{external.query}" if external.query else "")
-        return True
+        self.path = f"/{parts[3]}" if len(parts) == 4 and parts[3] else "/"
+        return None
 
-    def _send(self, status: int, ctype: str, body: bytes) -> None:
+    def _content(self, status: int, ctype: str, body: bytes) -> Response:
         if status == 200 and ctype.startswith("text/html"):
             body = _with_ready_signal(body, self.page_root)
-        super()._send(status, ctype, body)
+        return super()._content(status, ctype, body)
 
-    def _get(self):
-        if urlsplit(self.path).path == _READY_PATH:
-            self._send(
+    def _get(self) -> Response | None:
+        if self.path == _READY_PATH:
+            return self._content(
                 200,
                 "text/javascript; charset=utf-8",
                 PAGE_READY_SOURCE.read_bytes(),
             )
-            return
-        super()._get()
+        return super()._get()
 
 
 class ProcessPageServer:
@@ -107,8 +106,9 @@ class ProcessPageServer:
         self._lock = threading.Lock()
         self._by_capability: dict[str, _PageSession] = {}
         self._by_page: dict[Path, _PageSession] = {}
-        handler = type("MCPPageHandler", (_RoutedPageHandler,), {"router": self})
-        self._httpd = LeafHTTPServer(("127.0.0.1", 0), handler)
+        self._httpd = LeafHTTPServer(
+            ("127.0.0.1", 0), partial(RoutedPageEndpoint, router=self)
+        )
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
         self._closed = False

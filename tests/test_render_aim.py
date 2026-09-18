@@ -1045,7 +1045,13 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
 
 
 def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve):
-    """A left tray and right panel can move the shell without changing its width."""
+    """A left tray and right panel can move the shell without changing its width.
+
+    Swapping one for the other moves every block sideways while the shell stays the width
+    it was, so nothing resizes and the aim has to be re-placed off the move itself. The
+    first reading is taken in the swap's own task, which is where the placement now
+    happens; the frames after it catch a placement that arrives late or drifts once the
+    page settles."""
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
     tray = EDGES[1]
@@ -1061,7 +1067,6 @@ def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve)
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     readings = page.evaluate(
         """() => new Promise(resolve => {
-          const main = document.querySelector('body > main');
           const readings = [];
           const sample = () => {
             const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -1069,16 +1074,20 @@ def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve)
             const box = aim.getBoundingClientRect();
             readings.push({shown: aim.checkVisibility(), dx: box.left - target.left,
                            dy: box.top - target.top});
-            if (main.getAnimations().some(animation => animation.playState === 'running'))
-              requestAnimationFrame(sample);
-            else resolve(readings);
           };
           document.querySelector('.lf-threads-toggle').click();
-          requestAnimationFrame(sample);
+          sample();
+          let left = 4;
+          const step = () => {
+            sample();
+            if (--left) requestAnimationFrame(step);
+            else resolve(readings);
+          };
+          requestAnimationFrame(step);
         })"""
     )
     page.keyboard.up("Alt")
-    assert len(readings) > 2, "the auxiliary-surface swap produced no transition trace"
+    assert len(readings) == 5, "the swap was not sampled across its own task and after"
     assert all(reading["shown"] for reading in readings)
     assert max(abs(reading["dx"]) for reading in readings) < 3
     assert max(abs(reading["dy"]) for reading in readings) < 3

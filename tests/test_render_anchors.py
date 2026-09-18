@@ -3015,8 +3015,8 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     assert painted > 12000, f"the mark under the composer covers {painted} characters"
 
     page.locator(".lf-composer textarea").fill("All of it.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the whole page"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread")).to_have_count(1)
     # The posted anchor resolves on the ordinary pass too, which is the one that would
     # have thrown: a detached quote here is the search having failed to find the page
@@ -4505,8 +4505,8 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(outlet.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator("#lf-composer-quote")).to_contain_text("§ app.py · file")
     page.locator(".lf-fab-input").fill("Review this file as a whole.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the unloaded file"):
+        page.keyboard.press("ControlOrMeta+Enter")
 
     comments = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
@@ -4662,8 +4662,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "Review the whole added line."
     )
     expect(composer_outlet.locator(".lf-fab-input")).to_be_focused()
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment returned to from the draft"):
+        page.keyboard.press("ControlOrMeta+Enter")
     inline = page.locator("lf-diff .lf-diff-thread-outlet")
     expect(inline).to_have_count(1)
     expect(inline.locator(".lf-conversation-thread")).to_contain_text(
@@ -4752,8 +4752,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     page.locator(".lf-fab-input").fill("Review this expression.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the selected expression"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
         "app.py · new line 2 · “request.token.id”"
     )

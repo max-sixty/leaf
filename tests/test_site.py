@@ -1445,8 +1445,11 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     try:
         gallery = page.locator("#bg-interactions")
         gallery.get_by_role("tab", name="Send a comment").click()
+        # An init script is source rather than a function Playwright calls, so a bare
+        # arrow here is an expression the document evaluates and throws away, and the
+        # delay this test is named for never reaches the frame.
         context.add_init_script(
-            """() => {
+            """(() => {
                 const append = Element.prototype.append;
                 Element.prototype.append = function(...nodes) {
                     if (
@@ -1458,7 +1461,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
                     }
                     return append.apply(this, nodes);
                 };
-            }"""
+            })();"""
         )
         page.reload(wait_until="domcontentloaded")
         toggle = gallery.locator("[data-interaction-toggle]")

@@ -4986,11 +4986,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     ready = inline_send.evaluate(button_face)
     assert ready == panel_send.evaluate(button_face)
     assert ready["backgroundColor"] == quiet["backgroundColor"]
-    # The send press states its readiness in its own ink: accent once there are words
-    # to send, muted while there are none. Its disc stays clear in both and rises to
-    # the accent tint only under the pointer, so the disc cannot say which state it is.
+    # A ready press is told from a quiet one by its ink and its edge. Neither wears a
+    # fill: no pressable carries a solid accent, so asserting one here would be holding
+    # the look the theme took off rather than the distinction the reader needs.
     assert ready["fill"] == quiet["fill"] == "rgba(0, 0, 0, 0)"
     assert ready["color"] != quiet["color"]
+    assert ready["borderTopColor"] != quiet["borderTopColor"]
     assert ready["cursor"] == "pointer"
 
     # The reply is a text box in either seat, so it wears the text box's one band:

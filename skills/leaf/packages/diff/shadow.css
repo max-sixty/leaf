@@ -80,8 +80,12 @@
 .lf-diff-reviewed { font-size: var(--t-5); line-height: 26px; }
 .lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
                                                          font-weight: 650; }
+/* Bigger than the shared floor with a mouse, and never smaller than it under a
+   finger, which is what max() is doing in a minimum here and in the layer's own
+   faces (assets/shadow.css). */
 .lf-diff-file-comment { box-sizing: border-box; width: 26px; height: 26px;
-                        min-width: 26px; min-height: 26px; padding: 0;
+                        min-width: max(26px, var(--aim-floor));
+                        min-height: max(26px, var(--aim-floor)); padding: 0;
                         border-color: transparent; border-radius: var(--r);
                         background: transparent; color: var(--muted);
                         font-size: 18px; line-height: 1; }

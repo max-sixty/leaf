@@ -8,6 +8,7 @@ import time
 from urllib.parse import urlsplit
 
 import pytest
+import tinycss2
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     append_command,
@@ -2282,6 +2283,93 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
     assert not decided, (
         f"{len(decided)} of {len(adopted)} elements are drawn by the adopted sheet's"
         " position rather than by its selectors:\n" + "\n".join(sorted(decided)[:20])
+    )
+
+
+# The layer's own list of aims, read from the rule that floors them rather than copied
+# here: a control joins the floor by joining that selector list, and the sweep below has
+# to follow it there.
+AIM_FLOOR_RULE = "min-height: var(--aim-floor); min-width: var(--aim-floor);"
+
+
+def aim_selectors():
+    sheet = (schema_model.ASSETS / "shadow.css").read_text()
+    rules = [
+        rule
+        for rule in tinycss2.parse_stylesheet(
+            sheet, skip_comments=True, skip_whitespace=True
+        )
+        if rule.type == "qualified-rule"
+        and " ".join(tinycss2.serialize(rule.content).split()) == AIM_FLOOR_RULE
+    ]
+    assert len(rules) == 1, f"{len(rules)} rules in shadow.css state the aim floor"
+    return " ".join(tinycss2.serialize(rules[0].prelude).split())
+
+
+AIM_BOXES = """(selectors) => {
+  const floor = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--aim-floor")
+  );
+  const short = [];
+  let seen = 0;
+  const sweep = (root) => {
+    for (const el of root.querySelectorAll(selectors)) {
+      const box = el.getBoundingClientRect();
+      // A box and not checkVisibility(): the corpus renders much of itself inside
+      // content-visibility sections, which this browser answers no for, and a control
+      // laid out inside one is a control a reader reaches by scrolling to it.
+      if (!box.width || !box.height) continue;
+      const shown = getComputedStyle(el);
+      // Hidden, or standing there for a pointer a finger is not: the diff's line
+      // comment is transparent and takes no presses until its row is hovered, and a
+      // finger never hovers it.
+      if (shown.visibility === "hidden") continue;
+      if (shown.opacity === "0" || shown.pointerEvents === "none") continue;
+      seen += 1;
+      if (Math.min(box.width, box.height) < floor - 0.5)
+        short.push(`${Math.round(box.width)}x${Math.round(box.height)} ${el.className}`);
+    }
+    for (const el of root.querySelectorAll("*"))
+      if (el.shadowRoot) sweep(el.shadowRoot);
+  };
+  sweep(document);
+  return {floor, seen, short};
+}"""
+
+
+def test_every_aim_the_layer_offers_takes_a_finger(browser, serve):
+    """One floor, and it has to reach the page as well as the chrome.
+
+    The rule naming Leaf's aims used to stand inside chrome.css's `@scope`, so it floored
+    the controls in the runtime's own chrome and nothing else: under a finger, 41 of this
+    page's 73 buttons and all 21 of its margin entries stood below 44px while the six
+    inside the chrome were correct. Stated in shadow.css it reaches the document, the
+    chrome, and the declared widget trees alike.
+
+    Reach is only half of it. The floor is one rule at each control's own weight, so any
+    rule that states a minimum of its own for one of these outranks it — and a package's
+    38px button or the chrome's 28px step is shorter than a finger. Those fold the floor
+    in with max(), and this sweep is what says they did: it reads the layer's selector
+    list, then measures every visible control on the corpus, which is the page that holds
+    every widget and idiom at once."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    try:
+        page = open_page(browser, serve(CORPUS_PAGE), context=context)
+        assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
+            "the touch fixture never reached Leaf's coarse-pointer rules"
+        )
+        measured = page.evaluate(AIM_BOXES, aim_selectors())
+    finally:
+        context.close()
+
+    assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
+    assert measured["seen"] > 50, f"only {measured['seen']} aims stood on the corpus"
+    assert not measured["short"], (
+        f"{len(measured['short'])} of {measured['seen']} aims are smaller than "
+        f"{measured['floor']}px under a finger:\n"
+        + "\n".join(sorted(measured["short"]))
     )
 
 

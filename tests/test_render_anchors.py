@@ -2665,7 +2665,7 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     expect(fab).to_be_visible()
     fab.focus()
     page.locator(".lf-composer textarea").fill("is this idempotent?")
-    page.locator(".lf-composer button.primary").click()
+    page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -2739,7 +2739,7 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").focus()
     page.locator(".lf-composer textarea").fill("why is this section here?")
-    page.locator(".lf-composer button.primary").click()
+    page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -3053,7 +3053,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
         const box = document.querySelector('.lf-composer textarea');
         box.value = 'does this hold?';
         box.dispatchEvent(new Event('input', {bubbles: true}));
-        document.querySelector('.lf-composer button.primary').click();
+        document.querySelector('.lf-composer button.lf-compose-submit').click();
         return true;
     }""")
     assert posted is True, f"couldn't post the comment ({posted})"
@@ -4904,8 +4904,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    # The same draft has two views, across the shadow boundary. Empty Sends keep the
-    # paper's neutral ground; typing enables the same primary face in either view.
+    # The same draft has two views, across the shadow boundary. An empty Send paints
+    # nothing, showing whatever ground it stands on; typing fills the same disc in
+    # either view. The press's own box never paints, so the disc is read off ::before.
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     inline_send = thread.get_by_role("button", name="Send", exact=True)
@@ -4916,7 +4917,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         'backgroundColor', 'color', 'borderTopColor', 'borderRadius', 'padding',
         'opacity', 'cursor', 'filter',
       ].map(property => [property, style[property]]));
-      face.fillBorderRadius = getComputedStyle(button, '::before').borderRadius;
+      const fill = getComputedStyle(button, '::before');
+      face.fillBorderRadius = fill.borderRadius;
+      face.fill = fill.backgroundColor;
       return face;
     }"""
     expect(inline_send).to_be_disabled()
@@ -4924,7 +4927,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     quiet = inline_send.evaluate(button_face)
     assert quiet == panel_send.evaluate(button_face)
     assert quiet["borderRadius"] == quiet["fillBorderRadius"] == button_radius(page)
-    assert quiet["backgroundColor"] == palette["page"]
+    assert quiet["backgroundColor"] == quiet["fill"] == "rgba(0, 0, 0, 0)"
     assert quiet["opacity"] == "1"
     assert quiet["filter"] == "none"
     for send in (inline_send, panel_send):
@@ -4937,7 +4940,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(panel_send).to_be_enabled()
     ready = inline_send.evaluate(button_face)
     assert ready == panel_send.evaluate(button_face)
-    assert ready["backgroundColor"] != quiet["backgroundColor"]
+    assert ready["backgroundColor"] == quiet["backgroundColor"]
+    assert ready["fill"] != quiet["fill"]
     assert ready["cursor"] == "pointer"
 
     # The reply is a text box in either seat, so it wears the text box's one band:

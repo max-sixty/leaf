@@ -721,11 +721,14 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); }
+   /* The draft's send press keeps the inline end it holds in every other Leaf text box,
+    * and the badge takes the room just inside it, which is the same room the draft's own
+    * trailing padding below reserves, so asking for bindings still moves nothing. The
+    * badge cannot have the edge instead: it is off screen until a reader asks for it,
+    * and the press would stand 35px short of the corner explaining nothing. */
    & > .lf-another > .lf-key-badge {
-                     inset-inline-start: auto; inset-inline-end: var(--sp-2); }
-   & > .lf-another .lf-compose-submit {
-                     inset-inline-end:
-                       calc(var(--sp-2) + var(--lf-key-badge-size) + var(--sp-2)); }
+                     inset-inline-start: auto;
+                     inset-inline-end: calc(var(--aim-floor) + var(--sp-4)); }
    & > .lf-another textarea {
                      padding-inline-end:
                        calc(var(--aim-floor) + var(--sp-4) + var(--lf-key-badge-size) + var(--sp-2)); }

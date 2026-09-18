@@ -3405,6 +3405,13 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # structure when the margin projects it into the chrome.
         "lf-conversation-body",
         "lf-conversation-head",
+        # The message's own box. The theme gives the authored and margin-projected copies
+        # their spacing while the chrome's scoped rules dress the panel's. The runtime
+        # sheet used to name it at document level too, in a `.lf-conversation-msg.lf-ui`
+        # spelling of the shared face that answered nothing once that face moved to the
+        # theme: no rule anywhere states a face on this class, so the extra weight was
+        # only weight.
+        "lf-conversation-msg",
         "lf-conversation-thread",
         "lf-edited",
         # A host receipt's mark is part of that same shared message structure: the
@@ -3483,9 +3490,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-aiming",
         "lf-over-item",
         "lf-quiet",
-        # Shared textual thread boxes render both in page-owned widget seats and in the
-        # chrome-owned margin preview.
-        "lf-conversation-msg",
+        # The shared textual thread box renders both in page-owned widget seats and in
+        # the chrome-owned margin preview, so its pasted-image shelf is dressed here.
+        # Its message rows are not: they take the shared face from the theme like every
+        # other injected element, and the chrome dresses only the margin preview's copy,
+        # from inside its own scope.
         "lf-say",
         # A pasted image's writing projection and inspection control cross the same
         # seam: widget conversation boxes live in the page, while general comments,

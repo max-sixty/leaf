@@ -1090,7 +1090,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     expect(thread).to_contain_text(
         "Keep this review note beside the line that changes it."
     )
-    send = thread.locator(".primary")
+    send = thread.locator(".lf-compose-submit")
     expect(send).to_be_disabled()
     disabled_palette = send.evaluate(
         """button => {
@@ -8595,7 +8595,7 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
-    send = composer.locator(".lf-compose-field .primary")
+    send = composer.locator(".lf-compose-field .lf-compose-submit")
     send.evaluate(
         """control => control.addEventListener('click', () => {
           document.body.dataset.composerShortcutClicks =

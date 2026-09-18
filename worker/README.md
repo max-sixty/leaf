@@ -106,12 +106,24 @@ model activity, first native model message, and turn completion. Item records ca
 the App Server timestamp, item type, duration, and command outcome where available;
 they never carry item content. Leaf's record omits message text, prompts, source IP
 keys, cookies, and private session ids. Cloudflare wraps it in invocation metadata.
+A record that names a failure carries `error`, the exception's class, and `detail`,
+the sentence the refusing boundary wrote. Without that sentence every rejection from
+one class reads alike, which is the difference between knowing that App Server
+refused and knowing what it refused; the calls behind these records are Leaf's own,
+so the sentence is the provider's account of the call rather than a reader's words.
+It is bounded to its last 500 characters, marked with a leading ellipsis when cut,
+because an exception message is not always a sentence: a spawn that never became
+ready raises with App Server's whole log, whose reason is at its end.
 The `turn_reply_first_text_published` record marks the first non-empty final-answer
 text written into the addressed thread, which is the user-visible response milestone;
 `turn_stream_completed` and `turn_reply_commit_failed` distinguish provider completion
 from Leaf's durable validation and append. `turn_stream_reconnect_failed` records each
 failed recovery attempt, and `turn_stream_reconnected` records recovery of the dropped
-App Server subscription.
+App Server subscription. `turn_delivery_unbound` names a turn that ended before this
+follower bound its delivery to a provider turn — which says nothing about whether one
+ran, since the case it was written for had a turn running unobserved.
+`turn_failure_reported` follows it with how many of that delivery's moves the host
+settled with a failure receipt and how many it left to the turn already handling them.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
 first-byte, first-output, and completion records. Those records carry Codex's thread

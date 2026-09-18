@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 import verify_site
 from click.testing import CliRunner
-from interact_support import STATED_TIMEOUT, running_http_server
+from interact_support import STATED_TIMEOUT, append_command, running_http_server
 from leaf.codex import _queues as codex_queues
 from leaf.codex import accept_codex_delivery
 from leaf.codex import delivery_pointer_prompt as delivery_prompt
@@ -351,8 +351,8 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     )
     assert closed == ([("hosted-thread",)] if closes_turn else [])
     if status == "active":
-        assert follows[0][-1] == "delivery-1"
-        assert follows[0][-2] == {
+        assert follows[0].delivery_id == "delivery-1"
+        assert follows[0].reply_target == {
             "page": str(page_dir),
             "reply_to": "reader-event",
             "responds": "reader-event",
@@ -402,8 +402,8 @@ def test_an_active_thread_keeps_its_deferred_delivery_for_the_follower(
         second["id"],
     )
     [follow] = follows
-    assert follow[2:4] == (None, None)
-    assert follow[4] == (second["id"],)
+    assert (follow.turn_id, follow.leaf_turn) == (None, None)
+    assert follow.event_ids == (second["id"],)
     [(_, queue)] = codex_queues("hosted-thread")
     assert queue["state"] == "offering"
 
@@ -514,14 +514,15 @@ def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypat
     monkeypatch.setattr(host, "attach", attach)
     host._run_follow_turn(
         "socket",
-        page_dir,
-        "hosted-thread",
-        "provider-turn",
-        "leaf-turn",
-        ("first-event",),
-        None,
-        "delivery-1",
-        (),
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            "delivery-1",
+            ("first-event",),
+            turn_id="provider-turn",
+            leaf_turn="leaf-turn",
+        ),
     )
 
     assert rescans == [(page_dir, ("first-event",))]
@@ -617,14 +618,15 @@ def test_a_queued_website_reply_binds_only_to_its_delivery_turn(page_dir):
     socket = Socket()
     host = website_server.WebsiteCodexHost("codex")
     host._follow_turn(
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            prepared.payload["id"],
+            queued["events"],
+            reply_target=website_server.stream_reply_target(prepared.payload),
+        ),
         socket,
-        page_dir,
-        "hosted-thread",
-        None,
-        None,
-        queued["events"],
-        website_server.stream_reply_target(prepared.payload),
-        prepared.payload["id"],
     )
 
     pickups = [
@@ -710,14 +712,15 @@ def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir)
     host = website_server.WebsiteCodexHost("codex")
     host.stop_event.set()
     host._follow_turn(
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            prepared.payload["id"],
+            queued["events"],
+            reply_target=website_server.stream_reply_target(prepared.payload),
+        ),
         socket,
-        page_dir,
-        "hosted-thread",
-        None,
-        None,
-        queued["events"],
-        website_server.stream_reply_target(prepared.payload),
-        prepared.payload["id"],
     )
 
     claim = website_server.page_claim(page_dir)
@@ -1271,7 +1274,7 @@ def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
     finally:
         host.close()
 
-    assert follow[2:4] == (None, None)
+    assert (follow.turn_id, follow.leaf_turn) == (None, None)
     [(_, queue)] = codex_queues("hosted-thread")
     assert queue["state"] == "offering"
     assert queue["batches"][0]["events"] == [{"seq": 1, "id": comment["id"]}]
@@ -1305,8 +1308,8 @@ def test_a_lost_turn_start_ack_keeps_streamed_reply_authority(page_dir, monkeypa
     finally:
         host.close()
 
-    assert follow[2:4] == (None, None)
-    assert follow[4] == (comment["id"],)
+    assert (follow.turn_id, follow.leaf_turn) == (None, None)
+    assert follow.event_ids == (comment["id"],)
     [(_, queue)] = codex_queues("hosted-thread")
     assert queue["state"] == "offering"
     with pytest.raises(SystemExit, match="bound to this delivery's final message"):
@@ -1353,7 +1356,7 @@ def test_a_lost_turn_start_ack_retries_after_idle_reconciliation(page_dir, monke
         def close(self):
             self.closed = True
 
-    delivery_payload = website_server.read_delivery(follow[-1])
+    delivery_payload = website_server.read_delivery(follow.delivery_id)
     messages = iter(
         [
             json.dumps(
@@ -1434,11 +1437,11 @@ def test_a_lost_turn_start_ack_retries_after_idle_reconciliation(page_dir, monke
         return {"turn": {"id": "retry-turn", "status": "inProgress", "items": []}}
 
     monkeypatch.setattr(host, "_send", retry_start)
-    host._follow_turn(LostSocket(), *follow)
+    host._follow_turn(follow, LostSocket())
 
     assert len(retries) == 1
     assert retries[0][1] == "turn/start"
-    assert retries[0][2]["clientUserMessageId"] == follow[-1]
+    assert retries[0][2]["clientUserMessageId"] == follow.delivery_id
     replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert [(reply["responds"], reply["text"]) for reply in replies] == [
         (comment["id"], "Recovered reply.")
@@ -1446,10 +1449,192 @@ def test_a_lost_turn_start_ack_retries_after_idle_reconciliation(page_dir, monke
     assert (
         website_server.next_unaccepted_agent_event(
             page_dir,
-            excluding=follow[4],
+            excluding=follow.event_ids,
         )
         == later["id"]
     )
+
+
+def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
+    page_dir, monkeypatch, capsys
+):
+    """A turn nothing bound still reaches the log and the page.
+
+    The App Server's own sentence is the only thing that separates one refusal from
+    another, and the reading the delivery wrote before it bound is keyed by the
+    delivery rather than the turn id the follower never learned. Left alone the record
+    names a class, the page says the agent is starting for the whole working grace,
+    and the reader is never told the move went unanswered.
+    """
+    # A published page waits between readers, which is the state a reader's first
+    # message arrives at and the one `_start_turn` moves to `waiting`.
+    with website_server.PageTransaction(page_dir) as page:
+        page.set_status("idle", "")
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host,
+        "_send",
+        lambda *_args, **_kwargs: {"turn": {"id": "app-server-turn"}},
+    )
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
+    starting = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    assert (starting["kind"], starting["detail"]) == ("working", "Starting")
+
+    # `turn/start` was acknowledged, so the delivery holds the "Starting" reading and
+    # the follower is still waiting for the `turn/started` that would bind it.
+    class LostSocket:
+        def recv(self, timeout):
+            raise OSError("connection lost")
+
+        def close(self):
+            pass
+
+    def refuse(_thread_id):
+        raise website_server.AppServerRequestRejected("no thread by that id")
+
+    monkeypatch.setattr(host, "_resume_turn_stream", refuse)
+    capsys.readouterr()
+
+    host._follow_turn(follow, LostSocket())
+
+    records = [
+        json.loads(line) for line in capsys.readouterr().out.splitlines() if line
+    ]
+    unbound = next(r for r in records if r["event"] == "turn_delivery_unbound")
+    assert (unbound["error"], unbound["detail"]) == (
+        "AppServerRequestRejected",
+        "no thread by that id",
+    )
+    completed = next(r for r in records if r["event"] == "turn_stream_completed")
+    assert (completed["status"], completed["error"]) == (
+        "failed",
+        "AppServerRequestRejected",
+    )
+    assert completed["detail"] == "no thread by that id"
+
+    reported = next(r for r in records if r["event"] == "turn_failure_reported")
+    assert (reported["settled"], reported["outstanding"]) == (1, 0)
+
+    # The delivery's own reading is gone, so the page no longer tells the reader the
+    # agent is starting on a move it will never answer, and the move itself carries a
+    # receipt saying so rather than waiting on a reply that is not coming.
+    activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    assert (activity["kind"], activity["detail"]) != ("working", "Starting")
+    assert activity["interactions"] == []
+    [reply] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert reply["responds"] == comment["id"]
+    assert reply["failure"] == "turn_failed"
+    # Only the absence of an answer: a provider turn may still be running with no
+    # observer, which is the shape of the incident this path was written for.
+    assert reply["text"] == (
+        "The agent's turn ended without an answer to this message. "
+        "Send it again to retry."
+    )
+    host.close()
+
+
+def test_a_fault_record_keeps_the_end_of_an_oversized_message():
+    """A boundary that raises with a whole file does not get to fill the log.
+
+    `_wait_for_app_server` raises with App Server's entire log as the message when a
+    spawn never becomes ready, and a record is not where a log file belongs. The
+    reason a process exited is at the end of its log, so that is the part kept.
+    """
+    short = website_server.fault_fields(RuntimeError("no thread by that id"))
+    assert short == {"error": "RuntimeError", "detail": "no thread by that id"}
+
+    log = "noise\n" * 400 + "fatal: the reason it exited"
+    assert len(log) > website_server.FAULT_DETAIL_LIMIT
+    bounded = website_server.fault_fields(RuntimeError(log))
+    assert bounded["error"] == "RuntimeError"
+    assert bounded["detail"].endswith("fatal: the reason it exited")
+    assert bounded["detail"].startswith("\u2026")
+    assert len(bounded["detail"]) == website_server.FAULT_DETAIL_LIMIT + 1
+
+    # The other boundary that writes a `detail` is App Server reporting its own turn
+    # failed, and the record's size contract is the record's, not one writer's.
+    reported = website_server.terminal_fault({"error": {"message": log}})
+    assert reported == {"detail": bounded["detail"]}
+
+
+def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
+    page_dir, monkeypatch
+):
+    """A receipt is addressed where the gesture is answered, not at the gesture.
+
+    A widget frozen into thread markup is answered on the conversation holding it,
+    so the address a reply is written to and the move it settles are two different
+    events. Writing the receipt at the gesture refuses instead of settling it.
+    """
+    website_server.activate_source(page_dir, read_events(page_dir))
+    asked = append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "text": "Which region?",
+            "markup": '<lf-options id="region" choose>'
+            '<lf-option id="east"><strong>East</strong></lf-option>'
+            '<lf-option id="west"><strong>West</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    chose = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "region",
+            "action": "choose",
+            "detail": {"options": ["east"]},
+        },
+    )
+    with website_server.PageTransaction(page_dir) as page:
+        page.set_status("idle", "")
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+    )
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
+    assert follow.reply_target is not None
+    assert follow.reply_target["reply_to"] != follow.reply_target["responds"]
+
+    class LostSocket:
+        def recv(self, timeout):
+            raise OSError("connection lost")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        host,
+        "_resume_turn_stream",
+        lambda _thread: (_ for _ in ()).throw(
+            website_server.AppServerRequestRejected("no thread by that id")
+        ),
+    )
+    host._follow_turn(follow, LostSocket())
+    host.close()
+
+    [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert (receipt["parent"], receipt["responds"]) == (asked["id"], chose["id"])
+    assert receipt["failure"] == "turn_failed"
 
 
 def test_notifications_before_start_response_reach_the_turn_follower(
@@ -1747,18 +1932,21 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     finished = []
     monkeypatch.setattr(host, "_finish_turn", lambda *args: finished.append(args))
     host._follow_turn(
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            "delivery-1",
+            ("reader-event",),
+            turn_id="initial-turn",
+            leaf_turn="leaf-turn",
+            reply_target={
+                "page": str(page_dir),
+                "reply_to": "reader-event",
+                "responds": "reader-event",
+            },
+        ),
         socket,
-        page_dir,
-        "hosted-thread",
-        "initial-turn",
-        "leaf-turn",
-        ("reader-event",),
-        {
-            "page": str(page_dir),
-            "reply_to": "reader-event",
-            "responds": "reader-event",
-        },
-        "delivery-1",
     )
 
     assert updates == [
@@ -1856,12 +2044,16 @@ def test_a_lost_starting_connection_leaves_its_response_obligation(page_dir):
     host = website_server.WebsiteCodexHost("codex")
     host.stop_event.set()
     host._follow_turn(
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            None,
+            delivery["events"],
+            turn_id="app-server-turn",
+            leaf_turn=delivery["turn"],
+        ),
         socket,
-        page_dir,
-        "hosted-thread",
-        "app-server-turn",
-        delivery["turn"],
-        delivery["events"],
     )
 
     events = read_events(page_dir)
@@ -1933,14 +2125,17 @@ def test_a_completed_final_is_recovered_after_the_turn_stream_disconnects(
     monkeypatch.setattr(host.stop_event, "wait", lambda timeout: False)
 
     host._follow_turn(
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            prepared.payload["id"],
+            delivery["events"],
+            turn_id="app-server-turn",
+            leaf_turn=delivery["turn"],
+            reply_target=website_server.stream_reply_target(prepared.payload),
+        ),
         initial_socket,
-        page_dir,
-        "hosted-thread",
-        "app-server-turn",
-        delivery["turn"],
-        delivery["events"],
-        website_server.stream_reply_target(prepared.payload),
-        prepared.payload["id"],
     )
 
     replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
@@ -2024,14 +2219,17 @@ def test_a_stream_that_goes_silent_recovers_its_turn_like_a_dropped_one(
     )
 
     host._follow_turn(
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            prepared.payload["id"],
+            delivery["events"],
+            turn_id="app-server-turn",
+            leaf_turn=delivery["turn"],
+            reply_target=website_server.stream_reply_target(prepared.payload),
+        ),
         silent,
-        page_dir,
-        "hosted-thread",
-        "app-server-turn",
-        delivery["turn"],
-        delivery["events"],
-        website_server.stream_reply_target(prepared.payload),
-        prepared.payload["id"],
     )
 
     replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
@@ -2073,13 +2271,18 @@ def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(
             self.closed = True
 
     socket = Socket()
-    website_server.WebsiteCodexHost("codex")._follow_turn(
+    host = website_server.WebsiteCodexHost("codex")
+    host._follow_turn(
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            None,
+            delivery["events"],
+            turn_id="app-server-turn",
+            leaf_turn=delivery["turn"],
+        ),
         socket,
-        page_dir,
-        "hosted-thread",
-        "app-server-turn",
-        delivery["turn"],
-        delivery["events"],
     )
 
     events = read_events(page_dir)
@@ -2151,19 +2354,23 @@ def test_an_empty_final_is_not_logged_as_visible_reply(page_dir, capsys):
             self.closed = True
 
     socket = Socket()
-    website_server.WebsiteCodexHost("codex")._follow_turn(
+    host = website_server.WebsiteCodexHost("codex")
+    host._follow_turn(
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            prepared.payload["id"],
+            delivery["events"],
+            turn_id="app-server-turn",
+            leaf_turn=delivery["turn"],
+            reply_target={
+                "page": str(page_dir),
+                "reply_to": comment["id"],
+                "responds": comment["id"],
+            },
+        ),
         socket,
-        page_dir,
-        "hosted-thread",
-        "app-server-turn",
-        delivery["turn"],
-        delivery["events"],
-        {
-            "page": str(page_dir),
-            "reply_to": comment["id"],
-            "responds": comment["id"],
-        },
-        prepared.payload["id"],
     )
 
     logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
@@ -2278,19 +2485,23 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
 
     socket = Socket()
     with pytest.raises(ValueError, match="unclosed tags"):
-        website_server.WebsiteCodexHost("codex")._follow_turn(
+        host = website_server.WebsiteCodexHost("codex")
+        host._follow_turn(
+            website_server.HostedTurn(
+                host,
+                page_dir,
+                "hosted-thread",
+                prepared.payload["id"],
+                delivery["events"],
+                turn_id="app-server-turn",
+                leaf_turn=delivery["turn"],
+                reply_target={
+                    "page": str(page_dir),
+                    "reply_to": comment["id"],
+                    "responds": comment["id"],
+                },
+            ),
             socket,
-            page_dir,
-            "hosted-thread",
-            "app-server-turn",
-            delivery["turn"],
-            delivery["events"],
-            {
-                "page": str(page_dir),
-                "reply_to": comment["id"],
-                "responds": comment["id"],
-            },
-            prepared.payload["id"],
         )
 
     claim = website_server.page_claim(page_dir)

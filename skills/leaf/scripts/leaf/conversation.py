@@ -60,6 +60,29 @@ def reserve_delivery_reply(session_id: str, delivery_id: str, target: dict) -> N
         page.bind_delivery_reply(session_id, target["responds"], attempt)
 
 
+def release_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
+    """Give up a delivery's reserved response address without answering it.
+
+    Reserving the address is what stops a second writer answering a delivery the
+    provider is about to answer itself. A delivery that ends without ever reaching a
+    provider turn has no such answer coming, and until the reservation is given up it
+    also blocks the host from saying so, so the reader is left with neither.
+    """
+    _clear_delivery_reply(session_id, delivery_reply_attempt(delivery_id), target)
+
+
+def _clear_delivery_reply(session_id: str, attempt: str, target: dict) -> None:
+    try:
+        with PageTransaction(Path(target["page"])) as page:
+            page.clear_delivery_reply_binding(
+                session_id,
+                target["responds"],
+                attempt,
+            )
+    except FileNotFoundError:
+        pass
+
+
 def delivery_reply_reserved(session_id: str, delivery_id: str, target: dict) -> bool:
     """Whether an observed provider still owns this delivery's reply address."""
     try:
@@ -165,15 +188,7 @@ class DeliveryReply:
             pass
 
     def _release_binding(self) -> None:
-        try:
-            with PageTransaction(Path(self.target["page"])) as page:
-                page.clear_delivery_reply_binding(
-                    self.session_id,
-                    self.target["responds"],
-                    self.attempt,
-                )
-        except FileNotFoundError:
-            pass
+        _clear_delivery_reply(self.session_id, self.attempt, self.target)
 
     def _commit(self, text: str) -> dict | None:
         page_dir = Path(self.target["page"])

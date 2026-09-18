@@ -106,18 +106,6 @@ ordering contract these items extend.
 
 ## Architecture simplification
 
-- **#24 — Give the keyboard an explicit layer stack.** Let whatever opens a surface push a
-  layer carrying its close and its restore, let closing pop it, and have `stack()` read the
-  bindings from the top layer instead of inferring which surfaces are open. The reader
-  keeps every key, sequence, hint, and the one-press-per-layer Escape. Ten of the 24
-  keyboard fixes since 2026-08-29 landed in the inference this removes (`stack()` in
-  `keyboard/dispatch.js`, `keyboard/return-stack.js`, and `native-layers.js`), and about
-  600 to 900 of the system's 6,085 lines go with it. A surface opened by pointer has to
-  declare itself first, which is the invoker-commands row under the cutover. First step:
-  fold `native-layers.js` into the return stack and drop `stack()`'s popover and modal
-  branches. The fix rate here has fallen and nothing planned waits on it, so it sits
-  behind the reading work above; the reason to do it is the implementation's own weight.
-
 - **#1 — Keep the semantic application root thin.** Let the application publisher own
   ordering, adoption, and publication while pure Ask, conversation, projection, and widget
   models retain their own modules. Do not replace DOM authority with one module containing
@@ -181,7 +169,7 @@ ordered by confidence, then effort.
 | Change | Effort | Saving | Confidence | Risk |
 |---|---|---|---|---|
 | Order the cascade with `@layer` (theme, package, page). Needs the chrome isolated from page CSS first — a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)` — because a page's unlayered `<style>` otherwise outranks the chrome: tried 2026-09-16 and backed out when one page rule moved 53 chrome boxes. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |
-| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods, so a surface opened by pointer declares itself. The keyboard layer stack in item #24 needs that declaration. | S-M | ~50 to 100 est. | Low-Med | Chromium-only, so below Chrome 135 the button does nothing unless the module keeps its handler |
+| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods, so the control that opens a surface declares the opening. Today `keyboard/layer-stack.js` learns of a pointer-opened surface from the `showModal` and `showPopover` patches and the `beforetoggle` listeners, so the entry carries no origin to restore; an invoker could hand it one. | S-M | ~50 to 100 est. | Low-Med | Chromium-only, so below Chrome 135 the button does nothing unless the module keeps its handler |
 
 ### Both
 

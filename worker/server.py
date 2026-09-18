@@ -34,12 +34,17 @@ from leaf.codex import (
     app_server_initialize_params,
     app_server_turn_start_params,
     delivery_queue_state,
+    delivery_reply_targets,
     open_app_server_delivery,
     prepare_codex_delivery,
     project_app_server_activity,
     stream_reply_target,
 )
-from leaf.conversation import cmd_reply, reserve_delivery_reply
+from leaf.conversation import (
+    cmd_reply,
+    release_delivery_reply,
+    reserve_delivery_reply,
+)
 from leaf.delivery import read_delivery
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
@@ -76,6 +81,17 @@ AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 # stopped delivering, and `thread/resume` is the reading that separates them: it
 # recovers the authoritative turn, including a terminal status the stream never sent.
 STREAM_SILENCE = 120.0
+# How much of a refusal's own words one record carries. Long enough for the
+# sentence a boundary writes, short enough that one that writes a file cannot fill
+# the log with it.
+FAULT_DETAIL_LIMIT = 500
+# What a reader is told when the turn carrying their message ends with no answer.
+# It says only what the host observed: a turn may well have run — the incident this
+# path was written for had one running still — so a sentence about the message never
+# arriving would be wrong exactly where it matters most.
+TURN_UNANSWERED_TEXT = (
+    "The agent's turn ended without an answer to this message. Send it again to retry."
+)
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_REPLY_PATH = "/_leaf/agent/reply"
 STARTUP_REPORT_PATH = "/api/performance"
@@ -128,6 +144,49 @@ def log_agent(event: str, **fields) -> None:
             ),
             flush=True,
         )
+
+
+def starting_turn_key(delivery_id: str) -> str:
+    """Name the stream reading a delivery owns before its provider turn binds."""
+    return f"delivery:{delivery_id}"
+
+
+def bounded_detail(message: str) -> str:
+    """Keep a refusal's own words, and only as much of them as a record carries.
+
+    An exception message is not always a sentence: a spawn that never became ready
+    raises with App Server's whole log as its message. A record is not where a log
+    file belongs, and the reason a process exited is at the end of its log rather
+    than the start, so the tail is the part worth keeping.
+    """
+    if len(message) <= FAULT_DETAIL_LIMIT:
+        return message
+    return f"…{message[-FAULT_DETAIL_LIMIT:]}"
+
+
+def terminal_fault(terminal: dict) -> dict:
+    """Read why a turn App Server itself reports as failed did not complete."""
+    error = terminal.get("error")
+    if not isinstance(error, dict) or not error.get("message"):
+        return {}
+    return {"detail": bounded_detail(error["message"])}
+
+
+def fault_fields(error: BaseException) -> dict:
+    """Record what went wrong, not only which class said so.
+
+    A boundary this adapter does not own — App Server, the container runtime — says
+    why it refused in the exception's message, and the class alone cannot carry that.
+    Every `detail` a record carries passes through `bounded_detail`, whichever of the
+    two boundaries wrote it, so the size the contract states is the size it holds.
+    `AppServerRequestRejected: thread/resume` and `AppServerRequestRejected: unknown
+    thread` are one record without it, so a rejection is diagnosable down to the class
+    and no further. The message is the provider's own sentence about the call, and the
+    calls this adapter makes carry no page content, so recording it keeps the
+    execution path readable without putting a reader's words in the log.
+    """
+    message = bounded_detail(str(error))
+    return {"error": type(error).__name__, **({"detail": message} if message else {})}
 
 
 def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
@@ -272,6 +331,455 @@ def recv_notification(socket, silent_since: float) -> dict | None:
         raise
 
 
+class StreamLost(Exception):
+    """This subscription stopped delivering and must be rebuilt."""
+
+
+class StreamRestart(Exception):
+    """Reconciling could not finish against this subscription; take another."""
+
+
+class TurnStream:
+    """One App Server subscription for a thread, held across reconnections.
+
+    The socket is the only thing here. What arrives on it means nothing to this
+    class: it hands back notifications in order, tells its reader when the
+    subscription is gone, and rebuilds it on demand. A resume answers with App
+    Server's authoritative thread, which is the reading that outranks every
+    notification that preceded it, so the caller reconciles against that rather
+    than replaying what it may have missed.
+
+    Notifications buffered behind a request arrive first. They were sent before
+    the response that carried them was read, so a turn's own `turn/started` is
+    routinely among them, and dropping them would lose the binding this stream
+    exists to observe.
+    """
+
+    def __init__(self, host, thread_id: str, socket, buffered, record):
+        self.host = host
+        self.thread_id = thread_id
+        self.socket = socket
+        self.pending = list(buffered)
+        self.record = record
+        self.quiet_since = time.monotonic()
+        self.failures = 0
+        self.buffered = False
+
+    def next(self) -> dict | None:
+        """Take the next notification, or None while the stream is only quiet."""
+        if self.pending:
+            self.buffered = True
+            message = self.pending.pop(0)
+        else:
+            self.buffered = False
+            try:
+                message = recv_notification(self.socket, self.quiet_since)
+            except (OSError, WebSocketException) as error:
+                raise StreamLost from error
+            if message is None:
+                return None
+        self.quiet_since = time.monotonic()
+        return message
+
+    def send(self, method: str, params: dict) -> dict:
+        """Make one request on this subscription, buffering what arrives behind it."""
+        return self.host._send(self.socket, method, params, self.pending)
+
+    def drop(self) -> None:
+        """Give up this subscription, so the next read asks for a new one."""
+        self.socket.close()
+
+    def close(self) -> None:
+        self.socket.close()
+
+    def resume(self) -> dict:
+        """Rebuild the subscription and return App Server's authoritative thread."""
+        self.socket.close()
+        while True:
+            try:
+                self.socket, thread = self.host._resume_turn_stream(self.thread_id)
+            except (OSError, WebSocketException) as error:
+                self.failures += 1
+                self.record(
+                    "turn_stream_reconnect_failed",
+                    **fault_fields(error),
+                    attempt=self.failures,
+                )
+                self._wait_for_another()
+                continue
+            self.failures = 0
+            self.quiet_since = time.monotonic()
+            return thread
+
+    def _wait_for_another(self) -> None:
+        """Hold off before the next attempt, unless the host is shutting down."""
+        if self.host.stop_event.is_set():
+            raise RuntimeError("the website App Server host closed")
+        try:
+            with self.host.lock:
+                self.host._ensure_server()
+        except (OSError, RuntimeError):
+            pass
+        if self.host.stop_event.wait(min(30, 2 ** min(self.failures - 1, 5))):
+            raise RuntimeError("the website App Server host closed")
+
+
+class HostedTurn:
+    """One delivery's hosted turn, from its App Server binding to its receipt.
+
+    The delivery is this turn's identity and the only name it holds for its whole
+    life. App Server's turn id arrives later, by notification or by resume, and may
+    never arrive; Leaf's turn id arrives later still, when the delivery is accepted.
+    Binding is therefore something that happens *to* a turn rather than a condition
+    for having one, which is why the same two steps run whether the id came from a
+    live notification or a resumed thread.
+
+    Folding a notification and telling the page about it are separate: `absorb`
+    keeps the readings, `commit` writes the account of how the turn ended.
+    """
+
+    def __init__(
+        self,
+        host,
+        page_dir: Path,
+        thread_id: str,
+        delivery_id: str | None,
+        event_ids: tuple[str, ...],
+        *,
+        turn_id: str | None = None,
+        leaf_turn: str | None = None,
+        reply_target: dict | None = None,
+    ):
+        self.host = host
+        self.page_dir = page_dir
+        self.thread_id = thread_id
+        self.turn_id = turn_id
+        self.leaf_turn = leaf_turn
+        self.event_ids = event_ids
+        self.reply_target = reply_target
+        self.delivery_id = delivery_id
+        self.events = AppServerEvents(thread_id)
+        self.events.turn_id = turn_id
+        self.awaiting = turn_id is None and delivery_id is not None
+        self.resubscribe_once = self.awaiting
+        self.reply_stream = None
+        self.fields = agent_event_fields(event_ids)
+        self.started = time.monotonic()
+        self.milestones: set[str] = set()
+        self.last_stream_update = 0.0
+        self.start_rejections = 0
+
+    def elapsed(self) -> int:
+        return round((time.monotonic() - self.started) * 1000)
+
+    def record(self, event: str, **fields) -> None:
+        log_agent(event, **self.fields, turnId=self.turn_id, **fields)
+
+    def stream_record(self, event: str, **fields) -> None:
+        """Record something about this delivery's subscription rather than its turn."""
+        self.record(event, deliveryId=self.delivery_id, **fields)
+
+    def milestone(self, event: str, **fields) -> None:
+        """Record a turn milestone the first time its condition holds."""
+        if event in self.milestones:
+            return
+        self.milestones.add(event)
+        self.record(event, **fields)
+
+    def begin(self) -> None:
+        """Show a turn already bound as starting, before its first notification."""
+        if self.turn_id is None:
+            return
+        _set_stream_activity(self.thread_id, self.turn_id, "Starting")
+        self._open_reply()
+
+    def _open_reply(self) -> None:
+        if self.reply_target is None:
+            return
+        assert self.delivery_id is not None
+        self.reply_stream = AppServerReplyStream(
+            self.thread_id,
+            self.turn_id,
+            self.delivery_id,
+            self.reply_target,
+        )
+
+    def bind(self, turn_id: str, **fields) -> None:
+        """Open this delivery's Leaf turn now that its App Server turn is known."""
+        self.turn_id = turn_id
+        self.leaf_turn = open_app_server_delivery(
+            self.page_dir,
+            self.thread_id,
+            self.delivery_id,
+            self.event_ids,
+            turn_id,
+        )
+        self.awaiting = False
+        self.record("turn_delivery_bound", deliveryId=self.delivery_id, **fields)
+        self._open_reply()
+
+    def should_resubscribe(self, stream: TurnStream) -> bool:
+        """Take one fresh subscription for a delivery App Server has not started.
+
+        The offer is still standing and nothing is buffered, so no notification is
+        on its way to say otherwise. A resume answers with the thread itself, which
+        settles whether the turn exists.
+        """
+        if not (self.resubscribe_once and self.awaiting and not stream.pending):
+            return False
+        if delivery_queue_state(self.thread_id, self.delivery_id) != "offering":
+            return False
+        self.resubscribe_once = False
+        return True
+
+    def disconnect_reply(self) -> None:
+        """Mark streamed text as no longer live, keeping what the reader can see."""
+        if self.reply_stream is not None:
+            self.reply_stream.disconnect()
+
+    def reconcile(self, stream: TurnStream, thread: dict) -> dict | None:
+        """Take a resumed thread as this turn's reading, returning a finished turn."""
+        turns = thread.get("turns", [])
+        if self.awaiting:
+            recovered = self._delivered_turn(turns)
+            if (
+                recovered is None
+                and delivery_queue_state(self.thread_id, self.delivery_id) == "offering"
+            ):
+                self._restart_turn(stream, thread)
+            if recovered is not None:
+                self.bind(recovered["id"], recovered=True)
+        else:
+            recovered = next(
+                (turn for turn in turns if turn.get("id") == self.turn_id),
+                None,
+            )
+            if recovered is None:
+                raise RuntimeError(
+                    "the resumed App Server thread no longer contains "
+                    f"turn {self.turn_id}"
+                )
+        if recovered is not None:
+            self.events.restore_turn(recovered)
+            self._restore_reply(recovered)
+        self.record("turn_stream_reconnected", deliveryId=self.delivery_id)
+        if recovered is not None and recovered.get("status") != "inProgress":
+            return recovered
+        return None
+
+    def _delivered_turn(self, turns: list) -> dict | None:
+        """Find the resumed turn App Server started for this delivery."""
+        return next(
+            (
+                turn
+                for turn in reversed(turns)
+                if app_server_delivery_id(
+                    {"method": "turn/started", "params": {"turn": turn}}
+                )
+                == self.delivery_id
+            ),
+            None,
+        )
+
+    def _restart_turn(self, stream: TurnStream, thread: dict) -> None:
+        """Offer a delivery again when the resumed thread never started it."""
+        payload = read_delivery(self.delivery_id)
+        if thread.get("status", {}).get("type") == "active":
+            return
+        try:
+            started = stream.send(
+                "turn/start",
+                app_server_turn_start_params(self.thread_id, payload),
+            )["turn"]
+            if not started.get("id"):
+                raise RuntimeError("Codex App Server returned no turn id")
+        except AppServerRequestRejected as error:
+            self.start_rejections += 1
+            stream.drop()
+            if self.host.stop_event.wait(
+                min(30, 2 ** min(self.start_rejections - 1, 5))
+            ):
+                raise RuntimeError("the website App Server host closed") from error
+            raise StreamRestart from error
+        except (OSError, TimeoutError, ValueError, WebSocketException) as error:
+            stream.drop()
+            raise StreamRestart from error
+        self.events.restore_turn(started)
+        self.start_rejections = 0
+
+    def _restore_reply(self, recovered: dict) -> None:
+        """Republish the final text a resumed turn proves was already written."""
+        if self.reply_stream is None:
+            return
+        restored = self.events.final_text(recovered)
+        if restored and self.reply_stream.restore(restored):
+            self.milestone(
+                "turn_reply_first_text_published",
+                durationMs=self.elapsed(),
+                recovered=True,
+            )
+
+    def absorb(self, stream: TurnStream, message: dict) -> dict | None:
+        """Fold one notification into this turn's readings, binding it if needed."""
+        update = self.events.read(message)
+        if self.awaiting:
+            if update is None:
+                return None
+            if app_server_delivery_id(message) != self.delivery_id:
+                # Another delivery's turn finished while this one waits to start, so
+                # the offer this stream is watching may now be startable. The thread
+                # itself says whether it is, and a resume is how to ask.
+                if (
+                    update.get("completed")
+                    and delivery_queue_state(self.thread_id, self.delivery_id)
+                    == "offering"
+                ):
+                    stream.drop()
+                return None
+            self.bind(update["turn"])
+        self.milestone(
+            "turn_first_notification",
+            durationMs=self.elapsed(),
+            buffered=stream.buffered,
+        )
+        if (
+            update is not None
+            and message.get("method") != "turn/started"
+            and (update.get("activity") or update.get("message") is not None)
+        ):
+            self.milestone("turn_first_activity", durationMs=self.elapsed())
+        if update is not None and (item := update.get("item")):
+            self.record(
+                f"turn_item_{item['state']}",
+                itemId=item["id"],
+                itemType=item["type"],
+                itemAtMs=item["atMs"],
+                **({"durationMs": item["durationMs"]} if "durationMs" in item else {}),
+                **({"status": item["status"]} if "status" in item else {}),
+                **({"exitCode": item["exitCode"]} if "exitCode" in item else {}),
+            )
+        if (
+            update is not None
+            and (model_message := update.get("message"))
+            and model_message["text"]
+        ):
+            self.milestone(
+                "turn_first_model_message",
+                itemId=model_message["item"],
+                phase=model_message["phase"],
+                complete=model_message["complete"],
+                durationMs=self.elapsed(),
+            )
+        self.last_stream_update = project_app_server_activity(
+            self.events,
+            message,
+            update,
+            self.last_stream_update,
+            _set_stream_activity,
+            _clear_stream_activity,
+        )
+        published = (
+            self.reply_stream.update(update) if self.reply_stream is not None else False
+        )
+        message_update = update.get("message") if update is not None else None
+        if published and message_update is not None and bool(message_update["text"]):
+            self.milestone(
+                "turn_reply_first_text_published",
+                durationMs=self.elapsed(),
+                recovered=False,
+            )
+        return update
+
+    def finished(self, message: dict, update: dict | None) -> dict | None:
+        """Return the terminal turn when this notification is its completion."""
+        if (
+            update is not None
+            and update.get("completed")
+            and update["turn"] == self.turn_id
+        ):
+            return message["params"]["turn"]
+        return None
+
+    def failed(self, error: BaseException) -> tuple[dict, dict]:
+        """Compose the terminal of a turn that lost its observer, and its record."""
+        fault = fault_fields(error)
+        detail = f"{fault['error']}: {error}" if str(error) else fault["error"]
+        if self.awaiting:
+            log_agent(
+                "turn_delivery_unbound",
+                **self.fields,
+                deliveryId=self.delivery_id,
+                **fault,
+            )
+            # The reading this delivery wrote before its turn bound is keyed by the
+            # delivery, not by the turn id it never learned. Left standing it tells the
+            # reader the agent is still starting for the whole working grace — the
+            # page's last word on a move that will now never be answered.
+            _clear_stream_activity(self.thread_id, starting_turn_key(self.delivery_id))
+        else:
+            _clear_stream_activity(self.thread_id, self.turn_id)
+        return {
+            "id": self.turn_id,
+            "status": "failed",
+            "error": {"message": f"App Server turn stream failed: {detail}"},
+        }, fault
+
+    def commit(self, terminal: dict) -> None:
+        """Account for the turn on the page: its reply, its receipt, its claim."""
+        if self.leaf_turn is None:
+            self._report_unanswered(terminal)
+            return
+        reply_error = None
+        if self.reply_stream is not None:
+            reply_error = self.reply_stream.finish(
+                terminal.get("status") or "failed",
+                self.events.final_text(terminal),
+            )
+        if reply_error is not None:
+            self.record("turn_reply_commit_failed", **fault_fields(reply_error))
+        self.host._finish_turn(self.page_dir, self.thread_id, self.leaf_turn, terminal)
+
+    def _report_unanswered(self, terminal: dict) -> None:
+        """Tell the reader their move went unanswered, for a turn nothing bound.
+
+        No Leaf turn holds this delivery, so no other writer will ever name it: the
+        reply the reader is owed has no author, and without this their message sits
+        unanswered beside an agent that reads as listening. That is all this knows —
+        a provider turn may be running with nobody observing it, which is the
+        incident this path exists for, so the receipt claims no more than the
+        absence of an answer. A move another turn has picked up is that turn's to
+        answer, which is what the unclaimed guard leaves alone.
+        """
+        if terminal.get("status") == "completed":
+            return
+        if self.reply_target is not None:
+            release_delivery_reply(self.thread_id, self.delivery_id, self.reply_target)
+        targets = delivery_reply_targets(read_delivery(self.delivery_id))
+        settled = 0
+        try:
+            for target in targets:
+                if (
+                    self.host.settle_unclaimed(
+                        Path(target["page"]),
+                        target["reply_to"],
+                        target["responds"],
+                        TURN_UNANSWERED_TEXT,
+                        "turn_failed",
+                    )
+                    is not None
+                ):
+                    settled += 1
+        finally:
+            # A receipt that cannot be written is its own fault and belongs to whoever
+            # sees it raised, but the turn is still owed a record of how far it got.
+            self.record(
+                "turn_failure_reported",
+                deliveryId=self.delivery_id,
+                settled=settled,
+                outstanding=len(targets) - settled,
+            )
+
+
 class WebsiteCodexHost:
     """Own one private App Server and attach real Leaf delivery to its tasks."""
 
@@ -318,7 +826,7 @@ class WebsiteCodexHost:
             log_agent(
                 "app_server_prewarm_failed",
                 durationMs=round((time.monotonic() - started) * 1000),
-                error=type(error).__name__,
+                **fault_fields(error),
             )
             return
         log_agent(
@@ -343,7 +851,7 @@ class WebsiteCodexHost:
             log_agent(
                 "leaf_cli_prewarm_failed",
                 durationMs=round((time.monotonic() - started) * 1000),
-                error=type(error).__name__,
+                **fault_fields(error),
             )
             return
         log_agent(
@@ -443,11 +951,10 @@ class WebsiteCodexHost:
             if before_close is not None:
                 follow = before_close(socket, result, pending)
                 if follow is not None:
-                    thread_id = follow[1]
-                    self.following_threads.add(thread_id)
+                    self.following_threads.add(follow.thread_id)
                     threading.Thread(
                         target=self._run_follow_turn,
-                        args=(socket, *follow, tuple(pending)),
+                        args=(socket, follow, tuple(pending)),
                         daemon=True,
                     ).start()
                     followed = True
@@ -456,15 +963,20 @@ class WebsiteCodexHost:
             if not followed:
                 socket.close()
 
-    def _run_follow_turn(self, socket, *follow) -> None:
+    def _run_follow_turn(
+        self,
+        socket,
+        turn: HostedTurn,
+        initial_messages: tuple[dict, ...] = (),
+    ) -> None:
         """Hold one thread's delivery scheduling seat while its turn is observed."""
-        page_dir = follow[0]
-        thread_id = follow[1]
-        event_ids = follow[4]
+        page_dir = turn.page_dir
+        thread_id = turn.thread_id
+        event_ids = turn.event_ids
         continuation = None
         completed = False
         try:
-            self._follow_turn(socket, *follow)
+            self._follow_turn(turn, socket, initial_messages)
             completed = True
         finally:
             with self.lock:
@@ -535,410 +1047,57 @@ class WebsiteCodexHost:
 
     def _follow_turn(
         self,
+        turn: HostedTurn,
         socket,
-        page_dir: Path,
-        thread_id: str,
-        turn_id: str | None,
-        leaf_turn: str | None,
-        event_ids: tuple[str, ...],
-        reply_target: dict | None = None,
-        delivery_id: str | None = None,
         initial_messages: tuple[dict, ...] = (),
     ) -> None:
         """Project notifications and account for the turn's terminal outcome."""
-        events = AppServerEvents(thread_id)
-        events.turn_id = turn_id
-        awaiting_delivery_start = turn_id is None and delivery_id is not None
-        reconcile_once = awaiting_delivery_start
-        last_stream_update = 0.0
-        reply_stream = None
+        stream = TurnStream(
+            self, turn.thread_id, socket, initial_messages, turn.stream_record
+        )
+        turn.record("turn_following_started")
         terminal: dict
-        fault: str | None = None
-        started = time.monotonic()
-        last_message = started
-        first_notification = True
-        first_activity = True
-        first_model_message = True
-        first_reply_text = True
-        reconnect_failures = 0
-        start_rejections = 0
-        event_fields = agent_event_fields(event_ids)
-        pending = list(initial_messages)
-        log_agent("turn_following_started", **event_fields, turnId=turn_id)
+        fault: dict | None = None
         # Everything this follower does belongs inside the guard below. The turn is
         # already running in App Server, so an exception raised here is a turn that no
         # longer has an observer rather than a turn that stopped — and leaving it
         # uncaught would strand the claim open with no receipt for the container's life.
         try:
-            if turn_id is not None:
-                _set_stream_activity(thread_id, turn_id, "Starting")
-                if reply_target is not None:
-                    assert delivery_id is not None
-                    reply_stream = AppServerReplyStream(
-                        thread_id,
-                        turn_id,
-                        delivery_id,
-                        reply_target,
-                    )
+            turn.begin()
             while True:
-                if (
-                    reconcile_once
-                    and awaiting_delivery_start
-                    and not pending
-                    and delivery_queue_state(thread_id, delivery_id) == "offering"
-                ):
-                    reconcile_once = False
-                    socket.close()
-                if pending:
-                    message = pending.pop(0)
-                    buffered = True
-                else:
+                if turn.should_resubscribe(stream):
+                    stream.drop()
+                try:
+                    message = stream.next()
+                except StreamLost:
+                    turn.disconnect_reply()
                     try:
-                        message = recv_notification(socket, last_message)
-                    except (OSError, WebSocketException) as error:
-                        if reply_stream is not None:
-                            reply_stream.disconnect()
-                        socket.close()
-                        while True:
-                            try:
-                                socket, thread = self._resume_turn_stream(thread_id)
-                                reconnect_failures = 0
-                                last_message = time.monotonic()
-                                break
-                            except (OSError, WebSocketException) as reconnect_error:
-                                reconnect_failures += 1
-                                log_agent(
-                                    "turn_stream_reconnect_failed",
-                                    **event_fields,
-                                    turnId=turn_id,
-                                    deliveryId=delivery_id,
-                                    error=type(reconnect_error).__name__,
-                                    attempt=reconnect_failures,
-                                )
-                                if self.stop_event.is_set():
-                                    raise RuntimeError(
-                                        "the website App Server host closed"
-                                    ) from error
-                                try:
-                                    with self.lock:
-                                        self._ensure_server()
-                                except (OSError, RuntimeError):
-                                    pass
-                                if self.stop_event.wait(
-                                    min(30, 2 ** min(reconnect_failures - 1, 5))
-                                ):
-                                    raise RuntimeError(
-                                        "the website App Server host closed"
-                                    ) from error
-                        turns = thread.get("turns", [])
-                        if awaiting_delivery_start:
-                            recovered = next(
-                                (
-                                    turn
-                                    for turn in reversed(turns)
-                                    if app_server_delivery_id(
-                                        {
-                                            "method": "turn/started",
-                                            "params": {"turn": turn},
-                                        }
-                                    )
-                                    == delivery_id
-                                ),
-                                None,
-                            )
-                            if (
-                                recovered is None
-                                and delivery_queue_state(thread_id, delivery_id)
-                                == "offering"
-                            ):
-                                payload = read_delivery(delivery_id)
-                                status = thread.get("status", {}).get("type")
-                                if status == "active":
-                                    recovered = None
-                                else:
-                                    try:
-                                        started_turn = self._send(
-                                            socket,
-                                            "turn/start",
-                                            app_server_turn_start_params(
-                                                thread_id,
-                                                payload,
-                                            ),
-                                            pending,
-                                        )["turn"]
-                                        if not started_turn.get("id"):
-                                            raise RuntimeError(
-                                                "Codex App Server returned no turn id"
-                                            )
-                                        events.restore_turn(started_turn)
-                                        start_rejections = 0
-                                        recovered = None
-                                    except AppServerRequestRejected:
-                                        start_rejections += 1
-                                        socket.close()
-                                        if self.stop_event.wait(
-                                            min(30, 2 ** min(start_rejections - 1, 5))
-                                        ):
-                                            raise RuntimeError(
-                                                "the website App Server host closed"
-                                            )
-                                        continue
-                                    except (
-                                        OSError,
-                                        TimeoutError,
-                                        ValueError,
-                                        WebSocketException,
-                                    ):
-                                        socket.close()
-                                        continue
-                            if recovered is not None:
-                                turn_id = recovered["id"]
-                                leaf_turn = open_app_server_delivery(
-                                    page_dir,
-                                    thread_id,
-                                    delivery_id,
-                                    event_ids,
-                                    turn_id,
-                                )
-                                awaiting_delivery_start = False
-                                log_agent(
-                                    "turn_delivery_bound",
-                                    **event_fields,
-                                    turnId=turn_id,
-                                    deliveryId=delivery_id,
-                                    recovered=True,
-                                )
-                                if reply_target is not None:
-                                    assert delivery_id is not None
-                                    reply_stream = AppServerReplyStream(
-                                        thread_id,
-                                        turn_id,
-                                        delivery_id,
-                                        reply_target,
-                                    )
-                        else:
-                            recovered = next(
-                                (turn for turn in turns if turn.get("id") == turn_id),
-                                None,
-                            )
-                            if recovered is None:
-                                raise RuntimeError(
-                                    "the resumed App Server thread no longer contains "
-                                    f"turn {turn_id}"
-                                ) from error
-                        if recovered is not None:
-                            events.restore_turn(recovered)
-                            if reply_stream is not None:
-                                restored_text = events.final_text(recovered)
-                                if (
-                                    restored_text
-                                    and reply_stream.restore(restored_text)
-                                    and first_reply_text
-                                ):
-                                    log_agent(
-                                        "turn_reply_first_text_published",
-                                        **event_fields,
-                                        turnId=turn_id,
-                                        durationMs=round(
-                                            (time.monotonic() - started) * 1000
-                                        ),
-                                        recovered=True,
-                                    )
-                                    first_reply_text = False
-                        log_agent(
-                            "turn_stream_reconnected",
-                            **event_fields,
-                            turnId=turn_id,
-                            deliveryId=delivery_id,
-                        )
-                        if (
-                            recovered is not None
-                            and recovered.get("status") != "inProgress"
-                        ):
-                            terminal = recovered
-                            break
+                        recovered = turn.reconcile(stream, stream.resume())
+                    except StreamRestart:
                         continue
-                    if message is None:
-                        continue
-                    buffered = False
-                last_message = time.monotonic()
-                if awaiting_delivery_start:
-                    update = events.read(message)
-                    if update is None:
-                        continue
-                    if app_server_delivery_id(message) != delivery_id:
-                        if (
-                            update.get("completed")
-                            and delivery_queue_state(thread_id, delivery_id)
-                            == "offering"
-                        ):
-                            socket.close()
-                        continue
-                    turn_id = update["turn"]
-                    leaf_turn = open_app_server_delivery(
-                        page_dir,
-                        thread_id,
-                        delivery_id,
-                        event_ids,
-                        turn_id,
-                    )
-                    awaiting_delivery_start = False
-                    log_agent(
-                        "turn_delivery_bound",
-                        **event_fields,
-                        turnId=turn_id,
-                        deliveryId=delivery_id,
-                    )
-                    if reply_target is not None:
-                        assert delivery_id is not None
-                        reply_stream = AppServerReplyStream(
-                            thread_id,
-                            turn_id,
-                            delivery_id,
-                            reply_target,
-                        )
-                else:
-                    update = events.read(message)
-                if first_notification:
-                    log_agent(
-                        "turn_first_notification",
-                        **event_fields,
-                        turnId=turn_id,
-                        durationMs=round((time.monotonic() - started) * 1000),
-                        buffered=buffered,
-                    )
-                    first_notification = False
-                if (
-                    first_activity
-                    and update is not None
-                    and message.get("method") != "turn/started"
-                    and (update.get("activity") or update.get("message") is not None)
-                ):
-                    log_agent(
-                        "turn_first_activity",
-                        **event_fields,
-                        turnId=turn_id,
-                        durationMs=round((time.monotonic() - started) * 1000),
-                    )
-                    first_activity = False
-                if update is not None and (item := update.get("item")):
-                    log_agent(
-                        f"turn_item_{item['state']}",
-                        **event_fields,
-                        turnId=turn_id,
-                        itemId=item["id"],
-                        itemType=item["type"],
-                        itemAtMs=item["atMs"],
-                        **(
-                            {"durationMs": item["durationMs"]}
-                            if "durationMs" in item
-                            else {}
-                        ),
-                        **({"status": item["status"]} if "status" in item else {}),
-                        **(
-                            {"exitCode": item["exitCode"]} if "exitCode" in item else {}
-                        ),
-                    )
-                if (
-                    first_model_message
-                    and update is not None
-                    and (model_message := update.get("message"))
-                    and model_message["text"]
-                ):
-                    log_agent(
-                        "turn_first_model_message",
-                        **event_fields,
-                        turnId=turn_id,
-                        itemId=model_message["item"],
-                        phase=model_message["phase"],
-                        complete=model_message["complete"],
-                        durationMs=round((time.monotonic() - started) * 1000),
-                    )
-                    first_model_message = False
-                last_stream_update = project_app_server_activity(
-                    events,
-                    message,
-                    update,
-                    last_stream_update,
-                    _set_stream_activity,
-                    _clear_stream_activity,
-                )
-                published = (
-                    reply_stream.update(update) if reply_stream is not None else False
-                )
-                message_update = update.get("message") if update is not None else None
-                if (
-                    published
-                    and message_update is not None
-                    and bool(message_update["text"])
-                    and first_reply_text
-                ):
-                    log_agent(
-                        "turn_reply_first_text_published",
-                        **event_fields,
-                        turnId=turn_id,
-                        durationMs=round((time.monotonic() - started) * 1000),
-                        recovered=False,
-                    )
-                    first_reply_text = False
-                if (
-                    update is not None
-                    and update.get("completed")
-                    and update["turn"] == turn_id
-                ):
-                    terminal = message["params"]["turn"]
+                    if recovered is not None:
+                        terminal = recovered
+                        break
+                    continue
+                if message is None:
+                    continue
+                update = turn.absorb(stream, message)
+                completed = turn.finished(message, update)
+                if completed is not None:
+                    terminal = completed
                     break
         except Exception as error:  # noqa: BLE001 - the turn's outcome, any fault
-            # A fault this guard now catches no longer reaches the thread's excepthook,
-            # so its type is only on the record if the outcome carries it. Name it in
-            # both the reader-facing detail and the turn's own log line.
-            fault = type(error).__name__
-            detail = f"{fault}: {error}" if str(error) else fault
-            if awaiting_delivery_start:
-                log_agent(
-                    "turn_delivery_unbound",
-                    **event_fields,
-                    deliveryId=delivery_id,
-                    error=fault,
-                )
-            else:
-                _clear_stream_activity(thread_id, turn_id)
-            terminal = {
-                "id": turn_id,
-                "status": "failed",
-                "error": {"message": f"App Server turn stream failed: {detail}"},
-            }
+            terminal, fault = turn.failed(error)
         finally:
-            socket.close()
-        log_agent(
+            stream.close()
+        turn.record(
             "turn_stream_completed",
-            **event_fields,
-            turnId=turn_id,
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=turn.elapsed(),
             status=terminal.get("status"),
-            **({"error": fault} if fault is not None else {}),
+            **(fault or terminal_fault(terminal)),
         )
         with self.lock:
-            reply_error = None
-            if leaf_turn is not None:
-                if reply_stream is not None:
-                    reply_error = reply_stream.finish(
-                        terminal.get("status") or "failed",
-                        events.final_text(terminal),
-                    )
-                if reply_error is not None:
-                    log_agent(
-                        "turn_reply_commit_failed",
-                        **event_fields,
-                        turnId=turn_id,
-                        error=type(reply_error).__name__,
-                    )
-                self._finish_turn(
-                    page_dir,
-                    thread_id,
-                    leaf_turn,
-                    terminal,
-                )
+            turn.commit(terminal)
 
     def _send(
         self,
@@ -967,15 +1126,7 @@ class WebsiteCodexHost:
         thread_id: str,
         process: subprocess.Popen,
         pending: list[dict] | None = None,
-    ) -> tuple[
-        Path,
-        str,
-        str | None,
-        str | None,
-        tuple[str, ...],
-        dict | None,
-        str,
-    ]:
+    ) -> HostedTurn:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
@@ -989,41 +1140,42 @@ class WebsiteCodexHost:
             for event in batch["events"]
         )
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
-        starting_turn = f"delivery:{prepared.payload['id']}"
+        starting_turn = starting_turn_key(prepared.payload["id"])
         _set_stream_activity(thread_id, starting_turn, "Starting")
         reply_target = stream_reply_target(prepared.payload)
         if reply_target is not None:
             reserve_delivery_reply(thread_id, prepared.payload["id"], reply_target)
+        # The follower learns which App Server turn took this delivery from the
+        # notification stream, which is the one reading that survives a lost
+        # acknowledgement. The turn id below is therefore a timing record rather
+        # than this turn's name, and the turn is the same object either way.
+        turn = HostedTurn(
+            self,
+            page_dir,
+            thread_id,
+            prepared.payload["id"],
+            prepared_events,
+            reply_target=reply_target,
+        )
         try:
-            turn = self._send(
+            started_turn = self._send(
                 socket,
                 "turn/start",
                 app_server_turn_start_params(thread_id, prepared.payload),
                 pending,
             )["turn"]
-        except AppServerRequestRejected:
+        except (
+            AppServerRequestRejected,
+            OSError,
+            TimeoutError,
+            ValueError,
+            WebSocketException,
+        ):
+            # Refused or lost, the offer stands and the delivery is still this
+            # turn's; the follower reconciles against the thread to find out which.
             _clear_stream_activity(thread_id, starting_turn)
-            return (
-                page_dir,
-                thread_id,
-                None,
-                None,
-                prepared_events,
-                reply_target,
-                prepared.payload["id"],
-            )
-        except (OSError, TimeoutError, ValueError, WebSocketException):
-            _clear_stream_activity(thread_id, starting_turn)
-            return (
-                page_dir,
-                thread_id,
-                None,
-                None,
-                prepared_events,
-                reply_target,
-                prepared.payload["id"],
-            )
-        turn_id = turn.get("id")
+            return turn
+        turn_id = started_turn.get("id")
         if not turn_id:
             raise RuntimeError("Codex App Server returned no turn id")
         log_agent(
@@ -1032,32 +1184,14 @@ class WebsiteCodexHost:
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
-        return (
-            page_dir,
-            thread_id,
-            None,
-            None,
-            prepared_events,
-            reply_target,
-            prepared.payload["id"],
-        )
+        return turn
 
     def _start_thread(
         self, page_dir: Path, process: subprocess.Popen, event_id: str
     ) -> str:
         started = time.monotonic()
 
-        def attach(
-            socket, result: dict, pending: list[dict]
-        ) -> tuple[
-            Path,
-            str,
-            str | None,
-            str | None,
-            tuple[str, ...],
-            dict | None,
-            str,
-        ]:
+        def attach(socket, result: dict, pending: list[dict]) -> HostedTurn:
             thread_id = result["thread"]["id"]
             return self._start_turn(socket, page_dir, thread_id, process, pending)
 
@@ -1092,11 +1226,7 @@ class WebsiteCodexHost:
         started = time.monotonic()
         resumed = False
 
-        def attach(
-            socket, result: dict, pending: list[dict]
-        ) -> (
-            tuple[Path, str, str, str, tuple[str, ...], dict | None, str | None] | None
-        ):
+        def attach(socket, result: dict, pending: list[dict]) -> HostedTurn:
             nonlocal resumed
             resumed = True
             status = result["thread"]["status"]["type"]
@@ -1126,14 +1256,15 @@ class WebsiteCodexHost:
                 for batch in prepared.payload["batches"]
                 for event in batch["events"]
             )
-            return (
+            # A turn already running owns the page's activity reading, so this
+            # delivery waits behind it without announcing a start of its own.
+            return HostedTurn(
+                self,
                 page_dir,
                 thread_id,
-                None,
-                None,
-                prepared_events,
-                reply_target,
                 prepared.payload["id"],
+                prepared_events,
+                reply_target=reply_target,
             )
 
         try:
@@ -1201,7 +1332,7 @@ class WebsiteCodexHost:
                 "container_start_failed",
                 eventId=event_id,
                 durationMs=round((time.monotonic() - started) * 1000),
-                error=type(error).__name__,
+                **fault_fields(error),
             )
             raise
         log_agent(
@@ -1216,22 +1347,35 @@ class WebsiteCodexHost:
     ) -> dict | None:
         """Settle unclaimed input without racing a turn that is starting."""
         with self.lock:
-            accepted = cmd_reply(
-                page_dir,
-                event_id,
-                text,
-                "",
-                for_event=event_id,
-                attempt=agent_attempt(event_id),
-                skip_if_settled=True,
-                only_if_unclaimed=True,
-                failure=failure,
-                identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
-            )
-            claim = page_claim(page_dir)
-            if claim and claim.get("host") == "codex":
-                abandon_codex_delivery(claim["id"], event_id)
-            return accepted
+            return self.settle_unclaimed(page_dir, event_id, event_id, text, failure)
+
+    def settle_unclaimed(
+        self, page_dir: Path, reply_to: str, responds: str, text: str, failure: str
+    ) -> dict | None:
+        """Write one host failure receipt, for a caller that already holds the lock.
+
+        `reply_to` is where the receipt is written and `responds` is the move it
+        answers; the two differ when a widget gesture belongs to a frozen
+        conversation. `only_if_unclaimed` is the whole safety of this: a move some
+        turn has picked up belongs to that turn, and this returns None rather than
+        answering for it.
+        """
+        accepted = cmd_reply(
+            page_dir,
+            reply_to,
+            text,
+            "",
+            for_event=responds,
+            attempt=agent_attempt(responds),
+            skip_if_settled=True,
+            only_if_unclaimed=True,
+            failure=failure,
+            identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
+        )
+        claim = page_claim(page_dir)
+        if claim and claim.get("host") == "codex":
+            abandon_codex_delivery(claim["id"], responds)
+        return accepted
 
 
 _agent_host: WebsiteCodexHost | None = None

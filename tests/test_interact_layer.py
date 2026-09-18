@@ -970,6 +970,134 @@ def test_every_vendored_stylesheet_parses(page_dir):
         assert not _css_parse_errors(rules), f"{name}: {_css_parse_errors(rules)}"
 
 
+_FACE = frozenset(
+    {
+        "appearance",
+        "background",
+        "background-color",
+        "border",
+        "border-color",
+        "border-radius",
+        "border-width",
+        "color",
+        "cursor",
+        "font",
+        "font-family",
+        "font-size",
+        "font-style",
+        "font-weight",
+        "letter-spacing",
+        "line-height",
+        "opacity",
+        "padding",
+        "resize",
+        "text-align",
+        "text-transform",
+    }
+)
+
+
+def _selector_list(prelude):
+    """The complex selectors in a prelude, split on the commas separating them.
+
+    `str.split` cannot do it: the commas inside `:is(button, [role="button"])` separate
+    that function's arguments rather than the rule's subjects."""
+    text = tinycss2.serialize(prelude)
+    selectors, depth, start = [], 0, 0
+    for at, char in enumerate(text):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif char == "," and not depth:
+            selectors.append(text[start:at])
+            start = at + 1
+    selectors.append(text[start:])
+    return [" ".join(one.split()) for one in selectors if one.strip()]
+
+
+def _stated_faces(sheet, *, only_top_level):
+    """{complex selector: {property}} for every rule stating a shared visual property.
+
+    A selector list is split because a rule dressing four shapes states the same fact
+    about each, and the other sheet's copy may name only one of them."""
+    stated = {}
+
+    def visit(rules):
+        for rule in rules:
+            if rule.type == "at-rule":
+                if only_top_level and rule.lower_at_keyword in {"scope", "layer"}:
+                    continue
+                if rule.content is not None:
+                    visit(
+                        tinycss2.parse_rule_list(
+                            rule.content, skip_comments=True, skip_whitespace=True
+                        )
+                    )
+                continue
+            if rule.type != "qualified-rule":
+                continue
+            properties = {
+                declaration.lower_name
+                for declaration in tinycss2.parse_declaration_list(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+                if declaration.type == "declaration" and declaration.lower_name in _FACE
+            }
+            if properties:
+                for selector in _selector_list(rule.prelude):
+                    stated.setdefault(selector, set()).update(properties)
+
+    visit(
+        tinycss2.parse_stylesheet(
+            sheet.read_text(), skip_comments=True, skip_whitespace=True
+        )
+    )
+    return stated
+
+
+def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
+    """chrome.css is adopted, so it cascades after theme.css and after every package
+    theme concatenated onto it. One selector dressed for the same property in both
+    sheets therefore has one copy that never applies — the adopted one wins whatever the
+    other says — and nothing catches it, because no test and no browser gate can read a
+    rule that never applied.
+
+    The chip and the thread mark's note were written that way on purpose, restated in
+    theme.css for the shadow roots the adopted sheet cannot reach, and the two copies
+    had drifted: theme.css's chip cleared the platform's button face and chrome.css's
+    did not, so in the light DOM that reset had never once run.
+
+    Only chrome.css's top level is asked. A rule inside its `@scope` is private to the
+    chrome root and matches nothing a page-side sheet dresses, and a rule inside its
+    `@layer` loses to any unlayered choice whatever its specificity, so neither can win
+    this way.
+
+    One selector spelled the same on both sides is what this reads, which is the shape
+    a copy takes. Two different selectors that tie on one element are the same defect
+    and cannot be seen in a file; test_the_adopted_sheet_decides_nothing_by_standing_last
+    puts that question to a browser."""
+    adopted = _stated_faces(
+        schema_model.ASSETS / "runtime" / "chrome.css", only_top_level=True
+    )
+    assert adopted, "no top-level faces read from chrome.css — the reading is broken"
+    twice = []
+    for sheet in [
+        schema_model.ASSETS / "theme.css",
+        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
+    ]:
+        for selector, properties in _stated_faces(sheet, only_top_level=False).items():
+            both = properties & adopted.get(selector, set())
+            if both:
+                where = f"{sheet.parent.name}/{sheet.name}"
+                twice.append(
+                    f"`{selector}` states {sorted(both)} in chrome.css and {where}"
+                )
+    assert not twice, (
+        "a face stated twice, where only the adopted copy applies:\n" + "\n".join(twice)
+    )
+
+
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     """A media query cannot read a custom property, so the sheets state the covering
     widths, the strip-taking tray, the width properties, and the Ask stamp as literals

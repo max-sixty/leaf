@@ -130,6 +130,34 @@ def log_agent(event: str, **fields) -> None:
         )
 
 
+def starting_turn_key(delivery_id: str) -> str:
+    """Name the stream reading a delivery owns before its provider turn binds."""
+    return f"delivery:{delivery_id}"
+
+
+def terminal_fault(terminal: dict) -> dict:
+    """Read why a turn App Server itself reports as failed did not complete."""
+    error = terminal.get("error")
+    if not isinstance(error, dict) or not error.get("message"):
+        return {}
+    return {"detail": error["message"]}
+
+
+def fault_fields(error: BaseException) -> dict:
+    """Record what went wrong, not only which class said so.
+
+    A boundary this adapter does not own — App Server, the container runtime — says
+    why it refused in the exception's message, and the class alone cannot carry that.
+    `AppServerRequestRejected: thread/resume` and `AppServerRequestRejected: unknown
+    thread` are one record without it, so a rejection is diagnosable down to the class
+    and no further. The message is the provider's own sentence about the call, and the
+    calls this adapter makes carry no page content, so recording it keeps the
+    execution path readable without putting a reader's words in the log.
+    """
+    message = str(error)
+    return {"error": type(error).__name__, **({"detail": message} if message else {})}
+
+
 def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
     """Keep every accepted event searchable when one turn carries a batch."""
     if len(event_ids) == 1:
@@ -322,7 +350,7 @@ class WebsiteCodexHost:
             log_agent(
                 "app_server_prewarm_failed",
                 durationMs=round((time.monotonic() - started) * 1000),
-                error=type(error).__name__,
+                **fault_fields(error),
             )
             return
         log_agent(
@@ -347,7 +375,7 @@ class WebsiteCodexHost:
             log_agent(
                 "leaf_cli_prewarm_failed",
                 durationMs=round((time.monotonic() - started) * 1000),
-                error=type(error).__name__,
+                **fault_fields(error),
             )
             return
         log_agent(
@@ -557,7 +585,7 @@ class WebsiteCodexHost:
         last_stream_update = 0.0
         reply_stream = None
         terminal: dict
-        fault: str | None = None
+        fault: dict | None = None
         started = time.monotonic()
         last_message = started
         first_notification = True
@@ -616,7 +644,7 @@ class WebsiteCodexHost:
                                     **event_fields,
                                     turnId=turn_id,
                                     deliveryId=delivery_id,
-                                    error=type(reconnect_error).__name__,
+                                    **fault_fields(reconnect_error),
                                     attempt=reconnect_failures,
                                 )
                                 if self.stop_event.is_set():
@@ -896,15 +924,21 @@ class WebsiteCodexHost:
             # A fault this guard now catches no longer reaches the thread's excepthook,
             # so its type is only on the record if the outcome carries it. Name it in
             # both the reader-facing detail and the turn's own log line.
-            fault = type(error).__name__
-            detail = f"{fault}: {error}" if str(error) else fault
+            fault = fault_fields(error)
+            detail = f"{fault['error']}: {error}" if str(error) else fault["error"]
             if awaiting_delivery_start:
                 log_agent(
                     "turn_delivery_unbound",
                     **event_fields,
                     deliveryId=delivery_id,
-                    error=fault,
+                    **fault,
                 )
+                # The reading this delivery wrote before its turn bound is keyed by the
+                # delivery, not by the turn id the follower never learned, so the clear
+                # below cannot reach it. Left standing it tells the reader the agent is
+                # still starting for the whole working grace — the page's last word on
+                # a move that will now never be answered.
+                _clear_stream_activity(thread_id, starting_turn_key(delivery_id))
             else:
                 _clear_stream_activity(thread_id, turn_id)
             terminal = {
@@ -920,7 +954,7 @@ class WebsiteCodexHost:
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
             status=terminal.get("status"),
-            **({"error": fault} if fault is not None else {}),
+            **(fault or terminal_fault(terminal)),
         )
         with self.lock:
             reply_error = None
@@ -935,14 +969,9 @@ class WebsiteCodexHost:
                         "turn_reply_commit_failed",
                         **event_fields,
                         turnId=turn_id,
-                        error=type(reply_error).__name__,
+                        **fault_fields(reply_error),
                     )
-                self._finish_turn(
-                    page_dir,
-                    thread_id,
-                    leaf_turn,
-                    terminal,
-                )
+                self._finish_turn(page_dir, thread_id, leaf_turn, terminal)
 
     def _send(
         self,
@@ -993,7 +1022,7 @@ class WebsiteCodexHost:
             for event in batch["events"]
         )
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
-        starting_turn = f"delivery:{prepared.payload['id']}"
+        starting_turn = starting_turn_key(prepared.payload["id"])
         _set_stream_activity(thread_id, starting_turn, "Starting")
         reply_target = stream_reply_target(prepared.payload)
         if reply_target is not None:
@@ -1205,7 +1234,7 @@ class WebsiteCodexHost:
                 "container_start_failed",
                 eventId=event_id,
                 durationMs=round((time.monotonic() - started) * 1000),
-                error=type(error).__name__,
+                **fault_fields(error),
             )
             raise
         log_agent(

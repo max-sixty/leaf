@@ -1452,6 +1452,82 @@ def test_a_lost_turn_start_ack_retries_after_idle_reconciliation(page_dir, monke
     )
 
 
+def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
+    page_dir, monkeypatch, capsys
+):
+    """A turn nothing bound still reaches the log and the page.
+
+    The App Server's own sentence is the only thing that separates one refusal from
+    another, and the reading the delivery wrote before it bound is keyed by the
+    delivery rather than the turn id the follower never learned. Left alone the record
+    names a class, the page says the agent is starting for the whole working grace,
+    and the reader is never told the move went unanswered.
+    """
+    # A published page waits between readers, which is the state a reader's first
+    # message arrives at and the one `_start_turn` moves to `waiting`.
+    with website_server.PageTransaction(page_dir) as page:
+        page.set_status("idle", "")
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host,
+        "_send",
+        lambda *_args, **_kwargs: {"turn": {"id": "app-server-turn"}},
+    )
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
+    starting = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    assert (starting["kind"], starting["detail"]) == ("working", "Starting")
+
+    # `turn/start` was acknowledged, so the delivery holds the "Starting" reading and
+    # the follower is still waiting for the `turn/started` that would bind it.
+    class LostSocket:
+        def recv(self, timeout):
+            raise OSError("connection lost")
+
+        def close(self):
+            pass
+
+    def refuse(_thread_id):
+        raise website_server.AppServerRequestRejected("no thread by that id")
+
+    monkeypatch.setattr(host, "_resume_turn_stream", refuse)
+    capsys.readouterr()
+
+    host._follow_turn(LostSocket(), *follow)
+
+    records = [
+        json.loads(line) for line in capsys.readouterr().out.splitlines() if line
+    ]
+    unbound = next(r for r in records if r["event"] == "turn_delivery_unbound")
+    assert (unbound["error"], unbound["detail"]) == (
+        "AppServerRequestRejected",
+        "no thread by that id",
+    )
+    completed = next(r for r in records if r["event"] == "turn_stream_completed")
+    assert (completed["status"], completed["error"]) == (
+        "failed",
+        "AppServerRequestRejected",
+    )
+    assert completed["detail"] == "no thread by that id"
+
+    # The delivery's own reading is gone, so the page no longer tells the reader the
+    # agent is starting on a move it will never answer.
+    activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    assert (activity["kind"], activity["detail"]) != ("working", "Starting")
+    assert [item["phase"] for item in activity["interactions"]] == ["sent"]
+    assert [event["kind"] for event in read_events(page_dir)] == ["comment"]
+    assert comment["id"] == activity["interactions"][0]["event"]
+    host.close()
+
+
 def test_notifications_before_start_response_reach_the_turn_follower(
     page_dir, monkeypatch
 ):

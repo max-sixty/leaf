@@ -106,6 +106,11 @@ model activity, first native model message, and turn completion. Item records ca
 the App Server timestamp, item type, duration, and command outcome where available;
 they never carry item content. Leaf's record omits message text, prompts, source IP
 keys, cookies, and private session ids. Cloudflare wraps it in invocation metadata.
+A record that names a failure carries `error`, the exception's class, and `detail`,
+the sentence the refusing boundary wrote. Without the sentence every rejection from
+one class reads alike, which is the difference between knowing that App Server
+refused and knowing what it refused; the calls behind these records are Leaf's own,
+so the sentence is the provider's account of the call rather than a reader's words.
 The `turn_reply_first_text_published` record marks the first non-empty final-answer
 text written into the addressed thread, which is the user-visible response milestone;
 `turn_stream_completed` and `turn_reply_commit_failed` distinguish provider completion

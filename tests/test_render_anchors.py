@@ -2305,6 +2305,86 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     )
 
 
+def test_a_drag_inside_a_mark_takes_the_words_and_a_press_still_opens_the_thread(
+    browser, serve
+):
+    """Marked words are still words to comment on: a drag across them raises the 💬 on
+    what it took, and only a press opens the conversation already there.
+
+    A click ends a selection drag as surely as it ends a press, and the mark's door read
+    every one of them as a press. With Threads open the thread it opened landed the reader
+    in the panel's reply box, and focusing a textarea collapses the document's selection —
+    so the words went, the 💬 with them, and marked passages became the one part of a page
+    a reader could not quote. The panel is why it showed there first and not on a closed
+    one, where the same travel focuses a card and leaves the selection standing; both doors
+    are the one misreading, so this asserts the open panel, where it is visible.
+
+    The press is asserted in the same run and after the drag, because the reading that
+    tells the two apart has to be about the gesture. Read off the standing selection
+    instead, this press — inside words the drag left selected, which a mousedown inside a
+    selection keeps — is refused as a drag of its own, and the mark stops opening at all."""
+    url = serve(EDGE_PAGE)
+    quote = (
+        "First pass: when the deploy fails again in the night, the run is retried "
+        "until it lands."
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the retry.",
+            "anchor": {"section": "edge", "quote": quote},
+        },
+    )
+    page = open_page(browser, url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    # Both ends inside the painted range, so the release is on the mark and the only
+    # question left is what the page makes of it.
+    run = page.evaluate(
+        """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
+                   return {left: r.left, right: r.right, y: r.top + r.height / 2}; }"""
+    )
+    select(
+        page,
+        (run["left"] + 4, run["y"]),
+        (run["left"] + (run["right"] - run["left"]) / 2, run["y"]),
+        steps=10,
+    )
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    wait_for_pending_mark(page)
+    took = page.evaluate(
+        """() => {
+          const sel = getSelection();
+          return {
+            selected: sel && !sel.isCollapsed ? sel.toString() : "",
+            inPanel: Boolean(
+              document.querySelector('.lf-thread-panel')?.contains(document.activeElement)
+            ),
+          };
+        }"""
+    )
+    assert took["selected"] and took["selected"] in quote, (
+        f"the drag across the marked passage is holding {took['selected']!r}"
+    )
+    assert not took["inPanel"], "the drag sent the reader into the conversation"
+    # The capture trims the edges of what a drag hands it, so the words match rather
+    # than the string.
+    assert pending_text(page) == took["selected"].strip(), (
+        f"the 💬 is on {pending_text(page)!r} rather than on the words the drag took"
+    )
+
+    # And the press the mark is for, made where the drag's own words still stand selected.
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    reply = page.locator(".lf-threads .lf-thread textarea")
+    expect(reply).to_be_focused()
+    expect(page.locator(".lf-threads .lf-thread")).to_contain_text("About the retry.")
+
+
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
     click lands back in the conversation. The mark must not look deselected in that gap.

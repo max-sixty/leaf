@@ -1248,11 +1248,25 @@ export function createResponseSurface({
     document.addEventListener("click", (ev) => {
       if (drawModeActive()) return;
       if (!pageWords(ev.target)) return;
-      // A press design mode did not take at the press is a press on prose: a drag that
-      // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the
-      // block; a plain click comments on the block it landed in.
+      // A release that ends a drag holding the page's own words is that selection's
+      // mouseup and not a click on whatever lies under it: the reader was reaching for the
+      // words, and the 💬 is already up on them (updateFab, on the same mouseup). The same
+      // complaint `offer` answers for a press on a control and the thread list for a press
+      // on a card (reachedForWords), and it governs the whole of what a click on prose
+      // means — the block design mode comments on, and the thread a mark opens. Marked
+      // words are where it showed: a drag inside one travelled to its thread, and with
+      // Threads open the reply box it landed in collapsed the selection the reader had
+      // just drawn, so the words and the 💬 went with it.
+      //
+      // Asked of the gesture rather than of the standing selection those two have to read,
+      // because a mark is a painted range with no element to put the question to — and
+      // because the state alone is too strict here: a press landing inside words already
+      // selected keeps them through its own mousedown, so it would refuse the press that
+      // opens the very mark the reader just drew across. A drag that took nothing leaves
+      // no words the reader was reaching for, and reads as the press it looks like.
+      if (selectionDragged && pageSelection()) return;
+      // A plain click comments on the block it landed in.
       if (designModeActive()) {
-        if (pageSelection()) return;
         const target = designTarget(ev.target);
         if (target) openOnDesign(target);
         return;

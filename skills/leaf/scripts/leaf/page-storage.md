@@ -179,12 +179,12 @@ A page directory holds:
     claims/              outside the page, one atomic record per resolved page:
                          its last claimant, release time, and the lifetime it
                          rests on. `id` is the session, `agent` the display name
-                         it chose, and `harness` and `carrier` the claimant's
-                         declaration — which agent host took the page, and how
-                         input reaches it between turns (`wait`, `adapter`, or
-                         `embedded`). A later reader dispatches on the carrier
+                         it chose, and `harness` which agent host took the page.
+                         A later reader rebuilds that harness's declaration from
+                         the name and asks it how input reaches the session,
                          rather than re-deriving one from its own environment,
-                         which need not be the claimant's.
+                         which need not be the claimant's. A record naming a
+                         harness this install cannot rebuild reads as no claim.
                          Keeping provenance outside the disposable page lets
                          ownership discovery survive a page moving between sessions
 

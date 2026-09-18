@@ -114,19 +114,19 @@ events are the one thing `leaf status <page> idle` cannot close over.
 ## Carriers
 
 A session's leaves cost it one long-running carrier between them, separate from
-the page server. Each harness declares which of three it uses, and its claim
-records that with the page, so a reader elsewhere acts on the carrier rather
-than on the harness's name:
+the page server. The claim names the harness, and a reader elsewhere rebuilds its
+declaration from that name and asks it what proves the carrier live and what to
+say when it is not, rather than comparing the name itself. There are three
+shapes:
 
-- `wait`, a sequence of direct watchers the model itself runs, which Claude Code
-  uses: `leaf wait` exits to put a batch in model context, then `leaf ack`
-  advances its cursor and becomes the next watcher.
-- `adapter`, one detached process, which Codex uses: it holds the same task-wide
-  wait lease plus an adapter lease of its own, and stores exact batches from
-  every page in one task-wide delivery.
-- `embedded`, a host that drives App Server itself, which the website's
-  per-reader container uses: it starts the turn directly and needs nothing
-  between them.
+- A sequence of direct watchers the model itself runs, which Claude Code uses:
+  `leaf wait` exits to put a batch in model context, then `leaf ack` advances
+  its cursor and becomes the next watcher.
+- One detached process, which Codex uses: it holds the same task-wide wait lease
+  plus an adapter lease of its own, and stores exact batches from every page in
+  one task-wide delivery.
+- A host that drives App Server itself, which the website's per-reader container
+  uses: it starts the turn directly and needs nothing between them.
 
 Every carrier watches every page the session holds, re-reading the set on each
 pass, and produces the same `leaf-delivery-v1` envelope. Each batch names its

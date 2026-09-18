@@ -323,7 +323,7 @@ def write_failure_receipt(page_dir: Path, responds: str, failure: str) -> dict |
         identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
     )
     claim = page_claim(page_dir)
-    if claim and claim["carrier"] == EmbeddedHarness.carrier:
+    if claim and claim["harness"] == EmbeddedHarness.name:
         abandon_codex_delivery(claim["id"], responds)
     return accepted
 
@@ -1372,7 +1372,7 @@ class WebsiteCodexHost:
                         claim = page_claim(page_dir)
                         thread_id = (
                             claim["id"]
-                            if claim and claim["carrier"] == EmbeddedHarness.carrier
+                            if claim and claim["harness"] == EmbeddedHarness.name
                             else None
                         )
                         if thread_id not in self.following_threads:

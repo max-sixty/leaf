@@ -18,6 +18,7 @@ from leaf.event_log import (
 from leaf.event_meaning import admit_widget_event
 from leaf.files import read_json, write_json
 from leaf.host import (
+    HARNESSES,
     Harness,
     message_identity,
     pid_alive,
@@ -52,14 +53,13 @@ def claim_path(page_dir: Path) -> Path:
 def _claim_record(path: Path) -> dict | None:
     """One claim file as a claim, or None where there is none to read.
 
-    A record written before claims named their harness carries `host` instead,
-    and every reader since dispatches on `harness`; such a record reads as no
-    claim at all, so the page stands unheld and the next `server start` or
-    named `leaf wait` writes a current one. This decodes data already on disk
-    across the change, nothing more. TODO(2026-09-18): drop the shape test once
-    installs from before it have restarted their sessions."""
+    Every reader rebuilds the claimant's harness from the record, so a record
+    naming one this install cannot rebuild — written before claims named a
+    harness, or by an install that knows one this one does not — reads as no
+    claim at all. The page stands unheld, and the next `server start` or named
+    `leaf wait` writes a current one."""
     claim = read_json(path)
-    if claim is None or "harness" not in claim:
+    if claim is None or claim.get("harness") not in HARNESSES:
         return None
     return claim
 
@@ -177,7 +177,6 @@ class PageTransaction:
             "page": str(self.page_dir),
             "id": harness.session,
             "harness": harness.name,
-            "carrier": harness.carrier,
             **harness.lifetime(),
             "agent": harness.agent,
             "cwd": os.getcwd(),
@@ -628,8 +627,8 @@ class PageTransaction:
     def cursor(self) -> int:
         return read_cursor(self.page_dir)
 
-    def watch_state(self, identity: dict | None) -> str:
-        if not self.owned_by(identity):
+    def watch_state(self, harness: Harness | None) -> str:
+        if not self.owned_by(harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
 

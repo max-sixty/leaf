@@ -387,28 +387,15 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
-HARNESSES = {
-    declaration.name: declaration
-    for declaration in (
-        host_model.ClaudeCodeHarness,
-        host_model.CodexHarness,
-        host_model.EmbeddedHarness,
-    )
-}
-
-
 def record_claim(page, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
-    The carrier comes from the named harness's own declaration rather than from
-    a second table here, so a fixture cannot record a pairing `take_claim` would
-    never write."""
-    declaration = HARNESSES[harness]
+    `harness` is checked against Leaf's own table, so a fixture cannot record a
+    name `take_claim` would never write."""
     record = {
         "page": str(page.resolve()),
         "id": "s1",
-        "harness": declaration.name,
-        "carrier": declaration.carrier,
+        "harness": host_model.HARNESSES[harness].name,
         "pid": os.getpid(),
         "agent": "Claude",
         "cwd": str(Path.cwd()),
@@ -1019,7 +1006,7 @@ def claimed(page_dir, monkeypatch):
 @pytest.fixture(scope="session")
 def codex_program(tmp_path_factory):
     """A program named `codex` to run a session under, which is the whole of what
-    `session_lifetime` looks for above a leaf: a copy of this interpreter wearing that
+    `CodexHarness.lifetime` looks for above a leaf: a copy of this interpreter wearing that
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that

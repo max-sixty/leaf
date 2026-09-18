@@ -53,7 +53,7 @@ def process_info(pid: int) -> tuple[int, str] | None:
     The name is the executable's own, not the words the command was written
     with: a process launched through a symlink or a `#!` script reports what the
     kernel loaded. That is the point — it answers which program a process *is*,
-    which is what `session_lifetime` asks of an ancestor. The kernel truncates
+    which is what `CodexHarness.lifetime` asks of an ancestor. The kernel truncates
     it to 15 or 16 characters; psutil restores a truncated name from the program
     path the command line starts with."""
     try:
@@ -87,7 +87,7 @@ def process_argv(pid: int) -> list[str] | None:
 
     `process_info` answers which program a process *is*; this answers what it
     was told to do, which is the only thing that separates a `codex` hosting one
-    session from a `codex` hosting all of them (`session_lifetime`)."""
+    session from a `codex` hosting all of them (`CodexHarness.lifetime`)."""
     try:
         return psutil.Process(pid).cmdline()
     except _UNREADABLE:
@@ -132,36 +132,28 @@ class Harness:
     display name the page shows for it. Both are per-session; the rest of a
     harness is fixed for the program, and stated on its class.
 
-    `name` is provenance and diagnostics. The claim writes it down and
-    `claim_harness` reads it back to rebuild this object; nothing branches on
-    it. `carrier` is what a reader does branch on — how a leaf's input reaches
-    this session between its turns:
+    `name` is the one fact the claim writes down: `claim_harness` reads it back
+    to rebuild this object, and a reader meeting that claim later — the page
+    server, the append door, the Stop hook — asks the object rather than
+    re-deriving anything from an environment that may not be the claimant's.
+    Nothing compares the name outside this module and a harness's own code.
 
-    - `wait`, a `leaf wait`/`leaf ack` loop the model itself runs, watched by
-      the host's Stop and prompt hooks. It is the one carrier that stops while
-      its session lives on, which is why it is the one with a `nudge`.
-    - `adapter`, a detached process that outlives the turn and proves itself by
+    What differs between harnesses is how a leaf's input reaches the session
+    between its turns, and the methods below answer for that carrier:
+
+    - Claude Code runs a `leaf wait`/`leaf ack` loop itself, watched by the
+      host's Stop and prompt hooks. It is the one carrier that stops while its
+      session lives on, which is why it is the one with a `nudge`.
+    - Codex has a detached adapter that outlives the turn and proves itself by
       holding the adapter lease.
-    - `embedded`, a host process that drives Codex App Server itself and starts
-      the turns; nothing outside it carries input in.
-
-    The claim records the name and the carrier together, so a reader meeting
-    that claim later — the page server, the append door, the Stop hook — acts on
-    what the claimant wrote rather than re-deriving it from an environment that
-    may not be the claimant's.
-
-    A harness the environment can imply also states `default_agent` and the
-    variables its session id arrives in. One that declares itself, as an
-    embedded host does, states neither.
+    - An embedded host drives Codex App Server itself and starts the turns;
+      nothing outside it carries input in.
     """
 
     session: str
     agent: str
 
     name: ClassVar[str]
-    carrier: ClassVar[str]
-    default_agent: ClassVar[str]
-    session_variables: ClassVar[tuple[str, ...]]
 
     @classmethod
     def from_claim(cls, claim: dict) -> "Harness":
@@ -207,11 +199,19 @@ class Harness:
         return False
 
 
-class ClaudeCodeHarness(Harness):
+class EnvironmentHarness(Harness):
+    """A harness the environment implies, by the variable its session id arrives
+    in. It also names the display default a launch that set no LEAF_AGENT gets.
+    A harness that declares itself, as an embedded host does, states neither."""
+
+    default_agent: ClassVar[str]
+    session_variables: ClassVar[tuple[str, ...]]
+
+
+class ClaudeCodeHarness(EnvironmentHarness):
     """Claude Code: a wait loop the model runs, and a socket to reach it with."""
 
     name = "claude-code"
-    carrier = "wait"
     default_agent = "Claude"
     session_variables = ("CLAUDE_CODE_SESSION_ID",)
 
@@ -273,7 +273,7 @@ _POLL_UNIFIED_EXEC = (
 )
 
 
-class CodexHarness(Harness):
+class CodexHarness(EnvironmentHarness):
     """Codex: one detached adapter carries every page the task holds.
 
     LEAF_SESSION_ID outranks CODEX_THREAD_ID because a worker Codex launches
@@ -281,7 +281,6 @@ class CodexHarness(Harness):
     is not it."""
 
     name = "codex"
-    carrier = "adapter"
     default_agent = "Codex"
     session_variables = ("LEAF_SESSION_ID", "CODEX_THREAD_ID")
 
@@ -374,14 +373,14 @@ class EmbeddedHarness(Harness):
     itself, supplying its own display name and the App Server process its
     session lives and dies with.
 
-    The Stop hook never reaches a page this holds, because there is no model
-    running `leaf` commands beside it; the two remedies say what is true rather
-    than what to type."""
+    The Stop hook never reaches a page this holds: the container's Codex runs
+    with no Leaf plugin and so no Leaf hooks (`worker/codex-config.toml`), even
+    though its agent does run `leaf` commands. The two remedies say what is true
+    rather than what to type."""
 
     pid: int
 
     name = "embedded"
-    carrier = "embedded"
 
     @classmethod
     def from_claim(cls, claim: dict) -> "EmbeddedHarness":
@@ -399,8 +398,11 @@ class EmbeddedHarness(Harness):
 
 # The harnesses an environment can imply, in the order `session_harness` reads
 # them, and every harness a claim can name.
-_ENVIRONMENT_HARNESSES = (ClaudeCodeHarness, CodexHarness)
-_HARNESSES = {
+_ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
+    ClaudeCodeHarness,
+    CodexHarness,
+)
+HARNESSES: dict[str, type[Harness]] = {
     harness.name: harness for harness in (*_ENVIRONMENT_HARNESSES, EmbeddedHarness)
 }
 # Every variable a host session states its id in. A build that publishes pages
@@ -440,7 +442,7 @@ def claim_harness(claim: dict) -> Harness:
     A page server, the append door and the Stop hook all run in processes that
     need not be the claimant's, so they read the harness the claim names instead
     of the one their own environment implies."""
-    return _HARNESSES[claim["harness"]].from_claim(claim)
+    return HARNESSES[claim["harness"]].from_claim(claim)
 
 
 def message_identity() -> dict:

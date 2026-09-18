@@ -2679,7 +2679,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     second = first.fetch().json()
     with page.expect_request("**/api/state*"):
         first.fulfill(json=second)
-    expect(text).to_have_text(re.compile(r"^Claude is working — second"))
+    expect(text).to_have_text(re.compile(r"^Agent is working — second"))
     assert len(held) == 2
 
     trailing = held[1]
@@ -2689,7 +2689,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     third = trailing.fetch().json()
     trailing.fulfill(json=third)
     told(page)
-    expect(text).to_have_text(re.compile(r"^Claude is working — third"))
+    expect(text).to_have_text(re.compile(r"^Agent is working — third"))
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -3295,7 +3295,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # Claude's own status gets a far longer rope: the same silence is just a long turn.
     # No turn has closed under this claim, so the rope is the whole of what judges it.
     declare("working", "running the migration", quiet_for=10 * 60)
-    expect(text).to_have_text(re.compile(r"^Claude is working — running the migration"))
+    expect(text).to_have_text(re.compile(r"^Agent is working — running the migration"))
 
     # A dead session needs no timeout at all — the owning pid is simply gone, so the
     # claim it left has nothing behind it however lately it was written.
@@ -3309,7 +3309,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # Nothing ever claimed the page — a server started outside an agent host. There is
     # no pid to ask after, so a claim made moments ago is evidence and still stands.
     declare("working", "running the migration", claimed=False)
-    expect(text).to_have_text(re.compile(r"^Claude is working — running the migration"))
+    expect(text).to_have_text(re.compile(r"^Agent is working — running the migration"))
 
     # Once that claim goes quiet there is nothing left holding the page, and an hour of
     # silence on a page that stands for weeks is not a fault to report.
@@ -3802,7 +3802,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     # The page's own line is as fresh as it was, which is the whole case: this is two
     # delegates diverging, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Claude is working — rerunning the failing shard")
+        re.compile(r"^Agent is working — rerunning the failing shard")
     )
     expect(visible_work_line).to_have_text(
         re.compile(r"^● Was working 40m ago — reading the reconnect traces$")
@@ -3839,7 +3839,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         )
     )
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Claude is working — rerunning the failing shard")
+        re.compile(r"^Agent is working — rerunning the failing shard")
     )
     expect(visible_work_line).to_have_text(
         re.compile(r"^● Was working 6m ago — reading the reconnect traces$")

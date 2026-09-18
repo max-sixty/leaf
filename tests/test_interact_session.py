@@ -327,12 +327,9 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     }
     assert batch["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
-    assert {
-        key: claim[key] for key in ("id", "harness", "carrier", "pid", "agent")
-    } == {
+    assert {key: claim[key] for key in ("id", "harness", "pid", "agent")} == {
         "id": "hosted-thread",
         "harness": "embedded",
-        "carrier": "embedded",
         "pid": os.getpid(),
         "agent": "Leaf guide",
     }
@@ -6539,13 +6536,12 @@ def test_a_codex_command_claims_the_page_for_its_thread(codex_claimed_page):
     session = service_model.page_claim(codex_claimed_page)
     assert session["id"] == "codex-thread"
     assert session["agent"] == "Codex"
-    assert (session["harness"], session["carrier"]) == ("codex", "adapter")
+    assert session["harness"] == "codex"
     assert set(session) == {
         "page",
         "id",
         "agent",
         "harness",
-        "carrier",
         "pid",
         "cwd",
         "ts",
@@ -7886,7 +7882,7 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
 ):
     """The one word that separates the two Codex shapes, and the claim each writes.
 
-    `session_lifetime` finds a session by walking for the nearest `codex`
+    `CodexHarness.lifetime` finds a session by walking for the nearest `codex`
     ancestor. Under the CLI that process is the session and its pid is exact.
     The ChatGPT app runs one `codex ... app-server` for the whole app and every
     conversation hangs off it, so the same walk handed every session one pid

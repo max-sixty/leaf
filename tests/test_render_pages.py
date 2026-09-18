@@ -714,7 +714,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         page.evaluate(
             "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).agentName()"
         )
-        == "Claude"
+        == "Agent"
     )
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)

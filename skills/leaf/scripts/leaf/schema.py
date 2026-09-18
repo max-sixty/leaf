@@ -29,8 +29,9 @@ ACTIVITY_GRACE_SECS = 4 * 60 * 60
 # carries a name, so this stands only where there is no claimant to ask, and it
 # is deliberately the harness-neutral word: a page served from a bare shell
 # belongs to whoever picks it up next, and guessing at a product name there
-# would be the page saying something it does not know. `context.js` says the
-# same word for a browser reading a state with no claim in it.
+# would be the page saying something it does not know. A served state carries
+# this word already; `context.js` says the same one where the browser has no
+# authoritative reading at all, as on an exported page.
 UNCLAIMED_AGENT = "Agent"
 # The kinds a reader can take back. A message is not among them: a comment is
 # speech, and the agent may already have read it — what a reader regrets there

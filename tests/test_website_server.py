@@ -259,7 +259,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     monkeypatch.setattr(
         website_server,
         "page_claim",
-        lambda page: {"id": "hosted-thread", "carrier": "embedded"},
+        lambda page: {"id": "hosted-thread", "harness": "embedded"},
     )
     reserved = []
     monkeypatch.setattr(

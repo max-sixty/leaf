@@ -702,7 +702,7 @@ def queue_records(session_id: str) -> list[tuple[Path, dict]]:
     return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
 
 
-def collecting_queue(
+def _collecting_queue(
     session_id: str,
     queues: list[tuple[Path, dict]] | None = None,
 ) -> tuple[Path, dict] | None:
@@ -771,7 +771,7 @@ def append_batch(
     batch: list[dict],
 ) -> tuple[Path, int, dict] | None:
     """Append fresh events to the task's one collecting queue."""
-    current = collecting_queue(session_id)
+    current = _collecting_queue(session_id)
     if current is None:
         path = queue_path(session_id, str(uuid.uuid4()))
         path.parent.mkdir(parents=True, exist_ok=True)

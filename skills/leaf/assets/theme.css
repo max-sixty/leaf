@@ -1381,6 +1381,12 @@ leaf-anchor-note { display: contents; }
           align-items: center; }
 .lf-conversation-head time { color: var(--muted-2); }
 .lf-conversation-head .lf-edited { color: var(--muted-2); }
+/* The document face of the panel's receipt mark, dressed here for the same reason the
+   head's sizes and rhythm are: a conversation projected inline wears the theme. */
+.lf-conversation-head .lf-msg-failure { padding: 1px 5px;
+    border: 1px solid var(--warn); border-radius: var(--chip-r);
+    color: var(--warn-ink); background: var(--warn-tint);
+    font: 600 var(--t-6)/1.25 var(--sans); }
 .lf-conversation-body { margin-top: 4px; line-height: 1.5; }
 .lf-conversation-body > :first-child { margin-top: 0; }
 .lf-conversation-body > :last-child { margin-bottom: 0; }

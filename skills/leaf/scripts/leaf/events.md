@@ -108,7 +108,10 @@ scope rather than log order, so answering older work cannot erase newer reader i
 A host that settles an ask because it cannot start work records `failure`, a nonempty
 host-owned code, on its reply. The code is independent of the presentation `text`;
 ordinary agent answers omit it. Only the host reply writer can supply this field,
-and browser commands cannot write it.
+and browser commands cannot write it. It is a reader-facing fact rather than only a
+diagnostic one: a reply carrying it is drawn as a receipt, its head saying the message
+answers nothing, because otherwise it is indistinguishable from the answer it stands
+in for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup.

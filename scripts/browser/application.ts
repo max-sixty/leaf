@@ -518,7 +518,7 @@ export function createSemanticApplication({
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
-    const threads = ready
+    const folded = ready
       ? foldThreads(
           state?.browser.conversation.threads ?? [],
           unreadMessages(unresolved, receipts),
@@ -529,6 +529,16 @@ export function createSemanticApplication({
     const widgets = foldWidgetStates(document.authored, projection);
     const projectedRequests = pendingRequests(unresolved, receipts);
     const asks = ready ? normalizedAsks(active, state?.browser.conversation) : NO_ASKS;
+    // An Ask the server says the reader still owes is carried by the thread it stands
+    // in, and the reader's own unsent reply does not answer it. `foldThreads` hands
+    // that thread to the agent for the reply; the standing obligation goes back on top
+    // of it, from the same reader list the tray and the walk read.
+    const owed = new Set(asks.reader.map((ask) => ask.thread));
+    const threads = folded.map((thread: any) =>
+      owed.has(thread.root.id) && !thread.awaits_reader
+        ? { ...thread, awaits_reader: true }
+        : thread,
+    );
     return {
       hostAvailable,
       projection,

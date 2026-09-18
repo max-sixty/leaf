@@ -2808,6 +2808,10 @@ def test_a_live_revision_reapplies_the_authored_conversation_seat_predicate(
         composer.get_by_role("button", name="Send", exact=True).click()
 
     def reader_asks():
+        # The Ask reading is the log's, so ask it of a page that has taken in what the
+        # server holds: a trip is over when the outbox empties, one beat before the
+        # answer it carried has been applied.
+        told(page)
         return page.evaluate(
             """async () => {
               const {openAsks} = await window.__lfRuntimeImport('/runtime/application.js');

@@ -357,7 +357,7 @@ Each mutable fact has one writer:
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
-| which Asks stand, which the reader owes, and whose turn each thread is | the server's one `leaf.asks` fold, shipped as the view's `document.asks`, the conversation's `asks`, and each thread's `awaits_reader` | the publisher concatenates the page and thread readings and publishes them unchanged; `foldThreads` hands a thread to the agent for the reader's own unsent reply |
+| which Asks stand, which the reader owes, and whose turn each thread is | the server's one `leaf.asks` fold, shipped as the view's `document.asks`, the conversation's `asks`, and each thread's `awaits_reader` | the publisher concatenates the page and thread readings and publishes them unchanged; `foldThreads` hands a thread to the agent for the reader's own unsent reply, and a thread the reader list still names keeps its obligation over that |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region inside that publication and paints on the pass after it, projection before conversation before Asks; no caller orders a paint |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
@@ -504,8 +504,10 @@ conversation coordinates use the unbounded frozen-markup window.
 Ask carried anywhere in the unresolved thread; a later plain turn does not hide
 an earlier structural Ask. Python derives that obligation beside the Ask reading it
 shares a fold with, and ships it as each thread's `awaits_reader`; the browser reads
-it. The one local correction is the reader's own unsent reply, which `foldThreads`
-hands to the agent. With no such Ask, the obligation reads the latest spoken turn:
+it. The reader's own unsent reply hands its thread to the agent through `foldThreads`,
+and a thread still named in the reader's Ask list keeps the obligation over that, so an
+Ask the reply does not answer stays theirs while it travels rather than turning over
+and back. With no such Ask, the obligation reads the latest spoken turn:
 an agent comment is a question and an agent reply's explicit `awaits` field marks a
 prose request. A `settles` token standing on that latest prose request answers it
 without closing the thread.

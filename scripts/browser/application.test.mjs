@@ -702,6 +702,54 @@ test("a pending reader reply hands an accepted question to the agent until it le
   assert.deepEqual(turn(), [false, true]);
 });
 
+test("a pending prose reply does not hide a frozen structural Ask", () => {
+  const root = {
+    kind: "comment",
+    id: "question",
+    author: "claude",
+    text: "Choose in the options below.",
+    ts: "now",
+  };
+  const app = setup();
+  const accepted = state(2);
+  const frozen = wireAsk("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", root.id);
+  accepted.browser.conversation.asks = {
+    all: [frozen],
+    reader: [frozen],
+    unanswered: [frozen],
+    awaiting: { "frozen-choice": true },
+    unanswered_awaiting: { "frozen-choice": true },
+  };
+  accepted.browser.conversation.threads = [
+    {
+      root,
+      anchor: null,
+      msgs: [root],
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: true,
+      bare_reaction: false,
+      seat: null,
+    },
+  ];
+  app.adopt(accepted);
+
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: root.id,
+      attempt: "context",
+      text: "One more detail before I choose.",
+      revision: 1,
+    },
+    "now",
+  );
+  // The reply hands the thread to the agent, and the Ask it carries is still the
+  // reader's, so the obligation does not turn over and back when the reply lands.
+  const thread = app.read().effective.conversation.all[0];
+  assert.deepEqual([thread.awaits_agent, thread.awaits_reader], [true, true]);
+});
+
 test("the publisher carries the server's Ask reading, page asks before thread asks", () => {
   const app = capture();
   // The authored document names the Ask, but only the log's reading says whether it

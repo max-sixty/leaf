@@ -130,7 +130,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     field.append(ta, sendBtn);
     // These two are the press's whole face, and the theme keys the glyph's colour on the
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
-    // is a different face: it fills the press's own box, which is the hit target and
+    // is a different face: it dresses the press's own box, which is the hit target and
     // stands larger than the disc wherever the pointer is coarse. A send press never
     // wears it.
     sendBtn.classList.add("lf-icon-action", "lf-compose-submit");

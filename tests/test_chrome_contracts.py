@@ -301,8 +301,8 @@ STATE_PAINT = """el => {
 
 
 def test_signoff_enabled_face_is_readable(browser, serve):
-    """The banner's committing action is the one control in its row drawn in the
-    accent: accent ink on the ordinary card, never a solid accent fill."""
+    """The banner's committing action carries the accent as ink on the ordinary
+    card, never as a solid accent fill."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',

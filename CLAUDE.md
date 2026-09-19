@@ -179,7 +179,9 @@ that order is declared once, beside the coordinator, not repeated at each publis
 Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their
 mechanical browser owners until a gesture becomes a declared application fact. Their
 renderings are not semantic authority, and repainting them does not create a semantic
-epoch.
+epoch. That state also lives exactly as long as the node holding it: the log does not
+record it and no projection returns it, so whatever replaces a node hands it across
+itself, under the identity that replacement already keys on, or the reader loses it.
 
 Python also derives one top-level `activity` reading from the agent's status
 declaration, claim and turn identity, watcher lease, pickup events, and unsettled

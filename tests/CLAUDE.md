@@ -302,6 +302,17 @@ A standing server is the explicit exception. It declines session ownership by
 definition, and tests of standing lifetime must stop it themselves. Keep that
 exception narrow and short-lived.
 
+A Unix socket is the one file that cannot live under those roots: `sun_path` is 104
+bytes and pytest has spent most of them before a test's own files begin. `socket_dir`
+owns that exception — a short directory under the system temporary root, removed when
+the test ends — so a test never names `/tmp` itself.
+
+A fixture cannot stop a test making its own, so
+`test_the_resources_a_fixture_owns_are_taken_from_that_fixture` reads the suite for
+the calls these fixtures exist in place of — starting a process, launching a browser,
+making a socket directory — and names the owner of each. An exception is a line in
+that list saying which file holds it and why.
+
 The sweep's roots are the run's own: the test's `tmp_path` and the state home
 `isolated_session` returns. An autouse fixture that needs the isolated home takes
 it from that fixture, never from `state_home()` read at setup or teardown, where
@@ -397,6 +408,13 @@ element (`data-lf-traffic`, `runtime/traffic.js`). Network conditions come from
 browser's error surfaces. `primed` lets a render or export call create its own
 page while the test attaches those external controls before navigation.
 
+A page the product opens to read for itself is the product's: `render_version`
+collects that page's console and `pageerror` and reports them as findings. A gate or
+export test whose page is meant to be faulty therefore hands over `browser.unwatched`,
+rather than asserting the same errors twice — once against the gate's report and once
+against the suite's collector. A product call whose page should be clean takes the
+ordinary browser, where an unexpected error fails the test that caused it.
+
 An init script is justified only when the fact cannot survive long enough to
 cross the Playwright boundary: recording a sequence frame by frame, or capturing
 an instant between one DOM write and the next rendering turn. The injected code
@@ -405,9 +423,8 @@ outside the page.
 
 ## A page is ready when it says what has finished
 
-Open ordinary browser pages through `open_page`. It installs `Traffic` and
-`watched` before navigation, waits for the load event, and then waits on
-`BOTH_STAMPS`:
+Open ordinary browser pages through `open_page`. It navigates, waits for the load
+event, and then waits on `BOTH_STAMPS`:
 
 - `data-lf-upgraded="1"` says widget upgrade finished.
 - `data-lf-applied` says a replay pass applied the event log.
@@ -438,11 +455,40 @@ the two site shells: the reading it excludes is the unstyled document, which
 differs from the presented page by the whole theme and arrives as a report that
 startup moved the shell.
 
-`watched` must be installed before navigation. It collects console warnings, console
-errors, and `pageerror`, and calls `leaf.render_checks.install_window_errors` so browser
-`error` events without an exception reach the same list. That script is shared
-with `render_version`; the suite and the handover gate must not disagree about
-which browser error channels count.
+Every page the `browser` fixture makes arrives readable: the problem list `watched`
+collects into, the interception arm, and the `Traffic` ledger, installed by
+`WatchedBrowser` in the call that makes the page. None of the three can be added
+afterwards — an init script has to precede the navigation it instruments, and a
+console entry from a page nobody was listening to is gone — so a test that makes a
+page cannot end up with one that reports nothing. It used to: 38 test functions made
+a page of their own and never asked for the readings, and every one of them was green
+about a page whose console, `pageerror` and window `error` channels nothing read.
+A page must therefore come from that fixture, or from a context it made.
+
+The fixture ends it too, so a test that has finished with a page leaves it open. It
+closes every context after reading what the pages reported, in that order and for
+this reason: closing stops event delivery, so a close written at the end of a test
+cuts the reading short — its own reading, a step before the fixture takes it.
+
+A close inside a test is a different thing, and it stays: a second tab shut to show
+what the first one still holds is the gesture the test is about, and the assertions
+after it are what read the close. So the rule is the ending, not the call, and
+`test_the_resources_a_fixture_owns_are_taken_from_that_fixture` reads for exactly
+that — a close anywhere in a `finally`, or on the line a test ends on, followed down
+through the loop or branch it ends inside — on anything the browser fixture handed
+over, however it travelled. Its one exception is the page that keeps making the
+fault its test is about, where the consume has to follow a close of its own.
+
+For the same reason nothing installs them a second time. `watched` returns the list a
+page already has, because a second list would take `lf_errors` with it and leave the
+first collecting into a reading no test can consume; and nothing installs them from
+inside a Playwright event handler, where a `page.route` leaves the `add_init_script`
+after it without effect and says nothing about it.
+
+`watched` collects console warnings, console errors, and `pageerror`, and calls
+`leaf.render_checks.install_window_errors` so browser `error` events without an
+exception reach the same list. That script is shared with `render_version`; the suite
+and the handover gate must not disagree about which browser error channels count.
 
 `navigate` handles the one browser notice that needs confirmation: a
 ResizeObserver-loop notice raised during handover is repeated with a complete
@@ -455,6 +501,11 @@ causal point; every collected entry must match one of its named fragments. Use
 `take_browser_errors` only when the test itself asserts the exact list or partitions
 every entry. Filtering the collector or leaving expected noise behind is not an
 assertion.
+
+A fault the page keeps meeting has no causal point to be consumed at: a route that
+answers every `/api/state` with a refusal is met again two seconds later, and a list
+read before the next one is a list with a later entry still to come. Consume that
+after `page.close()`, which is what settles it; the entries survive the page.
 
 ## A wait consumes a fact the system states
 
@@ -650,8 +701,8 @@ as long as the route stands.
 
 Every hold has a release path. If the verdict depends on a response remaining
 lost, make the assertion first, then continue or fulfill the route, wait for the
-handler to finish, remove the route, and only then close the page. Put release
-and `unroute` in cleanup that also runs when the assertion fails. When a handler
+handler to finish, and remove the route; the fixture closes the page after that.
+Put release and `unroute` in cleanup that also runs when the assertion fails. When a handler
 calls `route.fetch()`, use `page.unroute_all(behavior="wait")` before teardown,
 because the fetched body belongs to that page and ordinary close can dispose it
 while a handler is still reading it.

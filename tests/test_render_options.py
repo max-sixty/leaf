@@ -458,7 +458,6 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     )
     page.wait_for_function("reconnectedOptionsReady")
     assert page.evaluate("optionIdentityHeld()") is True
-    page.close()
 
 
 def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(
@@ -2223,7 +2222,6 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
             "el => getComputedStyle(el).borderLeftColor"
         )
         assert gutter not in ("rgba(0, 0, 0, 0)", "transparent"), f"[{scheme}] {gutter}"
-        page.close()
 
 
 @pytest.mark.parametrize(

@@ -152,11 +152,10 @@ window.authoredModuleRan = true;
             route.fulfill(status=204, body=""),
         ),
     )
-    try:
-        page.wait_for_function("() => window.authoredModuleRan === true")
-        assert (
-            page.evaluate(
-                """async () => {
+    page.wait_for_function("() => window.authoredModuleRan === true")
+    assert (
+        page.evaluate(
+            """async () => {
                   try {
                     await import('/api/state');
                     return 'executed';
@@ -164,18 +163,18 @@ window.authoredModuleRan = true;
                     return 'blocked';
                   }
                 }"""
-            )
-            == "blocked"
         )
-        page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
-        served = urlparse(page.url)
-        assert (
-            page.locator("#relative").evaluate("link => link.origin")
-            == f"{served.scheme}://{served.netloc}"
-        )
+        == "blocked"
+    )
+    page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
+    served = urlparse(page.url)
+    assert (
+        page.locator("#relative").evaluate("link => link.origin")
+        == f"{served.scheme}://{served.netloc}"
+    )
 
-        framed = page.locator("body").evaluate(
-            """async (body, url) => {
+    framed = page.locator("body").evaluate(
+        """async (body, url) => {
               const frame = document.createElement('iframe');
               frame.id = 'framed-leaf';
               frame.src = url;
@@ -187,25 +186,21 @@ window.authoredModuleRan = true;
               await loaded;
               return frame.contentDocument?.querySelector('#h')?.textContent ?? null;
             }""",
-            page.url,
-        )
-        assert framed is None
+        page.url,
+    )
+    assert framed is None
 
-        page.locator("#escape").evaluate("form => form.requestSubmit()")
-        page.wait_for_function("() => window.__cspViolations.includes('form-action')")
-        assert escaped == []
-        errors = consume_browser_errors(
-            page,
-            "Content Security Policy",
-            "Content-Security-Policy",
-            'MIME type of "application/json"',
-        )
-        assert any("frame-ancestors 'none'" in error for error in errors), errors
-        assert any('MIME type of "application/json"' in error for error in errors), (
-            errors
-        )
-    finally:
-        page.close()
+    page.locator("#escape").evaluate("form => form.requestSubmit()")
+    page.wait_for_function("() => window.__cspViolations.includes('form-action')")
+    assert escaped == []
+    errors = consume_browser_errors(
+        page,
+        "Content Security Policy",
+        "Content-Security-Policy",
+        'MIME type of "application/json"',
+    )
+    assert any("frame-ancestors 'none'" in error for error in errors), errors
+    assert any('MIME type of "application/json"' in error for error in errors), errors
 
 
 def test_the_page_policy_admits_a_driver_poll_that_outlives_its_evaluate(
@@ -234,22 +229,15 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
             },
         ),
     )
-    try:
-        status = page.locator(".lf-banner .lf-status-text")
-        expect(status).to_have_text(
-            "This is an example on the Leaf website. Leaf guide replies and revises "
-            "this private copy. Install Leaf"
-        )
-        expect(status.locator("a")).to_have_attribute("href", "/#install")
-        expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(
-            0
-        )
-        expect(status).to_have_attribute("title", status.text_content())
-        expect(page.locator(".lf-banner .lf-dot")).to_have_class(
-            re.compile(r"^lf-dot\s*$")
-        )
-    finally:
-        page.close()
+    status = page.locator(".lf-banner .lf-status-text")
+    expect(status).to_have_text(
+        "This is an example on the Leaf website. Leaf guide replies and revises "
+        "this private copy. Install Leaf"
+    )
+    expect(status.locator("a")).to_have_attribute("href", "/#install")
+    expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
+    expect(status).to_have_attribute("title", status.text_content())
+    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
 
 
 def test_a_website_example_shows_its_public_session_reference(browser, serve):
@@ -281,38 +269,37 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
         )
 
     page.route("**/api/state*", identify)
-    try:
-        page.goto(url, wait_until="load")
-        page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
-            "239383829012"
-        )
-        reference = page.locator(".lf-session-reference")
-        expect(reference).not_to_be_visible()
-        page.get_by_role("button", name="More page controls", exact=True).click()
-        expect(reference).to_be_visible()
-        expect(reference).to_have_text("Session 239383829012")
-        expect(reference).to_have_accessible_name(
-            "Session 239383829012 · copy reference"
-        )
-        page.set_viewport_size({"width": 390, "height": 844})
-        expect(page.locator(".lf-banner-menu > .lf-session-reference")).to_be_visible()
-        reference.click()
-        expect(page.locator(".lf-notice")).to_have_text("Copied session reference")
-        assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
-    finally:
-        context.close()
+    page.goto(url, wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
+        "239383829012"
+    )
+    reference = page.locator(".lf-session-reference")
+    expect(reference).not_to_be_visible()
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    expect(reference).to_be_visible()
+    expect(reference).to_have_text("Session 239383829012")
+    expect(reference).to_have_accessible_name("Session 239383829012 · copy reference")
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(page.locator(".lf-banner-menu > .lf-session-reference")).to_be_visible()
+    reference.click()
+    expect(page.locator(".lf-notice")).to_have_text("Copied session reference")
+    assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
 
 
 @pytest.mark.parametrize(
-    ("response", "status_words"),
+    ("response", "status_words", "problem"),
     [
-        ({"status": 503, "body": ""}, "Server offline — reconnecting"),
-        ({"status": 200, "body": "{"}, "Page couldn't apply current state"),
+        ({"status": 503, "body": ""}, "Server offline — reconnecting", "503"),
+        (
+            {"status": 200, "body": "{"},
+            "Page couldn't apply current state",
+            "read failed",
+        ),
     ],
 )
 def test_a_website_session_reference_survives_a_failed_first_read(
-    browser, serve, response, status_words
+    browser, serve, response, status_words, problem
 ):
     url = live_url(serve(leaf_page("Failed website read", "<h1>Still a page</h1>")))
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -334,6 +321,9 @@ def test_a_website_session_reference_survives_a_failed_first_read(
         )
     finally:
         page.close()
+    # The route stands for the whole test and the page asks again every two seconds,
+    # so what it said is a complete list only once the page is gone.
+    consume_browser_errors(page, problem)
 
 
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
@@ -350,66 +340,62 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         viewport={"width": 1200, "height": 900},
         permissions=["clipboard-read", "clipboard-write"],
     )
-    try:
-        page = open_page(
-            browser,
-            serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
-            context=context,
-        )
-        badge = page.locator(".lf-preview")
-        expect(badge).to_have_text("Reader · fb77@26499ea1abcd+")
-        expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
+    page = open_page(
+        browser,
+        serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
+        context=context,
+    )
+    badge = page.locator(".lf-preview")
+    expect(badge).to_have_text("Reader · fb77@26499ea1abcd+")
+    expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
 
-        page.get_by_role("button", name="More page controls", exact=True).click()
-        expect(badge).to_be_visible()
-        badge.click()
-        expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
-        expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
-        expect(page.locator(".lf-notice")).to_be_visible()
-        diagnostics = page.evaluate("() => navigator.clipboard.readText()")
-        assert "example: triage-board" in diagnostics
-        assert "checkout: fb77" in diagnostics
-        assert "interaction: reader" in diagnostics
-        assert "commit: 26499ea1abcd" in diagnostics
-        assert "dirty: true" in diagnostics
-        assert "layer generation:" in diagnostics
-        assert "layer fingerprint: sha256:" in diagnostics
-        assert "revision: 1" in diagnostics
-        assert "event sequence: 1" in diagnostics
-        assert "?t=" not in diagnostics
-        page.close()
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    expect(badge).to_be_visible()
+    badge.click()
+    expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
+    expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
+    expect(page.locator(".lf-notice")).to_be_visible()
+    diagnostics = page.evaluate("() => navigator.clipboard.readText()")
+    assert "example: triage-board" in diagnostics
+    assert "checkout: fb77" in diagnostics
+    assert "interaction: reader" in diagnostics
+    assert "commit: 26499ea1abcd" in diagnostics
+    assert "dirty: true" in diagnostics
+    assert "layer generation:" in diagnostics
+    assert "layer fingerprint: sha256:" in diagnostics
+    assert "revision: 1" in diagnostics
+    assert "event sequence: 1" in diagnostics
+    assert "?t=" not in diagnostics
+    page.close()
 
-        ordinary = open_page(
-            browser,
-            serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
-            context=context,
-        )
-        expect(ordinary.locator(".lf-preview")).to_have_count(0)
-        layer = json.loads((serve.page_dir / "registry.json").read_text())["$layer"]
-        producer = layer.get("producer", {})
-        identity = (
-            producer["commit"][:8]
-            if producer.get("commit")
-            else "sha256:" + layer["fingerprint"].removeprefix("sha256:")[:12]
-        )
-        reference = ordinary.locator(".lf-layer-reference")
-        expect(reference).to_have_text(
-            f"Leaf {identity}{'+' if producer.get('dirty') else ''}"
-        )
-        expect(reference.locator("code")).to_have_text(
-            f"{identity}{'+' if producer.get('dirty') else ''}"
-        )
-        ordinary.get_by_role("button", name="More page controls", exact=True).click()
-        expect(reference).to_be_visible()
-        reference.click()
-        expect(ordinary.locator(".lf-notice")).to_have_text("Copied Leaf version")
-        diagnostics = ordinary.evaluate("() => navigator.clipboard.readText()")
-        assert f"fingerprint: {layer['fingerprint']}" in diagnostics
-        if producer.get("commit"):
-            assert f"commit: {producer['commit']}" in diagnostics
-        ordinary.close()
-    finally:
-        context.close()
+    ordinary = open_page(
+        browser,
+        serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
+        context=context,
+    )
+    expect(ordinary.locator(".lf-preview")).to_have_count(0)
+    layer = json.loads((serve.page_dir / "registry.json").read_text())["$layer"]
+    producer = layer.get("producer", {})
+    identity = (
+        producer["commit"][:8]
+        if producer.get("commit")
+        else "sha256:" + layer["fingerprint"].removeprefix("sha256:")[:12]
+    )
+    reference = ordinary.locator(".lf-layer-reference")
+    expect(reference).to_have_text(
+        f"Leaf {identity}{'+' if producer.get('dirty') else ''}"
+    )
+    expect(reference.locator("code")).to_have_text(
+        f"{identity}{'+' if producer.get('dirty') else ''}"
+    )
+    ordinary.get_by_role("button", name="More page controls", exact=True).click()
+    expect(reference).to_be_visible()
+    reference.click()
+    expect(ordinary.locator(".lf-notice")).to_have_text("Copied Leaf version")
+    diagnostics = ordinary.evaluate("() => navigator.clipboard.readText()")
+    assert f"fingerprint: {layer['fingerprint']}" in diagnostics
+    if producer.get("commit"):
+        assert f"commit: {producer['commit']}" in diagnostics
 
 
 @pytest.mark.parametrize(
@@ -467,7 +453,6 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        context.close()
 
 
 @pytest.mark.parametrize(
@@ -526,7 +511,6 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
         for route in held:
             route.continue_()
         page.unroute_all(behavior="wait")
-        context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
@@ -1136,19 +1120,18 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     )
     page.add_init_script(FIRST_PRESENTATION)
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(url, wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        assert held, "the positive control did not hold the first state response"
-        choice = page.locator("#startup-choice .lf-pick").first
-        expect(choice).to_have_attribute("aria-disabled", "true")
-        expect(choice).to_be_visible()
-        choice.dispatch_event("click")
-        expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
-        suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
-        expect(suggestion_accept).to_be_disabled()
-        assert suggestion_accept.evaluate(
-            """button => {
+    page.goto(url, wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the first state response"
+    choice = page.locator("#startup-choice .lf-pick").first
+    expect(choice).to_have_attribute("aria-disabled", "true")
+    expect(choice).to_be_visible()
+    choice.dispatch_event("click")
+    expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
+    suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
+    expect(suggestion_accept).to_be_disabled()
+    assert suggestion_accept.evaluate(
+        """button => {
               const glyph = button.firstElementChild;
               const widget = document.getElementById('sug');
               const parent = widget.parentNode;
@@ -1157,21 +1140,19 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               parent.insertBefore(widget, next);
               return button.firstElementChild === glyph;
             }"""
-        ), "an unchanged availability paint rebuilt the suggestion control"
-        suggestion_accept.dispatch_event("click")
-        expect(suggestion_accept).to_be_disabled()
-        assert posts == [], "a durable action posted before the first state projection"
-        authored_note = page.locator("#startup-note .lf-draft-body")
-        expect(authored_note).to_have_text("Ship on Tuesday from the blue room.")
-        authored_note.select_text()
-        page.keyboard.press("c")
-        expect(page.locator(".lf-fab-input")).not_to_be_visible()
-        assert posts == [], (
-            "an anchored comment posted before the first state projection"
-        )
-        page.locator("#stale-dialog").evaluate("dialog => dialog.showModal()")
-        page.evaluate(
-            """() => {
+    ), "an unchanged availability paint rebuilt the suggestion control"
+    suggestion_accept.dispatch_event("click")
+    expect(suggestion_accept).to_be_disabled()
+    assert posts == [], "a durable action posted before the first state projection"
+    authored_note = page.locator("#startup-note .lf-draft-body")
+    expect(authored_note).to_have_text("Ship on Tuesday from the blue room.")
+    authored_note.select_text()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).not_to_be_visible()
+    assert posts == [], "an anchored comment posted before the first state projection"
+    page.locator("#stale-dialog").evaluate("dialog => dialog.showModal()")
+    page.evaluate(
+        """() => {
               const root = document.querySelector('#shadowed').shadowRoot;
               const dialog = document.createElement('dialog');
               dialog.id = 'shadow-stale-dialog';
@@ -1199,48 +1180,48 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               nonmodal.close();
               nonmodal.show();
             }"""
-        )
-        frames = page.evaluate("() => window.__lfPresentation.frames")
-        assert frames and all(frame["height"] > 0 for frame in frames), (
-            f"the authored state was never laid out: {frames}"
-        )
-        assert all(frame["authoredPainted"] for frame in frames), (
-            f"authored state did not paint while replay was pending: {frames}"
-        )
-        assert any(frame["authoredHit"] for frame in frames), (
-            f"the authored document never entered the hit-test tree: {frames}"
-        )
-        assert page.locator("#startup-link").evaluate(
-            "element => { element.focus(); return document.activeElement === element; }"
-        ), "an ordinary authored link was unavailable before replay"
-        assert page.evaluate(
-            "() => document.querySelector('#shadowed').shadowRoot.querySelector('pre')"
-            ".checkVisibility({opacityProperty: true, visibilityProperty: true})"
-        ), "ordinary authored shadow content did not paint before replay"
-        assert page.evaluate(
-            """() => {
+    )
+    frames = page.evaluate("() => window.__lfPresentation.frames")
+    assert frames and all(frame["height"] > 0 for frame in frames), (
+        f"the authored state was never laid out: {frames}"
+    )
+    assert all(frame["authoredPainted"] for frame in frames), (
+        f"authored state did not paint while replay was pending: {frames}"
+    )
+    assert any(frame["authoredHit"] for frame in frames), (
+        f"the authored document never entered the hit-test tree: {frames}"
+    )
+    assert page.locator("#startup-link").evaluate(
+        "element => { element.focus(); return document.activeElement === element; }"
+    ), "an ordinary authored link was unavailable before replay"
+    assert page.evaluate(
+        "() => document.querySelector('#shadowed').shadowRoot.querySelector('pre')"
+        ".checkVisibility({opacityProperty: true, visibilityProperty: true})"
+    ), "ordinary authored shadow content did not paint before replay"
+    assert page.evaluate(
+        """() => {
               const ui = document.querySelector('#shadowed').shadowRoot
                 .querySelector('.lf-ui');
               return ui?.checkVisibility({visibilityProperty: true});
             }"""
-        ), "generated shadow interface remained withheld after upgrade"
-        assert not page.locator("#stale-dialog").is_visible(), (
-            "authored top-layer content painted before replay"
-        )
-        assert not page.locator("#stale-dialog button").evaluate(
-            "element => { element.focus(); return document.activeElement === element; }"
-        ), "authored top-layer content accepted focus before replay"
-        assert not page.locator("#stale-dialog").evaluate(
-            """dialog => {
+    ), "generated shadow interface remained withheld after upgrade"
+    assert not page.locator("#stale-dialog").is_visible(), (
+        "authored top-layer content painted before replay"
+    )
+    assert not page.locator("#stale-dialog button").evaluate(
+        "element => { element.focus(); return document.activeElement === element; }"
+    ), "authored top-layer content accepted focus before replay"
+    assert not page.locator("#stale-dialog").evaluate(
+        """dialog => {
               const box = dialog.getBoundingClientRect();
               return dialog.contains(document.elementFromPoint(
                 box.left + box.width / 2,
                 box.top + box.height / 2,
               ));
             }"""
-        ), "authored top-layer content accepted a pointer before replay"
-        shadow_state = page.evaluate(
-            """() => {
+    ), "authored top-layer content accepted a pointer before replay"
+    shadow_state = page.evaluate(
+        """() => {
               const root = document.querySelector('#shadowed').shadowRoot;
               const dialog = root.querySelector('#shadow-stale-dialog');
               const control = dialog.querySelector('button');
@@ -1256,15 +1237,15 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
                 )),
               };
             }"""
-        )
-        assert shadow_state == {
-            "visibility": "hidden",
-            "opacity": "0",
-            "focused": False,
-            "hit": False,
-        }, f"authored shadow top-layer content escaped before replay: {shadow_state}"
-        shadow_popover = page.evaluate(
-            """() => {
+    )
+    assert shadow_state == {
+        "visibility": "hidden",
+        "opacity": "0",
+        "focused": False,
+        "hit": False,
+    }, f"authored shadow top-layer content escaped before replay: {shadow_state}"
+    shadow_popover = page.evaluate(
+        """() => {
               const root = document.querySelector('#shadowed').shadowRoot;
               const popover = root.querySelector('#shadow-stale-popover');
               const box = popover.getBoundingClientRect();
@@ -1278,80 +1259,78 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
                 )),
               };
             }"""
-        )
-        assert shadow_popover == {
-            "open": True,
-            "visibility": "hidden",
-            "opacity": "0",
-            "hit": False,
-        }, f"authored shadow popover escaped before replay: {shadow_popover}"
-        assert page.locator("#stale-dialog").evaluate(
-            "dialog => dialog.open && !dialog.matches(':modal')"
-        ), "the held light dialog became modal before replay"
-        assert page.evaluate(
-            """() => {
+    )
+    assert shadow_popover == {
+        "open": True,
+        "visibility": "hidden",
+        "opacity": "0",
+        "hit": False,
+    }, f"authored shadow popover escaped before replay: {shadow_popover}"
+    assert page.locator("#stale-dialog").evaluate(
+        "dialog => dialog.open && !dialog.matches(':modal')"
+    ), "the held light dialog became modal before replay"
+    assert page.evaluate(
+        """() => {
               const dialog = document.querySelector('#shadowed').shadowRoot
                 .querySelector('#shadow-stale-dialog');
               return dialog.open && !dialog.matches(':modal');
             }"""
-        ), "the held shadow dialog became modal before replay"
-        assert page.evaluate(
-            """() => {
+    ), "the held shadow dialog became modal before replay"
+    assert page.evaluate(
+        """() => {
               const dialog = document.querySelector('#shadowed').shadowRoot
                 .querySelector('#shadow-final-nonmodal');
               return dialog.open && !dialog.matches(':modal');
             }"""
-        ), "the widget's final non-modal state did not stand before replay"
-        assert page.get_by_role("button", name=re.compile("^Threads")).evaluate(
-            "button => { button.focus(); return document.activeElement === button; }"
-        ), "a held authored modal disabled the usable Threads chrome"
-        assert all(frame["startupSheet"] == "none" for frame in frames), frames
+    ), "the widget's final non-modal state did not stand before replay"
+    assert page.get_by_role("button", name=re.compile("^Threads")).evaluate(
+        "button => { button.focus(); return document.activeElement === button; }"
+    ), "a held authored modal disabled the usable Threads chrome"
+    assert all(frame["startupSheet"] == "none" for frame in frames), frames
 
-        held.pop(0).continue_()
-        page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        expect(authored_note).to_have_text("Ship on Friday from the green room.")
-        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-        expect(page.locator("#sug lf-old")).to_be_hidden()
-        expect(choice).to_have_attribute("aria-disabled", "false")
-        expect(choice).to_be_visible()
-        assert page.evaluate(
-            """() => document.querySelector('#shadowed').shadowRoot
+    held.pop(0).continue_()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
+    expect(authored_note).to_have_text("Ship on Friday from the green room.")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#sug lf-old")).to_be_hidden()
+    expect(choice).to_have_attribute("aria-disabled", "false")
+    expect(choice).to_be_visible()
+    assert page.evaluate(
+        """() => document.querySelector('#shadowed').shadowRoot
               .querySelector('.lf-ui').checkVisibility({visibilityProperty: true})"""
-        ), "generated shadow interface remained withheld after replay"
-        assert not page.locator("#stale-dialog").evaluate(
-            "dialog => dialog.open || dialog.matches(':modal')"
-        ), "replay retired a dialog but presentation promoted it anyway"
-        assert page.evaluate(
-            "document.querySelector('#shadowed').shadowRoot"
-            ".querySelector('#shadow-stale-dialog').matches(':modal')"
-        ), "a still-current deferred dialog was not promoted after replay"
-        assert page.evaluate(
-            "document.querySelector('#shadowed').shadowRoot"
-            ".querySelector('#shadow-stale-popover').matches(':popover-open')"
-        ), "a still-current deferred popover was not opened after replay"
-        assert not page.evaluate(
-            "document.querySelector('#shadowed').shadowRoot"
-            ".querySelector('#shadow-cancelled-popover').matches(':popover-open')"
-        ), "a popover dismissed by its widget reopened after replay"
-        assert page.evaluate(
-            """() => {
+    ), "generated shadow interface remained withheld after replay"
+    assert not page.locator("#stale-dialog").evaluate(
+        "dialog => dialog.open || dialog.matches(':modal')"
+    ), "replay retired a dialog but presentation promoted it anyway"
+    assert page.evaluate(
+        "document.querySelector('#shadowed').shadowRoot"
+        ".querySelector('#shadow-stale-dialog').matches(':modal')"
+    ), "a still-current deferred dialog was not promoted after replay"
+    assert page.evaluate(
+        "document.querySelector('#shadowed').shadowRoot"
+        ".querySelector('#shadow-stale-popover').matches(':popover-open')"
+    ), "a still-current deferred popover was not opened after replay"
+    assert not page.evaluate(
+        "document.querySelector('#shadowed').shadowRoot"
+        ".querySelector('#shadow-cancelled-popover').matches(':popover-open')"
+    ), "a popover dismissed by its widget reopened after replay"
+    assert page.evaluate(
+        """() => {
               const dialog = document.querySelector('#shadowed').shadowRoot
                 .querySelector('#shadow-final-nonmodal');
               return dialog.open && !dialog.matches(':modal');
             }"""
-        ), "a dialog whose final state was non-modal was promoted after replay"
-        page.evaluate(
-            "document.querySelector('#shadowed').shadowRoot"
-            ".querySelector('#shadow-stale-dialog').close()"
-        )
-        page.evaluate(
-            "document.querySelector('#shadowed').shadowRoot"
-            ".querySelector('#shadow-stale-popover').hidePopover()"
-        )
-        assert page.evaluate("() => window.__lfPresentation.releases") == 1
-    finally:
-        page.close()
+    ), "a dialog whose final state was non-modal was promoted after replay"
+    page.evaluate(
+        "document.querySelector('#shadowed').shadowRoot"
+        ".querySelector('#shadow-stale-dialog').close()"
+    )
+    page.evaluate(
+        "document.querySelector('#shadowed').shadowRoot"
+        ".querySelector('#shadow-stale-popover').hidePopover()"
+    )
+    assert page.evaluate("() => window.__lfPresentation.releases") == 1
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
@@ -1370,31 +1349,26 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         """
     )
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(url, wait_until="load")
-        page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
-        expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
-        assert held, "the positive control did not hold the first state response"
-        gallery = page.locator("#bg-interactions")
-        expect(gallery).to_have_attribute("data-interaction-installed", "1")
-        controls = gallery.locator(".interaction-controls")
-        expect(controls).to_have_count(1)
-        expect(controls).to_be_hidden()
-        page.evaluate("releaseHeldPageInterface()")
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(controls).to_be_visible()
-        expect(page.locator(".lf-status-detail")).to_have_text(
-            re.compile(r"^Connecting")
-        )
+    page.goto(url, wait_until="load")
+    page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+    assert held, "the positive control did not hold the first state response"
+    gallery = page.locator("#bg-interactions")
+    expect(gallery).to_have_attribute("data-interaction-installed", "1")
+    controls = gallery.locator(".interaction-controls")
+    expect(controls).to_have_count(1)
+    expect(controls).to_be_hidden()
+    page.evaluate("releaseHeldPageInterface()")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    expect(controls).to_be_visible()
+    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
-        held.pop(0).continue_()
-        page.wait_for_function(BOTH_STAMPS)
-        expect(controls).to_be_visible()
-        expect(page.locator(".lf-status-detail")).not_to_have_text(
-            re.compile(r"^Connecting")
-        )
-    finally:
-        page.close()
+    held.pop(0).continue_()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(controls).to_be_visible()
+    expect(page.locator(".lf-status-detail")).not_to_have_text(
+        re.compile(r"^Connecting")
+    )
 
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
@@ -1405,34 +1379,29 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(url, wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        assert held, "the positive control did not hold the first state response"
-        playground = page.locator("#notification-playground")
-        expect(playground.locator(".lf-playground-controls")).to_be_visible()
-        expect(playground.locator(".lf-playground-presets")).to_be_visible()
-        expect(playground.locator(".lf-playground-actions")).to_be_visible()
-        submit = playground.get_by_role("button", name="Create notification")
-        expect(submit).to_be_disabled()
-        expect(page.locator(".lf-status-detail")).to_have_text(
-            re.compile(r"^Connecting")
-        )
+    page.goto(url, wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the first state response"
+    playground = page.locator("#notification-playground")
+    expect(playground.locator(".lf-playground-controls")).to_be_visible()
+    expect(playground.locator(".lf-playground-presets")).to_be_visible()
+    expect(playground.locator(".lf-playground-actions")).to_be_visible()
+    submit = playground.get_by_role("button", name="Create notification")
+    expect(submit).to_be_disabled()
+    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
-        playground.get_by_role("button", name="Needs attention").click()
-        compact = playground.locator("input[aria-label='Compact spacing']")
-        expect(compact).to_be_checked()
-        expect(playground).to_have_attribute("data-playground-format", "status strip")
+    playground.get_by_role("button", name="Needs attention").click()
+    compact = playground.locator("input[aria-label='Compact spacing']")
+    expect(compact).to_be_checked()
+    expect(playground).to_have_attribute("data-playground-format", "status strip")
 
-        held.pop(0).continue_()
-        page.wait_for_function(BOTH_STAMPS)
-        expect(submit).to_be_enabled()
-        expect(compact).to_be_checked()
-        expect(page.locator(".lf-status-detail")).not_to_have_text(
-            re.compile(r"^Connecting")
-        )
-    finally:
-        page.close()
+    held.pop(0).continue_()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(submit).to_be_enabled()
+    expect(compact).to_be_checked()
+    expect(page.locator(".lf-status-detail")).not_to_have_text(
+        re.compile(r"^Connecting")
+    )
 
 
 def test_a_broken_optional_page_interface_does_not_withhold_presentation(
@@ -1459,21 +1428,16 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
         });
         """
     )
-    try:
-        page.goto(serve(source), wait_until="load")
-        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-        expect(
-            page.get_by_role("heading", name="Still a readable page")
-        ).to_be_visible()
-        errors = consume_browser_errors(
-            page, "interaction gallery failed to start", "optional sibling failed"
-        )
-        matching = [
-            error for error in errors if "interaction gallery failed to start" in error
-        ]
-        assert len(matching) == 1, errors
-    finally:
-        page.close()
+    page.goto(serve(source), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.get_by_role("heading", name="Still a readable page")).to_be_visible()
+    errors = consume_browser_errors(
+        page, "interaction gallery failed to start", "optional sibling failed"
+    )
+    matching = [
+        error for error in errors if "interaction gallery failed to start" in error
+    ]
+    assert len(matching) == 1, errors
 
 
 def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
@@ -1511,36 +1475,33 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     page = context.new_page()
     watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(url, wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        assert held, "the positive control did not hold the first state response"
-        body = page.locator("body")
-        expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
-        expect(page.locator(".lf-asks")).to_be_hidden()
-        expect(page.locator(".lf-asks-panel")).to_be_hidden()
-        expect(page.locator(".lf-answer-all")).to_be_hidden()
+    page.goto(url, wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the first state response"
+    body = page.locator("body")
+    expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
+    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    expect(page.locator(".lf-answer-all")).to_be_hidden()
 
-        comments = page.get_by_role("button", name=re.compile("^Threads"))
-        expect(comments).to_be_enabled()
-        comments.click()
-        expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
-        expect(page.locator(".lf-general textarea")).to_be_editable()
+    comments = page.get_by_role("button", name=re.compile("^Threads"))
+    expect(comments).to_be_enabled()
+    comments.click()
+    expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
+    expect(page.locator(".lf-general textarea")).to_be_editable()
 
-        held.pop(0).continue_()
-        page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        decisions = page.locator(".lf-asks")
-        expect(decisions).to_be_visible()
-        expect(decisions).to_have_text("Asks 1/1")
-        expect(decisions).to_have_attribute("data-lf-complete", "")
-        expect(decisions).to_have_attribute("aria-expanded", "false")
-        expect(page.locator(".lf-asks-panel")).to_be_hidden()
-        expect(page.locator(".lf-thread-panel")).to_be_visible()
-        expect(page.locator("button.lf-asks-row")).to_have_count(0)
-        expect(page.locator(".lf-answer-all")).to_be_hidden()
-    finally:
-        context.close()
+    held.pop(0).continue_()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
+    decisions = page.locator(".lf-asks")
+    expect(decisions).to_be_visible()
+    expect(decisions).to_have_text("Asks 1/1")
+    expect(decisions).to_have_attribute("data-lf-complete", "")
+    expect(decisions).to_have_attribute("aria-expanded", "false")
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    expect(page.locator("button.lf-asks-row")).to_have_count(0)
+    expect(page.locator(".lf-answer-all")).to_be_hidden()
 
 
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
@@ -1559,23 +1520,20 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
-    try:
-        with page.expect_request("**/vendor/marked.esm.js"):
-            page.goto(url, wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        assert held, "the positive control did not hold the Markdown renderer"
+    with page.expect_request("**/vendor/marked.esm.js"):
+        page.goto(url, wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the Markdown renderer"
 
-        page.get_by_role("button", name=re.compile("^Threads")).click()
-        expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
-        expect(page.locator(".lf-thread")).to_have_count(0)
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
+    expect(page.locator(".lf-thread")).to_have_count(0)
 
-        held.pop(0).continue_()
-        page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator(".lf-empty")).to_have_count(0)
-        expect(page.locator(".lf-thread")).to_have_count(1)
-        expect(page.locator(".lf-msg-body strong")).to_have_text("comment")
-    finally:
-        page.close()
+    held.pop(0).continue_()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator(".lf-empty")).to_have_count(0)
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-msg-body strong")).to_have_text("comment")
 
 
 def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
@@ -1588,20 +1546,17 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
     watched(page)
     page.add_init_script(FIRST_PRESENTATION)
     page.route("**/api/state*", refuse)
-    try:
-        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
-        page.wait_for_function(
-            "() => document.body.dataset.lfUpgraded === '1'"
-            " && document.body.dataset.lfPresented === '1'"
-        )
-        expect(page.locator("main")).to_be_visible()
-        expect(page.locator(".lf-status-detail")).to_have_text(
-            "Server offline — reconnecting. Keep this page open so pending changes can send."
-        )
-        assert page.locator("body").get_attribute("data-lf-applied") is None
-        assert page.evaluate("() => window.__lfPresentation.releases") == 1
-    finally:
-        page.close()
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    page.wait_for_function(
+        "() => document.body.dataset.lfUpgraded === '1'"
+        " && document.body.dataset.lfPresented === '1'"
+    )
+    expect(page.locator("main")).to_be_visible()
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
+    )
+    assert page.locator("body").get_attribute("data-lf-applied") is None
+    assert page.evaluate("() => window.__lfPresentation.releases") == 1
 
 
 def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
@@ -1625,20 +1580,18 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
             status=200, content_type="application/json", body="{}"
         ),
     )
-    try:
-        with page.expect_console_message(
-            predicate=lambda message: "page failed to start" in message.text
-        ):
-            page.goto(url, wait_until="load")
-        expect(page.locator(".lf-status-detail")).to_contain_text("reload")
-        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-        expect(page.locator("#sug lf-old")).to_be_visible()
-        assert (
-            page.evaluate("() => getComputedStyle(document.body, '::after').content")
-            == "none"
-        )
-    finally:
-        page.close()
+    with page.expect_console_message(
+        predicate=lambda message: "page failed to start" in message.text
+    ):
+        page.goto(url, wait_until="load")
+    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#sug lf-old")).to_be_visible()
+    assert (
+        page.evaluate("() => getComputedStyle(document.body, '::after').content")
+        == "none"
+    )
+    consume_browser_errors(page, "page failed to start")
 
 
 def test_visual_actions_arrive_only_after_authoritative_presentation(browser, serve):
@@ -1648,24 +1601,19 @@ def test_visual_actions_arrive_only_after_authoritative_presentation(browser, se
     held = []
     page.add_init_script(VISUAL_ACTION_TIMING)
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(serve(CHART_PAGE), wait_until="load")
-        page.wait_for_function(
-            "() => document.querySelectorAll('lf-chart.lf-rendered').length === 5"
-        )
-        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-        expect(page.locator(".lf-visual-actions")).to_have_count(0)
-        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+    page.goto(serve(CHART_PAGE), wait_until="load")
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-chart.lf-rendered').length === 5"
+    )
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-visual-actions")).to_have_count(0)
+    assert page.evaluate("() => window.__lfVisualActionInsertions") == []
 
-        assert held, (
-            "the first state read completed before the startup boundary was read"
-        )
-        held.pop(0).continue_()
-        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-        expect(page.locator(".lf-visual-actions")).to_have_count(5)
-        assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
-    finally:
-        page.close()
+    assert held, "the first state read completed before the startup boundary was read"
+    held.pop(0).continue_()
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-visual-actions")).to_have_count(5)
+    assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
 
 
 def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve):
@@ -1674,32 +1622,28 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve
     held = []
     page.add_init_script(VISUAL_ACTION_TIMING)
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(
-            serve(
-                GENERIC_VISUAL_PAGE,
-                layer_registry=GENERIC_VISUAL_LAYER,
-                layer_widgets=GENERIC_VISUAL_WIDGETS,
-            ),
-            wait_until="load",
-        )
-        page.wait_for_function(
-            "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
-        )
-        page.locator("lf-test-visual").evaluate(
-            "visual => { visual.parts[1] = {...visual.parts[0]}; }"
-        )
-        assert held, "the first state read completed before the visual was malformed"
-        held.pop(0).continue_()
+    page.goto(
+        serve(
+            GENERIC_VISUAL_PAGE,
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=GENERIC_VISUAL_WIDGETS,
+        ),
+        wait_until="load",
+    )
+    page.wait_for_function(
+        "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
+    )
+    page.locator("lf-test-visual").evaluate(
+        "visual => { visual.parts[1] = {...visual.parts[0]}; }"
+    )
+    assert held, "the first state read completed before the visual was malformed"
+    held.pop(0).continue_()
 
-        expect(page.locator(".lf-status-detail")).to_contain_text(
-            "reload", timeout=5000
-        )
-        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-        expect(page.locator(".lf-visual-actions")).to_have_count(0)
-        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
-    finally:
-        page.close()
+    expect(page.locator(".lf-status-detail")).to_contain_text("reload", timeout=5000)
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-visual-actions")).to_have_count(0)
+    assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+    consume_browser_errors(page, "registered part outer twice")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
@@ -1742,13 +1686,14 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator(".lf-signoff")).to_be_disabled()
     finally:
         page.close()
+    # As above: the malformed answer is given to every read, and the page keeps
+    # asking, so the list is settled by the page ending rather than by a wait.
+    consume_browser_errors(page, "read failed: Unexpected token")
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):
     """CSS never turns a broken root module into a blank or blocking page."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    failures = []
-    page.on("pageerror", lambda error: failures.append(error))
     page.route(
         "**/leaf.js",
         lambda route: route.fulfill(
@@ -1757,17 +1702,14 @@ def test_a_root_module_failure_leaves_authored_document_readable(browser, serve)
             body="throw new Error('root module failed')",
         ),
     )
-    try:
-        page.goto(serve(SHORT_SUGGESTION), wait_until="load")
-        assert failures and "root module failed" in str(failures[0])
-        expect(page.locator("main")).to_be_visible()
-        expect(page.locator("h1")).to_have_text("Short")
-        assert (
-            page.evaluate("() => getComputedStyle(document.body, '::after').content")
-            == "none"
-        )
-    finally:
-        page.close()
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    consume_browser_errors(page, "root module failed")
+    expect(page.locator("main")).to_be_visible()
+    expect(page.locator("h1")).to_have_text("Short")
+    assert (
+        page.evaluate("() => getComputedStyle(document.body, '::after').content")
+        == "none"
+    )
 
 
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
@@ -1795,12 +1737,9 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
         "**/api/state*",
         lambda route: refuse(route) if next(polls) == 0 else route.continue_(),
     )
-    try:
-        page = open_page(browser, url.replace("v1.html", "v2.html"), context=context)
-        open_versions(page)
-        expect(page.locator(".lf-version-menu")).to_be_visible()
-    finally:
-        context.close()
+    page = open_page(browser, url.replace("v1.html", "v2.html"), context=context)
+    open_versions(page)
+    expect(page.locator(".lf-version-menu")).to_be_visible()
 
 
 def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
@@ -2337,7 +2276,6 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         for route in held:
             route.continue_()
         page.unroute_all(behavior="wait")
-        page.close()
 
 
 def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):
@@ -2654,13 +2592,10 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     page.add_init_script(delay_state_body_past_deadline)
-    try:
-        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-        expect(page.locator(".lf-status-detail")).to_contain_text(
-            "Server offline — reconnecting"
-        )
-    finally:
-        page.close()
+    page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+    expect(page.locator(".lf-status-detail")).to_contain_text(
+        "Server offline — reconnecting"
+    )
 
 
 def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, serve):
@@ -2700,15 +2635,12 @@ def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, s
     # an answer asks again only when its news moves, so refusing the reads is how a
     # second one is reached without waiting on the server to say something new.
     page.route("**/api/state*", refuse)
-    try:
-        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-        expect(page.locator("body[data-lf-presented]")).to_have_count(1)
-        page.wait_for_function("() => window.__leafReadBounds.length >= 2")
-        bounds = page.evaluate("() => window.__leafReadBounds")
-        assert bounds[0] == 120_000, bounds
-        assert bounds[1] == 10_000, bounds
-    finally:
-        page.close()
+    page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+    expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+    page.wait_for_function("() => window.__leafReadBounds.length >= 2")
+    bounds = page.evaluate("() => window.__leafReadBounds")
+    assert bounds[0] == 120_000, bounds
+    assert bounds[1] == 10_000, bounds
 
 
 def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
@@ -2742,29 +2674,26 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
     page.add_init_script(shorten_the_first_long_wait)
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-        expect(page.locator("body[data-lf-presented]")).to_have_count(1)
-        expect(page.locator(".lf-status-detail")).to_contain_text(
-            "Server offline — reconnecting"
-        )
-        assert page.evaluate("() => window.__leafPresentationWait") >= 10_000
+    page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+    expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+    expect(page.locator(".lf-status-detail")).to_contain_text(
+        "Server offline — reconnecting"
+    )
+    assert page.evaluate("() => window.__leafPresentationWait") >= 10_000
 
-        # The read the page presented without is still the one it is waiting on. Ticks of
-        # the shared clock pass with the slot held, and none of them opens a second read.
-        page.wait_for_timeout(4000)
-        assert len(held) == 1, held
-        assert not page.locator("body[data-lf-presented]").evaluate(
-            "body => body.dataset.lfReading ?? ''"
-        )
+    # The read the page presented without is still the one it is waiting on. Ticks of
+    # the shared clock pass with the slot held, and none of them opens a second read.
+    page.wait_for_timeout(4000)
+    assert len(held) == 1, held
+    assert not page.locator("body[data-lf-presented]").evaluate(
+        "body => body.dataset.lfReading ?? ''"
+    )
 
-        held[0].fulfill(json=held[0].fetch().json())
-        told(page)
-        expect(page.locator(".lf-status-detail")).not_to_contain_text(
-            "Server offline — reconnecting"
-        )
-    finally:
-        page.close()
+    held[0].fulfill(json=held[0].fetch().json())
+    told(page)
+    expect(page.locator(".lf-status-detail")).not_to_contain_text(
+        "Server offline — reconnecting"
+    )
 
 
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
@@ -4478,7 +4407,6 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         "# Leaf\n\nOriginal instructions.\n"
     )
     assert copy.locator("script").count() == 0
-    copy.close()
 
 
 def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
@@ -5061,7 +4989,6 @@ def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, se
         }"""
     )
     assert result is True
-    page.close()
 
 
 def test_data_written_during_fresh_revision_startup_waits_for_activation(

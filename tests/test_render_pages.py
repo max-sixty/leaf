@@ -1454,7 +1454,11 @@ def test_a_label_that_does_not_close_on_its_line_is_refused(browser, serve):
     Both halves are silent: the reader sees a box showing an id beside a node the
     source never names. The refusal is about the delimiter, not the quotes — an
     unquoted label and a subgraph title break the same way, while a lone quote
-    inside a label that does close is text the renderer draws.
+    inside a label that does close is text the renderer draws. Mermaid carries
+    label text in three places, so all three are read: a node's shape, an edge's
+    pipes, and the text a link opens before its terminator. A label that does
+    close is walked past whatever it holds, so an unpaired delimiter inside one
+    stays the text the renderer draws it as.
     """
     spans = leaf_page(
         "diagram spans",
@@ -1483,6 +1487,11 @@ flowchart LR
   A --&gt;|"carries
 a load"| B
 </pre></lf-diagram>
+<lf-diagram id="edge-text-span"><pre>
+flowchart LR
+  A -- carries
+a load --&gt; B
+</pre></lf-diagram>
 <lf-diagram id="line-break" parts="node:A node:B"><pre>
 flowchart LR
   A["first line&lt;br/&gt;second line"] --&gt; B["b"]
@@ -1495,6 +1504,14 @@ flowchart LR
 flowchart LR
   A[call foo(bar] --&gt; B[plain]
 </pre></lf-diagram>
+<lf-diagram id="unclosed-inside-edge-text" parts="node:A node:B"><pre>
+flowchart LR
+  A -- pay(cash --&gt; B
+</pre></lf-diagram>
+<lf-diagram id="pipe-inside-edge-text" parts="node:A node:B"><pre>
+flowchart LR
+  A -- "a|b" --&gt; B
+</pre></lf-diagram>
 <lf-diagram id="composite-state" parts="node:Active node:Idle node:Busy"><pre>
 stateDiagram-v2
   state Active {
@@ -1506,7 +1523,13 @@ stateDiagram-v2
     )
     page = open_page(browser, serve(spans))
 
-    for diagram in ("quoted-span", "plain-span", "subgraph-span", "edge-span"):
+    for diagram in (
+        "quoted-span",
+        "plain-span",
+        "subgraph-span",
+        "edge-span",
+        "edge-text-span",
+    ):
         expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(
             "a label must close on the line that opens it"
         )
@@ -1520,6 +1543,8 @@ stateDiagram-v2
         "line-break",
         "lone-quote",
         "unclosed-inside-label",
+        "unclosed-inside-edge-text",
+        "pipe-inside-edge-text",
         "composite-state",
     ):
         expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)
@@ -1529,6 +1554,10 @@ stateDiagram-v2
     expect(page.locator('#unclosed-inside-label g[data-id="A"] text')).to_have_text(
         "call foo(bar"
     )
+    # The node an edge-text link points at is what the renderer drops when it stops
+    # reading the line, so B standing is what says the whole statement was read.
+    for diagram in ("unclosed-inside-edge-text", "pipe-inside-edge-text"):
+        expect(page.locator(f'#{diagram} g[data-id="B"]')).to_be_visible()
     expect(page.locator('#composite-state g[data-id="Busy"]')).to_be_visible()
 
 

@@ -75,15 +75,27 @@ const rejectCutLabel = (source) => {
  * box labelled with its own id beside a node the source never names. Refuse a line that
  * opens a label it does not close, and say how Mermaid carries a second line instead.
  *
- * A label opens where a shape delimiter follows a node id, and where a pipe follows an
- * edge's arrow; each closes on its own character. Walking past every label that does
- * close keeps a delimiter inside label text from reading as an opening, since the parser
- * takes the label lazily and `A[call foo(bar]` renders today. Only `graph` and
- * `flowchart` sources are read this way: a state, class, or ER body opens a brace on one
- * line and closes it on another, which is that grammar working. */
+ * Mermaid carries label text in three places, so the walk reads all three: a shape
+ * delimiter after a node id, a pipe after an edge's arrow, and the text an unarrowed
+ * link opens before its terminator (`A -- text --> B`). Each closes on what the parser
+ * accepts for that opener, the link's terminators being its own `-->|---|.->|-.-|==>|===`
+ * set. Walking past every label that does close keeps a delimiter inside label text from
+ * reading as an opening, since the parser takes the label lazily and `A[call foo(bar]`
+ * and `A -- pay(cash --> B` both render today. Only `graph` and `flowchart` sources are
+ * read this way: a state, class, or ER body opens a brace on one line and closes it on
+ * another, which is that grammar working. */
 const FLOWCHART_HEADER = /^(?:graph|flowchart)\b/i;
-const LABEL_OPENING = /(?<![\w-])[\w][\w-]*([[({])|(\|)/g;
-const LABEL_CLOSER = { "[": "]", "(": ")", "{": "}", "|": "|" };
+const LABEL_OPENING =
+  /(?<![\w-])[\w][\w-]*(?<shape>[[({])|(?<pipe>\|)|(?<![-.=])(?<link>--|-\.|==)(?=\s)/g;
+const LABEL_CLOSER = {
+  "[": /]/g,
+  "(": /\)/g,
+  "{": /}/g,
+  "|": /\|/g,
+  "--": /-->|---/g,
+  "-.": /\.->|-\.-/g,
+  "==": /==>|===/g,
+};
 const rejectUnclosedLabel = (source) => {
   const lines = source.split("\n").map((line) => line.trim());
   const header = lines.findIndex((line) => line && !COMMENT_LINE.test(line));
@@ -92,16 +104,18 @@ const rejectUnclosedLabel = (source) => {
     if (!line || COMMENT_LINE.test(line)) continue;
     LABEL_OPENING.lastIndex = 0;
     for (let opening; (opening = LABEL_OPENING.exec(line));) {
-      const closer = LABEL_CLOSER[opening[1] ?? opening[2]];
-      const closes = line.indexOf(closer, opening.index + opening[0].length);
-      if (closes === -1)
+      const { shape, pipe, link } = opening.groups;
+      const closer = LABEL_CLOSER[shape ?? pipe ?? link];
+      closer.lastIndex = opening.index + opening[0].length;
+      const closes = closer.exec(line);
+      if (!closes)
         throw new Error(
           "a label must close on the line that opens it — the renderer ends every " +
             "statement at the newline, so the rest of this one is dropped and the " +
             "next line is read as a node; carry a second line inside the label with " +
             `<br/> or \\n: "${line}"`,
         );
-      LABEL_OPENING.lastIndex = closes + 1;
+      LABEL_OPENING.lastIndex = closes.index + closes[0].length;
     }
   }
 };

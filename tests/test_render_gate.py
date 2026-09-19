@@ -2344,14 +2344,11 @@ def test_every_aim_the_layer_offers_takes_a_finger(browser, serve):
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, has_touch=True
     )
-    try:
-        page = open_page(browser, serve(CORPUS_PAGE), context=context)
-        assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
-            "the touch fixture never reached Leaf's coarse-pointer rules"
-        )
-        measured = page.evaluate(AIM_BOXES, aim_selectors())
-    finally:
-        context.close()
+    page = open_page(browser, serve(CORPUS_PAGE), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
+        "the touch fixture never reached Leaf's coarse-pointer rules"
+    )
+    measured = page.evaluate(AIM_BOXES, aim_selectors())
 
     assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
     assert measured["seen"] > 50, f"only {measured['seen']} aims stood on the corpus"

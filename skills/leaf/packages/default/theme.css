@@ -2101,6 +2101,12 @@ lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--h
    is the part a grid could move. */
 lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
              width: max-content; min-width: 100%; box-sizing: border-box; }
+/* max-content is the unwrapped line, so the sheet's wrap finds no break to take while
+   it stands and the row draws its full width through the block's border. Paper gives
+   the width back, and the line wraps inside the frame with its gutter on the first row.
+   Screen keeps the scroller: sideways is a gesture there and the column still means
+   something. */
+@media print { lf-code .lf-code-line { width: auto; } }
 lf-code .lf-code-line::before { counter-increment: lf-code-line;
              content: counter(lf-code-line); display: inline-block; width: 38px;
              margin-right: 8px; padding-right: 10px; box-sizing: border-box;

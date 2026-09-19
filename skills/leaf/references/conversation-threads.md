@@ -91,6 +91,14 @@ null current anchor and the prior anchor as `detached_from`. A later reply may m
 to a genuine replacement. Open a new thread for a different subject. Held command-goal
 threads cannot move or detach, and a version-response thread cannot take a reply.
 
+A declared visual part is held only while a live conversation's current anchor names
+it, so a version may drop the part once every thread on it has moved, detached, or
+been resolved, and `version check` names those three moves while one still holds it.
+Move or detach rather than resolving a thread whose part you are about to remove: the
+reader can reopen a resolved thread, and it comes back pointing at a coordinate no
+revision declares any more, while a detached thread reads as **No longer in this
+version** and a later reply may still move it to a replacement.
+
 Fragment links such as `[the decision](#decision)` take the reader to page
 content. `--markup` adds a validated widget after reply text; its ids must be new.
 An ordinary reply answers the thread without adding it to the outstanding Ask

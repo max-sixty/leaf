@@ -1443,6 +1443,95 @@ flowchart LR
     )
 
 
+def test_a_label_that_does_not_close_on_its_line_is_refused(browser, serve):
+    """A label the renderer never finishes reading takes the diagram down.
+
+    Beautiful Mermaid splits the source into lines and reads each one as a
+    complete statement; there is no continuation. A label opened on one line and
+    closed on the next therefore matches no shape pattern, so the bare-id
+    fallback takes the id alone and drops the rest of the line, and the
+    continuation is read as a fresh statement whose first word becomes a node.
+    Both halves are silent: the reader sees a box showing an id beside a node the
+    source never names. The refusal is about the delimiter, not the quotes — an
+    unquoted label and a subgraph title break the same way, while a lone quote
+    inside a label that does close is text the renderer draws.
+    """
+    spans = leaf_page(
+        "diagram spans",
+        """
+<h1 id="title">Diagram spans</h1>
+<lf-diagram id="quoted-span"><pre>
+flowchart LR
+  A["first line
+second line"]
+  A --&gt; B["b"]
+</pre></lf-diagram>
+<lf-diagram id="plain-span"><pre>
+flowchart LR
+  A[first line
+second line] --&gt; B[plain]
+</pre></lf-diagram>
+<lf-diagram id="subgraph-span"><pre>
+flowchart LR
+  subgraph S["Stage
+two"]
+    A[x] --&gt; B[y]
+  end
+</pre></lf-diagram>
+<lf-diagram id="edge-span"><pre>
+flowchart LR
+  A --&gt;|"carries
+a load"| B
+</pre></lf-diagram>
+<lf-diagram id="line-break" parts="node:A node:B"><pre>
+flowchart LR
+  A["first line&lt;br/&gt;second line"] --&gt; B["b"]
+</pre></lf-diagram>
+<lf-diagram id="lone-quote" parts="node:A node:B"><pre>
+flowchart LR
+  A[5" pipe] --&gt; B[plain]
+</pre></lf-diagram>
+<lf-diagram id="unclosed-inside-label" parts="node:A node:B"><pre>
+flowchart LR
+  A[call foo(bar] --&gt; B[plain]
+</pre></lf-diagram>
+<lf-diagram id="composite-state" parts="node:Active node:Idle node:Busy"><pre>
+stateDiagram-v2
+  state Active {
+    [*] --&gt; Idle
+    Idle --&gt; Busy
+  }
+</pre></lf-diagram>
+""",
+    )
+    page = open_page(browser, serve(spans))
+
+    for diagram in ("quoted-span", "plain-span", "subgraph-span", "edge-span"):
+        expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(
+            "a label must close on the line that opens it"
+        )
+        expect(page.locator(f"#{diagram} svg")).to_have_count(0)
+
+    # The line-oriented reading is the fault, so the refusal names the two ways
+    # Mermaid actually carries a second line inside one label.
+    expect(page.locator("#quoted-span .lf-error")).to_contain_text("<br/>")
+
+    for diagram in (
+        "line-break",
+        "lone-quote",
+        "unclosed-inside-label",
+        "composite-state",
+    ):
+        expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)
+        expect(page.locator(f"#{diagram} svg")).to_have_count(1)
+    expect(page.locator('#line-break g[data-id="A"] tspan')).to_have_count(2)
+    expect(page.locator('#lone-quote g[data-id="A"] text')).to_have_text('5" pipe')
+    expect(page.locator('#unclosed-inside-label g[data-id="A"] text')).to_have_text(
+        "call foo(bar"
+    )
+    expect(page.locator('#composite-state g[data-id="Busy"]')).to_be_visible()
+
+
 def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     """A diagram keeps the natural geometry its renderer laid out.
 

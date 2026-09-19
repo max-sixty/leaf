@@ -14,7 +14,6 @@ from leaf.mcp_page import (
     PAGE_FORMAT,
     PAGE_READY_SOURCE,
     PAGE_RESOURCE_URI,
-    ProcessPageServer,
     page_state,
 )
 from leaf.mcp_server import make_mcp_server
@@ -36,7 +35,9 @@ def call(server, name, arguments):
     return run_async(invoke)
 
 
-def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path):
+def test_process_server_multiplexes_pages_on_one_exact_origin(
+    page_dir, tmp_path, page_server
+):
     activate(page_dir)
     append_event(
         page_dir,
@@ -50,95 +51,85 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
     )
     second = tmp_path / "second"
     shutil.copytree(page_dir, second)
-    pages = ProcessPageServer()
+    first_url = page_server.open(page_dir)
+    second_url = page_server.open(second)
+
+    assert urlsplit(first_url).scheme == "http"
+    assert urlsplit(first_url).hostname == "localhost"
+    assert urlsplit(first_url).netloc == urlsplit(second_url).netloc
+    assert urlsplit(first_url).path != urlsplit(second_url).path
+    assert urlsplit(first_url).query == ""
+    assert page_server.open(page_dir) == first_url
+
+    with urllib.request.urlopen(first_url) as response:
+        html = response.read().decode()
+        assert response.headers.get("Set-Cookie") is None
+        assert response.headers.get("Content-Security-Policy") is None
+    root = urlsplit(first_url).path.rstrip("/")
+    assets = f"{root}/revisions/{revision_path(page_dir, 1).stem}"
+    assert f'src="{assets}/leaf.js"' in html
+    assert f'href="{assets}/theme.css"' in html
+    assert (
+        f'<script type="module" src="{root}/mcp-ready.js" '
+        "data-lf-runtime></script>" in html
+    )
+
+    with urllib.request.urlopen(f"{page_server.origin}{root}/mcp-ready.js") as response:
+        assert response.headers.get_content_type() == "text/javascript"
+        ready = response.read()
+    assert ready == PAGE_READY_SOURCE.read_bytes()
+    assert b'window.parent.postMessage({ type: "leaf:mcp-page-ready" }, "*")' in ready
+
+    with urllib.request.urlopen(
+        f"{page_server.origin}{assets}/runtime/layer-client.js"
+    ) as response:
+        runtime = response.read().decode()
+    assert f'fetch("{root}/api/event"' in runtime
+
+    with urllib.request.urlopen(
+        f"{page_server.origin}{assets}/widgets/lf-options.js"
+    ) as response:
+        widget = response.read().decode()
+    assert f'from "{assets}/runtime/widget-api.js"' in widget
+
+    with urllib.request.urlopen(f"{page_server.origin}{root}/api/state") as response:
+        state = json.load(response)
+    assert state["active"]["url"].startswith(f"{root}/revisions/")
+    assert state["versions"] == [
+        {"version": 1, "revision": 1, "url": f"{root}/versions/v1.html"}
+    ]
+    with urllib.request.urlopen(
+        f"{page_server.origin}{state['versions'][0]['url']}"
+    ) as response:
+        assert response.headers.get("Content-Security-Policy") is None
+        assert f'src="{assets}/leaf.js"' in response.read().decode()
+
     try:
-        first_url = pages.open(page_dir)
-        second_url = pages.open(second)
+        urllib.request.urlopen(f"{page_server.origin}/api/state")
+    except urllib.error.HTTPError as error:
+        assert error.code == 404
+    else:  # pragma: no cover - the assertion explains the capability boundary
+        raise AssertionError("unscoped page route was reachable")
 
-        assert urlsplit(first_url).scheme == "http"
-        assert urlsplit(first_url).hostname == "localhost"
-        assert urlsplit(first_url).netloc == urlsplit(second_url).netloc
-        assert urlsplit(first_url).path != urlsplit(second_url).path
-        assert urlsplit(first_url).query == ""
-        assert pages.open(page_dir) == first_url
+    assert not (page_dir / "service.json").exists()
+    assert not (second / "service.json").exists()
 
-        with urllib.request.urlopen(first_url) as response:
-            html = response.read().decode()
-            assert response.headers.get("Set-Cookie") is None
-            assert response.headers.get("Content-Security-Policy") is None
-        root = urlsplit(first_url).path.rstrip("/")
-        assets = f"{root}/revisions/{revision_path(page_dir, 1).stem}"
-        assert f'src="{assets}/leaf.js"' in html
-        assert f'href="{assets}/theme.css"' in html
-        assert (
-            f'<script type="module" src="{root}/mcp-ready.js" '
-            "data-lf-runtime></script>" in html
-        )
-
-        with urllib.request.urlopen(f"{pages.origin}{root}/mcp-ready.js") as response:
-            assert response.headers.get_content_type() == "text/javascript"
-            ready = response.read()
-        assert ready == PAGE_READY_SOURCE.read_bytes()
-        assert (
-            b'window.parent.postMessage({ type: "leaf:mcp-page-ready" }, "*")' in ready
-        )
-
-        with urllib.request.urlopen(
-            f"{pages.origin}{assets}/runtime/layer-client.js"
-        ) as response:
-            runtime = response.read().decode()
-        assert f'fetch("{root}/api/event"' in runtime
-
-        with urllib.request.urlopen(
-            f"{pages.origin}{assets}/widgets/lf-options.js"
-        ) as response:
-            widget = response.read().decode()
-        assert f'from "{assets}/runtime/widget-api.js"' in widget
-
-        with urllib.request.urlopen(f"{pages.origin}{root}/api/state") as response:
-            state = json.load(response)
-        assert state["active"]["url"].startswith(f"{root}/revisions/")
-        assert state["versions"] == [
-            {"version": 1, "revision": 1, "url": f"{root}/versions/v1.html"}
-        ]
-        with urllib.request.urlopen(
-            f"{pages.origin}{state['versions'][0]['url']}"
-        ) as response:
-            assert response.headers.get("Content-Security-Policy") is None
-            assert f'src="{assets}/leaf.js"' in response.read().decode()
-
-        try:
-            urllib.request.urlopen(f"{pages.origin}/api/state")
-        except urllib.error.HTTPError as error:
-            assert error.code == 404
-        else:  # pragma: no cover - the assertion explains the capability boundary
-            raise AssertionError("unscoped page route was reachable")
-
-        assert not (page_dir / "service.json").exists()
-        assert not (second / "service.json").exists()
-
-        (page_dir / "registry.json").unlink()
-        with urllib.request.urlopen(f"{pages.origin}{root}/api/state") as response:
-            state = json.load(response)
-        assert state["active"]["revision"] == 1
-        assert state["source_error"]
-        assert state["browser"] is not None
-    finally:
-        pages.close()
+    (page_dir / "registry.json").unlink()
+    with urllib.request.urlopen(f"{page_server.origin}{root}/api/state") as response:
+        state = json.load(response)
+    assert state["active"]["revision"] == 1
+    assert state["source_error"]
+    assert state["browser"] is not None
 
 
-def test_page_result_keeps_the_capability_private(page_dir):
+def test_page_result_keeps_the_capability_private(page_dir, page_server):
     activate(page_dir)
-    pages = ProcessPageServer()
-    try:
-        summary, private = page_state(str(page_dir), pages)
-        server = make_mcp_server(
-            pages,
-            presentation_html="<!doctype html><title>Leaf app</title>",
-        )
-        result = call(server, "leaf_present", {"page": str(page_dir)})
-    finally:
-        pages.close()
+    summary, private = page_state(str(page_dir), page_server)
+    server = make_mcp_server(
+        page_server,
+        presentation_html="<!doctype html><title>Leaf app</title>",
+    )
+    result = call(server, "leaf_present", {"page": str(page_dir)})
 
     assert summary == result.structured_content
     assert summary["format"] == PAGE_FORMAT
@@ -150,20 +141,18 @@ def test_page_result_keeps_the_capability_private(page_dir):
     assert result.meta["leaf"]["inline_url"] == private["inline_url"]
 
 
-def test_registered_server_uses_one_adaptive_resource_for_every_presentation():
-    pages = ProcessPageServer()
-    try:
-        server = make_mcp_server(
-            pages,
-            presentation_html="<!doctype html><title>Leaf app</title>",
-        )
+def test_registered_server_uses_one_adaptive_resource_for_every_presentation(
+    page_server,
+):
+    server = make_mcp_server(
+        page_server,
+        presentation_html="<!doctype html><title>Leaf app</title>",
+    )
 
-        async def inspect():
-            return await server.list_tools(), await server.list_resources()
+    async def inspect():
+        return await server.list_tools(), await server.list_resources()
 
-        tools, resources = run_async(inspect)
-    finally:
-        pages.close()
+    tools, resources = run_async(inspect)
 
     by_name = {tool.name: tool for tool in tools}
     assert set(by_name) == {
@@ -205,7 +194,7 @@ def test_registered_server_uses_one_adaptive_resource_for_every_presentation():
             "csp": {
                 "connectDomains": [],
                 "resourceDomains": [],
-                "frameDomains": [pages.origin],
+                "frameDomains": [page_server.origin],
             },
             "prefersBorder": False,
         }

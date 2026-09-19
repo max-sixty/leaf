@@ -12,6 +12,7 @@ import pytest
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import machine as machine_model
+from leaf.mcp_page import ProcessPageServer
 from playwright.sync_api import sync_playwright
 
 # The canonical subprocess command. Tests of the installed host boundary invoke
@@ -211,6 +212,20 @@ def initialized_page(_page_pool):
     yield lend
     for name, page in lent:
         _page_pool.give_back(name, page)
+
+
+@pytest.fixture
+def page_server():
+    """The one HTTP origin an MCP host reads a run's pages through.
+
+    `ProcessPageServer` holds a socket and the thread serving it until it is
+    closed, and nine tests each made one and closed it in a `finally` of their
+    own. `close` is idempotent, so a test whose subject is the server going away
+    still closes it where the assertion after it reads that.
+    """
+    pages = ProcessPageServer()
+    yield pages
+    pages.close()
 
 
 def pytest_addoption(parser):

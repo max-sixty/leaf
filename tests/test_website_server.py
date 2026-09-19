@@ -54,6 +54,30 @@ benchmark_site = importlib.util.module_from_spec(_benchmark_spec)
 _benchmark_spec.loader.exec_module(benchmark_site)
 
 
+@pytest.fixture(autouse=True)
+def _no_host_outlives_its_test(monkeypatch):
+    """Close every website host a test made, as `_no_page_outlives_its_test` stops
+    every page server.
+
+    Closing stops the App Server a host started and releases the waiter lease it
+    holds over a Codex thread. The host is the subject here, built in each test
+    body with the paths that test needs, so the sweep takes every construction
+    rather than routing them through a fixture. `close` is idempotent, so a test
+    whose subject is closing still closes where its assertion reads the result.
+    """
+    made = []
+
+    class Swept(website_server.WebsiteCodexHost):
+        def __init__(self, *arguments, **named):
+            super().__init__(*arguments, **named)
+            made.append(self)
+
+    monkeypatch.setattr(website_server, "WebsiteCodexHost", Swept)
+    yield
+    for host in made:
+        host.close()
+
+
 # The response headers as the message, not a plain dict: header names are
 # case-insensitive and arrive lowercased, as they do in a browser.
 def get(url: str) -> tuple[bytes, Message]:
@@ -942,8 +966,19 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     launched = {}
 
     class Process:
+        """Running until it is told to stop, which is what the host does with it."""
+
+        def __init__(self):
+            self.stopped = False
+
         def poll(self):
-            return None
+            return 0 if self.stopped else None
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout=None):
+            return 0
 
     def popen(command, **options):
         launched.update(command=command, options=options)
@@ -1365,15 +1400,12 @@ def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
         raise website_server.AppServerRequestRejected("rejected")
 
     monkeypatch.setattr(host, "_send", reject)
-    try:
-        follow = host._start_turn(
-            "socket",
-            page_dir,
-            "hosted-thread",
-            type("Process", (), {"pid": os.getpid()})(),
-        )
-    finally:
-        host.close()
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
 
     assert (follow.turn_id, follow.leaf_turn) == (None, None)
     [(_, queue)] = codex_queues("hosted-thread")
@@ -1399,15 +1431,12 @@ def test_a_lost_turn_start_ack_keeps_streamed_reply_authority(page_dir, monkeypa
         "_send",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError("lost ack")),
     )
-    try:
-        follow = host._start_turn(
-            "socket",
-            page_dir,
-            "hosted-thread",
-            type("Process", (), {"pid": os.getpid()})(),
-        )
-    finally:
-        host.close()
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
 
     assert (follow.turn_id, follow.leaf_turn) == (None, None)
     assert follow.event_ids == (comment["id"],)
@@ -1637,7 +1666,6 @@ def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
     # Only the absence of an answer: a provider turn may still be running with no
     # observer, which is the shape of the incident this path was written for.
     assert reply["text"] == website_server.FAILURE_RECEIPTS["turn_failed"]
-    host.close()
 
 
 def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):

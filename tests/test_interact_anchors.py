@@ -205,6 +205,44 @@ def test_a_section_handed_a_message_owed_nothing_is_sent_to_to(page_dir):
     assert followed.exit_code == 0, followed.output
 
 
+def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
+    """A thread's response is owed by the thread, not by the message carrying it.
+
+    A message with nothing against its own id can sit in a conversation waiting on
+    one, and `--initiates` is refused for the whole thread. A refusal reading the
+    message's own obligation named `--initiates` there, which the writer it named
+    then refused — so both readings are one, and the route is the `--for` that the
+    guard would have demanded.
+    """
+    own = json.loads(
+        comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
+    )
+    asked = events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": own["id"], "text": "how long?"},
+    )
+
+    mistaken = comment(page_dir, "--section", own["id"], "--text", "more")
+    assert mistaken.exit_code != 0
+    assert (
+        f"{own['id']} is a comment in this page's log, and its conversation is owed "
+        f"a reply — `leaf reply <page> --for {asked['id']}` answers it"
+    ) in mistaken.output
+
+    # The writer the refusal names takes it, and the one it passed over says so too.
+    initiated = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--to", own["id"], "--initiates", "--text", "more"],
+    )
+    assert initiated.exit_code != 0
+    assert f"use `--for {asked['id']}` instead of --initiates" in initiated.output
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--for", asked["id"], "--text", "a week"],
+    )
+    assert answered.exit_code == 0, answered.output
+
+
 def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     """A route is only worth naming where the writer it names takes the value. What a
     writer takes is what the log still owes, not the event's kind: a resolve is owed

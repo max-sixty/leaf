@@ -30,7 +30,12 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
-from leaf.validation.admission import check_markup, logged_id, read_text_arg
+from leaf.validation.admission import (
+    check_markup,
+    logged_id,
+    read_text_arg,
+    thread_obligation,
+)
 
 
 def _messages(events: list) -> dict[str, dict]:
@@ -551,15 +556,11 @@ def cmd_reply(
                     f"event {for_event!r} is bound to this delivery's final message"
                 )
         else:
-            reply_roots = {
-                _thread_root(page_dir, events, response["to"])[0]
-                for response in responses.values()
-                if response["kind"] == "reply"
-            }
-            if root_id in reply_roots:
+            standing = thread_obligation(events, responses, root_id)
+            if standing is not None and standing["kind"] == "reply":
                 sys.exit(
                     f"conversation {root_id!r} currently requires a response; "
-                    "use the delivered --for event instead of --initiates"
+                    f"use `--for {standing['for']}` instead of --initiates"
                 )
         if only_if_unclaimed and any(
             event["kind"] == "pickup" and for_event in event["events"]

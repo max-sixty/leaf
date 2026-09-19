@@ -10,7 +10,7 @@ from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_registry
 from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument, parse_revision
-from leaf.thread_context import thread_structure
+from leaf.thread_context import thread_roots, thread_structure
 
 from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
@@ -42,6 +42,33 @@ def read_text_arg(page_dir: Path, text) -> str:
     return body
 
 
+def thread_obligation(events: list, responses: dict, message: str) -> dict | None:
+    """What the conversation holding one message still owes, if anything.
+
+    A thread's response is owed by the thread rather than by the message inside it
+    that happens to carry it, so a message with nothing against its own id can still
+    sit in a conversation waiting on one. Every writer that asks "does this message
+    take `--initiates`?" asks this, because two readings of the same question drift:
+    the refusal that named `--initiates` for a message owed nothing sent agents to a
+    writer refusing it on the thread's obligation, which is the dead end a refusal is
+    supposed to end.
+    """
+    roots = thread_roots(events)
+    root = roots.get(message, message)
+    return next(
+        (
+            response
+            for response in responses.values()
+            if (
+                response["kind"] == "reply"
+                and roots.get(response["to"], response["to"]) == root
+            )
+            or (response["kind"] == "version" and response["conversation"] == root)
+        ),
+        None,
+    )
+
+
 def logged_id(events: list, value: str, responses: dict) -> str | None:
     """Say what the page's log holds a bare id as, and which writer takes it now.
 
@@ -53,12 +80,13 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     it nothing to change but the guess. So every writer that refuses an id says what
     the log holds it as, and where it goes instead.
 
-    Where it goes is mostly what the log still owes for it, which is
-    `current_responses`: a reader's press is answered through `--for` until it is
-    answered and not after, a request through its receipt, and a resolve or an undo is
-    owed nothing at all. The one writer keyed on the kind is `--to`, which takes any
-    message; it is the route for a message owed nothing, since `--initiates` is
-    refused while a response is owed.
+    Where it goes is what the log still owes, which is `current_responses`: a
+    reader's press is answered through `--for` until it is answered and not after, a
+    request through its receipt, and a resolve or an undo is owed nothing at all. A
+    message is the one id whose writer turns on its conversation rather than on
+    itself — `--initiates` is refused while the thread owes a response, whichever of
+    its messages is owed it — so it is read through `thread_obligation`, the same
+    reading `cmd_reply`'s guard refuses on.
     """
     event = next((event for event in events if event.get("id") == value), None)
     if event is None:
@@ -67,12 +95,19 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     article = "an" if kind[:1] in "aeiou" else "a"
     held = f"{value} is {article} {kind} in this page's log"
     owed = responses.get(value)
-    if owed is None:
-        if kind in MESSAGE_KINDS:
+    if owed is None and kind in MESSAGE_KINDS:
+        owed = thread_obligation(events, responses, value)
+        if owed is None:
             return (
                 f"{held}, and nothing is owed for it — "
                 f"`leaf reply <page> --to {value} --initiates` replies to it"
             )
+        if owed["kind"] == "reply":
+            return (
+                f"{held}, and its conversation is owed a reply — "
+                f"`leaf reply <page> --for {owed['for']}` answers it"
+            )
+    if owed is None:
         return f"{held}, and nothing is owed for it"
     if owed["kind"] == "receipt":
         return f"{held} — `leaf receipt <page> {value} succeeded|failed` settles it"

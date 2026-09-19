@@ -13,7 +13,6 @@ import signal
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import urllib.parse
@@ -595,7 +594,44 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
 
 
 @pytest.fixture
-def codex_app_server():
+def app_server():
+    """Serve an App Server stand-in for one handler, until the test ends.
+
+    The observer under test connects over a real websocket, so a test that made its
+    own server owned three things: the server, the thread serving it, and the stop
+    that ends both. One of them ran that stop on the last line of the test body,
+    which is the line a failing assertion never reaches — the thread then served on
+    for the rest of the worker, holding its socket, under later tests that had
+    nothing to do with it.
+
+    Returns the endpoint to connect to: a loopback port, or the Unix socket path the
+    caller names.
+    """
+    serving = []
+
+    def serve(handle, socket_path=None) -> str:
+        server = (
+            serve_unix_websocket(handle, str(socket_path))
+            if socket_path
+            else serve_websocket(handle, "127.0.0.1", 0)
+        )
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        serving.append((server, worker))
+        return (
+            f"unix://{socket_path}"
+            if socket_path
+            else f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+        )
+
+    yield serve
+    for server, worker in reversed(serving):
+        server.shutdown()
+        worker.join(timeout=5)
+
+
+@pytest.fixture
+def codex_app_server(app_server):
     """A WebSocket App Server that emits two turns when the test advances it."""
     received = []
     observer_replies = []
@@ -705,23 +741,19 @@ def codex_app_server():
         )
         finish.wait(timeout=5)
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    port = server.socket.getsockname()[1]
     yield (
-        f"ws://127.0.0.1:{port}",
+        app_server(handle),
         received,
         observer_replies,
         first_turn,
         second_turn,
         finish,
     )
+    # Released here rather than left to the server's own stop, which would otherwise
+    # wait out the handler's five seconds on every test that used this.
     first_turn.set()
     second_turn.set()
     finish.set()
-    server.shutdown()
-    worker.join(timeout=5)
 
 
 def codex_queues(session_id: str) -> list[tuple[Path, dict]]:
@@ -1688,10 +1720,10 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
     assert observer_replies == []
 
 
-def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, request):
-    temporary = tempfile.TemporaryDirectory(prefix="leaf-test-", dir="/tmp")
-    request.addfinalizer(temporary.cleanup)
-    socket_path = Path(temporary.name) / "app-server.sock"
+def test_app_server_observer_connects_over_a_private_unix_socket(
+    monkeypatch, request, socket_dir, app_server
+):
+    socket_path = socket_dir / "app-server.sock"
     received = []
     request_headers = []
     release = threading.Event()
@@ -1720,13 +1752,9 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
         )
         release.wait(timeout=5)
 
-    server = serve_unix_websocket(handle, socket_path)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
+    endpoint = app_server(handle, socket_path)
     take_stream_activity(monkeypatch, [], [])
-    observer = codex_adapter_model.AppServerClient(
-        f"unix://{socket_path}", "codex-thread"
-    )
+    observer = codex_adapter_model.AppServerClient(endpoint, "codex-thread")
     request.addfinalizer(observer.stop)
 
     observer.start()
@@ -1734,8 +1762,6 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
     observer.stop()
     assert not observer.available.is_set()
     release.set()
-    server.shutdown()
-    worker.join(timeout=5)
 
     assert [message["method"] for message in received] == [
         "initialize",
@@ -1746,7 +1772,7 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
 
 
 def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
-    page_dir, request
+    page_dir, request, app_server
 ):
     activated = revisioning_model.activate_source(page_dir, [])
     assert activated.error is None and activated.revision == 1
@@ -1915,11 +1941,7 @@ def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
         )
         completed.set()
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(server.shutdown)
-    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+    endpoint = app_server(handle)
     observer = codex_adapter_model.AppServerClient(endpoint, "codex-thread")
     observer.start()
     request.addfinalizer(observer.stop)
@@ -2459,7 +2481,7 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     assert observer.events.turn_id is None
 
 
-def test_app_server_malformed_start_response_finishes_the_delivery(request):
+def test_app_server_malformed_start_response_finishes_the_delivery(request, app_server):
     """A broken connection must answer the delivery already removed from its queue."""
     received = threading.Event()
     release = threading.Event()
@@ -2488,11 +2510,7 @@ def test_app_server_malformed_start_response_finishes_the_delivery(request):
         socket.send("this is not json")
         release.wait(timeout=5)
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(server.shutdown)
-    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+    endpoint = app_server(handle)
     observer = codex_adapter_model.AppServerClient(endpoint, "codex-thread")
     observer.start()
     request.addfinalizer(observer.stop)
@@ -2518,7 +2536,9 @@ def test_app_server_malformed_start_response_finishes_the_delivery(request):
     release.set()
 
 
-def test_app_server_unexpected_notification_error_clears_availability(request):
+def test_app_server_unexpected_notification_error_clears_availability(
+    request, app_server
+):
     """Any observer failure must stop new deliveries before reconnecting."""
     sent = threading.Event()
     release = threading.Event()
@@ -2558,11 +2578,7 @@ def test_app_server_unexpected_notification_error_clears_availability(request):
         sent.set()
         release.wait(timeout=5)
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(server.shutdown)
-    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+    endpoint = app_server(handle)
     observer = codex_adapter_model.AppServerClient(endpoint, "codex-thread")
     observer.start()
     request.addfinalizer(observer.stop)
@@ -7734,7 +7750,7 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
 
 
 def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
-    server, page_dir, tmp_path, monkeypatch
+    server, page_dir, tmp_path, monkeypatch, socket_dir
 ):
     """A running turn's Stop hook refuses to end with a reader move unpicked, and a
     live `leaf wait` delivers one, so the move nobody picks up arrives at a Claude
@@ -7750,13 +7766,12 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
     accept once the POST has answered was never messaged."""
     closed = "2026-09-17T09:00:00+00:00"
     publish(page_dir)
-    sockets = Path(tempfile.mkdtemp(prefix="lf", dir="/tmp"))  # sun_path is short
     config = tmp_path / "claude"
     (config / "sessions").mkdir(parents=True)
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
     listeners = {}
     for pid, session_id in ((4101, "s1"), (4102, "s2")):
-        address = str(sockets / f"{pid}.sock")
+        address = str(socket_dir / f"{pid}.sock")
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         listener.bind(address)
         listener.listen()
@@ -7842,7 +7857,6 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
     finally:
         for listener in listeners.values():
             listener.close()
-        shutil.rmtree(sockets)
 
 
 def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(

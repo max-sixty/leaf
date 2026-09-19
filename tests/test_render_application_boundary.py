@@ -26,7 +26,6 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
-    watched,
 )
 
 PAGE_MODULE = """\
@@ -201,7 +200,6 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     round_trip(page)
     order = page.locator("#page-local").get_attribute("data-render-order")
     assert re.fullmatch(r"(?:render,subscribe,)+", order), order
-    page.close()
 
 
 def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve):
@@ -222,25 +220,23 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     )
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(url, wait_until="load")
-        page.wait_for_function(
-            "() => document.querySelector('#page-local')?.dataset.startupInvalidated"
-        )
-        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-        assert held, "the positive control did not hold the first authoritative state"
-        expect(page.locator("#page-local").get_by_role("button")).to_be_disabled()
-        expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
-        controller_renders = int(
-            page.locator("#page-local").get_attribute("data-controller-renders")
-        )
-        # The synchronous subscription paints once; the widget's deliberate startup
-        # defer/resume invalidation paints the same complete provisional reading once.
-        assert controller_renders == 2
-        waiting = page.evaluate(
-            """async () => {
+    page.goto(url, wait_until="load")
+    page.wait_for_function(
+        "() => document.querySelector('#page-local')?.dataset.startupInvalidated"
+    )
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    assert held, "the positive control did not hold the first authoritative state"
+    expect(page.locator("#page-local").get_by_role("button")).to_be_disabled()
+    expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
+    controller_renders = int(
+        page.locator("#page-local").get_attribute("data-controller-renders")
+    )
+    # The synchronous subscription paints once; the widget's deliberate startup
+    # defer/resume invalidation paints the same complete provisional reading once.
+    assert controller_renders == 2
+    waiting = page.evaluate(
+        """async () => {
               const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
               const runtime = await import(
                 new URL('runtime/semantic-state.js', new URL(entry, location.href)).href
@@ -256,22 +252,22 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
                 pending: presentation.pending,
               };
             }"""
-        )
-        assert waiting["phase"] == "waiting"
-        assert waiting["presented"] == waiting["epoch"]
-        assert waiting["pending"] == []
-        assert page.evaluate(
-            "document.querySelector('script[data-lf-entry]').lfCurrentPresentationReady()"
-        )
+    )
+    assert waiting["phase"] == "waiting"
+    assert waiting["presented"] == waiting["epoch"]
+    assert waiting["pending"] == []
+    assert page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfCurrentPresentationReady()"
+    )
 
-        held.pop(0).continue_()
-        page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
-        expect(page.locator("#page-local")).to_have_attribute(
-            "data-controller-renders", str(controller_renders + 1)
-        )
-        ready = page.evaluate(
-            """() => {
+    held.pop(0).continue_()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
+    expect(page.locator("#page-local")).to_have_attribute(
+        "data-controller-renders", str(controller_renders + 1)
+    )
+    ready = page.evaluate(
+        """() => {
               const application = readStartupApplication();
               const presentation = readStartupPresentation();
               return {
@@ -281,13 +277,11 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
                 pending: presentation.pending,
               };
             }"""
-        )
-        assert ready["phase"] == "ready"
-        assert ready["epoch"] > waiting["epoch"]
-        assert ready["presented"] == ready["epoch"]
-        assert ready["pending"] == []
-    finally:
-        page.close()
+    )
+    assert ready["phase"] == "ready"
+    assert ready["epoch"] > waiting["epoch"]
+    assert ready["presented"] == ready["epoch"]
+    assert ready["pending"] == []
 
 
 APPROVAL_PAGE = leaf_page(
@@ -312,20 +306,16 @@ def test_approval_waits_for_a_reading_of_the_log(browser, serve):
     still stands, and approval stays shut rather than reading that silence as every Ask
     answered."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.route("**/api/state*", refuse)
-    try:
-        page.goto(serve(APPROVAL_PAGE), wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
-        expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
-        approval = page.locator(".lf-signoff")
-        expect(approval).to_be_visible()
-        expect(approval).to_be_disabled()
-        expect(approval).to_have_attribute(
-            "title", "Approval waits until this page has read its current state"
-        )
-    finally:
-        page.close()
+    page.goto(serve(APPROVAL_PAGE), wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
+    expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
+    approval = page.locator(".lf-signoff")
+    expect(approval).to_be_visible()
+    expect(approval).to_be_disabled()
+    expect(approval).to_have_attribute(
+        "title", "Approval waits until this page has read its current state"
+    )
 
 
 def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):
@@ -360,7 +350,6 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
-    page.close()
 
 
 PAGE_DECLARATION = {
@@ -481,8 +470,6 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
     historical = open_page(browser, version_url, pin=True)
     expect(historical.locator("html")).to_have_attribute("data-page-module", "first:1")
-    historical.close()
-    page.close()
 
 
 def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, serve):
@@ -686,7 +673,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         "data-readings", str(readings + 1)
     )
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
-    page.close()
 
 
 def test_widget_controller_owns_presentation_across_values_and_lifetimes(
@@ -885,7 +871,6 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
     ]
-    page.close()
 
 
 def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, serve):
@@ -1063,7 +1048,6 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
-    page.close()
 
 
 def test_a_failed_list_candidate_restores_its_complete_committed_reading(
@@ -1256,7 +1240,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "leaf: State presentation failed: Thread list presentation retry failed",
         "leaf: read failed: Thread list presentation retry failed",
     )
-    page.close()
 
 
 def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
@@ -1344,4 +1327,3 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
     held_events[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    page.close()

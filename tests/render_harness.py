@@ -1000,6 +1000,27 @@ BOTH_STAMPS = """() => {
   const entry = document.querySelector('script[data-lf-entry]');
   return entry?.lfCurrentPresentationReady?.() ?? false;
 }"""
+FIRST_PAINT = """() => performance
+  .getEntriesByType('paint')
+  .some(entry => entry.name === 'first-contentful-paint')"""
+
+
+def displayed(page):
+    """Wait until the browser has painted the document the reader arrived on.
+
+    A box is not a paint. `getBoundingClientRect`, and every driver read built over it
+    including `to_be_visible`, forces layout from the stylesheets that have arrived so
+    far, while a render-blocking stylesheet still in flight holds the paint itself
+    back. A geometry read taken behind element visibility alone can therefore answer
+    with the user agent's own layout of the authored HTML, and a test that compares
+    that reading against the page's later one reports the theme arriving as the page
+    moving. First contentful paint is the browser's own record that the render-blocking
+    head has been applied and what it composed is on screen, which is the state a test
+    about what a reader sees before the runtime loads means to measure.
+    """
+    page.wait_for_function(FIRST_PAINT)
+
+
 HANDOVER_DEADLINE_MS = 90_000
 """How long a complete page handover may take before the page counts as wedged.
 
@@ -1051,7 +1072,8 @@ def clean_browser():
 
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
-    by `open_page`, render/export helpers, and tests that navigate a page themselves.
+    by `WatchedBrowser`, render/export helpers, and tests that navigate a page
+    themselves.
     """
     global _BROWSER_PROBLEM_LISTS
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1087,10 +1109,15 @@ def watched(page):
     and this suite holding the same invariants, and a channel read on one side only is
     that drift in its quietest form.
 
-    Must be called before the page navigates, the init script being what carries it."""
+    Must be called before the page navigates, the init script being what carries it.
+
+    One list per page, whoever asks: a second list would take `lf_errors` with it and
+    leave the first one collecting into a reading no test can consume."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
         "watched pages need the function-scoped browser fixture"
     )
+    if (existing := getattr(page, "lf_errors", None)) is not None:
+        return existing
     errors = []
     _BROWSER_PROBLEM_LISTS.append((page, errors))
     page.lf_errors = errors
@@ -1302,7 +1329,11 @@ def open_page(
     upgraded=True,
     color_scheme="light",
 ):
-    """A page with its browser problems collected and document and log state applied.
+    """A page at a URL, with its document and log state applied before it is handed over.
+
+    The readings — the problem list, the traffic ledger, the interception arm — come
+    from the browser this asks for the page, so they are installed whether a test calls
+    this or opens a page itself (`readable`, `WatchedBrowser`).
 
     `pin` asks for the version the URL names rather than the newest, and is a keyword
     because the URL a handover carries already has a query holding the page's key: a
@@ -1332,15 +1363,6 @@ def open_page(
         else browser.new_page(
             viewport={"width": 1200, "height": 900}, color_scheme=color_scheme
         )
-    )
-    page.lf_traffic = Traffic(page)
-    arm_interception(page)
-    errors = watched(page)
-    # The console's own word for a bad response is "Failed to load resource", which
-    # names nothing; carry the status and URL so a failure says what went missing.
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
     )
     if init_script:
         page.add_init_script(init_script)
@@ -1439,12 +1461,12 @@ def opened_tab(page, destination, press, timeout=10_000):
         finally:
             browser_session.detach()
 
-    tab = page.context.new_page()
-    try:
-        tab.goto(destination)
-    except Exception:
-        tab.close()
-        raise
+    # `page.context` is Playwright's own context, not the `WatchedContext` the fixture
+    # handed over, so the tab this makes is readable only because it is made readable
+    # here — and before the navigation, which is the only side of it an init script
+    # reaches.
+    tab = readable(page.context.new_page())
+    tab.goto(destination)
     return tab
 
 
@@ -1469,6 +1491,96 @@ NEVER_ASKED_FOR = render_gate_model.INTERCEPTION_ARM
 arm_interception = render_gate_model.arm_interception
 
 
+def readable(page):
+    """Install what the suite reads off a page, before the page navigates.
+
+    The three readings are the same for every page: the delivery ledger the traffic
+    helpers consume, the arm that keeps a later route real, and the problem list the
+    browser fixture rejects at the end of the test. None of them can be installed
+    afterwards — an init script has to precede the navigation it instruments, and a
+    console entry from a page nobody was listening to is simply gone — so a page that
+    reaches a test without them is a page whose errors that test does not check and
+    whose routes it cannot rely on.
+
+    They are therefore installed where a page is made rather than asked for by each
+    test, which is what `WatchedBrowser` is for. A page that already carries them is
+    left alone, since a second response listener would report every failure twice.
+    """
+    if getattr(page, "lf_errors", None) is not None:
+        return page
+    page.lf_traffic = Traffic(page)
+    arm_interception(page)
+    errors = watched(page)
+    # The console's own word for a bad response is "Failed to load resource", which
+    # names nothing; carry the status and URL so a failure says what went missing.
+    page.on(
+        "response",
+        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
+    )
+    return page
+
+
+class WatchedContext:
+    """A context whose every page arrives readable.
+
+    Every page here is one this asks for. A page the browser opens by itself — a
+    popup, a `target=_blank` — arrives on the context's `page` event instead, and
+    that is not a place these readings can be installed from: measured, a
+    `page.route` inside that handler leaves the `add_init_script` after it without
+    effect and says nothing, which is a page whose listeners are installed and whose
+    init scripts are missing. `opened_tab` is how the suite meets a tab Chromium
+    opened.
+    """
+
+    def __init__(self, context):
+        self._context = context
+
+    def new_page(self, **kwargs):
+        return readable(self._context.new_page(**kwargs))
+
+    def __getattr__(self, name):
+        return getattr(self._context, name)
+
+    def __enter__(self):
+        self._context.__enter__()
+        return self
+
+    def __exit__(self, *exception):
+        return self._context.__exit__(*exception)
+
+
+class WatchedBrowser:
+    """The browser a test is handed: nothing it makes can arrive unreadable.
+
+    The readings below used to be each caller's to install, and 38 test functions
+    made a page without them — no console, no `pageerror`, no window `error` event,
+    so every one of those tests was green about a page nobody was listening to. A
+    guarantee the browser fixture makes for the pages it hands out cannot be
+    declined by making a page a different way.
+
+    `unwatched` is the one way past it, and it is for a page the product opens to
+    read for itself: `render_version` collects a page's console and `pageerror` and
+    reports them as findings, so a gate test driving a page that is meant to be
+    faulty hands over this browser rather than asserting the same errors twice, once
+    against the gate's report and once against the collector here. Everything else —
+    including the product calls whose page is expected to be clean — takes the
+    watched browser, where an unexpected error fails the test that caused it.
+    """
+
+    def __init__(self, browser):
+        self._browser = browser
+        self.unwatched = browser
+
+    def new_context(self, **kwargs):
+        return WatchedContext(self._browser.new_context(**kwargs))
+
+    def new_page(self, **kwargs):
+        return readable(self._browser.new_page(**kwargs))
+
+    def __getattr__(self, name):
+        return getattr(self._browser, name)
+
+
 def primed(browser, prepare):
     """A browser whose pages reach the product with the suite's hands already on them.
 
@@ -1487,7 +1599,11 @@ def primed(browser, prepare):
     the page as everything else here now does. Refusing the first `/api/state` is the one
     that has earned its keep: the runtime starts that read beside widget startup but never
     applies it there. A refusal lets `lf-upgraded` land while replay remains held, putting
-    the two readiness facts on opposite sides of a deterministic boundary."""
+    the two readiness facts on opposite sides of a deterministic boundary.
+
+    The browser is passed through as given, so a page made for a test's own journey
+    (`held_events`) is readable and one made for the gate's report
+    (`browser.unwatched`) is not."""
 
     def new_page(**kwargs):
         page = browser.new_page(**kwargs)

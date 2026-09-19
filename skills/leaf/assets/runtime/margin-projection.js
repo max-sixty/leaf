@@ -34,15 +34,24 @@
    opened. Page Map and Go-to arrivals activate the exact visible control;
    they do not choose another action for the reader.
 
-   The thread card stays attached to its owning cluster. `thread-card-geometry.js` states
+   The thread card stands by its owning cluster, or, where the rail has no room for that
+   cluster, by the page target the cluster is about. `thread-card-geometry.js` states
    where it stands: in the rail beside the cluster when the room there takes the card's
    minimum measure, otherwise under or over the cluster with its right edge on the
    visible edge, so it crosses the column by no more than the rail's shortfall. The card
    keeps its height in every case; one too tall for its spot slides across its cluster
    rather than shrinking. This module supplies the visible boundary — the reading region
    or the viewport under the banner and over the bottom chrome — measures the card, and
-   closes it once its cluster has left that boundary. The card contains the complete inline conversation view; the
-   Threads panel remains the complete index and takes over when already open.
+   closes it once what it stands by has left that boundary. The card contains the
+   complete inline conversation view; the Threads panel remains the complete index and
+   takes over when already open.
+
+   Placing the card changes its geometry and nothing inside it. The reader's place in
+   its transcript is the list's own scroll, which the browser holds through reflow; only
+   a gesture moves it — a landing through `revealConversation`, a send revealing the
+   reply, a step to another thread starting it at the top. Every state read places the
+   card, so a scroll written there would move a reader partway up the transcript on each
+   status the agent writes.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -94,6 +103,7 @@ import { panelWouldCover } from "./conversation/panel-elements.js";
 import { COVERING } from "./chrome-layout.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
+import { pageScope } from "./keyboard/register.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
@@ -800,25 +810,6 @@ export function createMarginProjection({
       renderMargin.refresh();
     });
   }
-  function keepThreadPreviewFocusVisible() {
-    const active = document.activeElement;
-    if (!(active instanceof HTMLElement) || !preview.contains(active)) return;
-    // A conversation root is a reading destination, not a control that must fit
-    // whole. Its header stays outside this scrollport, as does settlement.
-    if (
-      active.matches(".lf-conversation-thread") ||
-      active.closest(".lf-thread-head") ||
-      !previewList.contains(active)
-    )
-      return;
-    const card = previewList.getBoundingClientRect();
-    const activeBox = active.getBoundingClientRect();
-    const inset = 12;
-    if (activeBox.bottom > card.bottom - inset)
-      previewList.scrollTop += activeBox.bottom - card.bottom + inset;
-    else if (activeBox.top < card.top + inset)
-      previewList.scrollTop -= card.top + inset - activeBox.top;
-  }
   function deferThreadPreviewFocus(positioned, focus) {
     const pending = { key: previewEntry?.key, holding: document.activeElement };
     previewFocusPending = pending;
@@ -880,8 +871,15 @@ export function createMarginProjection({
       !previewMarginEntry?.isConnected
     )
       return false;
+    // A row the rail has no room for is withheld and has no box. A card placed against
+    // that empty box stood in the boundary's corner over the words the reader pressed,
+    // and read as detached before it had stood anywhere, so no scroll could dismiss it.
+    // It stands by the row's target instead. A row whose target is not shown is withheld
+    // too, and that target has no box to stand by either.
+    const row =
+      previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     const cluster = (
-      previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry
+      row.checkVisibility() ? row : (previewEntry?.target ?? row)
     ).getBoundingClientRect();
     const boundary = threadCardBoundary(previewEntry?.target);
     if (!boundary.width || !boundary.height) return false;
@@ -909,7 +907,6 @@ export function createMarginProjection({
     preview.style.removeProperty("opacity");
     preview.style.removeProperty("pointer-events");
     fitThreadCardEditors();
-    keepThreadPreviewFocusVisible();
     answerThreadPreviewPosition(true);
     return true;
   }
@@ -2624,6 +2621,31 @@ export function createMarginProjection({
     return null;
   }
 
+  // A thread card and the unfolded margin entry cluster that owns it are one page-map
+  // stack, though the card itself is hoisted into the chrome. This is a scene-derived
+  // fallback: a later keyboard entry returns through its captured frame before this rung.
+  // Without one, the registered rung precedes the reaction and navigation fallbacks just as
+  // the surface's old local listener did: Escape closes the card first, then folds the
+  // cluster on a second press.
+  const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
+  pageScope("page map", {
+    title: "In the Page Map",
+    root: () => pageMapRung()?.root ?? document,
+    when: () => Boolean(pageMapRung(false)),
+    at: () => Boolean(pageMapRung()),
+    rows: [
+      {
+        id: "margin.back",
+        keys: ["Escape"],
+        does: () => pageMapRung(false)?.does,
+        line: () => pageMapRung()?.says,
+        commandReferenceWhen: () => Boolean(pageMapRung(false)),
+        when: () => Boolean(pageMapRung()),
+        run: () => pageMapRung()?.out(),
+      },
+    ],
+  });
+
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
@@ -2870,7 +2892,6 @@ export function createMarginProjection({
     previewClose.onclick = () => closePreview(true);
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    preview.addEventListener("focusin", keepThreadPreviewFocusVisible);
     preview.addEventListener("toggle", (event) => {
       if (event.newState !== "closed") return;
       for (const reply of previewList.querySelectorAll("textarea"))

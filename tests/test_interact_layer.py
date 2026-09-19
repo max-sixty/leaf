@@ -1555,6 +1555,124 @@ def test_every_test_runs_against_a_throwaway_state_home(tmp_path_factory):
     assert machine_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
 
 
+def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
+    """Each of these has one owner in the suite, and the owner is what ends it.
+
+    A process, a browser, and a directory short enough to hold a socket: what a test
+    gets by asking for the fixture is a teardown, and what it gets by calling the
+    primitive itself is a resource the run has no way to take back — a server still
+    serving after the test that started it, a browser held for the rest of the
+    worker, a directory under a root neither sweep walks. A fixture cannot stop a
+    test making its own, so the call is read for here instead, which is the only
+    place the rule can be enforced rather than written down.
+
+    A new exception is a line in this list naming the file it belongs to and the
+    reason, not a call that quietly joins the others.
+
+    The end of the loan is read for too. A page or context the `browser` fixture
+    made is closed by that fixture, after it has read what the page reported; a
+    close where the test ends with it does the same work a step early, and the
+    reading it cuts short is its own. The exception is a page that keeps making
+    the fault its test is about, where the consume has to follow a close of its own
+    (tests/CLAUDE.md, "A page is ready when it says what has finished").
+    """
+    closes_to_stop_a_repeating_fault = {
+        "test_a_website_session_reference_survives_a_failed_first_read",
+        "test_a_malformed_first_state_keeps_interaction_unresolved",
+    }
+    # What hands a test something the browser fixture will close: the fixtures built
+    # on it, and `opened_tab`, whose tab is made readable and so reports into the
+    # collector that fixture reads.
+    lending = {"browser", "iphone", "held_events", "one_reader", "opened_tab"}
+    owners = {
+        "Popen": ("spawn", {"conftest.py"}),
+        "mkdtemp": ("socket_dir", {"interact_support.py"}),
+        "TemporaryDirectory": ("socket_dir", {"interact_support.py"}),
+        "launch": ("browser, iphone", {"conftest.py"}),
+    }
+    bypassed = []
+    for path in sorted((ROOT / "tests").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            called = (
+                node.func.attr
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                else None
+            )
+            if called in owners and path.name not in owners[called][1]:
+                owner = owners[called][0]
+                bypassed.append(f"{path.name}:{node.lineno} {called} — {owner} owns it")
+        for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
+            if function.name in closes_to_stop_a_repeating_fault:
+                continue
+            # A fixture's own teardown is the owner ending what it lent. Read what
+            # the decorator calls, not its whole text, which also carries a
+            # `parametrize` whose ids can say "fixture".
+            if any(
+                ast.unparse(d).split("(")[0].endswith("fixture")
+                for d in function.decorator_list
+            ):
+                continue
+            # What the fixture owns is what came from it, however far the value
+            # travelled and whatever the function was handed it as:
+            # `host, app = open_snapshot_app(browser, page_dir)` hands back a page
+            # as surely as `browser.new_page()` does, `browser, held = held_events`
+            # hands over the browser itself, and `for tab in (first, second)` walks
+            # pages. A list of the spellings that count would read some and miss
+            # the next, so the names are followed until nothing new is reached.
+            bindings = []
+            for node in ast.walk(function):
+                if isinstance(node, ast.Assign):
+                    bindings.append((node.value, node.targets))
+                elif isinstance(node, ast.For):
+                    bindings.append((node.iter, [node.target]))
+                elif isinstance(node, ast.With):
+                    bindings += [
+                        (item.context_expr, [item.optional_vars])
+                        for item in node.items
+                        if item.optional_vars is not None
+                    ]
+            lent = set(lending)
+            while True:
+                reached = {
+                    name.id
+                    for value, targets in bindings
+                    if lent & {n.id for n in ast.walk(value) if isinstance(n, ast.Name)}
+                    for target in targets
+                    for name in ast.walk(target)
+                    if isinstance(name, ast.Name)
+                }
+                if reached <= lent:
+                    break
+                lent |= reached
+            # Only where the test is finished with the page: anywhere in a `finally`,
+            # which is the end of the block the page was used in, and the function's
+            # last line, followed down through a block it ends on. A close written
+            # anywhere else is the gesture under test — a second tab shut to show
+            # what the first one still holds — and the assertions after it are what
+            # read it.
+            endings = [
+                statement
+                for node in ast.walk(function)
+                if isinstance(node, ast.Try)
+                for final in node.finalbody
+                for statement in ast.walk(final)
+            ]
+            last = function.body[-1]
+            while isinstance(last, (ast.For, ast.If, ast.With)):
+                last = last.body[-1]
+            endings.append(last)
+            for node in endings:
+                if not isinstance(node, ast.Expr):
+                    continue
+                ending = ast.unparse(node)
+                if ending.endswith(".close()") and ending[: -len(".close()")] in lent:
+                    bypassed.append(
+                        f"{path.name}:{node.lineno} {ending} — the browser fixture does"
+                    )
+    assert not bypassed, bypassed
+
+
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     home = tmp_path / "home"

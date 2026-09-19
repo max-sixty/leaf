@@ -62,9 +62,19 @@
  * has no identity a new document could be sure it had found again, only a shape — an
  * owner's id, a tag, a class, a count among its siblings, a string of its words — and a
  * guess that lands on the wrong control hands it the reader's next press. Focus goes to
- * the page instead, where its keys are live. Explicit historical travel carries neither
- * focus nor a selection. Durable drafts and stored chrome arrangement use their existing
- * stores. Native selections and arbitrary module state never cross documents.
+ * the page instead, where its keys are live.
+ *
+ * What does cross is what the author named. An authored id is not a shape: it is the
+ * identity the patch matches nodes on, that threads, the diff, `restated`, the tab store
+ * and drafts key on, and that a version check will not let a revision silently drop. So
+ * `carry.js` carries the mechanical state on any id'd element the install replaced — the
+ * words in a field and the caret in them, a disclosure, an inner scroll, focus — and the
+ * ask view carries the reader's standing on an Ask, which the inventory, the tray and the
+ * ask walk all resolve by that same kind of id. Both are lookups rather than guesses, and
+ * a control the author left unnamed still keeps nothing. Explicit historical travel
+ * carries neither. Durable drafts and stored chrome arrangement use their existing stores;
+ * a module's own state is the module's to write and read back. Native selections and
+ * arbitrary module state never cross documents.
  *
  * The handoff is scoped to this page and consumed once, even when a newer revision
  * overtakes the one that triggered navigation. Ordinary reloads and history travel
@@ -82,9 +92,13 @@
  * back navigation. `landArrival` applies that ranking only after final page geometry is
  * available.
  *
- * Neither install claims the reader still stands on a control. A patch does not have to
- * claim it: focus the revision did not disturb was never lost, because the control is
- * the same element. A reload cannot, so it does not try.
+ * Neither install claims the reader still stands on an unnamed control. A patch does not
+ * have to claim it: focus the revision did not disturb was never lost, because the control
+ * is the same element. A reload cannot, so it does not try. Both run the same two
+ * restores over what the author did name, because a reader told "Updated to …" cannot
+ * tell the two installs apart and should not have to. The in-place install passes the
+ * nodes it held so the carry skips them; the reload install passes none, having kept
+ * nothing.
  *
  * Served identity is read before boot mutates the document, and it includes what each
  * declared widget in this page was written as, one digest per id, decided by the capture
@@ -115,9 +129,11 @@ import {
   servedWidgets,
 } from "./document-identity.js";
 
+import { captureCarry, restoreCarry } from "./carry.js";
 import { patchTree } from "./dom-children.js";
 import { clippedRect, shownBox } from "./geometry.js";
-import { PRESS } from "./keyboard/bindings.js";
+import { labelOf, PRESS } from "./keyboard/bindings.js";
+import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
@@ -150,9 +166,9 @@ import {
 } from "./reading-regions.js";
 import { LIVE_ROOT, PAGE_SCOPE, tabStore, versionUrl } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
-import { allButCommandReference } from "./keyboard/register.js";
+import { allButCommandReference, pageScope } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
 import { reportPageError } from "./layer-client.js";
@@ -276,6 +292,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
+  captureAskStanding = () => null,
+  restoreAskStanding = () => {},
 }) {
   let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
     initialDocument;
@@ -1275,11 +1293,17 @@ export function createVersionController({
   // be carried across anything.
   async function activateRevision(doc, target) {
     const view = captureView();
+    const askStanding = captureAskStanding();
     // A pending selection is standing too: cancel its old-document request before the
     // authored page changes, then restore that base against the arriving revision.
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
     const live = document.querySelector("body > main");
+    // The reader's own state on the nodes this patch is about to take away, read
+    // while they are still standing there, against the same authored side `patchTree`
+    // diffs: what the reader has that the author of the revision they stand in did not
+    // write is theirs, and the rest is the arriving revision's to say again.
+    const carry = captureCarry(live, authoredSource);
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = artifactRoot(doc);
@@ -1408,10 +1432,16 @@ export function createVersionController({
     );
     syncLayout();
     restoreView(view);
-    // Focus is not restored, because a patch does not take it: a control the revision
-    // kept is the same element, still holding it, with the tab stop it was lent. One the
-    // revision replaced drops focus to `body`, where the page's own keys are live, which
-    // is the honest answer for a reader whose control the revision took away.
+    // A control the revision kept is the same element, still holding the focus and the
+    // words the reader put in it, and needs nothing from here. One the revision replaced
+    // gets back whatever the author named: the exact element first, by its id, with the
+    // reader's own state on it, and then the Ask's own opening, for a reader whose
+    // control carried no name to be found again by. The standing restore reads focus, so
+    // a carry that has already put them back inside the Ask leaves it nothing to do, and
+    // a control the author left unnamed inside an Ask the revision dropped leaves them on
+    // `body`, where the page's own keys are live.
+    restoreCarry(carry.records, carry.held);
+    restoreAskStanding(askStanding);
     if (comparedFrom !== null) showComparison(comparedFrom);
     // The same words the fresh document says on arrival. The page changing under a
     // reader is the thing announced, and which install carried it is not their business.
@@ -1527,6 +1557,9 @@ export function createVersionController({
         url: location.href,
         view,
         retainedStanding: captureRetainedStanding(),
+        askStanding: captureAskStanding(),
+        carry: captureCarry(document.querySelector("body > main"), authoredSource)
+          .records,
         comparison: selectedBase(),
         pointer: pointerAt(),
       }),
@@ -1902,6 +1935,10 @@ export function createVersionController({
         restorePointer(handoff.pointer);
         restoreView(handoff.view);
         restoreRetainedStanding(handoff.retainedStanding);
+        // No held nodes: this document kept none of the last one's, so every record
+        // in the handoff names something the reader lost.
+        restoreCarry(handoff.carry);
+        restoreAskStanding(handoff.askStanding);
         if (handoff.comparison !== null && stamped(handoff.comparison))
           showComparison(handoff.comparison);
         return;
@@ -1970,11 +2007,25 @@ export function createVersionController({
       );
     renderVersions(null);
   }
+
+  // The arrival chip's route spans two rows — the chooser the page opens and the menu's own
+  // key for the live page — so it is composed here rather than painted from one row's
+  // `control`. Painted in the standing frame beside every other control name, through
+  // `keeps`, so a restated title is not news to whatever is reading the page.
+  function paintShortcuts() {
+    keeps(
+      latestChip,
+      "title",
+      `${latestChip.dataset.lfKeyTitle} (${commandShortcut(CHOOSER.id)} ${labelOf(NEWEST)})`,
+    );
+  }
+
+  pageScope("versions", VERSIONS);
+
   return {
     closeVersionMenu,
-    NEWEST,
-    VERSIONS,
     CHOOSER,
+    paintShortcuts,
     renderVersions,
     inlineComparison,
     toggleInlineComparison,

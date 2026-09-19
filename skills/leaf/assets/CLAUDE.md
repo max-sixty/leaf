@@ -62,7 +62,14 @@ done to the page — a selection, an open disclosure, a lent tab stop, a tokeniz
 spans, a module's own output — is written over only where the author wrote; every
 judgement it cannot make from the DOM alone is its caller's; conversation owners supply
 reaction teardown when removing their surfaces;
-`runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
+`runtime/focus.js` puts the reader on an element — the focus, lending a tab stop only
+when needed, and the caret inside it, which an arrival that is a return reads before its
+element goes away and hands back in the same act;
+`runtime/carry.js` owns the mechanical reader state an install carries between two
+nodes the author gave the same id — a control's value and caret, a tick, a disclosure,
+an inner scroll, and focus — reading each against what the author wrote for the revision
+the reader is standing in, so that what crosses is what the author did not write; it
+carries nothing for an element the author left unnamed;
 `runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
 document roots so authored revision replacement can leave that live state in place;
 `runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
@@ -103,14 +110,16 @@ each package supplies its words and bound detail;
 `runtime/asks/model.js` exposes immutable Ask selectors and the semantic subscription
 from the application publisher; inventory, answer state, retirement, and thread
 obligations are folded by Python and carried on the wire the publisher adopts;
-`runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and
-Ask-local contextual command projection; `asks/view-elements.js` owns its passive paint
-host and control selector;
+`runtime/asks/view.js` owns Ask chrome, marking, the Ask walk,
+Ask-local contextual command projection, and the reader's standing on an Ask as a
+declared id a replacing document can be asked for; `asks/view-elements.js` owns its
+passive paint host and control selector;
 `runtime/projection-watch.js` owns the lifetime-bound invalidation subscription shared
 by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry, addressable-element comment entry,
-and page-click routing;
+page-click routing, and the one Comment command every route into it shares — which box the
+press enters, the word each surface says over it, and the composer's own keys;
 `runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text
 search: the scene, chip, and activation it declares over the shared hint session in
 `runtime/keyboard/hints.js`, and the synchronous keyed Lit overlay and mechanical
@@ -217,8 +226,8 @@ marked block discloses, version document loading, the one activation door and th
 installs behind it — the authored page patched in place, or a fresh document — which
 the arriving revision's executable identity decides, the per-widget digests each
 revision's delivery states that decide which widgets a patch may keep, the persisted
-semantic reading landmarks carried across either, and the page-block reading
-directional walks start from;
+semantic reading landmarks, the carried mechanical state and the Ask standing that cross
+either of them, and the page-block reading directional walks start from;
 `runtime/version-chooser.js` consumes one frozen version presentation reading and owns
 the retained native chooser button, versions popover, and latest-version chip in their
 separate chrome seats: their synchronous Lit paint, keyed rows, disclosure focus and
@@ -262,7 +271,9 @@ and trays, and page repaint caused by shell motion or reflow. It does not own th
 place across that reflow: the shell yields its strip as a transparent border rather than a
 margin, which keeps the change off the scroll-anchoring suppression list, so the browser
 holds the place and nothing here may take that back (theme.css, at the body strip);
-`runtime/thread-panel.js` owns panel visibility and workspace transitions;
+`runtime/thread-panel.js` owns panel visibility, workspace transitions, and the two Escape
+rungs the panel offers a reader who reached it without a keyboard entry — the narrowing,
+then the panel itself;
 `runtime/auxiliary-chrome.js` captures and restores the reader's workspace for navigation;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
 the words it projects;
@@ -286,7 +297,8 @@ conversion from viewport boxes to document-positioned chrome;
 `runtime/keyboard/key-badge-placement.js` adds the readings that account for the room
 chrome leaves and for a member covered without being clipped, which every target hint
 and Ask binding badge is admitted and seated by;
-`runtime/navigation.js` owns reader travel; `reading-regions.js` selects its scroller;
+`runtime/navigation.js` owns reader travel and its keys — the reading-page step, the small
+scroll, and the open-thread walk; `reading-regions.js` selects its scroller;
 `runtime/anchor-resolution.js` resolves anchors without importing paint or travel;
 `runtime/anchor-paint.js` owns their placed readings and marks;
 `runtime/anchor-note-view.js` Lit-renders the native accessibility control beside each
@@ -309,7 +321,8 @@ and their presentation-batch checkpoints;
 `runtime/conversation/folding.js` owns settlement continuations and mechanical
 resolution-fold state and motion;
 `runtime/conversation/landing.js` owns conversation input discovery, focus travel,
-and panel arrival;
+panel arrival, and the two scopes standing over that relation: a text box's way back out,
+and a thread's own reply and resolution keys;
 `runtime/conversation/narrowing.js` owns the immutable comment-panel search and lifecycle,
 scope, subject, and detached-placement intent and derives one complete narrowing reading;
 `runtime/conversation/narrowing-view.js` synchronously Lit-renders that reading as the
@@ -331,8 +344,10 @@ from canonical activity and captured fragment membership; message owners place r
 Lit receipts, which own their words and semantic paint;
 and
 `runtime/conversation/presentation.js` composes retained conversation rendering;
-`runtime/conversation/panel.js` owns the panel composer, and `panel-elements.js` owns the
-passive panel elements, its one narrowing-view seat, and geometry readings;
+`runtime/conversation/panel.js` owns the panel composer and the Threads list's own keys —
+its search, waiting filter, match walk, and local route into the page-comment box — and
+`panel-elements.js` owns the passive panel elements, its one narrowing-view seat, and
+geometry readings;
 `runtime/projection/authored.js` decodes typed authored initial values from validated
 source markup before upgrade and owns authored parentage;
 `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
@@ -379,10 +394,21 @@ Each mutable fact has one writer:
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` preserves it through generated presentation, receipt updates, provisional work, and resolution folds |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |
+| the margin card's place in its transcript | the card list's own scroll, which the browser holds through reflow | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
 | tray visibility | `trayIsOpenKey` | `setOpenTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and return frames pushed; inner Escape steps, an eligible causal return frame, then fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
+
+Reader state that a document replacement would otherwise destroy has four routes, and
+which one a fact takes is decided by what the fact is, not by where it was noticed:
+the patch keeps the node, so state on a node it did not rewrite needs nothing; an
+authored id gets `carry.js`'s mechanical carry; a module's own state is the module's to
+write to its store and read back under that same id, as the tab store and the draft
+store already do; and a walk restores its standing by declared id on top of those. A
+hold — deferring the revision — is for a gesture that is not a value: an open composer,
+a drag, an unresolved delivery, an open menu. A value never justifies a hold, because a
+hold postpones the loss rather than preventing it: the words die when the reader blurs.
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts. A rendering may expose state,
@@ -398,8 +424,10 @@ they never read either attribute back as semantic input.
 Startup order is load-bearing:
 
 1. Construct the application, page commands, and UI owners in `leaf.js` before any
-   mount reads another owner. Page keys must exist before the first input is wired,
-   because its initial paint reads the input's binding badge. Adopt the sheets,
+   mount reads another owner. Each owner contributes its own keys as it is constructed, and
+   the register assembles and checks the page's stack on the first read of it, so every
+   owner must stand before the first input is wired: its initial paint reads the input's
+   binding badge, which resolves that stack. Adopt the sheets,
    attach chrome, mount the owners, and wire the shared repaint phases. Repaint invalidations made
    before repaint is mounted retain their intent without executing an incomplete frame.
 2. Begin the first state read without applying its answer.

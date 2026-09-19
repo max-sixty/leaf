@@ -2,7 +2,19 @@
  * synchronous conversation reconciliation: hidden-dialog geometry is zero. Opening
  * preserves the invoker's focus; closing hands focus to the surviving toggle.
  * Layout receives no surface commands, and refreshConversation is supplied by the
- * application so this owner never imports a presenter. */
+ * application so this owner never imports a presenter.
+ *
+ * This owner also declares what Escape takes off the panel, layer by layer, for a reader
+ * who got here without a registered keyboard entry — a pointer press on Threads, or a Tab
+ * into the list. A narrowing is a layer of the panel the way a tray is a layer of the page:
+ * the reader put it on, and the list in front of them is not the whole of the conversation
+ * until it comes off, so it unwinds first and from wherever they are standing. The find box
+ * binds the same step for itself, being the one place the reader can see what they are
+ * backing out of. */
+import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
+import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
+import { pageRung } from "./keyboard/register.js";
+
 export const THREAD_PANEL_KEY = "lf-thread-panel-open";
 
 // Visibility is application state, while the dialog, class, and body attribute are its
@@ -22,6 +34,7 @@ export function createThreadPanelController({
   layout: { moveContentFrame, syncLayout },
   elements: { panel, toggleBtn },
   hideTray,
+  widen,
   activeInlineThread,
   showThread,
   refreshConversation,
@@ -117,5 +130,38 @@ export function createThreadPanelController({
     };
     addEventListener("resize", closeReactionMode);
   }
+
+  // Search repeat is the useful contextual hint after Enter accepts the first result, so
+  // both steps yield the compact line there. Escape remains live and stays in the complete
+  // reference without occupying that slot. Both are rooted at the panel, so they survive
+  // the width at which it covers the page and becomes the floor.
+  const yieldsToSearch = () =>
+    !threadSearchActive() || !panelFocusIsInside(panelIsOpen);
+  pageRung("narrowing", () =>
+    panelIsOpen() && narrowed()
+      ? {
+          root: panel,
+          says: "show all",
+          does: "Show every thread again",
+          lineWhen: yieldsToSearch(),
+          out: (...args) => widen(...args),
+        }
+      : null,
+  );
+  // Last of the panel's layers, and the one that leaves the chrome: closing the panel does
+  // not put the reader back on the page, it lands them on the control that closes it,
+  // deliberately (setPanel says why).
+  pageRung("panel", () =>
+    panelIsOpen()
+      ? {
+          root: panel,
+          says: "close threads",
+          does: "Close the thread panel",
+          lineWhen: yieldsToSearch(),
+          out: () => setPanel(false),
+        }
+      : null,
+  );
+
   return { setPanel, mountThreadPanel };
 }

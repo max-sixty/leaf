@@ -157,12 +157,15 @@ A page directory holds:
                          without the cursor of the log it replaced, and a seq past
                          the log's end reads as 0, since nothing the log holds now
                          was acknowledged through it
-    preview.json         optional safe metadata written only by the repository's live
-                         example preview: example, checkout name, interaction
-                         (`reader` or `automation`), start time, and optional commit/
-                         dirty state. The server projects these named fields into
-                         preview-only browser chrome; it never serves this file or an
-                         absolute checkout path. Its presence is the one statement
+    preview.json         the whole record of a slot of the repository's live example
+                         preview, written only by the watcher that holds it. The
+                         server projects the named safe fields — example, checkout
+                         name, interaction (`reader` or `automation`), start time, and
+                         optional commit/dirty state — into preview-only browser
+                         chrome, and nothing else: the rest is the watcher's own
+                         identity for the slot, including the absolute fixture and
+                         checkout paths it follows, and the server serves neither this
+                         file nor a path out of it. Its presence is the one statement
                          "this page is a preview, not a handoff", so the loop guard
                          also reads it and asks no watcher of the page
     service.json         {"host", "bind", "port", "enabled", "lifetime", "runtime"}:

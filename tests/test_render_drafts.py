@@ -21,6 +21,7 @@ from render_cases_interaction import (
     sent_events,
 )
 from render_cases_layout import (
+    glyph_action_face,
     in_threads_scrollport,
     token_colour,
 )
@@ -120,7 +121,8 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
     """The shared field and both drawing-aware variants admit the smallest message.
 
     Each box sends from the one press the shared field dresses, and that press paints
-    nothing of its own: the disc behind the glyph is the whole of what a reader sees,
+    nothing of its own: at rest the accent glyph is the whole of what a reader sees, and
+    the disc behind it is a clear 28px that takes the accent tint under the pointer,
     which is why it stays the same size as the target around it grows.
     """
     page = open_page(browser, serve(LONG_PAGE, comments=box == "reply"))
@@ -142,22 +144,16 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
     send = surface.locator(".lf-compose-submit")
     field.fill(" ")
     expect(send).to_have_attribute("aria-disabled", "false")
-    face = send.evaluate(
-        """el => {
-             const press = getComputedStyle(el);
-             const disc = getComputedStyle(el, '::before');
-             return {
-               press: press.backgroundColor,
-               glyph: press.color,
-               disc: disc.backgroundColor,
-               discWidth: disc.width,
-             };
-           }"""
-    )
+    face = glyph_action_face(send)
     assert face["press"] == "rgba(0, 0, 0, 0)", face
-    assert face["glyph"] == token_colour(page, "--paper"), face
-    assert face["disc"] == token_colour(page, "--accent"), face
+    assert face["glyph"] == token_colour(page, "--accent"), face
+    assert face["disc"] == "rgba(0, 0, 0, 0)", face
     assert face["discWidth"] == "28px", face
+    send.hover()
+    hovered = glyph_action_face(send)
+    assert hovered["press"] == "rgba(0, 0, 0, 0)", hovered
+    assert hovered["disc"] == token_colour(page, "--accent-tint"), hovered
+    assert hovered["discWidth"] == "28px", hovered
     with sending(page, f"the {box} message"):
         send.click()
 
@@ -2872,7 +2868,6 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     expect(other.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
         "Changes · 3 edits"
     )
-    other.close()
 
 
 def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
@@ -2917,8 +2912,6 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
           .map(event => event.revision)"""
     )
     assert latest_sequence == [1, 2]
-    old.close()
-    latest.close()
 
 
 def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve):

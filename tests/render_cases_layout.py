@@ -153,53 +153,47 @@ def arrival_findings(browser, url):
     )
     render_checks_model.install_window_errors(page)
     found = []
+    # A first visit, from which to read the restore cases. Reported
+    # rather than raised when it doesn't arrive: this is the reading that says what
+    # happens on a load, so a load it could not make is its own answer, and a page
+    # that never came up has nothing to be arranged into.
     try:
-        # A first visit, from which to read the restore cases. Reported
-        # rather than raised when it doesn't arrive: this is the reading that says what
-        # happens on a load, so a load it could not make is its own answer, and a page
-        # that never came up has nothing to be arranged into.
+        # `load`, where the gate's scheme passes wait for network quiet: those read
+        # the served documents and want a page that has stopped asking for things,
+        # while everything here is either the stamp below — which the page raises
+        # for itself, and which is the stronger fact — or a console the handlers
+        # above are already attached to. Network quiet costs 3.5x what the load
+        # event does over the five navigations here, measured on
+        # the former design-decision example, and buys this nothing.
+        page.goto(url, wait_until="load")
+        render_checks_model.wait_for_probe(page, "upgraded")
+        render_checks_model.wait_for_probe(page, "currentPresented")
+    except PlaywrightTimeout:
+        return [
+            "[arrivals] the page never came up unarranged, so nothing could be "
+            "arranged — "
+            + ("; ".join([*errors, *notices]) or "and no console error says why")
+        ]
+    found += arrival_transition_findings(page, "first visit")
+    for restore_case in reader_view_restore_cases(page):
+        apply_restore_case(page, restore_case)
+        # A console the last restore case dirtied is not this one's news.
+        errors.clear()
+        notices.clear()
         try:
-            # `load`, where the gate's scheme passes wait for network quiet: those read
-            # the served documents and want a page that has stopped asking for things,
-            # while everything here is either the stamp below — which the page raises
-            # for itself, and which is the stronger fact — or a console the handlers
-            # above are already attached to. Network quiet costs 3.5x what the load
-            # event does over the five navigations here, measured on
-            # the former design-decision example, and buys this nothing.
-            page.goto(url, wait_until="load")
+            page.reload(wait_until="load")
             render_checks_model.wait_for_probe(page, "upgraded")
             render_checks_model.wait_for_probe(page, "currentPresented")
         except PlaywrightTimeout:
-            return [
-                "[arrivals] the page never came up unarranged, so nothing could be "
-                "arranged — "
+            found.append(
+                f"[{restore_case['name']}] the page never finished coming up — "
                 + ("; ".join([*errors, *notices]) or "and no console error says why")
-            ]
-        found += arrival_transition_findings(page, "first visit")
-        for restore_case in reader_view_restore_cases(page):
-            apply_restore_case(page, restore_case)
-            # A console the last restore case dirtied is not this one's news.
-            errors.clear()
-            notices.clear()
-            try:
-                page.reload(wait_until="load")
-                render_checks_model.wait_for_probe(page, "upgraded")
-                render_checks_model.wait_for_probe(page, "currentPresented")
-            except PlaywrightTimeout:
-                found.append(
-                    f"[{restore_case['name']}] the page never finished coming up — "
-                    + (
-                        "; ".join([*errors, *notices])
-                        or "and no console error says why"
-                    )
-                )
-                continue
-            found += arrival_transition_findings(page, restore_case["name"])
-            # A ResizeObserver notice is the gate's to adjudicate over two attempts on
-            # the same document; one seen here says nothing on its own.
-            found += [f"[{restore_case['name']}] console: {e}" for e in errors]
-    finally:
-        page.close()
+            )
+            continue
+        found += arrival_transition_findings(page, restore_case["name"])
+        # A ResizeObserver notice is the gate's to adjudicate over two attempts on
+        # the same document; one seen here says nothing on its own.
+        found += [f"[{restore_case['name']}] console: {e}" for e in errors]
     return found
 
 
@@ -1039,6 +1033,30 @@ def button_radius(page):
         probe.remove();
         return seen;
     }"""
+    )
+
+
+def glyph_action_face(control):
+    """What a reader sees of a glyph action, as one reading both its tests share.
+
+    Send and Add option are the same face: a bare glyph in the action's own ink over a
+    28px disc that stays clear at rest and takes the action's tint under the pointer.
+    The press paints nothing of its own in either state, so `press` is the claim that
+    the disc is the whole of the paint and `discWidth` is why it does not grow with the
+    hit box around it.
+    """
+    return control.evaluate(
+        """el => {
+             const press = getComputedStyle(el);
+             const disc = getComputedStyle(el, '::before');
+             return {
+               press: press.backgroundColor,
+               glyph: press.color,
+               disc: disc.backgroundColor,
+               discWidth: disc.width,
+               discRadius: disc.borderRadius,
+             };
+           }"""
     )
 
 

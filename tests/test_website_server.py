@@ -6,6 +6,9 @@ import json
 import os
 import re
 import shutil
+import signal
+import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -29,8 +32,10 @@ from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import supervised_document
+from leaf.machine import pid_alive
 from leaf.revision_artifact import Resource
 from leaf.schema import ASSETS, VENDORED_FILES
+from render_harness import consume_browser_errors
 
 ROOT = Path(__file__).parent.parent
 _spec = importlib.util.spec_from_file_location(
@@ -48,6 +53,30 @@ _benchmark_spec = importlib.util.spec_from_file_location(
 )
 benchmark_site = importlib.util.module_from_spec(_benchmark_spec)
 _benchmark_spec.loader.exec_module(benchmark_site)
+
+
+@pytest.fixture(autouse=True)
+def _no_host_outlives_its_test(monkeypatch):
+    """Close every website host a test made, as `_no_page_outlives_its_test` stops
+    every page server.
+
+    Closing stops the App Server a host started and releases the waiter lease it
+    holds over a Codex thread. The host is the subject here, built in each test
+    body with the paths that test needs, so the sweep takes every construction
+    rather than routing them through a fixture. `close` is idempotent, so a test
+    whose subject is closing still closes where its assertion reads the result.
+    """
+    made = []
+
+    class Swept(website_server.WebsiteCodexHost):
+        def __init__(self, *arguments, **named):
+            super().__init__(*arguments, **named)
+            made.append(self)
+
+    monkeypatch.setattr(website_server, "WebsiteCodexHost", Swept)
+    yield
+    for host in made:
+        host.close()
 
 
 # The response headers as the message, not a plain dict: header names are
@@ -938,8 +967,19 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     launched = {}
 
     class Process:
+        """Running until it is told to stop, which is what the host does with it."""
+
+        def __init__(self):
+            self.stopped = False
+
         def poll(self):
-            return None
+            return 0 if self.stopped else None
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout=None):
+            return 0
 
     def popen(command, **options):
         launched.update(command=command, options=options)
@@ -1209,6 +1249,94 @@ def test_closing_the_website_host_stops_its_app_server(tmp_path):
     assert not host.socket_path.exists()
 
 
+def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
+    tmp_path, socket_dir, spawn
+):
+    """The stop signal reaches the App Server, not only the adapter that started it.
+
+    `close` covers the ordinary return, and inside a container nothing else is
+    needed. On a host it is: `scripts/verify_site.py local` runs this adapter and
+    stops it with SIGTERM, and uvicorn answers that signal by stopping its loop and
+    re-raising it, so the process dies before any `finally`. The App Server is in a
+    session of its own, which is what makes it the one child that survives that —
+    three of them were alive on a developer's machine, fifteen hours after their runs.
+
+    The whole adapter runs here, with a stand-in for the App Server itself: the fault
+    was in how this process dies, so uvicorn's signal handling, the handler beneath
+    it, and the real `_stop_server` are the parts that have to be real.
+    """
+    site = tmp_path / "site"
+    site.mkdir()
+    write_manifest(site, {})
+    (site / "sitenote.js").write_bytes(b"")
+    listening = tmp_path / "app-server.pid"
+    codex = tmp_path / "codex"
+    codex.write_text(
+        f"""#!{sys.executable}
+import os, socket, sys, time
+from pathlib import Path
+
+address = sys.argv[sys.argv.index("--listen") + 1].removeprefix("unix://")
+listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+listener.bind(address)
+listener.listen()
+Path({str(listening)!r}).write_text(str(os.getpid()))
+while True:
+    time.sleep(3600)
+"""
+    )
+    codex.chmod(0o755)
+    adapter = spawn(
+        [
+            sys.executable,
+            "-c",
+            f"""
+import importlib.util, sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location(
+    "website_server", {str(ROOT / "worker" / "server.py")!r}
+)
+module = importlib.util.module_from_spec(spec)
+sys.modules["website_server"] = module
+spec.loader.exec_module(module)
+module.PORT = 0
+module._agent_host = module.WebsiteCodexHost(
+    {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),
+    Path({str(tmp_path / "app-server.log")!r}),
+)
+module.main()
+""",
+        ],
+        env=os.environ | {"LEAF_SITE_ROOT": str(site)},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + STATED_TIMEOUT
+    while not listening.is_file():
+        if adapter.poll() is not None or time.monotonic() >= deadline:
+            adapter.kill()
+            pytest.fail(
+                "the adapter never started an App Server:\n"
+                f"{adapter.communicate()[1]}\n"
+                f"{(tmp_path / 'app-server.log').read_text(errors='replace')}"
+            )
+        time.sleep(0.05)
+    app_server = int(listening.read_text())
+
+    adapter.terminate()
+
+    assert adapter.wait(timeout=STATED_TIMEOUT) == -signal.SIGTERM
+    deadline = time.monotonic() + STATED_TIMEOUT
+    while pid_alive(app_server):
+        assert time.monotonic() < deadline, (
+            "the App Server outlived the adapter that started it"
+        )
+        time.sleep(0.05)
+    assert not (socket_dir / "app-server.sock").exists()
+
+
 def test_closing_a_host_that_started_no_server_preserves_the_shared_socket(tmp_path):
     """A passive host does not own another host's process-global files."""
     socket_path = tmp_path / "app-server.sock"
@@ -1273,15 +1401,12 @@ def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
         raise website_server.AppServerRequestRejected("rejected")
 
     monkeypatch.setattr(host, "_send", reject)
-    try:
-        follow = host._start_turn(
-            "socket",
-            page_dir,
-            "hosted-thread",
-            type("Process", (), {"pid": os.getpid()})(),
-        )
-    finally:
-        host.close()
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
 
     assert (follow.turn_id, follow.leaf_turn) == (None, None)
     [(_, queue)] = codex_queues("hosted-thread")
@@ -1307,15 +1432,12 @@ def test_a_lost_turn_start_ack_keeps_streamed_reply_authority(page_dir, monkeypa
         "_send",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError("lost ack")),
     )
-    try:
-        follow = host._start_turn(
-            "socket",
-            page_dir,
-            "hosted-thread",
-            type("Process", (), {"pid": os.getpid()})(),
-        )
-    finally:
-        host.close()
+    follow = host._start_turn(
+        "socket",
+        page_dir,
+        "hosted-thread",
+        type("Process", (), {"pid": os.getpid()})(),
+    )
 
     assert (follow.turn_id, follow.leaf_turn) == (None, None)
     assert follow.event_ids == (comment["id"],)
@@ -1545,7 +1667,6 @@ def test_a_refused_stream_resume_is_recorded_and_told_to_the_reader(
     # Only the absence of an answer: a provider turn may still be running with no
     # observer, which is the shape of the incident this path was written for.
     assert reply["text"] == website_server.FAILURE_RECEIPTS["turn_failed"]
-    host.close()
 
 
 def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):
@@ -3216,54 +3337,52 @@ def test_the_preview_generator_updates_every_linked_example_image(
 
 def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     page = browser.new_page()
-    try:
-        failures = verify_site.observe_startup(page)
-        url = "https://site-verifier.test/broken"
-        page.route(
-            url,
-            lambda route: route.fulfill(
-                content_type="text/html",
-                body="""<!doctype html><body><script>
+    failures = verify_site.observe_startup(page)
+    url = "https://site-verifier.test/broken"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<!doctype html><body><script>
                   console.error('widget resource unavailable');
                   throw new Error('runtime initialization failed');
                 </script></body>""",
-            ),
-        )
-        page.goto(url)
-        with pytest.raises(RuntimeError) as caught:
-            verify_site.await_presentation(page, url, failures, timeout=100)
-        assert "widget resource unavailable" in str(caught.value)
-        assert "runtime initialization failed" in str(caught.value)
-        assert "no startup milestone" in str(caught.value)
-    finally:
-        page.close()
+        ),
+    )
+    page.goto(url)
+    with pytest.raises(RuntimeError) as caught:
+        verify_site.await_presentation(page, url, failures, timeout=100)
+    assert "widget resource unavailable" in str(caught.value)
+    assert "runtime initialization failed" in str(caught.value)
+    assert "no startup milestone" in str(caught.value)
+    # The same two faults the verifier reported are what this page said.
+    consume_browser_errors(
+        page, "widget resource unavailable", "runtime initialization failed"
+    )
 
 
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     page = browser.new_page()
-    try:
-        verify_site.observe_startup(page)
-        url = "https://site-verifier.test/visible-response"
-        page.route(
-            url,
-            lambda route: route.fulfill(
-                content_type="text/html",
-                body="""<div class="lf-threads" style="height: 100px; overflow: auto">
+    verify_site.observe_startup(page)
+    url = "https://site-verifier.test/visible-response"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<div class="lf-threads" style="height: 100px; overflow: auto">
                   <div style="height: 500px"></div>
                   <div class="lf-msg agent"><span class="lf-msg-text">Visible reply</span></div>
                 </div>""",
-            ),
-        )
-        page.goto(url)
-        page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-        page.wait_for_timeout(100)
-        assert page.evaluate("window.__leafVerifier.visibleReplyAt") is None
+        ),
+    )
+    page.goto(url)
+    page.evaluate("window.__leafVerifier.startVisibleReplyClock")
+    page.wait_for_timeout(100)
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt") is None
 
-        page.locator(".lf-msg.agent").scroll_into_view_if_needed()
-        page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
-        assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
-    finally:
-        page.close()
+    page.locator(".lf-msg.agent").scroll_into_view_if_needed()
+    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
 
 
 def test_a_page_that_never_presents_names_itself_and_how_far_it_got():

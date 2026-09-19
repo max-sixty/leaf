@@ -13,6 +13,7 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     button_radius,
+    glyph_action_face,
     token_colour,
 )
 from render_harness import (
@@ -46,8 +47,6 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader)
 
     expect(second.locator("#jobs > .lf-another")).to_have_count(1)
     expect(second.locator("#jobs > .lf-another textarea")).to_have_value(text)
-    first.close()
-    second.close()
 
 
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):
@@ -119,33 +118,30 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
         - grown_add_box["height"]
         < 8
     )
-    face = add.evaluate(
-        """el => {
-          const button = getComputedStyle(el);
-          const fill = getComputedStyle(el, '::before');
-          return {
-            button: button.backgroundColor,
-            glyph: button.color,
-            fill: fill.backgroundColor,
-            fillWidth: fill.width,
-            radius: fill.borderRadius,
-          };
-        }"""
-    )
+    face = glyph_action_face(add)
     circle_radius = page.locator("#br-steel .lf-pick").evaluate(
         "el => getComputedStyle(el, '::before').borderRadius"
     )
     assert circle_radius == "50%"
-    assert face["button"] == "rgba(0, 0, 0, 0)"
-    assert face["fill"] != face["button"]
-    assert face["radius"] == button_radius(page)
-    assert face["radius"] != circle_radius
-    # The mark stands on the disc, so it reads against the disc rather than against the
-    # ink every injected control takes from the shared face. Both rules are the theme's,
-    # and this one wins by coming after it; when the face was stated in the adopted sheet
-    # instead, it outranked this rule and drew the mark near black on the accent.
-    assert face["fill"] == token_colour(page, "--accent")
-    assert face["glyph"] == token_colour(page, "--paper")
+    assert face["press"] == "rgba(0, 0, 0, 0)"
+    assert face["disc"] == "rgba(0, 0, 0, 0)"
+    assert face["discRadius"] == button_radius(page)
+    assert face["discRadius"] != circle_radius
+    # The mark is the accent itself rather than the ink every injected control takes
+    # from the shared face. Both rules are the theme's, and this one wins by coming
+    # after it; when the face was stated in the adopted sheet instead, it outranked
+    # this rule and drew the mark near black.
+    assert face["glyph"] == token_colour(page, "--accent")
+    assert face["glyph"] != token_colour(page, "--ink")
+    # The disc is clear until the pointer is on it, and it is the whole of what rises:
+    # the press still paints nothing of its own, at the size it holds at rest. The
+    # pointer leaves again so the coarse reading below is of a press at rest too.
+    add.hover()
+    hovered = glyph_action_face(add)
+    assert hovered["press"] == "rgba(0, 0, 0, 0)"
+    assert hovered["disc"] == token_colour(page, "--accent-tint")
+    assert hovered["discWidth"] == face["discWidth"]
+    page.mouse.move(0, 0)
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 
@@ -158,15 +154,10 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     # A coarse pointer widens what the reader may hit, not what the page draws: the press
     # keeps painting nothing of its own, so the disc stays the size it was rather than
     # becoming a square as wide as its target.
-    coarse = add.evaluate(
-        """el => ({
-             button: getComputedStyle(el).backgroundColor,
-             fillWidth: getComputedStyle(el, '::before').width,
-           })"""
-    )
+    coarse = glyph_action_face(add)
     assert add_box["width"] >= 44
-    assert coarse["button"] == "rgba(0, 0, 0, 0)"
-    assert coarse["fillWidth"] == face["fillWidth"]
+    assert coarse["press"] == "rgba(0, 0, 0, 0)"
+    assert coarse["discWidth"] == face["discWidth"]
 
 
 def test_the_draft_send_press_holds_the_row_s_inline_end(browser, serve):

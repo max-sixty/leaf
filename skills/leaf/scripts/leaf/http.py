@@ -365,7 +365,17 @@ def supervised_document(
     # are the ones the browser will read.
     nonce = secrets.token_urlsafe(16)
     source = authorize_inline_scripts(parsed, nonce)
-    csp = PAGE_CSP + f"; script-src 'self' 'nonce-{nonce}'"
+    # 'unsafe-eval' is delivered for the drivers rather than for the page. An
+    # automated browser compiles a wait predicate with eval on each poll — Playwright
+    # keeps a compiled function but recompiles a bare expression — and only the poll
+    # that runs inside the driver's own evaluate call inherits permission from it. A
+    # script-src without the allowance therefore refuses any wait whose fact is not
+    # already true when the poll is installed, which surfaces as an intermittent red
+    # suite rather than as a policy refusal. Leaf's own runtime never evals, so the
+    # nonce still decides which script runs. `write_live_shell` composes published
+    # documents here too, so the site's static pages carry the allowance to readers
+    # no driver polls.
+    csp = PAGE_CSP + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval'"
     release = (
         f' data-lf-release="{html.escape(release_id, quote=True)}"'
         if release_id is not None

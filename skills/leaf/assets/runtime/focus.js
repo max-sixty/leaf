@@ -1,20 +1,30 @@
-/* Focus placement for destinations that may not already be tab stops. */
+/* Putting the reader on an element: the focus, and the caret inside it. */
 
 // Put the reader on an element that may not be a tab stop: focus it, and where it will
 // not take focus, lend it the tab stop a control has for exactly as long as it holds it —
 // the lend leaves with the first blur, so a paragraph the Go-to sequence landed on is a
 // paragraph again once the reader moves off it, and `tabindex` never becomes a thing the
 // runtime leaves behind on an author's element. An element that already declares a stop
-// keeps its own. Four arrivals want this and none owns the element: a go-to hint
-// completing on a fold, a heading or a link's fragment; a document swap handing back the
-// place the reader stood in; the reference handing a reader back to the block they were
-// reading; and the skip link landing on the banner when none of its controls will take
-// them. Each is "the reader is now here", and each needs the browser's sequential focus
-// navigation starting point to move with them, which is what `focus()` does and what
-// nothing else does.
-export function focusDestination(destination) {
+// keeps its own. What wants this is an arrival at an element nobody owns — a go-to hint
+// completing on a fold, a heading or a link's fragment; the reference handing a reader
+// back to the block they were reading; the skip link landing on the banner when none of
+// its controls will take them. Each is "the reader is now here", and each needs the
+// browser's sequential focus navigation starting point to move with them, which is what
+// `focus()` does and what nothing else does.
+//
+// A caret is where the reader is inside the element they are on, so it arrives with them.
+// An arrival that is a return — a bar moved between two parents, a seat re-rendered, a
+// thread reconciled, a replaced document handing back the place the reader stood in —
+// reads the caret with `readCaret` before its element goes away and passes it here, so
+// that the focus and the place inside it land in one act rather than in two. Passing no
+// caret leaves the platform's, which is what a first arrival wants.
+export function focusDestination(destination, caret = null) {
   destination.focus({ preventScroll: true });
-  if (destination.matches(":focus")) return;
+  if (!destination.matches(":focus")) lendStop(destination);
+  if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
+}
+
+function lendStop(destination) {
   if (destination.hasAttribute("tabindex")) return;
   destination.tabIndex = -1;
   destination.focus({ preventScroll: true });
@@ -25,6 +35,19 @@ export function focusDestination(destination) {
   destination.addEventListener("blur", () => destination.removeAttribute("tabindex"), {
     once: true,
   });
+}
+
+// The input types whose selection the platform will answer for. Reading `selectionStart`
+// on any other throws rather than returning null.
+const CARETED = new Set(["text", "search", "url", "tel", "password"]);
+const holdsCaret = (node) =>
+  node.tagName === "TEXTAREA" || (node.tagName === "INPUT" && CARETED.has(node.type));
+
+// Where the reader is inside an element, or null where the element holds no caret. The
+// reading is a plain triple so that it can be stored and read back in another document.
+export function readCaret(node) {
+  if (!node || !holdsCaret(node) || node.selectionStart === null) return null;
+  return [node.selectionStart, node.selectionEnd, node.selectionDirection];
 }
 
 const TYPED_TYPES = new Set([

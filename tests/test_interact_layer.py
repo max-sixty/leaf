@@ -1198,17 +1198,19 @@ def test_the_injected_control_face_stands_before_every_rule_that_answers_it():
 
     It stopped standing first when the components moved to shadow.css and the face
     stayed in theme.css, which composes after it: Send and Add option asked for the
-    accent and drew near-black, and so did every other one-class component rule that
-    states a colour, a family, a size or a line height for a control a widget built.
+    accent and drew near-black, as did any one-class component rule stating one of those
+    properties on a control that wears the class.
 
     The first rule that states a face, rather than the first rule in the file, because
-    a rule that states none cannot override this one."""
+    a rule that states none cannot override this one. The spelling is the page-only one
+    shadow.css explains; test_the_page_s_control_face_stays_out_of_a_declared_tree
+    reads the other side of it in a browser."""
     for sheet in _LAYER_SHEET_ORDER:
         for _conditions, _enclosing, selector, declarations in _style_rules(sheet):
             if not any(name in _FACE for name, _value in declarations):
                 continue
             where = f"{sheet.parent.name}/{sheet.name}"
-            assert selector == ".lf-ui", (
+            assert selector == ":where(:root) .lf-ui", (
                 f"`{selector}` states a face in {where} ahead of the layer's own "
                 ".lf-ui default, which every control it dresses then loses to"
             )

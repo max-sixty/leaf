@@ -263,7 +263,8 @@ package's `theme.css` is appended after it. `shadow.css` holds the rules a decla
 tree needs as well as the document: every root's copy is composed into `/shadow.css` for
 the stage, and into `/theme.css` just ahead of that root's `theme.css`. The layer's
 `.lf-ui` control face opens the assets root's `shadow.css`, so it stands before every
-component rule that overrides it;
+component rule that overrides it, and it is spelled to match nothing inside a declared
+tree, which dresses its own controls;
 `runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
 into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;

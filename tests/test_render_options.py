@@ -39,6 +39,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     CARRIED_PAGE,
+    CORPUS_PAGE,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     REPLAYED_PAGE,
@@ -2175,6 +2176,49 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
     expect(work_button).to_have_css("display", "flex")
     expect(work_button).to_have_css("border-radius", "50%")
     expect(work_button).to_have_css("height", "32px")
+
+
+# Each control in a declared tree that wears `lf-ui`, read with the class and without.
+SHADOW_UI_FACES = """() => {
+  const face = el => { const s = getComputedStyle(el);
+    return [s.fontFamily, s.fontSize, s.lineHeight, s.color].join(" | "); };
+  const worn = [];
+  const sweep = (root) => {
+    for (const el of root.querySelectorAll("*")) {
+      if (root !== document && el.classList.contains("lf-ui")) worn.push(el);
+      if (el.shadowRoot) sweep(el.shadowRoot);
+    }
+  };
+  sweep(document);
+  const moved = [];
+  for (const el of worn) {
+    const dressed = face(el);
+    el.classList.remove("lf-ui");
+    const bare = face(el);
+    el.classList.add("lf-ui");
+    if (dressed !== bare) moved.push(`${el.className}: ${bare} -> ${dressed}`);
+  }
+  return {worn: worn.length, moved};
+}"""
+
+
+def test_the_page_s_control_face_stays_out_of_a_declared_tree(browser, serve):
+    """`.lf-ui` is the page's default face for a control a widget builds. A declared
+    tree dresses its own controls, mostly through what they inherit from the bar they
+    stand in, and a face stated on the control itself beats inheritance whatever order
+    the rules stand in. The face opens shadow.css, which every declared tree adopts, so
+    it is spelled to match nothing there; stated plainly it reached the diff's tree,
+    and its 11.5px muted labels and mono counts drew 14px sans ink.
+
+    So each control in a declared tree that wears the class reads the same with the
+    class taken off. The count is the control: without it, a corpus with no such
+    control would pass by reading nothing."""
+    page = open_page(browser, serve(CORPUS_PAGE))
+    faces = page.evaluate(SHADOW_UI_FACES)
+    assert faces["worn"] > 0, "no control in a declared tree wears lf-ui to read"
+    assert faces["moved"] == [], (
+        "the page's control face reached a declared tree:\n" + "\n".join(faces["moved"])
+    )
 
 
 def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):

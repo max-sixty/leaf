@@ -157,9 +157,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     Answer effects survive retirement of their source widget. An unrelated action
     on another facet cannot supersede one, while an explicit answer with null
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
-    the current page location, ``anchored_by`` names the one message supplying it,
-    and ``detached_from`` retains the last real anchor only when an explicit null
-    replacement leaves the thread detached.
+    the thread's current page location, and ``detached_from`` retains the last real
+    anchor only when an explicit null replacement leaves the thread detached.
     """
     floors = retractions(events)
     if withdrawn is None:
@@ -188,7 +187,6 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             thread = {
                 "root": message,
                 "anchor": message.get("anchor"),
-                "anchored_by": e["id"] if message.get("anchor") else None,
                 "detached_from": None,
                 "msgs": [message],
                 "resolved": None,
@@ -226,7 +224,6 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread = {
                     "root": e,
                     "anchor": e.get("anchor"),
-                    "anchored_by": e["id"] if e.get("anchor") else None,
                     "detached_from": None,
                     "msgs": [],
                     "resolved": None,
@@ -241,7 +238,6 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                     thread["anchor"] if e["anchor"] is None else None
                 )
                 thread["anchor"] = e["anchor"]
-                thread["anchored_by"] = e["id"] if e["anchor"] else None
             thread_for[e["id"]] = thread
         # A resolve names a message rather than opening one, so a conversation the log
         # lost whole — no reply of its own survived either — leaves it nothing to close.
@@ -252,34 +248,34 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     return threads
 
 
-def current_anchors(events: list, within: dict) -> dict:
-    """Message id → the anchor that message still binds the page with.
+def current_anchors(events: list, within: dict) -> list:
+    """The anchors live conversations still bind the page with.
 
-    A thread's target is its latest anchor, so the opening comment of a thread a
-    reply moved or detached supplies none: the log keeps its words and the
-    coordinate they were written at, and nothing resolves that coordinate against
-    the page again. `detached_from` is the same fact read from the thread's side.
-    A closed conversation lets its target go on the same terms, and so does a
-    reaction nobody has answered — paint on the page, and no thread yet.
+    A thread's target is its latest anchor, so a thread a reply moved or detached
+    binds the page at the new coordinate or at none: the log keeps the opening
+    comment's words and the coordinate they were written at, and nothing resolves
+    that coordinate against the page again. `detached_from` is the same fact read
+    from the thread's side. A closed conversation lets its target go on the same
+    terms, and so does a reaction nobody has answered — paint on the page, and no
+    thread yet.
 
     One rule for every reader that asks whether a written anchor still binds the
     page, because a version check refusing to drop what a thread has already let
     go is the same bug as a browser painting a mark there. `within` is the
     containment the settlement half reads, as every other fold of the threads
     takes it."""
-    return {
-        t["anchored_by"]: t["anchor"]
+    return [
+        t["anchor"]
         for t in build_threads(events, within).values()
-        if t["anchored_by"] and not t["resolved"] and not bare_reaction(t)
-    }
+        if t["anchor"] and not t["resolved"] and not bare_reaction(t)
+    ]
 
 
 def anchored_ids(events: list, within: dict) -> set:
     """Element ids a live conversation still points at — the section half of
     `current_anchors`, for the ids an author writes."""
-    return {
-        anchor.get("section") for anchor in current_anchors(events, within).values()
-    } - {None}
+    anchors = current_anchors(events, within)
+    return {anchor.get("section") for anchor in anchors} - {None}
 
 
 def anchored_parts(events: list, within: dict) -> set:
@@ -290,7 +286,7 @@ def anchored_parts(events: list, within: dict) -> set:
     retire one the moment no conversation points at it."""
     return {
         (anchor["section"], anchor["visual"])
-        for anchor in current_anchors(events, within).values()
+        for anchor in current_anchors(events, within)
         if anchor.get("visual")
     }
 

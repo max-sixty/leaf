@@ -116,6 +116,65 @@ STATED_LOG = [
 ]
 STATED_PICK = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
 
+# A deck with two cards still queued. Two is the load-bearing number: `finish`
+# carries the final position itself, so against a one-card deck the crafted
+# finish below would genuinely complete the deck and the door would be right to
+# admit it.
+STATED_DECK = """<!doctype html>
+<html lang="en">
+<head>
+<title>Triage</title>
+</head>
+<body>
+<main>
+<lf-ask id="triage-decision">
+  <h2>Which follow-ups should we keep?</h2>
+  <lf-swipe-deck id="triage">
+    <lf-swipe-pile id="queue" verdict="unseen">
+      <lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>
+      <lf-swipe-card id="card-b"><strong>Bounded fallback</strong></lf-swipe-card>
+    </lf-swipe-pile>
+    <lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>
+  </lf-swipe-deck>
+</lf-ask>
+</main>
+</body>
+</html>
+"""
+STATED_FINISH = {
+    "kind": "action",
+    "author": "user",
+    "revision": 1,
+    "widget": "triage",
+    "action": "finish",
+}
+
+
+def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card():
+    """A verb that carries its own result is checked against the deck it claims.
+
+    `finish` names the card's final pile itself rather than reporting where the
+    reader dropped it, so nothing but admission stands between a crafted POST and
+    an answered Ask. Two different gates answer: the completion condition, which
+    a finish leaving a card queued does not meet, and the position record, whose
+    unit must be an element the deck actually holds. A door that took the verb's
+    word for either would leave a deck answered on a classification that never
+    existed.
+    """
+    page = ModelPage(STATED_DECK, packages=("swipe",))
+
+    def refusal(event):
+        with pytest.raises(events_model.EventRefused) as refused:
+            event_contracts_model.admitted_event(page, [], dict(event))
+        return str(refused.value)
+
+    assert "does not satisfy its completion condition" in refusal(
+        {**STATED_FINISH, "detail": {"card": "card-a", "to": "keep", "index": 1}}
+    )
+    assert "unknown card 'not-a-card'" in refusal(
+        {**STATED_FINISH, "detail": {"card": "not-a-card", "to": "keep", "index": 2}}
+    )
+
 
 def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     """The door reads a page through `PageView` and reaches past it for nothing.

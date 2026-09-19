@@ -105,9 +105,14 @@ def append_command(page_dir, command):
 
 
 @cache
-def _model_layer() -> dict:
-    """The vocabulary `page init` vendors, composed from the bundled packages."""
-    return compatibility_model.incoming_registry(layer_model.layer_inputs())
+def model_layer(*packages: str) -> dict:
+    """The vocabulary `page init` vendors for one package selection.
+
+    Composed from the bundled packages rather than read back out of a page, and
+    cached per selection, because every stated page asking for the same packages
+    is asking for the same registry. Nothing may mutate what this returns.
+    """
+    return compatibility_model.incoming_registry(layer_model.layer_inputs(packages))
 
 
 class ModelPage:
@@ -117,18 +122,21 @@ class ModelPage:
     nothing else, so a refusal that follows from authored markup and the standing
     log can be put to the real door with no page directory, server or browser
     underneath it. Each revision here is its markup, in the order given.
+    `packages` names the optional vocabularies the markup speaks, as `page init`
+    would be told them; the default layer alone is the default.
 
     What a page holds in files it has none of: no typed external data, and
     nothing owed to anyone, neither of which markup can state. A rule about
     either belongs on `page_dir`.
     """
 
-    def __init__(self, *revisions: str):
+    def __init__(self, *revisions: str, packages: tuple[str, ...] = ()):
         self.documents = {
             number: structure_model.SourceDocument(html)
             for number, html in enumerate(revisions, 1)
         }
         self.data = data_model.empty_data()
+        self._packages = packages
 
     @property
     def revisions(self) -> list[int]:
@@ -140,7 +148,7 @@ class ModelPage:
     def registry(self, revision: int | None) -> dict:
         """One layer for every revision: a stated page never re-vendors, so no
         revision of it captured a vocabulary different from the rest."""
-        return _model_layer()
+        return model_layer(*self._packages)
 
     @property
     def within(self) -> dict:

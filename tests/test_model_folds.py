@@ -50,7 +50,7 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     and a command page reading the thread's `holds` would go on calling settled
     work outstanding.
     """
-    registry = model.layer("command-hub")
+    registry = model.model_layer("command-hub")
     open_thread = model.threads(model.reading(HUB, HELD_REQUEST, registry=registry))
     # The contrast: without it a fold that resolved every thread would pass below.
     assert open_thread["e1"]["resolved"] is None

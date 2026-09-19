@@ -9,26 +9,25 @@ subject is that fold calls it here with literal markup and a literal log.
 What a fixture here cannot answer is anything a renderer decides. The reading is
 what the runtime is handed, not what a widget module draws with it, so a claim
 about a painted word, a node's identity across a poll, or an elapsed line a
-browser clock advances stays in `test_render_*.py`. Nor is the append door's
-refusal here: its gates read revisions and data off disk, so a test of what the
-door refuses still takes `page_dir`. What the door stamps on an event it admits
-is here, through the same `admit_widget_event`.
+browser clock advances stays in `test_render_*.py`.
+
+What the door refuses is not here either, but it is no longer a page directory's
+to answer: `interact_support.ModelPage` states a page the same way for
+`event_contracts.admitted_event`. The two divide by subject rather than by
+machinery — a rule the door decides goes to `ModelPage`, a reading the fold
+produces comes here — and they compose the same vocabulary through
+`model_layer`. What the door stamps on an event it admits is here, through the
+same `admit_widget_event`.
 
 Every value the server would read from a file is a literal in this module, so a
 reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
+from interact_support import model_layer
 from leaf.event_meaning import admit_widget_event
-from leaf.layer import layer_inputs
 from leaf.served_state.browser import browser_state
 from leaf.structure import SourceDocument
-from leaf.validation.compatibility import incoming_registry
-
-# One composition per package selection per session. The registry is the same
-# object `page init` vendors, read from the bundled packages rather than from a
-# page, and nothing below mutates it.
-_layers: dict[tuple[str, ...], dict] = {}
 
 NOW = "2026-09-19T12:00:00+00:00"
 
@@ -68,11 +67,6 @@ def leaf_page(title: str, body: str, *, head: str = "") -> str:
 """
 
 
-def layer(*packages: str) -> dict:
-    """The vendored registry for a package selection, composed once."""
-    return _layers.setdefault(packages, incoming_registry(layer_inputs(packages)))
-
-
 def reading(
     documents: dict[int, str] | str,
     events: tuple[dict, ...] | list[dict] = (),
@@ -94,7 +88,7 @@ def reading(
     if isinstance(documents, str):
         documents = {1: documents}
     parsed = {rev: SourceDocument(html) for rev, html in documents.items()}
-    registry = registry or layer()
+    registry = registry or model_layer()
     log = []
     for seq, command in enumerate(events, 1):
         event = {

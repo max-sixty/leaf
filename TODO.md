@@ -137,8 +137,8 @@ ordering contract these items extend.
 ## Architecture simplification
 
 The 2026-09-13 to 09-17 Lit application arc closed #1 and #3, which git history now
-carries. A 2026-09-18 survey measured what remains and added #25 to #27; its evidence is
-the `leaf-simplification` page directory in the state home.
+carries. A 2026-09-18 survey measured what remains and raised the items below; its
+evidence is the `leaf-simplification` page directory in the state home.
 
 - **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
   imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the
@@ -171,17 +171,6 @@ the `leaf-simplification` page directory in the state home.
   `projection.py`, `asks.py` or `conversation.py`. This follows #5 and #4 rather than
   leading them: what makes the folds reachable without a browser is giving them a home off
   the DOM.
-
-- **#27 — Admit every event through one door.** Six of the nine `append_event` callers
-  check no contract: `cmd_comment`, `cmd_reply`, `cmd_edit` and `cmd_resolve` in
-  `conversation.py`, the `pickup` in `session.py`, and the `note` in `publishing.py`. Of
-  the three that do check, `cmd_report` reaches `event_contracts.py` and `cmd_receipt`
-  uses a validator `requests.py` defines itself, so the rules are in two homes as well as
-  the gate being in three — `event_endpoint.accept_event` for browser events and
-  `service.append_event` for widget kinds, with the CLI going through neither.
-  `event_log` stamps an id and a timestamp and checks no schema, so whatever a caller
-  hands it lands in the log. Validate once at the edge: one admission door the CLI writers
-  share, not a validator added per caller.
 
 - **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
   now keeps the reader's place through the browser's own scroll anchoring, and that hold

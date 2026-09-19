@@ -91,33 +91,39 @@ standalone static rendering. Start `scripts/preview.py <example>` for an
 interactive preview: `--background` detaches the watcher and prints its URL,
 and a foreground run holds the terminal. The script watches source and runtime
 edits and preserves feedback at `.tmp/previews/<example>`. Repeating the command
-reuses that preview and prints its URL again; use `--slot <name>` for another
-copy. A refused update appears in the terminal or the background log named at
+reuses that preview and prints where it answers now; use `--slot <name>` for
+another copy. A refused update appears in the terminal or the background log named at
 startup. Fix the input and the watcher retries.
 
-Choose the interaction by who presses the page. Add `--automation` to a preview
-this session drives itself, including every screenshot and browser check: it
-serves through the browser suite's temporary server, with the real HTTP and event
-log but no task claim or durable service, at `.tmp/previews/<example>-automation`.
-Leave it off only for a preview whose URL goes to the user, where the claim carries
-their comments to `leaf wait`. A claim delivers every press back to this session as
-reader input. A claimed preview under automation therefore reports the agent's own
-gestures as unanswered reader moves, and the Stop hook holds the turn open for each.
-An explicit slot cannot change interaction mode.
+A preview takes no task claim: it serves through the browser suite's process-owned
+server, with the real HTTP and event log, and its presses go nowhere but the page's
+log. That is what every screenshot and browser check needs. Add `--reader` for a
+preview whose URL goes to the user, at `.tmp/previews/<example>-reader`: the claim
+carries their comments to `leaf wait`. It carries the agent's own gestures just as
+readily, so a preview this session drives under `--reader` reports each screenshot
+click as an unanswered reader move, and the Stop hook holds the turn open for it.
+`--reader` also fixes the address: the durable service records it, so the URL
+survives a stop, while an unclaimed preview's server is its watcher's and a new
+watcher answers somewhere else. A slot keeps the mode it was built in; `--reset`
+rebuilds it in the other one.
 
 When finished with a preview, run the matching preview command with `--stop` (and
-`--automation` for its automation slot); it waits for the watcher and server to
-stop. Ctrl-C stops a foreground preview. A slot refuses a different source or seeded
-history so it keeps the existing page and feedback. Use `--reset` to discard the
-selected slot and rebuild it from the current fixture.
+`--reader` for a reader slot); it waits for the watcher and server to stop. Ctrl-C
+stops a foreground preview. A slot refuses a different source or seeded history so
+it keeps the existing page and feedback. Use `--reset` to discard the selected slot
+and rebuild it from the current fixture.
 
 ### In Codex
 
-1. Call `mcp__codex_app__open_in_codex` with the destination's fragment URL as a
+1. Start the preview with `--reader`, which serves it at
+   `.tmp/previews/<example>-reader`. `codex start` claims the page, and the
+   durable service `--reader` puts up is what keeps that URL answering for as
+   long as the task lasts.
+2. Call `mcp__codex_app__open_in_codex` with the destination's fragment URL as a
    browser target and `placement: "right"`.
-2. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>` so Leaf
-   comments return to the current task.
-3. Tell the user to select page text or use Leaf's comment affordance for a Leaf
+3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-reader` so
+   Leaf comments return to the current task.
+4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
    thread. Codex Annotation mode creates visual comments that the user sends with
    their next chat message. Use the Codex review pane when feedback belongs to a
    source line.
@@ -165,16 +171,16 @@ Use `$baseline_root` as the baseline and `$candidate_root` as the candidate.
 Choose the sources that isolate the change: one shared authored source for a
 runtime change, or each checkout's copy when the authored content changed. Give
 the pair a comparison-specific `<slot>` name; `--reset` removes any state left
-by an earlier run. Both commands below carry `--automation`, because the pair is
-measured here; drop it from a pair whose URLs you hand to the user.
+by an earlier run. Add `--reader` to both when the pair's URLs go to the user,
+or a comment they leave on either page reaches nobody.
 
 ```bash
 "$candidate_root/scripts/preview.py" --source <baseline-source.html> \
   --runtime "$baseline_root" \
-  --slot <slot>-baseline --reset --automation --background
+  --slot <slot>-baseline --reset --background
 "$candidate_root/scripts/preview.py" --source <candidate-source.html> \
   --runtime "$candidate_root" \
-  --slot <slot>-candidate --reset --automation --background
+  --slot <slot>-candidate --reset --background
 ```
 
 Each command verifies the checkout launcher, prepares its independent page,

@@ -19,9 +19,9 @@ file says which script owns what, and the rules that hold across them.
   arriving as a fresh document, which is the half of the behavior a reader is least
   likely to be looking for.
   `--export` writes the browser-drawn result as one standalone file instead.
-  A preview serves either interaction — `--automation` for one this session drives,
-  the claimed default for one a reader is handed — and `--background` detaches
-  either. `/developing-leaf` states which to choose.
+  A preview takes no task claim; `--reader` claims the page so a reader's presses
+  reach this session, and `--background` detaches either. `/developing-leaf` states
+  which to choose.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
   companion data from the examples, regression pages under `tests/fixtures/pages/`, and the developer feature gallery.
 - `example_assets.py` fetches the immutable `max-sixty/leaf-assets` commit named by

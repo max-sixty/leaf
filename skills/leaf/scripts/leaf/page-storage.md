@@ -158,7 +158,7 @@ A page directory holds:
     preview.json         the whole record of a slot of the repository's live example
                          preview, written only by the watcher that holds it. The
                          server projects the named safe fields — example, checkout
-                         name, interaction (`reader` or `automation`), start time, and
+                         name, interaction (`reader` or `author`), start time, and
                          optional commit/dirty state — into preview-only browser
                          chrome, and nothing else: the rest is the watcher's own
                          identity for the slot, including the absolute fixture and

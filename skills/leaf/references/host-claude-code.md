@@ -71,8 +71,11 @@ Code's session messaging, so it is presented as coming from another session.
 A page put up to be looked at — a preview of an example, a fixture for a visual
 check — is not a handoff, so it owes no watcher. `scripts/preview.py` in a Leaf
 checkout marks every page it builds as a preview, and the per-turn reminder to
-start one skips those. Nothing else is exempt: a comment left on a preview is a
-delivery this session owes like any other, and the reminder says so.
+start one skips those. Nothing else is exempt: on a preview this session claimed,
+a comment is a delivery it owes like any other, and the reminder says so. A
+preview nobody claimed keeps its comments in its own log, where only a reader of
+that log finds them, so start one you mean to hand over with
+`scripts/preview.py --reader`, which claims it.
 
 Do not idle a fixture to quiet the loop. `idle` closes the page in the browser,
 which changes the banner a visual check may be reading.

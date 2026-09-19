@@ -9,14 +9,15 @@ script builds the directory the runtime expects, then watches the fixture and
 selected runtime until Ctrl-C. `--export` writes the browser-drawn result as one
 standalone HTML file instead.
 
-The live result is a page, not a picture of one: it takes comments. Served from
-an agent session, `leaf wait` on the same directory carries them to the agent and
-the example gets revised like any other page. Outside an agent host, gestures remain
-in the log until an agent claims the page. The claim puts the preview in that
-session's delivery loop, so a session driving its own preview reads every gesture
-it makes back as reader input. `--automation` uses the same temporary page server
-as the browser harness: gestures traverse the real HTTP and event-log boundary,
-but the server creates no claim or durable service.
+The live result is a page, not a picture of one: it takes comments. They cross the
+real HTTP and event-log boundary and settle in the page's log, which is all a
+preview does with them.
+
+`--reader` hands the preview to someone else. It claims the page for this session,
+which puts the page in the session's delivery loop: presses arrive as reader input,
+`leaf wait` carries them, and the Stop hook holds the turn open until each is
+answered. A session driving its own preview would read every gesture it makes back
+as reader input, so nothing claims a preview unless this flag asks for it.
 
 An example can also ship companion `.jsonl` events and `.data.json` source
 values. The first lets a page arrive mid-conversation; the second supplies the
@@ -100,10 +101,6 @@ WATCH_INTERVAL_MS = 250
 # the fixture and checkout it was built from, the seeded history that was installed
 # once, which interaction it serves, and the digest of the source last stamped into it.
 SLOT_KEYS = ("source", "runtime", "seed", "interaction", "source_digest")
-# An automation preview reports its own lifetime rather than the temporary
-# server's: `leaf server run --temporary` ends with the command that printed it,
-# while a detached watcher outlives its start.
-AUTOMATION_NOTE = "server   temporary (no task claim or service record)"
 
 
 def leaf(
@@ -161,9 +158,9 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         help="stable name for a preview that may coexist with other slots",
     )
     parser.add_argument(
-        "--automation",
+        "--reader",
         action="store_true",
-        help="serve through the browser harness, taking no task claim",
+        help="hand this preview to a reader: claim the page so presses arrive as feedback",
     )
     parser.add_argument(
         "--reset",
@@ -189,8 +186,8 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parsed = parser.parse_args()
     if parsed.source and parsed.example:
         parser.error("choose an example name or --source, not both")
-    if parsed.automation and parsed.export:
-        parser.error("--automation serves a page; omit --export")
+    if parsed.reader and parsed.export:
+        parser.error("--reader serves a page; omit --export")
     if parsed.reset and (parsed.stop or parsed.export):
         parser.error("--reset starts a fresh preview; omit --stop or --export")
     return parser, parsed
@@ -281,16 +278,41 @@ def mark_preview(source: Path, page: Path, runtime: Path, identity: dict) -> Non
     )
 
 
-def preview_directory(source: Path, slot: str | None, automation: bool) -> Path:
-    name = re.sub(r"[^A-Za-z0-9._-]", "-", source.stem).strip("._-")[:64] or "preview"
-    if automation and slot is None:
-        name = f"{name}-automation"
-    return TMP / "previews" / (slot or name)
+def preview_directory(source: Path, slot: str | None, reader: bool) -> Path:
+    if slot:
+        return TMP / "previews" / slot
+    # The suffix is part of the name `--slot` carries into the worker, so it comes
+    # out of the ceiling rather than past it.
+    suffix = "-reader" if reader else ""
+    stem = re.sub(r"[^A-Za-z0-9._-]", "-", source.stem).strip("._-")
+    return TMP / "previews" / ((stem[: 64 - len(suffix)] or "preview") + suffix)
 
 
 def preview_log(page: Path) -> Path:
     """A background watcher's diagnostics, beside the page it follows."""
     return page.with_name(f"{page.name}.preview.log")
+
+
+def watcher_note(page: Path) -> str:
+    """What ends an unclaimed preview, in the shape a serve states its lifetime.
+
+    `leaf server`'s own note reads the lifetime off `service.json`, and a preview
+    nobody was handed writes none. Both things that end one are said here: the
+    watcher holds the server, and inside an agent host `PreviewService.running`
+    ends the watcher with the session — which a detached preview's URL outlives
+    silently unless the line that hands it over says so.
+    """
+    from leaf.host import session_harness
+
+    ends = "stops with its watcher"
+    if session_harness() is not None:
+        ends += " and with this agent session"
+    return "\n".join(
+        (
+            f"server   preview (no task claim; {ends})",
+            f"stop     scripts/preview.py --slot {page.name} --stop",
+        )
+    )
 
 
 def preview_locks(page: Path) -> tuple[Path, Path]:
@@ -357,12 +379,12 @@ def fixture_seed(source: Path) -> dict:
     return {str(path): digest(path) for path in paths}
 
 
-def source_identity(source: Path, runtime: Path, automation: bool) -> dict:
+def source_identity(source: Path, runtime: Path, reader: bool) -> dict:
     return {
         "source": str(source),
         "runtime": str(runtime),
         "seed": fixture_seed(source),
-        "interaction": "automation" if automation else "reader",
+        "interaction": "reader" if reader else "author",
     }
 
 
@@ -372,6 +394,20 @@ def identifies(identity: dict | None, expected: dict) -> bool:
         identity is not None
         and {key: identity.get(key) for key in expected} == expected
     )
+
+
+def crossed_interaction(identity: dict | None, expected: dict) -> str | None:
+    """The interaction a slot already serves, where this command asked for the other.
+
+    A slot keeps its interaction for its life, and the fixture it was built from
+    is usually the same one, so the refusal that covers both reads as a complaint
+    about the fixture. One flag decides this half, and naming it is the remedy.
+    """
+    recorded = (identity or {}).get("interaction")
+    if recorded is None or recorded == expected["interaction"]:
+        return None
+    flag = "add" if recorded == "reader" else "drop"
+    return f"serves its {recorded} interaction; {flag} --reader to join it"
 
 
 def refused(reason) -> bool:
@@ -390,7 +426,7 @@ def refresh_preview(
     launcher: Path,
     runtime: Path,
     identity: dict,
-    automation: bool,
+    reader: bool,
     vendor: bool = True,
 ) -> bool:
     """Replace only admitted layer/source changes; never recreate the page log.
@@ -408,7 +444,7 @@ def refresh_preview(
     watcher re-vendors when the layer it watches changed, and copies the source alone
     when that is all that changed.
     """
-    if not identifies(identity, source_identity(source, runtime, automation)):
+    if not identifies(identity, source_identity(source, runtime, reader)):
         return refused(
             "fixture identity or seeded history changed; choose a new --slot to "
             "preserve feedback, or rerun with --reset to discard it"
@@ -600,33 +636,34 @@ def start_preview_server(
 class PreviewService:
     """However this preview owns a server, for as long as it wants one up.
 
-    A reader preview serves the page's durable service, claimed and started
-    through the selected checkout's launcher and revived in place after each
-    update, so the page belongs to this session and the reader's URL survives
-    every reload. An automation preview serves a process-owned temporary server
-    on a retained address, so no claim or service record outlives the command.
+    A preview holds a process-owned server on a retained address, so no claim or
+    service record outlives its watcher. `--reader` serves the page's durable
+    service instead, claimed and started through the selected checkout's launcher
+    and revived in place after each update, so the page belongs to this session
+    and the URL a reader was handed survives every reload and every `leaf wait`.
     Nothing else about a preview differs, so the two are told apart here and
     nowhere else in its lifetime.
     """
 
-    def __init__(self, page: Path, launcher: Path, runtime: Path, automation: bool):
+    def __init__(self, page: Path, launcher: Path, runtime: Path, reader: bool):
         from leaf.host import session_harness
 
         self.page = page
         self.launcher = launcher
         self.runtime = runtime
-        self.automation = automation
+        self.reader = reader
         self.temporary = None
         self.address: dict = {}
         self.claimed = False
         # A reader preview is reaped through its claim: the serving process
         # exits when the session's lifetime ends, and `running` reads that from
-        # the empty service. An automation preview holds its server in a thread
-        # of its own and takes no claim, so it reads the same lifetime here and
-        # ends itself. `claim_is_active` is that one reading, and a harness
-        # states the fields it consumes. Outside an agent host there is no
-        # session to outlive and the watcher runs until it is stopped.
-        harness = session_harness() if automation else None
+        # the empty service. An unclaimed preview holds its server in a thread of
+        # its own and nothing outside it would notice, so it reads the same
+        # lifetime here and ends itself. `claim_is_active` is that one reading,
+        # and a harness states the fields it consumes. Outside an agent host
+        # there is no session to outlive and the watcher runs until it is
+        # stopped.
+        harness = None if reader else session_harness()
         self.lifetime = (
             None
             if harness is None
@@ -637,13 +674,13 @@ class PreviewService:
         """Put the server up and report its URL and lifetime note, or None."""
         from leaf.hosting import TemporaryPageServer, start_server
 
-        if self.automation:
+        if not self.reader:
             self.temporary = TemporaryPageServer(self.page, **self.address).start()
             self.address = {
                 "token": self.temporary.token,
                 "port": self.temporary.port,
             }
-            return self._serving(self.temporary.url, AUTOMATION_NOTE)
+            return self._serving(self.temporary.url, watcher_note(self.page))
         if self.claimed:
             # Ownership was claimed while the launch still had its host ancestor.
             # A detached refresh preserves that lifetime; the serving child
@@ -657,7 +694,7 @@ class PreviewService:
         """Take the server down, keeping whatever a restart has to reuse."""
         from leaf.hosting import cmd_stop
 
-        if not self.automation:
+        if self.reader:
             cmd_stop(self.page)
         elif self.temporary is not None:
             self.temporary.close()
@@ -665,18 +702,25 @@ class PreviewService:
         self._serving(None, None)
 
     def _serving(self, url: str | None, note: str | None) -> tuple[str, str] | None:
-        """Record where this slot answers, or that it answers nowhere.
+        """Record where this slot answers and what ends it, or that it answers nowhere.
 
-        A watcher that has detached is the only thing that knows its address,
-        and an automation preview writes no `service.json` to leave it in. The
-        record is written at every transition rather than once, so a second
-        invocation reading it is never handed a server that has gone.
+        A watcher that has detached is the only thing that knows either. An
+        unclaimed preview writes no `service.json` to leave its address in, and
+        its lifetime is this process's: a second invocation asking its own
+        environment would answer for itself rather than for the watcher, and get
+        the agent session wrong in both directions. Both are written at every
+        transition rather than once, so a joiner is never handed a server that
+        has gone.
         """
         from leaf.files import read_json, write_json
 
         recorded = read_json(self.page / "preview.json")
-        if recorded is not None and recorded.get("url") != url:
-            write_json(self.page / "preview.json", {**recorded, "url": url})
+        serving = {"url": url, "note": note}
+        if (
+            recorded is not None
+            and {key: recorded.get(key) for key in serving} != serving
+        ):
+            write_json(self.page / "preview.json", {**recorded, **serving})
         return None if url is None else (url, note)
 
     @property
@@ -684,7 +728,7 @@ class PreviewService:
         from leaf.server import running_server
         from leaf.service import claim_is_active
 
-        if self.automation:
+        if not self.reader:
             return (
                 self.temporary is not None
                 and self.temporary.running
@@ -737,7 +781,6 @@ def join_running_preview(
     page: Path,
     lease_path: Path,
     expected: dict,
-    automation: bool,
     ready_fd: int | None,
 ) -> None:
     """Report where the watcher that already holds this slot serves it, or why not.
@@ -746,29 +789,34 @@ def join_running_preview(
     preparing a fresh slot has not yet recorded what it is preparing, so the wait
     is on the lease this command could not take rather than on either reading.
 
-    The owner records where it answers whichever kind of server it holds, so the
-    address is read from one place here. An automation preview has no
-    `service.json` to read it off, and its address is the only thing this command
-    cannot rebuild for itself.
+    The owner records where it answers and what ends it, whichever kind of server
+    it holds, so both are read back here rather than rebuilt. Neither is this
+    command's to rebuild: an unclaimed preview has no `service.json` to read an
+    address off, and the lifetime belongs to the process that took it.
     """
     from leaf.files import read_json
-    from leaf.hosting import startup_note
     from leaf.leases import lock_is_held
 
     while lock_is_held(lease_path):
         identity = slot_identity(page)
         if identity is not None:
+            if crossed := crossed_interaction(identity, expected):
+                raise ValueError(
+                    f"a watcher already owns {page} and {crossed}, or rerun with "
+                    "--reset to replace it"
+                )
             if not identifies(identity, expected):
                 raise ValueError(
                     f"a watcher already owns {page}; choose a new --slot to "
                     "preserve it, or rerun with --reset to replace it"
                 )
-            if url := (read_json(page / "preview.json") or {}).get("url"):
+            recorded = read_json(page / "preview.json") or {}
+            if url := recorded.get("url"):
                 preview_ready(
                     {
                         "prepared": f"watching {source.stem} (feedback preserved)",
                         "url": url,
-                        "note": AUTOMATION_NOTE if automation else startup_note(page),
+                        "note": recorded["note"],
                     },
                     ready_fd,
                     preview_log(page),
@@ -784,17 +832,17 @@ def watch_preview(
     launcher: Path,
     runtime: Path,
     ready_fd: int | None,
-    automation: bool,
+    reader: bool,
 ) -> None:
     """Take the slot and serve it, or report the watcher that already holds it."""
     from leaf.leases import take_waiter_lease
     from leaf.service import PageTransaction
 
     lease_path, stop_path = preview_locks(page)
-    expected = source_identity(source, runtime, automation)
+    expected = source_identity(source, runtime, reader)
     lease = take_waiter_lease(lease_path)
     if lease is None:
-        join_running_preview(source, page, lease_path, expected, automation, ready_fd)
+        join_running_preview(source, page, lease_path, expected, ready_fd)
         return
     with lease:
         identity = (
@@ -802,19 +850,21 @@ def watch_preview(
             if page.exists()
             else {**expected, "source_digest": digest(source)}
         )
+        if crossed := crossed_interaction(identity, expected):
+            raise ValueError(f"{page} {crossed}, or rerun with --reset to rebuild it")
         if not identifies(identity, expected):
             raise ValueError(
                 f"{page} contains another fixture or changed seed history; "
                 "choose a new --slot to preserve feedback, or rerun with "
                 "--reset to discard it"
             )
-        if automation and PageTransaction(page).active_claim is not None:
+        if not reader and PageTransaction(page).active_claim is not None:
             raise ValueError(
                 f"{page} has an active task claim; choose a new --slot to "
                 "preserve it, or rerun with --reset to replace it"
             )
         serve_preview(
-            source, page, launcher, runtime, identity, stop_path, ready_fd, automation
+            source, page, launcher, runtime, identity, stop_path, ready_fd, reader
         )
 
 
@@ -826,7 +876,7 @@ def serve_preview(
     identity: dict,
     stop_path: Path,
     ready_fd: int | None,
-    automation: bool,
+    reader: bool,
 ) -> None:
     """Serve this slot's page and follow its inputs until something stops it.
 
@@ -840,12 +890,12 @@ def serve_preview(
     from leaf.leases import lock_is_held
     from leaf.service import PageTransaction
 
-    service = PreviewService(page, launcher, runtime, automation)
+    service = PreviewService(page, launcher, runtime, reader)
     changes = None
     try:
         if page.exists():
             service.stop()
-            refresh_preview(source, page, launcher, runtime, identity, automation)
+            refresh_preview(source, page, launcher, runtime, identity, reader)
             prepared = f"resumed {source.stem} (feedback preserved)"
         else:
             page.parent.mkdir(parents=True, exist_ok=True)
@@ -876,7 +926,7 @@ def serve_preview(
             reported = {path for _, path in next(changes)}
             if serving and not service.running:
                 return  # an explicit service stop or the owning session ended
-            if not serving and not automation:
+            if not serving and reader:
                 # A refused restart has no service watching the claim's
                 # lifetime. Lost ownership ends this watcher as well.
                 with PageTransaction(page) as state:
@@ -892,7 +942,7 @@ def serve_preview(
             vendored = bool(reported & (watched.layer | current.layer))
             service.stop()
             if refresh_preview(
-                source, page, launcher, runtime, identity, automation, vendor=vendored
+                source, page, launcher, runtime, identity, reader, vendor=vendored
             ):
                 roots = layer_inputs(
                     tuple(read_json(page / "registry.json")["$layer"]["packages"])
@@ -933,7 +983,7 @@ def start_preview_worker(
     runtime: Path,
     background: bool,
     stop: bool,
-    automation: bool,
+    reader: bool,
     reset: bool,
 ) -> None:
     """Run in the selected checkout's uv environment, including --runtime previews.
@@ -961,8 +1011,8 @@ def start_preview_worker(
     # The caller's page path is retained even when the selected runtime is elsewhere.
     if page.parent == TMP / "previews":
         command.extend(("--slot", page.name))
-    if automation:
-        command.append("--automation")
+    if reader:
+        command.append("--reader")
     if reset:
         result = subprocess.run([*command, "--reset"], cwd=runtime, check=False)
         if result.returncode:
@@ -999,7 +1049,7 @@ def main() -> None:
     if args._worker:
         runtime = args.runtime.resolve()
         source = args.source.resolve()
-        page = preview_directory(source, args.slot, args.automation)
+        page = preview_directory(source, args.slot, args.reader)
         if args.reset:
             retire_preview(page, discard=True)
         elif args.stop:
@@ -1012,7 +1062,7 @@ def main() -> None:
                 runtime / "bin" / "leaf",
                 runtime,
                 args._ready_fd,
-                args.automation,
+                args.reader,
             )
         return
     runtime, launcher = checkout(parser, args.runtime)
@@ -1042,14 +1092,14 @@ def main() -> None:
         print(out.resolve())
         return
 
-    page = preview_directory(source, args.slot, args.automation)
+    page = preview_directory(source, args.slot, args.reader)
     start_preview_worker(
         source,
         page,
         runtime,
         args.background,
         args.stop,
-        args.automation,
+        args.reader,
         args.reset,
     )
 

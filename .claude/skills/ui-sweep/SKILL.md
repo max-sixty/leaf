@@ -56,7 +56,7 @@ viewport.
 ## Observe
 
 Re-vendor before testing. Use `serve` and `open_page` from
-`tests/render_harness.py`, or `scripts/preview.py <example> --automation`, adding
+`tests/render_harness.py`, or `scripts/preview.py <example>`, adding
 `--background` to hold that preview across tool calls and `--stop` when done.
 These process-owned servers exercise the real HTTP and event-log loop without
 delivering reader feedback to the task. Give independent runs separate page state.

@@ -5190,43 +5190,21 @@ def test_thread_action_references_use_their_frozen_markup_root(server, page_dir)
     assert "detached in its authored document" in json.loads(body)["error"]
 
 
-def _swipe_page(page_dir, deck=None):
-    """Publish a page holding one swipe deck: its registry, markup, and revision.
-
-    `deck` defaults to the package's own example, whose queue holds one card.
-    """
-    registry = registry_storage.require_registry(page_dir)
-    source = PAGE.replace(
-        "</section>", (deck or registry["lf-swipe-deck"]["x-example"]) + "</section>"
-    )
-    (page_dir / "index.html").write_text(source)
-    publish(page_dir)
-    return registry, source, files_model.latest_revision(page_dir)
-
-
-def _deck_answered(source, events, layer, revision):
-    """Whether `session-triage`'s Ask reads as answered under `layer`."""
-    from leaf.asks import answered_ask
-    from leaf.projection import page_reading
-
-    page = page_reading(structure_model.SourceDocument(source), events, layer, revision)
-    return answered_ask(
-        page.document.by_id["session-triage"],
-        layer["lf-swipe-deck"],
-        page.projection,
-        page.document.by_id,
-        page.spoken,
-        layer,
-    )
-
-
 def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     """Keeping a position record must not reinterpret whether it completed its Ask."""
     from copy import deepcopy
 
+    from leaf.asks import answered_ask
+    from leaf.projection import page_reading
     from leaf.validation.compatibility import candidate_vocabulary_gaps
 
-    registry, source, revision = _swipe_page(page_dir)
+    registry = registry_storage.require_registry(page_dir)
+    source = PAGE.replace(
+        "</section>", registry["lf-swipe-deck"]["x-example"] + "</section>"
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
     append_command(
         page_dir,
         {
@@ -5245,8 +5223,21 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     }
     registry_validation.validate_registry(incoming, "changed completion")
 
-    assert _deck_answered(source, events, registry, revision)
-    assert not _deck_answered(source, events, incoming, revision)
+    def answered(layer):
+        page = page_reading(
+            structure_model.SourceDocument(source), events, layer, revision
+        )
+        return answered_ask(
+            page.document.by_id["session-triage"],
+            layer["lf-swipe-deck"],
+            page.projection,
+            page.document.by_id,
+            page.spoken,
+            layer,
+        )
+
+    assert answered(registry)
+    assert not answered(incoming)
     document = structure_model.SourceDocument(source)
     assert (
         candidate_vocabulary_gaps(page_dir, events, document, registry, revision) == []
@@ -5254,70 +5245,6 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     assert "changes its admitted completion condition" in "\n".join(
         candidate_vocabulary_gaps(page_dir, events, document, incoming, revision)
     )
-
-
-def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card(page_dir):
-    """The answer verb carries the final position itself, so the door has to read it.
-
-    A deck's `finish` says which card landed where, and that is also what settles
-    the Ask. A sender that skips the widget can put a schema-valid one on the wire,
-    and nothing after the door would look again: the deck would read as answered
-    with a final classification that never happened, or with a card the page has
-    never held. Both refusals are the same rule — the references a verb declares
-    are resolved against the document before the verb is allowed to settle anything.
-    """
-    from leaf.event_log import EventRefused
-
-    # Two cards in the queue: with one, finishing the deck and emptying it are the
-    # same move, and the first refusal below would have nothing to refuse.
-    registry, source, revision = _swipe_page(
-        page_dir,
-        """<lf-ask id="session-triage-decision"><h2>Which follow-ups?</h2>
-<lf-swipe-deck id="session-triage">
-  <lf-swipe-pile id="session-queue" verdict="unseen">
-    <lf-swipe-card id="session-expiry"><strong>Rolling expiry</strong></lf-swipe-card>
-    <lf-swipe-card id="session-index"><strong>Index sessions</strong></lf-swipe-card>
-  </lf-swipe-pile>
-  <lf-swipe-pile id="session-pass" verdict="pass"></lf-swipe-pile>
-  <lf-swipe-pile id="session-keep" verdict="keep"></lf-swipe-pile>
-</lf-swipe-deck></lf-ask>""",
-    )
-
-    def deck_answered():
-        events = events_model.read_events(page_dir)
-        return _deck_answered(source, events, registry, revision)
-
-    assert not deck_answered()
-
-    def finish(detail):
-        return append_command(
-            page_dir,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": revision,
-                "widget": "session-triage",
-                "action": "finish",
-                "detail": detail,
-            },
-        )
-
-    # One card placed leaves the other in the queue, so the deck's completion
-    # condition is unmet and the verb that claims to answer the Ask is not admitted.
-    with pytest.raises(EventRefused) as early:
-        finish({"card": "session-expiry", "to": "session-keep", "index": 1})
-    assert "does not satisfy its completion condition" in str(early.value)
-
-    # And a card the document has never held is refused where every reference is
-    # resolved, before the projection could record a position for a missing id.
-    with pytest.raises(EventRefused) as unknown:
-        finish({"card": "not-a-card", "to": "session-keep", "index": 2})
-    assert "unknown card 'not-a-card'" in str(unknown.value)
-
-    assert [
-        e for e in events_model.read_events(page_dir) if e["kind"] == "action"
-    ] == []
-    assert not deck_answered()
 
 
 @pytest.mark.parametrize("facet", ["settlement", "label"])

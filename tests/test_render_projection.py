@@ -8857,6 +8857,9 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
             "button", name="Resolve thread", exact=True
         ).click()
     expect(goal).not_to_have_attribute("data-lf-held")
+    expect(page.locator("#atlas-record")).to_contain_text(
+        "Released · Replace the XML parser (goal-parser)"
+    )
 
     undo(page)
     expect(goal).to_have_attribute("data-lf-held", root["id"])

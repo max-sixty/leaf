@@ -172,6 +172,11 @@
      to be a fixed size under a finger — a margin entry, the shortcut bar's More — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
+  /* The smallest face a reader types in. Only a finger's platform asks for one: iOS
+     Safari zooms the page onto a text field set smaller as the field takes focus. The
+     field rule that holds it is in shadow.css, and a surface that shows words before
+     opening a field on them holds the same floor so the two sizes agree. */
+  --entry-floor: 0px;
   /* A margin entry's box: 32px of marker, or the floor where a finger raises it. The
      rail's claim below reserves the same length, so it is named rather than written
      into each. */
@@ -399,10 +404,10 @@ html:root {
 @media screen and (width <= 600px) {
   html:root { --lf-tray-slot-width: min(100vw, max(220px, var(--lf-tray-slot-choice, 300px))); }
 }
-/* The other half of --aim-floor, and the whole of what a coarse pointer changes about how
-   small a control may be. Every rule that states the floor reads the token, so a control
-   joins both answers by joining one of them. */
-@media (pointer: coarse) { :root { --aim-floor: 44px; } }
+/* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
+   changes about how small a control, or the words typed in one, may be. Every rule that
+   states a floor reads its token, so a control joins both answers by joining one of them. */
+@media (pointer: coarse) { :root { --aim-floor: 44px; --entry-floor: 16px; } }
 /* Which here ring this is, said by the rule that draws it. An outline carries no word
    for which of the layer's rules put it there — so a reader that had to know worked it
    back from the selectors, matching the layer's own rules against the document by hand.

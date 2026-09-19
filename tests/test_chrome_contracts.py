@@ -617,6 +617,8 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve):
 PHONE_READING_PAGE = leaf_page(
     "phone reading",
     "<h1 id='t'>Phone</h1>"
+    + "<aside class='sidenote'><lf-draft id='note'><pre>A draft set in the sidenote's"
+    " type.</pre></lf-draft></aside>"
     + "".join(
         f"<p id='p{n}'>Paragraph {n}. "
         + "Filler words for the reading column. " * 8
@@ -632,7 +634,9 @@ def test_a_phone_comment_field_keeps_clear_of_what_ios_draws_itself(iphone, serv
 
     Safari zooms the page onto a text field set under 16px as the field takes focus, and
     leaves it zoomed: tapping the field jumped the view, then left the reader panning
-    sideways across a page wider than the screen. So no field the page holds is smaller.
+    sideways across a page wider than the screen. So no field the page holds is smaller,
+    and a draft, whose editor wears the words' own face, shows them on the same floor, or
+    one set in a sidenote's smaller type opens a size larger than it showed.
 
     iOS draws its selection menu (Copy, Look Up) in the band above the selected words,
     where it covered a field standing over the paragraph. So the field goes below the
@@ -644,6 +648,16 @@ def test_a_phone_comment_field_keeps_clear_of_what_ios_draws_itself(iphone, serv
         ".map(field => parseFloat(getComputedStyle(field).fontSize))"
     )
     assert sizes and min(sizes) >= 16, sizes
+    note = page.locator("#note")
+    shown = note.locator(".lf-draft-body").evaluate(
+        "body => parseFloat(getComputedStyle(body).fontSize)"
+    )
+    note.locator(".lf-draft-body").tap()
+    editing = note.locator(".lf-draft-edit").evaluate(
+        "field => parseFloat(getComputedStyle(field).fontSize)"
+    )
+    assert shown == editing >= 16, (shown, editing)
+    page.keyboard.press("Escape")
 
     page.locator("#p6").evaluate("""paragraph => {
       const box = paragraph.getBoundingClientRect();

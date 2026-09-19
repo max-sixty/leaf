@@ -24,6 +24,8 @@ The main owners are:
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through,
   and the per-kind contracts it runs;
+- `page_view`: the page as the door may read it, so admission is a fold over that
+  reading, the standing log, and one event;
 - `event_endpoint`: the browser's transport onto that door — postable kinds,
   sendable fields, retries, and HTTP answers;
 - `event_meaning`: admitted widget-command meaning and layer compatibility;

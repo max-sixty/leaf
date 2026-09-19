@@ -18,6 +18,7 @@ from .event_contracts import (
 from .event_log import AttemptConflict
 from .host import claim_harness
 from .leases import wait_is_live
+from .page_view import PageView
 from .registry.contract import RegistryError
 from .service import PageTransaction
 
@@ -71,7 +72,7 @@ def accept_event(
 ) -> EventAnswer:
     """Validate and append one browser record, then return its current state."""
     try:
-        registry = admitting_registry(page_dir, event)
+        registry = admitting_registry(PageView(page_dir), event)
     except (EventRefused, RegistryError) as error:
         return event_rejection(event, str(error))
     contracts = registry["$events"]["kinds"]

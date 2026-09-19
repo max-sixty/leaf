@@ -368,7 +368,9 @@ newest. Use `serve(example, seed_log=False)` when only the shipped conversation
 would be noise. Reach the page directory through `serve.page_dir` when a test
 needs to publish v2 or inspect the log. `page_dir` in `interact_support.py`
 owns command-level files without starting a browser and takes its ordinary
-initialized layer the same way.
+initialized layer the same way. `ModelPage` owns less again: a rule the append
+door decides from authored markup and the standing log is stated as that markup
+and put to `event_contracts.admitted_event`, with no page directory under it.
 
 `initialized_page` composes one page per shape and lends it. A test gets that
 page moved to the path it asked for, and when the test ends the page goes back

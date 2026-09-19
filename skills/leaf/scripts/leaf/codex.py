@@ -4,9 +4,10 @@ A carrier is whatever keeps a Codex task reachable on Leaf's behalf: the detache
 process in `codex_adapter.py`, which observes a task it does not own, and the
 website's embedded host in `worker/server.py`, which owns the tasks it starts.
 What both need is here — the App Server connection and the request shapes one Leaf
-turn is opened with, the fold from a task's notifications into activity and
-final-answer readings, the writers that put those readings on a claimed page, and
-the durable records a delivery passes through.
+turn is opened with, the loop that reads a started turn's connection to its end,
+the fold from a task's notifications into activity and final-answer readings, the
+writers that put those readings on a claimed page, and the durable records a
+delivery passes through.
 
 A delivery record under the state home is the handoff between Leaf capturing a
 reader's moves and a carrier taking them. One record is offered once, accepted once,
@@ -32,7 +33,7 @@ from xml.etree import ElementTree
 
 from websockets.sync.client import connect, unix_connect
 
-from .conversation import DeliveryReply
+from .conversation import DeliveryReply, release_delivery_reply
 from .delivery import (
     DELIVERY_FORMAT,
     batch_data,
@@ -707,6 +708,158 @@ def close_stream_turn(session_id: str, turn_id: str) -> None:
     with _locked_task_pages(session_id) as pages:
         for page in pages:
             page.close_turn(session_id, turn_id)
+
+
+class CarriedTurn:
+    """One delivery's Codex turn, from the start that made it to its receipt.
+
+    The turn exists because `turn/start` answered with it, so a carrier knows
+    which turn is its own before reading a notification and nothing recovers the
+    binding off the stream. The connection belongs to the turn for the turn's
+    whole life: `thread/start` and `thread/resume` subscribe it, `turn/start`
+    neither subscribes nor unsubscribes, and losing it is the turn ending.
+
+    Reading that connection to the end is the same work for every carrier and it
+    is here. Each notification folds into the task's activity and final-answer
+    readings; one of them is the turn's completion; every other way the read can
+    stop composes a terminal of its own, so a turn ends exactly once however it
+    ended. What differs is what Leaf calls the turn — the page turn it opens, the
+    seat its answer commits into, the receipt it owes a reader — which each
+    carrier opens in `begin` and accounts for in `close`.
+
+    `close` runs whatever the answer did. Committing the answer re-reads a page
+    the turn's own work may have left unopenable, and the turn has ended either
+    way: until the carrier's account of it is written, the page goes on telling
+    its reader the agent is working, with nothing but the claim's fifteen-minute
+    grace to correct it.
+    """
+
+    silence: float | None = None
+
+    def __init__(
+        self,
+        session_id: str,
+        socket,
+        turn_id: str,
+        delivery_id: str,
+        reply_target: dict | None,
+        buffered=(),
+    ):
+        self.session_id = session_id
+        self.socket = socket
+        self.turn_id = turn_id
+        self.delivery_id = delivery_id
+        self.reply_target = reply_target
+        self.stream = TurnStream(socket, buffered, silence=self.silence)
+        self.events = AppServerEvents(session_id)
+        self.events.turn_id = turn_id
+        self.reply_stream: AppServerReplyStream | None = None
+        self.last_activity_update = 0.0
+
+    def follow(self) -> None:
+        """Read this turn's connection to its end, and account for how it ended."""
+        terminal = None
+        try:
+            self.begin()
+            while True:
+                message = self.stream.next()
+                if message is None:
+                    continue
+                update = self.absorb(message)
+                terminal = self.finished(message, update)
+                if terminal is not None:
+                    break
+        except Exception as error:  # noqa: BLE001 - the turn's outcome, any fault
+            terminal = self.ended(error)
+        finally:
+            self.stream.close()
+        if terminal is not None:
+            self.commit(terminal)
+
+    def open_reply(self) -> None:
+        """Bind the seat this turn's final answer commits into."""
+        if self.reply_target is not None:
+            self.reply_stream = AppServerReplyStream(
+                self.session_id,
+                self.turn_id,
+                self.delivery_id,
+                self.reply_target,
+            )
+
+    def absorb(self, message: dict) -> dict | None:
+        """Fold one notification into this turn's readings."""
+        update = self.events.read(message)
+        self.observe(message, update)
+        self.last_activity_update = project_app_server_activity(
+            self.events,
+            message,
+            update,
+            self.last_activity_update,
+        )
+        published = (
+            self.reply_stream.update(update) if self.reply_stream is not None else False
+        )
+        self.observe_reply(update, published)
+        return update
+
+    def finished(self, message: dict, update: dict | None) -> dict | None:
+        """Return the terminal turn when this notification is its completion."""
+        if (
+            update is not None
+            and update.get("completed")
+            and update["turn"] == self.turn_id
+        ):
+            return message["params"]["turn"]
+        return None
+
+    def ended(self, error: BaseException) -> dict | None:
+        """Compose the terminal of a turn whose stream ended it.
+
+        A carrier returns None instead to leave the provider turn running and
+        account for nothing, which is only honest where somebody else is watching
+        it. Where nobody is, the carrier ends the turn before it composes this:
+        closing a connection ends no turn, and App Server runs it either way.
+        """
+        fault = type(error).__name__
+        detail = f"{fault}: {error}" if str(error) else fault
+        return {
+            "id": self.turn_id,
+            "status": "failed",
+            "error": {"message": f"App Server turn stream failed: {detail}"},
+        }
+
+    def commit(self, terminal: dict) -> None:
+        """Write what the turn answered, then close Leaf's account of it."""
+        reply_error = None
+        try:
+            reply_error = self.settle_reply(terminal)
+        finally:
+            self.close(terminal, reply_error)
+
+    def settle_reply(self, terminal: dict) -> BaseException | None:
+        """Commit the turn's final answer, or give up the seat held for one."""
+        if self.reply_stream is not None:
+            return self.reply_stream.finish(
+                terminal.get("status") or "failed",
+                self.events.final_text(terminal),
+            )
+        if self.reply_target is not None:
+            release_delivery_reply(self.session_id, self.delivery_id, self.reply_target)
+        return None
+
+    def begin(self) -> None:
+        """Open Leaf's names for this turn, in whatever a carrier writes them."""
+        raise NotImplementedError
+
+    def close(self, terminal: dict, reply_error: BaseException | None) -> None:
+        """Account for the ended turn wherever this carrier announced it."""
+        raise NotImplementedError
+
+    def observe(self, message: dict, update: dict | None) -> None:
+        """Record one notification, before its readings reach a page."""
+
+    def observe_reply(self, update: dict | None, published: bool) -> None:
+        """Record what one notification put in the reader's reply."""
 
 
 def session_state_path(session_id: str, suffix: str) -> Path:

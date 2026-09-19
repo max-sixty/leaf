@@ -916,17 +916,23 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     Presentation and view state are not input, so they still run: a quoted
     settled group collapses like any other."""
     url = serve(SPECIMEN_PAGE)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "quoted-suggestion",
-            "action": "accept",
-            "detail": {},
-        },
-    )
+    # The rule stands at the log's own door as well as in the browser's controller, so
+    # the state a quoted widget would reconcile cannot be written in the first place.
+    # Any sender reaches that door; this one is the CLI's side of it.
+    with pytest.raises(
+        events_model.EventRefused, match="quoted material takes no input"
+    ):
+        append_command(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "quoted-suggestion",
+                "action": "accept",
+                "detail": {},
+            },
+        )
     page = open_page(browser, url)
     assert page.locator(".lf-error").count() == 0
 
@@ -963,13 +969,13 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # wears its mark, with nothing to press.
     assert page.locator('#quoted-settled .lf-pick[role="img"]').count() == 1
 
-    # A quoted suggestion reconciles its semantic state while growing nothing to
-    # settle it with, so it is also not the banner's to count or Accept all's to
-    # decide.
-    expect(page.locator("#quoted-suggestion")).to_have_attribute(
-        "data-lf-state", "accept"
+    # So a quoted suggestion stands as the page wrote it, the old words and the proposed
+    # ones both, with nothing to settle it with. It is not the banner's to count or
+    # Accept all's to decide either.
+    expect(page.locator("#quoted-suggestion")).not_to_have_attribute(
+        "data-lf-state", re.compile(".")
     )
-    expect(page.locator("#quoted-suggestion lf-old")).to_be_hidden()
+    expect(page.locator("#quoted-suggestion lf-old")).to_be_visible()
     expect(page.locator("#quoted-suggestion lf-new")).to_be_visible()
     assert (
         page.locator(

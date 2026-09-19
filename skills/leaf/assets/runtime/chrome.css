@@ -19,8 +19,8 @@
    `.lf-ui`, `.lf-btn`, `.lf-chip`, `.lf-key-badge`, `.lf-skip`, the margin entries, and
    the markers the runtime paints on page elements. Adding a global selector widens the
    widget contract and must be covered by the render suite. Most of that vocabulary is
-   faced in theme.css rather than here, for the reason the block below this header
-   gives; what stands globally in this sheet is what has to beat the page.
+   faced in theme.css and shadow.css rather than here, for the reason the block below
+   this header gives; what stands globally in this sheet is what has to beat the page.
 
    A shared class owns only the look shared on both sides of the scope line. Placement
    remains with each surface. For example, a key badge may share type, border, and
@@ -79,14 +79,13 @@
    package theme concatenated onto it. A shared face stated here at ordinary class
    specificity therefore beats each component's own rule — a default outranking the
    thing it is a default for — and nothing catches it, since a rule that never applies
-   renders nothing to gate. So the shared vocabulary's faces are stated in theme.css,
-   where a component that names the same property wins by coming later: .lf-ui, .lf-btn
-   and its focus ring, .lf-chip, .lf-key-badge, a thread mark's note, and the whole
-   margin-entry family are all there, the chip, the note and the aim floor in shadow.css
-   for the widget trees this sheet never reaches. What stays here is the paint the
-   runtime lays over the page, which has to beat page and widget alike. `box-sizing`
-   stays for the same
-   reason — the layer's reset, not its face — and it travels with its own `*`
+   renders nothing to gate. So the shared vocabulary's faces are stated page-side, where
+   a component that names the same property wins by coming later: .lf-key-badge and the
+   whole margin-entry family in theme.css, and .lf-ui, .lf-btn and its focus ring,
+   .lf-chip, a thread mark's note and the aim floor in shadow.css, which also reaches the
+   widget trees this sheet never does. What stays here is the paint the runtime lays
+   over the page, which has to beat page and widget alike. `box-sizing` stays for the
+   same reason — the layer's reset, not its face — and it travels with its own `*`
    companion below.
 
    Two tests hold this. No selector is dressed for one property both here and in a

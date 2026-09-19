@@ -3359,6 +3359,44 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
 
 
+def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serve):
+    """A page dressing its own `button` and `a` is dressing its prose. The controls a
+    widget builds wear the layer's face instead, because `.lf-ui` holds a class's rank
+    over the page's element rules; at no specificity the page took the family and ink of
+    half corpus.html's widget controls."""
+    board = (
+        '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
+        '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
+        '<lf-column id="c2" label="Done"></lf-column></lf-board>'
+        '<p>See <a href="#b">the board</a>.</p>'
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "t",
+                board,
+                head="<style>button, a { font-family: cursive; color: rgb(255, 0, 0); }"
+                "</style>",
+            )
+        ),
+    )
+    faces = page.evaluate("""() => {
+        const face = el => [el.className, getComputedStyle(el).fontFamily,
+                            getComputedStyle(el).color];
+        return {
+            controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
+            prose: face(document.querySelector('main p > a')),
+        };
+    }""")
+    # The control: the page's rule reaches the page's own link.
+    assert faces["prose"][1:] == ["cursive", "rgb(255, 0, 0)"], faces["prose"]
+    assert faces["controls"], "the board built no control to read"
+    assert not [face for face in faces["controls"] if "cursive" in face[1]], faces[
+        "controls"
+    ]
+
+
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of
@@ -3430,12 +3468,23 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # The shared vocabulary's faces are the theme's, for the reason chrome.css's
         # header gives: stated in the adopted sheet they beat each component's own rule
         # on nothing better than that sheet arriving last. The runtime sheet still names
-        # each of these inside its scope — the chip and the badge to say where the
-        # chrome's own copies stand, the margin entry to give a finger a bigger box —
-        # and the movement the theme's rule causes is that deliberate face.
-        "lf-chip",
+        # the badge inside its scope, to say where the chrome's own copies stand, and the
+        # movement the theme's rule causes is that deliberate face.
         "lf-key-badge",
-        "lf-margin-entry",
+        # The aim floor is one plain selector list in shadow.css, so that a finger's
+        # 44px reaches the document, the chrome and every declared widget tree from one
+        # rule. Each name below is a press the chrome also dresses inside its scope, so
+        # the floor is a second, document-level rule on a scoped name. It states a
+        # minimum on two axes and nothing else. The chip and the margin entry are on
+        # that list too and are not here: nothing inside the scope names them any more,
+        # so they are no longer a scoped vocabulary this exception has to cover.
+        "lf-command-reference-command",
+        "lf-layer-reference",
+        "lf-preview",
+        "lf-quote",
+        "lf-thread-action",
+        "lf-version-diff",
+        "lf-version-row",
         "lf-compose-field",
         "lf-compose-submit",
         # The one canonical composer can be seated in a widget's own Thread outlet,
@@ -3474,9 +3523,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-open",
         "lf-react-palette",
         "lf-react-strip",
-        "lf-react-surface",
         "lf-react-trigger",
-        "lf-react-trigger-icon",
         "lf-resolve",
         # The inline seat again: the composer's own row of response actions.
         "lf-response-action",

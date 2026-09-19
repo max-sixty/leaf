@@ -205,6 +205,30 @@ export function pressOrigin() {
   return pressed ? capturePlace(pressed.control) : capturePlace();
 }
 
+// The page the reader is on, with no control in it, as a place a frame can hand back.
+// `pressOrigin` names what a press displaced; this names what a press displaced when the
+// reader held no control to begin with, because the pointer or their last landing had
+// already put them on the page. One reading either way, carrying a control or not.
+export function readingPlace() {
+  if (!capturePlace)
+    throw new Error("leaf: readingPlace read before the keyboard mounted");
+  return capturePlace(null);
+}
+
+// The place recorded by the frame standing over the page, for a surface that hands its
+// layer on to a successor rather than closing it. One press is one rung however many
+// surfaces answer it in turn, so the successor enters with the place that press displaced
+// instead of capturing a second, weaker one from the scene the first surface left behind.
+// Read before the handover, while the surface being replaced still stands.
+//
+// Only a frame that says `handsOn` answers. A surface that happens to be standing when
+// an unframed one opens beneath it — a tray the reader left open, the panel — is not that
+// press, and inheriting its place would put the reader somewhere they never were.
+export function currentOrigin() {
+  const frame = current();
+  return frame?.handsOn ? (frame.origin ?? null) : null;
+}
+
 // The stack itself. Commands declare their second half as `returnFrame`; the dispatcher
 // is the only code that captures and pushes it, which keeps one entry one frame and one
 // successful Escape one pop, instead of asking the resulting scene to guess how it arose.

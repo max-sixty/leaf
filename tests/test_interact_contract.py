@@ -559,10 +559,12 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     assert "no longer speaks" in result.output and "`shorten`" in result.output
 
 
-def test_init_refuses_a_historical_event_record_outside_its_declared_schema(
+def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     page_dir,
 ):
-    """The captured $events contract remains the readable shape of the log."""
+    """A record shape is not a gap re-vendoring creates, unlike the dropped token and
+    retired verb above: admission is the schema's only reader, and the logged event
+    replays the same either way."""
     publish(page_dir)
     events_model.append_event(
         page_dir,
@@ -578,9 +580,10 @@ def test_init_refuses_a_historical_event_record_outside_its_declared_schema(
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    assert result.exit_code != 0
-    assert "kind `comment` record" in result.output
-    assert "mood" in result.output
+    assert result.exit_code == 0, result.output
+    after = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    assert after.exit_code == 0, after.output
+    assert "Does this still mean anything?" in after.output
 
 
 def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
@@ -3605,6 +3608,106 @@ def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page
         )
         assert status == 400, body
         assert "inside itself or its descendant" in json.loads(body)["error"]
+
+
+def _value_verb(attr):
+    """A widget-unit verb that records one attribute's value."""
+    return {
+        "detail": {
+            "type": "object",
+            "properties": {attr: {"type": "string"}},
+            "required": [attr],
+            "additionalProperties": False,
+        },
+        "facet": attr,
+        "unit": "widget",
+        "record": {"kind": "value", "attr": attr, "value": attr},
+    }
+
+
+@pytest.mark.parametrize(
+    ("arrangement", "refusal"),
+    [
+        ("own-facet", None),
+        ("recording-column", "'card' is not owned by action widget 'board'"),
+        ("own-position", "'card' records its own position, so action widget 'board'"),
+    ],
+)
+def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
+    server, page_dir, arrangement, refusal
+):
+    """A card has one place and one widget records it: the card itself when its own
+    contract records its position, otherwise the nearest recording widget above it. A
+    facet the card records of its own is a coordinate of the card's, so the board still
+    moves it. A column that records stands between the board and the card, and a card
+    that positions itself leaves the board nothing to place."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-column"]["properties"]["tint"] = {"type": "string"}
+    card_verbs = {"flag": _value_verb("flag")}
+    if arrangement == "own-position":
+        card_verbs["move"] = {
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "to": {"type": "string"},
+                    "index": {"type": "integer", "minimum": 0},
+                },
+                "required": ["to", "index"],
+                "additionalProperties": False,
+            },
+            "facet": "placement",
+            "unit": "widget",
+            "record": {
+                "kind": "position",
+                "within": "lf-column",
+                "value": "to",
+                "order": "index",
+            },
+        }
+    recorders = {"lf-card": ("flag", card_verbs)}
+    if arrangement == "recording-column":
+        recorders["lf-column"] = ("tint", {"tint": _value_verb("tint")})
+    for tag, (attr, verbs) in recorders.items():
+        entry = registry[tag]
+        entry["properties"] |= {
+            attr: {"type": "string"},
+            "restated": {"type": "boolean"},
+        }
+        entry["required"] = sorted({*entry["required"], attr})
+        entry["x-state"] = verbs
+        entry["x-upgrade"] = True
+        (page_dir / "widgets" / f"{tag}.js").write_text("export default class {}\n")
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+
+    board = (
+        '<lf-board id="board"><lf-column id="todo" label="To do" tint="plain">'
+        '<lf-card id="card" flag="no">Card</lf-card></lf-column>'
+        '<lf-column id="done" label="Done" tint="plain"></lf-column></lf-board>'
+    )
+    html = re.sub(r"<main>.*?</main>", f"<main>{board}</main>", PAGE, flags=re.DOTALL)
+    (page_dir / "index.html").write_text(html)
+    publish(page_dir)
+    revision = events_model.read_events(page_dir)[-1]["revision"]
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "revision": revision,
+                "widget": "board",
+                "action": "move",
+                "detail": {"card": "card", "to": "done", "index": 0},
+            }
+        ).encode(),
+    )
+    if refusal is None:
+        assert status == 200, body
+    else:
+        assert status == 400, body
+        assert refusal in json.loads(body)["error"]
 
 
 @pytest.mark.parametrize(

@@ -1949,14 +1949,13 @@ def test_a_delivery_turn_streams_and_commits_its_reply_on_its_own_connection(
         )
         completed.set()
 
-    endpoint = app_server(handle)
+    observer = _CarriedDeliveries(app_server(handle))
     turn = codex_adapter_model.start_delivery_turn(
-        endpoint, "codex-thread", prepared.payload
+        observer, "codex-thread", prepared.payload
     )
     assert turn.turn_id == "leaf-turn"
     follower = threading.Thread(
-        target=codex_adapter_model._follow_delivery_turn,
-        args=(turn, lambda: False),
+        target=turn.follow,
         daemon=True,
     )
     follower.start()
@@ -2518,6 +2517,34 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     assert observer.events.turn_id is None
 
 
+class _CarriedDeliveries:
+    """What a delivery turn asks its observer: who holds it, and is the adapter going.
+
+    Everything else the observer does needs its connection, and a turn built here
+    is read from a socket of the test's own.
+    """
+
+    def __init__(self, endpoint="unix:///codex-probe.sock", *, stopped=False):
+        self.endpoint = endpoint
+        self.carried = set()
+        self.adapter_stopped = stopped
+
+    def carry(self, delivery_id):
+        self.carried.add(delivery_id)
+
+    def release(self, delivery_id):
+        self.carried.discard(delivery_id)
+
+    def busy(self):
+        return bool(self.carried)
+
+    def working(self):
+        return False
+
+    def stopped(self):
+        return self.adapter_stopped
+
+
 def _idle_app_server(answers=None):
     """A handler that resumes one idle task, then replies from `answers` in order."""
 
@@ -2545,6 +2572,11 @@ def _idle_app_server(answers=None):
             socket.send(answer(request) if callable(answer) else answer)
 
     return handle
+
+
+def _unopenable(*_args):
+    """Stand in for a page write the turn's own work left unable to open."""
+    raise OSError("the page could not be opened")
 
 
 def _codex_delivery(page_dir, text="Answer this"):
@@ -2592,7 +2624,7 @@ def test_a_busy_codex_task_keeps_its_delivery_for_a_later_turn(page_dir, app_ser
     endpoint = app_server(handle)
     assert (
         codex_adapter_model.start_delivery_turn(
-            endpoint, "codex-thread", prepared.payload
+            _CarriedDeliveries(endpoint), "codex-thread", prepared.payload
         )
         is None
     )
@@ -2629,7 +2661,7 @@ def test_a_refused_turn_gives_up_the_seat_it_reserved(page_dir, app_server):
 
     with pytest.raises(codex_model.AppServerRequestRejected, match="cannot be steered"):
         codex_adapter_model.start_delivery_turn(
-            endpoint, "codex-thread", prepared.payload
+            _CarriedDeliveries(endpoint), "codex-thread", prepared.payload
         )
 
     assert not conversation_model.delivery_reply_reserved(
@@ -2653,7 +2685,7 @@ def test_an_unacknowledged_turn_keeps_the_seat_it_reserved(page_dir, app_server)
         codex_adapter_model.AppServerDeliveryUncertain, match="not acknowledged"
     ):
         codex_adapter_model.start_delivery_turn(
-            endpoint, "codex-thread", prepared.payload
+            _CarriedDeliveries(endpoint), "codex-thread", prepared.payload
         )
 
     assert conversation_model.delivery_reply_reserved(
@@ -2731,9 +2763,14 @@ def test_a_connection_that_drops_ends_the_turn_it_was_carrying(page_dir):
             pass
 
     turn = codex_adapter_model.DeliveryTurn(
-        "codex-thread", Socket(), "leaf-turn", payload["id"], target, []
+        _CarriedDeliveries(),
+        "codex-thread",
+        Socket(),
+        "leaf-turn",
+        payload["id"],
+        target,
     )
-    codex_adapter_model._follow_delivery_turn(turn, lambda: False)
+    turn.follow()
 
     assert codex_model.delivery_queue_state("codex-thread", payload["id"]) == "accepted"
     assert not conversation_model.delivery_reply_reserved(
@@ -2763,9 +2800,14 @@ def test_a_stopping_adapter_leaves_a_running_turn_to_a_later_carrier(page_dir):
             pass
 
     turn = codex_adapter_model.DeliveryTurn(
-        "codex-thread", Socket(), "leaf-turn", payload["id"], target, []
+        _CarriedDeliveries(stopped=True),
+        "codex-thread",
+        Socket(),
+        "leaf-turn",
+        payload["id"],
+        target,
     )
-    codex_adapter_model._follow_delivery_turn(turn, lambda: True)
+    turn.follow()
 
     assert conversation_model.delivery_reply_reserved(
         "codex-thread", payload["id"], target
@@ -2789,16 +2831,12 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     target = codex_model.stream_reply_target(payload)
     conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
     turn = codex_adapter_model.DeliveryTurn(
-        "codex-thread", None, "leaf-turn", payload["id"], target, []
+        _CarriedDeliveries(), "codex-thread", None, "leaf-turn", payload["id"], target
     )
     codex_model.open_stream_turn("codex-thread", "leaf-turn")
     codex_model.set_stream_activity("codex-thread", "leaf-turn", "Working")
-
-    class Stream:
-        def finish(self, _state, _text):
-            raise OSError("the page could not be opened")
-
-    turn.reply_stream = Stream()
+    turn.open_reply()
+    monkeypatch.setattr(conversation_model.DeliveryReply, "_set_state", _unopenable)
 
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
@@ -2807,6 +2845,78 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     assert (files_model.read_json(page_dir / "status.json").get("stream") or {}).get(
         "activity"
     ) is None
+    # The seat goes back too: a reply that faulted part-written holds one nothing
+    # will ever commit, and every other writer waits behind it.
+    assert not conversation_model.delivery_reply_reserved(
+        "codex-thread", payload["id"], target
+    )
+
+
+def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
+    page_dir, monkeypatch
+):
+    """The observer ends the turns it adopts the way a follower ends its own.
+
+    A turn the observer binds is one nobody else is following — a pointer the task
+    picked up, or a delivery whose carrier died mid-turn — so its ending is the only
+    one that turn gets. The reply write can fault on the page the turn left behind,
+    and the turn is over either way: the page stops reading working, and the seat
+    goes back for whatever writer tells the reader what happened.
+    """
+    prepared = _codex_delivery(page_dir)
+    payload = prepared.payload
+    target = codex_model.stream_reply_target(payload)
+    conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
+    observer = codex_adapter_model.TaskObserver.__new__(
+        codex_adapter_model.TaskObserver
+    )
+    observer.thread_id = "codex-thread"
+    observer.events = codex_model.AppServerEvents("codex-thread")
+    observer.bindings = {}
+    observer.lock = threading.Lock()
+    observer.carried = set()
+    observer.last_activity_update = 0.0
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "leaf-turn"}},
+        }
+    )
+    observer._read(
+        {
+            "method": "item/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "leaf-turn",
+                "startedAtMs": 1,
+                "item": {
+                    "id": "delivery",
+                    "type": "functionCallOutput",
+                    "name": "leaf_delivery",
+                    "output": json.dumps(payload),
+                },
+            },
+        }
+    )
+    assert set(observer.bindings) == {"leaf-turn"}
+    monkeypatch.setattr(conversation_model.DeliveryReply, "_set_state", _unopenable)
+
+    with pytest.raises(OSError, match="could not be opened"):
+        observer._read(
+            {
+                "method": "turn/completed",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turn": {"id": "leaf-turn", "status": "completed", "items": []},
+                },
+            }
+        )
+
+    assert observer.bindings == {}
+    assert service_model.page_claim(page_dir)["turn_closed"] is not None
+    assert not conversation_model.delivery_reply_reserved(
+        "codex-thread", payload["id"], target
+    )
 
 
 def test_a_task_that_will_never_take_a_turn_is_reported_rather_than_waited_on(
@@ -2843,7 +2953,7 @@ def test_a_task_that_will_never_take_a_turn_is_reported_rather_than_waited_on(
     endpoint = app_server(handle)
     with pytest.raises(RuntimeError, match="not taking turns: systemError"):
         codex_adapter_model.start_delivery_turn(
-            endpoint, "codex-thread", prepared.payload
+            _CarriedDeliveries(endpoint), "codex-thread", prepared.payload
         )
 
 
@@ -5494,27 +5604,6 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     assert not codex_adapter_model._has_delivery_work("codex-thread")
 
 
-class _CarriedDeliveries:
-    """The observer's turn ownership, without its connection."""
-
-    endpoint = "unix:///codex-probe.sock"
-
-    def __init__(self):
-        self.carried = set()
-
-    def carry(self, delivery_id):
-        self.carried.add(delivery_id)
-
-    def release(self, delivery_id):
-        self.carried.discard(delivery_id)
-
-    def busy(self):
-        return bool(self.carried)
-
-    def working(self):
-        return False
-
-
 def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
     codex_claimed_page, monkeypatch
 ):
@@ -5539,10 +5628,10 @@ def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
     started = []
     followed = []
 
-    def start_delivery_turn(endpoint, session_id, payload):
+    def start_delivery_turn(observer, session_id, payload):
         started.append(payload)
         return codex_adapter_model.DeliveryTurn(
-            session_id, None, "app-server-turn", payload["id"], None, []
+            observer, session_id, None, "app-server-turn", payload["id"], None
         )
 
     monkeypatch.setattr(codex_adapter_model, "start_delivery_turn", start_delivery_turn)
@@ -5689,7 +5778,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     attempted = []
     observer = _CarriedDeliveries()
 
-    def start_delivery_turn(endpoint, session_id, payload):
+    def start_delivery_turn(observer, session_id, payload):
         attempted.append(payload)
         # The seat an uncertain start reserved stays reserved, because a turn
         # carrying this delivery may be running.
@@ -5802,10 +5891,10 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
     started = []
     followed = []
 
-    def start_delivery_turn(endpoint, session_id, payload):
+    def start_delivery_turn(observer, session_id, payload):
         started.append(payload)
         return codex_adapter_model.DeliveryTurn(
-            session_id, None, "app-server-turn", payload["id"], None, []
+            observer, session_id, None, "app-server-turn", payload["id"], None
         )
 
     monkeypatch.setattr(codex_adapter_model, "start_delivery_turn", start_delivery_turn)
@@ -8058,6 +8147,66 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     session_model.cmd_ack(page_dir, 1)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s7"})
     assert "no watcher" in json.loads(capsys.readouterr().out)["reason"]
+
+
+def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
+    tmp_path, page_dir, monkeypatch, capsys
+):
+    """The claims directory is one per machine, and the worktrees writing it are
+    each on their own commit, so a session routinely reads records a different
+    version wrote. Found in the wild: a session held six preview pages claimed
+    before #811 named a harness, merged a main that had landed it, and every
+    `leaf wait` after that died in `owned_by` on `claim["harness"]` — taking the
+    watcher off the unrelated page the user was actually reading.
+
+    Stage owes nothing to what an older version wrote, so the record is not
+    migrated and its old shape is never read. It is dropped where it is read,
+    which leaves its page unclaimed and every other page working."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    # The walk is in path order, so a name ahead of the reader's page is what
+    # puts the unreadable record in front of the batch the session came for.
+    stale = tmp_path / "held-preview"
+    assert (
+        CliRunner().invoke(cli_model.cli, ["page", "init", str(stale)]).exit_code == 0
+    )
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "hi"}
+    )
+    assert service_model.claim_page(stale)
+    assert service_model.claim_page(page_dir)
+    assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
+
+    claim = service_model.page_claim(stale)
+    written_before_811 = {**claim, "host": claim["harness"]}
+    del written_before_811["harness"]
+    files_model.write_json(service_model.claim_path(stale), written_before_811)
+
+    # The reported failure: the watcher walks every page the session holds, and
+    # the record it cannot read belongs to a page the reader is not on.
+    delivered = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert delivered.exception is None, repr(delivered.exception)
+    assert delivered.exit_code == 0, repr(delivered.output)
+    assert json.loads(delivered.output)["batches"][0]["events"][0]["text"] == "hi"
+
+    assert service_model.page_claim(stale) is None
+    assert service_model.owned_pages("s8") == [page_dir.resolve()]
+
+    # The same reading answers for the two records a later rename leaves behind,
+    # and the Stop hook shows both: a harness name outside this version's table
+    # raises in `host.claim_harness`, which dispatches on that value rather than
+    # reading it, and a record missing a field a reader brackets is taken for a
+    # live claim, putting its page back in front of the guard — and in front of
+    # `event_endpoint`'s nudge, which brackets `turn_closed` under the append
+    # lock.
+    for unreadable in (
+        {**claim, "harness": "some-host-a-later-leaf-named"},
+        {key: value for key, value in claim.items() if key != "turn_closed"},
+    ):
+        files_model.write_json(service_model.claim_path(stale), unreadable)
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s8"})
+        assert str(stale) not in capsys.readouterr().out
+        assert service_model.page_claim(stale) is None
 
 
 def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(

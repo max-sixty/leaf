@@ -32,6 +32,7 @@ import { threadsBox } from "../conversation/panel-elements.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
+import { currentOrigin, readingPlace } from "../keyboard/layer-stack.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
@@ -146,10 +147,10 @@ export function createSelectionComposer({
   wireInput,
 }) {
   const closeReactions = () => setReact(false);
-  const openInlineThread = (id, ...rest) => {
+  const openInlineThread = (id, options) => {
     const local = focusSurface(id);
     return (
-      local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, ...rest)
+      local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, options)
     );
   };
 
@@ -611,6 +612,13 @@ export function createSelectionComposer({
         // looking at so the inline card can carry that box into its new surface after the
         // draft settlement has removed the composer from the page.
         const transition = threadTransitionOrigin(composerInput, visible);
+        // And keep the place that press displaced, while the box's own frame still stands
+        // to be asked for it. The card is the press's second surface rather than a second
+        // press: `c` from a control opens the box on what the reader is standing in, so
+        // one Escape from the card it becomes owes them that control back. Where the
+        // press displaced no control — the pointer had already put the reader on the page
+        // to select the words it is about — that same place is the page.
+        const entered = currentOrigin() ?? readingPlace();
         const epoch = composerEpoch;
         const sent = sendMessage(
           ctx,
@@ -643,9 +651,12 @@ export function createSelectionComposer({
         // passage just as the reader's comment moves across it to a new floating card.
         const inlineThread =
           shouldLand && !panelIsOpen()
-            ? openInlineThread(sent.id, transition, (thread) =>
-                landTyping(thread.querySelector("textarea"), composerInput),
-              )
+            ? openInlineThread(sent.id, {
+                transition,
+                onPositioned: (thread) =>
+                  landTyping(thread.querySelector("textarea"), composerInput),
+                origin: entered,
+              })
             : null;
         const inlineReply = inlineThread?.querySelector("textarea") ?? null;
         // Expand the destination before placement so Floating UI measures the final card.

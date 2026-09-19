@@ -3430,17 +3430,16 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # The shared vocabulary's faces are the theme's, for the reason chrome.css's
         # header gives: stated in the adopted sheet they beat each component's own rule
         # on nothing better than that sheet arriving last. The runtime sheet still names
-        # the badge inside its scope, to say where the chrome's own copy stands, and the
+        # the badge inside its scope, to say where the chrome's own copies stand, and the
         # movement the theme's rule causes is that deliberate face.
         "lf-key-badge",
-        "lf-compose-field",
-        "lf-compose-submit",
-        # The aim floor is one selector list in shadow.css, and the document reads that
-        # sheet, so each control the floor sizes wears a document-level rule naming its
-        # class. The floor states a minimum box and nothing else; the chrome's scoped
-        # rules still give each of these controls its face. The chip and the margin entry
-        # left this set with the same change: chrome.css stated their aim itself, and the
-        # floor is the one statement of it now.
+        # The aim floor is one plain selector list in shadow.css, so that a finger's
+        # 44px reaches the document, the chrome and every declared widget tree from one
+        # rule. Each name below is a press the chrome also dresses inside its scope, so
+        # the floor is a second, document-level rule on a scoped name. It states a
+        # minimum on two axes and nothing else. The chip and the margin entry are on
+        # that list too and are not here: nothing inside the scope names them any more,
+        # so they are no longer a scoped vocabulary this exception has to cover.
         "lf-command-reference-command",
         "lf-layer-reference",
         "lf-preview",
@@ -3448,6 +3447,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-thread-action",
         "lf-version-diff",
         "lf-version-row",
+        "lf-compose-field",
+        "lf-compose-submit",
         # The one canonical composer can be seated in a widget's own Thread outlet,
         # where the chrome's scoped rules cannot reach it. The authored theme dresses
         # that seat at document level, under [data-lf-presentation="inline"], so every

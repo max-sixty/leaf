@@ -75,7 +75,16 @@ body:has(> main > .sitenote) > main {
   padding-top: 32px;
 }
 
+/* The label and its routes take one row wherever both fit and a row each where they do
+ * not, so the seat the label is given decides its shape and no width is named. That
+ * matters most in a framed example, where the label sits in the task's own header and
+ * every row it takes is height the task does not get. */
 .sitenote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-4);
   margin: 0 0 36px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--rule);
@@ -92,7 +101,6 @@ body:has(> main > .sitenote) > main {
 }
 
 .sitenote p.sitenote-nav {
-  margin-top: 4px;
   color: var(--muted-2);
 }
 
@@ -105,25 +113,13 @@ body:has(> main > .sitenote) > main {
   text-decoration: underline;
 }
 
-/* A framed example gives the site label a furniture seat inside its own header. On a
- * window wide enough for that frame, keep the label and its routes on one compact row
- * so site context does not consume the workspace allocation it is introducing. */
-@media screen and (min-width: 960px) {
-  main > :only-child > header > .sitenote {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 24px;
-    margin-bottom: 4px;
-    padding-bottom: 4px;
-    font-size: var(--t-6);
-    line-height: 1.3;
-  }
-
-  main > :only-child > header > .sitenote p.sitenote-nav {
-    flex: none;
-    margin-top: 0;
-  }
+/* A framed example seats the label in the task's own header, where it is furniture
+ * beside the task rather than the page's opening: smaller, and close to what follows. */
+main > :only-child > header > .sitenote {
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  font-size: var(--t-6);
+  line-height: 1.3;
 }
 
 @media print {

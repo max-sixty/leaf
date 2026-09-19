@@ -914,9 +914,11 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     the specimen suppressed them, not because the upgrade failed.
 
     Presentation and view state are not input, so they still run: a quoted
-    settled group collapses like any other. The log's door refuses input to quoted
-    material too, so a write that skips the page cannot answer the exhibit either."""
+    settled group collapses like any other."""
     url = serve(SPECIMEN_PAGE)
+    # The rule stands at the log's own door as well as in the browser's controller, so
+    # the state a quoted widget would reconcile cannot be written in the first place.
+    # Any sender reaches that door; this one is the CLI's side of it.
     with pytest.raises(
         events_model.EventRefused, match="quoted material takes no input"
     ):
@@ -967,10 +969,12 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # wears its mark, with nothing to press.
     assert page.locator('#quoted-settled .lf-pick[role="img"]').count() == 1
 
-    # A quoted suggestion exhibits a pending change: both marks stand, no outcome is
-    # painted, and nothing grows to settle it with, so an undecided one is still not
-    # the banner's to count or Accept all's to decide.
-    assert page.locator("#quoted-suggestion").get_attribute("data-lf-state") is None
+    # So a quoted suggestion stands as the page wrote it, the old words and the proposed
+    # ones both, with nothing to settle it with. It is not the banner's to count or
+    # Accept all's to decide either.
+    expect(page.locator("#quoted-suggestion")).not_to_have_attribute(
+        "data-lf-state", re.compile(".")
+    )
     expect(page.locator("#quoted-suggestion lf-old")).to_be_visible()
     expect(page.locator("#quoted-suggestion lf-new")).to_be_visible()
     assert (

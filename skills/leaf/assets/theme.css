@@ -837,23 +837,6 @@ h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
 p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
-/* The face every widget-injected control wears. `offer()` writes `lf-ui` on each one it
- * builds, so this is the layer's answer for a control standing in the page's own prose:
- * the chrome's family, size and ink rather than the document's serif.
- *
- * It is a default, and :where() gives it no specificity so that it behaves like one: any
- * component rule that names the same property wins, wherever the composition puts it.
- * Standing early in this file was not enough once shadow.css, which the composition puts
- * ahead of this file, held the rules that refine it; .lf-compose-submit drew ink instead
- * of the accent. It cannot live in chrome.css, which is adopted and so cascades after
- * every sheet: the same declarations there beat every component's own rule instead, and
- * .lf-ref drew ink at 14px where it asked for muted at 11.5px while .lf-worktree-head and
- * .lf-swipe-progress drew sans where they asked for mono. Nor in shadow.css: lf-diff's
- * code lines wear lf-ui and take their mono face and colours from the widget's host, so
- * the rule would repaint them in a declared tree. Nothing catches either, because no test
- * and no browser gate reads a rule that never applied. */
-:where(.lf-ui) { font-family: var(--sans); font-size: var(--t-5);
-    line-height: var(--lf-ui-lh); color: var(--ink); }
 /* One sequential step keeps one geometry in options, the shortcut bar, banner controls
  * and the reference. A sequence composes these fixed boxes instead of making spaces
  * inside one keycap carry time. A compact choice label such as g / G remains one
@@ -862,9 +845,9 @@ li { margin: 6px 0; }
  *
  * The badge is worn on both sides of the chrome's scope line — an option's own corner
  * in the page, and the sequence's hints in the Go-to hint layer — and its box is stated
- * here, right after the face it overrides. In chrome.css it outranked a component
- * asking for a different badge, for no reason beyond that sheet being adopted; the
- * chrome's own step keys spell the same list again inside the scope
+ * here, after the .lf-ui face it overrides in shadow.css. In chrome.css it outranked
+ * a component asking for a different badge, for no reason beyond that sheet being
+ * adopted; the chrome's own step keys spell the same list again inside the scope
  * (`.lf-binding-sequence > kbd`), because naming them here would put two private names
  * on the document-level surface the coined-class probe pins. Keep the two lists
  * identical. */

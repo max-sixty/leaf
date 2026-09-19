@@ -1350,11 +1350,18 @@ export function createResponseSurface({
     does: `Comment on the ${word}`,
     line: `comment on the ${word}`,
   });
+  // The box this press opens is the first of the comment gesture's two surfaces: a send
+  // takes it off the page and puts the thread card up in its place. So this frame retires
+  // with the box, and hands the place it recorded to the card, which enters on it as the
+  // same one rung. Without the handover the card entered with no place at all, and the
+  // margin's own fallback rung answered for it with the entry the card hangs from — a
+  // control the reader never stood on, saying its transient label as they arrived.
   const composerReturnFrame = () => ({
     active: () => composerOpen,
     close: dismissFab,
     does: "Return to where you were",
     line: "back",
+    handsOn: true,
   });
   function commentDestination() {
     const anchor = fabAnchorAt();

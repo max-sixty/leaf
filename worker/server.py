@@ -24,10 +24,8 @@ from html import escape
 from pathlib import Path
 
 from leaf.codex import (
-    AppServerEvents,
-    AppServerReplyStream,
     AppServerRequestRejected,
-    TurnStream,
+    CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
     app_server_handshake,
@@ -37,7 +35,6 @@ from leaf.codex import (
     delivery_reply_targets,
     open_app_server_delivery,
     prepare_codex_delivery,
-    project_app_server_activity,
     set_stream_activity,
     stop_app_server,
     stream_reply_target,
@@ -409,22 +406,21 @@ def next_unaccepted_agent_event(
         )
 
 
-class HostedTurn:
+class HostedTurn(CarriedTurn):
     """One delivery's hosted turn, from the start that made it to its receipt.
 
-    A turn exists because `turn/start` answered with it, and that answer is what
-    this follower is built on: it knows its provider turn before it reads a single
-    notification, so nothing here discovers which turn took the delivery. The two
-    names it opens for itself are Leaf's — the turn on the page, and the reply seat
-    the provider's final answer commits into.
+    The two names this opens for itself are Leaf's — the turn on the page, and the
+    reply seat the provider's final answer commits into — and the account it writes
+    at the end is the page's too: the turn closed, its reading off, and a receipt
+    for any move it was carrying that still has no answer.
 
-    Every turn ends exactly once, on the connection it started on. A completion
-    notification is the ordinary ending; a connection that drops, a silence past
-    `STREAM_SILENCE`, and any fault in this code are all endings too, and the
-    follower closes those by interrupting the provider turn, so a turn the page has
-    stopped watching is not left running. `commit` then writes the account of how it
-    ended: its reply, its receipt, its claim.
+    A completion notification is the ordinary ending. A connection that drops, a
+    silence past `STREAM_SILENCE`, and any fault in this code are endings as well,
+    and this carrier closes those by interrupting the provider turn, so a turn the
+    page has stopped watching is not left running.
     """
+
+    silence = STREAM_SILENCE
 
     def __init__(
         self,
@@ -434,24 +430,22 @@ class HostedTurn:
         delivery_id: str,
         event_ids: tuple[str, ...],
         turn_id: str,
+        socket=None,
         *,
         reply_target: dict | None = None,
+        buffered=(),
     ):
+        super().__init__(
+            thread_id, socket, turn_id, delivery_id, reply_target, buffered
+        )
         self.host = host
         self.page_dir = page_dir
-        self.thread_id = thread_id
-        self.turn_id = turn_id
         self.leaf_turn: str | None = None
         self.event_ids = event_ids
-        self.reply_target = reply_target
-        self.delivery_id = delivery_id
-        self.events = AppServerEvents(thread_id)
-        self.events.turn_id = turn_id
-        self.reply_stream = None
         self.fields = agent_event_fields(event_ids)
+        self.fault: dict | None = None
         self.started = time.monotonic()
         self.milestones: set[str] = set()
-        self.last_stream_update = 0.0
 
     def elapsed(self) -> int:
         return round((time.monotonic() - self.started) * 1000)
@@ -474,34 +468,24 @@ class HostedTurn:
         answered with the turn it made from it, so the turn named here is this
         delivery's without anything having to read it back off the stream.
         """
+        self.record("turn_following_started")
         self.leaf_turn = open_app_server_delivery(
             self.page_dir,
-            self.thread_id,
+            self.session_id,
             self.delivery_id,
             self.event_ids,
             self.turn_id,
         )
         self.record("turn_delivery_bound", deliveryId=self.delivery_id)
-        self._open_reply()
-        set_stream_activity(self.thread_id, self.turn_id, "Starting")
+        self.open_reply()
+        set_stream_activity(self.session_id, self.turn_id, "Starting")
 
-    def _open_reply(self) -> None:
-        if self.reply_target is None:
-            return
-        self.reply_stream = AppServerReplyStream(
-            self.thread_id,
-            self.turn_id,
-            self.delivery_id,
-            self.reply_target,
-        )
-
-    def absorb(self, stream: TurnStream, message: dict) -> dict | None:
-        """Fold one notification into this turn's readings."""
-        update = self.events.read(message)
+    def observe(self, message: dict, update: dict | None) -> None:
+        """Record what one notification said, before its readings reach the page."""
         self.milestone(
             "turn_first_notification",
             durationMs=self.elapsed(),
-            buffered=stream.buffered,
+            buffered=self.stream.buffered,
         )
         if (
             update is not None
@@ -531,15 +515,9 @@ class HostedTurn:
                 complete=model_message["complete"],
                 durationMs=self.elapsed(),
             )
-        self.last_stream_update = project_app_server_activity(
-            self.events,
-            message,
-            update,
-            self.last_stream_update,
-        )
-        published = (
-            self.reply_stream.update(update) if self.reply_stream is not None else False
-        )
+
+    def observe_reply(self, update: dict | None, published: bool) -> None:
+        """Record the first of the turn's answer to reach the reader's reply."""
         message_update = update.get("message") if update is not None else None
         if published and message_update is not None and bool(message_update["text"]):
             self.milestone(
@@ -547,63 +525,54 @@ class HostedTurn:
                 durationMs=self.elapsed(),
                 recovered=False,
             )
-        return update
 
-    def finished(self, message: dict, update: dict | None) -> dict | None:
-        """Return the terminal turn when this notification is its completion."""
-        if (
-            update is not None
-            and update.get("completed")
-            and update["turn"] == self.turn_id
-        ):
-            return message["params"]["turn"]
-        return None
+    def ended(self, error: BaseException) -> dict:
+        """End the provider turn this container has stopped reading, and say so.
 
-    def failed(self, error: BaseException) -> tuple[dict, dict]:
-        """Compose the terminal of a turn whose stream ended it, and its record."""
-        fault = fault_fields(error)
-        detail = f"{fault['error']}: {error}" if str(error) else fault["error"]
-        return {
-            "id": self.turn_id,
-            "status": "failed",
-            "error": {"message": f"App Server turn stream failed: {detail}"},
-        }, fault
+        Nobody else is watching it: every follower here interrupts its turn before
+        it stops, and the reader's only way back to this thread is a container that
+        finds it idle.
+        """
+        self.host._interrupt(self.session_id, self.turn_id, **self.fields)
+        self.fault = fault_fields(error)
+        return super().ended(error)
 
     def commit(self, terminal: dict) -> None:
         """Account for the turn on the page: its reply, its receipt, its claim.
 
-        However it ended, the turn has ended: its reply seat is given up, its Leaf
-        turn is closed, its live reading comes off the page, and any move it was
-        carrying that still has no answer is receipted. The first of those can
-        fault — closing the turn re-reads the page, which the turn's own work may
-        have left unopenable — and the reader is owed the rest whether or not it
-        does, so the last two run from the `finally`. They can be left until then
-        because the seat has to be free before another writer can use it, and they
-        have to run at all because this turn's pickup is what stops every other
-        writer from answering for its move.
+        Under the host's lock, because a turn ending and a turn starting read and
+        write the same page, and whichever takes the lock second reads what the
+        first left. The record goes out before it, so that what it carries is how
+        the turn ended rather than how accounting for it went.
+        """
+        self.record(
+            "turn_stream_completed",
+            durationMs=self.elapsed(),
+            status=terminal.get("status"),
+            **(self.fault or terminal_fault(terminal)),
+        )
+        with self.host.lock:
+            super().commit(terminal)
+
+    def close(self, terminal: dict, reply_error: BaseException | None) -> None:
+        """Close the turn on the page, and answer for what it leaves unanswered.
+
+        Closing the turn re-reads the page, which the turn's own work may have left
+        unopenable, and the reader is owed the rest whether or not it does, so the
+        last two run from the `finally`. They can wait until then because the reply
+        seat has to be free before another writer can use it, and they have to run
+        at all because this turn's pickup is what stops every other writer from
+        answering for its move.
         """
         try:
+            if reply_error is not None:
+                self.record("turn_reply_commit_failed", **fault_fields(reply_error))
             if self.leaf_turn is not None:
-                reply_error = None
-                if self.reply_stream is not None:
-                    reply_error = self.reply_stream.finish(
-                        terminal.get("status") or "failed",
-                        self.events.final_text(terminal),
-                    )
-                if reply_error is not None:
-                    self.record("turn_reply_commit_failed", **fault_fields(reply_error))
                 self.host._finish_turn(
-                    self.page_dir, self.thread_id, self.leaf_turn, terminal
-                )
-            elif self.reply_target is not None:
-                # The seat was reserved for a final answer this turn never opened a
-                # page turn to write, and until it is given up it blocks the receipt
-                # that says so.
-                release_delivery_reply(
-                    self.thread_id, self.delivery_id, self.reply_target
+                    self.page_dir, self.session_id, self.leaf_turn, terminal
                 )
         finally:
-            clear_stream_activity(self.thread_id, self.turn_id)
+            clear_stream_activity(self.session_id, self.turn_id)
             self._receipt_unanswered()
 
     def _receipt_unanswered(self) -> None:
@@ -810,10 +779,10 @@ class WebsiteCodexHost:
             if before_close is not None:
                 follow = before_close(socket, result, pending)
                 if follow is not None:
-                    self.following_threads.add(follow.thread_id)
+                    self.following_threads.add(follow.session_id)
                     threading.Thread(
                         target=self._run_follow_turn,
-                        args=(socket, follow, tuple(pending)),
+                        args=(follow,),
                         daemon=True,
                     ).start()
                     followed = True
@@ -822,12 +791,7 @@ class WebsiteCodexHost:
             if not followed:
                 socket.close()
 
-    def _run_follow_turn(
-        self,
-        socket,
-        turn: HostedTurn,
-        initial_messages: tuple[dict, ...] = (),
-    ) -> None:
+    def _run_follow_turn(self, turn: HostedTurn) -> None:
         """Hold one thread's delivery scheduling seat, then hand the page on.
 
         Handing it on is part of the ending rather than a reward for a clean one: a
@@ -836,10 +800,10 @@ class WebsiteCodexHost:
         """
         page_dir = turn.page_dir
         try:
-            self._follow_turn(turn, socket, initial_messages)
+            turn.follow()
         finally:
             with self.lock:
-                self.following_threads.discard(turn.thread_id)
+                self.following_threads.discard(turn.session_id)
             self._continue_page(page_dir, turn.event_ids)
 
     def _continue_page(self, page_dir: Path, excluding: tuple[str, ...]) -> None:
@@ -960,46 +924,6 @@ class WebsiteCodexHost:
             if socket is not None:
                 socket.close()
 
-    def _follow_turn(
-        self,
-        turn: HostedTurn,
-        socket,
-        initial_messages: tuple[dict, ...] = (),
-    ) -> None:
-        """Project notifications and account for the turn's terminal outcome."""
-        stream = TurnStream(socket, initial_messages, silence=STREAM_SILENCE)
-        turn.record("turn_following_started")
-        terminal: dict
-        fault: dict | None = None
-        # Everything this follower does belongs inside the guard below. The turn is
-        # already running in App Server, so an exception raised here is a turn that no
-        # longer has an observer rather than a turn that stopped — and leaving it
-        # uncaught would strand the claim open with no receipt for the container's life.
-        try:
-            turn.begin()
-            while True:
-                message = stream.next()
-                if message is None:
-                    continue
-                update = turn.absorb(stream, message)
-                completed = turn.finished(message, update)
-                if completed is not None:
-                    terminal = completed
-                    break
-        except Exception as error:  # noqa: BLE001 - the turn's outcome, any fault
-            self._interrupt(turn.thread_id, turn.turn_id, **turn.fields)
-            terminal, fault = turn.failed(error)
-        finally:
-            stream.close()
-        turn.record(
-            "turn_stream_completed",
-            durationMs=turn.elapsed(),
-            status=terminal.get("status"),
-            **(fault or terminal_fault(terminal)),
-        )
-        with self.lock:
-            turn.commit(terminal)
-
     def _send(
         self,
         socket,
@@ -1095,7 +1019,9 @@ class WebsiteCodexHost:
             prepared.payload["id"],
             prepared_events,
             turn_id,
+            socket,
             reply_target=reply_target,
+            buffered=tuple(pending or ()),
         )
 
     def _end_unfollowed_turn(

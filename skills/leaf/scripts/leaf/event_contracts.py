@@ -291,7 +291,12 @@ def position_record_error(
         return False
 
     def recording_owner(node: dict):
-        """Nearest enclosing widget whose declaration records durable state."""
+        """Nearest enclosing widget whose declaration records durable state.
+
+        The walk starts at the holder, so a part that records facets of its own is
+        still its container's to place: facet names are local to the widget contract
+        that declares them."""
+        node = node["holder"]
         while node is not None:
             entry = registry.get(node["tag"], {})
             if any(spec.get("record") for _, _, spec in state_specs(entry)):
@@ -299,24 +304,7 @@ def position_record_error(
             node = node["holder"]
         return None
 
-    def positions_itself(node: dict) -> bool:
-        """Whether the node's own contract records where the node stands."""
-        return any(
-            spec.get("unit") == "widget"
-            and (spec.get("record") or {}).get("kind") == "position"
-            for _, _, spec in state_specs(registry.get(node["tag"], {}))
-        )
-
-    # A node has one place and one widget records it: the node itself when its own
-    # contract records its position, otherwise the nearest recording widget above it.
-    # State is keyed by its owning widget, so a part's other facets are its own
-    # coordinates and leave its placement with its container.
-    placer = (
-        unit
-        if unit is current or positions_itself(unit)
-        else recording_owner(unit["holder"])
-    )
-    if placer is not current:
+    if unit is not current and recording_owner(unit) is not current:
         return (
             f"position record unit {unit_id!r} is not owned by action widget "
             f"{event['widget']!r}"

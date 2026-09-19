@@ -140,6 +140,7 @@ import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { ASK_AT } from "./tray-list.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
+import { pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainReaderIntent } from "../reader-intent.js";
 import {
@@ -1199,6 +1200,49 @@ export function createAskView({
     lend(null);
   }
 
+  pageCommand(actionRow);
+  pageCommand({
+    id: "ask.walk",
+    keys: ["a", "Shift+a"],
+    routes: [
+      {
+        id: "ask.next",
+        binding: "a",
+        does: "Next ask this page is waiting on you for",
+      },
+      {
+        id: "ask.previous",
+        binding: "Shift+a",
+        does: "Previous ask this page is waiting on you for",
+      },
+    ],
+    does: "Next / previous ask this page is waiting on you for",
+    line: "asks",
+    when: () => openAsks().length > 0,
+    repeat: true,
+    // The same shape as the thread walk: the press made off the Asks is the entry and
+    // hands back the place it displaced, a later press made standing on an Ask is a step
+    // within that standing. An Ask seated in a thread is reached through the panel, so a
+    // press made with the panel shut opens it on the way, and that opening is the press's
+    // own to undo in the same one Escape. The arrival is asynchronous, and `run` returns
+    // it, so the stack judges this frame once the reader is standing.
+    returnFrame: () => {
+      if (standingAsk()) return null;
+      const panelWasShut = !panelIsOpen();
+      const opened = () => panelWasShut && panelIsOpen();
+      return {
+        active: () => Boolean(standingAsk()),
+        close: () => {
+          if (opened()) setPanel(false);
+        },
+        does: () =>
+          opened() ? "Close the thread panel" : "Let go of what you are standing on",
+        line: () => (opened() ? "close threads" : "let go"),
+      };
+    },
+    run: (binding) => stepAsk(binding === "a" ? 1 : -1),
+  });
+
   return {
     mount,
     destroy,
@@ -1207,7 +1251,6 @@ export function createAskView({
     standsWith,
     askPlace,
     standingIn,
-    actionRow,
     markHere,
     goToAsk,
     stepAsk,

@@ -117,7 +117,8 @@ import {
 
 import { patchTree } from "./dom-children.js";
 import { clippedRect, shownBox } from "./geometry.js";
-import { PRESS } from "./keyboard/bindings.js";
+import { labelOf, PRESS } from "./keyboard/bindings.js";
+import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
@@ -150,9 +151,9 @@ import {
 } from "./reading-regions.js";
 import { LIVE_ROOT, PAGE_SCOPE, tabStore, versionUrl } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
-import { allButCommandReference } from "./keyboard/register.js";
+import { allButCommandReference, pageScope } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
 import { reportPageError } from "./layer-client.js";
@@ -1607,9 +1608,10 @@ export function createVersionController({
 
   // `control` is what the caller saw focused, for a press that has already moved it.
   function captureReturnPlace(control = focused()) {
-    return control && control !== document.body
-      ? { control, reading: null }
-      : { control: null, reading: readingBlock() };
+    return {
+      control: control && control !== document.body ? control : null,
+      reading: readingBlock(),
+    };
   }
 
   // The quote and the section it's searched in come from the same block, or the search is
@@ -1970,11 +1972,25 @@ export function createVersionController({
       );
     renderVersions(null);
   }
+
+  // The arrival chip's route spans two rows — the chooser the page opens and the menu's own
+  // key for the live page — so it is composed here rather than painted from one row's
+  // `control`. Painted in the standing frame beside every other control name, through
+  // `keeps`, so a restated title is not news to whatever is reading the page.
+  function paintShortcuts() {
+    keeps(
+      latestChip,
+      "title",
+      `${latestChip.dataset.lfKeyTitle} (${commandShortcut(CHOOSER.id)} ${labelOf(NEWEST)})`,
+    );
+  }
+
+  pageScope("versions", VERSIONS);
+
   return {
     closeVersionMenu,
-    NEWEST,
-    VERSIONS,
     CHOOSER,
+    paintShortcuts,
     renderVersions,
     inlineComparison,
     toggleInlineComparison,

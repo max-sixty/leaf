@@ -52,7 +52,12 @@
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
    lifecycle and field-focus tracking after all capabilities have been composed. */
-import { anchoringIsReady, resolveAnchor, visualAt } from "../anchor-resolution.js";
+import {
+  addressableWord,
+  anchoringIsReady,
+  resolveAnchor,
+  visualAt,
+} from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { shellRight, shownBox, shownParts, shownRect } from "../geometry.js";
 import {
@@ -69,9 +74,21 @@ import {
 } from "../keyboard/command-reference.js";
 
 import { paintReactionStanding } from "../reaction-standing.js";
-import { panel, threadsBox } from "../conversation/panel-elements.js";
+import {
+  generalInput,
+  generalRow,
+  panel,
+  threadsBox,
+} from "../conversation/panel-elements.js";
+import {
+  boxReturnFrame,
+  conversationInput,
+  standingConversation,
+} from "../conversation/landing.js";
+import { activeCommandLabel } from "../keyboard/dispatch.js";
+import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
-import { inChrome, pageRange, pageText, pageWords } from "../passages.js";
+import { elementById, inChrome, pageRange, pageText, pageWords } from "../passages.js";
 import {
   leftThePage,
   pageSelection,
@@ -80,7 +97,7 @@ import {
 } from "./capture.js";
 import { repaint } from "../repaint.js";
 import { letGo, takesLetters } from "../focus.js";
-import { focused } from "../keyboard/scopes.js";
+import { documentFocused, focused } from "../keyboard/scopes.js";
 import { pressOrigin } from "../keyboard/layer-stack.js";
 
 import { pointerAt } from "../pointer.js";
@@ -96,12 +113,24 @@ import {
 } from "../reading-regions.js";
 import { moveScrollerBy } from "../scrolling.js";
 
+// The two routes to one Comment capability: the page's own, and the Threads list's local
+// one. The destination box's placeholder names whichever of them dispatch would answer.
+const COMMENT_COMMANDS = ["comment.create", "comment.write"];
+
 const BANNER_CLEAR = 48;
 let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
 export function createResponseSurface({
   panelCovers,
+  landIn,
+  setPanel,
+  captureAuxiliaryChromeState,
+  restoreAuxiliaryChromeState,
+  activeInlineThread,
+  standingElement,
+  composerHolds,
+  responseOptionsAreOpen,
   markAt,
   scrollToElement,
   scrollRevealedElement,
@@ -1311,7 +1340,175 @@ export function createResponseSurface({
     });
     wireFabInput();
   }
+
+  // ---------- where "comment" goes ----------
+  // The conversation the reader is standing in, and the box it is written in. Three
+  // containers hold one and the reader can stand in any of them: the panel's thread, a
+  // conversation seated on the page (x-conversation), and each thread inside that seat.
+  // They are one question — a press meaning "say something about this" belongs to the box
+  // of the conversation the reader is already in — so they get one reading rather than a
+  // rule for the panel and a different one for the page.
+  //
+  // One of the three is in the chrome, which is not the exception it looks like: page scope
+  // already crosses there. A page key that takes the reader somewhere owes them an answer
+  // once they are standing there.
+  //
+  // One aim and then one climb, rather than four cases. The pointer's aim outranks
+  // position, being the more recent thing the reader said; below it the answer walks
+  // outward from where they are standing — the nearest conversation's box, then the nearest
+  // addressable element, then the page, which is what is left when they are standing
+  // nowhere in it. An element anchor answers in its own word (a figure, a card), the way
+  // the panel names one. Every destination is a box to write in and says so in the same
+  // sentence; the word is what varies.
+  const commenting = (word) => ({
+    does: `Comment on the ${word}`,
+    line: `comment on the ${word}`,
+  });
+  const composerReturnFrame = () => ({
+    active: () => composerOpen,
+    close: dismissFab,
+    does: "Return to where you were",
+    line: "back",
+  });
+  function commentDestination() {
+    const anchor = fabAnchorAt();
+    if (anchor)
+      return {
+        ...commenting(
+          anchor.quote
+            ? "selection"
+            : addressableWord(elementById(anchor.section)) || "element",
+        ),
+        box: fabInput,
+        go: focusFabComment,
+        returnFrame: composerReturnFrame,
+      };
+    const inline = activeInlineThread();
+    const inlineBox = inline && conversationInput(inline);
+    const said =
+      standingConversation() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+    if (said)
+      return {
+        ...commenting("thread"),
+        box: said.box,
+        go: () => landIn(said),
+        returnFrame: () => boxReturnFrame(said.held, said.box),
+      };
+    const here = standingElement();
+    if (here)
+      return {
+        ...commenting(addressableWord(here)),
+        box: fabInput,
+        go: () => commentOnAddressable(here),
+        returnFrame: composerReturnFrame,
+      };
+    return {
+      ...commenting("page"),
+      box: generalInput,
+      go: () => {
+        setPanel(true);
+        generalInput.focus({ preventScroll: true });
+      },
+      returnFrame: () => {
+        const previousAuxiliaryChrome = captureAuxiliaryChromeState();
+        return {
+          active: () => generalRow.contains(documentFocused()),
+          close: () => restoreAuxiliaryChromeState(previousAuxiliaryChrome),
+          does: "Return to where you were",
+          line: "back",
+        };
+      },
+    };
+  }
+
+  // The destination's box is the identity chrome uses to place a contextual binding badge,
+  // and the label is whichever Comment route dispatch would answer from here. Dispatch
+  // still decides whether either row can be reached from the current scope.
+  const commentHint = () => ({
+    box: commentDestination().box,
+    label: activeCommandLabel(COMMENT_COMMANDS),
+  });
+
+  // c goes where commenting happens: a live selection gets the composer (what the floating
+  // button does), an element click's pending 💬 gets that, an open thread the reader is
+  // standing in gets its own reply box, the item they are standing in gets the box
+  // belonging to it, and otherwise the page's general box. That box lives in Threads, but c
+  // names and focuses the box directly; g T independently names the list. Never the panel's
+  // collapse: c doubled as the toggle once, so with the panel standing open the key that
+  // promised “comment” answered “close”. Backing out is the entry's return frame.
+  //
+  // Standing outranks the page and not the pointer: a reader who has just selected words or
+  // raised the 💬 on something has said what they mean more recently than the focus they
+  // left behind, which is the order the destination reading above uses.
+  pageCommand({
+    id: "comment.create",
+    keys: ["c"],
+    // The surfaces name the destination in front of the reader rather than the capability:
+    // "Comment" covered all four and so promised none of them.
+    does: () => commentDestination().does,
+    line: () => commentDestination().line,
+    // A selection made before the anchor pass has run can't be quoted yet, and commenting
+    // on the page instead is not what the reader asked for — so the press waits, and the
+    // row's own liveness is where that is said rather than a refusal inside run that no
+    // surface can see.
+    when: () => anchoringIsReady() || !pageSelection(),
+    returnFrame: () => {
+      updateFab();
+      return commentDestination().returnFrame?.() ?? null;
+    },
+    run: () => {
+      updateFab(); // the selection may be newer than the mouseup that last placed the bar
+      commentDestination().go();
+    },
+  });
+
+  // The composer's own rung is its own scope rather than the box's, because the box may not
+  // have focus — the reader clicked away and the composer still stands, holding their draft.
+  pageScope("composer", {
+    title: "In the composer",
+    at: () => composerOpen,
+    rows: [
+      {
+        id: "comment.options",
+        keys: ["Tab"],
+        does: "Show other responses",
+        line: "other responses",
+        when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
+        run: () => showFabOptions(),
+      },
+      {
+        id: "composer.close",
+        keys: ["Escape"],
+        does: () =>
+          composerHolds()
+            ? "Close the composer, keeping the draft"
+            : "Close the composer",
+        line: () => (composerHolds() ? "close — draft kept" : "close"),
+        promoteEscape: false,
+        when: () => !responseOptionsAreOpen(),
+        run: () => dismissFab(),
+      },
+    ],
+  });
+
+  // The first step of the page's Escape ladder: a selection or a captured target is the
+  // innermost thing the reader is holding, and letting it go is one press. Clearing a
+  // captured target is still available while c and r are the two actions on the thing the
+  // reader just chose, so it keeps its binding and its place in the reference while
+  // yielding the short line's promoted slot to them.
+  pageRung("selection", () =>
+    pageSelection() || fabAnchorAt()
+      ? {
+          says: "unselect",
+          does: "Clear the selection",
+          promoteEscape: !Boolean(fabAnchorAt()) || reactionTokens().length === 0,
+          out: dismissFab,
+        }
+      : null,
+  );
+
   return {
+    commentHint,
     fabPositioned,
     beginFabFocus,
     endFabFocus,

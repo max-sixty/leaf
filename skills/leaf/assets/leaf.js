@@ -45,7 +45,6 @@ import {
   createReactionController,
   reactionTokens,
   sendReaction,
-  undoSentence,
 } from "./runtime/reactions.js";
 import { createAnchorPaint } from "./runtime/anchor-paint.js";
 import { createAnchorControls } from "./runtime/anchor-controls.js";
@@ -62,6 +61,7 @@ import { allThreads } from "./runtime/conversation/state.js";
 import { anchorLabel } from "./runtime/conversation/messages.js";
 import {
   createConversationLanding,
+  declareThreadKeys,
   revealConversation,
   retainConversationFocus,
   retainPanelLanding,
@@ -144,21 +144,21 @@ import {
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
 import { chromeTop } from "./runtime/keyboard/key-badge-placement.js";
-import { createPageKeys } from "./runtime/keyboard/page.js";
+// The page's own keyboard parts join the register as this module evaluates; every other
+// owner contributes its own as it is constructed below.
+import { declareStanding } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
-import { registerPageScopes } from "./runtime/keyboard/register.js";
+import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
   bottomChromeBoxes,
   closeShortcutShelf,
   mountShortcutBar,
-  SHORTCUT_HELP,
   renderShortcutBar,
   shortcutBarEl,
   standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
-import { activeRowLabel } from "./runtime/keyboard/dispatch.js";
 import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
@@ -199,7 +199,6 @@ let targets;
 let reactions;
 let pageGeometry;
 let goToSequence;
-let pageKeys;
 
 const panelVisibility = createPanelVisibility();
 const { panelIsOpen } = panelVisibility;
@@ -207,6 +206,12 @@ const auxiliaryModality = createAuxiliaryModality({ chromeRoot, focusable: FOCUS
 const navigation = createNavigation({
   panelIsOpen,
   coveringAuxiliaryScroller: auxiliaryModality.coveringScroller,
+  threadDestinations: {
+    openPageThread: (...args) => app.margin.openPageThread(...args),
+    scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
+    activeInlineThread: () => app.margin.activeInlineThread(),
+    inlineThreadView: () => app.margin.inlineThreadView,
+  },
 });
 const panelModality = auxiliaryModality.registerAuxiliarySurface({
   surface: panel,
@@ -300,6 +305,7 @@ landing = createConversationLanding({
   scrollToThread: anchorTravel.scrollToThread,
   revealThread: (id) => revealThread(id, app.presentConversation),
 });
+declareThreadKeys(landing.landIn);
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.margin.openPageThread(...args),
@@ -335,10 +341,7 @@ setRuntimeRootAttribute(document.body, "tabindex", "-1");
 
 const inputs = createCompositionInputs({
   uploadMedia,
-  inputHint: () => ({
-    box: pageKeys.commentBox(),
-    label: activeRowLabel(pageKeys.commentRows()),
-  }),
+  inputHint: () => responseSurface.commentHint(),
 });
 
 app = mountApplication({
@@ -374,6 +377,7 @@ app = mountApplication({
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
   setPanel: (...args) => threadPanelController.setPanel(...args),
+  leavePanel: (...args) => threadPanelController.leavePanel(...args),
   panelIsOpen,
   panelCovers: () => layout.panelCovers(),
   onConversationChanged: repaint,
@@ -426,6 +430,16 @@ app = mountApplication({
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
 
+// The let-go reads state four owners hold; all four stand by now, and the first input is
+// wired further down, so the scope is declared before anything reads the register.
+declareStanding({
+  panelIsOpen,
+  fabAnchorAt: () => responseSurface.fabAnchorAt(),
+  designModeActive: designMode.active,
+  drawModeActive: () => drawing.drawModeActive(),
+  pageMapRung: () => Boolean(app.margin.keyboardRung()),
+});
+
 pageMapDialog = createPageMapDialog({
   activeInMargin: app.margin.pageMapActive,
   activateItem: app.margin.activateMapItem,
@@ -463,11 +477,16 @@ panelComposer = createPanelComposer({
   createPageComment: app.createPageComment,
   showThread: landing.showThread,
   setPanel: (...args) => threadPanelController.setPanel(...args),
+  panelIsOpen,
+  stepThread: (...args) => navigation.stepThread(...args),
+  widen: () => widen(app.presentConversation),
+  fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   paintDrawings: () => drawingPaint.paint(allThreads()),
 });
 selectionComposer = createSelectionComposer({
   panelIsOpen,
   setReact: (...args) => reactions.setReact(...args),
+  reactionTokens,
   designModeActive: designMode.active,
   marginOpenInlineThread: app.margin.openInlineThread,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
@@ -489,6 +508,16 @@ selectionComposer = createSelectionComposer({
 });
 responseSurface = createResponseSurface({
   panelCovers: navigation.panelCovers,
+  landIn: landing.landIn,
+  setPanel: (...args) => threadPanelController.setPanel(...args),
+  captureAuxiliaryChromeState: (...args) =>
+    auxiliaryChrome.captureAuxiliaryChromeState(...args),
+  restoreAuxiliaryChromeState: (...args) =>
+    auxiliaryChrome.restoreAuxiliaryChromeState(...args),
+  activeInlineThread: () => app.margin.activeInlineThread(),
+  standingElement,
+  composerHolds: selectionComposer.composerHolds,
+  responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint.markAt,
   scrollToElement: anchorTravel.scrollToElement,
   scrollRevealedElement: anchorTravel.scrollRevealedElement,
@@ -530,6 +559,8 @@ reactions = createReactionController({
   fabTargetAt: responseSurface.fabTargetAt,
   hasPageSelectionTarget: responseSurface.hasPageSelectionTarget,
   showFab: responseSurface.showFab,
+  showFabOptions: responseSurface.showFabOptions,
+  updateFab: responseSurface.updateFab,
   visualActionAnchor: anchorControls.visualActionAnchor,
   standingConversation,
   standingElement,
@@ -596,6 +627,7 @@ threadPanelController = createThreadPanelController({
   hideTray: ({ remember }) => {
     if (currentTray()) trays.setOpenTray(null, { remember });
   },
+  widen: () => widen(app.presentConversation),
   activeInlineThread: app.margin.activeInlineThread,
   showThread: landing.showThread,
   refreshConversation: app.refreshConversation,
@@ -631,6 +663,7 @@ goToSequence = createGoToSequence({
   panelIsOpen,
   panelCovers: navigation.panelCovers,
   elements: { banner, toggleBtn },
+  leavePanel: threadPanelController.leavePanel,
   hintChrome,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
   captureAuxiliaryChromeState: auxiliaryChrome.captureAuxiliaryChromeState,
@@ -654,68 +687,6 @@ goToSequence = createGoToSequence({
   leavePageMap: pageMapDialog.leavePageMap,
   pageMapIsActive: pageMapDialog.pageMapIsActive,
 });
-pageKeys = createPageKeys({
-  panelIsOpen,
-  coveringAuxiliarySurface: auxiliaryModality.coveringSurface,
-  stepReading: navigation.stepReading,
-  openAsks: app.openAsks,
-  GO_TO_SCOPE: goToSequence.GO_TO_SCOPE,
-  OPEN_GO_TO: goToSequence.OPEN_GO_TO,
-  undoable: app.undoable,
-  undoLast: app.undoLast,
-  unaccountedGesture: app.unaccountedGesture,
-  setPanel: threadPanelController.setPanel,
-  setOpenTray: trays.setOpenTray,
-  captureAuxiliaryChromeState: auxiliaryChrome.captureAuxiliaryChromeState,
-  restoreAuxiliaryChromeState: auxiliaryChrome.restoreAuxiliaryChromeState,
-  widen: () => widen(app.presentConversation),
-  landIn: landing.landIn,
-  stepAsk: asks.stepAsk,
-  stepThread: (dir) =>
-    navigation.stepThread(dir, {
-      openPageThread: app.margin.openPageThread,
-      scrollToThread: anchorTravel.scrollToThread,
-      activeInlineThread: app.margin.activeInlineThread,
-    }),
-  composerHolds: selectionComposer.composerHolds,
-  focusedResponseOption: selectionComposer.focusedResponseOption,
-  responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
-  responseReactionButtons: selectionComposer.responseReactionButtons,
-  setResponseOptions: selectionComposer.setResponseOptions,
-  stepResponseOptions: selectionComposer.stepResponseOptions,
-  dismissFab: responseSurface.dismissFab,
-  fabAnchorAt: responseSurface.fabAnchorAt,
-  fabOptionsAvailable: responseSurface.fabOptionsAvailable,
-  commentOnAddressable: responseSurface.commentOnAddressable,
-  focusFabComment: responseSurface.focusFabComment,
-  showFabOptions: responseSurface.showFabOptions,
-  updateFab: responseSurface.updateFab,
-  hasReactionTarget: reactions.hasReactionTarget,
-  REACT: reactions.REACT,
-  reactionTokens,
-  setReact: reactions.setReact,
-  undoSentence: () => undoSentence(app.undoable),
-  designModeActive: designMode.active,
-  setDesignMode: designMode.setActive,
-  PAGE_SEARCH: targets.PAGE_SEARCH,
-  REPEAT_PAGE_SEARCH: targets.REPEAT_PAGE_SEARCH,
-  TARGET_CHOOSER_SCOPE: targets.TARGET_CHOOSER_SCOPE,
-  PAGE_SEARCH_SCOPE: targets.PAGE_SEARCH_SCOPE,
-  openTargetChooser: targets.openTargetChooser,
-  AIM: aim.AIM,
-  drawModeActive: drawing.drawModeActive,
-  setDrawMode: drawing.setDrawMode,
-  generalHint: panelComposer.generalHint,
-  CHOOSER: version.CHOOSER,
-  NEWEST: version.NEWEST,
-  VERSIONS: version.VERSIONS,
-  activeInlineThread: app.margin.activeInlineThread,
-  inlineThreadView: app.margin.inlineThreadView,
-  keyboardRung: app.margin.keyboardRung,
-  standingAsk: asks.standingIn,
-  standingElement,
-  actionRow: asks.actionRow,
-});
 const standing = createStanding({
   markHere: asks.markHere,
   paintStanding: anchorPaint.paintStanding,
@@ -730,7 +701,8 @@ const standing = createStanding({
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetChooserHints: targets.paintTargetChooserHints,
-  paintCoreControls: pageKeys.paintCoreControls,
+  paintCoreControls,
+  paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
 });
 
@@ -785,12 +757,6 @@ if (!offlineInteractive) {
     paintApproval: paintVersionApproval,
   });
   reserveBannerControls();
-  registerPageScopes(
-    pageKeys.scopes,
-    SHORTCUT_HELP,
-    pageKeys.typing,
-    auxiliaryModality,
-  );
   auxiliaryModality.mount();
   panelComposer.mount();
   selectionComposer.mount();
@@ -823,13 +789,11 @@ if (!offlineInteractive) {
   mountKeyboard({
     goToSequenceActive: goToSequence.goToSequenceActive,
     setGoToSequence: goToSequence.setGoToSequence,
-    REACT: reactions.REACT,
+    reactArmed: reactions.isReactArmed,
     setReact: reactions.setReact,
     captureReturnPlace: version.captureReturnPlace,
   });
   declareLeavesKeys();
-  pageKeys.declareFindBoxKeys();
-  pageKeys.declareResponseOptionKeys();
   watchDisclosures(document);
   mountRepaint({
     reflectFirstScopes,

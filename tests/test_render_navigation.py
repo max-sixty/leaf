@@ -2663,6 +2663,38 @@ def test_a_press_that_opens_a_layer_returns_the_place_it_displaced(browser, serv
     expect(panel).to_be_hidden()
     expect(toggle).to_be_focused()
 
+    # The mark, pressed while the reader stands on a control they reached by keyboard:
+    # the place is read at the press, before it moved focus off the marker, so the marker
+    # is what comes back — a read at the click would find the body.
+    marker.focus()
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    expect(preview).to_be_visible()
+    expect(threads[0]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(marker).to_be_focused()
+    page.keyboard.press("Escape")
+    assert page.evaluate(on_body)
+
+    # A press that closes one layer to open another: Threads, pressed while the view a
+    # marker opened holds the reader, carries its thread into the panel and closes the
+    # view under the card that was the place. That card cannot take focus back, so the
+    # way out is the block the reader was reading — the page — and not the toggle the
+    # click focused.
+    marker.click()
+    expect(preview).to_be_visible()
+    expect(threads[0]).to_be_focused()
+    toggle.click()
+    panel_settled(page, True)
+    expect(preview).to_be_hidden()
+    expect(page.locator(f'.lf-threads .lf-thread[data-id="{roots[0]}"]')).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+    # A frame later than the close: the hidden card gets the one frame every origin gets
+    # to come back before the block answers for it.
+    page.wait_for_function(on_body)
+    expect(toggle).not_to_be_focused()
+
 
 def test_an_ask_walk_that_opens_the_panel_closes_it_in_one_escape(browser, serve):
     """`a` from the page reaches an Ask seated in a thread through the panel, so the
@@ -6589,9 +6621,40 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
     expect(line).to_contain_text("dismiss conversation")
+    # The reference names the same press the line does: the walk's own frame, which
+    # dismisses the view its press opened, with no ladder step listed beneath it.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    way_out = help_el.locator('tr[data-lf-command="navigation.return"]')
+    expect(way_out).to_have_count(1)
+    expect(way_out).to_contain_text("Dismiss the conversation view")
+    expect(help_el.locator('tr[data-lf-command="navigation.back"]')).to_have_count(0)
+    # Out of the reference, then the shelf it was opened from, and the card is back under
+    # the reader with its own dismissal the next press.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
+    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
+    expect(line).to_contain_text("dismiss conversation")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+    # And the state where letting go and backing onto the page both hold: standing on a
+    # mark out on the page. Letting go is the standing scope's own inner step, and the
+    # ladder's foot stands down behind it, so the reference names the innermost press
+    # once rather than listing every step whose own condition is true.
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-mark-note")).to_be_focused()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    standing_out = help_el.locator('tr[data-lf-command="navigation.release"]')
+    expect(standing_out).to_have_count(1)
+    expect(standing_out).to_contain_text("Let go of what you are standing on")
+    expect(help_el.locator('tr[data-lf-command="navigation.back"]')).to_have_count(0)
 
 
 def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):

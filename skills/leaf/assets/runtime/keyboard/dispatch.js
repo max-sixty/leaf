@@ -36,9 +36,9 @@
    A key may repeat across nesting scopes to mean the same intent in context. `c` reads
    that way: from the page it enters the nearest comment box; from the Threads list it
    enters the page-comment box one frame below that list. `g T`, not `c`, is what enters
-   Threads as a navigable surface and leaves `w` and `/` live. `activeRowLabel` projects
-   the dispatcher's live result into the destination composition box's placeholder. Each
-   box's `aria-label` remains its shortcut-free accessible name.
+   Threads as a navigable surface and leaves `w` and `/` live. `activeCommandLabel`
+   projects the dispatcher's live result into the destination composition box's
+   placeholder. Each box's `aria-label` remains its shortcut-free accessible name.
 
    Escape is an ordinary binding in each row and a semantic ordering in the dispatcher.
    An active mode and the focused control's specific inner step stand first, the latest
@@ -100,7 +100,7 @@ import {
 import { EVERYTHING } from "./text-entry.js";
 import { takesLetters } from "../focus.js";
 import { focused, recoveredLabelFocus, scopesAt, scopesFor } from "./scopes.js";
-import { RETURN, invoke, nativeLayers } from "./layer-stack.js";
+import { RETURN, heldStanding, invoke, nativeLayers } from "./layer-stack.js";
 import { under } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
@@ -144,6 +144,13 @@ const innerEscape = (scope, active) => {
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
 // the list here instead was the same statement made where only one of the two shadowings
 // could be seen.
+//
+// The frame stands right after the inner steps, except when it stood the reader nowhere:
+// `g T`, the Threads toggle, a tray land on a floor, and a box the reader then entered
+// by Tab or by pointer is the newer layer, so the scope standing at the focus — the text
+// box's own way back out — answers ahead of that frame. A frame that holds the standing
+// — `c` into its box, `r`, the walks — is the press that put them there, and keeps its
+// place ahead of the generic box escape so one Escape undoes the one press.
 const escapeOrder = (scopes, active) => {
   const boundaryAt = scopes.findIndex((scope) => scope.escapeBoundary);
   const end = boundaryAt < 0 ? scopes.length : boundaryAt;
@@ -151,7 +158,13 @@ const escapeOrder = (scopes, active) => {
   const inner = layer.filter((scope) => innerEscape(scope, active));
   const fallback = layer.filter((scope) => !inner.includes(scope));
   const causal = scopes.slice(0, end).includes(RETURN) ? [RETURN] : [];
-  return [...inner, ...causal, ...fallback, ...scopes.slice(end)];
+  // With no frame standing there is nothing to yield to, and the fallbacks keep the
+  // order the register gives them: the Page Map's rung dismisses a conversation view
+  // ahead of the reply box inside it.
+  const atFocus = (scope) => scopeRoot(scope) === active;
+  const newer = causal.length && !heldStanding() ? fallback.filter(atFocus) : [];
+  const rest = fallback.filter((scope) => !newer.includes(scope));
+  return [...inner, ...newer, ...causal, ...rest, ...scopes.slice(end)];
 };
 
 export function stack(binding = null) {
@@ -167,7 +180,8 @@ export function stack(binding = null) {
       // A control's own state is the innermost layer. The command frame that entered
       // it comes next, before the generic text-box escape and any containing widget:
       // `/` in Threads can clear its query before returning, while `c` into a plain
-      // composer returns in the same one Escape that entered it.
+      // composer returns in the same one Escape that entered it. For Escape itself
+      // `escapeOrder` reads this order again against what the frame holds.
       return [...own, RETURN, TYPING, ...ancestors];
     }
     // RETURN is declared in pageScopes() so every projection sees it. The element placeholder
@@ -427,12 +441,15 @@ function commandMatching(matches) {
   return null;
 }
 const commandFor = (id) => commandMatching((command) => command.id === id);
-// A contextual surface asks the dispatcher which one of its command rows is reachable
-// from the reader's current scope. This includes shadowing by native text entry and modes,
-// not only each row's own liveness.
-export function activeRowLabel(rows) {
-  const candidates = new Set(rows);
-  const command = commandMatching((_entry, row) => candidates.has(row));
+// A contextual surface asks the dispatcher which of several routes to one capability is
+// reachable from the reader's current scope — `c` on the page and `c` from the Threads
+// list both enter the page-comment box, and the box's placeholder names whichever one
+// dispatch would answer. Asked by command id rather than by row, so the surface holds no
+// reference into another scope's declaration. This includes shadowing by native text entry
+// and modes, not only each row's own liveness.
+export function activeCommandLabel(ids) {
+  const wanted = new Set(ids);
+  const command = commandMatching((entry) => wanted.has(entry.id));
   return command ? spell(command.binding) : "";
 }
 // Snapshot every executable route while focus is still on the page. Keep both readings:

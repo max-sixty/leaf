@@ -14,6 +14,7 @@
    popovers deliberately opened after entry, remain available to their top-layer owner. */
 
 import { openPopovers } from "./keyboard/layer-stack.js";
+import { registerAuxiliaryModality } from "./keyboard/register.js";
 import { under } from "./shadow.js";
 
 export function createAuxiliaryModality({ chromeRoot, focusable }) {
@@ -204,6 +205,10 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
   const coveringFocus = () => (active ? (active.focus() ?? active.surface) : null);
   const allowsNativeLayer = (node, establishedOver = null) =>
     layerAllowedBy(active, node, establishedOver);
+  // The keyboard register carries these three readings to the dispatcher, whose own
+  // closure stops there: a direct edge to this owner would give a key press this owner's
+  // whole initialization graph.
+  registerAuxiliaryModality({ coveringSurface, coveringFocus, allowsNativeLayer });
   return {
     scrim,
     registerAuxiliarySurface,

@@ -119,27 +119,42 @@
    from a control the reader reaches during that upgrade.
 
    A pointer press that opens a layer is a command too, and enters through `invoke` with
-   the place it displaced: the Threads toggle, a margin marker, a page mark, its note. A
-   pointer moves focus onto what it pressed before the click arrives, so that place is
-   read at pointerdown and handed out by `pressOrigin`; a keyboard activation's click
-   finds no press in flight and reads focus at the click, which is the control the reader
-   stood on. The way out of a clicked-open panel or conversation view is therefore the
-   reader's place before the click — the page, for a reader who was reading — and never
-   the control the click happened to focus. */
+   the place it displaced: the Threads toggle, a margin marker or its unfolded option
+   row, a page mark, its note. A pointer moves focus onto what it pressed before the
+   click arrives, so that place is read at pointerdown and handed out by `pressOrigin`; a
+   keyboard activation's click finds no press in flight and reads focus at the click,
+   which is the control the reader stood on. The Escape that closes a clicked-open panel
+   or conversation view therefore hands back the reader's place before the click — the
+   page, for a reader who was reading — and never the control the click happened to
+   focus. A close by pointer — the view's ×, the panel's Close — is not that way out: the
+   pointer is already on the surface that is closing, and focus lands on the surviving
+   control that reopens it. */
 import { word } from "./bindings.js";
 import { focused } from "./scopes.js";
 import { focusDestination } from "../focus.js";
 import { repaint } from "../repaint.js";
 
 export function restoreReturnPlace({ control, reading }) {
-  if (control) {
+  const landed = () => {
     if (control.isConnected) focusDestination(control);
-    // Reconciliation may replace a control in the same task. Its first paint is
-    // asynchronous, so give that exact node one frame to reconnect before conceding.
-    if (!control.isConnected || !control.matches(":focus"))
-      requestAnimationFrame(() => {
-        if (control.isConnected) focusDestination(control);
-      });
+    return control.matches(":focus");
+  };
+  if (control) {
+    if (landed()) return;
+    // Reconciliation may replace a control in the same task, and a paint the close asked
+    // for may still hold it hidden — a widened list shows its cards on its next paint.
+    // That first paint is asynchronous, so give that exact node one frame before
+    // conceding. A control that is then gone or hidden is so for good — the layer it
+    // stood in closed under the press this frame records, as the conversation view does
+    // when the toggle carries its thread into the panel — and the place is the block the
+    // reader was reading, which every origin carries beside its control. A control that
+    // is there to see and still refused focus keeps the one retry and nothing more:
+    // taking the reader somewhere else over it would be a second guess.
+    requestAnimationFrame(() => {
+      if (landed()) return;
+      if (!control.isConnected || !control.checkVisibility())
+        restoreReturnPlace({ control: null, reading });
+    });
     return;
   }
   if (reading?.isConnected) {
@@ -152,10 +167,12 @@ export function restoreReturnPlace({ control, reading }) {
 
 // The place a press displaced (see the header). `mountPressOrigin` is wired once by the
 // keyboard controller with the same capture the dispatcher uses for a key's origin. The
-// press is forgotten at its click, after the door that opens on it has read the origin;
-// at a cancel that never becomes one; and at the next key, since a press that never
-// clicked — a right-click, a drag that ended elsewhere — must not lend its place to the
-// keyboard activation that follows it.
+// press is forgotten when it ends: a task after its release, since the browser dispatches
+// the release and the click it becomes in one task, so every door has read the origin by
+// then whatever order the document's click listeners were added in — and a release that
+// becomes no click, a right-click or a drag that ended elsewhere, is forgotten the same
+// way rather than lending its place to the keyboard activation that follows it. A
+// cancelled press is forgotten at the cancel.
 let capturePlace = null;
 let pressed = null;
 export function mountPressOrigin(capture) {
@@ -170,9 +187,8 @@ export function mountPressOrigin(capture) {
     },
     true,
   );
-  document.addEventListener("click", forget);
+  document.addEventListener("pointerup", () => setTimeout(forget), true);
   document.addEventListener("pointercancel", forget, true);
-  document.addEventListener("keydown", forget, true);
 }
 export function pressOrigin() {
   if (!capturePlace)

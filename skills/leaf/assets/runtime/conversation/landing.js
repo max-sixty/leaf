@@ -27,14 +27,20 @@
    explicitly enters its box supplies the caller-owned return target through
    `landInConversation`. */
 import { shownBand, shownBox } from "../geometry.js";
-import { focused } from "../keyboard/scopes.js";
+import { documentFocused, focused } from "../keyboard/scopes.js";
+import { takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
-import { closestAcross } from "../passages.js";
-import { threadsBox } from "./panel-elements.js";
+import { closestAcross, containsAcross } from "../passages.js";
+import { panel, threadsBox } from "./panel-elements.js";
 import { reachedForWords } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
 import { SAYS_IN, SAY_BOX } from "./selectors.js";
 import { retainReaderIntent } from "../reader-intent.js";
+import { pageScope } from "../keyboard/register.js";
+import { TEXT_ENTRY } from "../keyboard/text-entry.js";
+import { threadList } from "./state.js";
+import { focusedThread } from "./focus.js";
+import { threadSearchActive } from "./narrowing.js";
 
 export { SAY_BOX } from "./selectors.js";
 const conversationReturns = new WeakMap();
@@ -122,6 +128,91 @@ export const standingConversation = () => {
   return box ? { held, box } : null;
 };
 export const backFromConversation = (box) => conversationReturns.get(box) ?? null;
+
+// The way back out of a box a command put the reader in. Held here beside the relation
+// `standingConversation` climbs, so "comment on the thread" going in and "back to thread"
+// coming out name one element.
+export const boxReturnFrame = (held, box, does = "Return to the thread") => ({
+  active: () =>
+    held?.isConnected && (containsAcross(held, focused()) || box === focused()),
+  close: () => box.blur(),
+  does,
+  line: "back to thread",
+});
+
+// Where a box reached by Tab or pointer hands the reader back. Keyboard entry carries its
+// own captured return frame before this fallback is reached. This once asked only for
+// `.lf-thread` and the panel, so the two boxes outside the chrome — a conversation seated
+// on the page, and each thread on that seat — had no relation to return through. The climb
+// is `heldConversation`'s, the same relation contextual `c` uses when it names a thread.
+//
+// A seat holding no thread yet has no standing place of its own. A widget control that
+// explicitly sends the reader into that box can supply its own return through
+// `landInConversation`; a visit reached by Tab still falls through to the page's "let go".
+// Otherwise the question is "can the reader be put here", rather than a list of which two
+// containers happen to be focusable — which is also why a seat that `reachScrollers` makes
+// focusable, having grown a scrollbar and no focusable child, becomes a rung without anyone
+// editing this: the question is the same one, and the answer moved.
+function backFromBox() {
+  const held = heldConversation();
+  if (held?.hasAttribute("tabindex")) return { target: held, line: "back to thread" };
+  const route = backFromConversation(focused());
+  return route?.target?.isConnected ? route : null;
+}
+// Whether the box the reader is typing in has somewhere to hand them back: the
+// conversation it belongs to, or the panel's list where it is the chrome's own box. The
+// page's standing scope asks the same question, since a box with nowhere to go back to
+// is a control the reader is standing on, theirs to let go of.
+export const boxHandsBack = () =>
+  Boolean(backFromBox()) || panel.contains(documentFocused());
+
+// A box words are typed into takes character keys and the keys that edit it: Enter,
+// deletion, caret movement, Home/End, and page movement, including their modified forms.
+// Escape remains the box's to declare or pass on. What it declares is the way back out — to
+// the thread a reply belongs to, so Esc then Enter round-trips, or to the list, so t/T walk
+// on from where the backing-out started. Drafts are kept at every rung.
+//
+// A control the reader is standing on rather than writing in keeps that rung without this
+// scope carrying a second branch for it: the scope claims the keys a box takes and leaves
+// every other press — c, the walks, the versions, the reference — to the scopes behind it.
+pageScope("text entry", {
+  title: "In a text box",
+  root: focused,
+  at: () => takesLetters(focused()),
+  claims: TEXT_ENTRY,
+  rows: [
+    {
+      id: "text.leave",
+      keys: ["Escape"],
+      does: "Leave the box, keeping what is typed",
+      line: () => backFromBox()?.line ?? "back to list",
+      // The conversation the box belongs to, or the panel's list where it is the chrome's
+      // own box. A page textarea that is neither leaves the row dead and the page's rung
+      // standing, which is the honest answer: nothing there to go back to.
+      when: boxHandsBack,
+      run: () => {
+        const back = backFromBox();
+        document.activeElement.blur();
+        (back?.target ?? threadsBox).focus();
+      },
+    },
+  ],
+});
+
+// A thread's own keys, live wherever the reader stands in one: the card, the message a
+// click on its words focuses, the quote, a link in a reply. `r` settles the thread from any
+// of them, since a control, a widget, or a text box that owns a letter is walked first.
+// Enter replies or reopens only from the card, where no control inside has an Enter of its
+// own to lose. The reopen button tells the two states apart; absent a thread, the reference
+// describes the open state readers first meet.
+const heldThread = () =>
+  documentFocused()?.closest(".lf-thread, .lf-conversation-thread") ?? null;
+const resolutionControl = (thread) =>
+  thread?.querySelector(
+    ":scope > .lf-thread-head > .lf-resolve, " +
+      ":scope > .lf-thread-actions > .lf-reopen, " +
+      ":scope > .lf-conversation-resolved .lf-reopen",
+  ) ?? null;
 
 function prepareLanding({ held = null, box, route = null }) {
   if (
@@ -363,4 +454,70 @@ export function createConversationLanding({ setPanel, scrollToThread, revealThre
     );
   };
   return { landIn, landInConversation, showThread };
+}
+
+/** Declare a thread's own keys against the landing the page is using.
+ *
+ * Separate from constructing that landing, because they are separate acts: a second
+ * landing owner — one a test builds to hold a reveal open — is another way of landing,
+ * not another set of keys, and declaring from the constructor would let it quietly take
+ * the page's. */
+export function declareThreadKeys(landIn) {
+  pageScope("thread", {
+    title: "In a thread",
+    root: focused,
+    when: () => threadList().length > 0,
+    at: () => Boolean(heldThread()),
+    rows: [
+      {
+        id: "thread.primary",
+        keys: ["Enter"],
+        does: () =>
+          resolutionControl(focusedThread())?.matches(".lf-reopen")
+            ? "Reopen it"
+            : "Write a reply",
+        line: () =>
+          resolutionControl(focusedThread())?.matches(".lf-reopen")
+            ? "reopen"
+            : "reply",
+        when: () =>
+          Boolean(conversationInput(focusedThread())) ||
+          resolutionControl(focusedThread())?.matches(
+            '.lf-reopen:not(:disabled, [aria-disabled="true"])',
+          ),
+        returnFrame: () => {
+          const thread = focusedThread();
+          const box = thread && conversationInput(thread);
+          return box ? boxReturnFrame(thread, box) : null;
+        },
+        // Find the thread's own compose row rather than the first textarea: a message may
+        // contain a widget with an editor of its own before the reply box in DOM order.
+        run: () => {
+          const thread = focusedThread();
+          const reopen = resolutionControl(thread)?.matches(".lf-reopen")
+            ? resolutionControl(thread)
+            : null;
+          if (reopen) reopen.click();
+          else landIn({ held: thread, box: conversationInput(thread) });
+        },
+      },
+      {
+        id: "thread.resolution.toggle",
+        keys: ["r"],
+        does: () =>
+          resolutionControl(heldThread())?.matches(".lf-reopen")
+            ? "Reopen it"
+            : "Resolve it",
+        line: () =>
+          resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
+        // Search keeps its next/previous hints; resolution remains in the reference.
+        lineWhen: () => !threadSearchActive(),
+        when: () =>
+          resolutionControl(heldThread())?.matches(
+            ':not(:disabled, [aria-disabled="true"])',
+          ),
+        run: () => resolutionControl(heldThread()).click(),
+      },
+    ],
+  });
 }

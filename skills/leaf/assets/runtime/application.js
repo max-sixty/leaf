@@ -364,6 +364,7 @@ export function mountApplication(dependencies) {
     renderMarginThread: (host, thread) => renderMarginThread(host, thread, inlineView),
     placedAt: dependencies.anchorPaint.placedAt,
     showThread: dependencies.showThread,
+    leavePanel: dependencies.leavePanel,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
   });

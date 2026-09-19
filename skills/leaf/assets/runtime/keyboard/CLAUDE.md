@@ -20,6 +20,18 @@ Core owns commands that act on Leaf's page, chrome, navigation, comments, and sh
 conversation state. A widget owns commands that interpret or change its content. Widget
 scopes join the register only while their instance exists.
 
+Every owner declares its own keys where its code is, and no module enumerates another's
+capabilities to do it. A widget or a generated control uses
+the element register — `keys(element, …)` and `commandScope(…)` in `scopes.js` — which
+applies while focus is inside that element. A core owner whose condition is the page's
+rather than the reader's position uses `register.js`: `pageScope(name, …)` for a scope of
+its own, `pageCommand(row)` for a row of the page's own scope, and `pageRung(name, …)`
+for a step of Escape's fallback ladder. Contribution runs as
+the owner is constructed, so a row closes over that owner's state and the register never
+holds a capability. Adding a command to a surface a feature already declares costs
+nothing outside that feature; a new page-level letter, a new scope, or a new step of the
+Escape ladder takes its rank in the orders `register.js` holds.
+
 ## Scope resolution
 
 Ordinary bindings resolve from the focused element outward: an exact control or active
@@ -35,8 +47,22 @@ as Mod+Enter or its own Escape step.
 
 Escape follows semantic unwind order instead of ordinary reservation. The focused
 control or active mode may consume one inner step, followed by the latest eligible return
-frame and then containing fallbacks. Browser modal and popover boundaries remain outside
-that order. One press closes one layer.
+frame and then containing fallbacks. A frame that stood the reader nowhere — `g T`, the
+Threads toggle, a tray — comes after the scope standing at the focus, since a box the
+reader then entered is the newer layer; a frame that holds the standing is the press that
+put them there and keeps its place. A frame whose layer holds a layer of its own — the
+panel's narrowing — takes that off first and stays for the next press. Browser modal and
+popover boundaries remain outside that order. One press closes one layer.
+
+Those fallbacks are the ladder at the foot of the stack, for state the reader reached
+without a registered entry: a captured target, a pointer-opened tray, a panel that was
+open when the page arrived, ordinary focus traversal. Each step is contributed through
+`pageRung` by the owner of the state it takes off and says what that press would take;
+`register.js` orders them and resolves the innermost into the one command every surface
+reads, rooted at the surface that step is inside. One command rather than one per step,
+because a reference listing each step whose own condition holds would promise presses
+the innermost step has already taken, and because being the fallback is a fact about
+the ladder rather than about any step: no step answers while a commanded entry stands.
 
 The way out is as deep as the way in, counted in the reader's presses. A press's whole
 effect is one rung: a command that opens a container and stands the reader in it is
@@ -48,13 +74,14 @@ because standing is the newest thing they did. A press that stood them there rec
 frame, and a frame holds the standing unless it says `standing: false` because its
 press stood the reader nowhere, so that frame answers in the stack's order instead; a
 walk pushes one such frame for however many steps it takes. A pointer press that opens
-a layer — the Threads toggle, a margin marker, a page mark or its note — is a command
-too, and records its frame with the place the press displaced, read before the click
-moved focus: the way out of a clicked-open panel or conversation view is the page the
-reader was reading, never the control the click happened to focus, and a keyboard
-activation of the same control, whose place was that control, comes back to it. No way
-out lands the reader on a control they never stood on. `layer-stack.js` carries the
-mechanism.
+a layer — the Threads toggle, a margin marker or its option row, a page mark or its
+note — is a command too, and records its frame with the place the press displaced, read
+before the press moved focus: the Escape out of a clicked-open panel or conversation
+view hands back the page the reader was reading, never the control the click happened
+to focus, and a keyboard activation of the same control, whose place was that control,
+comes back to it. A close by pointer is the one way out that lands on a control the
+reader never stood on — the surviving control that reopens what closed — because the
+pointer is already there. `layer-stack.js` carries the mechanism.
 
 ## Page grammar
 
@@ -63,10 +90,11 @@ whose subject is that surface's contents. A page-level letter must remain useful
 every page; a visible control otherwise remains reachable through Tab, its native
 activation, contextual Ask digits, or generated Go-to hints.
 
-`page.js` is the canonical page vocabulary. Directional walks use lowercase to advance
-and Shift to go back. A surface may reuse a page key for the same intent with a nearer
-destination; other local commands belong to the widget scope. The exact rows, rather
-than a copied key list, state the current bindings.
+`register.js`'s `PAGE_COMMANDS` is the canonical page vocabulary, in the order the
+shortcut line ranks it; each row is declared by the owner that implements it. Directional
+walks use lowercase to advance and Shift to go back. A surface may reuse a page key for
+the same intent with a nearer destination; other local commands belong to the widget
+scope. The exact rows, rather than a copied key list, state the current bindings.
 
 While the reader stands in an Ask, core projects its widget's ordered Decision commands
 onto `1` through `9`. A widget's declared route wins while focus is in that widget;
@@ -76,14 +104,20 @@ binding invoke the original command through its stable identity and source scope
 ## Module ownership
 
 - `bindings.js` owns spelling, parsing, row fields, routes, and declaration checks.
-- `scopes.js` owns element scopes and the shared command sections derived from them;
-  `register.js` holds core's registered scopes.
+- `scopes.js` owns element scopes and the shared command sections derived from them.
+- `register.js` owns the page's keyboard: the order core's scopes shadow one another in,
+  the rank of the page's own commands, Escape's fallback ladder and the one command it
+  resolves to, the doors owners contribute through, and the auxiliary-layer readings the
+  dispatcher reads without an edge to their owner.
 - `dispatch.js` owns precedence and platform-default handling; `controller.js` owns the
   physical input lifecycle; `text-entry.js` owns native editing claims.
 - `layer-stack.js` owns the ordered layers standing over the page: the popovers and modal
   dialogs their openers declare, across the document and declared shadow roots, and the
   inverse of commands that enter temporary layers.
-- `page.js` declares core's scopes and rows.
+- `page.js` declares the page's own parts — a link, a disclosure, caret browsing, and the
+  two ends of the Escape ladder — and exports nothing.
+- `control-keys.js` paints the shortcut a visible control advertises, from the row that
+  reaches it.
 - `presentation.js` projects immutable key-sequence readings through the shared Lit
   template. `shortcut-bar.js` and `command-reference.js` synchronously derive and
   Lit-render their complete persistent surfaces from evaluated command readings; their

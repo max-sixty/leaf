@@ -1,6 +1,6 @@
 /* Browser input lifecycle. The dispatcher resolves declarations; this owner applies
    page policy around a real input (transient modes, shelf, and return origins). */
-import { dispatchKey, readerIn } from "./dispatch.js";
+import { dispatchKey } from "./dispatch.js";
 import { mountPressOrigin } from "./layer-stack.js";
 import { MODIFIER_KEYS } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
@@ -8,11 +8,10 @@ import { claimsEsc, focused } from "./scopes.js";
 import { takesLetters } from "../focus.js";
 import { runtime } from "../context.js";
 import { repaint } from "../repaint.js";
-const standing = (scope) => readerIn(scope) && (!scope.when || scope.when());
 export function mountKeyboard({
   goToSequenceActive,
   setGoToSequence,
-  REACT,
+  reactArmed,
   setReact,
   captureReturnPlace,
 }) {
@@ -32,7 +31,7 @@ export function mountKeyboard({
     // gives it. A modifier alone is half a press rather than a key: the Shift that
     // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that
     // took the window down before the G it was armed for.
-    if ((goToSequenceActive() || standing(REACT)) && !MODIFIER_KEYS.includes(ev.key)) {
+    if ((goToSequenceActive() || reactArmed()) && !MODIFIER_KEYS.includes(ev.key)) {
       setGoToSequence(false);
       setReact(false);
       run(ev);
@@ -57,7 +56,7 @@ export function mountKeyboard({
     // readings of where the reader is standing would refuse to arm somewhere they then
     // failed to disarm.
     const active = focused();
-    if (standing(REACT) && (takesLetters(active) || claimsEsc(active))) setReact(false);
+    if (reactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);
     if (goToSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
       setGoToSequence(false);
     }

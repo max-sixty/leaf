@@ -72,7 +72,7 @@ import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
 import { el, PRESSABLE } from "../widget-elements.js";
-import { allButCommandReference } from "./register.js";
+import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThread } from "../conversation/focus.js";
 import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
@@ -111,6 +111,7 @@ export function createGoToSequence({
   captureAuxiliaryChromeState,
   restoreAuxiliaryChromeState,
   setPanel,
+  leavePanel,
   setOpenTray,
   scrollToElement,
   showThread,
@@ -241,7 +242,7 @@ export function createGoToSequence({
         }
       },
       active: (...args) => panelIsOpen(...args),
-      close: () => setPanel(false),
+      close: () => leavePanel(),
       // The arrival is the list, the panel's own floor, so what the reader then stands on
       // in the panel is theirs to let go of before this frame answers — unless the press
       // carried an inline thread into the panel and stood them on its card, which the
@@ -743,8 +744,10 @@ export function createGoToSequence({
             const previousAuxiliaryChrome = captureAuxiliaryChromeState();
             return {
               active: destination.active,
+              // A destination whose close took a layer off inside itself says so with
+              // false, and the frame stays for the press that closes it.
               close: () => {
-                destination.close?.();
+                if (destination.close?.() === false) return false;
                 return restoreAuxiliaryChromeState(previousAuxiliaryChrome);
               },
               does: `Return from ${word(destination.line)}`,
@@ -839,15 +842,19 @@ export function createGoToSequence({
     keys: ["g"],
     does: "Go to a visible target, panel, page, or edge",
     line: "go to",
+    // The sequence is still a route out of a covering auxiliary surface; its own scope
+    // moves its root to that surface while armed.
+    covering: true,
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setGoToSequence(true),
   };
 
   const goToSequenceActive = () => goToActive;
 
+  pageScope("go to", GO_TO_SCOPE);
+  pageCommand(OPEN_GO_TO);
+
   return {
-    GO_TO_SCOPE,
-    OPEN_GO_TO,
     goToStatus,
     formatGoToAddress,
     setGoToSequence,

@@ -3942,10 +3942,13 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
-    # The chrome's own control, reached the way the ladder lands a reader on it: opened
-    # by pointer, closed by key, which is what earns the ring at all.
+    # The chrome's own control, reached the way a frame hands a reader back to it: opened
+    # by key from the control, closed by key, which is what earns the ring at all. A
+    # pointer open hands back the page instead
+    # (test_a_press_that_opens_a_layer_returns_the_place_it_displaced).
     toggle = page.locator(".lf-threads-toggle")
-    toggle.click()
+    toggle.focus()
+    page.keyboard.press("Enter")
     page.keyboard.press("Escape")
     expect(toggle).to_be_focused()
     assert toggle.evaluate(RING) == decision_ring, (

@@ -34,15 +34,17 @@
    opened. Page Map and Go-to arrivals activate the exact visible control;
    they do not choose another action for the reader.
 
-   The thread card stays attached to its owning cluster. `thread-card-geometry.js` states
+   The thread card stands by its owning cluster, or, where the rail has no room for that
+   cluster, by the page target the cluster is about. `thread-card-geometry.js` states
    where it stands: in the rail beside the cluster when the room there takes the card's
    minimum measure, otherwise under or over the cluster with its right edge on the
    visible edge, so it crosses the column by no more than the rail's shortfall. The card
    keeps its height in every case; one too tall for its spot slides across its cluster
    rather than shrinking. This module supplies the visible boundary — the reading region
    or the viewport under the banner and over the bottom chrome — measures the card, and
-   closes it once its cluster has left that boundary. The card contains the complete inline conversation view; the
-   Threads panel remains the complete index and takes over when already open.
+   closes it once what it stands by has left that boundary. The card contains the
+   complete inline conversation view; the Threads panel remains the complete index and
+   takes over when already open.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -95,6 +97,7 @@ import { panelWouldCover } from "./conversation/panel-elements.js";
 import { COVERING } from "./chrome-layout.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
+import { pageScope } from "./keyboard/register.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
@@ -136,6 +139,7 @@ export function createMarginProjection({
   bottomChromeBoxes,
   placedAt,
   showThread,
+  leavePanel,
   goToAsk,
   scrollToElement,
   scrollToThread,
@@ -881,8 +885,15 @@ export function createMarginProjection({
       !previewMarginEntry?.isConnected
     )
       return false;
+    // A row the rail has no room for is withheld and has no box. A card placed against
+    // that empty box stood in the boundary's corner over the words the reader pressed,
+    // and read as detached before it had stood anywhere, so no scroll could dismiss it.
+    // It stands by the row's target instead. A row whose target is not shown is withheld
+    // too, and that target has no box to stand by either.
+    const row =
+      previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     const cluster = (
-      previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry
+      row.checkVisibility() ? row : (previewEntry?.target ?? row)
     ).getBoundingClientRect();
     const boundary = threadCardBoundary(previewEntry?.target);
     if (!boundary.width || !boundary.height) return false;
@@ -2546,8 +2557,8 @@ export function createMarginProjection({
   // A press on a margin control is a command like `t`: it enters the layer stack with
   // the place the reader held before the press, so the Escape that dismisses the view
   // hands that place back — the page, for a reader who clicked a marker — rather than
-  // whichever margin control the view hangs from by then. A view already standing keeps
-  // the entry that opened it; the press only changes what it shows.
+  // whichever margin control the view hangs from by then. A view already showing takes
+  // the thread in under whatever entry it has; the press only changes what it shows.
   const OPENED_BY_PRESS = {
     id: "margin.conversation",
     returnFrame: () => ({
@@ -2662,6 +2673,31 @@ export function createMarginProjection({
     return null;
   }
 
+  // A thread card and the unfolded margin entry cluster that owns it are one page-map
+  // stack, though the card itself is hoisted into the chrome. This is a scene-derived
+  // fallback: a later keyboard entry returns through its captured frame before this rung.
+  // Without one, the registered rung precedes the reaction and navigation fallbacks just as
+  // the surface's old local listener did: Escape closes the card first, then folds the
+  // cluster on a second press.
+  const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
+  pageScope("page map", {
+    title: "In the Page Map",
+    root: () => pageMapRung()?.root ?? document,
+    when: () => Boolean(pageMapRung(false)),
+    at: () => Boolean(pageMapRung()),
+    rows: [
+      {
+        id: "margin.back",
+        keys: ["Escape"],
+        does: () => pageMapRung(false)?.does,
+        line: () => pageMapRung()?.says,
+        commandReferenceWhen: () => Boolean(pageMapRung(false)),
+        when: () => Boolean(pageMapRung()),
+        run: () => pageMapRung()?.out(),
+      },
+    ],
+  });
+
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
@@ -2758,8 +2794,12 @@ export function createMarginProjection({
   // card needs no trip, since placeThreadPreview keeps it inside the viewport.
   //
   // A press — on the mark, or on its note — passes `origin`, the place it displaced, and
-  // the view it opens enters the layer stack with it, as a marker press does in
-  // togglePinned. The `t` walk passes none: its own frame holds the walk.
+  // whatever the press opened enters the layer stack with it, as a marker press does in
+  // togglePinned: the view where the thread has a place on the page, else the panel,
+  // which is where a thread with none is indexed. One frame reads which of the two the
+  // run opened, so Escape closes that one and hands back the place. A view already
+  // showing takes the thread in without a new entry. The `t` walk passes no origin: its
+  // own frame holds the walk.
   function openPageThread(id, { focus = "reply", travel = true, origin = null } = {}) {
     if (!panelIsOpen()) {
       const local = focusSurface(id, { focus });
@@ -2768,8 +2808,12 @@ export function createMarginProjection({
         if (travel) scrollToThread(id);
         return local;
       }
-      const open = () =>
-        openInlineThread(id, null, (positionedThread) => {
+    }
+    const panelWasShut = !panelIsOpen();
+    let opened = null;
+    const open = () => {
+      if (!panelIsOpen()) {
+        const thread = openInlineThread(id, null, (positionedThread) => {
           positionedThread.focus({ preventScroll: true });
           positionedThread.scrollIntoView({
             behavior: scrollBehavior(),
@@ -2777,14 +2821,33 @@ export function createMarginProjection({
           });
           if (travel) scrollToThread(id);
         });
-      const thread =
-        origin && !inlineThreadView.showing()
-          ? invoke(OPENED_BY_PRESS, null, open, origin)
-          : open();
-      if (thread) return thread;
-    }
-    showThread(id, { focus });
-    return null;
+        if (thread) {
+          opened = "view";
+          return thread;
+        }
+      }
+      showThread(id, { focus });
+      opened = panelWasShut ? "panel" : null;
+      return null;
+    };
+    if (!origin || inlineThreadView.showing()) return open();
+    const inPanel = () => opened === "panel";
+    return invoke(
+      {
+        id: "margin.thread",
+        returnFrame: () => ({
+          active: () =>
+            inPanel() ? panelIsOpen() : opened === "view" && inlineThreadView.showing(),
+          close: () => (inPanel() ? leavePanel() : closePreview()),
+          does: () =>
+            inPanel() ? "Close the thread panel" : "Dismiss the conversation view",
+          line: () => (inPanel() ? "close threads" : "dismiss conversation"),
+        }),
+      },
+      null,
+      open,
+      origin,
+    );
   }
 
   // The row's acknowledgment face is read out of the published state projection rather

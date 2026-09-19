@@ -1,6 +1,7 @@
 /* This module owns modifier aim and captured presses: the Alt key's state, the target
  * it promises under the pointer, and the click it claims. */
 import { spell } from "../keyboard/bindings.js";
+import { pageCommand } from "../keyboard/register.js";
 import { pointerAt } from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
@@ -166,5 +167,6 @@ export function createAim({
     for (const type of PRESS_EVENTS)
       document.removeEventListener(type, claimPress, true);
   }
-  return { AIM, aimIsOn, aimedTarget, mount, destroy };
+  pageCommand(AIM);
+  return { aimIsOn, aimedTarget, mount, destroy };
 }

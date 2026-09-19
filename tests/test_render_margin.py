@@ -681,6 +681,37 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     expect(row).to_have_class(re.compile(r"lf-docked"))
 
 
+def test_a_held_marker_hands_the_reader_to_the_page_map_when_the_rail_falls(
+    browser, serve
+):
+    """A marker the keyboard is on stops being drawn when the shell loses its rail, so
+    the reader is put on the control that still reaches what the marker held.
+
+    The browser takes focus off an element it hides, onto body, and whether it does so
+    before or after the owner hears that the shell moved is not ordered: a handoff that
+    reads `document.activeElement` when it hears finds nobody holding the margin about
+    one narrowing in three, and leaves that reader on body. So this asserts the settled
+    end state, and on the reading it replaced it is red at that rate rather than always
+    — measured, six of six here and four of five there. The reading it needs is the one
+    taken when focus last moved, which no hide can overwrite."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Hold this thread's marker with the keyboard.",
+        "anchor": {"section": "how-cap"},
+    }
+    page = open_page(browser, serve(PANEL_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    marker = page.locator(".lf-margin-marker.lf-margin-entry").first
+    marker.focus()
+    expect(marker).to_be_focused()
+
+    resized(page, 700, 900)
+    expect(marker).to_be_hidden()
+    expect(page.locator(".lf-page-map-toggle")).to_be_focused()
+
+
 def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
     browser, serve
 ):

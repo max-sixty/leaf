@@ -305,10 +305,25 @@ export function createMarginProjection({
     };
   }
 
+  // Where focus was when it last moved, rather than where it is. The rail falling hides
+  // the control holding it, and the browser takes focus off a hidden element itself,
+  // onto body — sometimes before this owner hears that the shell moved and sometimes
+  // after, since what decides it is whether the focus fixup lands before the resize
+  // observation. Measured on the reading this replaces, a held marker reached the Page
+  // Map on four of five narrowings and body on the fifth. A blur to nothing writes
+  // nothing here, so this reading survives the hide and the handoff stops being a race.
+  let marginHeld = false;
+  document.addEventListener(
+    "focusin",
+    () => {
+      marginHeld =
+        toolbar.contains(document.activeElement) ||
+        preview.contains(document.activeElement);
+    },
+    { capture: true },
+  );
+
   function changePosture(stands) {
-    const marginHeld =
-      toolbar.contains(document.activeElement) ||
-      preview.contains(document.activeElement);
     if (!stands && preview.matches(":popover-open")) closePreview();
     if (!stands && marginHeld) requestAnimationFrame(() => focusMapControl());
     requestAnimationFrame(() => renderMargin.refresh());

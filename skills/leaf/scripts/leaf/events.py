@@ -252,46 +252,45 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     return threads
 
 
-def anchored_ids(events: list, within: dict) -> set:
-    """Element ids an unresolved thread still points at. A reaction nobody has
-    answered is a mark and not a thread, so it holds no id: a reaction never
-    gates a version, and its anchor re-resolves or detaches like a comment's."""
-    return {
-        (t["anchor"] or {}).get("section")
-        for t in build_threads(events, within).values()
-        if not t["resolved"] and not bare_reaction(t)
-    } - {None}
-
-
-def current_anchors(events: list) -> dict:
-    """Message id → the anchor that message still supplies to its conversation.
+def current_anchors(events: list, within: dict) -> dict:
+    """Message id → the anchor that message still binds the page with.
 
     A thread's target is its latest anchor, so the opening comment of a thread a
     reply moved or detached supplies none: the log keeps its words and the
     coordinate they were written at, and nothing resolves that coordinate against
     the page again. `detached_from` is the same fact read from the thread's side.
+    A closed conversation lets its target go on the same terms, and so does a
+    reaction nobody has answered — paint on the page, and no thread yet.
 
     One rule for every reader that asks whether a written anchor still binds the
     page, because a version check refusing to drop what a thread has already let
-    go is the same bug as a browser painting a mark there. Containment is the
-    fold's settlement half alone, and this reading asks nothing of settlement, so
-    a caller holding no page reading gets the same answer as one that does."""
+    go is the same bug as a browser painting a mark there. `within` is the
+    containment the settlement half reads, as every other fold of the threads
+    takes it."""
     return {
         t["anchored_by"]: t["anchor"]
-        for t in build_threads(events, {}).values()
-        if t["anchored_by"]
+        for t in build_threads(events, within).values()
+        if t["anchored_by"] and not t["resolved"] and not bare_reaction(t)
     }
 
 
-def anchored_parts(events: list) -> set:
-    """(section, visual part) coordinates a conversation currently anchors on.
+def anchored_ids(events: list, within: dict) -> set:
+    """Element ids a live conversation still points at — the section half of
+    `current_anchors`, for the ids an author writes."""
+    return {
+        anchor.get("section") for anchor in current_anchors(events, within).values()
+    } - {None}
 
-    The visual half of `anchored_ids`, for the parts an authored inventory
+
+def anchored_parts(events: list, within: dict) -> set:
+    """(section, visual part) coordinates a live conversation still points at.
+
+    The visual half of `current_anchors`, for the parts an authored inventory
     declares: a part is addressable markup the way an id is, and a version may
     retire one the moment no conversation points at it."""
     return {
         (anchor["section"], anchor["visual"])
-        for anchor in current_anchors(events).values()
+        for anchor in current_anchors(events, within).values()
         if anchor.get("visual")
     }
 

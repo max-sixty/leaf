@@ -5,6 +5,7 @@ from pathlib import Path
 from leaf import event_contracts
 from leaf.event_meaning import stored_meaning_error
 from leaf.events import current_anchors, taken_back
+from leaf.passages import enclosing_ids
 from leaf.registry.contract import RegistryError, read_registry_declarations
 from leaf.registry.layer import merge_layer_declarations
 from leaf.registry.validation import validate_registry
@@ -94,12 +95,13 @@ def candidate_vocabulary_gaps(
         target = event.get("holds") or (event.get("anchor") or {}).get("section")
         return target in document.by_id
 
-    # A written anchor binds the candidate only while it is still its
+    # A written anchor binds the candidate only while it is still a live
     # conversation's target. A `holds` goal and a version response cannot move at
     # all, so this narrows nothing for them; a visual coordinate is the one a
-    # reply routinely hands back, and validating the one it left would hold the
-    # page to a part the thread has already stopped pointing at.
-    current = current_anchors(events)
+    # reply routinely hands back, and validating the one a thread left — or the
+    # one a closed thread is remembered at — would hold the page to a part
+    # nothing points at any more.
+    current = current_anchors(events, enclosing_ids(document))
 
     missing = {}
     withdrawn = taken_back(events)

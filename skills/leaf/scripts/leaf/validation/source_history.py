@@ -5,7 +5,7 @@ from typing import NamedTuple
 
 from leaf.events import anchored_parts, retractions
 from leaf.files import list_revisions, revision_path
-from leaf.passages import spoken
+from leaf.passages import enclosing_of, spoken
 from leaf.projection import (
     StateProjection,
     protected_ids,
@@ -102,22 +102,23 @@ def continuity_errors(
         if record["attrs"].get("id")
         for part in visual_parts(record, registry)
     }
-    # Only the parts a conversation still points at. A declared part is authored
-    # markup, not a promise: once every thread on it has moved or detached, the
-    # picture may lose the node with them, the way an id no thread holds is
-    # dropped. Held for the life of the widget instead, a diagram could never
-    # follow the thing it draws.
+    # Only the parts a live conversation still points at, read exactly as the
+    # protected ids below are. A declared part is authored markup, not a promise:
+    # once every thread on it has moved, detached, or closed, the picture may lose
+    # the node with them, the way an id no thread holds is dropped. Held for the
+    # life of the widget instead, a diagram could never follow the thing it draws.
+    held_parts = anchored_parts(events, enclosing_of(revision.previous_words))
     dropped_parts = sorted(
         f"{section} · {part}"
-        for section, part in (previous_parts - current_parts) & anchored_parts(events)
+        for section, part in (previous_parts - current_parts) & held_parts
         if section in parser.ids
     )
     errors = []
     if dropped_parts:
         errors.append(
             "visual parts an open conversation anchors on, present in revision "
-            f"r{revision.predecessor} but dropped in index.html (move or detach "
-            f"those threads first): {dropped_parts}"
+            f"r{revision.predecessor} but dropped in index.html (move, detach, or "
+            f"resolve those threads first): {dropped_parts}"
         )
     previous_projection = state_projection(
         events,

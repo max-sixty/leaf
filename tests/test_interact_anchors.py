@@ -723,6 +723,52 @@ def test_a_moved_conversation_releases_the_visual_part_it_left(page_dir):
     assert result.exit_code == 0, result.output
 
 
+def test_a_resolved_conversation_releases_the_visual_part_it_held(page_dir):
+    """Closing a thread is the ordinary end of one, and it releases the part on the
+    same terms a detach does — the same terms that already release the section id,
+    which `version check` lets a resolved thread's page drop as advice. Held past
+    the close, the everyday route out of a conversation would be the one route that
+    pins a node to its diagram for good."""
+    root = json.loads(
+        comment(
+            parted(page_dir),
+            "--section",
+            "flow",
+            "--part",
+            "node:A",
+            "--text",
+            "Why this one?",
+        ).output
+    )
+    closed = CliRunner().invoke(
+        cli_model.cli, ["resolve", str(page_dir), "--to", root["id"]]
+    )
+    assert closed.exit_code == 0, closed.output
+
+    result = drop_node_a(page_dir)
+    assert result.exit_code == 0, result.output
+
+
+def test_a_bare_reaction_holds_no_visual_part(page_dir):
+    """A reaction nobody has answered is a mark and not a thread, so it never gates
+    a version — the rule `anchored_ids` already states for the section id. It has no
+    turn to reply with either, so holding the part would leave the author no move
+    that releases it."""
+    events_model.append_event(
+        parted(page_dir),
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "shorten",
+            "anchor": {"section": "flow", "visual": "node:A"},
+        },
+    )
+
+    result = drop_node_a(page_dir)
+    assert result.exit_code == 0, result.output
+
+
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
     """A module can replace or insert words the file's reading cannot model. A quote
     spanning one of those joins would resolve to nothing in the

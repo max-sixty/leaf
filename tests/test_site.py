@@ -17,6 +17,7 @@ server.
 import html as html_module
 import importlib.util
 import json
+import os
 import re
 import shutil
 import urllib.request
@@ -24,6 +25,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from conftest import LENT_LINKED_DIRS
 from example_data import catalog_sources, data_operations, example_versions
 from interact_support import running_http_server
 from leaf import files as files_model
@@ -748,46 +750,67 @@ def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
     assert width["scroll"] == width["client"]
 
 
-def test_a_link_that_reaches_nothing_stops_the_build(site, tmp_path):
+@pytest.fixture
+def staged_site(site, tmp_path):
+    """The module's built site, copied for one test to break one file in.
+
+    `build` links the vendored layer into every page it publishes rather than
+    writing it again, so the site is 18,054 files and 65M on disk. A plain
+    `copytree` copies bytes and breaks every one of those links, so each of the
+    three copies here measured 398M. Sharing the layer the way `build` does, and
+    the way a lent page shares it, brings that to 84M. It buys nothing in time —
+    the two take 3.5s and 3.9s, because the cost is the directory entry rather
+    than the bytes — and everything outside the layer is still copied, so a test
+    rewrites the file it is here to break without that write reaching the build
+    the rest of the module reads.
+    """
     staged = tmp_path / "staged"
-    shutil.copytree(site, staged)
-    (site_build.product_page(staged, "index.html") / "index.html").write_text(
+
+    def share_layer(source, target):
+        relative = Path(source).relative_to(site).parts
+        if LENT_LINKED_DIRS.isdisjoint(relative):
+            shutil.copy2(source, target)
+        else:
+            os.link(source, target)
+
+    shutil.copytree(site, staged, copy_function=share_layer)
+    return staged
+
+
+def test_a_link_that_reaches_nothing_stops_the_build(staged_site):
+    (site_build.product_page(staged_site, "index.html") / "index.html").write_text(
         '<a href="whats-new.html">news</a>'
     )
 
     with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged)
+        site_build.check_links(staged_site)
     assert "whats-new.html" in str(stopped.value)
 
 
-def test_a_directory_link_with_no_index_stops_the_build(site, tmp_path):
+def test_a_directory_link_with_no_index_stops_the_build(staged_site):
     """What a host answers a directory with is its index, so that is what has to be
     there. An existence check passes on the directory itself and publishes a 404."""
-    staged = tmp_path / "staged"
-    shutil.copytree(site, staged)
-    (staged / "examples" / "triage-board" / "index.html").unlink()
+    (staged_site / "examples" / "triage-board" / "index.html").unlink()
 
     with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged)
+        site_build.check_links(staged_site)
     assert "triage-board" in str(stopped.value)
 
 
-def test_a_card_image_that_reaches_nothing_stops_the_build(site, tmp_path):
+def test_a_card_image_that_reaches_nothing_stops_the_build(staged_site):
     """The one broken image a reader of the site would never run into.
 
     A card is fetched by whoever unfurls the link, not by the browser showing the
     page, so a preview whose bytes moved out from under its content address fails
     silently everywhere except in a shared link.
     """
-    staged = tmp_path / "staged"
-    shutil.copytree(site, staged)
-    manifest_path = staged / site_build.SITE_MANIFEST
+    manifest_path = staged_site / site_build.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     manifest["pages"]["/examples/triage-board"]["image"] = "/examples/media/gone.jpg"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged)
+        site_build.check_links(staged_site)
     assert "og:image" in str(stopped.value)
     assert "gone.jpg" in str(stopped.value)
 

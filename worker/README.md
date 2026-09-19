@@ -113,9 +113,17 @@ deploy publishes the Worker and its custom domain through per-Worker endpoints, 
 deploy to `workers.dev` also reads the account's `workers.dev` subdomain. Only
 `leaf-website-dev` deploys there, so only the agent token holds
 `Workers Metadata Read-Only`, which covers that read and stops short of any Worker's
-code. Zone permissions apply only to the zones a token names. No token here writes to a
+code. Zone permissions apply only to the zones a token names. No token here changes a
 Worker outside Leaf, reads another Worker's code, or manages DNS, members, billing, or
 API tokens; changing a domain or minting a token takes the account owner's own login.
+
+What the account-wide entries expose is logs. The agent token and the Tend CI token read
+every Worker's Observability records and every Analytics Engine dataset on the account,
+and `Workers Metadata Read-Only` lets the agent token open a live tail on any Worker;
+that is what a leaked token would give away. The Tend CI token sits in the agent's
+launch environment, where whatever code the workspace holds can read it, so
+`.config/tend.yaml` withholds it from every agent whose workspace holds a pull request's
+code. Agents that work from `main` — on issues, schedules, and red runs — keep it.
 
 On the maintainer's machine, the `Cloudflare Leaf agent administration` item in the
 `Max` 1Password vault holds the token of the same name. An agent reads it through the
@@ -201,7 +209,9 @@ before that timestamp through twenty minutes after keeps the scan unsampled.
 
 Historical Worker and Container logs are available in Workers Observability because
 `wrangler.toml` enables it. Agents may inspect the complete Cloudflare envelope,
-including request metadata, through the Observability API or `wrangler tail`.
+including request metadata, through the Observability API. `wrangler tail` streams the
+same records live under the agent administration token; the Tend CI token holds no tail
+permission.
 
 Each public document emits one `component=leaf-startup` record from the inline
 bootstrap, including when the module graph fails. It identifies the route, release,

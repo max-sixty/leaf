@@ -42,15 +42,20 @@ sandbox_setup:
   - uv run playwright install chromium webkit --only-shell
   - 'uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.stop()"'
 
-# The `tend` environment's Cloudflare token reads the deployed site's logs and
-# analytics and cannot change a Worker or a zone (`worker/README.md`). Tend's
-# proxy injects only GitHub and Anthropic credentials, so a third-party token
-# reaches the agent through its environment; the value is a secrets expression
-# that GitHub resolves when the job runs. Every Tend agent receives it,
-# including the ones reading outside contributors' issues and pull requests, so
-# that secret holds the observability token and never one that edits Workers.
+# The `tend` environment's Cloudflare token reads every Worker's logs and
+# Analytics Engine events on the account and cannot change a Worker or a zone
+# (`worker/README.md`). Tend's proxy injects only GitHub and Anthropic
+# credentials, so this token reaches the agent through its launch environment,
+# where `sandbox_setup` and anything the agent runs can read it.
+#
+# A review, and a mention on a pull request, put that pull request's code in the
+# workspace, and `sandbox_setup` builds it with `uv sync` before the agent
+# starts. The expression withholds the token there, by the test Tend's workspace
+# checkout applies: the event names a pull request, its issue is one, or it is a
+# relayed review carrying a `client_payload`. The empty value has to be the `||`
+# arm, because `cond && '' || secret` yields the secret either way.
 sandbox_env:
-  CLOUDFLARE_API_TOKEN: "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+  CLOUDFLARE_API_TOKEN: "${{ !(github.event.pull_request || github.event.issue.pull_request || github.event.client_payload) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
 
 workflows:
   ci-fix:

@@ -5829,14 +5829,42 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
             passage_before[coordinate], abs=1
         )
     if not panel_open:
-        # The send took the reader into the card, so its Escape takes them back out to the
-        # page. Handing focus to the margin entry the card hangs from — or, where no rail
-        # stands, to the Page Map button — lands them on a control they never stood on,
-        # and a margin entry arrived at that way says its transient label, so the reader
-        # finishes a comment reading a tooltip.
+        # A pointer selection displaced whatever the reader was on before the comment
+        # began, so the page is the place this gesture has to hand back. What it must not
+        # do is focus the margin entry the card hangs from — or, where no rail stands, the
+        # Page Map button — since the reader never stood on either, and a margin entry
+        # arrived at that way says its transient label, finishing a comment on a tooltip.
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
         expect(page.locator("body")).to_be_focused()
+
+
+def test_a_comment_sent_from_a_control_hands_that_control_back(browser, serve):
+    """One press comments, and one Escape returns the control that press displaced.
+
+    `c` opens the box on whatever the reader is standing in without moving them off it,
+    and the send replaces that box with the thread card. Both surfaces answer the one
+    press, so the card leaves by handing back the place the press displaced rather than
+    by landing the reader wherever the card happens to hang.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+    stood = page.locator("lf-option-control").first
+    stood.focus()
+    expect(stood).to_be_focused()
+
+    page.keyboard.press("c")
+    composer = page.locator(".lf-fab-input")
+    expect(composer).to_be_focused()
+    page.keyboard.type("Worth checking before the frost.")
+    with sending(page, "the comment on the standing option"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(stood).to_be_focused()
 
 
 # Read the card with the selected target's whole control cluster. A card the rail cannot

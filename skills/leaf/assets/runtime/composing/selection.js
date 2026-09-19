@@ -32,7 +32,7 @@ import { threadsBox } from "../conversation/panel-elements.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { readingPlace } from "../keyboard/layer-stack.js";
+import { currentOrigin, readingPlace } from "../keyboard/layer-stack.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
@@ -612,6 +612,14 @@ export function createSelectionComposer({
         // looking at so the inline card can carry that box into its new surface after the
         // draft settlement has removed the composer from the page.
         const transition = threadTransitionOrigin(composerInput, visible);
+        // And keep the place the press that opened this box displaced, while the box's
+        // own frame still stands to be asked. The card is that press's second surface,
+        // not a second press: `c` from a control opens the box on what the reader is
+        // standing in, and one Escape from the card it becomes owes them that control
+        // back. A box nobody framed — a pointer entry, a draft reopened at load — has no
+        // such place, and the page the reader is reading is the whole of what its card
+        // can hand back.
+        const entered = currentOrigin() ?? readingPlace();
         const epoch = composerEpoch;
         const sent = sendMessage(
           ctx,
@@ -654,7 +662,7 @@ export function createSelectionComposer({
                 transition,
                 onPositioned: (thread) =>
                   landTyping(thread.querySelector("textarea"), composerInput),
-                origin: readingPlace(),
+                origin: entered,
               })
             : null;
         const inlineReply = inlineThread?.querySelector("textarea") ?? null;

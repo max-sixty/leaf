@@ -365,12 +365,14 @@ def interactive_export_page(
         if resource.mime not in {"application/javascript", "text/css"}
     }
     inliner = _AssetInliner(artifact.resources.__getitem__)
-    shadow = inliner.css(
-        artifact.resources["/shadow.css"].data.decode("utf-8"),
-        "/shadow.css",
-        ("/shadow.css",),
+
+    def sheet(path: str) -> str:
+        return inliner.css(artifact.resources[path].data.decode("utf-8"), path, (path,))
+
+    theme = sheet("/theme.css")
+    embedded_resources["/shadow.css"] = _data_url(
+        Resource(sheet("/shadow.css").encode(), "text/css")
     )
-    embedded_resources["/shadow.css"] = _data_url(Resource(shadow.encode(), "text/css"))
     embedded_resources["/registry.json"] = _data_url(
         artifact.resources["/registry.json"]
     )

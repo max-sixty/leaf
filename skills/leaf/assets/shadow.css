@@ -92,9 +92,8 @@
    all of them presses a reader has to land on with a mouse, and none of them a
    control anybody chose the size of.
 
-   --aim-floor is the length, and it is the only thing a coarse pointer changes about
-   any of this (theme.css asks that query once), so a control cannot reach one floor
-   without reaching the other. It is stated in this file because a button, a chip, a
+   --aim-floor is the length, and theme.css asks the pointer query that sets it once,
+   so a control cannot reach one floor without reaching the other. It is stated in this file because a button, a chip, a
    reaction and a margin entry stand in the page and in declared widget trees as well
    as in the chrome, and a floor written inside the chrome's scope left every one of
    them outside it at whatever size it happened to be.
@@ -159,7 +158,7 @@ leaf-anchor-note { display: contents; }
 .lf-conversation-thread > .lf-say.lf-reply-collapsed > :not(.lf-reply-disclosure) {
           display: none; }
 /* The collapsed Reply is the empty editor at rest. Its complete path outranks the
-   chrome's shared aim floor, keeping the same box and surface through hover and entry. */
+   shared aim floor, keeping the same box and surface through hover and entry. */
 .lf-conversation-thread > .lf-say > .lf-reply-disclosure {
           box-sizing: border-box; width: 100%;
           min-height: calc(max(28px, var(--aim-floor)) + 12px); padding: 8px 10px;

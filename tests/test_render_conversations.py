@@ -3423,7 +3423,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # The shared message body gets selectable-island rules only inside chrome.
     # Its authored copy keeps the document's selection behavior.
     assert surface["bodySelection"] == surface["plainSelection"]
-    # A second document-level face comes from the authored theme, whose shadow slice
+    # A second document-level face comes from the authored theme, whose shadow sheet
     # also supplies the same controls inside declared widget trees. Keep that exception
     # as explicit as the runtime sheet's shared vocabulary below.
     assert set(surface["themed"]) == {

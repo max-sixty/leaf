@@ -4972,7 +4972,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     # the ring replaces the resting border rather than standing a second edge off
     # it. The panel's copy takes that from the chrome stylesheet, and the inline
     # copy — inside a declared shadow tree no document rule reaches — takes it from
-    # the theme's own shadow slice, which is why the two readings can be compared.
+    # the layer's own shadow sheet, which is why the two readings can be compared.
     ring = """el => { el.focus(); const s = getComputedStyle(el); return {
       style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
       border: s.borderColor, name: s.getPropertyValue('--lf-here-ring').trim(),

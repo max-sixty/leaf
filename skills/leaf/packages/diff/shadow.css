@@ -31,7 +31,10 @@
                                      box-sizing: border-box;
                                      min-height: calc(var(--lf-diff-action-top)
                                                       + var(--lf-diff-action-h));
-                                     padding-right: calc(var(--lf-diff-actions) + 18px); }
+                                     /* The bar's 11px inset less the 1px border it
+                                        stands inside, and 14px between a path and the
+                                        presses. */
+                                     padding-right: calc(var(--lf-diff-actions) + 24px); }
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
                  margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
                  border-radius: var(--r); background: var(--code-chrome);
@@ -74,7 +77,7 @@
    lifted alone it covered the press too, on every file, so a click on "Mark reviewed"
    opened and closed the file instead. */
 .lf-diff-file { position: relative; display: flow-root; margin: 8px 0;
-                --lf-diff-actions: 32px; --lf-diff-press: 110px;
+                --lf-diff-press: 110px;
                 /* How tall the bar of presses on the file's name line stands, and how far
                    down the name it starts. Both are said here because the pull below is
                    the same distance in the other direction: the bar is laid out above the
@@ -82,13 +85,21 @@
                    there would put the presses off the name the moment either changed. A
                    finger raises the floor and the pull follows on its own. */
                 --lf-diff-action-h: max(26px, var(--aim-floor));
-                --lf-diff-action-top: 6px; }
-.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) { --lf-diff-actions: 150px; }
+                --lf-diff-action-top: 6px;
+                /* And how wide it stands, which is the column the name line holds open
+                   for it (above): a comment press, square, and with the review press the
+                   two side by side across the bar's gap. */
+                --lf-diff-action-gap: 6px;
+                --lf-diff-actions: var(--lf-diff-action-h); }
+.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) {
+                --lf-diff-actions: calc(var(--lf-diff-press) + var(--lf-diff-action-gap)
+                                        + var(--lf-diff-action-h)); }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(details, .lf-diff-rename) {
                 margin-top: calc(-1 * (var(--lf-diff-action-h)
                                        + var(--lf-diff-action-top))); }
 .lf-diff-file-actions { position: relative; z-index: 3; display: flex;
-                        align-items: center; justify-content: flex-end; gap: 6px;
+                        align-items: center; justify-content: flex-end;
+                        gap: var(--lf-diff-action-gap);
                         width: fit-content; height: var(--lf-diff-action-h);
                         margin: var(--lf-diff-action-top) 11px 0 auto;
                         font-family: var(--sans); }

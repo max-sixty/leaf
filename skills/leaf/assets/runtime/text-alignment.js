@@ -6,7 +6,7 @@
  * other, so the runs and the elements they become are stated together
  * here rather than once per surface. Only the paint stays with each surface's sheet,
  * because that is the part that has to differ — a widget's rendering is reached by its
- * package's theme and a shadow slice, the comparison's by the comment layer's own
+ * package's theme and shadow sheet, the comparison's by the comment layer's own
  * stylesheet. */
 
 import { diffArrays } from "/vendor/jsdiff.esm.js";

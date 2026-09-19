@@ -122,9 +122,10 @@ package/
 No individual file is required. The kernel supplies the files every complete layer
 needs. Theme files concatenate, and so do shadow files: a declared `x-shadow` root built
 with `shadowStage` receives every package's `shadow.css` in layer order, and the document
-reads each package's `shadow.css` just ahead of its `theme.css`. Runtime, icon, widget, and vendor files replace by
-path. A later package replaces a tag's complete element declaration and one member inside
-a shared `$` declaration. A tag can be added or replaced whole, but it has no deletion marker.
+reads each package's `shadow.css` just ahead of its `theme.css`. Runtime, icon, widget,
+and vendor files replace by path. A later package replaces a tag's complete element
+declaration and one member inside a shared `$` declaration. A tag can be added or
+replaced whole, but it has no deletion marker.
 Shared `$` entries compose by member, and map-valued members compose one level further
 by key; `null` deletes at either of those shared-entry grains when the merged registry
 still validates. Guidance files with the same audience name concatenate in package order.

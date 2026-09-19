@@ -106,9 +106,8 @@ export const toneFor = (kind) => TONE[kind];
 //
 // The mark is the vendored icon.svg — the page's own asset like the theme, so a project
 // can put its own there — and all the runtime does to it is paint the one element it
-// declares. Refused rather than defaulted, as the theme's shadow block is: a mark with
-// no lf-tone leaves a tab that never changes, which is a status readout that silently
-// isn't one.
+// declares. Refused rather than defaulted: a mark with no lf-tone leaves a tab that
+// never changes, which is a status readout that silently isn't one.
 const tabLink = Object.assign(document.createElement("link"), {
   rel: "icon",
   type: "image/svg+xml",

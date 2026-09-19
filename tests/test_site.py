@@ -28,6 +28,7 @@ from example_data import catalog_sources, data_operations, example_versions
 from interact_support import running_http_server
 from leaf import files as files_model
 from leaf import hosting as hosting_model
+from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
@@ -234,13 +235,10 @@ def test_product_pages_are_published_as_complete_page_records(site):
         page = site_build.product_page(site, source.name)
         assert (page / "index.html").read_bytes() == source.read_bytes()
         for name in (
+            *schema_model.VENDORED_FILES,
             "data.json",
             "events.jsonl",
-            "icon.svg",
-            "leaf.js",
-            "registry.json",
             "status.json",
-            "theme.css",
         ):
             assert (page / name).is_file(), f"{source.name}: no {name}"
         for name in ("guidance", "media", "revisions", "runtime", "vendor", "widgets"):
@@ -252,12 +250,9 @@ def test_page_layers_stay_inside_their_page_directories(site):
     """The container image keeps complete pages rather than a public layer beside them."""
     assert (site / "sitenote.js").read_bytes() == (DOCS / "sitenote.js").read_bytes()
     for name in (
-        "leaf.js",
+        *schema_model.VENDORED_FILES,
         "session.js",
         "runtime.js",
-        "theme.css",
-        "registry.json",
-        "icon.svg",
         "data.json",
         "events.jsonl",
     ):

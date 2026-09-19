@@ -175,6 +175,10 @@
      to be a fixed size under a finger — a margin entry, the shortcut bar's More — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
+  /* A margin entry's box: 32px of marker, or the floor where a finger raises it. The
+     rail's claim below reserves the same length, so it is named rather than written
+     into each. */
+  --margin-entry: max(32px, var(--aim-floor));
   /* --rail has no authored value: the shared margin measures its widest target item
      after content modules have contributed their controls, then states that width on
      the root. The rule that spends it is beside .lf-margin-cluster below. */
@@ -1539,8 +1543,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    above it. */
 .lf-margin-entry {
   position: relative; box-sizing: border-box;
-  width: 32px; min-width: max(32px, var(--aim-floor));
-  height: 32px; min-height: max(32px, var(--aim-floor)); padding: 0;
+  width: var(--margin-entry); min-width: var(--margin-entry);
+  height: var(--margin-entry); min-height: var(--margin-entry); padding: 0;
   border: 1px solid var(--border-2); border-radius: 50%;
   background: var(--paper); color: var(--ink-2); flex: 0 0 auto;
   display: inline-flex; align-items: center; justify-content: center; gap: 0;
@@ -1728,7 +1732,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
        marker. Over that floor stands the widest stable contribution the shared layout
        has measured, which is wider wherever a contributed control takes the marker's
        place. What the condition reads is stated with the rest of the claim below. */
-    --claim-rail: max(calc(max(32px, var(--aim-floor)) + 22px + var(--here-ring-room)),
+    --claim-rail: max(calc(var(--margin-entry) + 22px + var(--here-ring-room)),
                       var(--rail, 0px));
   }
 }

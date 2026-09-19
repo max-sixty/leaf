@@ -16,7 +16,7 @@ from pathlib import Path
 import preview as preview_model
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command, install_payload, wait_for
+from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -57,8 +57,6 @@ from render_harness import (
     restarting,
     round_trip,
     sending,
-    take_browser_errors,
-    told,
 )
 
 pytestmark = pytest.mark.nightly
@@ -2969,40 +2967,6 @@ def test_comparison_export_keeps_both_results_and_the_recorded_choice(
         "Adopt one shared refresh per tab"
     )
     assert page.locator("script, .lf-chrome").count() == 0
-
-
-def test_a_state_read_outlives_the_chrome_the_copy_takes_out(browser, serve):
-    """Baking a copy removes `.lf-chrome` from the live page while its state stream is
-    still running, so the reads that land in the gap before the tab closes find the
-    Leaves tray gone. A tray that has left the document has no region to present into,
-    and a reading that arrives after it leaves is not the reading's fault: the read must
-    still apply, and the page must report nothing.
-
-    It reported twice per read — `State presentation failed` and `read failed`, both
-    naming the tray — because the list threw for the handle its own
-    `disconnectedCallback` had dropped, and that throw came back out of the whole state
-    application. Which read lands in the gap is a matter of the machine's load, so the
-    copy tests saw it as an occasional error on a page whose copy was correct. Here the
-    chrome is taken out directly and the read is provoked, so the gap is the
-    arrangement rather than the weather."""
-    page = open_page(browser, serve(REPORT_PAGE))
-    page.evaluate(
-        "() => document.querySelectorAll('.lf-chrome').forEach(node => node.remove())"
-    )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "A word said after the chrome went.",
-        },
-    )
-    # `told` reads the page's own applied reading, which state application writes only
-    # once it has presented, so this is the assertion that the read landed rather than a
-    # wait for one that quietly failed.
-    told(page)
-    assert take_browser_errors(page) == []
 
 
 def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):

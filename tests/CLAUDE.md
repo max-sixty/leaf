@@ -268,12 +268,25 @@ a test body.
 
 ### A process the suite starts ends with the run
 
+The run catches SIGINT itself, so every child starts at the default disposition
+a terminal gives. A run launched as a shell's background job inherits SIGINT set
+to SIG_IGN and passes it to everything it spawns, and a test that interrupts its
+own child would otherwise pass or fail on how the run was launched rather than
+on the code.
+
 Server ownership has two layers:
 
-- `spawn` owns every child process started directly by a test and terminates
-  any survivor during teardown.
+- `spawn` owns every child process started directly by a test and ends any
+  survivor during teardown — the group, for a child given a session of its own,
+  because such a child's own children join that group and the handle the test
+  keeps names only the launcher.
 - `_no_page_outlives_its_test` releases the suite's held leases, searches the
   temporary page and state roots, and stops every live leaf server it finds.
+- `preview_slot` discards the slots a preview test names, because those pages
+  live in the checkout's `.tmp/previews` rather than under a root that sweep
+  walks. It discards through `preview.retire_preview`, so a watcher that
+  outlived its test is retired rather than having its page pulled out from
+  under it.
 
 The search is intentional: a cleanup list catches only the server a test
 remembered to register. A page server is spawned into its own process session,
@@ -411,6 +424,19 @@ manual navigations as well; the `upgraded=False` escape in `open_page` is only
 for a test whose subject is the interval before those stamps, waits for the
 banner module to exist, and must make its later readiness explicit.
 
+A test whose subject is the page before the runtime lands needs the other end of
+that distinction, and element visibility does not carry it. A forced layout —
+`bounding_box`, and `to_be_visible` with it — answers from the stylesheets that
+have arrived, so an element has a box while the render-blocking theme is still in
+flight, and the geometry read behind it is the user agent's own. `displayed` waits
+on first contentful paint, the browser's record that the head has been applied and
+what it composed is on screen. Every pre-runtime measurement takes it first, in
+`test_authored_html_paints_while_runtime_startup_is_held`,
+`test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads`, and
+the two site shells: the reading it excludes is the unstyled document, which
+differs from the presented page by the whole theme and arrives as a report that
+startup moved the shell.
+
 `watched` must be installed before navigation. It collects console warnings, console
 errors, and `pageerror`, and calls `leaf.render_checks.install_window_errors` so browser
 `error` events without an exception reach the same list. That script is shared
@@ -510,6 +536,16 @@ ranges included, so wait on what the pass put in it
 (`(CSS.highlights.get(name)?.size ?? 0) > 0`, or `wait_for_pending_mark`),
 never on the name being there.
 
+A surface the page paints before the server answers is that surface too. A
+comment is rendered the turn it is sent, under the `pending:` identity
+`conversationForAttempt` gives it, so a `.lf-thread` count reads the same on the
+path where the request is refused. Wait on the identity the response replaced it
+with (`.lf-thread:not([data-id^="pending:"])`) or enclose the gesture in
+`sending`. Where the refusal under test is a request failure the outbox retries
+rather than settles, the identity is the only one of the two that answers:
+`round_trip` inside `sending` waits out its whole deadline on it
+(`test_the_captured_quote_is_prose_a_file_can_hold`).
+
 A retrying assertion that a paint has not happened is the same trap with the
 other sign, and worse: a negative assertion is satisfied by the first poll, and
 the first poll is before the frame. Wait on a positive fact the same frame
@@ -537,8 +573,11 @@ reply, or reaction states is its paint or its card (`test_render_reactions.py`'s
 the page.
 
 For layout, animation, and navigation, identify the final fact precisely.
-`panel_settled` waits for the requested panel class and then for the body's
-finite animations to empty. `resized` waits for the resize event to reach listeners
+`panel_settled` waits for the requested panel class and nothing past it: the runtime
+places the margin and the page's marks against the moved column inside the gesture, so
+no frame is left for a read to race, and
+`test_closing_the_panel_lands_the_margin_where_the_column_lands` holds that.
+`resized` waits for the resize event to reach listeners
 and then for one rendering update behind it; the document's own scrolling area is
 published in the update after the one the event arrived in. An observer or protocol
 record that outlives a motion is read after `moving` says finite motion has ended. An
@@ -666,8 +705,9 @@ teardown is not left waiting. `window.__lfHeld` is what is still held; a motion
 the page cancels stays, because a cancelled move is evidence a gesture was taken
 back. A gesture on the way to the one under test still has to reach its end
 state under that hold, and the harness helper for the gesture owns it:
-`panel_settled` and `edge_settled` finish the shell carry rather than waiting out
-a clock the test has stopped.
+`edge_settled` finishes a region's arrival slide rather than waiting out a clock the
+test has stopped. Opening Threads starts no motion, so `panel_settled` has none to
+finish.
 
 A sequence is ordered evidence across frames.
 `test_the_fold_never_paints_a_frame_that_undoes_the_last` records every painted

@@ -157,7 +157,7 @@ export function createStateApplication({
         accountPending(state.browser.receipts ?? []);
         const replies = runtime.browser.conversation.threads.flatMap((thread) =>
           thread.msgs.filter(
-            (message) => message.author === "claude" && message.kind === "reply",
+            (message) => message.author === "agent" && message.kind === "reply",
           ),
         );
         if (agentMsgCount >= 0 && replies.length > agentMsgCount && !panelIsOpen())

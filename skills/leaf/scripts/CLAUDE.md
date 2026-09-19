@@ -34,19 +34,28 @@ The main owners are:
 - `activity`: the canonical page-level fold over acknowledgments, status, claim,
   turn, and watcher evidence;
 - `work`: transient subject claims and widget work seats;
-- `asks`: declaration-driven page and thread Ask projections;
+- `asks`: the declaration-driven page and thread Ask projections, and the one
+  implementation of them — the CLI, the Stop hook, `version check`, the MCP surface,
+  event admission, and the browser all read this fold;
 - `mcp_page`: the capability-scoped canonical page server and private MCP result;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;
-- `host`: local paths, process readings, host identity, session lifetime, and the
-  Claude Code messaging socket;
+- `machine`: this machine — the state home Leaf keeps on it, and the process readings
+  that say whether a recorded pid still runs and what sits above this one;
+- `host`: the agent harness declarations — session identity, lifetime, delivery
+  carrier, hook remedies, and the nudge that reaches a session with nothing watching —
+  and the Claude Code messaging socket behind one of them;
 - `leases`: process-backed page, transition, and waiter leases;
 - `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
-- `codex`: the private App Server terminal launcher, provider notification adapter,
-  detached Codex queue delivery and recovery, and observer-only subscriptions;
+- `codex`: the Codex App Server connection every carrier speaks, its activity and
+  final-answer readings, the page writers those readings reach a reader through, and
+  the durable delivery records a carrier prepares, accepts, opens, and abandons;
+- `codex_adapter`: the detached carrier behind `leaf codex start` — its observing App
+  Server client, its `codex queue` fallback, page receipts, adapter leases, and the
+  private App Server terminal launcher;
 - `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only
   snapshot fallback;
 - `presence`: page, claim, and neighboring-leaf presence readings;

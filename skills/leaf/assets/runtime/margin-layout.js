@@ -35,14 +35,13 @@
    a script-free copy cannot rerun the packing pass, so its serialized `lf-withheld`
    reading remains withheld. Changing that behavior belongs to the live and copied layouts
    together, not to this export override. */
+import { shellRight } from "./geometry.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 
 const rows = new Map();
 // The horizontal space a row was last docked against. A dock holds while that space and
-// the row itself do. The shell's presentation carry is the exception: its moving column
-// is transient, so rows keep their answer until the column rests.
-// Cleared wherever a row restates itself, since its own size is the other half of the
-// answer.
+// the row itself do. Cleared wherever a row restates itself, since its own size is the
+// other half of the answer.
 const dockedAgainst = new WeakMap();
 const GAP = 4;
 let pending = 0;
@@ -223,11 +222,7 @@ export function layoutMarginRows() {
   if (dockedRows.length) {
     const postureColumn = marginColumn();
     const postureColumnRect = postureColumn.getBoundingClientRect();
-    const postureRoom = document.body.getBoundingClientRect().right;
-    const columnMoving =
-      parseFloat(
-        getComputedStyle(postureColumn).getPropertyValue("--lf-shell-motion-x"),
-      ) !== 0;
+    const postureRoom = shellRight();
     for (const [row, options] of dockedRows) {
       const anchor =
         typeof options.anchor === "function" ? options.anchor() : options.anchor;
@@ -249,15 +244,12 @@ export function layoutMarginRows() {
       }
       // It hangs by its owner's reading and docked anyway, which means it did not fit
       // the horizontal space. Floating it to measure that again moves a host that may
-      // hold focus, so keep the answer while its inputs hold. During the shell's carry,
-      // every frame has a different drawn column but only the resting position is
-      // durable space to answer about.
+      // hold focus, so keep the answer while its inputs hold.
       const against = dockedAgainst.get(row);
       if (
         against?.room === postureRoom &&
-        (columnMoving ||
-          (against.columnLeft === postureColumnRect.left &&
-            against.columnRight === postureColumnRect.right))
+        against.columnLeft === postureColumnRect.left &&
+        against.columnRight === postureColumnRect.right
       )
         staysDocked.add(row);
     }
@@ -285,7 +277,7 @@ export function layoutMarginRows() {
   // Each phase reads every row before writing any. A placement callback returns
   // its writer so target measurements never flush the previous row's changes.
   const columnRect = marginColumn().getBoundingClientRect();
-  const room = document.body.getBoundingClientRect().right;
+  const room = shellRight();
   placeRows(columnRect);
   const measured = [...rows].map(([row, options]) => {
     const anchor =

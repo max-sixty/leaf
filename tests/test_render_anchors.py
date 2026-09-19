@@ -21,6 +21,7 @@ from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    SCROLL_SETTLED,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
@@ -310,7 +311,8 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
     page.locator(".lf-composer textarea").fill("this column's name is wrong")
-    page.keyboard.press("ControlOrMeta+Enter")
+    with sending(page, "the comment on the card's column name"):
+        page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     thread = page.locator(".lf-thread .lf-quote").first
@@ -562,7 +564,8 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "Heated bird bath"
     page.locator(".lf-composer textarea").fill("call it the bath, not the bird bath")
-    page.keyboard.press("ControlOrMeta+Enter")
+    with sending(page, "the comment on the tab's name"):
+        page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     thread = page.locator(".lf-thread .lf-quote").first
@@ -1157,13 +1160,32 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # And the round trip that proves it: the server has to accept the quote and write it
     # to a UTF-8 file. A half character fails there, reported to the reader as an offline
     # server, and no retry can ever succeed.
+    #
+    # So the card alone is not the fact to wait on: it is painted the turn the comment is
+    # sent, under an identity the response replaces. `sending` cannot stand in for that
+    # identity here — the refusal this test guards against is a request failure the
+    # outbox retries rather than settles, so its trip would sit out its whole deadline
+    # instead of reporting what the reader was told.
+    #
+    # The composer prints the quote inside quotation marks; what it captured is what
+    # lies within them, and that is what the file has to come back holding.
+    captured = composer_quote(page)["text"].strip("\u201c\u201d")
     page.locator(".lf-composer textarea").fill("a comment on the capped passage")
     page.keyboard.press("ControlOrMeta+Enter")
-    page.wait_for_function("""() => document.querySelectorAll('.lf-thread').length === 1
+    settled = page.locator('.lf-thread:not([data-id^="pending:"])')
+    page.wait_for_function("""() => document.querySelectorAll(
+            '.lf-thread:not([data-id^="pending:"])').length === 1
         || document.querySelector('.lf-notice').classList.contains('show')""")
-    assert page.locator(".lf-thread").count() == 1, (
+    assert settled.count() == 1, (
         f"the comment never posted — the page says {page.locator('.lf-notice').text_content()!r}"
     )
+
+    # And the file behind that answer, read back through Python's UTF-8 decoder, which is
+    # the reader a half character has no bytes for.
+    comments = [
+        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+    ]
+    assert [comment["anchor"]["quote"] for comment in comments] == [captured]
 
 
 def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
@@ -2658,7 +2680,8 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     expect(fab).to_be_visible()
     fab.focus()
     page.locator(".lf-composer textarea").fill("is this idempotent?")
-    page.locator(".lf-composer button.lf-compose-submit").click()
+    with sending(page, "the comment on the ambiguous passage"):
+        page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -2732,7 +2755,8 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").focus()
     page.locator(".lf-composer textarea").fill("why is this section here?")
-    page.locator(".lf-composer button.lf-compose-submit").click()
+    with sending(page, "the comment on the section that leaves"):
+        page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -2871,7 +2895,7 @@ def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "old bar",
             "anchor": {
@@ -2905,7 +2929,7 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "older anchor",
             "anchor": {
@@ -3010,8 +3034,8 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     assert painted > 12000, f"the mark under the composer covers {painted} characters"
 
     page.locator(".lf-composer textarea").fill("All of it.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the whole page"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread")).to_have_count(1)
     # The posted anchor resolves on the ordinary pass too, which is the one that would
     # have thrown: a detached quote here is the search having failed to find the page
@@ -3030,26 +3054,28 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     makes its passage unique again."""
     url = serve(THIN_V1)
     page = open_page(browser, live_url(url))
-    posted = page.evaluate("""async () => {
-        const p = document.querySelectorAll('#thin p')[0];
-        const phrase = 'The version stamp never lands';
-        const at = p.firstChild.data.indexOf(phrase);
-        const want = document.createRange();
-        want.setStart(p.firstChild, at); want.setEnd(p.firstChild, at + phrase.length);
-        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
-        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.lf-fab-input');
-        if (fab.style.display !== 'block') return 'no button';
-        await new Promise(r => setTimeout(r, 40));
-        fab.focus();
-        const box = document.querySelector('.lf-composer textarea');
-        box.value = 'does this hold?';
-        box.dispatchEvent(new Event('input', {bubbles: true}));
-        document.querySelector('.lf-composer button.lf-compose-submit').click();
-        return true;
-    }""")
-    assert posted is True, f"couldn't post the comment ({posted})"
+    with sending(page, "the comment on the passage with one neighbour"):
+        posted = page.evaluate("""async () => {
+            const p = document.querySelectorAll('#thin p')[0];
+            const phrase = 'The version stamp never lands';
+            const at = p.firstChild.data.indexOf(phrase);
+            const want = document.createRange();
+            want.setStart(p.firstChild, at);
+            want.setEnd(p.firstChild, at + phrase.length);
+            const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
+            document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 40));
+            const fab = document.querySelector('.lf-fab-input');
+            if (fab.style.display !== 'block') return 'no button';
+            await new Promise(r => setTimeout(r, 40));
+            fab.focus();
+            const box = document.querySelector('.lf-composer textarea');
+            box.value = 'does this hold?';
+            box.dispatchEvent(new Event('input', {bubbles: true}));
+            document.querySelector('.lf-composer button.lf-compose-submit').click();
+            return true;
+        }""")
+        assert posted is True, f"couldn't post the comment ({posted})"
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -3838,16 +3864,9 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(page.locator(".lf-thread").first).to_be_focused()
 
 
-def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
-    browser, serve
-):
-    """Anchor travel treats the bottom toolbar's scroll padding as covered space.
-
-    A passage can be geometrically inside the viewport while its last line is under the
-    shortcut bar. The control places it just above that band first, proving travel leaves
-    a readable destination alone, then inside the band, where the same public thread walk
-    must move it back into the usable reading area.
-    """
+def clearance_page(browser, serve):
+    """One commented passage between spacers, and a way to stand its bottom edge
+    `offset` pixels below the top of the shortcut bar's scroll padding."""
     source = leaf_page(
         "Bottom clearance",
         """
@@ -3862,7 +3881,6 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
         serve(source, anchored=(("destination", "The passage remains readable"),)),
     )
     resized(page, 1000, 700)
-    destination = page.locator("#destination")
 
     def place_bottom(offset):
         return page.evaluate(
@@ -3878,6 +3896,22 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
             }""",
             offset,
         )
+
+    return page, place_bottom
+
+
+def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
+    browser, serve
+):
+    """Anchor travel treats the bottom toolbar's scroll padding as covered space.
+
+    A passage can be geometrically inside the viewport while its last line is under the
+    shortcut bar. The control places it just above that band first, proving travel leaves
+    a readable destination alone, then inside the band, where the same public thread walk
+    must move it back into the usable reading area.
+    """
+    page, place_bottom = clearance_page(browser, serve)
+    destination = page.locator("#destination")
 
     clear = place_bottom(-4)
     assert clear["clear"] > 0
@@ -3903,6 +3937,23 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
         covered["scroll"], abs=1
     )
     expect(destination).to_be_in_viewport()
+
+
+def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
+    """The walk above travels for this geometry; a press on the same words does not,
+    because the reader's hand is already on them and the card fits beside them."""
+    page, place_bottom = clearance_page(browser, serve)
+    # 10px into the band keeps the line's middle, where the press lands, off the bar.
+    covered = place_bottom(10)
+    page.evaluate("() => { delete window.__lfScroll; delete window.__lfScrollSince; }")
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    # A trip waits on a conversation refresh before it moves, so hold longer than that.
+    page.wait_for_function(SCROLL_SETTLED, arg=400)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
+        covered["scroll"], abs=1
+    )
+    expect(page.locator("[data-lf-thread]")).to_be_in_viewport(ratio=1)
 
 
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
@@ -4074,7 +4125,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
             {
                 "kind": "reply",
                 "parent": "version-question",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "text": "Preparing the update.",
                 "markup": '<lf-menu-preparation id="version-preparation"><pre>Prepared</pre></lf-menu-preparation>',
@@ -4473,8 +4524,8 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(outlet.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator("#lf-composer-quote")).to_contain_text("§ app.py · file")
     page.locator(".lf-fab-input").fill("Review this file as a whole.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the unloaded file"):
+        page.keyboard.press("ControlOrMeta+Enter")
 
     comments = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
@@ -4630,8 +4681,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "Review the whole added line."
     )
     expect(composer_outlet.locator(".lf-fab-input")).to_be_focused()
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment returned to from the draft"):
+        page.keyboard.press("ControlOrMeta+Enter")
     inline = page.locator("lf-diff .lf-diff-thread-outlet")
     expect(inline).to_have_count(1)
     expect(inline.locator(".lf-conversation-thread")).to_contain_text(
@@ -4720,8 +4771,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     page.locator(".lf-fab-input").fill("Review this expression.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the selected expression"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
         "app.py · new line 2 · “request.token.id”"
     )
@@ -4842,7 +4893,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "responds": root["id"],
@@ -4934,7 +4985,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     ready = inline_send.evaluate(button_face)
     assert ready == panel_send.evaluate(button_face)
     assert ready["backgroundColor"] == quiet["backgroundColor"]
-    assert ready["fill"] != quiet["fill"]
+    # A ready press is told from a quiet one by its ink and its edge. Neither wears a
+    # fill: no pressable carries a solid accent, so asserting one here would be holding
+    # the look the theme took off rather than the distinction the reader needs.
+    assert ready["fill"] == quiet["fill"] == "rgba(0, 0, 0, 0)"
+    assert ready["color"] != quiet["color"]
+    assert ready["borderTopColor"] != quiet["borderTopColor"]
     assert ready["cursor"] == "pointer"
 
     # The reply is a text box in either seat, so it wears the text box's one band:

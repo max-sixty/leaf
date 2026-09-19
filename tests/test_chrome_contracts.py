@@ -301,7 +301,8 @@ STATE_PAINT = """el => {
 
 
 def test_signoff_enabled_face_is_readable(browser, serve):
-    """The banner's committing action keeps its positive face in the everyday gate."""
+    """The banner's committing action carries the accent as ink on the ordinary
+    card, never as a solid accent fill."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -314,8 +315,8 @@ def test_signoff_enabled_face_is_readable(browser, serve):
         "        fill: getComputedStyle(el).backgroundColor})"
     )
     assert paint == {
-        "ink": token_colour(page, "--paper"),
-        "fill": token_colour(page, "--accent"),
+        "ink": token_colour(page, "--accent"),
+        "fill": token_colour(page, "--card"),
     }, f"the banner's primary action lost its readable face: {paint}"
 
 
@@ -388,7 +389,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()
@@ -488,6 +489,60 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             )
             == accent
         ), (width, panel_open, "the notice is covered by the panel or its scrim")
+
+
+def test_the_thread_card_rule_is_one_piece_of_arithmetic(browser, serve):
+    """A preferred spot, then the boundary's clamp; the card's height is never cut."""
+    page = open_page(browser, serve(LONG_PAGE))
+    answers = page.evaluate(
+        """async () => {
+          const {threadCardGeometry} =
+            await window.__lfRuntimeImport('/runtime/thread-card-geometry.js');
+          // A 900px-tall viewport: the banner ends at 42, the bottom chrome starts at 855.
+          const boundary = (width) => new DOMRect(8, 50, width - 16, 797);
+          const cluster = (left, top) => new DOMRect(left, top, 37, 32);
+          const ask = (width, at, natural) => threadCardGeometry({
+            cluster: at, boundary: boundary(width), gap: 8, minWidth: 320,
+            preferredWidth: 460, heightAt: () => natural});
+          return {
+            besideClamped: ask(1440, cluster(934, 436), 500),
+            besideFits: ask(1440, cluster(934, 100), 500),
+            besideWide: ask(2000, cluster(1400, 100), 500),
+            tallInRail: ask(1160, cluster(794, 436), 500),
+            tallCrossing: ask(1024, cluster(871, 436), 500),
+            fitsUnder: ask(1024, cluster(871, 100), 300),
+            fitsOver: ask(1024, cluster(871, 700), 300),
+            clusterOverTheTop: ask(1024, cluster(871, 30), 300),
+            narrowBoundary: ask(316, cluster(100, 100), 200),
+            gone: [cluster(934, 900), cluster(934, 0)].map(at => ask(1440, at, 500).detached),
+          };
+        }"""
+    )
+    beside = answers["besideClamped"]
+    assert (beside["placement"], beside["x"], beside["width"]) == ("right", 979, 453)
+    assert (beside["y"], beside["detached"]) == (347, False)
+    assert answers["besideFits"]["y"] == 100
+    wide = answers["besideWide"]
+    assert (wide["x"], wide["width"]) == (1445, 460)
+    # Too tall for the room under or over its cluster, the card holds at the foot,
+    # across the cluster, rather than taking either room's height.
+    rail = answers["tallInRail"]
+    assert (rail["placement"], rail["x"], rail["width"], rail["y"]) == (
+        "below",
+        794,
+        358,
+        347,
+    )
+    crossing = answers["tallCrossing"]
+    assert (crossing["x"], crossing["width"], crossing["y"]) == (696, 320, 347)
+    under = answers["fitsUnder"]
+    assert (under["placement"], under["y"]) == ("below", 140)
+    over = answers["fitsOver"]
+    assert (over["placement"], over["y"]) == ("above", 392)
+    top = answers["clusterOverTheTop"]
+    assert (top["placement"], top["y"], top["detached"]) == ("below", 70, False)
+    assert answers["narrowBoundary"]["width"] == 300
+    assert answers["gone"] == [True, True]
 
 
 PHONE_PAGE = leaf_page(

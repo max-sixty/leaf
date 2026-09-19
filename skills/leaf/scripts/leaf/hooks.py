@@ -4,7 +4,7 @@ import json
 
 from .event_log import read_events
 from .files import read_json
-from .leases import adapter_is_live
+from .host import claim_harness
 from .schema import (
     ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
@@ -17,6 +17,7 @@ from .service import (
     close_session_turn,
     open_session_turn,
     owned_pages,
+    page_claim,
     unacknowledged,
 )
 from .session import record_pickup
@@ -39,8 +40,8 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
     """The pages this session owes something, each with what to do about it.
     Two invariants hold between turns. A page is watched or idle, so anything
     else has quietly stopped listening. And every comment delivered into this
-    turn has an answer under it. A queued Codex comment belongs to its later turn
-    even though queue acceptance has advanced the page cursor."""
+    turn has an answer under it. A comment a carrier has queued belongs to its
+    later turn even though queue acceptance has advanced the page cursor."""
     reasons = []
     for page_dir in owned_pages(session_id):
         page_reasons = []
@@ -50,8 +51,18 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
             state = full_state(page_dir, events, stored_status=status)
         except FileNotFoundError:
             continue
-        codex = state["host"] == "codex"
-        adapter = codex and adapter_is_live(session_id)
+        discovered = page_claim(page_dir)
+        if discovered is None:
+            # A failed `server start` rolls its claim back, and discovery may
+            # have read it just before. An unclaimed page is not this session's
+            # to answer for.
+            continue
+        # The claim states which harness took the page and how its input is
+        # carried, so this reads the remedies and the watch question off that
+        # declaration rather than naming a harness here.
+        harness = claim_harness(discovered)
+        listening = state["listening"]
+        carried = harness.carrier_live(listening=listening)
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
@@ -63,7 +74,9 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
         # Queue acceptance belongs to the originating turn, so it is not debt
         # there. The later UserPromptSubmit still opens it below; from that
         # point its ordinary unanswered debt is enforced again.
-        reply = state["activity"].get("reply") if adapter else None
+        # A draft reply counts as the answer only while the carrier that would
+        # commit it is alive; otherwise nothing will finish it.
+        reply = state["activity"].get("reply") if carried else None
         stale = [
             obligation
             for obligation in acknowledged
@@ -82,28 +95,15 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
                 f"reader move{'s' if len(stale) != 1 else ''} with no answer "
                 f"({ids}). " + ANSWER_ASK_INSTRUCTION
             )
-        # A live Claude watcher is the watch: `leaf wait` before the first batch,
-        # then the `leaf ack` that re-arms it. It prints what's pending on its own.
+        # A live carrier is the watch, and it prints what's pending on its own.
         # Reporting the page here would start a second waiter and print the same
         # unacknowledged events twice.
-        if not (state["listening"] and (not codex or adapter)):
+        if not carried:
             # The watcher's whole batch — user events and workers' reports — not the
             # reader-facing count, which deliberately leaves reports out.
             n = len(unacknowledged(events, state["cursor"]))
             if n:
-                if codex and state["listening"]:
-                    remedy = (
-                        "Poll the existing unified-exec session — `leaf wait` before "
-                        "the first batch or the rearmed `leaf ack` afterward — with "
-                        "`write_stdin`."
-                    )
-                elif codex:
-                    remedy = (
-                        f"Start `leaf codex start {page_dir}` so later updates queue "
-                        "new turns in this task."
-                    )
-                else:
-                    remedy = "`leaf wait` prints them."
+                remedy = harness.input_unpicked(page_dir, listening=listening)
                 remedy += (
                     f" {ACK_BATCH_INSTRUCTION} If this task is the consumer, then address "
                     "every event."
@@ -125,25 +125,10 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
                 state["status"]["state"] != "idle"
                 and not (page_dir / PREVIEW_FILE).exists()
             ):
-                if codex and state["listening"]:
-                    page_reasons.append(
-                        f"{page_dir}: the Codex page is still live. Keep this turn "
-                        "active and poll the existing unified-exec session — `leaf "
-                        "wait` before the first batch or the rearmed `leaf ack` "
-                        "afterward — with `write_stdin`."
-                    )
-                elif codex:
-                    page_reasons.append(
-                        f"{page_dir}: no delivery adapter. Start `leaf codex start "
-                        f"{page_dir}` so this turn can finish and later updates start "
-                        "new turns; or run `leaf status <page> idle` if the page is done."
-                    )
-                else:
-                    page_reasons.append(
-                        f"{page_dir}: no watcher. Start `leaf wait` as a background "
-                        "task — one wait covers every page this session holds — or "
-                        "run `leaf status <page> idle` if the page is done."
-                    )
+                page_reasons.append(
+                    f"{page_dir}: "
+                    + harness.nothing_listening(page_dir, listening=listening)
+                )
         # Discovery is only a candidate read. Transfer can happen while the
         # hook reads status, so decide against current ownership at the end.
         try:

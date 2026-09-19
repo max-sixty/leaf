@@ -9,6 +9,8 @@
 
 import { documentPoint, shownBox } from "../geometry.js";
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
+import { anchoringIsReady } from "../anchor-resolution.js";
+import { pageCommand, pageScope } from "../keyboard/register.js";
 import {
   DRAWING_COORDINATE_LIMIT,
   DRAWING_FORMAT,
@@ -316,6 +318,37 @@ export function createDrawingController({
     document.body.removeAttribute("data-lf-draw-mode");
     banner.removeAttribute("data-lf-draw-mode");
   }
+
+  // Draw mode claims one pointer stroke before handing its mark to an ordinary comment.
+  // Its own scope keeps the toggle and Escape as the two ways out while the page
+  // underneath remains the drawing surface rather than receiving the drag.
+  pageScope("draw mode", {
+    title: "In Draw mode",
+    at: drawModeActive,
+    rows: [
+      {
+        id: "draw.mode.stroke",
+        keys: [],
+        label: "drag",
+        does: "Draw anywhere on the page, then send or add words",
+      },
+      {
+        id: "draw.mode.exit",
+        keys: ["Escape", "w"],
+        does: "Exit Draw mode",
+        line: "exit Draw mode",
+        run: () => setDrawMode(false),
+      },
+    ],
+  });
+  pageCommand({
+    id: "draw.mode.enter",
+    keys: ["w"],
+    does: "Draw on the page and attach the mark to a comment",
+    line: "draw",
+    when: () => anchoringIsReady(),
+    run: () => setDrawMode(true),
+  });
 
   return {
     mount,

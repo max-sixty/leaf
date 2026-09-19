@@ -34,11 +34,15 @@
    opened. Page Map and Go-to arrivals activate the exact visible control;
    they do not choose another action for the reader.
 
-   The thread card stays attached to its owning cluster. Leaf prefers the right then left
-   page lane before overlaying the document; Floating UI fits the card within that lane or
-   reading region. The card closes after its cluster leaves the region. It contains the
-   complete inline conversation view; the Threads panel remains the complete index and
-   takes over when already open.
+   The thread card stays attached to its owning cluster. `thread-card-geometry.js` states
+   where it stands: in the rail beside the cluster when the room there takes the card's
+   minimum measure, otherwise under or over the cluster with its right edge on the
+   visible edge, so it crosses the column by no more than the rail's shortfall. The card
+   keeps its height in every case; one too tall for its spot slides across its cluster
+   rather than shrinking. This module supplies the visible boundary — the reading region
+   or the viewport under the banner and over the bottom chrome — measures the card, and
+   closes it once its cluster has left that boundary. The card contains the complete inline conversation view; the
+   Threads panel remains the complete index and takes over when already open.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -90,6 +94,7 @@ import { panelWouldCover } from "./conversation/panel-elements.js";
 import { COVERING } from "./chrome-layout.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
+import { pageScope } from "./keyboard/register.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
@@ -112,9 +117,7 @@ import { anchorLabel } from "./conversation/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
-
-let floatingUiModule = null;
-const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
+import { threadCardGeometry } from "./thread-card-geometry.js";
 
 export function createMarginProjection({
   panelIsOpen,
@@ -136,7 +139,6 @@ export function createMarginProjection({
   goToAsk,
   scrollToElement,
   scrollToThread,
-  landInConversation,
 }) {
   const KINDS = {
     action: { label: "Action", icon: "dot", priority: -1 },
@@ -436,9 +438,8 @@ export function createMarginProjection({
   function scheduleThreadTransition(origin, entry) {
     clearThreadTransition();
     const epoch = threadTransitionEpoch;
-    // Margin packing finishes on the next frame. The placement reset keeps the real card
-    // transparent until its asynchronous position lands; this frame must not clear that
-    // gate while the carried shell aims at the marker's settled position.
+    // Margin packing finishes on the next frame, so the card is placed again from its
+    // cluster's settled position before the carried shell reads where to aim.
     return new Promise((resolve) => {
       requestAnimationFrame(() => {
         if (
@@ -450,8 +451,7 @@ export function createMarginProjection({
           return;
         }
         resetThreadPreviewPosition();
-        placeThreadPreview();
-        resolve(threadPreviewPositioned());
+        resolve(placedThreadPreview());
       });
     }).then((positioned) => {
       if (
@@ -769,7 +769,6 @@ export function createMarginProjection({
   let postureFrame = 0;
   let previewPositionFrame = 0;
   let previewPositionDismissDetached = false;
-  let previewPositionEpoch = 0;
   let previewReferenceSeen = false;
   let previewPositionWaiters = [];
   let previewFocusPending = null;
@@ -780,8 +779,13 @@ export function createMarginProjection({
   }
   const threadPreviewPositioned = () =>
     new Promise((resolve) => previewPositionWaiters.push(resolve));
+  // Placement is synchronous, so a card that can be placed is placed now. One that
+  // cannot yet — its popover not open this rendering turn, its owner not connected, no
+  // room — is answered by the placement a later frame lands, or by the close that
+  // abandons it.
+  const placedThreadPreview = () =>
+    placeThreadPreview() ? Promise.resolve(true) : threadPreviewPositioned();
   function resetThreadPreviewPosition() {
-    previewPositionEpoch += 1;
     cancelAnimationFrame(previewPositionFrame);
     previewPositionFrame = 0;
     previewPositionDismissDetached = false;
@@ -830,184 +834,85 @@ export function createMarginProjection({
     });
   }
 
+  const CARD_GAP = 8;
+  // The room a card may stand in: its target's reading region, else the viewport, less
+  // the banner over it and the bottom chrome under it. The chrome's boxes stand in one
+  // row at the foot, so the tallest of them bounds the whole width.
+  function threadCardBoundary(target) {
+    const region = containingReadingRegionFor(target);
+    const bounds = region ? shownRegionBounds(region) : null;
+    const bannerBottom =
+      document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
+    const left = (bounds?.left ?? 0) + CARD_GAP;
+    const right = (bounds?.right ?? document.documentElement.clientWidth) - CARD_GAP;
+    const top = Math.max(bounds?.top ?? 0, bannerBottom) + CARD_GAP;
+    const bottom =
+      Math.min(
+        bounds?.bottom ?? innerHeight,
+        ...bottomChromeBoxes().map((box) => box.top),
+      ) - CARD_GAP;
+    return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+  }
+  function measureThreadCard(width) {
+    preview.style.setProperty("--lf-thread-width", `${width}px`);
+    return preview.getBoundingClientRect().height;
+  }
+  // The reply scrolls internally once it fills the conversation's remaining room. A
+  // viewport-only cap can put its first line and Send on opposite sides of the
+  // transcript's clipping boundary.
+  function fitThreadCardEditors() {
+    for (const input of previewList.querySelectorAll(".lf-say textarea")) {
+      const row = input.closest(".lf-say");
+      const thread = row.closest(".lf-conversation-thread");
+      const style = getComputedStyle(thread);
+      const furniture = row.offsetHeight - input.offsetHeight;
+      const inset = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      input.style.setProperty(
+        "--lf-thread-editor-room",
+        `${Math.max(40, previewList.clientHeight - furniture - inset)}px`,
+      );
+    }
+  }
+
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (
       !preview.matches(":popover-open") ||
       !preview.hasAttribute("data-lf-thread") ||
       !previewMarginEntry?.isConnected
     )
-      return Promise.resolve(false);
-    const controls =
-      previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
-    const target = controls.getBoundingClientRect();
-    const readingRegion = containingReadingRegionFor(previewEntry?.target);
-    const regionBounds = readingRegion && shownRegionBounds(readingRegion);
-    const main = readingRegion
-      ? null
-      : document.querySelector("main")?.getBoundingClientRect();
-    const bannerBottom =
-      document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-    const gap = 8;
-    const firstLeft = (regionBounds?.left ?? 0) + gap;
-    const lastRight =
-      (regionBounds?.right ?? document.documentElement.clientWidth) - gap;
-    const firstTop = Math.max(regionBounds?.top ?? 0, bannerBottom) + gap;
-    const baseBottom = (regionBounds?.bottom ?? innerHeight) - gap;
-    const visibleBoundary = new DOMRect(
-      firstLeft,
-      firstTop,
-      Math.max(0, lastRight - firstLeft),
-      Math.max(0, baseBottom - firstTop),
-    );
+      return false;
+    const cluster = (
+      previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry
+    ).getBoundingClientRect();
+    const boundary = threadCardBoundary(previewEntry?.target);
+    if (!boundary.width || !boundary.height) return false;
     const style = getComputedStyle(preview);
-    const preferredWidth = Math.min(
-      parseFloat(style.getPropertyValue("--thread-card")),
-      visibleBoundary.width,
-    );
-    const minimumWidth = parseFloat(style.getPropertyValue("--thread-card-min"));
-    const bottomFor = (left, width) =>
-      bottomChromeBoxes()
-        .filter((box) => left < box.right && box.left < left + width)
-        .reduce((edge, box) => Math.min(edge, box.top - gap), baseBottom);
-    const adjacentLeft = ({ name, left, right }, width) =>
-      name === "right"
-        ? Math.min(Math.max(target.right + gap, left), right - width)
-        : Math.max(left, Math.min(target.left - gap - width, right - width));
-    const side = (
-      main
-        ? [
-            { name: "right", left: main.right + gap, right: lastRight },
-            { name: "left", left: firstLeft, right: main.left - gap },
-          ]
-        : []
-    ).find((candidate) => {
-      const { left, right } = candidate;
-      const width = Math.min(preferredWidth, right - left);
-      const cardLeft = adjacentLeft(candidate, width);
-      return right - left >= minimumWidth && bottomFor(cardLeft, width) > firstTop;
-    });
-    const boundaryLeft = side?.left ?? firstLeft;
-    const boundaryRight = side?.right ?? lastRight;
-    const width = Math.min(preferredWidth, boundaryRight - boundaryLeft);
-    const cardLeft = side
-      ? adjacentLeft(side, width)
-      : Math.max(firstLeft, Math.min(target.right - width, lastRight - width));
-    const boundary = new DOMRect(
-      boundaryLeft,
-      firstTop,
-      Math.max(0, boundaryRight - boundaryLeft),
-      Math.max(0, bottomFor(cardLeft, width) - firstTop),
-    );
-    if (!boundary.width || !boundary.height) return Promise.resolve(false);
-    const sourceOutside = target.bottom <= firstTop || target.top >= baseBottom;
-    const crossesSource =
-      cardLeft < target.right + gap && target.left - gap < cardLeft + width;
-    const alignment = side?.name === "left" ? "start" : "end";
-    const placement = side
-      ? crossesSource
-        ? `bottom-${alignment}`
-        : side.name
-      : "bottom-end";
-    const fallbackPlacements = !side || crossesSource ? [`top-${alignment}`] : [];
-    const reference = {
-      contextElement: controls,
-      getBoundingClientRect: () =>
-        new DOMRect(
-          !side || crossesSource
-            ? cardLeft
-            : side.name === "right"
-              ? cardLeft - gap
-              : cardLeft + width + gap,
-          target.top,
-          !side || crossesSource ? width : 0,
-          target.height,
-        ),
-    };
-    preview.style.setProperty("--lf-thread-width", `${width}px`);
+    // The boundary alone caps the card's height; the geometry measures it under that
+    // cap at the width it chose, which the card is then wearing.
     preview.style.setProperty("--lf-thread-max-height", `${boundary.height}px`);
-    const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
-    const epoch = ++previewPositionEpoch;
-    const stillCurrent = () =>
-      epoch === previewPositionEpoch &&
-      preview.matches(":popover-open") &&
-      previewMarginEntry?.isConnected;
-    return floatingUi()
-      .then(({ computePosition, flip, hide, offset, shift, size }) =>
-        computePosition(reference, preview, {
-          placement,
-          strategy: "fixed",
-          middleware: [
-            offset(gap),
-            fallbackPlacements.length &&
-              flip({
-                ...overflow,
-                fallbackPlacements,
-                fallbackStrategy: "bestFit",
-                crossAxis: false,
-              }),
-            size({
-              ...overflow,
-              apply({ availableHeight, availableWidth, placement: placed }) {
-                if (!stillCurrent()) return;
-                const beside = /^(left|right)/.test(placed);
-                preview.style.setProperty(
-                  "--lf-thread-width",
-                  `${Math.max(0, Math.min(width, availableWidth))}px`,
-                );
-                preview.style.setProperty(
-                  "--lf-thread-max-height",
-                  `${Math.max(0, beside ? boundary.height : availableHeight)}px`,
-                );
-                // The reply scrolls internally once it fills the conversation's
-                // remaining room. A viewport-only cap can put its first line and
-                // Send on opposite sides of the transcript's clipping boundary.
-                for (const input of previewList.querySelectorAll(".lf-say textarea")) {
-                  const row = input.closest(".lf-say");
-                  const thread = row.closest(".lf-conversation-thread");
-                  const style = getComputedStyle(thread);
-                  const furniture = row.offsetHeight - input.offsetHeight;
-                  const inset =
-                    parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-                  input.style.setProperty(
-                    "--lf-thread-editor-room",
-                    `${Math.max(40, previewList.clientHeight - furniture - inset)}px`,
-                  );
-                }
-              },
-            }),
-            shift({
-              ...overflow,
-              mainAxis: true,
-              crossAxis: (!side || crossesSource) && sourceOutside,
-            }),
-            hide({ boundary: [], rootBoundary: visibleBoundary, padding: 0 }),
-          ],
-        }),
-      )
-      .then(({ x, y, placement, middlewareData }) => {
-        if (!stillCurrent()) return false;
-        const referenceHidden = middlewareData.hide?.referenceHidden ?? false;
-        if (referenceHidden && previewReferenceSeen && dismissDetached) {
-          closePreview();
-          return false;
-        }
-        if (!referenceHidden) previewReferenceSeen = true;
-        preview.dataset.lfThreadPlacement =
-          side?.name ??
-          placement.split("-", 1)[0].replace("bottom", "below").replace("top", "above");
-        preview.style.left = `${x}px`;
-        preview.style.top = `${y}px`;
-        preview.style.removeProperty("opacity");
-        preview.style.removeProperty("pointer-events");
-        keepThreadPreviewFocusVisible();
-        answerThreadPreviewPosition(true);
-        return true;
-      })
-      .catch((error) => {
-        if (!stillCurrent()) return false;
-        closePreview(true);
-        throw error;
-      });
+    const geometry = threadCardGeometry({
+      cluster,
+      boundary,
+      gap: CARD_GAP,
+      minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
+      preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
+      heightAt: measureThreadCard,
+    });
+    if (geometry.detached) {
+      if (previewReferenceSeen && dismissDetached) {
+        closePreview();
+        return false;
+      }
+    } else previewReferenceSeen = true;
+    preview.style.left = `${geometry.x}px`;
+    preview.style.top = `${geometry.y}px`;
+    preview.dataset.lfThreadPlacement = geometry.placement;
+    preview.style.removeProperty("opacity");
+    preview.style.removeProperty("pointer-events");
+    fitThreadCardEditors();
+    keepThreadPreviewFocusVisible();
+    answerThreadPreviewPosition(true);
+    return true;
   }
   function scheduleThreadPreviewPosition(dismissDetached = false) {
     previewPositionDismissDetached ||= dismissDetached;
@@ -2628,8 +2533,7 @@ export function createMarginProjection({
         previewShowing = false;
       }
     }
-    placeThreadPreview();
-    const positioned = threadPreviewPositioned();
+    const positioned = placedThreadPreview();
     refreshHighlight();
     for (const row of rows.values())
       syncReadingRelation(row, primaryReading(row.lfEntry));
@@ -2721,6 +2625,31 @@ export function createMarginProjection({
     return null;
   }
 
+  // A thread card and the unfolded margin entry cluster that owns it are one page-map
+  // stack, though the card itself is hoisted into the chrome. This is a scene-derived
+  // fallback: a later keyboard entry returns through its captured frame before this rung.
+  // Without one, the registered rung precedes the reaction and navigation fallbacks just as
+  // the surface's old local listener did: Escape closes the card first, then folds the
+  // cluster on a second press.
+  const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
+  pageScope("page map", {
+    title: "In the Page Map",
+    root: () => pageMapRung()?.root ?? document,
+    when: () => Boolean(pageMapRung(false)),
+    at: () => Boolean(pageMapRung()),
+    rows: [
+      {
+        id: "margin.back",
+        keys: ["Escape"],
+        does: () => pageMapRung(false)?.does,
+        line: () => pageMapRung()?.says,
+        commandReferenceWhen: () => Boolean(pageMapRung(false)),
+        when: () => Boolean(pageMapRung()),
+        run: () => pageMapRung()?.out(),
+      },
+    ],
+  });
+
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
@@ -2809,8 +2738,13 @@ export function createMarginProjection({
   // opened on demand. Threads remains the complete fallback for a detached or otherwise
   // unaddressable conversation. Callers choose only the landing within the conversation;
   // this function owns the surface choice so a mark, its accessibility note, and t/T
-  // cannot drift into different policies.
-  function openPageThread(id, { focus = "reply" } = {}) {
+  // cannot drift into different policies. The margin card always lands on the thread
+  // itself.
+  //
+  // A press on marked words passes `travel: false`: the words are already under the
+  // reader's hand, and centring them moves everything the reader was looking at. The
+  // card needs no trip, since placeThreadPreview keeps it inside the viewport.
+  function openPageThread(id, { focus = "reply", travel = true } = {}) {
     if (!panelIsOpen()) {
       const local = focusSurface(id, { focus });
       if (local) {
@@ -2818,33 +2752,18 @@ export function createMarginProjection({
         closePreview();
         if (optionsKey && expandedOptionsKey === optionsKey)
           setOptionsOpen(null, false);
-        scrollToThread(id);
+        if (travel) scrollToThread(id);
         return local;
       }
       const thread = openInlineThread(id, null, (positionedThread) => {
-        const destination =
-          focus === "thread"
-            ? positionedThread
-            : (positionedThread.querySelector("textarea:not([disabled])") ??
-              positionedThread);
-        if (destination === positionedThread) {
-          positionedThread.focus({ preventScroll: true });
-          positionedThread.scrollIntoView({
-            behavior: scrollBehavior(),
-            block: "nearest",
-          });
-          scrollToThread(id);
-        } else {
-          landInConversation(destination);
-        }
+        positionedThread.focus({ preventScroll: true });
+        positionedThread.scrollIntoView({
+          behavior: scrollBehavior(),
+          block: "nearest",
+        });
+        if (travel) scrollToThread(id);
       });
-      if (thread) {
-        const destination =
-          focus === "thread"
-            ? thread
-            : (thread.querySelector("textarea:not([disabled])") ?? thread);
-        return destination;
-      }
+      if (thread) return thread;
     }
     showThread(id, { focus });
     return null;

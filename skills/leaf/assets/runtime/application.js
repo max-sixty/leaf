@@ -366,7 +366,6 @@ export function mountApplication(dependencies) {
     showThread: dependencies.showThread,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
-    landInConversation: dependencies.landInConversation,
   });
 
   conversation = createConversationPresentation({

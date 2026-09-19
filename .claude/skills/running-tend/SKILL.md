@@ -39,8 +39,8 @@ README describes and diagnose from the records.
 ## Filing issues in other repos
 
 Standing exception granted: file directly in agent-equipped targets (per
-**Filing Issues in Other Repos** in the bundled `running-in-ci` skill) without
-asking permission here first. The default rule (open an issue here asking
+**Filing issues** in the bundled `/tend-ci-runner:act-in-other-repos` skill)
+without asking permission here first. The default rule (open an issue here asking
 permission first) still applies when the target shows no agent signals.
 
 ## Leave outage trackers for the drain

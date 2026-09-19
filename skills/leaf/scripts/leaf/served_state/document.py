@@ -21,6 +21,10 @@ def browser_document(
                 floors=document.floors,
             ),
             "requests": document.requests,
+            # The complete Ask reading of this revision under the same transaction.
+            # The browser draws its tray, walk, banner count, and `requires` gates
+            # from these lists rather than folding the declarations a second time.
+            "asks": document.asks,
         },
         document.projection,
     )

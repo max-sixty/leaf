@@ -87,8 +87,10 @@ LF_META = {"lf-review": frozenset({"sign-off"})}
 # runtime bootstrap and every authored module block, so only the inline scripts it
 # composed run. 'self' is the immutable page layer whole; base-uri and form-action
 # need their own directives because default-src governs only fetches. data: admits
-# the images `version export` inlines, and the theme arrives inline in a <style> on
-# export.
+# the images `version export` inlines. 'unsafe-inline' admits the <style> block a
+# page writes its own CSS in, and the one the theme arrives in on export. That CSS
+# has nothing to reach with, because a stylesheet fetches under img-src and
+# font-src, and those stay at the page's own bytes.
 PAGE_CSP = (
     "default-src 'self'; base-uri 'none'; form-action 'none'; "
     "img-src 'self' data:; style-src 'self' 'unsafe-inline'"

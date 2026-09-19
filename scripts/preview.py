@@ -324,10 +324,16 @@ def watcher_note(page: Path) -> str:
     ends = "stops with its watcher"
     if session_harness() is not None:
         ends += " and with this agent session"
+    # `--slot` is read against `LEAF_PREVIEWS_ROOT`, so a slot outside the
+    # default root needs the variable to be the same command twice.
+    root = page.parent
+    setting = (
+        "" if root == (TMP / "previews").resolve() else f"LEAF_PREVIEWS_ROOT={root} "
+    )
     return "\n".join(
         (
             f"server   preview (no task claim; {ends})",
-            f"stop     scripts/preview.py --slot {page.name} --stop",
+            f"stop     {setting}scripts/preview.py --slot {page.name} --stop",
         )
     )
 

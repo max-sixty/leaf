@@ -7354,6 +7354,35 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     assert capsys.readouterr().out == ""
 
 
+def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
+    claimed, tmp_path, capsys
+):
+    """Each page states its own debt; the protocol they share is stated once.
+
+    Every debt used to carry the whole protocol with it, so a session holding
+    three pages that owed the same thing spent three copies of the same ninety
+    words saying so — most of what the blocking message weighed, and all of it
+    between one page's line and the next.
+    """
+    second = tmp_path / "second-page"
+    shutil.copytree(claimed, second)
+    assert service_model.claim_page(second)
+    for page in (claimed, second):
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "look at this"}
+        )
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
+
+    assert str(claimed) in reason and str(second) in reason
+    assert reason.count("you haven't picked up") == 2
+    assert reason.count(schema_model.ACK_BATCH_INSTRUCTION) == 1
+    # The lines stand together, so the reader reaches every page before the
+    # first protocol rather than one page per protocol.
+    assert reason.index(str(second)) < reason.index(schema_model.ACK_BATCH_INSTRUCTION)
+
+
 def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys):
     """A developer preview is a page put up to be looked at, not handed over.
 

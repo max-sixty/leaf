@@ -183,7 +183,7 @@ lf-record > ol > li { padding: var(--sp-2) 0; border-bottom: 1px solid var(--rul
 
 @container lf-command (width <= 520px) {
   lf-command > .lf-command-head { grid-template-columns: 1fr; align-items: start; }
-  lf-command .lf-command-facts { justify-content: flex-start; }
+  .lf-command-facts { justify-content: flex-start; }
   lf-command [data-lf-command-goal] { grid-template-columns: minmax(0, 1fr); }
   lf-command [data-lf-command-goal] > .lf-task-meta {
     grid-column: 1; justify-content: flex-start; flex-wrap: wrap;

@@ -20,6 +20,7 @@ from leaf.event_log import (
 )
 from leaf.files import read_json, write_json
 from leaf.host import (
+    HARNESSES,
     Harness,
     message_identity,
     session_harness,
@@ -49,9 +50,46 @@ def claim_path(page_dir: Path) -> Path:
     return state_home() / "claims" / f"{page_key(page_dir)}.json"
 
 
+# What a reader takes straight off a claim: these fields by name, one of the
+# lifetime keys `claim_is_active` cascades on, and a `harness` whose value
+# `host.claim_harness` looks up in `HARNESSES`.
+CLAIM_IDENTITY = frozenset(
+    {"page", "ts", "released", "id", "harness", "agent", "turn", "turn_closed"}
+)
+CLAIM_LIFETIMES = frozenset({"job", "activity", "pid"})
+
+
+def readable_claim(claim: dict | None) -> dict | None:
+    """The record if this version can read it as a claim, else None.
+
+    The claims directory is one per machine, and several worktrees, hosts and
+    sessions write it at once, each running the leaf it was built from. So a
+    record here can have been written by another version, and Stage owes nothing
+    to what an older one wrote: there is no migration and no shim that reads the
+    old shape. What follows is this — a record the readings above can take their
+    answers from is a claim, and any other record is not one this version can
+    read, so the page reads as unclaimed until something claims it again.
+    Dropping it is what deleting the stale state would have done, without the
+    deletion.
+
+    A harness the table no longer holds is that same record. The name is a value
+    this version dispatches on rather than a field it reads, and renaming one is
+    what renaming the field around it already proved reachable, so it is decided
+    here with the rest instead of raising two calls further in.
+
+    Every reader goes through `page_claim` or `claim_records`, so this is the
+    only place that decides it, and a session is never taken down by a record it
+    does not own."""
+    if not claim or not CLAIM_IDENTITY <= claim.keys():
+        return None
+    if claim["harness"] not in HARNESSES:
+        return None
+    return claim if CLAIM_LIFETIMES & claim.keys() else None
+
+
 def page_claim(page_dir: Path) -> dict | None:
     """The page's last claim, including one released or whose lifetime ended."""
-    return read_json(claim_path(page_dir))
+    return readable_claim(read_json(claim_path(page_dir)))
 
 
 def claim_lifetime(page_dir: Path, harness: Harness) -> dict:
@@ -127,7 +165,11 @@ def claim_records() -> list:
     directory = state_home() / "claims"
     if not directory.is_dir():
         return []
-    return [claim for path in directory.glob("*.json") if (claim := read_json(path))]
+    return [
+        claim
+        for path in directory.glob("*.json")
+        if (claim := readable_claim(read_json(path)))
+    ]
 
 
 class PageTransaction:

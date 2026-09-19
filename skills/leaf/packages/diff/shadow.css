@@ -21,16 +21,16 @@
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
 /* The press is out of the summary's flow, so that line holds a column open for it and a
-   long path wraps above it rather than running underneath, and stands tall enough to
-   contain it. A path sets the line at 35px, which is what the bar and the room above and
-   below it come to with a mouse; under a finger the bar is the taller of the two and the
-   line follows it rather than letting it hang over the first row of the patch. A copy
-   with no press to make room for takes its ordinary inset back. */
+   long path wraps above it rather than running underneath, and reaches at least as far
+   down as the bar's foot. A path sets the line at 35px, which already clears a mouse's
+   bar; under a finger the bar is the taller and the line follows it rather than letting
+   it hang over the first row of the patch. A copy with no press to make room for takes
+   its ordinary inset back. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) > details > summary,
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
                                      box-sizing: border-box;
-                                     min-height: calc(var(--lf-diff-action-h)
-                                                      + 2 * var(--lf-diff-action-top));
+                                     min-height: calc(var(--lf-diff-action-top)
+                                                      + var(--lf-diff-action-h));
                                      padding-right: calc(var(--lf-diff-actions) + 18px); }
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
                  margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
@@ -45,8 +45,11 @@
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
                       white-space: nowrap; cursor: pointer; }
 .lf-diff-wrap { margin: 0; flex: none; cursor: pointer; }
-.lf-diff-next, .lf-diff-review, .lf-diff-comment {
-                min-height: max(30px, var(--aim-floor)); font: inherit; }
+.lf-diff-next, .lf-diff-review, .lf-diff-comment { font: inherit; }
+/* The toolbar's press. The two on a file's name line are as tall as the bar they
+   stand in (--lf-diff-action-h, below), and a taller minimum here would stand them
+   out of it. */
+.lf-diff-next { min-height: max(30px, var(--aim-floor)); }
 /* The file's row is a disclosure, and a disclosure is a control, so the review press
    cannot be a descendant of it (lf-diff.js). It is a sibling drawn over the summary
    line instead: a block in the flow ahead of the row, pushed to the right by its auto
@@ -148,10 +151,11 @@
 @media screen {
   :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
                               top: var(--lf-banner-h, 0px); z-index: 2; }
-  /* The press with it, 5px down: its own 6px less the border the summary's box starts
-     inside, which is the distance between the two at rest. */
+  /* The press with it, as far down the pinned line as it stands at rest: its own gap
+     less the 1px border the summary's box starts inside. */
   :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions { position: sticky;
-                              top: calc(var(--lf-banner-h, 0px) + 5px); }
+                              top: calc(var(--lf-banner-h, 0px)
+                                        + var(--lf-diff-action-top) - 1px); }
 }
 /* The room that header takes, so a landing arrives below it rather than behind it. The
    document declares its banner through scroll-padding-top; this is the rest of the same

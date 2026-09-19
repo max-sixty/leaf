@@ -65,15 +65,10 @@ def candidate_vocabulary_gaps(
     that can be classified is checked, rather than only the current winner, because
     undoing a later action exposes its predecessor.
 
-    A gap is something a layer selection owns and re-vendoring would therefore take
-    away. The per-kind `record` schema is not one: `$events.kinds` is the running
-    Leaf's fixed transport contract, so no selection restores the shape an earlier
-    Leaf wrote a log in, and the admission door is the only reader of that schema —
-    an event already in the log replays identically whichever layer is vendored over
-    it. Refusing there would have left the page unable to validate, reply, or
-    re-vendor, with re-vendoring the only move available. A kind the contract no
-    longer declares stays a gap, because nothing downstream can classify that event
-    at all.
+    A gap is a contract a layer selection owns: a dropped reaction token, a retired
+    verb, a kind the incoming contract no longer declares. The per-kind `record`
+    schema is not one — admission is its only reader, and a logged event replays the
+    same whichever layer is vendored over it.
     """
     if not events:
         return []

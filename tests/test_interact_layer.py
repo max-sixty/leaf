@@ -2243,11 +2243,8 @@ def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
 def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
     """A page an earlier Leaf vendored is readable again through `page init`.
 
-    `$events.kinds` is the running Leaf's fixed transport contract, so no package
-    selection restores the shape an earlier one wrote its log and its vendored
-    layer in. Re-vendoring is the only move the reader has, which makes it the one
-    the first refusal has to name and the one `page init` has to take.
-    """
+    Re-vendoring is the only move the reader has, so the refusal names it and
+    `page init` takes it."""
     publish(page_dir)
     revision = interact_files.latest_revision(page_dir)
     events_model.append_event(
@@ -2261,8 +2258,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
             "anchor": {"section": "plan"},
         },
     )
-    # The agent's side of that thread as the earlier Leaf wrote it: the role
-    # spelled with the vendor token, against a kernel contract that required it.
+    # The agent's side of that thread as the earlier Leaf wrote it.
     events_model.append_event(
         page_dir,
         {

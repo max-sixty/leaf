@@ -562,12 +562,9 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
 def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     page_dir,
 ):
-    """A record shape is not a gap re-vendoring creates, unlike the dropped token
-    and retired verb above. `$events.kinds` is the running Leaf's fixed contract,
-    so no selection restores the shape an earlier one wrote a log in, and the
-    admission door is the only reader of that schema — the event replays the same
-    either way. Refusing froze pages an upgrade had left behind, since re-vendoring
-    was their only move."""
+    """A record shape is not a gap re-vendoring creates, unlike the dropped token and
+    retired verb above: admission is the schema's only reader, and the logged event
+    replays the same either way."""
     publish(page_dir)
     events_model.append_event(
         page_dir,

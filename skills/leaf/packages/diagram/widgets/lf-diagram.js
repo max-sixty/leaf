@@ -75,22 +75,27 @@ const rejectCutLabel = (source) => {
  * box labelled with its own id beside a node the source never names. Refuse a line that
  * opens a label it does not close, and say how Mermaid carries a second line instead.
  *
- * Mermaid carries label text in three places, so the walk reads all three: a shape
- * delimiter after a node id, a pipe after an edge's arrow, and the text an unarrowed
- * link opens before its terminator (`A -- text --> B`). Each closes on what the parser
- * accepts for that opener, the link's terminators being its own `-->|---|.->|-.-|==>|===`
- * set. Walking past every label that does close keeps a delimiter inside label text from
- * reading as an opening, since the parser takes the label lazily and `A[call foo(bar]`
- * and `A -- pay(cash --> B` both render today. Only `graph` and `flowchart` sources are
- * read this way: a `stateDiagram` body — the one other grammar this renderer reads —
- * opens a brace on one line and closes it on another, which is that grammar working. */
+ * Mermaid carries label text in four places, so the walk reads all four: a bracket
+ * delimiter after a node id, the asymmetric shape's `>` (`A>flag]`), a pipe after an
+ * edge's arrow, and the text an unarrowed link opens before its terminator
+ * (`A -- text --> B`). Each closes on what the parser accepts for that opener, the
+ * link's terminators being its own `-->|---|.->|-.-|==>|===` set. A `>` opens a label
+ * wherever it is not an arrowhead, which is what the lookbehind says: `-`, `.` and `=`
+ * are the characters every arrow in that set puts before one, so `A[x]-->B[y]` reads as
+ * an arrow and `A>flag]` as a shape. Walking past every label that does close keeps a
+ * delimiter inside label text from reading as an opening, since the parser takes the
+ * label lazily and `A[call foo(bar]`, `A>call foo(bar]` and `A -- pay(cash --> B` all
+ * render today. Only `graph` and `flowchart` sources are read this way: a `stateDiagram`
+ * body — the one other grammar this renderer reads — opens a brace on one line and
+ * closes it on another, which is that grammar working. */
 const FLOWCHART_HEADER = /^(?:graph|flowchart)\b/i;
 const LABEL_OPENING =
-  /(?<![\w-])[\w][\w-]*(?<shape>[[({])|(?<pipe>\|)|(?<![-.=])(?<link>--|-\.|==)(?=\s)/g;
+  /(?<![\w-])[\w][\w-]*(?<shape>[[({])|(?<pipe>\|)|(?<![-.=])(?<link>--|-\.|==)(?=\s)|(?<![-.=])(?<asym>>)/g;
 const LABEL_CLOSER = {
   "[": /]/g,
   "(": /\)/g,
   "{": /}/g,
+  ">": /]/g,
   "|": /\|/g,
   "--": /-->|---/g,
   "-.": /\.->|-\.-/g,
@@ -104,8 +109,8 @@ const rejectUnclosedLabel = (source) => {
     if (!line || COMMENT_LINE.test(line)) continue;
     LABEL_OPENING.lastIndex = 0;
     for (let opening; (opening = LABEL_OPENING.exec(line));) {
-      const { shape, pipe, link } = opening.groups;
-      const closer = LABEL_CLOSER[shape ?? pipe ?? link];
+      const { shape, pipe, link, asym } = opening.groups;
+      const closer = LABEL_CLOSER[shape ?? pipe ?? link ?? asym];
       closer.lastIndex = opening.index + opening[0].length;
       const closes = closer.exec(line);
       if (!closes)

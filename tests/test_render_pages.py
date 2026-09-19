@@ -1464,10 +1464,13 @@ def test_a_label_that_does_not_close_on_its_line_is_refused(browser, serve):
     source never names. The refusal is about the delimiter, not the quotes — an
     unquoted label and a subgraph title break the same way, while a lone quote
     inside a label that does close is text the renderer draws. Mermaid carries
-    label text in three places, so all three are read: a node's shape, an edge's
-    pipes, and the text a link opens before its terminator. A label that does
-    close is walked past whatever it holds, so an unpaired delimiter inside one
-    stays the text the renderer draws it as.
+    label text in four places, so all four are read: a node's bracket shape, the
+    asymmetric shape's `>`, an edge's pipes, and the text a link opens before its
+    terminator. A label that does close is walked past whatever it holds, so an
+    unpaired delimiter inside one stays the text the renderer draws it as — which
+    is what the asymmetric shape adds to the reading twice over: `A>first` split
+    across lines drew a node `A` beside a node `second` before this walk knew the
+    opener, and `A>call foo(bar]` renders and so must not be refused.
     """
     spans = leaf_page(
         "diagram spans",
@@ -1501,6 +1504,11 @@ flowchart LR
   A -- carries
 a load --&gt; B
 </pre></lf-diagram>
+<lf-diagram id="asymmetric-span"><pre>
+flowchart LR
+  A&gt;first line
+second line] --&gt; B[plain]
+</pre></lf-diagram>
 <lf-diagram id="line-break" parts="node:A node:B"><pre>
 flowchart LR
   A["first line&lt;br/&gt;second line"] --&gt; B["b"]
@@ -1521,6 +1529,10 @@ flowchart LR
 flowchart LR
   A -- "a|b" --&gt; B
 </pre></lf-diagram>
+<lf-diagram id="unclosed-inside-asymmetric" parts="node:A node:B"><pre>
+flowchart LR
+  A&gt;call foo(bar] --&gt; B[plain]
+</pre></lf-diagram>
 <lf-diagram id="composite-state" parts="node:Active node:Idle node:Busy"><pre>
 stateDiagram-v2
   state Active {
@@ -1538,6 +1550,7 @@ stateDiagram-v2
         "subgraph-span",
         "edge-span",
         "edge-text-span",
+        "asymmetric-span",
     ):
         expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(
             "a label must close on the line that opens it"
@@ -1554,18 +1567,24 @@ stateDiagram-v2
         "unclosed-inside-label",
         "unclosed-inside-edge-text",
         "pipe-inside-edge-text",
+        "unclosed-inside-asymmetric",
         "composite-state",
     ):
         expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)
         expect(page.locator(f"#{diagram} svg")).to_have_count(1)
     expect(page.locator('#line-break g[data-id="A"] tspan')).to_have_count(2)
     expect(page.locator('#lone-quote g[data-id="A"] text')).to_have_text('5" pipe')
-    expect(page.locator('#unclosed-inside-label g[data-id="A"] text')).to_have_text(
-        "call foo(bar"
-    )
+    for diagram in ("unclosed-inside-label", "unclosed-inside-asymmetric"):
+        expect(page.locator(f'#{diagram} g[data-id="A"] text')).to_have_text(
+            "call foo(bar"
+        )
     # The node an edge-text link points at is what the renderer drops when it stops
     # reading the line, so B standing is what says the whole statement was read.
-    for diagram in ("unclosed-inside-edge-text", "pipe-inside-edge-text"):
+    for diagram in (
+        "unclosed-inside-edge-text",
+        "pipe-inside-edge-text",
+        "unclosed-inside-asymmetric",
+    ):
         expect(page.locator(f'#{diagram} g[data-id="B"]')).to_be_visible()
     expect(page.locator('#composite-state g[data-id="Busy"]')).to_be_visible()
 

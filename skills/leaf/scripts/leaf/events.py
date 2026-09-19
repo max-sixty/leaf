@@ -157,8 +157,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     Answer effects survive retirement of their source widget. An unrelated action
     on another facet cannot supersede one, while an explicit answer with null
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
-    the current page location, while ``detached_from`` retains the last real anchor
-    only when an explicit null replacement leaves the thread detached.
+    the current page location, ``anchored_by`` names the one message supplying it,
+    and ``detached_from`` retains the last real anchor only when an explicit null
+    replacement leaves the thread detached.
     """
     floors = retractions(events)
     if withdrawn is None:
@@ -187,6 +188,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             thread = {
                 "root": message,
                 "anchor": message.get("anchor"),
+                "anchored_by": e["id"] if message.get("anchor") else None,
                 "detached_from": None,
                 "msgs": [message],
                 "resolved": None,
@@ -224,6 +226,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread = {
                     "root": e,
                     "anchor": e.get("anchor"),
+                    "anchored_by": e["id"] if e.get("anchor") else None,
                     "detached_from": None,
                     "msgs": [],
                     "resolved": None,
@@ -238,6 +241,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                     thread["anchor"] if e["anchor"] is None else None
                 )
                 thread["anchor"] = e["anchor"]
+                thread["anchored_by"] = e["id"] if e["anchor"] else None
             thread_for[e["id"]] = thread
         # A resolve names a message rather than opening one, so a conversation the log
         # lost whole — no reply of its own survived either — leaves it nothing to close.
@@ -257,6 +261,39 @@ def anchored_ids(events: list, within: dict) -> set:
         for t in build_threads(events, within).values()
         if not t["resolved"] and not bare_reaction(t)
     } - {None}
+
+
+def current_anchors(events: list) -> dict:
+    """Message id → the anchor that message still supplies to its conversation.
+
+    A thread's target is its latest anchor, so the opening comment of a thread a
+    reply moved or detached supplies none: the log keeps its words and the
+    coordinate they were written at, and nothing resolves that coordinate against
+    the page again. `detached_from` is the same fact read from the thread's side.
+
+    One rule for every reader that asks whether a written anchor still binds the
+    page, because a version check refusing to drop what a thread has already let
+    go is the same bug as a browser painting a mark there. Containment is the
+    fold's settlement half alone, and this reading asks nothing of settlement, so
+    a caller holding no page reading gets the same answer as one that does."""
+    return {
+        t["anchored_by"]: t["anchor"]
+        for t in build_threads(events, {}).values()
+        if t["anchored_by"]
+    }
+
+
+def anchored_parts(events: list) -> set:
+    """(section, visual part) coordinates a conversation currently anchors on.
+
+    The visual half of `anchored_ids`, for the parts an authored inventory
+    declares: a part is addressable markup the way an id is, and a version may
+    retire one the moment no conversation points at it."""
+    return {
+        (anchor["section"], anchor["visual"])
+        for anchor in current_anchors(events).values()
+        if anchor.get("visual")
+    }
 
 
 def awaits_agent(thread: dict) -> bool:

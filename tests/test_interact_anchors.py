@@ -607,23 +607,120 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     assert checked.exit_code == 0, checked.output
 
 
-def test_a_version_keeps_each_declared_visual_part_addressable(page_dir):
-    parted = PAGE.replace(
-        '<lf-diagram id="flow">',
-        '<lf-diagram id="flow" parts="node:A node:B">',
-    )
-    (page_dir / "index.html").write_text(parted)
-    published(page_dir)
-    (page_dir / "index.html").write_text(
-        parted.replace(' parts="node:A node:B"', ' parts="node:B"')
-    )
+PARTED = PAGE.replace(
+    '<lf-diagram id="flow">',
+    '<lf-diagram id="flow" parts="node:A node:B">',
+)
 
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert (
-        "visual parts present in revision r1 but dropped in index.html" in result.output
+
+def parted(page_dir):
+    """A published v1 whose diagram declares two addressable visual parts."""
+    (page_dir / "index.html").write_text(PARTED)
+    return published(page_dir)
+
+
+def drop_node_a(page_dir):
+    (page_dir / "index.html").write_text(
+        PARTED.replace(' parts="node:A node:B"', ' parts="node:B"')
     )
-    assert "flow · node:A" in result.output
+    return check(page_dir)
+
+
+def test_a_version_keeps_the_visual_parts_a_conversation_anchors_on(page_dir):
+    """A declared part is held by the conversations pointing at it, not by having
+    once been declared. The picture a diagram draws changes, so a part no thread
+    holds is dropped like an element id no thread holds; one a thread still names
+    is refused by the same check that protects the id, and by the anchor contract
+    that would stop resolving with it."""
+    assert drop_node_a(parted(page_dir)).exit_code == 0
+
+    (page_dir / "index.html").write_text(PARTED)
+    root = json.loads(
+        comment(
+            page_dir, "--section", "flow", "--part", "node:A", "--text", "Why this one?"
+        ).output
+    )
+    assert root["anchor"] == {"section": "flow", "visual": "node:A"}
+    refused = drop_node_a(page_dir)
+    assert refused.exit_code != 0
+    assert "visual parts an open conversation anchors on" in refused.output
+    assert "flow · node:A" in refused.output
+    assert "visual anchor 'node:A' is not declared" in refused.output
+
+
+def test_a_detached_conversation_releases_the_visual_part_it_left(page_dir):
+    """`--detach` is the documented move when the subject leaves the page, so the
+    edit that removes the subject has to follow it. The opening comment keeps its
+    original coordinate in the log; nothing resolves that coordinate any more."""
+    root = json.loads(
+        comment(
+            parted(page_dir),
+            "--section",
+            "flow",
+            "--part",
+            "node:A",
+            "--text",
+            "Why this one?",
+        ).output
+    )
+    detached = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            "--json",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--detach",
+            "--text",
+            "Removing this node; the conversation has no page target.",
+        ],
+    )
+    assert detached.exit_code == 0, detached.output
+
+    result = drop_node_a(page_dir)
+    assert result.exit_code == 0, result.output
+    stored_root = next(
+        event
+        for event in events_model.read_events(page_dir)
+        if event["id"] == root["id"]
+    )
+    assert stored_root["anchor"] == {"section": "flow", "visual": "node:A"}
+
+
+def test_a_moved_conversation_releases_the_visual_part_it_left(page_dir):
+    """The other half of the same rule: a thread moved onto the whole diagram, or
+    onto a part that survives, stops holding the one it came from."""
+    root = json.loads(
+        comment(
+            parted(page_dir),
+            "--section",
+            "flow",
+            "--part",
+            "node:A",
+            "--text",
+            "Why this one?",
+        ).output
+    )
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--section",
+            "flow",
+            "--text",
+            "Folded this node into the diagram; the thread is about the whole of it.",
+        ],
+    )
+    assert moved.exit_code == 0, moved.output
+
+    result = drop_node_a(page_dir)
+    assert result.exit_code == 0, result.output
 
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):

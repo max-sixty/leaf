@@ -224,14 +224,20 @@ Each public document emits one `component=leaf-startup` record from the inline
 bootstrap, including when the module graph fails. It identifies the route, release,
 browser family and major version, platform, and navigation type. `serverMs`,
 `firstByteMs`, `firstContentfulPaintMs`, and `presentedMs` separate Worker, network,
-browser paint, and Leaf startup time. A page that never started carries `outcome`
-`failed` and a `reason` of at most 300 characters: the entry module, the theme, the
-message a script threw before presentation, or what the runtime said when it reported it
-could not start. These records come from browsers nobody here can reproduce, so `reason`
-is the only account of why one failed, and a startup fault recorded as `timeout` or
-`abandoned` means the bootstrap did not report it. The payload
-contains no page content, URL details, cookies, IP addresses, or private session id.
-Filter Observability by the public session reference, route, browser, or `loadId`.
+browser paint, and Leaf startup time. `outcome` says how the load ended: `failed` where
+the page declared it could not start, `timeout` or `abandoned` where it never presented,
+`presented` where it did. A startup fault adds `reason`, at most 300 characters, and it
+rides on whichever of those the load reached — the entry module, the theme, the message
+and source position of a script that threw before presentation, or what the runtime said
+when it reported it could not start. A page that recovers and presents still carries it,
+which is the reading that finds a fault nobody here can reproduce; these records come
+from browsers this repository cannot run. Apart from that reason the payload contains no
+page content, URL details, cookies, IP addresses, or private session id, and the reason
+itself is the runtime's own words and the release-addressed script they came from, not
+anything the reader wrote — though an exception thrown while handling a value can quote
+it, so treat the field as the page's words rather than as certainly none of the
+reader's. Filter Observability by the public session reference, route, browser, or
+`loadId`.
 
 The deployed site answers that beacon at the edge, so the container never sees it. A site
 served straight from `server.py` — the test suite, a local preview — has no edge in front

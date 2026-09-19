@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import time
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -48,6 +49,7 @@ from render_harness import (
     open_page,
     select,
     sending,
+    take_browser_errors,
 )
 
 ROOT = Path(__file__).parent.parent
@@ -721,6 +723,62 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     page.wait_for_timeout(3000)
     assert sum("registry.json" in probe for probe in probes) == before
     consume_browser_errors(page, "planted fault")
+
+
+def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, browser):
+    """The round that was already asking when the page came up does not navigate it.
+
+    A probe round begins at the fault and ends whenever the source answers, which can
+    be after the page has presented. By then the reader is using the page, so what that
+    round learned is no longer worth a navigation: it would take a working page out
+    from under them.
+
+    Both halves are planted, because the two the page would produce cannot be ordered
+    against each other here: the supervisor's probe and the runtime's own widget read
+    are the same address, so holding one holds the other and nothing presents. The
+    fault and `data-lf-presented` are the supervisor's two inputs, and the test lands
+    the second one while its first round is still asking.
+    """
+    _, url = served_example("triage-board")
+    page = browser.new_page()
+    page.add_init_script(
+        """
+        setTimeout(() => { throw new Error('planted fault'); }, 10);
+        setTimeout(() => document.body?.setAttribute('data-lf-presented', '1'), 600);
+        """
+    )
+    documents = []
+    page.on(
+        "request",
+        lambda request: (
+            documents.append(request.url)
+            if request.resource_type == "document"
+            else None
+        ),
+    )
+    held = []
+
+    def hold_the_first_round(route):
+        if held:
+            route.continue_()
+            return
+        held.append(route.request.url)
+        # Answered well past that attribute, as a release that has rolled past — the
+        # answer that would otherwise replace the document.
+        time.sleep(2)
+        route.fulfill(status=404, content_type="text/plain", body="")
+
+    page.route("**/registry.json", hold_the_first_round)
+    page.goto(url, wait_until="domcontentloaded")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.wait_for_timeout(4000)
+
+    assert held, "the supervisor never asked the probe"
+    assert len(documents) == 1, documents
+    expect(
+        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    ).to_have_count(0)
+    take_browser_errors(page)
 
 
 def test_session_activation_reaches_other_tabs(served_example, browser):

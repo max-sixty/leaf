@@ -79,8 +79,9 @@ const startupReportSchema = z.strictObject({
     z.literal("timeout"),
     z.literal("abandoned"),
   ]),
-  // What did not load, when the page reports that it could not start. Absent on every
-  // other outcome, and bounded by the same door that bounds the whole report.
+  // What went wrong on the way up, on whatever outcome the page reached: a page that
+  // recovered from it reports `presented` and still says what it was. Absent where
+  // nothing went wrong, and bounded by the same door that bounds the whole report.
   reason: z.optional(z.string().check(z.maxLength(300))),
   navigationType: z.union([
     z.literal("navigate"),

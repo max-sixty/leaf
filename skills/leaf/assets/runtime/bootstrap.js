@@ -149,8 +149,13 @@
       });
     }
 
+    // A round carries what it learned to the end rather than acting where it learned
+    // it. The round in flight when the page presents resolves after it, and the reader
+    // is then using a page this would otherwise navigate out from under them, so the
+    // one place that acts is the one place that has to ask whether the page started.
     const check = async () => {
       if (started) return;
+      let restart = null;
       try {
         const response = await fetch(script.dataset.lfProbe, { cache: "no-store" });
         if (response.status === 404) {
@@ -164,8 +169,7 @@
           if (release && !recovered) {
             const next = new URL(location.href);
             next.searchParams.set("_leaf-recovered", "");
-            location.replace(next);
-            return;
+            restart = () => location.replace(next);
           }
         }
         const current = response.headers.get("Leaf-Server");
@@ -183,13 +187,14 @@
           (generation && generation !== layer) ||
           (release && currentRelease && currentRelease !== release)
         ) {
-          location.reload();
-          return;
+          restart ??= () => location.reload();
         }
       } catch {
         // The stopped server has not been replaced yet.
       }
-      setTimeout(check, 1000);
+      if (started) return;
+      if (restart) restart();
+      else setTimeout(check, 1000);
     };
     void check();
   }

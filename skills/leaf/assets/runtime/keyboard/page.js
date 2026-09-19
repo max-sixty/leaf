@@ -13,8 +13,9 @@
    once those owners stand. */
 import { letGo, takesLetters } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
+import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
-import { focusedThreadOf } from "../conversation/focus.js";
+import { focusedThreadOf, standingThreadOf } from "../conversation/focus.js";
 import { boxHandsBack } from "../conversation/landing.js";
 import {
   inPanel as panelFocusIsInside,
@@ -111,13 +112,27 @@ pageCommand({
 // It is an inner step, ahead of every frame, because standing is the newest thing the
 // reader did: a Tab, a hint, a pointer press. What stands nearer still answers first: a
 // widget's own Escape declared over the control, a mode the reader is in, the Page Map's
-// own rung over an unfolded margin cluster or its conversation view — a margin cluster's
-// controls sit outside `.lf-chrome` (measured on the panel fixture), so that rung is
-// asked by name — a text box with a place to go back to, whose own scope hands them
-// there, and the frame of a press that stood them there — the `t` and `a` walks, `g T` carrying an
-// inline thread — which holds the standing and answers in its turn, so `t` then `w`
-// unwinds the narrowing before the walk. A native layer standing over the page is the
-// browser's mode, and its own Escape is not ours to pre-empt with a let-go beneath it.
+// own rung over an unfolded margin cluster or its conversation view — a layer the reader
+// is inside, asked as the panel and the native layers are — a text box with a place to
+// go back to, whose own scope hands them there, and the frame of a press that stood them
+// there — the `t` and `a` walks, `g T` carrying an inline thread — which holds the
+// standing and answers in its turn, so `t` then `w` unwinds the narrowing before the
+// walk. A native layer standing over the page is the browser's mode, and its own Escape
+// is not ours to pre-empt with a let-go beneath it.
+//
+// Out on the page — the chrome container's banner, trays and panel head hold nothing to
+// let go of, and the panel's list was answered above — what is held is a destination
+// when it is a thread or an Ask, or anything inside one: a seat on the page, an Ask's
+// own picks. The Ask is the asks view's reading, handed in like the modes, so a control
+// hoisted into the margin holds the Ask it serves and an answered Ask is still one. It
+// is the page's own content otherwise, unless it is Leaf's apparatus, and `inUi` is the
+// one reading of that, the layer a node stands in, asked of the deepest focus so a
+// control staged in a shadow tree answers for itself: a margin marker and a mark note
+// are placed in the document beside the words they mark, outside the container and
+// controls all the same, so the container alone answered them wrong and the ladder's
+// page rung, which backs out of a control, is what they get. The walk destinations
+// above ask `inChrome` alone, because their question is only whether an Ask or a
+// heading is the page's own or a copy standing in the panel's frozen markup.
 //
 // The scope's `at` is the cheap half, whether anything is held at all; the row's `when`
 // is the dear one, asked only of a reader who is holding something. The modes, the
@@ -134,6 +149,7 @@ export function declareStanding({
   designModeActive,
   drawModeActive,
   pageMapRung,
+  askHeld,
 }) {
   standingFloor = () => {
     if (!holding()) return null;
@@ -143,7 +159,9 @@ export function declareStanding({
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;
     if (panelFocusIsInside(panelIsOpen)) return focusedThreadOf() ? threadsBox : null;
-    return inChrome(documentFocused()) ? null : document.body;
+    if (inChrome(documentFocused())) return null;
+    if (standingThreadOf() || askHeld()) return document.body;
+    return inUi(focused()) ? null : document.body;
   };
   pageScope("standing", {
     title: "Standing on something",

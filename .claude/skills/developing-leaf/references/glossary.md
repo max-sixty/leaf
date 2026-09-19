@@ -145,7 +145,7 @@ spine instead.
 | **Target chooser** | The `s` interaction that presents addressable elements and ends when the reader chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among same-kind destinations |
-| **Standing** | Holding a destination inside a layer, or a control inside one: an Ask or heading on the page, a card in the thread panel; a banner or panel-head control is not one |
+| **Standing** | Holding a destination inside a layer, or a control inside one: a thread, an Ask, or the page's own content, including an authored control; Leaf's own apparatus outside those — a banner or panel-head control, a margin marker, a mark note, a contents outline's link — is not one |
 | **Floor** | The place in a layer where the reader stands on nothing: the page's body, the thread panel's list |
 | **Return** | Restoration of the origin captured before an entered transition, by key or by pointer press — for a press, the place focus held before the press moved it; Escape first unwinds an inner interaction, and whatever the reader has put on since outside the surface the transition entered |
 | **Layer stack** | The one ordered record of the popovers, modal dialogs, and return frames standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |

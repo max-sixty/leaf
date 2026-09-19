@@ -2564,8 +2564,8 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     assert f"unknown request 'missing'; open requests: {request['id']!r}" in (
         unknown.output
     )
-    # An id the log holds as something else is named as that, which is what tells
-    # an agent it was handed a move rather than a request.
+    # An id the log holds as something else is named as that, with the writer that
+    # takes it, which is what tells an agent it was handed a move and not a request.
     comment = events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "and restart it"}
     )
@@ -2574,10 +2574,17 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         ["receipt", str(page_dir), comment["id"], "failed", "--text", "No request"],
     )
     assert misdirected.exit_code == 1
-    assert (
-        f"{comment['id']!r} is a comment in this page's log, not a request; "
-        f"open requests: {request['id']!r}"
-    ) in misdirected.output
+    assert f"{comment['id']} is a comment in this page's log" in misdirected.output
+    assert "`leaf reply <page> --to <id>` answers a message" in misdirected.output
+    assert f"open requests: {request['id']!r}" in misdirected.output
+    # And the other way round: a request handed to a writer that takes a message is
+    # sent to its receipt, rather than told only that it is not a comment.
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["resolve", str(page_dir), "--to", request["id"]]
+    )
+    assert resolved.exit_code != 0
+    assert f"{request['id']} is a request in this page's log" in resolved.output
+    assert "`leaf receipt <page> <id> succeeded|failed`" in resolved.output
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "coordinator-1")
     monkeypatch.setenv("LEAF_AGENT", "Atlas lead")

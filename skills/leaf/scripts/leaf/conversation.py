@@ -30,7 +30,7 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
-from leaf.validation.admission import check_markup, read_text_arg
+from leaf.validation.admission import check_markup, logged_id_route, read_text_arg
 
 
 def _messages(events: list) -> dict[str, dict]:
@@ -40,7 +40,12 @@ def _messages(events: list) -> dict[str, dict]:
 def _message(events: list, to: str) -> dict:
     messages = _messages(events)
     if to not in messages:
-        sys.exit(f"unknown comment id {to!r}; known: {sorted(messages)}")
+        route = logged_id_route(events, to)
+        sys.exit(
+            f"unknown comment id {to!r}"
+            + (f"; {route}" if route else "")
+            + f"; known: {sorted(messages)}"
+        )
     return messages[to]
 
 
@@ -313,38 +318,6 @@ def _current_anchor(
     )
 
 
-def _foreign_id_recourse(events: list, section: str) -> str:
-    """Name the option that takes `--section`'s value, when the log holds it as an event.
-
-    The CLI names three kinds of id with bare strings — an element id anchors a thread,
-    a message id answers one, and a delivered event id addresses the response it owes —
-    and nothing about a value says which namespace it came from. An agent holding the id
-    of the move it was handed reaches for `--section` with it, and the anchor refusal
-    alone sends it looking through the page's markup for an id that was never there. The
-    log settles the question, so the refusal says which option the value belongs to.
-
-    `--for` is that option for every kind the log holds, not only a message: a reader's
-    press on a widget frozen into a reply owes its answer through the event's own id and
-    nowhere else. A message answers to `--to` as well, so it is the one kind that names
-    both.
-    """
-    carrier = next((event for event in events if event.get("id") == section), None)
-    if carrier is None:
-        return ""
-    kind = carrier.get("kind")
-    answering = (
-        " — `leaf reply <page> --to <id>` answers a message and `--for <event-id>` "
-        "addresses a delivered move"
-        if kind in MESSAGE_KINDS
-        else " — `leaf reply <page> --for <event-id>` addresses a delivered move"
-    )
-    article = "an" if kind[:1] in "aeiou" else "a"
-    return (
-        f"; {section} is {article} {kind} in this page's log{answering}, while "
-        "`--section` takes an element id the page's markup declares"
-    )
-
-
 def _capture_anchor(
     page_dir: Path,
     events: list,
@@ -374,7 +347,13 @@ def _capture_anchor(
             additions=generated_children(page.projection.desired, page.document.ids),
         )
     except ValueError as err:
-        recourse = _foreign_id_recourse(events, section) if section else ""
+        route = logged_id_route(events, section) if section else None
+        recourse = (
+            f"; {route}, while `--section` takes an element id the page's markup "
+            "declares"
+            if route
+            else ""
+        )
         sys.exit(f"can't anchor in revision r{revision}: {err}{recourse}")
     return anchor
 

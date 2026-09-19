@@ -975,7 +975,7 @@ def test_a_resolved_version_thread_is_still_named_a_version_thread(page_dir):
 
     ask_route = (
         "open a separate thread on the same Ask with `leaf comment <page> "
-        "--section choice`"
+        "--section <ask-id>`"
     )
     mistaken = CliRunner().invoke(
         cli_model.cli,
@@ -988,8 +988,9 @@ def test_a_resolved_version_thread_is_still_named_a_version_thread(page_dir):
         f"or {ask_route}"
     ) in mistaken.output
 
-    # The reply door refuses it and names the same route, off the same reading: the
-    # Ask is the root's own anchor rather than a placeholder for the agent to fill.
+    # The reply door refuses it and names the same route. The Ask is a recipe, not an
+    # id: whether `--section` takes one is the anchor rule's to say against the active
+    # revision, and a later revision may retire the Ask the thread opened on.
     initiated = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1006,7 +1007,7 @@ def test_a_resolved_version_thread_is_still_named_a_version_thread(page_dir):
     assert "requires a page version and cannot take a reply" in initiated.output
     assert ask_route in initiated.output
 
-    # And the route both name is one the writer takes.
+    # And the route both name is one the writer takes, filled with the Ask's id.
     asked = CliRunner().invoke(
         cli_model.cli,
         ["comment", str(page_dir), "--section", "choice", "--text", "how long?"],

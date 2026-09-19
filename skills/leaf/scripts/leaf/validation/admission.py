@@ -79,23 +79,15 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
     return None
 
 
-def version_thread_recourse(events: list, root: str) -> str:
-    """Where a thread that takes a page version sends an answer instead.
-
-    The version is the answer, and the Ask the thread opened on stays open to a
-    separate question meanwhile. The root carries that Ask's id in its own anchor, so
-    a refusal names the command rather than a placeholder for the agent to fill from
-    a page it has just been told it cannot read the id in.
-    """
-    opening = next((event for event in events if event.get("id") == root), None)
-    ask = ((opening or {}).get("anchor") or {}).get("section")
-    if not ask:
-        return "incorporate its request in the next version"
-    return (
-        "incorporate its request in the next version, or open a separate thread on "
-        f"the same Ask with `leaf comment <page> --section {ask}` if you need an "
-        "answer first"
-    )
+# Where a thread that takes a page version sends an answer instead. The version is
+# the answer, and the Ask the thread opened on stays open to a separate question
+# meanwhile. The Ask is named as a recipe rather than by id: its id is markup, which a
+# later revision may retire, and whether `--section` takes it is the anchor rule's to
+# say against the active revision — a reading the log cannot vouch for.
+VERSION_THREAD_RECOURSE = (
+    "incorporate its request in the next version, or open a separate thread on the "
+    "same Ask with `leaf comment <page> --section <ask-id>` if you need an answer first"
+)
 
 
 def logged_id(events: list, value: str, responses: dict) -> str | None:
@@ -141,9 +133,9 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     if owed["kind"] == "receipt":
         return f"{held} — `leaf receipt <page> {value} succeeded|failed` settles it"
     if owed["kind"] == "version":
-        recourse = version_thread_recourse(events, owed["conversation"])
         return (
-            f"{held} — its thread takes a page version rather than a reply; {recourse}"
+            f"{held} — its thread takes a page version rather than a reply; "
+            f"{VERSION_THREAD_RECOURSE}"
         )
     return f"{held} — `leaf reply <page> --for {value}` answers it"
 

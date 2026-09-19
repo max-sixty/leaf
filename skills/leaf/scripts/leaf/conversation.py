@@ -31,11 +31,11 @@ from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
 from leaf.validation.admission import (
+    VERSION_THREAD_RECOURSE,
     check_markup,
     logged_id,
     read_text_arg,
     thread_obligation,
-    version_thread_recourse,
 )
 
 
@@ -511,7 +511,7 @@ def cmd_reply(
                     return None
                 sys.exit(
                     f"thread {root_id!r} requires a page version and cannot take a "
-                    f"reply; {version_thread_recourse(events, root_id)}"
+                    f"reply; {VERSION_THREAD_RECOURSE}"
                 )
             if expected is None or expected["kind"] != "reply":
                 if skip_if_settled:
@@ -532,7 +532,7 @@ def cmd_reply(
                 return None
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
-                f"{version_thread_recourse(events, root_id)}"
+                f"{VERSION_THREAD_RECOURSE}"
             )
         if for_event is not None:
             expected = responses.get(for_event)

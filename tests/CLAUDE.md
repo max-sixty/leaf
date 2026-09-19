@@ -99,7 +99,7 @@ corpus sweeps include them. File-side fixtures live in `interact_support.py`. Br
 fixtures live in `render_harness.py`; reusable browser cases are grouped by
 interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
 Both fixture modules use `TemporaryPageServer`, the same process-owned server as
-`scripts/preview.py --automation`. Test modules import support from its owning
+an unclaimed `scripts/preview.py`. Test modules import support from its owning
 module directly. `test_site.py` reads the
 built site through its served URLs. Product documentation tests compare the docs
 with the shipped vocabulary and command surface: a shown command the click tree

@@ -9,6 +9,8 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import preview as preview_model
@@ -20,6 +22,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
+from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import render_checks as render_checks_model
@@ -103,6 +106,7 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
             "heat-loss",
             "--slot",
             slot,
+            "--reader",
         ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
@@ -528,23 +532,23 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
             )
 
 
-def test_automation_preview_records_real_gestures_outside_the_task(
+def test_a_preview_records_real_gestures_outside_the_task(
     browser, tmp_path, preview_slot, spawn, request
 ):
-    """Automation and reader previews use the same event door but different lifetimes.
+    """A preview and a `--reader` one share the event door and differ in lifetime.
 
     The selected runtime's temporary server is held by the watcher rather than a
-    service record. Its log survives source reloads, while a distinct reader slot is
-    claimed for task delivery and cannot be overwritten by automation.
+    service record. Its log survives source reloads, while a distinct `--reader`
+    slot is claimed for task delivery and cannot be overwritten by an unclaimed one.
     """
     slot, page_dir = preview_slot
-    source = tmp_path / "automation.html"
+    source = tmp_path / "driven.html"
     source.write_text(
         REPLAYED_PAGE,
         encoding="utf-8",
     )
-    runtime = install_payload(tmp_path / "automation-runtime")
-    automation_command = [
+    runtime = install_payload(tmp_path / "driven-runtime")
+    driven_command = [
         sys.executable,
         str(ROOT / "scripts" / "preview.py"),
         "--source",
@@ -553,36 +557,34 @@ def test_automation_preview_records_real_gestures_outside_the_task(
         str(runtime),
         "--slot",
         slot,
-        "--automation",
     ]
-    automation_process = spawn(
-        automation_command,
+    driven_process = spawn(
+        driven_command,
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert automation_process.stdout.readline() == ("prepared automation (1 version)\n")
-    assert automation_process.stdout.readline() == "\n"
-    automation_url = automation_process.stdout.readline().strip()
-    assert automation_url.startswith("http://127.0.0.1:")
+    assert driven_process.stdout.readline() == ("prepared driven (1 version)\n")
+    assert driven_process.stdout.readline() == "\n"
+    driven_url = driven_process.stdout.readline().strip()
+    assert driven_url.startswith("http://127.0.0.1:")
     assert (
-        automation_process.stderr.readline().strip()
-        == "server   temporary (stops with this command)"
+        driven_process.stderr.readline().strip()
+        == "server   preview (no task claim; stops with its watcher and with this "
+        "agent session)"
     )
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    assert "url" not in json.loads((page_dir / "preview.json").read_text())
+    assert json.loads((page_dir / "preview.json").read_text())["url"] == driven_url
     assert page_dir not in service_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
-    automation = open_page(browser, automation_url)
-    expect(automation.locator(".lf-preview")).to_contain_text(
-        f"Automation · {runtime.name}"
-    )
-    with sending(automation, "the automation option pick"):
-        automation.locator("#opt-shim .lf-pick").click()
-    expect(automation.locator("#opt-shim")).to_have_attribute("chosen", "")
+    driven = open_page(browser, driven_url)
+    expect(driven.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
+    with sending(driven, "the agent-driven option pick"):
+        driven.locator("#opt-shim .lf-pick").click()
+    expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
     [automated_event] = [
         event
         for event in events_model.read_events(page_dir)
@@ -591,27 +593,27 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     feedback = (page_dir / "events.jsonl").read_bytes()
     inode = (page_dir / "events.jsonl").stat().st_ino
 
-    with restarting(automation):
+    with restarting(driven):
         source.write_text(
             source.read_text(encoding="utf-8").replace(
-                "Rollout", "Automation follows source edits", 1
+                "Rollout", "A preview follows source edits", 1
             ),
             encoding="utf-8",
         )
         expect(
-            automation.get_by_role("heading", name="Automation follows source edits")
+            driven.get_by_role("heading", name="A preview follows source edits")
         ).to_be_visible(timeout=30000)
-    expect(automation.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    automation.close()
+    driven.close()
 
-    automation_process.send_signal(signal.SIGINT)
-    _, automation_stderr = automation_process.communicate(timeout=10)
-    assert automation_process.returncode == 130, automation_stderr
-    assert "Traceback" not in automation_stderr
+    driven_process.send_signal(signal.SIGINT)
+    _, driven_stderr = driven_process.communicate(timeout=10)
+    assert driven_process.returncode == 130, driven_stderr
+    assert "Traceback" not in driven_stderr
 
     reader_slot = f"{slot}-reader"
     reader_dir = page_dir.with_name(reader_slot)
@@ -624,6 +626,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
         str(runtime),
         "--slot",
         reader_slot,
+        "--reader",
     ]
 
     def cleanup_reader():
@@ -652,7 +655,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     claim = service_model.page_claim(reader_dir)
     assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
     reader = open_page(browser, reader_url)
-    expect(reader.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
+    expect(reader.locator(".lf-preview")).to_contain_text(f"Reader · {runtime.name}")
     with sending(reader, "the reader option pick"):
         reader.locator("#opt-stage .lf-pick").click()
     expect(reader.locator("#opt-stage")).to_have_attribute("chosen", "")
@@ -667,7 +670,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     )
     reader_feedback = (reader_dir / "events.jsonl").read_bytes()
     refused = subprocess.run(
-        [*reader_command, "--automation"],
+        [command for command in reader_command if command != "--reader"],
         cwd=ROOT,
         capture_output=True,
         check=False,
@@ -675,44 +678,205 @@ def test_automation_preview_records_real_gestures_outside_the_task(
         timeout=30,
     )
     assert refused.returncode == 1
-    assert "choose a new --slot" in refused.stderr
+    assert "serves its reader interaction; add --reader to join it" in refused.stderr
     assert "--reset" in refused.stderr
     assert (reader_dir / "events.jsonl").read_bytes() == reader_feedback
     reader.close()
 
-    reset_automation = spawn(
-        [*reader_command, "--automation", "--reset"],
+    reset_driven = spawn(
+        [
+            *(command for command in reader_command if command != "--reader"),
+            "--reset",
+        ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert reset_automation.stdout.readline() == "prepared automation (1 version)\n"
-    assert reset_automation.stdout.readline() == "\n"
-    reset_url = reset_automation.stdout.readline().strip()
+    assert reset_driven.stdout.readline() == "prepared driven (1 version)\n"
+    assert reset_driven.stdout.readline() == "\n"
+    reset_url = reset_driven.stdout.readline().strip()
     assert reset_url.startswith("http://127.0.0.1:")
     assert (
-        reset_automation.stderr.readline().strip()
-        == "server   temporary (stops with this command)"
+        reset_driven.stderr.readline().strip()
+        == "server   preview (no task claim; stops with its watcher and with this "
+        "agent session)"
     )
     assert service_model.page_claim(reader_dir) is None
     assert reader_event not in events_model.read_events(reader_dir)
 
     reset_page = open_page(browser, reset_url)
     expect(reset_page.locator(".lf-preview")).to_contain_text(
-        f"Automation · {runtime.name}"
+        f"Preview · {runtime.name}"
     )
     expect(reset_page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
     reset_page.close()
 
-    reset_automation.send_signal(signal.SIGINT)
-    _, reset_stderr = reset_automation.communicate(timeout=10)
-    assert reset_automation.returncode == 130, reset_stderr
+    reset_driven.send_signal(signal.SIGINT)
+    _, reset_stderr = reset_driven.communicate(timeout=10)
+    assert reset_driven.returncode == 130, reset_stderr
     assert "Traceback" not in reset_stderr
 
 
-@pytest.fixture
-def watched_preview(tmp_path, preview_slot):
+def _reachable(url: str) -> bool:
+    """Whether a preview's published address still answers."""
+    try:
+        with urllib.request.urlopen(url, timeout=5) as answer:
+            return answer.status == 200
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def test_a_detached_preview_keeps_its_gestures_out_of_the_stop_hook(
+    tmp_path, preview_slot, request, capsys
+):
+    """An agent drives its preview across many tool calls, so it needs `--background`.
+
+    Who presses the page and whether the watcher detaches are separate choices.
+    While they were one, the only backgroundable preview was the claimed one, and a
+    session driving four of them through browser proof read its own presses back as
+    reader input: six Stop hooks blocked on `.tmp/previews/` slots inside subagent
+    worktrees no reader could see.
+
+    A `--reader` preview still reports its reader, which is the reading
+    `test_a_preview_owes_no_watcher_but_still_carries_its_reader` holds. The
+    difference is upstream, in whether the preview took a claim at all.
+    """
+    slot, page_dir = preview_slot
+    source = tmp_path / "detached.html"
+    source.write_text(REPLAYED_PAGE, encoding="utf-8")
+    runtime = install_payload(tmp_path / "detached-runtime")
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+    ]
+    request.addfinalizer(
+        lambda: subprocess.run(
+            [*command, "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    )
+    started = subprocess.run(
+        [*command, "--background"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert started.returncode == 0, (
+        f"stdout:\n{started.stdout}\nstderr:\n{started.stderr}"
+    )
+    url = started.stdout.splitlines()[-1]
+    assert url.startswith("http://127.0.0.1:")
+    assert preview_model.watcher_note(page_dir) in started.stderr
+    assert _reachable(url)
+
+    # The address is the one thing a caller cannot rebuild, and a temporary
+    # server writes no `service.json` to read it off, so a second invocation
+    # answers from the slot's own record rather than starting a rival. A string
+    # alone would also come back from a watcher that has since died.
+    resumed = subprocess.run(
+        [*command, "--background"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert resumed.returncode == 0, resumed.stderr
+    assert resumed.stdout.splitlines()[-1] == url
+    assert _reachable(url)
+
+    session = os.environ["CLAUDE_CODE_SESSION_ID"]
+    assert service_model.page_claim(page_dir) is None
+    assert page_dir not in service_model.owned_pages(session)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": session})
+    assert capsys.readouterr().out == ""
+
+
+def test_a_detached_preview_ends_with_the_session_that_started_it(
+    tmp_path, preview_slot, spawn, request
+):
+    """Every preview is reaped by the session's lifetime; only the route differs.
+
+    A `--reader` preview is reaped through its claim: the serving process exits
+    when the lifetime ends, and the watcher sees an empty service. An unclaimed
+    preview holds its server in its own thread, so nothing outside it would ever
+    notice. Detached, that left a Python process and a loopback port standing
+    after the session, the terminal and the host were gone — and the
+    baseline/candidate recipe starts two of them.
+    """
+    slot, page_dir = preview_slot
+    source = tmp_path / "reaped.html"
+    source.write_text(REPLAYED_PAGE, encoding="utf-8")
+    runtime = install_payload(tmp_path / "reaped-runtime")
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+    ]
+    request.addfinalizer(
+        lambda: subprocess.run(
+            [*command, "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    )
+    # A process of the test's own standing in for the host session, so ending it
+    # is the fact under test rather than the end of this run.
+    host = spawn([sys.executable, "-c", "import time; time.sleep(600)"])
+    started = subprocess.run(
+        [*command, "--background"],
+        cwd=ROOT,
+        env={**os.environ, "CLAUDE_PID": str(host.pid)},
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert started.returncode == 0, (
+        f"stdout:\n{started.stdout}\nstderr:\n{started.stderr}"
+    )
+    url = started.stdout.splitlines()[-1]
+    assert _reachable(url)
+
+    host.terminate()
+    host.wait(timeout=10)
+    # The record is the later fact: the server's socket closes inside the stop
+    # that then writes it, so waiting on the address would race the write.
+    wait_for(
+        lambda: json.loads((page_dir / "preview.json").read_text())["url"],
+        lambda recorded: recorded is None,
+        failure="the detached preview outlived its session",
+        timeout=30,
+    )
+    assert not _reachable(url)
+
+
+def watching(tmp_path, preview_slot, reader: bool):
     source = tmp_path / "watched.html"
     original = REPLAYED_PAGE
     source.write_text(original, encoding="utf-8")
@@ -727,6 +891,7 @@ def watched_preview(tmp_path, preview_slot):
         str(runtime),
         "--slot",
         slot,
+        *(["--reader"] if reader else []),
         "--background",
     ]
     started = subprocess.run(
@@ -746,6 +911,107 @@ def watched_preview(tmp_path, preview_slot):
     assert stopped.returncode == 0, stopped.stdout + stopped.stderr
 
 
+@pytest.fixture
+def watched_preview(tmp_path, preview_slot):
+    """A detached watcher on an ordinary preview, which takes no claim."""
+    yield from watching(tmp_path, preview_slot, reader=False)
+
+
+@pytest.fixture
+def served_preview(tmp_path, preview_slot):
+    """A detached `--reader` watcher, for what only the durable service records."""
+    yield from watching(tmp_path, preview_slot, reader=True)
+
+
+def test_a_preview_states_a_lifetime_every_reading_of_a_claim_can_judge(
+    tmp_path, preview_slot, codex_program, codex_env, spawn, request
+):
+    """The preview is the second writer of a claim's lifetime fields, so its
+    record has to answer `claim_is_active` for every shape a harness states.
+
+    A claim `PageTransaction` wrote carries `ts` whatever shape follows it, and
+    the `activity` reading needs it: Codex's ChatGPT app multiplexes every
+    conversation through one `app-server`, so such a session names no process and
+    is judged live by when its page was last touched. Building the record from
+    `Harness.lifetime()` alone left that host raising `KeyError: 'ts'` on the
+    watcher's first liveness poll — a quarter of a second after `--background`
+    had already handed the URL over, with the traceback only in the slot's log.
+    """
+    source = tmp_path / "multiplexed.html"
+    source.write_text(REPLAYED_PAGE, encoding="utf-8")
+    slot, directory = preview_slot
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--slot",
+        slot,
+        "--background",
+    ]
+    request.addfinalizer(
+        lambda: subprocess.run(
+            [*command[:-1], "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    )
+    ready = tmp_path / "started.json"
+    # `app-server` in the host's own argv is the whole of what `CodexHarness`
+    # looks at to tell the multiplexed shape from a per-conversation `codex`.
+    owner = spawn(
+        [
+            str(codex_program),
+            "-c",
+            (
+                "import json, pathlib, subprocess, sys; "
+                "result = subprocess.run(sys.argv[3:], capture_output=True, text=True); "
+                "pathlib.Path(sys.argv[2]).write_text(json.dumps([result.returncode, result.stdout, result.stderr])); "
+                "sys.stdin.read()"
+            ),
+            "app-server",
+            str(ready),
+            *command,
+        ],
+        env=codex_env
+        | {"CODEX_THREAD_ID": "preview-multiplexed", "PYTHONHOME": sys.base_prefix},
+        stdin=subprocess.PIPE,
+    )
+    wait_for(
+        ready.exists,
+        bool,
+        failure="the preview command did not report its result",
+        timeout=90,
+    )
+    result = json.loads(ready.read_text())
+    assert result[0] == 0, result
+    url = result[1].splitlines()[-1]
+    assert service_model.page_claim(directory) is None
+    log = directory.with_name(f"{directory.name}.preview.log")
+
+    # A reload is several liveness polls later, so it is what says the watcher
+    # read its own lifetime and lived: the first poll lands about 250ms in, well
+    # before this edit.
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "Rollout", "Multiplexed revision", 1
+        ),
+        encoding="utf-8",
+    )
+    wait_for(
+        log.read_text,
+        lambda output: "Reloaded" in output or "Traceback" in output,
+        failure="the detached preview neither reloaded nor reported why not",
+        timeout=30,
+    )
+    assert "Traceback" not in log.read_text(), log.read_text()
+    assert _reachable(url)
+    owner.terminate()
+
+
 def test_a_detached_preview_restarts_under_its_original_codex_claim(
     tmp_path, preview_slot, codex_program, codex_env, spawn
 ):
@@ -760,6 +1026,7 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
         str(source),
         "--slot",
         slot,
+        "--reader",
         "--background",
     ]
     ready = tmp_path / "started.json"
@@ -1093,7 +1360,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
 
 @pytest.mark.parametrize("interrupted", ["registry.json", "widgets/lf-options.js"])
 def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
-    browser, watched_preview, interrupted
+    browser, served_preview, interrupted
 ):
     """A start the restart interrupts reports the vanished server and comes back.
 
@@ -1102,8 +1369,13 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     start's own fetches, because the words are the fetch's rather than the condition's:
     the registry is a plain `fetch` and a widget is a dynamic import, and only the second
     names the module. Whichever one the loaded machine loses is which wording arrives.
+
+    Claimed, because the tab recovers at the address it already has: `service.json`
+    holds the port across a stop and the access key is the machine's, while an
+    unclaimed preview's server is its watcher's, and a fresh watcher mints a port
+    and a key of its own for the next reader to read.
     """
-    _, _, _, command, url = watched_preview
+    _, _, _, command, url = served_preview
     page = browser.new_page()
     errors = page.lf_errors
     stopped = []
@@ -1193,9 +1465,9 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     assert (directory / "media" / image.name).read_bytes() == expected
 
 
-def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spawn):
+def test_stopping_a_preview_waits_for_its_active_recompose(served_preview, spawn):
     """Stop intent survives an update's own stopped-service interval and returns last."""
-    source, runtime, directory, command, _ = watched_preview
+    source, runtime, directory, command, _ = served_preview
     _, stop_request = preview_model.preview_locks(directory)
     # Real page-transaction contention pauses init after the watcher stops the service.
     # The stop command must wait for that work and suppress its pending restart.

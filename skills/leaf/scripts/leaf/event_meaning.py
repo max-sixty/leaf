@@ -6,7 +6,6 @@ referenced element still changes containment without changing an old event.
 """
 
 from leaf.registry.contract import created_children
-from leaf.structure import parse_revision
 from leaf.thread_context import thread_structure
 
 
@@ -54,10 +53,11 @@ def state_meaning(event: dict, entry: dict, document: dict) -> dict:
     return meaning
 
 
-def admit_widget_event(page_dir, event: dict, events: list, registry: dict) -> dict:
-    """Stamp server-owned meaning after command validation, under the append lock."""
-    page = parse_revision(page_dir, event["revision"])
-    record = page.by_id.get(event["widget"])
+def admit_widget_event(sender, event: dict, events: list, registry: dict) -> dict:
+    """Stamp server-owned meaning after command validation, under the append lock.
+
+    `sender` is the authored document of the revision the command names."""
+    record = sender.by_id.get(event["widget"])
     document = {"kind": "page", "revision": event["revision"]}
     if record is None:
         record = thread_structure(events).by_id[event["widget"]]

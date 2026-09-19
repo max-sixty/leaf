@@ -27,6 +27,7 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
+from leaf.delivery import current_responses
 from leaf.registry import storage as registry_storage
 
 
@@ -185,6 +186,62 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
     assert f"{root['id']} is a comment in this page's log" in mistaken.output
     assert "`leaf reply <page> --to <id>` answers a message" in mistaken.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
+
+
+def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
+    """A message is not the only id an agent is handed. A reader's press on a widget
+    frozen into a reply is answered through that action's own id and nothing else —
+    `--for` is the only route to it — so a refusal that names no option is the one the
+    agent needed. The recourse names `--for` for every kind the log holds, and reserves
+    `--to` for the kinds a message id also answers to."""
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
+    )
+    frozen = (
+        '<lf-ask id="thread-ask"><h2>Choose one</h2>'
+        '<lf-options id="thread-picks" choose><lf-option id="thread-option">'
+        "Thread option</lf-option></lf-options></lf-ask>"
+    )
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--for", "c1", "--markup", frozen, "--text", "Which?"],
+    )
+    assert answered.exit_code == 0, answered.output
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "thread-picks",
+            "action": "choose",
+            "detail": {"options": ["thread-option"]},
+        },
+    )
+    events = events_model.read_events(page_dir)
+    pressed = next(event for event in events if event["kind"] == "action")
+    assert current_responses(page_dir, events)[pressed["id"]]["for"] == pressed["id"]
+    mistaken = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--for",
+            pressed["id"],
+            "--section",
+            pressed["id"],
+            "--text",
+            "answering the press I was handed",
+        ],
+    )
+    assert mistaken.exit_code != 0
+    assert f"{pressed['id']} is an action in this page's log" in mistaken.output
+    assert "`leaf reply <page> --for <event-id>` addresses a delivered move" in (
+        mistaken.output
+    )
+    assert "`leaf reply <page> --to <id>`" not in mistaken.output
 
 
 def test_a_section_scopes_where_a_quote_may_land(page_dir):

@@ -310,6 +310,11 @@ def _foreign_id_recourse(events: list, section: str) -> str:
     of the move it was handed reaches for `--section` with it, and the anchor refusal
     alone sends it looking through the page's markup for an id that was never there. The
     log settles the question, so the refusal says which option the value belongs to.
+
+    `--for` is that option for every kind the log holds, not only a message: a reader's
+    press on a widget frozen into a reply owes its answer through the event's own id and
+    nowhere else. A message answers to `--to` as well, so it is the one kind that names
+    both.
     """
     carrier = next((event for event in events if event.get("id") == section), None)
     if carrier is None:
@@ -319,11 +324,12 @@ def _foreign_id_recourse(events: list, section: str) -> str:
         " — `leaf reply <page> --to <id>` answers a message and `--for <event-id>` "
         "addresses a delivered move"
         if kind in MESSAGE_KINDS
-        else ""
+        else " — `leaf reply <page> --for <event-id>` addresses a delivered move"
     )
+    article = "an" if kind[:1] in "aeiou" else "a"
     return (
-        f"; {section} is a {kind} in this page's log{answering}, while `--section` "
-        "takes an element id the page's markup declares"
+        f"; {section} is {article} {kind} in this page's log{answering}, while "
+        "`--section` takes an element id the page's markup declares"
     )
 
 

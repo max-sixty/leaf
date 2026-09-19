@@ -2675,6 +2675,19 @@ export function createMarginProjection({
     dismiss: () => closePreview(),
   };
 
+  // The way back out of the card, for every opening that carries the place it displaced:
+  // one Escape closes it and the stack hands that place back. The opening stood the
+  // reader on the card, so the frame holds the standing. `openPageThread` takes it as the
+  // view's half, beside the panel's.
+  const inlineThreadFrame = (opened = () => true) => ({
+    active: () => opened() && inlineThreadView.showing(),
+    close: () => closePreview(),
+    does: "Dismiss the conversation view",
+    line: "dismiss conversation",
+    standing: true,
+    surface: null,
+  });
+
   // The card and its owning margin entry cluster are one page-map stack even though the card
   // is hoisted into the chrome. Expose the current rung to the one keyboard register so
   // it can stand ahead of reaction and navigation modes, preserving the local surface's
@@ -2764,7 +2777,27 @@ export function createMarginProjection({
     togglePinned(entry, button);
   }
 
-  function openInlineThread(id, transition = null, onPositioned = null) {
+  // An opening that names the place it displaced enters the layer stack with it, as a
+  // marker press does in `togglePinned`: the card is a layer the reader was taken into,
+  // and the frame takes them back out. An opening with no origin is not the reader's own
+  // — restoring a captured workspace, replaying in a contained gallery frame — or already
+  // carries a frame of its own, so the stack hears nothing. A card already standing keeps
+  // the entry it came up under, and this opening only changes what it shows.
+  function openInlineThread(
+    id,
+    { transition = null, onPositioned = null, origin = null } = {},
+  ) {
+    const open = () => showInlineThread(id, transition, onPositioned);
+    if (!origin || inlineThreadView.showing()) return open();
+    return invoke(
+      { id: "margin.inline", returnFrame: () => inlineThreadFrame() },
+      null,
+      open,
+      origin,
+    );
+  }
+
+  function showInlineThread(id, transition, onPositioned) {
     const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
@@ -2853,13 +2886,15 @@ export function createMarginProjection({
     let opened = null;
     const open = () => {
       if (!panelIsOpen()) {
-        const thread = openInlineThread(id, null, (positionedThread) => {
-          positionedThread.focus({ preventScroll: true });
-          positionedThread.scrollIntoView({
-            behavior: scrollBehavior(),
-            block: "nearest",
-          });
-          if (travel) scrollToThread(id);
+        const thread = openInlineThread(id, {
+          onPositioned: (positionedThread) => {
+            positionedThread.focus({ preventScroll: true });
+            positionedThread.scrollIntoView({
+              behavior: scrollBehavior(),
+              block: "nearest",
+            });
+            if (travel) scrollToThread(id);
+          },
         });
         if (thread) {
           opened = "view";
@@ -2875,14 +2910,7 @@ export function createMarginProjection({
     // thread as the one the press stood the reader on; the view's half holds the
     // standing the way a marker press does.
     const panelHalf = panelFrame({ carried: id });
-    const viewHalf = {
-      active: () => opened === "view" && inlineThreadView.showing(),
-      close: () => closePreview(),
-      does: "Dismiss the conversation view",
-      line: "dismiss conversation",
-      standing: true,
-      surface: null,
-    };
+    const viewHalf = inlineThreadFrame(() => opened === "view");
     const half = () => (opened === "panel" ? panelHalf : viewHalf);
     return invoke(
       {

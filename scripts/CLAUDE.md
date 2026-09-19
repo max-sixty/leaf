@@ -115,10 +115,13 @@ imports it, except `mcp-app`, which no widget imports and which lands in
 `beautiful-mermaid/` holds one patch to upstream's own TypeScript, which is why that
 bundle is built from the published `src/` rather than the published `dist/`: upstream's
 parsers read every statement they do not implement as something else and say nothing,
-and the patch has them record what they walked away from so `lf-diagram` can refuse a
-source rather than draw half of it. A new pin that moves the lines the patch names
-fails the build; re-cut the patch against the new source rather than working around
-that, and delete it when a release carries the reading.
+and the patch has the flowchart and state-diagram parsers record what they walked away
+from so `lf-diagram` can refuse a source rather than draw half of it. Its four other
+parsers drop what they cannot read on the same terms and are not instrumented yet;
+widening the patch to one of them is the same push at the point it gives up. A new pin
+that moves the lines the patch names fails the build; re-cut the patch against the new
+source rather than working around that, and delete it when a release carries the
+reading.
 
 `scripts/vendor-src/pierre/` is Pierre's native generator source. Its `shiki-leaf.mjs`
 contains exactly one `/* LEAF_PIERRE_LANGUAGES */` sentinel; `vendor.py` replaces it

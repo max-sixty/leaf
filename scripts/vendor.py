@@ -270,10 +270,11 @@ def build_beautiful_mermaid(work: Path) -> list[Path]:
     `dist/`, because one patch under `scripts/vendor-src/beautiful-mermaid/` applies to
     it. Upstream's parsers read every statement they do not implement as something
     else and never say so, so a page carrying a source this renderer does not read has
-    no way to tell; the patch records what each parser walked away from, and
-    `lf-diagram` refuses a source rather than drawing the part that was read. The patch
-    file says what it changes and when it goes away. A new pin that moves the lines it
-    names fails the build rather than the page, which is the point of keeping it a
+    no way to tell; the patch records what the flowchart and state-diagram parsers
+    walked away from, and `lf-diagram` refuses a source rather than drawing the part
+    that was read. The patch file says what it changes and when it goes away. A new
+    pin that moves the lines it names fails the build rather than the page, which is
+    the point of keeping it a
     patch: this stays upstream's code with a stated change to it, not a fork nobody
     rereads.
     """

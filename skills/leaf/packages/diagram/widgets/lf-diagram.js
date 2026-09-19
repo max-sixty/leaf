@@ -37,14 +37,20 @@ const prepareSvg = (svg) =>
  * for. A state diagram's loop simply ends.
  *
  * So the vendored bundle carries a Leaf-owned patch to upstream's parsers — see
- * `scripts/vendor-src/beautiful-mermaid/` — that records the text each one walked away
+ * `scripts/vendor-src/beautiful-mermaid/` — that records the text a parser walked away
  * from, and a page refuses a source the renderer reads only part of rather than drawing
  * that part. The leftovers are the check: the parser is the only thing that knows what
  * it read, and a rule written beside it in Leaf could only refuse the divergences
  * somebody had already found, one guard at a time, while the next one stayed silent.
  *
+ * The patch reaches the flowchart and state-diagram parsers, which is where the
+ * divergences Leaf has found live. The sequence, class, ER and xychart parsers drop a
+ * statement they cannot read on the same terms and do not report it yet; each is the
+ * same `unread.push` at the point it gives up, and `unreadMermaidText` already answers
+ * for a whole source, so widening the reading changes nothing here.
+ *
  * An empty reading is not a promise the drawing is the one the author wanted; it is
- * that every statement was read whole. */
+ * that every statement the checked parsers saw was read whole. */
 const refuseUnreadStatements = (unread) => {
   if (unread.length)
     throw new Error(

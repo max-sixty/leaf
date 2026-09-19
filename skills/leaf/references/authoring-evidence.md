@@ -40,11 +40,15 @@ accent surface. Use `classDef` only for nodes that need to stand apart from that
 baseline, and copy the whole `fill`/`stroke`/`color` set from the element declaration, such
 as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Beautiful Mermaid also
 honors `stroke-width`; other properties are ignored. In a flowchart or a `stateDiagram`
-the widget refuses any source this renderer would read only part of, and the refusal
-quotes the text it stopped at, so `version check --render` reports a statement the
-renderer does not implement rather than passing the partial drawing it would otherwise
-make. Three shapes account for most of them. The `click`, `accTitle`, and `accDescr`
-directives are not implemented at all.
+the widget refuses a source whose parser stopped reading, and the refusal quotes the
+text it stopped at, so `version check --render` reports that statement rather than
+passing the partial drawing it would otherwise make. What that reading cannot see is a
+parser reading too much: a slanted shape's label runs to the next closer matching its
+opener wherever that falls, so `A[/a/] --> B[\b\]` is read as one node labelled
+`a/] --> B[\b`, with the edge and `B` gone and nothing reported. Declare a `[/…/]` or
+`[\…\]` node on a line of its own and put its bare id in the edge. Three shapes account
+for most of what is refused. The `click`, `accTitle`, and `accDescr` directives are not
+implemented at all.
 A label holding the delimiter that closes its own shape, such as `A["names: list[str]"]`,
 is cut at that character, quoted or not — while a shape whose closer is doubled carries
 it whole, so `A[["names: list[str]"]]` and `A(["names: list[str]"])` both render, as
@@ -53,13 +57,15 @@ does a subgraph title, which the renderer reads with its own end-anchored regex:
 continuation, so a label opened on one line has to close on it; carry a second line
 inside the label with `<br/>` or `\n`. A sequence, class, ER, or XY source carries no
 such reading: its parser drops or guesses at a statement it cannot read and draws the
-rest, and nothing reports that — the three directives above included, which are
-refused in a flowchart and a `stateDiagram` only. So look at one of those once, and
-look at what it drew rather than only for what is missing. A relationship, a note, or
-a participant the renderer does not implement is absent; a member inside a `class`
-body is drawn however the parser managed to split it; and a top-level line a class
-diagram cannot read as a relationship becomes a class of its own, so a stray
-`accTitle: Checkout flow` draws a box named `accTitle`.
+rest, and nothing reports that, so look at one of those once, and look at what it drew
+rather than only for what is missing. A relationship, a note, or a participant the
+renderer does not implement is absent; a member inside a `class` body is drawn however
+the parser managed to split it; and a top-level line a class diagram cannot read as a
+relationship becomes a class of its own, so a stray `accTitle: Checkout flow` draws a
+box named `accTitle`. The three directives above are refused in a flowchart only: a
+`stateDiagram` refuses `click`, but reads `accTitle:` and `accDescr:` as one of its own
+`id : label` statements, so either one draws a loose state labelled with the text after
+the colon.
 Use `lf-chart` for quantities that need Leaf's data-first
 chart vocabulary: a comparison across a few categories, a run over time, a ranking,
 a composition, or two numbers against each other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`

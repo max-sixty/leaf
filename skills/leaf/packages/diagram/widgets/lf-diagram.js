@@ -52,8 +52,12 @@ const prepareSvg = (svg) =>
  * `unreadMermaidText` already answers for a whole source, so widening the reading
  * changes nothing here.
  *
- * An empty reading is not a promise the drawing is the one the author wanted; it is
- * that every statement the checked parsers saw was read whole. */
+ * An empty reading is not a promise the drawing is the one the author wanted, and not
+ * that every statement was read whole: it is that no parser gave up. Reading too much
+ * is the mirror case, and a slanted shape does it — its label runs to the next closer
+ * matching the opener wherever that falls, so `A[/a/] --> B[\b\]` is read as one node
+ * labelled `a/] --> B[\b` with nothing left over. Catching that is a change to those
+ * patterns, not another push at a point that gives up. */
 const refuseUnreadStatements = (unread) => {
   if (unread.length)
     throw new Error(

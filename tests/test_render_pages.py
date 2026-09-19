@@ -1346,6 +1346,11 @@ def test_a_source_the_renderer_does_not_read_whole_is_refused(browser, serve):
     pattern for, and an arrow with no space before it — which drew a lone node
     named `A--` while every label guard called the source clean.
 
+    What it does not cover is the mirror of giving up. A slanted shape's label
+    runs to the next closer matching its opener wherever that falls, so
+    `A[/a/] --> B[\\b\\]` is read whole as one node labelled `a/] --> B[\\b` and
+    reaches the renderer with nothing reported.
+
     What must keep rendering is the other half. A delimiter inside a label that
     does close is text the renderer draws, a doubled closer carries its character
     whole, a subgraph title is read by its own end-anchored regex, a comment is

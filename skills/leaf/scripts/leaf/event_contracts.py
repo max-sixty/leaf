@@ -316,9 +316,12 @@ def position_record_error(
     # contract records its position, otherwise the nearest recording widget above it.
     # The browser folds a self-position and a container's part position into two
     # different maps, so admitting both would place one node twice.
-    if unit is not current and (
-        positions_itself(unit) or recording_owner(unit) is not current
-    ):
+    if unit is not current and positions_itself(unit):
+        return (
+            f"position record unit {unit_id!r} records its own position, so action "
+            f"widget {event['widget']!r} cannot place it"
+        )
+    if unit is not current and recording_owner(unit) is not current:
         return (
             f"position record unit {unit_id!r} is not owned by action widget "
             f"{event['widget']!r}"

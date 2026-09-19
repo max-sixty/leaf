@@ -3626,11 +3626,15 @@ def _value_verb(attr):
 
 
 @pytest.mark.parametrize(
-    ("arrangement", "admitted"),
-    [("own-facet", True), ("recording-column", False), ("own-position", False)],
+    ("arrangement", "refusal"),
+    [
+        ("own-facet", None),
+        ("recording-column", "'card' is not owned by action widget 'board'"),
+        ("own-position", "'card' records its own position, so action widget 'board'"),
+    ],
 )
 def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
-    server, page_dir, arrangement, admitted
+    server, page_dir, arrangement, refusal
 ):
     """A card has one place and one widget records it: the card itself when its own
     contract records its position, otherwise the nearest recording widget above it. A
@@ -3699,11 +3703,11 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             }
         ).encode(),
     )
-    if admitted:
+    if refusal is None:
         assert status == 200, body
     else:
         assert status == 400, body
-        assert "is not owned by action widget 'board'" in json.loads(body)["error"]
+        assert refusal in json.loads(body)["error"]
 
 
 @pytest.mark.parametrize(

@@ -4988,6 +4988,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     note.press("Enter")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    # The note carried the reader into a thread the diff already seats, so the press put
+    # nothing up, and one Escape hands the note back. Enter goes in again.
+    page.keyboard.press("Escape")
+    expect(note).to_be_focused()
+    note.press("Enter")
+    expect(thread).to_be_focused()
 
     # The same draft has two views, across the shadow boundary. An empty Send paints
     # nothing, showing whatever ground it stands on; typing fills the same disc in

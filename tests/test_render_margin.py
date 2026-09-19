@@ -5828,27 +5828,42 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         assert passage_after[coordinate] == pytest.approx(
             passage_before[coordinate], abs=1
         )
-    if not panel_open:
-        # A pointer selection displaced whatever the reader was on before the comment
-        # began, so the page is the place this gesture has to hand back. What it must not
-        # do is focus the margin entry the card hangs from — or, where no rail stands, the
-        # Page Map button — since the reader never stood on either, and a margin entry
-        # arrived at that way says its transient label, finishing a comment on a tooltip.
-        page.keyboard.press("Escape")
-        expect(preview).to_be_hidden()
-        expect(page.locator("body")).to_be_focused()
+    # A pointer selection displaced whatever the reader was on before the comment
+    # began, so the page is the place this gesture has to hand back, and one Escape
+    # takes off only what the send put up: the card goes, and a panel that was already
+    # open stays. What it must not do is focus the margin entry the card hangs from — or,
+    # where no rail stands, the Page Map button — or walk the reader out through the
+    # thread and the list, none of which they stood on; a margin entry arrived at that
+    # way says its transient label, finishing a comment on a tooltip.
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(page.locator("body")).to_be_focused()
+    threads = expect(page.locator(".lf-thread-panel"))
+    if panel_open:
+        threads.to_have_class(re.compile(r"\bopen\b"))
+    else:
+        threads.not_to_have_class(re.compile(r"\bopen\b"))
 
 
-def test_a_comment_sent_from_a_control_hands_that_control_back(browser, serve):
+@pytest.mark.parametrize("panel_open", [False, True])
+def test_a_comment_sent_from_a_control_hands_that_control_back(
+    browser, serve, panel_open
+):
     """One press comments, and one Escape returns the control that press displaced.
 
     `c` opens the box on whatever the reader is standing in without moving them off it,
-    and the send replaces that box with the thread card. Both surfaces answer the one
-    press, so the card leaves by handing back the place the press displaced rather than
-    by landing the reader wherever the card happens to hang.
+    and the send carries the reader on into the thread the comment became: a card it
+    puts up, or the thread's place in a panel that was already open. Both surfaces
+    answer the one press, so one Escape hands back the place it displaced, taking off
+    the card and leaving the panel, rather than landing the reader wherever the thread
+    happens to hang or walking them out through the list.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
+    threads = page.locator(".lf-thread-panel")
+    if panel_open:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
     stood = page.locator("lf-option-control").first
     stood.focus()
     expect(stood).to_be_focused()
@@ -5859,8 +5874,165 @@ def test_a_comment_sent_from_a_control_hands_that_control_back(browser, serve):
     page.keyboard.type("Worth checking before the frost.")
     with sending(page, "the comment on the standing option"):
         page.keyboard.press("ControlOrMeta+Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
+    if panel_open:
+        expect(
+            threads.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')
+        ).to_be_focused()
+    else:
+        expect(preview).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(stood).to_be_focused()
+    if panel_open:
+        expect(threads).to_have_class(re.compile(r"\bopen\b"))
+    else:
+        expect(preview).to_be_hidden()
+
+
+def seeded_thread(page, page_dir, passage):
+    """Comment on a passage by pointer and let the card go, leaving its thread behind."""
+    page.locator(passage).click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.keyboard.type(f"A thread on {passage}.")
+    with sending(page, f"the comment on {passage}"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    sent = events_model.read_events(page_dir)[-1]
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    return sent
+
+
+def test_a_note_pressed_into_an_open_panel_hands_the_note_back(browser, serve):
+    """A press that moves the reader into a panel already standing still owes them their place.
+
+    The note opens its thread where the thread is indexed: the card with Threads shut,
+    and the thread's card in the list with them open. That second press puts nothing up,
+    and it has still taken the reader off the note, so one Escape gives the note back and
+    leaves the panel open, as the one it opened would have been taken off. The way back
+    holds while the reader walks the list from there, since `t` from a thread records no
+    frame of its own.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+    first = seeded_thread(page, serve.page_dir, "#mounts-p")
+    second = seeded_thread(page, serve.page_dir, "#heater-p")
+    threads = page.locator(".lf-thread-panel")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    note = page.locator("#mounts-p .lf-mark-note")
+    note.focus()
+    page.keyboard.press("Enter")
+    expect(threads.locator(f'.lf-thread[data-id="{first["id"]}"]')).to_be_focused()
+    page.keyboard.press("t")
+    expect(threads.locator(f'.lf-thread[data-id="{second["id"]}"]')).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(note).to_be_focused()
+    expect(threads).to_have_class(re.compile(r"\bopen\b"))
+
+
+def test_a_margin_marker_pressed_with_threads_open_hands_itself_back(browser, serve):
+    """The marker lands its thread in an open panel, and one Escape gives the marker back.
+
+    With Threads shut the marker puts the card up, as its own press; with them open it
+    carries the reader into the thread's place in the list, which puts nothing up, and
+    the panel that was already open stays.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+    sent = seeded_thread(page, serve.page_dir, "#mounts-p")
+    threads = page.locator(".lf-thread-panel")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    marker = page.locator('[data-lf-margin-for="mounts-p"] .lf-margin-marker')
+    marker.focus()
+    page.keyboard.press("Enter")
+    expect(
+        threads.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')
+    ).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(marker).to_be_focused()
+    expect(threads).to_have_class(re.compile(r"\bopen\b"))
+
+
+@pytest.mark.parametrize("entry", ["note", "comment"])
+def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, entry):
+    """The card a press put up is that press's to take off whatever thread it shows.
+
+    `t` from the card walks it on to the next thread without a frame of its own, so the
+    one Escape still closes the card and hands back the place the press that put it up
+    displaced: the note, or the control `c` was pressed from. It must not land the reader
+    on the margin entry the card hangs from, which they never stood on.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+    seeded_thread(page, serve.page_dir, "#mounts-p")
+    seeded_thread(page, serve.page_dir, "#heater-p")
+    preview = page.locator(".lf-margin-preview")
+    card = preview.locator(".lf-conversation-thread")
+    if entry == "note":
+        stood = page.locator("#mounts-p .lf-mark-note")
+        stood.focus()
+        page.keyboard.press("Enter")
+        expect(card).to_be_focused()
+    else:
+        stood = page.locator("lf-option-control").first
+        stood.focus()
+        page.keyboard.press("c")
+        page.keyboard.type("A third thought.")
+        with sending(page, "the comment from the control"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        expect(card.locator("textarea")).to_be_focused()
+        # Off the reply box and onto the card, where `t` is the walk rather than a letter.
+        card.focus()
+    shown = card.get_attribute("data-thread")
+
+    page.keyboard.press("t")
+    expect(card).not_to_have_attribute("data-thread", shown)
+    expect(card).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(stood).to_be_focused()
+
+
+@pytest.mark.parametrize("second", ["note", "marker"])
+def test_a_press_that_puts_its_thread_in_a_standing_card_hands_itself_back(
+    browser, serve, second
+):
+    """A press from outside the card that puts its thread there is the card's way out.
+
+    The card shows one thread, so the second press has put up the card the reader now
+    sees, as a pointer press would have after the first card light-dismissed. One Escape
+    closes it and hands back the second note or marker, never the first note, whose
+    card the second press already replaced.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+    seeded_thread(page, serve.page_dir, "#mounts-p")
+    seeded_thread(page, serve.page_dir, "#heater-p")
+    preview = page.locator(".lf-margin-preview")
+    card = preview.locator(".lf-conversation-thread")
+    first = page.locator("#mounts-p .lf-mark-note")
+    first.focus()
+    page.keyboard.press("Enter")
+    expect(card).to_be_focused()
+    shown = card.get_attribute("data-thread")
+
+    stood = (
+        page.locator("#heater-p .lf-mark-note")
+        if second == "note"
+        else page.locator('[data-lf-margin-for="heater-p"] .lf-margin-marker')
+    )
+    stood.focus()
+    page.keyboard.press("Enter")
+    expect(card).not_to_have_attribute("data-thread", shown)
+    expect(card).to_be_focused()
 
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()

@@ -152,14 +152,15 @@ const innerEscape = (scope, active) => {
 // the list here instead was the same statement made where only one of the two shadowings
 // could be seen.
 //
-// The frame stands right after the inner steps, except when it stood the reader nowhere:
-// `g T`, the Threads toggle, a tray land on a floor, and what the reader did next is the
-// newer layer. Two kinds of step answer ahead of such a frame: the scope standing at the
-// focus — the text box's own way back out, for a box they entered by Tab or by pointer —
-// and any step rooted outside the surface the frame entered, which is whatever they have
-// since put on out on the page (`outsideCurrentFrame`). A frame that holds the standing
-// — `c` into its box, `r`, the walks — is the press that put them there, and keeps its
-// place ahead of the generic box escape so one Escape undoes the one press.
+// Escape takes off the newest thing the reader did, and a frame's place among the steps
+// follows from that. A frame that holds the standing — `c` into its box, `r`, the walks —
+// is the press that put the reader where they are, so it stands right after the inner
+// steps, ahead of the generic box escape, and one Escape undoes the one press. A frame
+// that stood them nowhere — `g T`, the Threads toggle, a tray landing on a floor — is
+// older than what they did next, so two kinds of step answer ahead of it: the scope
+// standing at the focus — the text box's own way back out, for a box they entered by Tab
+// or by pointer — and any step rooted outside the surface the frame entered, which is
+// whatever they have since put on out on the page (`outsideCurrentFrame`).
 // The Escape steps a scope is offering right now, by name. A row names its step where
 // one row stands for several — the fallback ladder's one command — and is otherwise its
 // own id.

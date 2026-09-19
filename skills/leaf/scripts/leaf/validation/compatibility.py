@@ -107,7 +107,13 @@ def candidate_vocabulary_gaps(
         the layer no longer speaks, which is not what happened: re-vendoring
         refused, and a reader reopening the closed thread re-acquired a coordinate
         no revision could restore.
+
+        A `leaf reply` transition checks itself by putting an unstamped
+        prospective anchor in front of this reading, and that one was written on
+        the candidate: it has no revision of its own to be read against.
         """
+        if not (event.get("anchor") or {}).get("visual"):
+            return None
         source = (
             page(event["revision"]) if type(event.get("revision")) is int else document
         )

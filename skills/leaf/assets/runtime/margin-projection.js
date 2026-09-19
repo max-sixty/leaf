@@ -34,15 +34,17 @@
    opened. Page Map and Go-to arrivals activate the exact visible control;
    they do not choose another action for the reader.
 
-   The thread card stays attached to its owning cluster. `thread-card-geometry.js` states
+   The thread card stands by its owning cluster, or, where the rail has no room for that
+   cluster, by the page target the cluster is about. `thread-card-geometry.js` states
    where it stands: in the rail beside the cluster when the room there takes the card's
    minimum measure, otherwise under or over the cluster with its right edge on the
    visible edge, so it crosses the column by no more than the rail's shortfall. The card
    keeps its height in every case; one too tall for its spot slides across its cluster
    rather than shrinking. This module supplies the visible boundary — the reading region
    or the viewport under the banner and over the bottom chrome — measures the card, and
-   closes it once its cluster has left that boundary. The card contains the complete inline conversation view; the
-   Threads panel remains the complete index and takes over when already open.
+   closes it once what it stands by has left that boundary. The card contains the
+   complete inline conversation view; the Threads panel remains the complete index and
+   takes over when already open.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -881,8 +883,15 @@ export function createMarginProjection({
       !previewMarginEntry?.isConnected
     )
       return false;
+    // A row the rail has no room for is withheld and has no box. A card placed against
+    // that empty box stood in the boundary's corner over the words the reader pressed,
+    // and read as detached before it had stood anywhere, so no scroll could dismiss it.
+    // It stands by the row's target instead. A row whose target is not shown is withheld
+    // too, and that target has no box to stand by either.
+    const row =
+      previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     const cluster = (
-      previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry
+      row.checkVisibility() ? row : (previewEntry?.target ?? row)
     ).getBoundingClientRect();
     const boundary = threadCardBoundary(previewEntry?.target);
     if (!boundary.width || !boundary.height) return false;

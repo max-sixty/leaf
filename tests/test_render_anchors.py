@@ -3956,6 +3956,39 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     expect(page.locator("[data-lf-thread]")).to_be_in_viewport(ratio=1)
 
 
+def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
+    """Without room for a rail, the thread's margin row is withheld and has no box. The
+    card used to stand against that empty box, in the boundary's top corner, over the
+    very words the reader had pressed; it stands by the passage instead."""
+    page, place_bottom = clearance_page(browser, serve)
+    resized(page, 820, 800)
+    expect(page.locator('[data-lf-margin-for="destination"]')).to_have_class(
+        re.compile(r"\blf-withheld\b")
+    )
+    place_bottom(-560)
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    boxes = page.evaluate(
+        """() => {
+          const card = document.querySelector('[data-lf-thread]').getBoundingClientRect();
+          const words = [...CSS.highlights.get('lf-mark')][0].getBoundingClientRect();
+          return {card: [card.top, card.bottom], words: [words.top, words.bottom]};
+        }"""
+    )
+    card, words = boxes["card"], boxes["words"]
+    assert card[1] <= words[0] or card[0] >= words[1], (
+        f"the card spans {card[0]:.0f}\u2013{card[1]:.0f} over the pressed words at "
+        f"{words[0]:.0f}\u2013{words[1]:.0f}"
+    )
+    # The same box decides when the card has outlived its subject. An empty one sits
+    # above the boundary's top edge, so the card read as detached from the first
+    # placement, never recorded that it had ever stood by anything, and so could never
+    # take the dismissal a scroll offers it: at these widths it hung there for the rest
+    # of the page's life. Anchored to the passage, it leaves when the passage does.
+    page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
+    expect(page.locator("[data-lf-thread]")).to_be_hidden()
+
+
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     """A `<button>` is activated by Enter and by Space, and a row that says so by hand can
     say half of it. This one did: the version menu's row carries no `run` — the platform

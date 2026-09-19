@@ -473,8 +473,8 @@ A close inside a test is a different thing, and it stays: a second tab shut to s
 what the first one still holds is the gesture the test is about, and the assertions
 after it are what read the close. So the rule is the ending, not the call, and
 `test_the_resources_a_fixture_owns_are_taken_from_that_fixture` reads for exactly
-that — a close in a `finally`, or a close as a test's last statement, on anything
-the browser fixture handed over. Its one exception is the page that keeps making
+that — a `finally` whose whole body is a close, or a close as a test's last
+statement, on anything the browser fixture handed over. Its one exception is the page that keeps making
 the fault its test is about, where the consume has to follow a close of its own.
 
 For the same reason nothing installs them a second time. `watched` returns the list a

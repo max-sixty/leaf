@@ -4,10 +4,12 @@ import json
 import re
 
 import pytest
+from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    ASK_PAGE,
     ASKS_PAGE,
     COMMAND_HUB_EXAMPLE,
     PANEL_PAGE,
@@ -2795,6 +2797,135 @@ def test_an_ask_walk_that_opens_the_panel_closes_it_in_one_escape(browser, serve
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_an_ask_walk_keeps_the_panel_it_opened_for_as_long_as_it_stands(browser, serve):
+    """The panel `a` opened for an Ask seated in a thread stays that press's to close
+    while the panel stands, as it is for every press that opens the panel.
+
+    A reader who steps off the Ask onto its thread's card lets go of the card first, as
+    that standing is theirs; the next Escape closes the panel and hands back the heading
+    `a` was pressed from, rather than leaving the panel's own rungs to close it onto
+    somewhere the reader never stood.
+    """
+    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    heading = page.locator("main h2").first
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    page.keyboard.press("a")
+    ask = page.locator(".lf-thread lf-ask[data-lf-ask]")
+    expect(ask).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    card = page.locator(".lf-thread").filter(has=page.locator("lf-ask"))
+    card.focus()
+    expect(card).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(heading).to_be_focused()
+
+
+def test_an_ask_walk_closes_the_panel_a_later_step_opened(browser, serve):
+    """A walk is one press however many Asks it steps through, so the panel a later step
+    opens for an Ask seated in a thread is the walk's to close: one Escape closes it and
+    hands back the heading the walk began from."""
+    url = serve(ASK_PAGE)
+    root = panel_comment(serve.page_dir, "Which one first?", {"section": "sec-mounts"})
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Choose the first job.",
+        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="first-mounts">The mounts</lf-option>'
+        '<lf-option id="first-heater">The heater</lf-option>'
+        "</lf-options></lf-ask>",
+        for_event=root,
+    )
+    page = open_page(browser, url)
+    threads = page.locator(".lf-thread-panel")
+    heading = page.locator("#sec-heater h2")
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    page.keyboard.press("a")
+    expect(page.locator("#bracket-decision")).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator("#tools-decision")).to_be_focused()
+    expect(threads).to_be_hidden()
+    page.keyboard.press("a")
+    expect(page.locator("#first-job-decision")).to_be_focused()
+    expect(threads).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(threads).to_be_hidden()
+    expect(heading).to_be_focused()
+
+
+def test_a_panel_a_newer_press_opened_is_not_the_ask_walks(browser, serve):
+    """The panel a walk's step opens is the walk's to close, and one a newer press opens
+    is that press's. After `a` to a page Ask and `g T`, an Ask the reader then stands on
+    in a thread is theirs to let go of first, onto the list, before `g T`'s own Escape
+    closes the panel."""
+    url = serve(ASK_PAGE)
+    root = panel_comment(serve.page_dir, "Which one first?", {"section": "sec-mounts"})
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Choose the first job.",
+        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="first-mounts">The mounts</lf-option>'
+        '<lf-option id="first-heater">The heater</lf-option>'
+        "</lf-options></lf-ask>",
+        for_event=root,
+    )
+    page = open_page(browser, url)
+    threads = page.locator(".lf-thread-panel")
+    heading = page.locator("#sec-heater h2")
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    page.keyboard.press("a")
+    expect(page.locator("#bracket-decision")).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    ask = page.locator("#first-job-decision")
+    ask.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    expect(ask).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(threads).to_be_visible()
+
+
+def test_a_thread_walk_closes_the_panel_a_later_step_opened(browser, serve):
+    """`t` with Threads shut reaches a thread the page places on its card, and one it
+    does not by opening the panel. The walk is one press however many threads it
+    visits, so one Escape closes the panel its later step opened and hands back the
+    heading the walk began from."""
+    url = serve(ASK_PAGE)
+    placed = panel_comment(
+        serve.page_dir,
+        "The heater draws too much.",
+        {"section": "heater-p", "quote": "Frozen eleven"},
+    )
+    loose = panel_comment(serve.page_dir, "And the page as a whole?")
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    threads = page.locator(".lf-thread-panel")
+    heading = page.locator("#sec-mounts h2")
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            f'.lf-margin-preview .lf-conversation-thread[data-thread="{placed}"]'
+        )
+    ).to_be_focused()
+    page.keyboard.press("t")
+    expect(threads.locator(f'.lf-thread[data-id="{loose}"]')).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(threads).to_be_hidden()
+    expect(heading).to_be_focused()
 
 
 def test_a_frame_holds_only_the_standing_its_own_press_made(browser, serve):

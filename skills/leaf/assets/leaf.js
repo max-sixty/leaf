@@ -69,7 +69,6 @@ import {
   wireThreadLanding,
 } from "./runtime/conversation/landing.js";
 import { createPanelComposer } from "./runtime/conversation/panel.js";
-import { focusSurface } from "./runtime/conversation/surfaces.js";
 import { focusedThreadOf } from "./runtime/conversation/focus.js";
 import { mountThreadList } from "./runtime/conversation/thread-list.js";
 import {
@@ -205,9 +204,10 @@ const { panelIsOpen } = panelVisibility;
 const auxiliaryModality = createAuxiliaryModality({ chromeRoot, focusable: FOCUSABLE });
 const navigation = createNavigation({
   panelIsOpen,
+  openingPanel: (...args) => threadPanelController.openingPanel(...args),
   coveringAuxiliaryScroller: auxiliaryModality.coveringScroller,
   threadDestinations: {
-    openPageThread: (...args) => app.margin.openPageThread(...args),
+    openThread: (...args) => app.margin.openThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
     activeInlineThread: () => app.margin.activeInlineThread(),
     inlineThreadView: () => app.margin.inlineThreadView,
@@ -308,7 +308,7 @@ landing = createConversationLanding({
 declareThreadKeys(landing.landIn);
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-  openThread: (...args) => app.margin.openPageThread(...args),
+  openThread: (...args) => app.margin.openThread(...args),
   withdrawReaction: (...args) => app.withdraw(...args),
   labelAnchor: anchorLabel,
   invalidateConversation: () => app.refreshConversation(),
@@ -379,7 +379,7 @@ app = mountApplication({
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  panelFrame: (...args) => threadPanelController.panelFrame(...args),
+  openingPanel: (...args) => threadPanelController.openingPanel(...args),
   panelIsOpen,
   panelCovers: () => layout.panelCovers(),
   onConversationChanged: repaint,
@@ -458,6 +458,7 @@ asks = createAskView({
   presentedControl: app.margin.presentedControl,
   projectionTarget: app.margin.marginTargetAt,
   setPanel: (...args) => threadPanelController.setPanel(...args),
+  openingPanel: (...args) => threadPanelController.openingPanel(...args),
   setOpenTray: (...args) => trays.setOpenTray(...args),
   trayCovers: () => trays.traysEdge.over.matches,
   readableDestination: anchorTravel.readableDestination,
@@ -491,8 +492,7 @@ selectionComposer = createSelectionComposer({
   setReact: (...args) => reactions.setReact(...args),
   reactionTokens,
   designModeActive: designMode.active,
-  marginOpenInlineThread: app.margin.openInlineThread,
-  marginThreadFrame: app.margin.threadFrame,
+  openThread: app.margin.openThread,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
   anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
@@ -505,7 +505,6 @@ selectionComposer = createSelectionComposer({
   showFab: (...args) => responseSurface.showFab(...args),
   formatGoToAddress: (...args) => goToSequence.formatGoToAddress(...args),
   createComment: app.createComment,
-  focusSurface,
   showThread: landing.showThread,
   refreshConversation: app.refreshConversation,
   wireInput: inputs.wireInput,
@@ -544,7 +543,7 @@ responseSurface = createResponseSurface({
   closeShortcutShelf: (...args) => closeShortcutShelf(...args),
   closeVersionMenu: version.closeVersionMenu,
   versionMenuIsOpen,
-  openPageThread: app.margin.openPageThread,
+  openThread: app.margin.openThread,
   drawModeActive: () => drawing.drawModeActive(),
   refreshConversation: app.refreshConversation,
   responseHome: chromeRoot,

@@ -306,6 +306,49 @@ def test_a_held_inline_reply_reveal_yields_to_new_reader_focus(browser, serve):
     expect(destination).not_to_have_class(re.compile(r"\bflash\b"))
 
 
+@pytest.mark.parametrize("panel_open", [False, True])
+def test_a_message_taken_into_threads_hands_its_button_back(browser, serve, panel_open):
+    """The button that takes a seated message into Threads is a press like any other.
+
+    One Escape takes off what it put up and gives the reader the button back: the panel
+    the press opened, or nothing when the panel already stood beside the page, which
+    stays open.
+    """
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
+    reply = conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Choose the first job.",
+        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="mounts">Put the mounts back</lf-option>'
+        '<lf-option id="camera">Install the camera</lf-option>'
+        "</lf-options></lf-ask>",
+        for_event=root,
+    )
+    page = open_page(browser, url)
+    threads = page.locator(".lf-thread-panel")
+    if panel_open:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+    button = page.locator(
+        f'#jobs .lf-conversation-thread[data-thread="{root}"] .lf-conversation-open'
+    )
+    button.focus()
+    page.keyboard.press("Enter")
+    expect(threads.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(button).to_be_focused()
+    if panel_open:
+        expect(threads).to_have_class(re.compile(r"\bopen\b"))
+    else:
+        expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
+
+
 @pytest.mark.parametrize("response", ["reply", "version"])
 def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
     browser, serve, response

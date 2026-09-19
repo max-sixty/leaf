@@ -123,6 +123,9 @@ export function conversationInput(node) {
 }
 
 export const heldConversation = () => focused() && closestAcross(focused(), SAYS_IN);
+// Asked of the box rather than the container's class: a resolved thread is built by the
+// same function and wears the same class with no box to reach, and a collapsed one
+// answers the same way.
 export const standingConversation = () => {
   const held = heldConversation();
   const box = conversationInputOf(held);

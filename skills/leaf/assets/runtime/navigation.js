@@ -36,7 +36,7 @@ const threadPosition = (activeInlineThread, panelIsOpen) => {
 // Once the panel is open, the walk stays in its list. Both paths are clamped, not wrapped.
 function stepThread(
   dir,
-  { openPageThread, scrollToThread, activeInlineThread },
+  { openThread, scrollToThread, activeInlineThread },
   panelIsOpen,
 ) {
   const threads = openThreads({ visibleOnly: panelIsOpen() });
@@ -47,7 +47,7 @@ function stepThread(
   const next = clampedRow(threads, current, dir);
   if (!next) return;
   if (!panelIsOpen()) {
-    openPageThread(next.dataset.id, { focus: "thread" });
+    openThread(next.dataset.id, { focus: "thread" });
     announce(
       beginWalk("thread", "Thread", () =>
         threadPosition(activeInlineThread, panelIsOpen),
@@ -189,6 +189,7 @@ export function stopGlide(box) {
 
 export function createNavigation({
   panelIsOpen,
+  openingPanel,
   coveringAuxiliaryScroller,
   threadDestinations,
 }) {
@@ -231,8 +232,12 @@ export function createNavigation({
     // view for the rest, so a press that opened that view is an entry even from a
     // standing on a seated thread, and the frame dismisses the view on the way back;
     // the rail control the view hangs from is nowhere the reader stood, so it is
-    // nowhere on the way out. The frame is its own entry rather than the view's,
-    // because the walk outlives the view when it steps on to a seated thread.
+    // nowhere on the way out. A thread with no place on the page opens the panel, at the
+    // walk's first step or a later one, and the panel's own frame then answers for the
+    // walk (`openingPanel`). A step made standing on a thread while the view shows adds no
+    // frame of its own: the press that put the view up holds the walk, for as long as its
+    // frame lives. The frame is its own entry rather than the view's, because the walk
+    // outlives the view when it steps on to a seated thread.
     returnFrame: () => {
       if (panelIsOpen()) {
         if (focusedThreadOf()) return null;
@@ -247,10 +252,11 @@ export function createNavigation({
       const view = inlineThreadView();
       const standingBefore = Boolean(activeInlineThread());
       const showingBefore = view.showing();
+      if (standingBefore && showingBefore) return null;
       // Whether the press was an entry is read once, on the stack's first look after
       // the run: it stood the reader on a thread, or it opened the view.
       let entered = null;
-      return {
+      return openingPanel({
         active: () => {
           entered ??= !standingBefore || (!showingBefore && view.showing());
           return entered && Boolean(activeInlineThread());
@@ -259,8 +265,11 @@ export function createNavigation({
         does: () =>
           view.showing() ? "Dismiss the conversation view" : "Let go of the thread",
         line: () => (view.showing() ? "dismiss conversation" : "let go"),
+        // In the panel the walk stands the reader on a thread's card; a control inside one,
+        // reached any other way, is theirs to leave first.
+        standing: () => !panelIsOpen() || focused() === focusedThreadOf(),
         ownEntry: true,
-      };
+      });
     },
     run: (binding) => walkThreads(binding === "t" ? 1 : -1),
   });

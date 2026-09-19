@@ -22,6 +22,7 @@ import {
   threadSearchActive,
 } from "./conversation/narrowing.js";
 import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
+import { word } from "./keyboard/bindings.js";
 import { pageRung } from "./keyboard/register.js";
 
 export const THREAD_PANEL_KEY = "lf-thread-panel-open";
@@ -118,8 +119,8 @@ export function createThreadPanelController({
     refreshHover();
   }
   // The frame of a press that opened the panel, one shape for every door: the toggle,
-  // `g T`, a page mark whose thread has no place on the page. `carried` is the thread the
-  // press stood the reader on, if it did.
+  // `g T`, and through `openingPanel` below, every press that opens it on the way to a
+  // thread or an Ask. `carried` is the thread the press stood the reader on, if it did.
   //
   // A narrowing the reader put on inside the panel is the newer layer, by a chip they
   // clicked or a `w` whose own frame has already gone, so the frame's close takes that
@@ -137,7 +138,7 @@ export function createThreadPanelController({
   // Opening the list stands the reader nowhere; opening to a thread stands them on its
   // card, for as long as they stay on it — a Tab to another card is a standing of their
   // own, theirs to let go of first.
-  const panelFrame = ({
+  const panelFrameOf = ({
     carried = null,
     does = "Close the thread panel",
     line = "close threads",
@@ -159,6 +160,49 @@ export function createThreadPanelController({
       standing: () =>
         carried !== null &&
         panel.querySelector(".lf-thread:focus-within")?.dataset.id === carried,
+    };
+  };
+  // Every press that records a frame able to take the panel off counts itself here, so a
+  // frame can tell the panel's opening by its own press, or a later step of its walk,
+  // from one made by a newer press that took the panel on as its own.
+  let presses = 0;
+  const panelFrame = (options) => {
+    presses += 1;
+    return panelFrameOf(options);
+  };
+
+  // The frame of a press that may open the panel on its way to where it stands the
+  // reader, whether its first step opens it or a later step of the same walk does. `own`
+  // is the press's frame while the panel stays as the press found it; once the press has
+  // opened the panel, the panel's frame answers instead, holding while the panel stands
+  // and holding the standing while `own` says it would. Read on every look rather than
+  // once, since a walk's later step opens the panel as often as its first; a walk's steps
+  // record no frame, so an opening with no newer press behind it is the walk's, and one
+  // made under a newer press's frame, the toggle's or `g T`'s, is that press's alone.
+  const openingPanel = (own) => {
+    presses += 1;
+    const panelWasShut = !panelIsOpen();
+    let since = presses;
+    let mine = null;
+    const opened = { ...panelFrameOf(), standing: own.standing ?? true };
+    // Judged at the first look that finds the panel open, and again for each reopening
+    // after one this frame saw close.
+    const half = () => {
+      if (!panelIsOpen()) {
+        if (mine !== null) [since, mine] = [presses, null];
+        return own;
+      }
+      mine ??= panelWasShut && presses === since;
+      return mine ? opened : own;
+    };
+    return {
+      active: () => half().active(),
+      close: () => half().close(),
+      does: () => word(half().does),
+      line: () => word(half().line),
+      standing: () => word(half().standing) ?? true,
+      surface: () => word(half().surface),
+      ownEntry: own.ownEntry ?? false,
     };
   };
   function mountThreadPanel() {
@@ -229,5 +273,5 @@ export function createThreadPanelController({
       : null,
   );
 
-  return { setPanel, panelFrame, mountThreadPanel };
+  return { setPanel, panelFrame, openingPanel, mountThreadPanel };
 }

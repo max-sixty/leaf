@@ -29,10 +29,10 @@ import {
 } from "../drafts.js";
 
 import { threadsBox } from "../conversation/panel-elements.js";
-import { landTyping, mayLandTyping } from "./capture.js";
+import { mayLandTyping } from "./capture.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { currentOrigin, invoke, readingPlace } from "../keyboard/layer-stack.js";
+import { currentOrigin, readingPlace } from "../keyboard/layer-stack.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
@@ -128,8 +128,7 @@ export function createSelectionComposer({
   setReact,
   reactionTokens,
   designModeActive,
-  marginOpenInlineThread,
-  marginThreadFrame,
+  openThread,
   threadTransitionOrigin,
   anchorStands,
   anchorTargetAt,
@@ -142,18 +141,11 @@ export function createSelectionComposer({
   showFab,
   formatGoToAddress,
   createComment,
-  focusSurface,
   showThread,
   refreshConversation,
   wireInput,
 }) {
   const closeReactions = () => setReact(false);
-  const openInlineThread = (id, options) => {
-    const local = focusSurface(id);
-    return (
-      local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, options)
-    );
-  };
 
   // What the open composer's comment is about: "design" for one opened in design mode, so
   // the anchor chosen there — a widget, a control, a runtime part — posts with the word
@@ -640,7 +632,7 @@ export function createSelectionComposer({
         // choosing the destination: otherwise an already-open panel can be asked to
         // focus a pending thread before the thread exists.
         await refreshConversation();
-        let reply = threadsBox.querySelector(
+        const reply = threadsBox.querySelector(
           `.lf-thread[data-id="${sent.id}"] textarea`,
         );
         // A later draft or selection keeps its focus. The accepted comment still belongs
@@ -649,46 +641,15 @@ export function createSelectionComposer({
           composerEpoch === epoch &&
           loadDraft(ctx) === null &&
           mayLandTyping(reply, composerInput);
+        if (!shouldLand) {
+          if (panelIsOpen()) await showThread(sent.id, { focus: false });
+          return;
+        }
         // Continue in the surface already in use. Closing an open panel here reflows the
         // passage just as the reader's comment moves across it to a new floating card.
-        // Whichever surface that is, the comment press took the reader there, so the
-        // landing enters the stack with the place that press displaced.
-        let landedIn = null;
-        const land = async () => {
-          const inlineThread =
-            shouldLand && !panelIsOpen()
-              ? openInlineThread(sent.id, {
-                  transition,
-                  onPositioned: (thread) =>
-                    landTyping(thread.querySelector("textarea"), composerInput),
-                })
-              : null;
-          const inlineReply = inlineThread?.querySelector("textarea") ?? null;
-          // Expand the destination before placement so Floating UI measures the final
-          // card. Focus still waits for that placement; it must not change the measured
-          // shape.
-          inlineReply?.lfRevealReply?.();
-          reply = inlineReply ?? reply;
-          if (!inlineReply && (shouldLand || panelIsOpen())) {
-            await showThread(sent.id, { focus: shouldLand ? "reply" : false });
-            reply ??= threadsBox.querySelector(
-              `.lf-thread[data-id="${sent.id}"] textarea`,
-            );
-          }
-          // The composer this was sent from is gone with the send; the thread it became
-          // carries the same conversation, so its reply box is where typing continues.
-          if (shouldLand && !inlineReply) landTyping(reply, composerInput);
-          if (shouldLand) landedIn = inlineThread ?? reply?.closest(".lf-thread");
-        };
-        await invoke(
-          {
-            id: "comment.sent",
-            returnFrame: () => marginThreadFrame(() => landedIn),
-          },
-          null,
-          land,
-          entered,
-        );
+        // The composer this was sent from is gone with the send; the thread it became
+        // carries the same conversation, so its reply box is where typing continues.
+        await openThread(sent.id, { travel: false, origin: entered, transition });
       },
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);

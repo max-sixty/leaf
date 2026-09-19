@@ -25,13 +25,6 @@
    according to whether its question was still open. The two agree wherever the reader is
    working the ask, which is every arrival the ask walk makes.
 
-   `standingConversation` (conversation/landing.js) is the exception, and covers all three
-   containers that hold a conversation the reader can stand in: the panel's thread, a
-   conversation seated on the page, and each thread inside that seat. It asks for the box
-   rather than for the container's class, because a resolved thread is built by the same
-   function and wears the same class while having no box to reach, and a collapsed one
-   answers the same honest way.
-
    `landed` stores where the ask walk last arrived. This is distinct from focus:
    clicking elsewhere removes the focus-derived ring without erasing either the walk's
    useful continuation point or the answer progress in the banner.
@@ -158,6 +151,7 @@ import {
 export function createAskView({
   panelIsOpen,
   setPanel,
+  openingPanel,
   setOpenTray,
   trayCovers,
   readableDestination,
@@ -1264,21 +1258,21 @@ export function createAskView({
     // hands back the place it displaced, a later press made standing on an Ask is a step
     // within that standing. An Ask seated in a thread is reached through the panel, so a
     // press made with the panel shut opens it on the way, and that opening is the press's
-    // own to undo in the same one Escape. The arrival is asynchronous, and `run` returns
-    // it, so the stack judges this frame once the reader is standing.
+    // own to undo, whichever step of the walk opened it, by the panel's own frame, which
+    // holds while the panel stands (`openingPanel`). While the panel stays as the press
+    // found it, the frame hands the place back while the reader stands on an Ask. The
+    // arrival is asynchronous, and `run` returns it, so the stack judges this frame once
+    // the reader is standing.
     returnFrame: () => {
       if (standingAsk()) return null;
-      const panelWasShut = !panelIsOpen();
-      const opened = () => panelWasShut && panelIsOpen();
-      return {
-        active: () => Boolean(standingAsk()),
-        close: () => {
-          if (opened()) setPanel(false);
-        },
-        does: () =>
-          opened() ? "Close the thread panel" : "Let go of what you are standing on",
-        line: () => (opened() ? "close threads" : "let go"),
-      };
+      const standsOn = () => Boolean(standingAsk());
+      return openingPanel({
+        active: standsOn,
+        close: () => {},
+        does: "Let go of what you are standing on",
+        line: "let go",
+        standing: standsOn,
+      });
     },
     run: (binding) => stepAsk(binding === "a" ? 1 : -1),
   });

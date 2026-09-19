@@ -6039,6 +6039,43 @@ def test_a_press_that_puts_its_thread_in_a_standing_card_hands_itself_back(
     expect(stood).to_be_focused()
 
 
+@pytest.mark.parametrize("panel_open", [False, True])
+def test_a_thread_chosen_in_the_page_map_hands_its_marker_back(
+    browser, serve, panel_open
+):
+    """The Page Map hands the reader to the entry's margin marker as it closes, and a
+    thread's row takes them from there into that thread in Threads. One Escape takes off
+    what the row put up — the panel, when it opened it — and gives the marker back,
+    leaving a panel that already stood open.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+    sent = seeded_thread(page, serve.page_dir, "#mounts-p")
+    threads = page.locator(".lf-thread-panel")
+    if panel_open:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible()
+    dialog.locator('.lf-page-map-action[data-lf-map-item^="comment:"]').click()
+    expect(dialog).to_be_hidden()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')
+    ).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(
+        page.locator('[data-lf-margin-for="mounts-p"] .lf-margin-marker')
+    ).to_be_focused()
+    if panel_open:
+        expect(threads).to_have_class(re.compile(r"\bopen\b"))
+    else:
+        expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
+
+
 # Read the card with the selected target's whole control cluster. A card the rail cannot
 # hold beside that cluster keeps it clear, takes the card's minimum measure, and puts
 # its right edge on the visible edge, so it crosses the column by only what the rail lacks.

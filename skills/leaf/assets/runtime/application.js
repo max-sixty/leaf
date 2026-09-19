@@ -308,7 +308,7 @@ export function mountApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
-    showThread: dependencies.showThread,
+    openThread: (...args) => margin.openThread(...args),
     landInConversation: dependencies.landInConversation,
   };
   const cardView = {
@@ -364,7 +364,7 @@ export function mountApplication(dependencies) {
     renderMarginThread: (host, thread) => renderMarginThread(host, thread, inlineView),
     placedAt: dependencies.anchorPaint.placedAt,
     showThread: dependencies.showThread,
-    panelFrame: dependencies.panelFrame,
+    openingPanel: dependencies.openingPanel,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
   });

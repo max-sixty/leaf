@@ -78,9 +78,10 @@ the layer they are in, the panel's list or the page's body, and it is an inner s
 because standing is the newest thing they did. A press that stood them there records a
 frame, and a frame holds the standing unless it says `standing: false` because its
 press stood the reader nowhere, so that frame answers in the stack's order instead; a
-walk pushes one such frame for however many steps it takes. A pointer press that takes
-the reader into a layer — the Threads toggle, a margin marker or its option row, a page
-mark or its note — is a command too, and records its frame with the place the press
+walk pushes one such frame for however many steps it takes, and a panel any of those
+steps opened closes in that frame's one Escape (`openingPanel`). A pointer press that
+takes the reader into a layer — the Threads toggle, a margin marker or its option row, a
+page mark or its note — is a command too, and records its frame with the place the press
 displaced, read before the press moved focus: the Escape out of a clicked-open panel or
 conversation view hands back the page the reader was reading, never the control the
 click happened to focus, and a keyboard activation of the same control, whose place was
@@ -99,7 +100,8 @@ from or the list around the thread. One press is one rung however many surfaces 
 it, so the composer's frame says `handsOn`, and the send reads the place it recorded
 through `currentOrigin` while the box still stands; where no frame stands, because the
 pointer had put the reader on the page, `readingPlace`, beside `pressOrigin`, is that
-page as a place. A close by pointer — the view's ×, the panel's Close — takes the layer
+page as a place, and with a control, the one a handoff stood the reader on before the
+press acted. A close by pointer — the view's ×, the panel's Close — takes the layer
 off without handing back the place its press displaced: the pointer is already on the
 surface that is closing, so focus lands on the surviving control that reopens it.
 `layer-stack.js` carries the mechanism.

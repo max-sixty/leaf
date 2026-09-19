@@ -32,6 +32,7 @@ import {
 import { rememberPassageParts } from "../widget-loader.js";
 import { createReceipt } from "./acknowledgments.js";
 import { ReactionStripView } from "./reaction-strips.js";
+import { pressOrigin } from "../keyboard/layer-stack.js";
 
 export const loadMarked = () =>
   loadMarkdown((error) =>
@@ -278,7 +279,11 @@ export class MessageView {
                 class="lf-btn lf-conversation-open lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
-                @click=${() => this.#commands.showThread(this.#model.id)}
+                @click=${() =>
+                  this.#commands.openThread(this.#model.id, {
+                    threads: true,
+                    origin: pressOrigin(),
+                  })}
               >
                 Open interactive reply in Threads
               </button>`

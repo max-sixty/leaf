@@ -120,15 +120,15 @@
 
    A pointer press that takes the reader into a layer, opening it or finding it standing,
    is a command too, and enters through `invoke` with the place it displaced: the Threads
-   toggle, a margin marker or its unfolded option row, a page mark, its note. A pointer moves focus onto what it pressed before the
-   click arrives, so that place is read at pointerdown and handed out by `pressOrigin`; a
-   keyboard activation's click finds no press in flight and reads focus at the click,
-   which is the control the reader stood on. The Escape that closes a clicked-open panel
-   or conversation view therefore hands back the reader's place before the click — the
-   page, for a reader who was reading — and never the control the click happened to
-   focus. A close by pointer — the view's ×, the panel's Close — is not that way out: the
-   pointer is already on the surface that is closing, and focus lands on the surviving
-   control that reopens it. */
+   toggle, a margin marker or its unfolded option row, a page mark, its note. A pointer
+   moves focus onto what it pressed before the click arrives, so that place is read at
+   pointerdown and handed out by `pressOrigin`; a keyboard activation's click finds no
+   press in flight and reads focus at the click, which is the control the reader stood
+   on. The Escape that closes a clicked-open panel or conversation view therefore hands
+   back the reader's place before the click — the page, for a reader who was reading —
+   and never the control the click happened to focus. A close by pointer — the view's ×,
+   the panel's Close — is not that way out: the pointer is already on the surface that
+   is closing, and focus lands on the surviving control that reopens it. */
 import { word } from "./bindings.js";
 import { focused } from "./scopes.js";
 import { focusDestination } from "../focus.js";
@@ -205,14 +205,16 @@ export function pressOrigin() {
   return pressed ? capturePlace(pressed.control) : capturePlace();
 }
 
-// The page the reader is on, with no control in it, as a place a frame can hand back.
-// `pressOrigin` names what a press displaced; this names what a press displaced when the
-// reader held no control to begin with, because the pointer or their last landing had
-// already put them on the page. One reading either way, carrying a control or not.
-export function readingPlace() {
+// The page the reader is on, as a place a frame can hand back, standing on `control`
+// if the runtime has put them on one. `pressOrigin` names what a press displaced, read
+// off the press itself; this names it where the press is not what put the reader there:
+// the page, when the pointer or their last landing had already put them on it holding no
+// control, or the control a handoff stood them on just before the press acted, as the
+// Page Map's departure does on an entry's margin marker.
+export function readingPlace(control = null) {
   if (!capturePlace)
     throw new Error("leaf: readingPlace read before the keyboard mounted");
-  return capturePlace(null);
+  return capturePlace(control);
 }
 
 // The place recorded by the frame standing over the page, for a surface that hands its

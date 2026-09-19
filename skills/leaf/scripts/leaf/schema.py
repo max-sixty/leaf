@@ -57,7 +57,7 @@ ANSWER_ASK_INSTRUCTION = (
     "`leaf conversation read <page> <id>` prints one exact bounded history. A "
     "conversation with "
     "`response.kind: version` is answered by revising the page and resolving it; open a "
-    "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
+    "separate `leaf comment <page> --section <ask-id>` on the same Ask if that revision "
     "needs an answer first. Answer each reply through the active host's reply "
     "interface. A host may bind the current response to its normal final message; "
     "CLI hosts use `leaf reply <page> --text ...`, selecting an event with `--for "

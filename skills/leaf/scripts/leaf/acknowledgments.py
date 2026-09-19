@@ -135,7 +135,7 @@ def canonical_acknowledgments(
     clarifications = [
         (thread["root"]["seq"], seat)
         for thread in threads.values()
-        if thread["root"]["author"] == "claude"
+        if thread["root"]["author"] == "agent"
         and not thread["resolved"]
         and not awaits_agent(thread)
         and (seat := seat_root(thread))
@@ -143,14 +143,13 @@ def canonical_acknowledgments(
     for thread_id, thread in threads.items():
         turns = spoken_turns(thread)
         unanswered = next(
-            (message for message in reversed(turns) if message["author"] != "claude"),
+            (message for message in reversed(turns) if message["author"] != "agent"),
             None,
         )
         if thread["resolved"] or unanswered is None:
             continue
         if any(
-            message["author"] == "claude"
-            and message.get("responds") == unanswered["id"]
+            message["author"] == "agent" and message.get("responds") == unanswered["id"]
             for message in turns
         ):
             continue
@@ -228,7 +227,7 @@ def canonical_acknowledgments(
                 continue
             settled = any(
                 message["kind"] == "reply"
-                and message["author"] == "claude"
+                and message["author"] == "agent"
                 and message.get("responds") == source["id"]
                 for message in thread["msgs"]
             )

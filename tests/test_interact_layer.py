@@ -33,9 +33,9 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
-from leaf import host as host_model
 from leaf import layer as layer_model
 from leaf import locations as interact_locations
+from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
@@ -970,6 +970,143 @@ def test_every_vendored_stylesheet_parses(page_dir):
         assert not _css_parse_errors(rules), f"{name}: {_css_parse_errors(rules)}"
 
 
+_FACE = frozenset(
+    {
+        "appearance",
+        "background",
+        "background-color",
+        "border",
+        "border-color",
+        "border-radius",
+        "border-width",
+        "color",
+        "cursor",
+        "font",
+        "font-family",
+        "font-size",
+        "font-style",
+        "font-weight",
+        "letter-spacing",
+        "line-height",
+        "opacity",
+        "padding",
+        "resize",
+        "text-align",
+        "text-transform",
+    }
+)
+
+
+def _selector_list(prelude):
+    """The complex selectors in a prelude, split on the commas separating them.
+
+    `str.split` cannot do it: the commas inside `:is(button, [role="button"])` separate
+    that function's arguments rather than the rule's subjects."""
+    text = tinycss2.serialize(prelude)
+    selectors, depth, start = [], 0, 0
+    for at, char in enumerate(text):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif char == "," and not depth:
+            selectors.append(text[start:at])
+            start = at + 1
+    selectors.append(text[start:])
+    return [" ".join(one.split()) for one in selectors if one.strip()]
+
+
+# The at-rules whose contents are style rules that match elements. An animation's
+# stops and a registered property's descriptors are neither, and reading them would
+# have `0%` in one sheet tie with `0%` in another — two animations sharing nothing,
+# reported as a selector both sheets dress.
+_HOLDS_RULES = {"media", "supports", "container", "scope", "layer"}
+
+
+def _stated_faces(sheet, *, only_top_level):
+    """{complex selector: {property}} for every rule stating a shared visual property.
+
+    A selector list is split because a rule dressing four shapes states the same fact
+    about each, and the other sheet's copy may name only one of them."""
+    stated = {}
+
+    def visit(rules):
+        for rule in rules:
+            if rule.type == "at-rule":
+                if rule.lower_at_keyword not in _HOLDS_RULES:
+                    continue
+                if only_top_level and rule.lower_at_keyword in {"scope", "layer"}:
+                    continue
+                if rule.content is not None:
+                    visit(
+                        tinycss2.parse_rule_list(
+                            rule.content, skip_comments=True, skip_whitespace=True
+                        )
+                    )
+                continue
+            if rule.type != "qualified-rule":
+                continue
+            properties = {
+                declaration.lower_name
+                for declaration in tinycss2.parse_declaration_list(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+                if declaration.type == "declaration" and declaration.lower_name in _FACE
+            }
+            if properties:
+                for selector in _selector_list(rule.prelude):
+                    stated.setdefault(selector, set()).update(properties)
+
+    visit(
+        tinycss2.parse_stylesheet(
+            sheet.read_text(), skip_comments=True, skip_whitespace=True
+        )
+    )
+    return stated
+
+
+def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
+    """chrome.css is adopted, so it cascades after theme.css and after every package
+    theme concatenated onto it. One selector dressed for the same property in both
+    sheets therefore has one copy that never applies — the adopted one wins whatever the
+    other says — and nothing catches it, because no test and no browser gate can read a
+    rule that never applied.
+
+    The chip and the thread mark's note were written that way on purpose, restated in
+    theme.css for the shadow roots the adopted sheet cannot reach, and the two copies
+    had drifted: theme.css's chip cleared the platform's button face and chrome.css's
+    did not, so in the light DOM that reset had never once run.
+
+    Only chrome.css's top level is asked. A rule inside its `@scope` is private to the
+    chrome root and matches nothing a page-side sheet dresses, and a rule inside its
+    `@layer` loses to any unlayered choice whatever its specificity, so neither can win
+    this way.
+
+    One selector spelled the same on both sides is what this reads, which is the shape
+    a copy takes. Two different selectors that tie on one element are the same defect
+    and cannot be seen in a file; test_the_adopted_sheet_decides_nothing_by_standing_last
+    puts that question to a browser."""
+    adopted = _stated_faces(
+        schema_model.ASSETS / "runtime" / "chrome.css", only_top_level=True
+    )
+    assert adopted, "no top-level faces read from chrome.css — the reading is broken"
+    twice = []
+    for sheet in [
+        schema_model.ASSETS / "theme.css",
+        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
+    ]:
+        for selector, properties in _stated_faces(sheet, only_top_level=False).items():
+            both = properties & adopted.get(selector, set())
+            if both:
+                where = f"{sheet.parent.name}/{sheet.name}"
+                twice.append(
+                    f"`{selector}` states {sorted(both)} in chrome.css and {where}"
+                )
+    assert not twice, (
+        "a face stated twice, where only the adopted copy applies:\n" + "\n".join(twice)
+    )
+
+
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     """A media query cannot read a custom property, so the sheets state the covering
     widths, the strip-taking tray, the width properties, and the Ask stamp as literals
@@ -1349,7 +1486,7 @@ def test_the_layer_composer_is_the_browser_module_population():
 
 def test_every_test_runs_against_a_throwaway_state_home(tmp_path_factory):
     """Fixture claims and installed packages stay outside the developer's state."""
-    assert host_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
+    assert machine_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
 
 
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):
@@ -2636,7 +2773,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
 
     installed = runner.invoke(cli_model.cli, ["package", "install", str(source)])
 
-    stored = host_model.package_store() / "callout"
+    stored = machine_model.package_store() / "callout"
     assert installed.exit_code == 0, installed.output
     assert installed.output == f"installed {stored}\n"
     assert sorted(path.name for path in stored.iterdir()) == [
@@ -2671,7 +2808,7 @@ def test_package_install_never_changes_which_directory_a_name_means(
     """
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    store = host_model.package_store()
+    store = machine_model.package_store()
     for name in ("callout", "diagram"):
         created = runner.invoke(cli_model.cli, ["package", "init", f"src/{name}"])
         assert created.exit_code == 0, created.output
@@ -2727,7 +2864,7 @@ def test_package_install_refuses_a_source_it_cannot_check_or_name(
     assert f"{broken / 'theme.css'} syntax error" in failed.output
     assert misnamed.exit_code != 0
     assert "'Callout Package' cannot be selected by name" in misnamed.output
-    assert not host_model.package_store().exists()
+    assert not machine_model.package_store().exists()
 
 
 def test_package_init_ignores_unselected_packages(tmp_path, monkeypatch):

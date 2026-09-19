@@ -6,6 +6,7 @@ from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
 from render_harness import (
     RENDERED,
+    SHELL_BOX,
     leaf_page,
 )
 
@@ -819,11 +820,16 @@ DIFF_LANDING = """() => {
 # main's content box, body's, the page's own box, and where each named element stands in
 # them. Read together in one pass because the whole subject is their relation: a width
 # means nothing here except against the column it is or isn't wider than.
-ROOM_GEOMETRY = """() => {
+ROOM_GEOMETRY = (
+    """() => {
+    // A content box: inside the border as well as the padding. Body's border is the strip a
+    // standing panel or tray takes, so leaving it in would put the room's right edge at the
+    // window and let anything run under the panel.
     const span = (el) => {
         const s = getComputedStyle(el), b = el.getBoundingClientRect();
-        const left = b.left + parseFloat(s.paddingLeft);
-        const right = b.right - parseFloat(s.paddingRight);
+        const left = b.left + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft);
+        const right = b.right - parseFloat(s.borderRightWidth)
+            - parseFloat(s.paddingRight);
         return { left, right, width: right - left, centre: (left + right) / 2 };
     };
     const box = (id) => {
@@ -835,21 +841,18 @@ ROOM_GEOMETRY = """() => {
                  centre: (b.left + b.right) / 2 };
     };
     // The CSS shell's box. It is not the window: the root owns document scrolling and
-    // reserves a stable gutter, while body margins yield room to auxiliary surfaces.
+    // reserves a stable gutter, while body's border yields room to auxiliary surfaces.
     // `room` above is the body's content box; this reading includes the full shell so
     // the test can tell which edge that room came out of.
-    const page = () => {
-        const b = document.body, s = getComputedStyle(b);
-        const left = b.getBoundingClientRect().left + parseFloat(s.borderLeftWidth);
-        return { left, right: left + b.clientWidth, width: b.clientWidth,
-                 centre: left + b.clientWidth / 2 };
-    };
     return { column: span(document.querySelector('main')),
-             room: span(document.body), pageBox: page(),
+             room: span(document.body), pageBox: """
+    + SHELL_BOX
+    + """,
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
              note: box('note'), later: box('later'),
              sideways: document.body.scrollWidth - document.body.clientWidth };
 }"""
+)
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
 # frame, the option's card, the metric, the nested task's rail, the note a code block
 # builds, the page's own div) and a wrapper that doesn't (a plain section). The div is

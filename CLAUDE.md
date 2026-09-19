@@ -10,6 +10,13 @@ code. Prefer the simpler interface even when it is incompatible. Delete and
 regenerate stale state. Add a guard only for a reachable condition with a useful
 response.
 
+Nothing is owed to what an older version wrote. A change needs no migration, no
+shim that reads the old shape, and no dated note promising to remove one:
+claims, logs, and pages vendored against an earlier runtime are regenerated or
+thrown away. The handoff says nothing about them either. Steps for reviving
+stranded state are that same migration written in prose, and they spend the
+user's attention on state nobody needs.
+
 The suite does not constrain new code either. Agents wrote every test in
 `tests/`, and most are overfit on the implementation they were written against:
 they assert the shape the code happened to take rather than the behavior a
@@ -146,7 +153,11 @@ one transaction-consistent browser view. JavaScript combines that view with
 authored initial values and unresolved local gestures to derive complete widget
 and conversation state. Every forward gesture whose semantic result the page can draw is on
 screen in the turn that sends it, before the log answers; a disabled control, spinner,
-or other delivery status is not that result. Refusal restores the authoritative state.
+or other delivery status is not that result. What the page can draw is what its own
+document settles: a widget's state, a thread's turn. Which Asks the document still holds
+and which of them the reader owes are settled by the whole log, so that reading moves
+when the state a gesture's own POST returns is adopted, and the browser never folds a
+second answer to it. Refusal restores the authoritative state.
 Widgets render that state, including unset and undecided values; undo
 does not reconstruct widgets or replay baseline actions into the DOM. Page-widget
 state is bounded by document version; widgets frozen into thread markup use the

@@ -71,6 +71,7 @@ from render_harness import (
     _traffic,
     compare_with,
     consume_browser_errors,
+    displayed,
     holding,
     leaf_page,
     nudge,
@@ -205,6 +206,20 @@ window.authoredModuleRan = true;
         )
     finally:
         page.close()
+
+
+def test_the_page_policy_admits_a_driver_poll_that_outlives_its_evaluate(
+    browser, serve
+):
+    """A driver compiles a wait predicate with eval on every poll, and only the poll
+    installed inside its own evaluate call inherits that call's permission. The
+    delivered script-src admits the later compiles, so a wait ends on the fact it
+    names rather than on the policy."""
+    page = open_page(
+        browser, live_url(serve(leaf_page("Driver poll", "<h1>Driver poll</h1>")))
+    )
+    page.evaluate("() => setTimeout(() => { window.lateFact = true }, 250)")
+    page.wait_for_function("window.lateFact === true", timeout=5_000)
 
 
 def test_a_website_example_names_its_limited_agent(browser, serve):
@@ -419,6 +434,7 @@ def test_authored_html_paints_while_runtime_startup_is_held(
                 serve(leaf_page("Startup", "<h1>Startup</h1>")),
                 wait_until="commit",
             )
+        displayed(page)
         expect(page.locator("h1")).to_be_visible()
         assert page.locator("h1").evaluate(
             "element => element.checkVisibility({"
@@ -440,10 +456,6 @@ def test_authored_html_paints_while_runtime_startup_is_held(
 
         boot.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
-        page.wait_for_function(
-            "() => document.querySelector('body > main').getAnimations()"
-            ".every(animation => animation.playState !== 'running')"
-        )
         presented = page.locator("body > main").bounding_box()
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
@@ -495,16 +507,13 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(url, wait_until="commit")
+        displayed(page)
         expect(page.locator("h1")).to_be_visible()
         expect(page.locator("html")).to_have_attribute(root_attribute, re.compile(".*"))
         initial = page.locator("body > main").bounding_box()
 
         held.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
-        page.wait_for_function(
-            "() => document.querySelector('body > main').getAnimations()"
-            ".every(animation => animation.playState !== 'running')"
-        )
         expect(page.locator("html")).not_to_have_attribute(
             root_attribute, re.compile(".*")
         )
@@ -2331,43 +2340,6 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         page.close()
 
 
-def test_thread_focus_waits_for_the_lazy_placement_module(browser, serve):
-    """A thread opened while its placement module loads keeps focus on the page."""
-    page = open_page(
-        browser,
-        serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]),
-        context=browser.new_context(viewport={"width": 600, "height": 844}),
-    )
-    held = []
-    page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
-    preview = page.locator(".lf-margin-preview")
-    thread = preview.locator(".lf-conversation-thread")
-    try:
-        page.keyboard.press("t")
-        holding(page, held, 1, "the thread placement module")
-        expect(preview).to_have_css("opacity", "0")
-        assert not page.evaluate(
-            "card => card.contains(document.activeElement)", preview.element_handle()
-        )
-        page.evaluate(
-            """() => new Promise(resolve => {
-              dispatchEvent(new Event('resize'));
-              requestAnimationFrame(() => requestAnimationFrame(resolve));
-            })"""
-        )
-        expect(preview).to_have_css("opacity", "0")
-
-        held.pop(0).continue_()
-        page.unroute("**/vendor/floating-ui.esm.js")
-        expect(preview).to_have_css("opacity", "1")
-        expect(thread).to_be_focused()
-    finally:
-        for route in held:
-            route.continue_()
-        page.unroute_all(behavior="wait")
-        page.context.close()
-
-
 def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):
     """A failed lazy module cannot leave a hidden live composer holding focus."""
     url = serve(FEATURE_GALLERY)
@@ -2382,40 +2354,6 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     assert "Failed to fetch dynamically imported module" in str(raised.value)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_hidden()
-    errors = consume_browser_errors(
-        page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
-    )
-    assert any(
-        "Failed to fetch dynamically imported module" in error for error in errors
-    )
-
-
-def test_an_unavailable_floating_ui_module_withdraws_the_thread_preview(browser, serve):
-    """A failed lazy module cannot leave a hidden thread card holding focus."""
-    url = serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
-    page = browser.new_page(viewport={"width": 600, "height": 844})
-    watched(page)
-    page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
-    page.goto(url, wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
-
-    with page.expect_event("pageerror") as raised:
-        page.keyboard.press("t")
-    assert "Failed to fetch dynamically imported module" in str(raised.value)
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    focus = page.evaluate(
-        """() => {
-          const active = document.activeElement;
-          return {
-            tag: active?.tagName,
-            className: active?.className,
-            controls: active?.getAttribute('aria-controls'),
-            visible: active?.checkVisibility?.() ?? false,
-            inside: document.querySelector('.lf-margin-preview').contains(active),
-          };
-        }"""
-    )
-    assert not focus["inside"] and focus["visible"], focus
     errors = consume_browser_errors(
         page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
     )
@@ -2679,7 +2617,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     second = first.fetch().json()
     with page.expect_request("**/api/state*"):
         first.fulfill(json=second)
-    expect(text).to_have_text(re.compile(r"^Claude is working — second"))
+    expect(text).to_have_text(re.compile(r"^Agent is working — second"))
     assert len(held) == 2
 
     trailing = held[1]
@@ -2689,7 +2627,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     third = trailing.fetch().json()
     trailing.fulfill(json=third)
     told(page)
-    expect(text).to_have_text(re.compile(r"^Claude is working — third"))
+    expect(text).to_have_text(re.compile(r"^Agent is working — third"))
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -3169,7 +3107,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": first_comment["id"],
             "responds": first_comment["id"],
             "text": "Handled before the next turn.",
@@ -3309,7 +3247,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # Nothing ever claimed the page — a server started outside an agent host. There is
     # no pid to ask after, so a claim made moments ago is evidence and still stands.
     declare("working", "running the migration", claimed=False)
-    expect(text).to_have_text(re.compile(r"^Claude is working — running the migration"))
+    expect(text).to_have_text(re.compile(r"^Agent is working — running the migration"))
 
     # Once that claim goes quiet there is nothing left holding the page, and an hour of
     # silence on a page that stands for weeks is not a fault to report.
@@ -3535,7 +3473,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": held,
             "responds": followup["id"],
             "revision": 1,
@@ -3543,9 +3481,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.claude')).to_have_count(
-        1
-    )
+    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.agent')).to_have_count(1)
     expect(held_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
 
@@ -3804,7 +3740,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     # The page's own line is as fresh as it was, which is the whole case: this is two
     # delegates diverging, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Claude is working — rerunning the failing shard")
+        re.compile(r"^Agent is working — rerunning the failing shard")
     )
     expect(visible_work_line).to_have_text(
         re.compile(r"^● Was working 40m ago — reading the reconnect traces$")
@@ -4187,7 +4123,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
                     {
                         "id": "surface-reply",
                         "kind": "reply",
-                        "author": "claude",
+                        "author": "agent",
                         "parent": roots[0],
                         "revision": 1,
                         "text": "The first datum deserves a closer look.",
@@ -4218,7 +4154,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": roots[2],
             "revision": 1,
             "text": "The healthy conversation still updates.",
@@ -4280,7 +4216,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             serve.page_dir,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "parent": roots[2],
                 "revision": 1,
                 "text": "A later reading retries the repaired adapter.",

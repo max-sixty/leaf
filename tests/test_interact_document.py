@@ -2086,7 +2086,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     assert result.exit_code != 0
     assert (
         "event 'c1' takes no reply; c1 is a comment in this page's log, and nothing is "
-        "owed for it"
+        "owed for it — `leaf reply <page> --to c1 --initiates` replies to it"
     ) in result.output
 
 
@@ -2578,7 +2578,8 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     )
     assert misdirected.exit_code == 1
     assert (
-        f"{comment['id']} is a comment in this page's log, not a request; "
+        f"{comment['id']!r} is not a request; {comment['id']} is a comment in this "
+        f"page's log — `leaf reply <page> --for {comment['id']}` answers it; "
         f"open requests: {request['id']!r}"
     ) in misdirected.output
     # And the other way round: a request handed to a writer that takes a message is

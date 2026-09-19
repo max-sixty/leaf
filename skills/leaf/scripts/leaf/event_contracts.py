@@ -714,10 +714,10 @@ def _report_error(page_dir: Path, event: dict, registry: dict) -> str | None:
     )
 
 
-def _receipt_error(event: dict, events: list) -> str | None:
+def _receipt_error(page_dir: Path, event: dict, events: list) -> str | None:
     if event["kind"] != "receipt":
         return None
-    return receipt_contract_error(event, events)
+    return receipt_contract_error(page_dir, event, events)
 
 
 def _reaction_error(event: dict, registry: dict) -> str | None:
@@ -828,7 +828,7 @@ def admission_error(
         or _action_error(page_dir, event, events, registry)
         or _request_error(page_dir, event, events, registry)
         or _report_error(page_dir, event, registry)
-        or _receipt_error(event, events)
+        or _receipt_error(page_dir, event, events)
         or _reaction_error(event, registry)
         or _anchored_comment_error(page_dir, event, events, registry, capture_anchors)
         or _parent_error(event, events)

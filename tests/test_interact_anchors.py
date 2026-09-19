@@ -182,6 +182,29 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
 
 
+def test_a_section_handed_a_message_owed_nothing_is_sent_to_to(page_dir):
+    """A message the log owes nothing is still one `--to` takes. `--to` is the one
+    writer keyed on the kind rather than the obligation, and `--initiates` is refused
+    only while a response is owed, so the agent's own comment — owed nothing — is
+    replied to there, and a refusal calling it unroutable would be a dead end."""
+    own = json.loads(
+        comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
+    )
+    mistaken = comment(page_dir, "--section", own["id"], "--text", "more")
+    assert mistaken.exit_code != 0
+    route = f"`leaf reply <page> --to {own['id']} --initiates` replies to it"
+    assert (
+        f"{own['id']} is a comment in this page's log, and nothing is owed for it — "
+        f"{route}"
+    ) in mistaken.output
+
+    followed = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--to", own["id"], "--initiates", "--text", "more"],
+    )
+    assert followed.exit_code == 0, followed.output
+
+
 def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     """A route is only worth naming where the writer it names takes the value. What a
     writer takes is what the log still owes, not the event's kind: a resolve is owed

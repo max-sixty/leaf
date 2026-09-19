@@ -8,6 +8,7 @@ from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_registry
+from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_structure
 
@@ -41,8 +42,8 @@ def read_text_arg(page_dir: Path, text) -> str:
     return body
 
 
-def logged_id(events: list, value: str, responses: dict | None = None) -> str | None:
-    """Say what the page's log holds a bare id as, and what the log still owes for it.
+def logged_id(events: list, value: str, responses: dict) -> str | None:
+    """Say what the page's log holds a bare id as, and which writer takes it now.
 
     The CLI names several kinds of id with bare strings — an element id anchors a
     thread, a message id answers one, a request id takes its receipt, and a delivered
@@ -50,14 +51,14 @@ def logged_id(events: list, value: str, responses: dict | None = None) -> str | 
     namespace it came from. An agent holding the id of the move it was handed reaches
     for whichever writer it is using, and a refusal that only repeats the value leaves
     it nothing to change but the guess. So every writer that refuses an id says what
-    the log holds it as.
+    the log holds it as, and where it goes instead.
 
-    Which writer then takes it is not a matter of the event's kind but of what the log
-    still owes for it, which is `current_responses`: a reader's press is answered
-    through `--for` until it is answered and not after, and a resolve or an undo is
-    owed nothing at all. A writer that has that reading passes it, and the refusal
-    names the command that settles the id or says nothing is owed; one that cannot
-    reach it names the kind alone rather than guess at a route.
+    Where it goes is mostly what the log still owes for it, which is
+    `current_responses`: a reader's press is answered through `--for` until it is
+    answered and not after, a request through its receipt, and a resolve or an undo is
+    owed nothing at all. The one writer keyed on the kind is `--to`, which takes any
+    message; it is the route for a message owed nothing, since `--initiates` is
+    refused while a response is owed.
     """
     event = next((event for event in events if event.get("id") == value), None)
     if event is None:
@@ -65,10 +66,13 @@ def logged_id(events: list, value: str, responses: dict | None = None) -> str | 
     kind = event["kind"]
     article = "an" if kind[:1] in "aeiou" else "a"
     held = f"{value} is {article} {kind} in this page's log"
-    if responses is None:
-        return held
     owed = responses.get(value)
     if owed is None:
+        if kind in MESSAGE_KINDS:
+            return (
+                f"{held}, and nothing is owed for it — "
+                f"`leaf reply <page> --to {value} --initiates` replies to it"
+            )
         return f"{held}, and nothing is owed for it"
     if owed["kind"] == "receipt":
         return f"{held} — `leaf receipt <page> {value} succeeded|failed` settles it"

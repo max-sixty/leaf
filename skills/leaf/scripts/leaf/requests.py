@@ -167,19 +167,22 @@ def request_contract_error(
     )
 
 
-def receipt_contract_error(event: dict, events: list) -> str | None:
+def receipt_contract_error(page_dir: Path, event: dict, events: list) -> str | None:
     """Why a terminal receipt cannot settle the request it names.
 
-    A refusal says what the log holds a misdirected id as, as every writer's does,
-    and which requests are still open to receipt, since an agent that was handed no
-    request has nothing else to go looking for. The door hands this the log and not
-    the page, so it cannot read what the id is still owed, and it names no route.
+    A misdirected id is named as what the log holds it as and sent to the writer that
+    takes it, as every writer's refusal does, beside the requests still open to
+    receipt — an agent that was handed no request has nothing else to go looking for.
     """
     request_id = event["request"]
     request = next(
         (candidate for candidate in events if candidate["id"] == request_id), None
     )
     if request is None or request["kind"] != "request":
+        # `delivery` loads this module, so the reading it owns is reached here, on
+        # the refusal, rather than at import.
+        from .delivery import current_responses
+
         receipted = {
             candidate["request"]
             for candidate in events
@@ -190,8 +193,12 @@ def receipt_contract_error(event: dict, events: list) -> str | None:
             for candidate in events
             if candidate["kind"] == "request" and candidate["id"] not in receipted
         ]
-        held = logged_id(events, request_id)
-        named = f"{held}, not a request" if held else f"unknown request {request_id!r}"
+        held = logged_id(events, request_id, current_responses(page_dir, events))
+        named = (
+            f"{request_id!r} is not a request; {held}"
+            if held
+            else f"unknown request {request_id!r}"
+        )
         waiting = (
             "open requests: " + ", ".join(repr(open_id) for open_id in open_requests)
             if open_requests

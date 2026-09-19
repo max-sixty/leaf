@@ -526,7 +526,9 @@ def cmd_reply(
                 to = expected["to"]
         assert to is not None
         root_id, root = _thread_root(page_dir, events, to)
-        if root and (root.get("response") or {}).get("kind") == "version":
+        if (thread_obligation(events, responses, root_id) or {}).get("kind") == (
+            "version"
+        ):
             if skip_if_settled:
                 return None
             sys.exit(

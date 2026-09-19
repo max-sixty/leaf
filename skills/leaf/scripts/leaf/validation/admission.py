@@ -55,7 +55,7 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
     """
     roots = thread_roots(events)
     root = roots.get(message, message)
-    return next(
+    standing = next(
         (
             response
             for response in responses.values()
@@ -67,6 +67,16 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
         ),
         None,
     )
+    if standing is not None:
+        return standing
+    # A version-response thread takes a version whether or not one is outstanding:
+    # the obligation clears when the thread resolves and the root's own declaration
+    # stays for the page's life, so a reading that stopped at the obligation would
+    # send a resolved thread to `--initiates`, which refuses it on that declaration.
+    opening = next((event for event in events if event.get("id") == root), None)
+    if ((opening or {}).get("response") or {}).get("kind") == "version":
+        return {"kind": "version", "conversation": root}
+    return None
 
 
 def logged_id(events: list, value: str, responses: dict) -> str | None:

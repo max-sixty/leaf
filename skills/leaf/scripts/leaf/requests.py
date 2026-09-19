@@ -183,17 +183,13 @@ def receipt_contract_error(page_dir: Path, event: dict, events: list) -> str | N
         # the refusal, rather than at import.
         from .delivery import current_responses
 
-        receipted = {
-            candidate["request"]
-            for candidate in events
-            if candidate["kind"] == "receipt"
-        }
+        responses = current_responses(page_dir, events)
         open_requests = [
-            candidate["id"]
-            for candidate in events
-            if candidate["kind"] == "request" and candidate["id"] not in receipted
+            response["request"]
+            for response in responses.values()
+            if response["kind"] == "receipt"
         ]
-        held = logged_id(events, request_id, current_responses(page_dir, events))
+        held = logged_id(events, request_id, responses)
         named = (
             f"{request_id!r} is not a request; {held}"
             if held

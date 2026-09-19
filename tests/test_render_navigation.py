@@ -2683,7 +2683,9 @@ def test_a_press_that_opens_a_layer_returns_the_place_it_displaced(browser, serv
     toggle.click()
     panel_settled(page, True)
     expect(preview).to_be_hidden()
-    expect(page.locator(f'.lf-threads .lf-thread[data-id="{roots[0]}"]')).to_be_focused()
+    expect(
+        page.locator(f'.lf-threads .lf-thread[data-id="{roots[0]}"]')
+    ).to_be_focused()
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
     # A frame later than the close: the hidden card gets the one frame every origin gets

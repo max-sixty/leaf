@@ -1796,7 +1796,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-page-map-dialog { inset: auto 8px 8px; width: calc(100vw - 16px);
       max-height: min(82vh, 720px); margin: 0;
       padding-bottom: max(14px, env(safe-area-inset-bottom)); }
-    .lf-page-map-action { min-height: max(40px, var(--aim-floor)); }
+    /* The sheet is the rail's replacement where there is no margin to draw one in, so
+       its rows are touch-sized because of what the sheet is, not because of what is
+       pointing at it: this floor does not read --aim-floor, and a mouse gets it too.
+       test_the_small_screen_map_is_a_complete_accessible_sheet holds that. */
+    .lf-page-map-action { min-height: 44px; }
   }
   /* Coarse pointers get physical room without making the mouse layout pay for it.
      Margin actions and reaction tokens remain visually compact; their boxes, panel

@@ -153,6 +153,12 @@ def delivery_sheets(
     page module that imports the widget API evaluate after `DOMContentLoaded`. Like the
     identity above, every delivery writes this. `rewrite` addresses the sheet's own
     URLs for that delivery.
+
+    The sheets go out as they are written, comments included. They used to be stripped
+    here, which is the one thing that made the text a reader receives differ from the
+    file a maintainer reads, and a page has no build step to make that difference
+    anywhere else. The comments are most of the weight: 62KB of sheet becomes 134KB,
+    or 11KB against 39KB over the wire, at the head of every delivered document.
     """
     sheets = {
         name: rewrite(resources[path].data.decode("utf-8"), path)

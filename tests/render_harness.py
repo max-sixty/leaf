@@ -1614,29 +1614,22 @@ def primed(browser, prepare):
 
 
 @pytest.fixture
-def held_events(browser, request):
+def held_events(browser):
     """Hold event requests from navigation onward, including the first POST.
 
     Enabling interception on an already loaded page can let its first POST escape
-    both the route and Playwright's request events. Tests release each held route
-    explicitly; teardown releases any left behind after a failed assertion. Owning the
-    server fixture makes that release precede server shutdown, so a held request never
-    resumes into a closed socket during teardown.
+    both the route and Playwright's request events. Each test releases the routes
+    its own assertions are about; what is left when the test ends is left held.
+    Teardown used to release those too, and to pull `serve` in ahead of itself so
+    that release would precede the server's shutdown — but closing the context is
+    what ends a held request, and nothing resumes one into a closed socket unless
+    teardown releases it. Measured: a test failing on a held `/api/event` and
+    `/api/state` tears down in about two seconds either way.
     """
-    request.getfixturevalue("serve")
     held = []
 
     def prepare(page):
         page.route("**/api/event", lambda route: held.append(route))
-
-        def release():
-            if page.is_closed():
-                return
-            while held:
-                held.pop(0).continue_()
-            page.unroute("**/api/event")
-
-        request.addfinalizer(release)
 
     return primed(browser, prepare), held
 

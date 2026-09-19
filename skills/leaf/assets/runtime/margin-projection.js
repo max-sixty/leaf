@@ -46,6 +46,13 @@
    complete inline conversation view; the Threads panel remains the complete index and
    takes over when already open.
 
+   Placing the card changes its geometry and nothing inside it. The reader's place in
+   its transcript is the list's own scroll, which the browser holds through reflow; only
+   a gesture moves it — a landing through `revealConversation`, a send revealing the
+   reply, a step to another thread starting it at the top. Every state read places the
+   card, so a scroll written there would move a reader partway up the transcript on each
+   status the agent writes.
+
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
    A print-media render is deferred until screen media returns because print removes the
@@ -82,8 +89,9 @@ import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
+import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
-import { clampedRow, PRESS } from "./keyboard/bindings.js";
+import { clampedRow, PRESS, word } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
@@ -148,6 +156,7 @@ export function createMarginProjection({
   bottomChromeBoxes,
   placedAt,
   showThread,
+  panelFrame,
   goToAsk,
   scrollToElement,
   scrollToThread,
@@ -828,25 +837,6 @@ export function createMarginProjection({
       renderMargin.refresh();
     });
   }
-  function keepThreadPreviewFocusVisible() {
-    const active = document.activeElement;
-    if (!(active instanceof HTMLElement) || !preview.contains(active)) return;
-    // A conversation root is a reading destination, not a control that must fit
-    // whole. Its header stays outside this scrollport, as does settlement.
-    if (
-      active.matches(".lf-conversation-thread") ||
-      active.closest(".lf-thread-head") ||
-      !previewList.contains(active)
-    )
-      return;
-    const card = previewList.getBoundingClientRect();
-    const activeBox = active.getBoundingClientRect();
-    const inset = 12;
-    if (activeBox.bottom > card.bottom - inset)
-      previewList.scrollTop += activeBox.bottom - card.bottom + inset;
-    else if (activeBox.top < card.top + inset)
-      previewList.scrollTop -= card.top + inset - activeBox.top;
-  }
   function deferThreadPreviewFocus(positioned, focus) {
     const pending = { key: previewEntry?.key, holding: document.activeElement };
     previewFocusPending = pending;
@@ -944,7 +934,6 @@ export function createMarginProjection({
     preview.style.removeProperty("opacity");
     preview.style.removeProperty("pointer-events");
     fitThreadCardEditors();
-    keepThreadPreviewFocusVisible();
     answerThreadPreviewPosition(true);
     return true;
   }
@@ -2578,27 +2567,51 @@ export function createMarginProjection({
     return positioned;
   }
 
+  // A press on a margin control is a command like `t`: it enters the layer stack with
+  // the place the reader held before the press, so the Escape that dismisses the view
+  // hands that place back — the page, for a reader who clicked a marker — rather than
+  // whichever margin control the view hangs from by then. A view already showing takes
+  // the thread in under whatever entry it has; the press only changes what it shows.
+  const OPENED_BY_PRESS = {
+    id: "margin.conversation",
+    returnFrame: () => ({
+      active: () => inlineThreadView.showing(),
+      close: () => closePreview(),
+      does: "Dismiss the conversation view",
+      line: "dismiss conversation",
+    }),
+  };
   function togglePinned(entry, button) {
     if (pinnedKey === entry.key && previewMarginEntry === button) {
       pinnedKey = null;
       closePreview();
       return;
     }
-    pinnedKey = entry.key;
-    const positioned = showPreview(entry, button);
-    if (previewList.querySelector(".lf-conversation-thread"))
-      deferThreadPreviewFocus(positioned, () => {
-        if (previewEntry?.key !== entry.key) return;
-        const thread = previewList.querySelector(".lf-conversation-thread");
-        if (!thread) return;
-        thread.focus({ preventScroll: true });
-        revealConversation(thread, thread);
-      });
+    const open = () => {
+      pinnedKey = entry.key;
+      const positioned = showPreview(entry, button);
+      if (previewList.querySelector(".lf-conversation-thread"))
+        deferThreadPreviewFocus(positioned, () => {
+          if (previewEntry?.key !== entry.key) return;
+          const thread = previewList.querySelector(".lf-conversation-thread");
+          if (!thread) return;
+          thread.focus({ preventScroll: true });
+          revealConversation(thread, thread);
+        });
+    };
+    if (inlineThreadView.showing()) {
+      open();
+      return;
+    }
+    invoke(OPENED_BY_PRESS, null, open, pressOrigin());
   }
 
   function closePreview(returnFocus = false) {
     clearThreadTransition();
     const button = previewMarginEntry;
+    // A cluster the walk unfolded to hang the view from folds with the view; one the
+    // reader unfolded stays, and is its own rung.
+    const forcedOptionsKey = forcedInlineOptionsKey;
     pinnedKey = null;
     forcedInlineKey = null;
     forcedInlineOptionsKey = null;
@@ -2609,6 +2622,8 @@ export function createMarginProjection({
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
     if (preview.matches(":popover-open")) preview.hidePopover();
+    if (forcedOptionsKey && expandedOptionsKey === forcedOptionsKey)
+      setOptionsOpen(null, false);
     refreshHighlight();
     for (const row of rows.values())
       syncReadingRelation(row, primaryReading(row.lfEntry));
@@ -2621,6 +2636,17 @@ export function createMarginProjection({
     }
     paintKeys();
   }
+
+  // The way back out of the conversation view a walk opened from the page: a `t` from the
+  // page never stood on the margin, so its frame closes the view and leaves the reader's
+  // place to the frame that captured it. The view's own close control, pressed by pointer,
+  // hands focus to the margin entry the view hangs from, since that is where the pointer
+  // is; a press that opened the view has a frame of its own (`togglePinned`).
+  const inlineThreadView = {
+    showing: () =>
+      preview.matches(":popover-open") && preview.hasAttribute("data-lf-thread"),
+    dismiss: () => closePreview(),
+  };
 
   // The card and its owning margin entry cluster are one page-map stack even though the card
   // is hoisted into the chrome. Expose the current rung to the one keyboard register so
@@ -2779,29 +2805,74 @@ export function createMarginProjection({
   // A press on marked words passes `travel: false`: the words are already under the
   // reader's hand, and centring them moves everything the reader was looking at. The
   // card needs no trip, since placeThreadPreview keeps it inside the viewport.
-  function openPageThread(id, { focus = "reply", travel = true } = {}) {
+  //
+  // A press — on the mark, or on its note — passes `origin`, the place it displaced, and
+  // whatever the press opened enters the layer stack with it, as a marker press does in
+  // togglePinned: the view where the thread has a place on the page, else the panel,
+  // which is where a thread with none is indexed. One frame reads which of the two the
+  // run opened, so Escape closes that one and hands back the place. A view already
+  // showing takes the thread in without a new entry. The `t` walk passes no origin: its
+  // own frame holds the walk.
+  function openPageThread(id, { focus = "reply", travel = true, origin = null } = {}) {
     if (!panelIsOpen()) {
       const local = focusSurface(id, { focus });
       if (local) {
-        const optionsKey = forcedInlineOptionsKey;
         closePreview();
-        if (optionsKey && expandedOptionsKey === optionsKey)
-          setOptionsOpen(null, false);
         if (travel) scrollToThread(id);
         return local;
       }
-      const thread = openInlineThread(id, null, (positionedThread) => {
-        positionedThread.focus({ preventScroll: true });
-        positionedThread.scrollIntoView({
-          behavior: scrollBehavior(),
-          block: "nearest",
-        });
-        if (travel) scrollToThread(id);
-      });
-      if (thread) return thread;
     }
-    showThread(id, { focus });
-    return null;
+    const panelWasShut = !panelIsOpen();
+    let opened = null;
+    const open = () => {
+      if (!panelIsOpen()) {
+        const thread = openInlineThread(id, null, (positionedThread) => {
+          positionedThread.focus({ preventScroll: true });
+          positionedThread.scrollIntoView({
+            behavior: scrollBehavior(),
+            block: "nearest",
+          });
+          if (travel) scrollToThread(id);
+        });
+        if (thread) {
+          opened = "view";
+          return thread;
+        }
+      }
+      showThread(id, { focus });
+      opened = panelWasShut ? "panel" : null;
+      return null;
+    };
+    if (!origin || inlineThreadView.showing()) return open();
+    // The panel's half is the panel's own frame, the one its toggle pushes, with this
+    // thread as the one the press stood the reader on; the view's half holds the
+    // standing the way a marker press does.
+    const panelHalf = panelFrame({ carried: id });
+    const viewHalf = {
+      active: () => opened === "view" && inlineThreadView.showing(),
+      close: () => closePreview(),
+      does: "Dismiss the conversation view",
+      line: "dismiss conversation",
+      standing: true,
+      surface: null,
+    };
+    const half = () => (opened === "panel" ? panelHalf : viewHalf);
+    return invoke(
+      {
+        id: "margin.thread",
+        returnFrame: () => ({
+          active: () => half().active(),
+          close: () => half().close(),
+          does: () => word(half().does),
+          line: () => word(half().line),
+          standing: () => word(half().standing),
+          surface: () => word(half().surface),
+        }),
+      },
+      null,
+      open,
+      origin,
+    );
   }
 
   // The row's acknowledgment face is read out of the published state projection rather
@@ -2931,7 +3002,6 @@ export function createMarginProjection({
     previewClose.onclick = () => closePreview(true);
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    preview.addEventListener("focusin", keepThreadPreviewFocusVisible);
     preview.addEventListener("toggle", (event) => {
       if (event.newState !== "closed") return;
       for (const reply of previewList.querySelectorAll("textarea"))
@@ -3020,6 +3090,7 @@ export function createMarginProjection({
     marginEntryKind,
     activateMarginEntry,
     closePreview,
+    inlineThreadView,
     keyboardRung,
     openInlineThread,
     openPageThread,

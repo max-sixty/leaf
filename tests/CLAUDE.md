@@ -99,7 +99,7 @@ corpus sweeps include them. File-side fixtures live in `interact_support.py`. Br
 fixtures live in `render_harness.py`; reusable browser cases are grouped by
 interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
 Both fixture modules use `TemporaryPageServer`, the same process-owned server as
-`scripts/preview.py --automation`. Test modules import support from its owning
+an unclaimed `scripts/preview.py`. Test modules import support from its owning
 module directly. `test_site.py` reads the
 built site through its served URLs. Product documentation tests compare the docs
 with the shipped vocabulary and command surface: a shown command the click tree
@@ -669,8 +669,9 @@ Enabling interception on an already-running page can let that POST reach the
 server without a route callback. `open_page` arms each page it makes on a
 pattern nothing ever asks for, so a route a test registers later only adds to a
 list the browser is already consulting; a page made another way is unarmed.
-`held_events` also owns the server fixture ordering: its finalizer releases held
-requests before server shutdown rather than resuming them into a closed socket.
+A hold a test leaves standing needs no teardown of its own: closing the context
+is what ends a held request, and only a release run during teardown could resume
+one into a server that has already stopped.
 
 A handler that appends a route to `held` has established only that the browser
 made the request. Before reading that list — indexing it, asserting its length,

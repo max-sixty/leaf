@@ -56,6 +56,9 @@ const DEFAULT_INTENT = Object.freeze({
 });
 let intent = DEFAULT_INTENT;
 
+// The narrowing as a value, replaced whole on every change, so a holder can ask whether
+// the reader has changed it since by identity, as `retainNarrowing` does.
+export const narrowingIntent = () => intent;
 export const threadSearchActive = () => Boolean(intent.finding);
 export const needsYou = () => intent.state === "reader";
 export const narrowed = () =>

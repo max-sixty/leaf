@@ -36,8 +36,16 @@ def _stream_answers(reply: dict | None, obligation: dict, state: dict) -> bool:
     )
 
 
-def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
+def unattended_pages(
+    session_id: str, *, prompt_open: bool = False
+) -> list[tuple[str, str | None]]:
     """The pages this session owes something, each with what to do about it.
+
+    A `(line, protocol)` pair per debt. The line is this page's — its path, its
+    count, the ids it names — and the protocol is the same words for every page
+    that owes the same kind of thing, so the composer prints it once rather than
+    once per page. `None` where the line is the whole remedy.
+
     Two invariants hold between turns. A page is watched or idle, so anything
     else has quietly stopped listening. And every comment delivered into this
     turn has an answer under it. A comment a carrier has queued belongs to its
@@ -91,9 +99,14 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
                 for obligation in stale
             )
             page_reasons.append(
-                f"{page_dir}: {len(stale)} acknowledged "
-                f"reader move{'s' if len(stale) != 1 else ''} with no answer "
-                f"({ids}). " + ANSWER_ASK_INSTRUCTION
+                (
+                    (
+                        f"{page_dir}: {len(stale)} acknowledged "
+                        f"reader move{'s' if len(stale) != 1 else ''} with no answer "
+                        f"({ids})."
+                    ),
+                    ANSWER_ASK_INSTRUCTION,
+                )
             )
         # A live carrier is the watch, and it prints what's pending on its own.
         # Reporting the page here would start a second waiter and print the same
@@ -103,14 +116,18 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
             # reader-facing count, which deliberately leaves reports out.
             n = len(unacknowledged(events, state["cursor"]))
             if n:
-                remedy = harness.input_unpicked(page_dir, listening=listening)
-                remedy += (
-                    f" {ACK_BATCH_INSTRUCTION} If this task is the consumer, then address "
-                    "every event."
-                )
+                # The harness's own remedy names this page, so it stays on the
+                # line; what follows it is the same for every page in the batch.
                 page_reasons.append(
-                    f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't picked up. "
-                    + remedy
+                    (
+                        f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't "
+                        "picked up. "
+                        + harness.input_unpicked(page_dir, listening=listening),
+                        (
+                            f"{ACK_BATCH_INSTRUCTION} If this task is the consumer, "
+                            "then address every event."
+                        ),
+                    )
                 )
             # Nothing is owed and nothing is listening. That is a debt on a page
             # handed to a reader, and a developer preview is not one: the same
@@ -126,8 +143,11 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
                 and not (page_dir / PREVIEW_FILE).exists()
             ):
                 page_reasons.append(
-                    f"{page_dir}: "
-                    + harness.nothing_listening(page_dir, listening=listening)
+                    (
+                        f"{page_dir}: "
+                        + harness.nothing_listening(page_dir, listening=listening),
+                        None,
+                    )
                 )
         # Discovery is only a candidate read. Transfer can happen while the
         # hook reads status, so decide against current ownership at the end.
@@ -191,9 +211,16 @@ def cmd_hook(payload: dict) -> None:
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
-    message = (
-        "leaf — a page of this session's has something outstanding:\n"
-        + "\n".join(f"- {r}" for r in reasons)
+    # Each page's own line, then one copy of each protocol they share. Three
+    # pages owing the same thing used to carry three copies of the same
+    # instruction into the turn, which is most of what the message weighed.
+    protocols = list(dict.fromkeys(protocol for _, protocol in reasons if protocol))
+    message = "\n".join(
+        [
+            "leaf — a page of this session's has something outstanding:",
+            *(f"- {line}" for line, _ in reasons),
+            *(f"\n{protocol}" for protocol in protocols),
+        ]
     )
     if event == "Stop":
         print(json.dumps({"decision": "block", "reason": message}))

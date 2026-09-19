@@ -12,6 +12,8 @@ import { threadsBox } from "./conversation/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
+import { focusedThreadOf } from "./conversation/focus.js";
+import { focused } from "./keyboard/scopes.js";
 import { announce } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
@@ -190,6 +192,7 @@ export function createNavigation({
   coveringAuxiliaryScroller,
   threadDestinations,
 }) {
+  const { activeInlineThread, inlineThreadView } = threadDestinations;
   const panelCovers = () => panelIsOpen() && panelWouldCover();
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const move = (amount, unit) =>
@@ -218,6 +221,47 @@ export function createNavigation({
       (!coveringAuxiliarySurface() || inPanel()) &&
       !(threadSearchActive() && inPanel()),
     repeat: true,
+    // The press that puts the reader on a thread is one rung, however many threads the
+    // walk then visits: the press made off the threads pushes the frame, and a later
+    // one, made standing on a thread, pushes nothing. In the panel the walk moves focus
+    // and opens nothing, so the frame closes nothing and Escape hands back the place the
+    // press displaced — the list after `g T`, or the page place the reader pressed from
+    // with the panel already standing beside them. With the panel shut the walk reaches
+    // a thread on the page where a widget seats one and opens the margin's conversation
+    // view for the rest, so a press that opened that view is an entry even from a
+    // standing on a seated thread, and the frame dismisses the view on the way back;
+    // the rail control the view hangs from is nowhere the reader stood, so it is
+    // nowhere on the way out. The frame is its own entry rather than the view's,
+    // because the walk outlives the view when it steps on to a seated thread.
+    returnFrame: () => {
+      if (panelIsOpen()) {
+        if (focusedThreadOf()) return null;
+        const fromList = threadsBox === focused();
+        return {
+          active: () => panelIsOpen() && Boolean(focusedThreadOf()),
+          close: () => {},
+          does: "Let go of the thread",
+          line: fromList ? "back to list" : "let go",
+        };
+      }
+      const view = inlineThreadView();
+      const standingBefore = Boolean(activeInlineThread());
+      const showingBefore = view.showing();
+      // Whether the press was an entry is read once, on the stack's first look after
+      // the run: it stood the reader on a thread, or it opened the view.
+      let entered = null;
+      return {
+        active: () => {
+          entered ??= !standingBefore || (!showingBefore && view.showing());
+          return entered && Boolean(activeInlineThread());
+        },
+        close: () => view.dismiss(),
+        does: () =>
+          view.showing() ? "Dismiss the conversation view" : "Let go of the thread",
+        line: () => (view.showing() ? "dismiss conversation" : "let go"),
+        ownEntry: true,
+      };
+    },
     run: (binding) => walkThreads(binding === "t" ? 1 : -1),
   });
   pageCommand({

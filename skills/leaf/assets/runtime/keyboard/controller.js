@@ -1,6 +1,7 @@
 /* Browser input lifecycle. The dispatcher resolves declarations; this owner applies
    page policy around a real input (transient modes, shelf, and return origins). */
 import { dispatchKey } from "./dispatch.js";
+import { mountPressOrigin } from "./layer-stack.js";
 import { MODIFIER_KEYS } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
 import { claimsEsc, focused } from "./scopes.js";
@@ -14,6 +15,7 @@ export function mountKeyboard({
   setReact,
   captureReturnPlace,
 }) {
+  mountPressOrigin(captureReturnPlace);
   const run = (event) =>
     dispatchKey(event, {
       beforeCommand: beforeShortcutCommand,

@@ -65,33 +65,35 @@ ROOT = Path(__file__).parent.parent
 
 
 @pytest.fixture
-def preview_slot(tmp_path):
-    """Every slot in one `slot` namespace, gone when the test ends.
+def preview_slot(tmp_path, monkeypatch):
+    """A previews root of this test's own, and no watcher left running in it.
 
-    `.tmp/previews` is shared by every run in this checkout and
-    `_no_page_outlives_its_test` does not reach it, so what a run leaves there
-    stays: a slot is a page directory plus a background watcher's log, and at a
-    few hundred entries
-    `test_a_detached_preview_restarts_under_its_original_codex_claim` stops
-    meeting its thirty-second reload.
+    `LEAF_PREVIEWS_ROOT` puts the slots under `tmp_path` instead of the checkout's
+    `.tmp/previews`, which every run in this checkout shares. That settles both
+    directions at once: a run leaves nothing behind there — a slot is a page
+    directory plus a background watcher's log, and at a few hundred entries
+    `test_a_detached_preview_restarts_under_its_original_codex_claim` stops meeting
+    its thirty-second reload — and a preview a developer has standing is not a page
+    these tests find.
 
-    Through `retire_preview`, which is the preview's own discard: it holds the
-    stop request the watcher reads and waits for the lease, so it retires a
-    watcher that outlived its test instead of pulling the page out from under
-    one, and leaves the directory clean. A second preview a test opens is named
-    `{slot}-reader`, `{slot}-before`, or `{slot}-after`, and is this fixture's to
-    discard too. The separator matters: without it the sweep for `…1` would take
-    the `…10` slot beside it.
+    The files then go with `tmp_path`, and the servers the way every other page's
+    do, since `_no_page_outlives_its_test` walks `tmp_path` for them. A watcher does
+    not: it is detached into a session of its own, so `spawn` does not reach it
+    either. `retire_preview` does, holding the stop request the watcher reads and
+    waiting for its lease, so a watcher that outlived its test is retired rather
+    than having its page pulled out from under it. Whatever the test named its
+    slots — `{slot}-reader`, `{slot}-before` — they are all in here.
+
+    The root comes back from `previews_root` rather than being spelled twice, so
+    the directory this sweeps is the one the script builds slots under.
     """
+    monkeypatch.setenv("LEAF_PREVIEWS_ROOT", str(tmp_path / "previews"))
+    root = preview_model.previews_root()
     slot = f"pytest-{os.getpid()}-{tmp_path.name}"
-    page = ROOT / ".tmp" / "previews" / slot
-    yield slot, page
-    named = {slot} | {
-        path.name.split(".preview.")[0] for path in page.parent.glob(f"{slot}[.-]*")
-    }
-    for name in sorted(named):
-        preview_model.retire_preview(page.parent / name, discard=True)
-    assert not list(page.parent.glob(f"{slot}[.-]*"))
+    yield slot, root / slot
+    for page in sorted(root.iterdir()) if root.is_dir() else ():
+        if page.is_dir():
+            preview_model.retire_preview(page, discard=False)
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
@@ -445,8 +447,8 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         REPLAYED_PAGE.replace("Rollout", "Shared runtime comparison", 1),
         encoding="utf-8",
     )
-    # Both slots are derived from the fixture's, so its teardown discards them.
-    prefix, _ = preview_slot
+    # Both slots sit in the fixture's own previews root, so its teardown retires them.
+    prefix, default = preview_slot
     installed = install_payload(tmp_path / "other-runtime")
     runtime_marker = "/* preview runtime marker */"
     installed_runtime = installed / "skills" / "leaf" / "assets" / "leaf.js"
@@ -456,7 +458,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     )
     slots = [f"{prefix}-before", f"{prefix}-after"]
     runtimes = [ROOT, installed]
-    pages = [ROOT / ".tmp" / "previews" / slot for slot in slots]
+    pages = [default.parent / slot for slot in slots]
     urls = []
     try:
         for slot, runtime in zip(slots, runtimes, strict=True):
@@ -954,7 +956,11 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
             *command,
         ],
         env=codex_env
-        | {"CODEX_THREAD_ID": "preview-codex", "PYTHONHOME": sys.base_prefix},
+        | {
+            "CODEX_THREAD_ID": "preview-codex",
+            "PYTHONHOME": sys.base_prefix,
+            "LEAF_PREVIEWS_ROOT": str(directory.parent),
+        },
         stdin=subprocess.PIPE,
     )
     wait_for(
@@ -1116,6 +1122,15 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
     assert reset.returncode == 0, reset.stdout + reset.stderr
     assert (directory / "index.html").read_bytes() == source.read_bytes()
     assert b'"kind": "action"' not in (directory / "events.jsonl").read_bytes()
+    # The log the reset names is the new watcher's, and only the new watcher's: the
+    # launcher cleared the old one's lines before the worker discarded the slot.
+    log = directory.with_name(f"{directory.name}.preview.log")
+    assert f"watch log {log}" in reset.stderr
+    wait_for(
+        lambda: log.read_text() if log.exists() else "",
+        lambda output: output.count("Watching ") == 1,
+        failure="the reset's watcher did not write to the log it was named",
+    )
 
     fresh = open_page(browser, reset.stdout.splitlines()[-1])
     expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")

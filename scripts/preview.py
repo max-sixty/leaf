@@ -44,14 +44,17 @@ pages.
 Named slots let several previews coexist. `--source` keeps one authored fixture
 fixed while `--runtime` vendors it from another Leaf checkout. `--background`
 detaches the watcher and returns its URL instead of holding the terminal.
+`LEAF_PREVIEWS_ROOT` moves where slots live, which is how the suite keeps its own
+out of the checkout and out of the way of a developer's standing preview.
 
 A slot is its page directory. The fixture it was built from, the digest of the
 source last stamped into it, and the browser chrome's own preview identity are
 one record in the page's `preview.json`, written only by the watcher that holds
-the slot; a background watcher's log sits beside the directory. The watcher's
-lifetime lease and a stop's request are page locks in the state home, where the
-page's transition lease already lives, so discarding a slot leaves nothing
-behind and a stop cannot end up waiting on an inode the discard replaced.
+the slot. A background watcher's log sits beside the directory and belongs to the
+launcher that names it, which clears it on `--reset`. The watcher's lifetime lease
+and a stop's request are page locks in the state home, where the page's transition
+lease already lives, so a discard removes the page and its claim and a stop cannot
+end up waiting on an inode the discard replaced.
 
 Usage: preview.py [page] [options]  (default: triage-board)
 Stop:  preview.py [page] [--slot name] --stop
@@ -278,14 +281,28 @@ def mark_preview(source: Path, page: Path, runtime: Path, identity: dict) -> Non
     )
 
 
+def previews_root() -> Path:
+    """Where this command's slots live.
+
+    Read per call rather than at import, so a test that sets the variable resolves
+    the same directory the preview it launches will. The suite points it at its
+    own temporary root: a slot is a page directory the checkout's `.tmp` otherwise
+    keeps forever, and a preview left running there by a developer is a page the
+    suite would find and count. The launcher hands the worker this answer, already
+    resolved, since the worker runs in the selected checkout and would read a
+    relative setting against a different directory.
+    """
+    return Path(os.environ.get("LEAF_PREVIEWS_ROOT") or TMP / "previews").resolve()
+
+
 def preview_directory(source: Path, slot: str | None, reader: bool) -> Path:
     if slot:
-        return TMP / "previews" / slot
+        return previews_root() / slot
     # The suffix is part of the name `--slot` carries into the worker, so it comes
     # out of the ceiling rather than past it.
     suffix = "-reader" if reader else ""
     stem = re.sub(r"[^A-Za-z0-9._-]", "-", source.stem).strip("._-")
-    return TMP / "previews" / ((stem[: 64 - len(suffix)] or "preview") + suffix)
+    return previews_root() / ((stem[: 64 - len(suffix)] or "preview") + suffix)
 
 
 def preview_log(page: Path) -> Path:
@@ -343,20 +360,28 @@ def slot_identity(page: Path) -> dict | None:
 
 
 def refresh_media(source: Path, page: Path) -> None:
-    """Add immutable assets; historical revisions may still reference every copy."""
+    """Add immutable assets; historical revisions may still reference every copy.
+
+    The assets go in as one set through the writer every other page file uses, so a
+    name that already means something here is refused before any of them lands.
+    """
+    from leaf.files import replace_files
+
     media = media_source(source)
-    incoming = [path for path in media.rglob("*") if path.is_file()]
-    for path in incoming:
+    writes = []
+    for path in sorted(media.rglob("*")):
+        if not path.is_file():
+            continue
         target = page / "media" / path.relative_to(media)
         if digest(target) not in (None, digest(path)):
             raise ValueError(
                 f"media/{path.relative_to(media)} has different bytes in the preview; use a new filename to preserve historical revisions"
             )
-    for path in incoming:
-        target = page / "media" / path.relative_to(media)
         if not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(path, target)
+            writes.append((target, path.read_bytes(), False))
+    if writes:
+        replace_files(writes)
 
 
 def digest(path: Path) -> str | None:
@@ -763,7 +788,6 @@ def retire_preview(page: Path, *, discard: bool) -> None:
                 elif page.exists():
                     shutil.rmtree(page)
                 claim_path(page).unlink(missing_ok=True)
-                preview_log(page).unlink(missing_ok=True)
 
 
 def preview_ready(
@@ -1006,17 +1030,23 @@ def start_preview_worker(
         str(source),
         "--runtime",
         str(runtime),
+        "--slot",
+        page.name,
         "--_worker",
     ]
-    # The caller's page path is retained even when the selected runtime is elsewhere.
-    if page.parent == TMP / "previews":
-        command.extend(("--slot", page.name))
+    # The worker runs in the selected checkout, so it is handed the slot by name and
+    # the root as this launcher resolved it, rather than reading a relative setting
+    # against a directory of its own.
+    os.environ["LEAF_PREVIEWS_ROOT"] = str(page.parent)
     if reader:
         command.append("--reader")
     if reset:
-        result = subprocess.run([*command, "--reset"], cwd=runtime, check=False)
-        if result.returncode:
-            raise SystemExit(result.returncode)
+        # The log is the launcher's: it names it to the developer and hands it to the
+        # watcher as its output, so the old watcher's lines are cleared here rather
+        # than by the worker's discard, which would unlink the file this launcher has
+        # already opened for the new watcher and leave the name pointing nowhere.
+        preview_log(page).unlink(missing_ok=True)
+        command.append("--reset")
     if stop:
         command.append("--stop")
     if not background:
@@ -1050,20 +1080,23 @@ def main() -> None:
         runtime = args.runtime.resolve()
         source = args.source.resolve()
         page = preview_directory(source, args.slot, args.reader)
-        if args.reset:
-            retire_preview(page, discard=True)
-        elif args.stop:
+        if args.stop:
             retire_preview(page, discard=False)
             print(f"stopped preview {page}", flush=True)
-        else:
-            watch_preview(
-                source,
-                page,
-                runtime / "bin" / "leaf",
-                runtime,
-                args._ready_fd,
-                args.reader,
-            )
+            return
+        if args.reset:
+            # Discarding and serving are one worker, so the slot is free for as
+            # little as it takes to take its lease, and a reset costs one
+            # environment rather than two.
+            retire_preview(page, discard=True)
+        watch_preview(
+            source,
+            page,
+            runtime / "bin" / "leaf",
+            runtime,
+            args._ready_fd,
+            args.reader,
+        )
         return
     runtime, launcher = checkout(parser, args.runtime)
     source = (

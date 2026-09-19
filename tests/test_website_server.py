@@ -34,6 +34,7 @@ from leaf.machine import pid_alive
 from leaf.revision_artifact import Resource
 from leaf.schema import ASSETS, VENDORED_FILES
 from render_harness import consume_browser_errors
+from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parent.parent
 _spec = importlib.util.spec_from_file_location(
@@ -604,8 +605,19 @@ def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypat
     assert continued == [(page_dir, "next-event")]
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        RuntimeError("Codex App Server did not start a turn: refused"),
+        # The connection's own class, which descends from `Exception` alone: a start
+        # can fail on the handshake or a dropped socket before it reaches the turn,
+        # and the reader is owed the same receipt either way.
+        ConnectionClosedError(None, None),
+    ],
+    ids=["refused", "disconnected"],
+)
 def test_a_continuation_that_cannot_start_receipts_the_move_it_was_for(
-    page_dir, monkeypatch, capsys
+    page_dir, monkeypatch, capsys, error
 ):
     """A move that arrived while a turn was running is the container's to answer for.
 
@@ -624,7 +636,7 @@ def test_a_continuation_that_cannot_start_receipts_the_move_it_was_for(
     monkeypatch.setattr(host, "_follow_turn", lambda *_: None)
 
     def attach(target, event_id):
-        raise RuntimeError("Codex App Server did not start a turn: refused")
+        raise error
 
     monkeypatch.setattr(host, "attach", attach)
     host._run_follow_turn(
@@ -649,6 +661,40 @@ def test_a_continuation_that_cannot_start_receipts_the_move_it_was_for(
         if json.loads(line)["event"] == "container_continuation_receipted"
     ]
     assert (record["eventId"], record["settled"]) == (comment["id"], True)
+
+
+def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
+    page_dir, monkeypatch, capsys
+):
+    """`attach` records whatever the start raised, whichever class it belongs to.
+
+    A connection that refuses its handshake or drops mid-request raises the
+    `websockets` class, which descends from `Exception` alone rather than from any
+    of the three a named list held, so a start that failed on the one thing every
+    start needs was the one that went unrecorded.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+
+    def refuse():
+        raise ConnectionClosedError(None, None)
+
+    monkeypatch.setattr(host, "_ensure_server", refuse)
+    with pytest.raises(ConnectionClosedError):
+        host.attach(page_dir, comment["id"])
+
+    [record] = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if json.loads(line)["event"] == "container_start_failed"
+    ]
+    assert (record["eventId"], record["error"]) == (
+        comment["id"],
+        "ConnectionClosedError",
+    )
 
 
 def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):

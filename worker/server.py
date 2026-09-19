@@ -892,7 +892,7 @@ class WebsiteCodexHost:
         if continuation is not None and not self.stop_event.is_set():
             try:
                 self.attach(page_dir, continuation)
-            except (OSError, RuntimeError, ValueError):
+            except Exception:  # noqa: BLE001 - receipted, never raised
                 # This is the one attachment nobody is holding. A move that arrives
                 # while a turn is already being followed is answered `started` on the
                 # thread that turn is on, so the Worker's dispatch — and the
@@ -901,7 +901,10 @@ class WebsiteCodexHost:
                 # receipt the move keeps its reader waiting on a turn that never
                 # began, and the scan that would find it again is the one that just
                 # produced it. `attach` has already recorded the fault; what this
-                # adds is which of the two owners answered for it.
+                # adds is which of the two owners answered for it. Every class,
+                # because what the reader is owed does not depend on which one: this
+                # is the top of a daemon thread, and anything not caught here is a
+                # traceback on stdout and a page that waits forever.
                 accepted = self.failure_receipt(
                     page_dir, continuation, "startup_failed"
                 )
@@ -1300,7 +1303,13 @@ class WebsiteCodexHost:
                                     )
                                 if thread_id in self.following_threads:
                                     break
-        except (OSError, RuntimeError, ValueError) as error:
+        # Every class, because this only records and re-raises: the caller still meets
+        # the exception it would have met, and a start that fails in a class nobody
+        # listed is exactly the one worth having a record of. The three it used to name
+        # left out the connection's own — `websockets` raises `WebSocketException`,
+        # which descends from `Exception` alone — so a refused handshake or a socket
+        # dropped mid-request went unrecorded.
+        except Exception as error:
             log_agent(
                 "container_start_failed",
                 eventId=event_id,

@@ -17,6 +17,14 @@ thrown away. The handoff says nothing about them either. Steps for reviving
 stranded state are that same migration written in prose, and they spend the
 user's attention on state nobody needs.
 
+The reader throws it away. The state home is one directory per machine, written
+at once by every worktree, host and session on it, each running the leaf it was
+built from, so a record older than the code reading it is ordinary rather than
+exceptional. A reading drops a record whose fields it does not find, at the one
+place it reads them, and the thing that record described reads as absent. It
+does not migrate the record, and it does not raise: a session is never taken
+down by state it does not own.
+
 The suite does not constrain new code either. Agents wrote every test in
 `tests/`, and most are overfit on the implementation they were written against:
 they assert the shape the code happened to take rather than the behavior a

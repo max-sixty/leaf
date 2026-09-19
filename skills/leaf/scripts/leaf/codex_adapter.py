@@ -16,8 +16,9 @@ first transport needs is what `leaf codex launch` runs.
 `TaskObserver` holds the other connection, on the turns Leaf did not start: the
 user's own work in the terminal, and a queued pointer the task picks up by itself.
 
-`codex.py` owns the protocol, the delivery records, and the page writers both
-transports share. What is here is the process around them.
+`codex.py` owns the protocol, the turn every carrier follows to its reply, the
+delivery records, and the page writers both transports share. What is here is the
+process around them.
 """
 
 import json
@@ -37,7 +38,7 @@ from .codex import (
     AppServerEvents,
     AppServerReplyStream,
     AppServerRequestRejected,
-    TurnStream,
+    CarriedTurn,
     accept_codex_delivery,
     app_server_connect,
     app_server_delivery_id,
@@ -198,6 +199,10 @@ class TaskObserver:
         with self.lock:
             return bool(self.carried)
 
+    def stopped(self) -> bool:
+        """Whether the adapter is going, which is not its turns ending."""
+        return self.stop_event.is_set()
+
     def working(self) -> bool:
         """Whether the last notification read left a turn of the task's running.
 
@@ -288,20 +293,13 @@ class TaskObserver:
             if turn.get("status") == "inProgress":
                 stream.restore(self.events.final_text(turn))
             else:
-                error = self._finish_binding(
+                if self.events.turn_id == turn_id:
+                    self.events.turn_id = None
+                self._end_turn(
                     turn_id,
                     turn.get("status", "failed"),
                     self.events.final_text(turn),
                 )
-                close_stream_turn(self.thread_id, turn_id)
-                if self.events.turn_id == turn_id:
-                    self.events.turn_id = None
-                if error is not None:
-                    print(
-                        f"Codex final reply rejected: {error}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
         for turn in turns.values():
             if turn["id"] not in known_turns:
                 self._restore_delivery_binding(turn)
@@ -336,18 +334,7 @@ class TaskObserver:
             self.bindings[turn_id].restore(self.events.final_text(turn))
             return
         self._bind(turn_id, delivery_id, target)
-        error = self._finish_binding(
-            turn_id,
-            status,
-            self.events.final_text(turn),
-        )
-        close_stream_turn(self.thread_id, turn_id)
-        if error is not None:
-            print(
-                f"Codex final reply rejected: {error}",
-                file=sys.stderr,
-                flush=True,
-            )
+        self._end_turn(turn_id, status, self.events.final_text(turn))
 
     def _is_carried(self, delivery_id: str) -> bool:
         with self.lock:
@@ -380,22 +367,24 @@ class TaskObserver:
         if stream := self.bindings.get(turn_id):
             stream.update(update)
         if completed := update.get("completed"):
-            error = self._finish_binding(turn_id, completed, update.get("text", ""))
-            close_stream_turn(self.thread_id, turn_id)
-            if error is not None:
-                print(
-                    f"Codex final reply rejected: {error}",
-                    file=sys.stderr,
-                    flush=True,
-                )
+            self._end_turn(turn_id, completed, update.get("text", ""))
 
-    def _finish_binding(
-        self, turn_id: str, state: str, text: str
-    ) -> BaseException | None:
+    def _end_turn(self, turn_id: str, state: str, text: str) -> None:
+        """Commit an ended turn's bound answer, then close the turn on every page.
+
+        The close runs whatever the answer did, for the reason `CarriedTurn` gives:
+        until it does, every page the task claims tells its reader the agent is
+        still working.
+        """
         stream = self.bindings.pop(turn_id, None)
-        if stream is None:
-            return None
-        return stream.finish(state, text)
+        error = None
+        try:
+            if stream is not None:
+                error = stream.finish(state, text)
+        finally:
+            close_stream_turn(self.thread_id, turn_id)
+        if error is not None:
+            print(f"Codex final reply rejected: {error}", file=sys.stderr, flush=True)
 
     def _disconnect_streams(self) -> None:
         """Disconnect projections without breaking the observer recovery boundary."""
@@ -455,7 +444,7 @@ def accept_offered_delivery(
 
 
 def start_delivery_turn(
-    endpoint: str,
+    observer: "TaskObserver",
     session_id: str,
     payload: dict,
 ) -> "DeliveryTurn | None":
@@ -473,7 +462,7 @@ def start_delivery_turn(
     status read here is this connection's own, one request before the start, rather
     than a fold left over from notifications another connection happened to see.
     """
-    socket = app_server_connect(endpoint)
+    socket = app_server_connect(observer.endpoint)
     reply_target = None
     seat_is_free = True
     try:
@@ -534,113 +523,67 @@ def start_delivery_turn(
         socket.close()
         raise
     return DeliveryTurn(
-        session_id, socket, turn_id, payload["id"], reply_target, buffered
+        observer, session_id, socket, turn_id, payload["id"], reply_target, buffered
     )
 
 
-class DeliveryTurn:
-    """One delivery's Codex turn, from the start that made it to its receipt.
+class DeliveryTurn(CarriedTurn):
+    """One delivery's turn in the task this adapter watches.
 
-    The turn exists because `turn/start` answered with it, so this knows its turn
-    before reading a notification and nothing has to recover the binding off the
-    stream. Every way the turn can end closes it the same way: the delivery's reply
-    is finished from whatever the turn last said, the Leaf turn is closed on every
-    page the task claims, and the activity reading comes off those pages.
+    Leaf's names for the turn are the turn opened on every page the task claims and
+    the seat its final answer commits into. The observer holds the delivery as
+    carried for as long as this runs, so the connection watching the task passes
+    over everything this turn says rather than writing it a second time.
     """
 
     def __init__(
         self,
+        observer: "TaskObserver",
         session_id: str,
         socket,
         turn_id: str,
         delivery_id: str,
         reply_target: dict | None,
-        buffered: list[dict],
+        buffered=(),
     ):
-        self.session_id = session_id
-        self.socket = socket
-        self.turn_id = turn_id
-        self.delivery_id = delivery_id
-        self.reply_target = reply_target
-        self.buffered = buffered
-        self.events = AppServerEvents(session_id)
-        self.events.turn_id = turn_id
-        self.reply_stream: AppServerReplyStream | None = None
-        self.last_activity_update = 0.0
+        super().__init__(
+            session_id, socket, turn_id, delivery_id, reply_target, buffered
+        )
+        self.observer = observer
 
     def begin(self) -> None:
         """Record the delivery against this turn, and bind the answer it will give."""
         open_stream_turn(self.session_id, self.turn_id)
         accept_offered_delivery(self.session_id, self.delivery_id, self.turn_id)
-        if self.reply_target is not None:
-            self.reply_stream = AppServerReplyStream(
-                self.session_id,
-                self.turn_id,
-                self.delivery_id,
-                self.reply_target,
-            )
+        self.open_reply()
         set_stream_activity(self.session_id, self.turn_id, "Starting")
 
-    def absorb(self, message: dict) -> dict | None:
-        """Fold one notification into this turn's readings."""
-        update = self.events.read(message)
-        self.last_activity_update = project_app_server_activity(
-            self.events,
-            message,
-            update,
-            self.last_activity_update,
-        )
-        if self.reply_stream is not None:
-            self.reply_stream.update(update)
-        return update
+    def ended(self, error: BaseException) -> dict | None:
+        """Account for the turn the stream stopped carrying, unless it is not over.
 
-    def finished(self, message: dict, update: dict | None) -> dict | None:
-        """Return the terminal turn when this notification is its completion."""
-        if (
-            update is not None
-            and update.get("completed")
-            and update["turn"] == self.turn_id
-        ):
-            return message["params"]["turn"]
-        return None
-
-    def failed(self, error: BaseException) -> dict:
-        """Compose the terminal of a turn whose stream ended it."""
-        return {
-            "id": self.turn_id,
-            "status": "failed",
-            "error": {"message": f"App Server turn stream failed: {error}"},
-        }
-
-    def commit(self, terminal: dict) -> None:
-        """Account for the turn: its reply, its Leaf turn, its activity reading.
-
-        The reply is written first and it can fault — it re-reads a page the turn's
-        own work may have left unopenable, and `DeliveryReply` guards only the
-        commit of a completed answer. The turn has ended either way, so the last two
-        run from a `finally`: until the Leaf turn closes and the activity reading
-        comes off, the page goes on telling its reader the agent is working, and
-        nothing but the claim's own fifteen-minute grace ever corrects it.
+        A fault here is not the turn stopping. The provider turn goes on running in
+        a terminal the user is sitting at, where it is theirs to watch and interrupt,
+        so unlike the website's carrier this one never interrupts what it can no
+        longer read — it only stops claiming to speak for it. An adapter shutting
+        down is the case where that is all there is to do: the turn outlives this
+        process, and a later carrier reads its answer back off the transcript.
         """
-        try:
-            if self.reply_stream is not None:
-                error = self.reply_stream.finish(
-                    terminal.get("status") or "failed",
-                    self.events.final_text(terminal),
-                )
-                if error is not None:
-                    print(
-                        f"Codex final reply rejected: {error}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-            elif self.reply_target is not None:
-                release_delivery_reply(
-                    self.session_id, self.delivery_id, self.reply_target
-                )
-        finally:
-            close_stream_turn(self.session_id, self.turn_id)
-            clear_stream_activity(self.session_id, self.turn_id)
+        if self.observer.stopped():
+            self.disconnect()
+            return None
+        print(f"Codex delivery turn ended: {error}", file=sys.stderr, flush=True)
+        return super().ended(error)
+
+    def close(self, terminal: dict, reply_error: BaseException | None) -> None:
+        """Close the turn on every page the task claims, and take its reading off."""
+        if reply_error is not None:
+            print(
+                f"Codex final reply rejected: {reply_error}",
+                file=sys.stderr,
+                flush=True,
+            )
+        close_stream_turn(self.session_id, self.turn_id)
+        clear_stream_activity(self.session_id, self.turn_id)
 
     def disconnect(self) -> None:
         """Leave a still-running turn to a later carrier, with its text on the page."""
@@ -649,7 +592,7 @@ class DeliveryTurn:
         clear_stream_activity(self.session_id, self.turn_id)
 
 
-def _carry_delivery_turn(observer: TaskObserver, turn: DeliveryTurn, stopping) -> None:
+def _carry_delivery_turn(turn: DeliveryTurn) -> None:
     """Follow one delivery turn, and hand the observer its turn back at the end.
 
     This is the top of a follower thread. Anything not caught here is a traceback in
@@ -657,41 +600,11 @@ def _carry_delivery_turn(observer: TaskObserver, turn: DeliveryTurn, stopping) -
     is a task that never offers another.
     """
     try:
-        _follow_delivery_turn(turn, stopping)
+        turn.follow()
     except Exception as error:  # noqa: BLE001 - reported, never raised
         print(f"Codex delivery turn failed: {error}", file=sys.stderr, flush=True)
     finally:
-        observer.release(turn.delivery_id)
-
-
-def _follow_delivery_turn(turn: DeliveryTurn, stopping) -> None:
-    """Follow one delivery turn to its end, whatever ends it.
-
-    A fault here is not the turn stopping. The provider turn goes on running in a
-    terminal the user is sitting at, where it is theirs to watch and interrupt, so
-    unlike the website's follower this one never interrupts what it can no longer
-    read — it only stops claiming to speak for it.
-    """
-    stream = TurnStream(turn.socket, turn.buffered)
-    try:
-        turn.begin()
-        while True:
-            message = stream.next()
-            if message is None:
-                continue
-            update = turn.absorb(message)
-            terminal = turn.finished(message, update)
-            if terminal is not None:
-                break
-    except Exception as error:  # noqa: BLE001 - the turn's outcome, any fault
-        if stopping():
-            stream.close()
-            turn.disconnect()
-            return
-        print(f"Codex delivery turn ended: {error}", file=sys.stderr, flush=True)
-        terminal = turn.failed(error)
-    stream.close()
-    turn.commit(terminal)
+        turn.observer.release(turn.delivery_id)
 
 
 def adapter_log_path(session_id: str) -> Path:
@@ -846,7 +759,7 @@ def _offer_queued_delivery(
         delivery_id = prepared.payload["id"]
         observer.carry(delivery_id)
         try:
-            turn = start_delivery_turn(observer.endpoint, session_id, prepared.payload)
+            turn = start_delivery_turn(observer, session_id, prepared.payload)
         except BaseException:
             observer.release(delivery_id)
             raise
@@ -903,7 +816,6 @@ def run_adapter(
     leases_released = False
     observer = None
     followers: list[tuple[threading.Thread, DeliveryTurn]] = []
-    stopping = threading.Event()
     start_lock = adapter_start_lock_path(harness.session)
     start_lock.parent.mkdir(parents=True, exist_ok=True)
 
@@ -919,7 +831,7 @@ def run_adapter(
         followers[:] = [running for running in followers if running[0].is_alive()]
         follower = threading.Thread(
             target=_carry_delivery_turn,
-            args=(observer, turn, stopping.is_set),
+            args=(turn,),
             name="leaf-codex-delivery-turn",
             daemon=True,
         )
@@ -1010,8 +922,9 @@ def run_adapter(
         # A turn goes on running in the task whatever happens here, so the follower
         # is told the adapter is going and its connection is closed under it. It
         # then leaves what the turn has said on the page instead of committing an
-        # ending it did not see.
-        stopping.set()
+        # ending it did not see. Stopping the observer is what tells it: every
+        # follower reads the adapter's going off the observer whose delivery it
+        # carries, and there are no followers without one.
         if observer is not None:
             observer.stop()
         for follower, turn in followers:

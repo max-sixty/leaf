@@ -1761,34 +1761,31 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
         """
     )
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(url, wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        assert held, "the positive control did not hold the first state response"
-        nav = page.locator(".lf-toc-nav")
-        expect(nav).to_be_visible()
-        prepare = nav.locator('a[href="#prepare"]')
-        page.wait_for_function(
-            "link => Number(link.parentElement.style"
-            ".getPropertyValue('--lf-toc-span')) > 0",
-            arg=prepare.element_handle(),
-        )
-        authored_span = prepare.evaluate(
-            "link => Number(link.parentElement.style.getPropertyValue('--lf-toc-span'))"
-        )
+    page.goto(url, wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the first state response"
+    nav = page.locator(".lf-toc-nav")
+    expect(nav).to_be_visible()
+    prepare = nav.locator('a[href="#prepare"]')
+    page.wait_for_function(
+        "link => Number(link.parentElement.style"
+        ".getPropertyValue('--lf-toc-span')) > 0",
+        arg=prepare.element_handle(),
+    )
+    authored_span = prepare.evaluate(
+        "link => Number(link.parentElement.style.getPropertyValue('--lf-toc-span'))"
+    )
 
-        held.pop(0).continue_()
-        page.wait_for_function("() => window.__tocFirstPaint !== null")
-        first_paint = page.evaluate("() => window.__tocFirstPaint")
-        assert first_paint["visible"], first_paint
-        assert first_paint["actual"] > authored_span + 200, (
-            authored_span,
-            first_paint,
-        )
-        assert first_paint["span"] == pytest.approx(first_paint["actual"], abs=1)
-        page.wait_for_function(BOTH_STAMPS)
-    finally:
-        page.close()
+    held.pop(0).continue_()
+    page.wait_for_function("() => window.__tocFirstPaint !== null")
+    first_paint = page.evaluate("() => window.__tocFirstPaint")
+    assert first_paint["visible"], first_paint
+    assert first_paint["actual"] > authored_span + 200, (
+        authored_span,
+        first_paint,
+    )
+    assert first_paint["span"] == pytest.approx(first_paint["actual"], abs=1)
+    page.wait_for_function(BOTH_STAMPS)
 
 
 def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, serve):
@@ -6406,17 +6403,14 @@ def test_a_reader_who_asked_for_less_motion_gets_the_collapse_at_once(browser, s
         color_scheme="light",
         reduced_motion="reduce",
     )
-    try:
-        page = open_page(
-            browser, serve(SHORT_SUGGESTION), context=context, init_script=HOLD_MOTION
-        )
-        page.locator("[data-lf-margin-for='sug'] .lf-sug-accept").click()
-        expect(page.locator("#sug lf-old")).to_be_hidden()
-        assert page.evaluate("() => window.__lfHeld.length") == 0, (
-            "a reader who asked for less motion was given a fold to sit through"
-        )
-    finally:
-        context.close()
+    page = open_page(
+        browser, serve(SHORT_SUGGESTION), context=context, init_script=HOLD_MOTION
+    )
+    page.locator("[data-lf-margin-for='sug'] .lf-sug-accept").click()
+    expect(page.locator("#sug lf-old")).to_be_hidden()
+    assert page.evaluate("() => window.__lfHeld.length") == 0, (
+        "a reader who asked for less motion was given a fold to sit through"
+    )
 
 
 def test_accept_all_decides_every_pending_suggestion(browser, serve):

@@ -464,6 +464,15 @@ a page of their own and never asked for the readings, and every one of them was 
 about a page whose console, `pageerror` and window `error` channels nothing read.
 A page must therefore come from that fixture, or from a context it made.
 
+The fixture ends it too, so no test closes its own page. It closes every context
+after reading what the pages reported, in that order and for this reason: closing
+stops event delivery, so a `try/finally` that closed a page at the end of a test
+body cut the reading short — its own reading, a step before the fixture took it.
+Eighty-nine of those blocks are gone. What remains is the page that keeps making
+the fault its test is about, where the consume follows a close of its own; both are
+named in `test_the_resources_a_fixture_owns_are_taken_from_that_fixture`, which
+reads the suite for the rest.
+
 For the same reason nothing installs them a second time. `watched` returns the list a
 page already has, because a second list would take `lf_errors` with it and leave the
 first collecting into a reading no test can consume; and nothing installs them from

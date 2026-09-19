@@ -401,10 +401,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     def close_page():
         if page.is_closed():
             return
-        try:
-            page.unroute_all(behavior="wait")
-        finally:
-            page.close()
+        page.unroute_all(behavior="wait")
 
     request.addfinalizer(close_page)
     older = []

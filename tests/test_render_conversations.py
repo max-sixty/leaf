@@ -3251,31 +3251,28 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
         color_scheme="light",
         reduced_motion="reduce",
     )
-    try:
-        page = open_page(
-            browser,
-            serve(LONG_PAGE, comments=2),
-            context=context,
-            init_script=HOLD_MOTION,
-        )
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        c1, c2 = [
-            e["id"]
-            for e in events_model.read_events(serve.page_dir)
-            if e["kind"] == "comment"
-        ]
-        page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
-        expect(page.locator(f'.lf-thread[data-id="{c1}"][hidden]')).to_have_count(1)
-        assert page.evaluate("() => window.__lfHeld.length") == 0, (
-            "a reader who asked for less motion was given a fold to sit through"
-        )
-        assert page.evaluate(LIST_STATE) == {
-            "standing": [c2],
-            "walkable": [c2],
-        }, "the thread that declined its fold was left standing in the list"
-    finally:
-        context.close()
+    page = open_page(
+        browser,
+        serve(LONG_PAGE, comments=2),
+        context=context,
+        init_script=HOLD_MOTION,
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    c1, c2 = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
+    page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
+    expect(page.locator(f'.lf-thread[data-id="{c1}"][hidden]')).to_have_count(1)
+    assert page.evaluate("() => window.__lfHeld.length") == 0, (
+        "a reader who asked for less motion was given a fold to sit through"
+    )
+    assert page.evaluate(LIST_STATE) == {
+        "standing": [c2],
+        "walkable": [c2],
+    }, "the thread that declined its fold was left standing in the list"
 
 
 def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
@@ -4249,25 +4246,24 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
         color_scheme=color_scheme,
         reduced_motion="reduce",
     )
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        threads = page.locator(".lf-threads")
-        assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
-        resting_ground = threads.evaluate(
-            "el => [getComputedStyle(el).backgroundColor, "
-            "getComputedStyle(el).backgroundImage]"
-        )
-        page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
-        page.evaluate("() => document.activeElement?.blur()")
-        page.keyboard.press("g")
-        page.keyboard.press("Shift+t")
-        panel_settled(page)
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads")
+    assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
+    resting_ground = threads.evaluate(
+        "el => [getComputedStyle(el).backgroundColor, "
+        "getComputedStyle(el).backgroundImage]"
+    )
+    page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
 
-        expect(threads).to_be_focused()
-        paint = threads.evaluate(
-            """el => {
+    expect(threads).to_be_focused()
+    paint = threads.evaluate(
+        """el => {
               const list = getComputedStyle(el);
               const frame = el.parentElement;
               const current = getComputedStyle(frame, '::after');
@@ -4290,26 +4286,26 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
                   && ringBox.bottom === dividerBox.top,
               };
             }"""
-        )
-        assert paint["listOutline"] == "none"
-        assert paint["outline"] == "solid"
-        assert paint["width"] == "2px"
-        assert paint["offset"] == "-2px"
-        assert paint["ringName"] == "thread-list"
-        assert paint["ground"] == resting_ground
-        assert paint["sameBox"]
-        assert paint["joinedFooter"], (
-            "the focused list ended before the footer divider and left a second "
-            "ownerless strip between their contours"
-        )
+    )
+    assert paint["listOutline"] == "none"
+    assert paint["outline"] == "solid"
+    assert paint["width"] == "2px"
+    assert paint["offset"] == "-2px"
+    assert paint["ringName"] == "thread-list"
+    assert paint["ground"] == resting_ground
+    assert paint["sameBox"]
+    assert paint["joinedFooter"], (
+        "the focused list ended before the footer divider and left a second "
+        "ownerless strip between their contours"
+    )
 
-        # Reproduce the reported paint order: a sticky heading owns the pixels just
-        # inside the top edge while one of the list's controls crosses the bottom edge.
-        # The focus outline must remain continuous over both foreground elements. Give
-        # those contents an extreme local rank too: the list's stacking context, rather
-        # than today's particular z-index values, keeps all of its contents under the cue.
-        collision = threads.evaluate(
-            """el => {
+    # Reproduce the reported paint order: a sticky heading owns the pixels just
+    # inside the top edge while one of the list's controls crosses the bottom edge.
+    # The focus outline must remain continuous over both foreground elements. Give
+    # those contents an extreme local rank too: the list's stacking context, rather
+    # than today's particular z-index values, keeps all of its contents under the cue.
+    collision = threads.evaluate(
+        """el => {
               el.style.scrollBehavior = 'auto';
               const box = el.getBoundingClientRect();
               for (let y = 1; y <= el.scrollHeight - el.clientHeight; y += 1) {
@@ -4323,10 +4319,10 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
               }
               return null;
             }"""
-        )
-        assert collision is not None
-        threads.evaluate(
-            """el => {
+    )
+    assert collision is not None
+    threads.evaluate(
+        """el => {
               const box = el.getBoundingClientRect();
               const top = document.elementFromPoint(box.left + box.width / 2, box.top + 1);
               const bottom = document.elementFromPoint(
@@ -4336,38 +4332,32 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
               bottom.style.position = 'relative';
               bottom.style.zIndex = '9999';
             }"""
-        )
-        # The first and last device row inside the list's own box. An element clip is
-        # taken from a rect that need not land on device pixels — the list's top is
-        # 247.67 at this width — so its outermost row is the panel's paint, not the ring.
-        edges = threads.evaluate(
-            """el => { const b = el.getBoundingClientRect();
+    )
+    # The first and last device row inside the list's own box. An element clip is
+    # taken from a rect that need not land on device pixels — the list's top is
+    # 247.67 at this width — so its outermost row is the panel's paint, not the ring.
+    edges = threads.evaluate(
+        """el => { const b = el.getBoundingClientRect();
               return [Math.ceil(b.left), Math.floor(b.right),
                       Math.ceil(b.top), Math.floor(b.bottom) - 1]; }"""
+    )
+    shot = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    left, right, first, last = edges
+    for y in (first, last):
+        assert {shot.getpixel((x, y)) for x in range(left, right)} == {accent}, (
+            f"the ring is broken across row {y}"
         )
-        shot = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
-        accent = tuple(
-            int(n) for n in re.findall(r"\d+", token_colour(page, "--accent"))
-        )
-        left, right, first, last = edges
-        for y in (first, last):
-            assert {shot.getpixel((x, y)) for x in range(left, right)} == {accent}, (
-                f"the ring is broken across row {y}"
-            )
 
-        page.keyboard.press("t")
-        expect(
-            page.locator(".lf-threads > .lf-thread:not([hidden])").first
-        ).to_be_focused()
-        assert (
-            threads.evaluate(
-                "el => getComputedStyle(el.parentElement, '::after').outlineStyle"
-            )
-            == "none"
+    page.keyboard.press("t")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])").first).to_be_focused()
+    assert (
+        threads.evaluate(
+            "el => getComputedStyle(el.parentElement, '::after').outlineStyle"
         )
-        page.close()
-    finally:
-        context.close()
+        == "none"
+    )
+    page.close()
 
 
 def thread_mark_fault(reading):
@@ -4394,46 +4384,43 @@ def test_forced_colors_keep_current_conversation_regions_distinct(browser, serve
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, forced_colors="active"
     )
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        page.evaluate("() => document.activeElement?.blur()")
-        # The named address toggles the panel it names, so from a panel opened by its
-        # visible control the first completion closes it and the second is the arrival.
-        page.keyboard.press("g")
-        page.keyboard.press("Shift+t")
-        panel_settled(page, open=False)
-        page.keyboard.press("g")
-        page.keyboard.press("Shift+t")
-        threads = page.locator(".lf-threads")
-        expect(threads).to_be_focused()
-        expect(threads).to_have_css("outline-style", "none")
-        assert (
-            threads.evaluate(
-                "el => getComputedStyle(el.parentElement, '::after').outlineStyle"
-            )
-            == "solid"
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate("() => document.activeElement?.blur()")
+    # The named address toggles the panel it names, so from a panel opened by its
+    # visible control the first completion closes it and the second is the arrival.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, open=False)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    threads = page.locator(".lf-threads")
+    expect(threads).to_be_focused()
+    expect(threads).to_have_css("outline-style", "none")
+    assert (
+        threads.evaluate(
+            "el => getComputedStyle(el.parentElement, '::after').outlineStyle"
         )
-        current = page.locator(".lf-thread").filter(has_text="The current card.")
-        peer = page.locator(".lf-thread").filter(has_text="Its resting peer.")
-        box = current.bounding_box()
-        assert box
-        page.mouse.click(box["x"] + 6, box["y"] + 6)
-        expect(current).to_be_focused()
-        assert current.evaluate("el => el.matches(':focus-within')")
-        assert not current.evaluate("el => el.matches(':focus-visible')")
-        assert current.evaluate(
-            "el => getComputedStyle(el).borderColor"
-        ) != peer.evaluate("el => getComputedStyle(el).borderColor")
-        reply = current.locator("textarea")
-        reply.click()
-        expect(reply).to_be_focused()
-        assert current.evaluate(
-            "el => getComputedStyle(el).borderColor"
-        ) != peer.evaluate("el => getComputedStyle(el).borderColor")
-    finally:
-        context.close()
+        == "solid"
+    )
+    current = page.locator(".lf-thread").filter(has_text="The current card.")
+    peer = page.locator(".lf-thread").filter(has_text="Its resting peer.")
+    box = current.bounding_box()
+    assert box
+    page.mouse.click(box["x"] + 6, box["y"] + 6)
+    expect(current).to_be_focused()
+    assert current.evaluate("el => el.matches(':focus-within')")
+    assert not current.evaluate("el => el.matches(':focus-visible')")
+    assert current.evaluate("el => getComputedStyle(el).borderColor") != peer.evaluate(
+        "el => getComputedStyle(el).borderColor"
+    )
+    reply = current.locator("textarea")
+    reply.click()
+    expect(reply).to_be_focused()
+    assert current.evaluate("el => getComputedStyle(el).borderColor") != peer.evaluate(
+        "el => getComputedStyle(el).borderColor"
+    )
 
 
 def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
@@ -4463,105 +4450,96 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        threads = page.locator(".lf-threads > .lf-thread:not([hidden])").count()
-        assert threads == 16, (
-            f"the fixture built {threads} threads, not the 16 it needs"
-        )
-        assert page.evaluate(
-            "() => { const l = document.querySelector('.lf-threads');"
-            " return l.scrollHeight > l.clientHeight; }"
-        ), "the list does not scroll, so nothing here can be cut by its edge"
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads > .lf-thread:not([hidden])").count()
+    assert threads == 16, f"the fixture built {threads} threads, not the 16 it needs"
+    assert page.evaluate(
+        "() => { const l = document.querySelector('.lf-threads');"
+        " return l.scrollHeight > l.clientHeight; }"
+    ), "the list does not scroll, so nothing here can be cut by its edge"
 
-        # The walk keys, not Tab: a thread is tabindex -1 and t/T are how a reader
-        # reaches one. Every landing on the way down and again on the way up, because
-        # the two directions align opposite edges of the box with the scrollport and
-        # only one of them was ever wrong at a time.
-        # Standing nowhere, said rather than clicked for: `c` goes to the box belonging to
-        # whatever the reader is standing in, and a click on the body lands wherever the
-        # middle of the document happens to be — which on this page is a diff, whose `pre`
-        # takes focus. The press then opened that widget's composer and the walk below
-        # typed its keys into the box, which is exactly what the non-vacuity check at the
-        # end caught: thirty-two landings asserted, none of them on a thread.
-        page.evaluate("() => document.activeElement?.blur()")
-        # The named address toggles the panel it names, so from a panel opened by its
-        # visible control the first completion closes it and the second is the arrival.
-        page.keyboard.press("g")
-        page.keyboard.press("Shift+t")
-        panel_settled(page, open=False)
-        page.keyboard.press("g")
-        page.keyboard.press("Shift+t")
-        expect(page.locator(".lf-threads")).to_be_focused()
-        walked, faults = 0, []
-        for key in ("t",) * threads + ("Shift+t",) * threads:
-            page.keyboard.press(key)
-            page.evaluate(RENDERED)
-            walked += 1
-            mark_fault = thread_mark_fault(standing_thread(page))
-            if mark_fault:
-                faults.append(f"after {walked} presses, {mark_fault}")
-            faults += ring_faults(
-                rings_drawn(page), f"after {walked} presses of the walk"
+    # The walk keys, not Tab: a thread is tabindex -1 and t/T are how a reader
+    # reaches one. Every landing on the way down and again on the way up, because
+    # the two directions align opposite edges of the box with the scrollport and
+    # only one of them was ever wrong at a time.
+    # Standing nowhere, said rather than clicked for: `c` goes to the box belonging to
+    # whatever the reader is standing in, and a click on the body lands wherever the
+    # middle of the document happens to be — which on this page is a diff, whose `pre`
+    # takes focus. The press then opened that widget's composer and the walk below
+    # typed its keys into the box, which is exactly what the non-vacuity check at the
+    # end caught: thirty-two landings asserted, none of them on a thread.
+    page.evaluate("() => document.activeElement?.blur()")
+    # The named address toggles the panel it names, so from a panel opened by its
+    # visible control the first completion closes it and the second is the arrival.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, open=False)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    walked, faults = 0, []
+    for key in ("t",) * threads + ("Shift+t",) * threads:
+        page.keyboard.press(key)
+        page.evaluate(RENDERED)
+        walked += 1
+        mark_fault = thread_mark_fault(standing_thread(page))
+        if mark_fault:
+            faults.append(f"after {walked} presses, {mark_fault}")
+        faults += ring_faults(rings_drawn(page), f"after {walked} presses of the walk")
+        under = page.evaluate(COVERED_TOP)
+        if under:
+            faults.append(
+                f"after {walked} presses, the thread landed under a run "
+                f"heading: {under}"
             )
-            under = page.evaluate(COVERED_TOP)
-            if under:
-                faults.append(
-                    f"after {walked} presses, the thread landed under a run "
-                    f"heading: {under}"
-                )
-        assert not faults, "\n  ".join(
-            [f"{len(faults)} of {walked} landings:"] + faults
-        )
+    assert not faults, "\n  ".join([f"{len(faults)} of {walked} landings:"] + faults)
 
-        # Non-vacuity: the walk has to have been on a thread inside the scrolling list,
-        # repainting its existing card, or the loop above asserted nothing at every step.
-        standing = standing_thread(page)
-        assert standing, "the walk ends outside a thread"
-        assert standing["scrolled"], (
-            "the walk ends outside a scroll region, so the cut half proved nothing"
-        )
+    # Non-vacuity: the walk has to have been on a thread inside the scrolling list,
+    # repainting its existing card, or the loop above asserted nothing at every step.
+    standing = standing_thread(page)
+    assert standing, "the walk ends outside a thread"
+    assert standing["scrolled"], (
+        "the walk ends outside a scroll region, so the cut half proved nothing"
+    )
 
-        # The list's own controls, which t and T never reach: Reply and Resolve inside a
-        # card draw their rings outside themselves, as does a run heading, which is a
-        # button. They are what the room reserved at this list's edges is for — the
-        # current thread's paint stays inside its card — so without this pass half of
-        # that scroll-padding is unheld. Tab scrolls each stop into view itself,
-        # which is the gesture that puts one against an edge.
-        page.locator(".lf-threads").focus()
-        # Counted off the list rather than floored at a number somebody picked: a
-        # walk that reaches eight of thirty-five controls passes a floor of eight
-        # while three quarters of the room this list reserves goes unheld, and says
-        # nothing about which quarter.
-        tabbable = page.eval_on_selector_all(
-            ".lf-threads *",
-            "els => els.filter((e) => e.tabIndex >= 0).length",
+    # The list's own controls, which t and T never reach: Reply and Resolve inside a
+    # card draw their rings outside themselves, as does a run heading, which is a
+    # button. They are what the room reserved at this list's edges is for — the
+    # current thread's paint stays inside its card — so without this pass half of
+    # that scroll-padding is unheld. Tab scrolls each stop into view itself,
+    # which is the gesture that puts one against an edge.
+    page.locator(".lf-threads").focus()
+    # Counted off the list rather than floored at a number somebody picked: a
+    # walk that reaches eight of thirty-five controls passes a floor of eight
+    # while three quarters of the room this list reserves goes unheld, and says
+    # nothing about which quarter.
+    tabbable = page.eval_on_selector_all(
+        ".lf-threads *",
+        "els => els.filter((e) => e.tabIndex >= 0).length",
+    )
+    assert tabbable, "the list holds no control to tab to"
+    stops = 0
+    for _ in range(tabbable + 5):
+        page.keyboard.press("Tab")
+        page.evaluate(RENDERED)
+        if not page.evaluate(
+            "() => document.querySelector('.lf-threads')"
+            ".contains(document.activeElement)"
+        ):
+            break
+        stops += 1
+        faults += ring_faults(
+            rings_drawn(page), f"tabbing to stop {stops} inside the list"
         )
-        assert tabbable, "the list holds no control to tab to"
-        stops = 0
-        for _ in range(tabbable + 5):
-            page.keyboard.press("Tab")
-            page.evaluate(RENDERED)
-            if not page.evaluate(
-                "() => document.querySelector('.lf-threads')"
-                ".contains(document.activeElement)"
-            ):
-                break
-            stops += 1
-            faults += ring_faults(
-                rings_drawn(page), f"tabbing to stop {stops} inside the list"
-            )
-        assert stops == tabbable, (
-            f"the walk stood on {stops} of the list's {tabbable} controls, so the room "
-            "it reserves at its edges is only partly held by this"
-        )
-        assert not faults, "\n  ".join([f"{len(faults)} faults:"] + faults)
+    assert stops == tabbable, (
+        f"the walk stood on {stops} of the list's {tabbable} controls, so the room "
+        "it reserves at its edges is only partly held by this"
+    )
+    assert not faults, "\n  ".join([f"{len(faults)} faults:"] + faults)
 
-        page.close()
-    finally:
-        context.close()
+    page.close()
 
 
 def test_go_page_returns_without_unwinding_the_panel(browser, serve):
@@ -4603,22 +4581,19 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
 
     context = browser.new_context(viewport={"width": 800, "height": 900})
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
-        thread.focus()
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    thread.focus()
 
-        page.keyboard.press("g")
-        page.keyboard.press("p")
-        expect(thread).to_be_focused()
-        expect(page.locator(".lf-thread-panel")).to_be_visible()
-        page.keyboard.press("Escape")
-        expect(page.locator(".lf-thread-panel")).to_be_hidden()
-        page.close()
-    finally:
-        context.close()
+    page.keyboard.press("g")
+    page.keyboard.press("p")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    page.close()
 
 
 def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
@@ -4636,28 +4611,27 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        box = page.locator(".lf-threads")
-        target = page.locator(".lf-threads > .lf-thread:not([hidden])").nth(8)
-        assert box.evaluate("el => el.scrollHeight > el.clientHeight"), (
-            "the list does not scroll, so its edges are not distinct places"
-        )
-        target.evaluate("el => el.focus({preventScroll: true})")
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    box = page.locator(".lf-threads")
+    target = page.locator(".lf-threads > .lf-thread:not([hidden])").nth(8)
+    assert box.evaluate("el => el.scrollHeight > el.clientHeight"), (
+        "the list does not scroll, so its edges are not distinct places"
+    )
+    target.evaluate("el => el.focus({preventScroll: true})")
 
-        before_page = page.evaluate("() => document.scrollingElement.scrollTop")
-        page.keyboard.press("g")
-        expect(
-            page.locator(
-                ".lf-shortcut-bar .lf-shortcut:not([hidden])",
-                has_text="thread top / bottom",
-            )
-        ).to_have_count(1)
-        page.keyboard.press("k")
-        top = page.evaluate(
-            """() => {
+    before_page = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.keyboard.press("g")
+    expect(
+        page.locator(
+            ".lf-shortcut-bar .lf-shortcut:not([hidden])",
+            has_text="thread top / bottom",
+        )
+    ).to_have_count(1)
+    page.keyboard.press("k")
+    top = page.evaluate(
+        """() => {
               const box = document.querySelector('.lf-threads');
               const thread = document.activeElement;
               const view = box.getBoundingClientRect();
@@ -4665,17 +4639,17 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
               const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
               return {gap: card.top - view.top, clear};
             }"""
-        )
-        assert abs(top["gap"] - top["clear"]) < 2, (
-            f"g k left the card {top['gap']:.1f}px from the list top; "
-            f"the landable edge is {top['clear']:.1f}px"
-        )
-        expect(target).to_be_focused()
+    )
+    assert abs(top["gap"] - top["clear"]) < 2, (
+        f"g k left the card {top['gap']:.1f}px from the list top; "
+        f"the landable edge is {top['clear']:.1f}px"
+    )
+    expect(target).to_be_focused()
 
-        page.keyboard.press("g")
-        page.keyboard.press("j")
-        bottom = page.evaluate(
-            """() => {
+    page.keyboard.press("g")
+    page.keyboard.press("j")
+    bottom = page.evaluate(
+        """() => {
               const box = document.querySelector('.lf-threads');
               const thread = document.activeElement;
               const view = box.getBoundingClientRect();
@@ -4683,16 +4657,14 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
               const clear = parseFloat(getComputedStyle(box).scrollPaddingBottom) || 0;
               return {gap: view.bottom - card.bottom, clear};
             }"""
-        )
-        assert abs(bottom["gap"] - bottom["clear"]) < 2, (
-            f"g j left the card {bottom['gap']:.1f}px from the list bottom; "
-            f"the landable edge is {bottom['clear']:.1f}px"
-        )
-        expect(target).to_be_focused()
-        assert page.evaluate("() => document.scrollingElement.scrollTop") == before_page
-        page.close()
-    finally:
-        context.close()
+    )
+    assert abs(bottom["gap"] - bottom["clear"]) < 2, (
+        f"g j left the card {bottom['gap']:.1f}px from the list bottom; "
+        f"the landable edge is {bottom['clear']:.1f}px"
+    )
+    expect(target).to_be_focused()
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before_page
+    page.close()
 
 
 # What the burial below is aiming at: how deep the heading stands over the first card,
@@ -4747,72 +4719,69 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
 
-        # Bury the card by exactly its reserved edge, which is the reader's own case: a
-        # list nudged a dozen pixels puts the first card of a run under the heading. The
-        # depth is one pixel rather than a comfortable number on purpose: it leaves the
-        # rest of the card visible while hiding the first strip of its current ground.
-        page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
-        page.evaluate(RENDERED)
-        buried = page.evaluate(UNDER_HEADING)
-        assert buried["edge"] <= buried["covered"] <= buried["edge"] + 1, (
-            f"the heading stands over {buried['covered']}px of the first card and its "
-            f"edge is {buried['edge']}px: the setup wanted the edge buried and the rest "
-            "of the card showing, and this is neither"
-        )
+    # Bury the card by exactly its reserved edge, which is the reader's own case: a
+    # list nudged a dozen pixels puts the first card of a run under the heading. The
+    # depth is one pixel rather than a comfortable number on purpose: it leaves the
+    # rest of the card visible while hiding the first strip of its current ground.
+    page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
+    page.evaluate(RENDERED)
+    buried = page.evaluate(UNDER_HEADING)
+    assert buried["edge"] <= buried["covered"] <= buried["edge"] + 1, (
+        f"the heading stands over {buried['covered']}px of the first card and its "
+        f"edge is {buried['edge']}px: the setup wanted the edge buried and the rest "
+        "of the card showing, and this is neither"
+    )
 
-        # Just inside the card's own corner. Its middle is prose today and one layout
-        # away from being the reply box or a button, and a press that lands on a control
-        # inside the card would fail this for a reason that is not its subject.
-        box = buried["box"]
-        page.mouse.click(box["x"] + 6, box["y"] + 6)
-        page.evaluate(RENDERED)
-        assert page.evaluate(
-            "() => document.activeElement?.classList.contains('lf-thread')"
-        ), "the press did not land the reader on a thread"
-        mark_fault = thread_mark_fault(standing_thread(page))
-        assert not mark_fault, mark_fault
-        assert not ring_faults(
-            rings_drawn(page), "after a press on a card under the run heading"
-        )
-        # The panel's own reading of the same question, and the stronger form of it: a
-        # hit test at the card's top edge rather than two rectangles subtracted, and it
-        # declines outright if the press left the list.
-        assert page.evaluate(COVERED_TOP) is None, (
-            f"after the press the card is still under a heading: "
-            f"{page.evaluate(COVERED_TOP)}"
-        )
+    # Just inside the card's own corner. Its middle is prose today and one layout
+    # away from being the reply box or a button, and a press that lands on a control
+    # inside the card would fail this for a reason that is not its subject.
+    box = buried["box"]
+    page.mouse.click(box["x"] + 6, box["y"] + 6)
+    page.evaluate(RENDERED)
+    assert page.evaluate(
+        "() => document.activeElement?.classList.contains('lf-thread')"
+    ), "the press did not land the reader on a thread"
+    mark_fault = thread_mark_fault(standing_thread(page))
+    assert not mark_fault, mark_fault
+    assert not ring_faults(
+        rings_drawn(page), "after a press on a card under the run heading"
+    )
+    # The panel's own reading of the same question, and the stronger form of it: a
+    # hit test at the card's top edge rather than two rectangles subtracted, and it
+    # declines outright if the press left the list.
+    assert page.evaluate(COVERED_TOP) is None, (
+        f"after the press the card is still under a heading: "
+        f"{page.evaluate(COVERED_TOP)}"
+    )
 
-        # The reply box receives the compact ring and the parent keeps its quiet current
-        # ground. Reached by key this was never wrong, because landIn already lands the
-        # thread around the box; a press into it went the way every other press did.
-        page.evaluate(BURY, buried["edge"])
-        page.evaluate(RENDERED)
-        under = page.evaluate(UNDER_HEADING)
-        assert under["covered"] >= under["edge"], (
-            f"the setup put the card back only {under['covered']}px under, which its "
-            f"{under['edge']}px edge shows through"
-        )
-        reply = page.locator(".lf-threads > .lf-thread textarea").first
-        reply_box = reply.bounding_box()
-        page.mouse.click(
-            reply_box["x"] + reply_box["width"] / 2,
-            reply_box["y"] + reply_box["height"] / 2,
-        )
-        page.evaluate(RENDERED)
-        expect(reply).to_be_focused()
-        assert page.evaluate(COVERED_TOP) is None, (
-            "a press into the reply box left the current thread under the heading: "
-            f"{page.evaluate(COVERED_TOP)}"
-        )
+    # The reply box receives the compact ring and the parent keeps its quiet current
+    # ground. Reached by key this was never wrong, because landIn already lands the
+    # thread around the box; a press into it went the way every other press did.
+    page.evaluate(BURY, buried["edge"])
+    page.evaluate(RENDERED)
+    under = page.evaluate(UNDER_HEADING)
+    assert under["covered"] >= under["edge"], (
+        f"the setup put the card back only {under['covered']}px under, which its "
+        f"{under['edge']}px edge shows through"
+    )
+    reply = page.locator(".lf-threads > .lf-thread textarea").first
+    reply_box = reply.bounding_box()
+    page.mouse.click(
+        reply_box["x"] + reply_box["width"] / 2,
+        reply_box["y"] + reply_box["height"] / 2,
+    )
+    page.evaluate(RENDERED)
+    expect(reply).to_be_focused()
+    assert page.evaluate(COVERED_TOP) is None, (
+        "a press into the reply box left the current thread under the heading: "
+        f"{page.evaluate(COVERED_TOP)}"
+    )
 
-        page.close()
-    finally:
-        context.close()
+    page.close()
 
 
 def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser, serve):
@@ -4836,41 +4805,38 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
 
-        # Stand in the card first, then carry the list under it — which is the order the
-        # reader does it in, and the one where no later focus event is coming.
-        first = page.locator(".lf-threads > .lf-thread:not([hidden])").first
-        first.focus()
-        page.evaluate(RENDERED)
-        page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
-        page.evaluate(RENDERED)
-        under = page.evaluate(UNDER_HEADING)
-        assert under["covered"] >= under["edge"], (
-            f"the list carried only {under['covered']}px under the heading, which the "
-            f"{under['edge']}px edge shows through — nothing here is cut yet"
-        )
-        assert page.evaluate(
-            "() => document.activeElement?.classList.contains('lf-thread')"
-        ), "the reader is not standing in the card, so the press below moves focus"
+    # Stand in the card first, then carry the list under it — which is the order the
+    # reader does it in, and the one where no later focus event is coming.
+    first = page.locator(".lf-threads > .lf-thread:not([hidden])").first
+    first.focus()
+    page.evaluate(RENDERED)
+    page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
+    page.evaluate(RENDERED)
+    under = page.evaluate(UNDER_HEADING)
+    assert under["covered"] >= under["edge"], (
+        f"the list carried only {under['covered']}px under the heading, which the "
+        f"{under['edge']}px edge shows through — nothing here is cut yet"
+    )
+    assert page.evaluate(
+        "() => document.activeElement?.classList.contains('lf-thread')"
+    ), "the reader is not standing in the card, so the press below moves focus"
 
-        box = under["box"]
-        page.mouse.click(box["x"] + 6, box["y"] + 6)
-        page.evaluate(RENDERED)
-        assert page.evaluate(COVERED_TOP) is None, (
-            "a press on the card the reader was already standing in left it under the "
-            f"heading: {page.evaluate(COVERED_TOP)}"
-        )
-        assert not ring_faults(
-            rings_drawn(page), "after a press on the card already standing in"
-        )
+    box = under["box"]
+    page.mouse.click(box["x"] + 6, box["y"] + 6)
+    page.evaluate(RENDERED)
+    assert page.evaluate(COVERED_TOP) is None, (
+        "a press on the card the reader was already standing in left it under the "
+        f"heading: {page.evaluate(COVERED_TOP)}"
+    )
+    assert not ring_faults(
+        rings_drawn(page), "after a press on the card already standing in"
+    )
 
-        page.close()
-    finally:
-        context.close()
+    page.close()
 
 
 def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
@@ -4895,23 +4861,22 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
 
-        first = page.locator(".lf-threads > .lf-thread:not([hidden])").first
-        first.evaluate("el => el.focus({preventScroll: true})")
-        page.evaluate(RENDERED)
-        page.evaluate(BURY, 20)
-        page.evaluate(RENDERED)
-        before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
-        assert page.evaluate(UNDER_HEADING)["covered"] >= 20, (
-            "the setup did not put the first card under its heading"
-        )
+    first = page.locator(".lf-threads > .lf-thread:not([hidden])").first
+    first.evaluate("el => el.focus({preventScroll: true})")
+    page.evaluate(RENDERED)
+    page.evaluate(BURY, 20)
+    page.evaluate(RENDERED)
+    before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
+    assert page.evaluate(UNDER_HEADING)["covered"] >= 20, (
+        "the setup did not put the first card under its heading"
+    )
 
-        page.evaluate(
-            """() => {
+    page.evaluate(
+        """() => {
               const card = document.querySelector('.lf-threads > .lf-thread');
               card.dispatchEvent(new PointerEvent('pointerdown', {
                 bubbles: true, isPrimary: true, pointerId: 7,
@@ -4920,35 +4885,32 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
                 isPrimary: false, pointerId: 8,
               }));
             }"""
-        )
-        page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
-        first.evaluate("el => el.focus({preventScroll: true})")
-        page.evaluate(RENDERED)
-        assert page.evaluate(COVERED_TOP) is not None, (
-            "an unrelated pointer cancellation released the active panel gesture"
-        )
+    )
+    page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
+    first.evaluate("el => el.focus({preventScroll: true})")
+    page.evaluate(RENDERED)
+    assert page.evaluate(COVERED_TOP) is not None, (
+        "an unrelated pointer cancellation released the active panel gesture"
+    )
 
-        page.evaluate(
-            """() => dispatchEvent(new PointerEvent('pointercancel', {
+    page.evaluate(
+        """() => dispatchEvent(new PointerEvent('pointercancel', {
               isPrimary: true, pointerId: 7,
             }))"""
-        )
-        assert (
-            page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
-            == before
-        ), "cancelling a touch-scroll gesture landed the thread and undid the scroll"
+    )
+    assert (
+        page.evaluate("() => document.querySelector('.lf-threads').scrollTop") == before
+    ), "cancelling a touch-scroll gesture landed the thread and undid the scroll"
 
-        page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
-        first.evaluate("el => el.focus({preventScroll: true})")
-        page.evaluate(RENDERED)
-        assert page.evaluate(COVERED_TOP) is None, (
-            "the cancelled press suppressed the next focus landing and left the card "
-            f"under its heading: {page.evaluate(COVERED_TOP)}"
-        )
+    page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
+    first.evaluate("el => el.focus({preventScroll: true})")
+    page.evaluate(RENDERED)
+    assert page.evaluate(COVERED_TOP) is None, (
+        "the cancelled press suppressed the next focus landing and left the card "
+        f"under its heading: {page.evaluate(COVERED_TOP)}"
+    )
 
-        page.close()
-    finally:
-        context.close()
+    page.close()
 
 
 def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serve):
@@ -4970,68 +4932,65 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
-        # Keep the quoted passage outside the page's readable viewport. This test is the
-        # drag/plain-press contrast: a readable destination deliberately stays put now,
-        # so only an offscreen passage can prove the plain press still travels.
-        page.evaluate(
-            "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
-        )
-        page.evaluate(RENDERED)
-        destination = page.evaluate(
-            """() => {
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
+    # Keep the quoted passage outside the page's readable viewport. This test is the
+    # drag/plain-press contrast: a readable destination deliberately stays put now,
+    # so only an offscreen passage can prove the plain press still travels.
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+    )
+    page.evaluate(RENDERED)
+    destination = page.evaluate(
+        """() => {
               const target = document.querySelector('#merge-both').getBoundingClientRect();
               const banner = document.querySelector('.lf-banner').getBoundingClientRect();
               return {top: target.top, bottom: target.bottom,
                       banner: banner.bottom, height: innerHeight};
             }"""
-        )
-        assert (
-            destination["bottom"] <= destination["banner"]
-            or destination["top"] >= destination["height"]
-        ), (
-            f"the quoted passage is still readable, so a click need not travel: {destination}"
-        )
+    )
+    assert (
+        destination["bottom"] <= destination["banner"]
+        or destination["top"] >= destination["height"]
+    ), (
+        f"the quoted passage is still readable, so a click need not travel: {destination}"
+    )
 
-        where = "() => document.scrollingElement.scrollTop"
-        before = page.evaluate(where)
-        quote = page.locator(".lf-threads > .lf-thread .lf-quote").first
-        span = quote.bounding_box()
-        page.mouse.move(span["x"] + 4, span["y"] + 6)
-        page.mouse.down()
-        page.mouse.move(span["x"] + span["width"] - 6, span["y"] + 6, steps=8)
-        page.mouse.up()
-        page_at_rest(page)
+    where = "() => document.scrollingElement.scrollTop"
+    before = page.evaluate(where)
+    quote = page.locator(".lf-threads > .lf-thread .lf-quote").first
+    span = quote.bounding_box()
+    page.mouse.move(span["x"] + 4, span["y"] + 6)
+    page.mouse.down()
+    page.mouse.move(span["x"] + span["width"] - 6, span["y"] + 6, steps=8)
+    page.mouse.up()
+    page_at_rest(page)
 
-        drawn = page.evaluate("() => getSelection().toString()")
-        assert len(drawn) > 8, (
-            f"the drag took {drawn!r} of the quote, so this asserts nothing about one"
-        )
-        after = page.evaluate(where)
-        assert after == before, (
-            f"the page travelled from {before} to {after} while the reader was taking "
-            "the quote's words, so what they were reading went with it"
-        )
+    drawn = page.evaluate("() => getSelection().toString()")
+    assert len(drawn) > 8, (
+        f"the drag took {drawn!r} of the quote, so this asserts nothing about one"
+    )
+    after = page.evaluate(where)
+    assert after == before, (
+        f"the page travelled from {before} to {after} while the reader was taking "
+        "the quote's words, so what they were reading went with it"
+    )
 
-        # The press itself still travels: what stood down is the drag, not the control.
-        # The words go first, because a press inside a standing selection is where the
-        # platform holds it for a drag of its own — the reader's next press is a press,
-        # not the tail of the one before it.
-        page.evaluate("() => getSelection().removeAllRanges()")
-        quote.click()
-        page_at_rest(page)
-        assert page.evaluate(where) != before, (
-            "a plain press on the quote no longer travels to its passage, so this took "
-            "the control away rather than the drag"
-        )
+    # The press itself still travels: what stood down is the drag, not the control.
+    # The words go first, because a press inside a standing selection is where the
+    # platform holds it for a drag of its own — the reader's next press is a press,
+    # not the tail of the one before it.
+    page.evaluate("() => getSelection().removeAllRanges()")
+    quote.click()
+    page_at_rest(page)
+    assert page.evaluate(where) != before, (
+        "a plain press on the quote no longer travels to its passage, so this took "
+        "the control away rather than the drag"
+    )
 
-        page.close()
-    finally:
-        context.close()
+    page.close()
 
 
 def test_a_drag_across_a_comments_words_leaves_the_list_where_it_was_read(
@@ -5057,42 +5016,39 @@ def test_a_drag_across_a_comments_words_leaves_the_list_where_it_was_read(
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
-    try:
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
 
-        # Far enough under the heading that a landing would be a visible jump, so the
-        # drag below is asserting the absence of something this list would otherwise do.
-        page.evaluate(BURY, 20)
-        page.evaluate(RENDERED)
-        before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
-        # The message's own words, not the quote above them: a quote is a control that
-        # jumps to the passage, so a drag ending on one has a second reason to scroll and
-        # this would not be able to say which had moved the list.
-        words = page.locator(".lf-threads > .lf-thread .lf-msg-body").first
-        span = words.bounding_box()
-        page.mouse.move(span["x"] + 4, span["y"] + span["height"] / 2)
-        page.mouse.down()
-        page.mouse.move(
-            span["x"] + span["width"] - 4, span["y"] + span["height"] / 2, steps=8
-        )
-        page.mouse.up()
-        page.evaluate(RENDERED)
+    # Far enough under the heading that a landing would be a visible jump, so the
+    # drag below is asserting the absence of something this list would otherwise do.
+    page.evaluate(BURY, 20)
+    page.evaluate(RENDERED)
+    before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
+    # The message's own words, not the quote above them: a quote is a control that
+    # jumps to the passage, so a drag ending on one has a second reason to scroll and
+    # this would not be able to say which had moved the list.
+    words = page.locator(".lf-threads > .lf-thread .lf-msg-body").first
+    span = words.bounding_box()
+    page.mouse.move(span["x"] + 4, span["y"] + span["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        span["x"] + span["width"] - 4, span["y"] + span["height"] / 2, steps=8
+    )
+    page.mouse.up()
+    page.evaluate(RENDERED)
 
-        after = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
-        assert after == before, (
-            f"the list moved from {before} to {after} under a drag, so the words the "
-            "reader was selecting went with it"
-        )
-        drawn = page.evaluate("() => getSelection().toString()")
-        assert len(drawn) > 4, (
-            f"the drag selected {drawn!r}, so this asserts nothing about a selection"
-        )
+    after = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
+    assert after == before, (
+        f"the list moved from {before} to {after} under a drag, so the words the "
+        "reader was selecting went with it"
+    )
+    drawn = page.evaluate("() => getSelection().toString()")
+    assert len(drawn) > 4, (
+        f"the drag selected {drawn!r}, so this asserts nothing about a selection"
+    )
 
-        page.close()
-    finally:
-        context.close()
+    page.close()
 
 
 def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
@@ -5124,63 +5080,60 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, reduced_motion="reduce"
     )
-    try:
-        page = open_page(browser, url, context=context)
-        edge = next(e for e in EDGES if e.name == "comments")
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        room = (
-            "() => getComputedStyle(document.querySelector('.lf-threads'))"
-            ".getPropertyValue('--lf-head-room')"
-        )
-        tallest = """() => Math.max(0, ...[...document.querySelectorAll(
+    page = open_page(browser, url, context=context)
+    edge = next(e for e in EDGES if e.name == "comments")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    room = (
+        "() => getComputedStyle(document.querySelector('.lf-threads'))"
+        ".getPropertyValue('--lf-head-room')"
+    )
+    tallest = """() => Math.max(0, ...[...document.querySelectorAll(
              '.lf-threads .lf-pinned')].map((h) => Math.round(
                h.getBoundingClientRect().height)))"""
-        assert page.evaluate(room) == f"{page.evaluate(tallest)}px"
+    assert page.evaluate(room) == f"{page.evaluate(tallest)}px"
 
-        # Narrow it until the long heading wraps. The gesture is the reader's own.
-        draw_edge(page, edge, -(edge.wide - 320))
-        edge_settled(page, edge)
-        assert page.evaluate(tallest) > 38, (
-            "no heading wrapped at the narrow end, so the drag changed nothing to notice"
-        )
-        assert page.evaluate(room) == f"{page.evaluate(tallest)}px", (
-            "the room a heading takes was measured at a width the reader has left"
-        )
+    # Narrow it until the long heading wraps. The gesture is the reader's own.
+    draw_edge(page, edge, -(edge.wide - 320))
+    edge_settled(page, edge)
+    assert page.evaluate(tallest) > 38, (
+        "no heading wrapped at the narrow end, so the drag changed nothing to notice"
+    )
+    assert page.evaluate(room) == f"{page.evaluate(tallest)}px", (
+        "the room a heading takes was measured at a width the reader has left"
+    )
 
-        # And the walk lands clear of it, which is what the number is for. Standing
-        # nowhere first, said rather than clicked: `c` opens the box belonging to
-        # whatever the reader is standing in, and a click on the body lands wherever the
-        # middle of the document happens to be — here a diff, whose `pre` takes focus, so
-        # the press opened that widget's composer and the sixteen keys below were typed
-        # into it as characters. COVERED_TOP answers null for a focus outside the list,
-        # so every one of those landings agreed with the invariant by never being asked.
-        page.evaluate("() => document.activeElement?.blur()")
-        # The named address toggles the panel it names, so from a panel opened by its
-        # visible control the first completion closes it and the second is the arrival.
-        page.keyboard.press("g")
-        page.keyboard.press("Shift+t")
-        panel_settled(page, open=False)
-        page.keyboard.press("g")
-        page.keyboard.press("Shift+t")
-        expect(page.locator(".lf-threads")).to_be_focused()
-        faults = []
-        for key in ("t",) * 8 + ("Shift+t",) * 8:
-            page.keyboard.press(key)
-            page.evaluate(RENDERED)
-            under = page.evaluate(COVERED_TOP)
-            if under:
-                faults.append(under)
-        assert not faults, "\n  ".join(["landed under a run heading:"] + faults)
-        # Non-vacuity, kept beside the loop it is about: the walk has to have ended on a
-        # thread inside the list, or the loop asked its question sixteen times of a focus
-        # COVERED_TOP declines to answer for.
-        assert page.evaluate(
-            "() => Boolean(document.activeElement?.closest?.('.lf-threads > .lf-thread'))"
-        ), "the walk ends outside the list, so the landings proved nothing"
-        page.close()
-    finally:
-        context.close()
+    # And the walk lands clear of it, which is what the number is for. Standing
+    # nowhere first, said rather than clicked: `c` opens the box belonging to
+    # whatever the reader is standing in, and a click on the body lands wherever the
+    # middle of the document happens to be — here a diff, whose `pre` takes focus, so
+    # the press opened that widget's composer and the sixteen keys below were typed
+    # into it as characters. COVERED_TOP answers null for a focus outside the list,
+    # so every one of those landings agreed with the invariant by never being asked.
+    page.evaluate("() => document.activeElement?.blur()")
+    # The named address toggles the panel it names, so from a panel opened by its
+    # visible control the first completion closes it and the second is the arrival.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, open=False)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    faults = []
+    for key in ("t",) * 8 + ("Shift+t",) * 8:
+        page.keyboard.press(key)
+        page.evaluate(RENDERED)
+        under = page.evaluate(COVERED_TOP)
+        if under:
+            faults.append(under)
+    assert not faults, "\n  ".join(["landed under a run heading:"] + faults)
+    # Non-vacuity, kept beside the loop it is about: the walk has to have ended on a
+    # thread inside the list, or the loop asked its question sixteen times of a focus
+    # COVERED_TOP declines to answer for.
+    assert page.evaluate(
+        "() => Boolean(document.activeElement?.closest?.('.lf-threads > .lf-thread'))"
+    ), "the walk ends outside the list, so the landings proved nothing"
+    page.close()
 
 
 def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(

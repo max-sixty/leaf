@@ -641,66 +641,51 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
     )
     _, private = app_snapshot(str(page_dir))
     page = browser.new_page(viewport={"width": 1100, "height": 900})
-    try:
-        page.set_content(HOST)
-        page.evaluate("leaf => window.currentLeaf = leaf", private)
-        page.locator("#app").evaluate(
-            "(frame, html) => frame.srcdoc = html", app_html()
-        )
-        app = next(
-            frame for frame in page.frames if frame.parent_frame == page.main_frame
-        )
-        app.locator("#title").wait_for()
-        assert app.locator("#title").text_content() == "t"
-        assert (
-            "Authored snapshot · comments only" in app.locator("#meta").text_content()
-        )
-        assert app.locator(".stage").text_content() == "Experimental"
-        assert "Ship dark" in app.locator("#page-host").evaluate(
-            "host => host.shadowRoot.textContent"
-        )
+    page.set_content(HOST)
+    page.evaluate("leaf => window.currentLeaf = leaf", private)
+    page.locator("#app").evaluate("(frame, html) => frame.srcdoc = html", app_html())
+    app = next(frame for frame in page.frames if frame.parent_frame == page.main_frame)
+    app.locator("#title").wait_for()
+    assert app.locator("#title").text_content() == "t"
+    assert "Authored snapshot · comments only" in app.locator("#meta").text_content()
+    assert app.locator(".stage").text_content() == "Experimental"
+    assert "Ship dark" in app.locator("#page-host").evaluate(
+        "host => host.shadowRoot.textContent"
+    )
 
-        app.locator("#comment-page").click()
-        comment = app.locator("#comment")
-        expect(comment).to_have_attribute(
-            "aria-keyshortcuts", "Meta+Enter Control+Enter"
-        )
-        assert comment.get_attribute("placeholder") in {
-            "Comment on this page · ⌘⏎",
-            "Comment on this page · Ctrl+⏎",
-        }
-        assert app.locator("#send").get_attribute("title") in {
-            "Send comment (⌘⏎)",
-            "Send comment (Ctrl+⏎)",
-        }
-        comment.fill("Explain the migration boundary.")
-        comment.press("Enter")
-        comment.type("Keep both layers.")
-        comment.press("Shift+Enter")
-        comment.type("Preserve both histories.")
-        expect(comment).to_have_value(
-            "Explain the migration boundary.\n"
-            "Keep both layers.\n"
-            "Preserve both histories."
-        )
-        assert not [
-            call
-            for call in page.evaluate("window.calls")
-            if call["method"] == "tools/call"
-        ]
-        comment.press("ControlOrMeta+Enter")
-        page.wait_for_function(
-            "() => window.calls.filter(call => call.method === 'tools/call').length === 1"
-        )
-        assert "Feedback saved in the Leaf log" in app.locator("#status").text_content()
-        assert not [
-            call
-            for call in page.evaluate("window.calls")
-            if call["method"] == "ui/message"
-        ]
+    app.locator("#comment-page").click()
+    comment = app.locator("#comment")
+    expect(comment).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
+    assert comment.get_attribute("placeholder") in {
+        "Comment on this page · ⌘⏎",
+        "Comment on this page · Ctrl+⏎",
+    }
+    assert app.locator("#send").get_attribute("title") in {
+        "Send comment (⌘⏎)",
+        "Send comment (Ctrl+⏎)",
+    }
+    comment.fill("Explain the migration boundary.")
+    comment.press("Enter")
+    comment.type("Keep both layers.")
+    comment.press("Shift+Enter")
+    comment.type("Preserve both histories.")
+    expect(comment).to_have_value(
+        "Explain the migration boundary.\nKeep both layers.\nPreserve both histories."
+    )
+    assert not [
+        call for call in page.evaluate("window.calls") if call["method"] == "tools/call"
+    ]
+    comment.press("ControlOrMeta+Enter")
+    page.wait_for_function(
+        "() => window.calls.filter(call => call.method === 'tools/call').length === 1"
+    )
+    assert "Feedback saved in the Leaf log" in app.locator("#status").text_content()
+    assert not [
+        call for call in page.evaluate("window.calls") if call["method"] == "ui/message"
+    ]
 
-        app.evaluate(
-            """() => {
+    app.evaluate(
+        """() => {
               const root = document.querySelector('#page-host').shadowRoot;
               const text = root.querySelector('#plan p').firstChild;
               const range = document.createRange();
@@ -713,102 +698,93 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
                 new MouseEvent('mouseup', {bubbles: true, composed: true})
               );
             }"""
+    )
+    assert "The cutoff lives in" in app.locator("#quote").text_content()
+    app.locator("#comment").fill(
+        "\n".join(f"Long review line {number}" for number in range(20))
+    )
+    assert (
+        app.locator("#comment").evaluate(
+            "field => field.getBoundingClientRect().height"
         )
-        assert "The cutoff lives in" in app.locator("#quote").text_content()
-        app.locator("#comment").fill(
-            "\n".join(f"Long review line {number}" for number in range(20))
+        == 240
+    )
+    app.evaluate("scrollBy(0, 300)")
+    composer_bottom = app.locator("#composer").evaluate(
+        "form => form.getBoundingClientRect().bottom"
+    )
+    assert abs(composer_bottom - app.evaluate("innerHeight")) < 1
+    app.locator("#comment").fill("Keep this near the decision.")
+    assert (
+        app.locator("#comment").evaluate(
+            "field => field.getBoundingClientRect().height"
         )
-        assert (
-            app.locator("#comment").evaluate(
-                "field => field.getBoundingClientRect().height"
-            )
-            == 240
-        )
-        app.evaluate("scrollBy(0, 300)")
-        composer_bottom = app.locator("#composer").evaluate(
-            "form => form.getBoundingClientRect().bottom"
-        )
-        assert abs(composer_bottom - app.evaluate("innerHeight")) < 1
-        app.locator("#comment").fill("Keep this near the decision.")
-        assert (
-            app.locator("#comment").evaluate(
-                "field => field.getBoundingClientRect().height"
-            )
-            == 66
-        )
-        before = app.locator("#page-host").evaluate(
-            "host => getComputedStyle(host.shadowRoot.querySelector('main')).color"
-        )
-        page.evaluate(
-            """() => document.querySelector('#app').contentWindow.postMessage({
+        == 66
+    )
+    before = app.locator("#page-host").evaluate(
+        "host => getComputedStyle(host.shadowRoot.querySelector('main')).color"
+    )
+    page.evaluate(
+        """() => document.querySelector('#app').contentWindow.postMessage({
               jsonrpc: '2.0',
               method: 'ui/notifications/host-context-changed',
               params: {theme: 'dark'},
             }, '*')"""
-        )
-        app.locator("#page-host").evaluate(
-            "host => new Promise(resolve => requestAnimationFrame(() => resolve()))"
-        )
-        after = app.locator("#page-host").evaluate(
-            "host => getComputedStyle(host.shadowRoot.querySelector('main')).color"
-        )
-        assert before != after
-        assert app.locator("#composer").evaluate(
-            "form => form.classList.contains('open')"
-        )
-        assert app.locator("#comment").input_value() == "Keep this near the decision."
+    )
+    app.locator("#page-host").evaluate(
+        "host => new Promise(resolve => requestAnimationFrame(() => resolve()))"
+    )
+    after = app.locator("#page-host").evaluate(
+        "host => getComputedStyle(host.shadowRoot.querySelector('main')).color"
+    )
+    assert before != after
+    assert app.locator("#composer").evaluate("form => form.classList.contains('open')")
+    assert app.locator("#comment").input_value() == "Keep this near the decision."
 
-        app.locator("#send").click()
-        page.wait_for_function(
-            "() => window.calls.filter(call => call.method === 'tools/call').length === 2"
-        )
+    app.locator("#send").click()
+    page.wait_for_function(
+        "() => window.calls.filter(call => call.method === 'tools/call').length === 2"
+    )
 
-        calls = page.evaluate("window.calls")
-        applies = [
-            call
-            for call in calls
-            if call["method"] == "tools/call"
-            and call["params"]["name"] == "leaf_snapshot_apply_event"
-        ]
-        assert "anchor" not in applies[0]["params"]["arguments"]["event"]
-        anchor = applies[1]["params"]["arguments"]["event"]["anchor"]
-        assert anchor["quote"] == "The cutoff lives in"
-        assert anchor["section"] == "plan"
-        assert "prefix" not in anchor
-        assert "suffix" not in anchor
-        assert not [
-            call for call in calls if call["method"] == "ui/update-model-context"
-        ]
-        assert "Feedback saved in the Leaf log" in app.locator("#status").text_content()
+    calls = page.evaluate("window.calls")
+    applies = [
+        call
+        for call in calls
+        if call["method"] == "tools/call"
+        and call["params"]["name"] == "leaf_snapshot_apply_event"
+    ]
+    assert "anchor" not in applies[0]["params"]["arguments"]["event"]
+    anchor = applies[1]["params"]["arguments"]["event"]["anchor"]
+    assert anchor["quote"] == "The cutoff lives in"
+    assert anchor["section"] == "plan"
+    assert "prefix" not in anchor
+    assert "suffix" not in anchor
+    assert not [call for call in calls if call["method"] == "ui/update-model-context"]
+    assert "Feedback saved in the Leaf log" in app.locator("#status").text_content()
 
-        app.locator("#refresh").click()
-        page.wait_for_function(
-            "() => window.calls.some(call => call.method === 'tools/call' && "
-            "call.params.name === 'leaf_snapshot_refresh')"
-        )
+    app.locator("#refresh").click()
+    page.wait_for_function(
+        "() => window.calls.some(call => call.method === 'tools/call' && "
+        "call.params.name === 'leaf_snapshot_refresh')"
+    )
 
-        assert app.locator("#browser").inner_text() == "Full page"
-        app.locator("#browser").click()
-        page.wait_for_function(
-            "() => window.calls.filter(call => call.method === 'ui/message').length === 1"
-        )
-        full_page = [
-            call
-            for call in page.evaluate("window.calls")
-            if call["method"] == "ui/message"
-        ][-1]
-        assert "active widget controls" in full_page["params"]["content"][0]["text"]
-        assert str(page_dir) in full_page["params"]["content"][0]["text"]
-        assert "Asked Codex to open" in app.locator("#status").text_content()
+    assert app.locator("#browser").inner_text() == "Full page"
+    app.locator("#browser").click()
+    page.wait_for_function(
+        "() => window.calls.filter(call => call.method === 'ui/message').length === 1"
+    )
+    full_page = [
+        call for call in page.evaluate("window.calls") if call["method"] == "ui/message"
+    ][-1]
+    assert "active widget controls" in full_page["params"]["content"][0]["text"]
+    assert str(page_dir) in full_page["params"]["content"][0]["text"]
+    assert "Asked Codex to open" in app.locator("#status").text_content()
 
-        page.emulate_media(media="print")
-        assert (
-            app.locator(".bar").evaluate("bar => getComputedStyle(bar).display")
-            == "none"
-        )
-        assert app.locator("#page-host").is_visible()
-    finally:
-        page.close()
+    page.emulate_media(media="print")
+    assert (
+        app.locator(".bar").evaluate("bar => getComputedStyle(bar).display") == "none"
+    )
+    assert app.locator("#page-host").is_visible()
 
 
 def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_dir):
@@ -851,48 +827,39 @@ def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_
     assert private["revision"] == 1
     assert private["source_error"]
     page = browser.new_page(viewport={"width": 1100, "height": 900})
-    try:
-        page.set_content(HOST)
-        page.evaluate("leaf => window.currentLeaf = leaf", private)
-        page.locator("#app").evaluate(
-            "(frame, html) => frame.srcdoc = html", app_html()
-        )
-        app = next(
-            frame for frame in page.frames if frame.parent_frame == page.main_frame
-        )
-        app.locator("#title").wait_for()
+    page.set_content(HOST)
+    page.evaluate("leaf => window.currentLeaf = leaf", private)
+    page.locator("#app").evaluate("(frame, html) => frame.srcdoc = html", app_html())
+    app = next(frame for frame in page.frames if frame.parent_frame == page.main_frame)
+    app.locator("#title").wait_for()
 
-        assert (
-            app.locator("#page-host").evaluate(
-                "host => getComputedStyle(host.shadowRoot.querySelector('#plan h2')).color"
-            )
-            == "rgb(12, 34, 56)"
+    assert (
+        app.locator("#page-host").evaluate(
+            "host => getComputedStyle(host.shadowRoot.querySelector('#plan h2')).color"
         )
-        assert (
-            app.locator("#page-host")
-            .evaluate(
-                "host => getComputedStyle(host.shadowRoot.querySelector('#plan h2')).backgroundImage"
-            )
-            .startswith('url("data:image/svg+xml;base64,')
+        == "rgb(12, 34, 56)"
+    )
+    assert (
+        app.locator("#page-host")
+        .evaluate(
+            "host => getComputedStyle(host.shadowRoot.querySelector('#plan h2')).backgroundImage"
         )
-        expect(app.get_by_role("img", name="Captured badge")).to_have_js_property(
-            "naturalWidth", 24
+        .startswith('url("data:image/svg+xml;base64,')
+    )
+    expect(app.get_by_role("img", name="Captured badge")).to_have_js_property(
+        "naturalWidth", 24
+    )
+    heading = app.locator("#page-host").get_by_role("heading", name="Plan", exact=True)
+    expect(heading).to_have_css("letter-spacing", "1px")
+    page.emulate_media(media="print")
+    expect(heading).to_have_css("color", "rgb(78, 90, 12)")
+    assert (
+        app.locator("#page-host").evaluate(
+            "host => host.shadowRoot.querySelectorAll('script').length"
         )
-        heading = app.locator("#page-host").get_by_role(
-            "heading", name="Plan", exact=True
-        )
-        expect(heading).to_have_css("letter-spacing", "1px")
-        page.emulate_media(media="print")
-        expect(heading).to_have_css("color", "rgb(78, 90, 12)")
-        assert (
-            app.locator("#page-host").evaluate(
-                "host => host.shadowRoot.querySelectorAll('script').length"
-            )
-            == 0
-        )
-        assert app.evaluate("window.authoredCodeRan") is None
-    finally:
-        page.close()
+        == 0
+    )
+    assert app.evaluate("window.authoredCodeRan") is None
 
 
 def test_mcp_snapshot_contains_hostile_navigation_and_authored_css(browser, page_dir):
@@ -934,19 +901,14 @@ def test_mcp_snapshot_contains_hostile_navigation_and_authored_css(browser, page
         }
     )
     page = browser.new_page(viewport={"width": 1100, "height": 900})
-    try:
-        page.set_content(HOST)
-        page.evaluate("leaf => window.currentLeaf = leaf", private)
-        page.locator("#app").evaluate(
-            "(frame, html) => frame.srcdoc = html", app_html()
-        )
-        app = next(
-            frame for frame in page.frames if frame.parent_frame == page.main_frame
-        )
-        app.locator("#title").wait_for()
+    page.set_content(HOST)
+    page.evaluate("leaf => window.currentLeaf = leaf", private)
+    page.locator("#app").evaluate("(frame, html) => frame.srcdoc = html", app_html())
+    app = next(frame for frame in page.frames if frame.parent_frame == page.main_frame)
+    app.locator("#title").wait_for()
 
-        sanitized = app.locator("#page-host").evaluate(
-            """host => {
+    sanitized = app.locator("#page-host").evaluate(
+        """host => {
               const root = host.shadowRoot;
               const link = root.querySelector('#hostile-link');
               const area = root.querySelector('#hostile-area');
@@ -966,40 +928,38 @@ def test_mcp_snapshot_contains_hostile_navigation_and_authored_css(browser, page
                 inputDisabled: input.disabled,
               };
             }"""
-        )
-        assert sanitized == {
-            "hasBodyStyle": False,
-            "linkHref": None,
-            "linkTarget": None,
-            "linkEditable": None,
-            "areaHref": None,
-            "areaTarget": None,
-            "formAction": None,
-            "formTarget": None,
-            "inputAction": None,
-            "inputEditable": None,
-            "inputDisabled": True,
-        }
+    )
+    assert sanitized == {
+        "hasBodyStyle": False,
+        "linkHref": None,
+        "linkTarget": None,
+        "linkEditable": None,
+        "areaHref": None,
+        "areaTarget": None,
+        "formAction": None,
+        "formTarget": None,
+        "inputAction": None,
+        "inputEditable": None,
+        "inputDisabled": True,
+    }
 
-        original_url = app.url
-        app.locator("#page-host").evaluate(
-            """(host, href) => {
+    original_url = app.url
+    app.locator("#page-host").evaluate(
+        """(host, href) => {
               const link = host.shadowRoot.querySelector('#hostile-link');
               link.setAttribute('href', href);
               link.click();
             }""",
-            payload,
-        )
-        page.wait_for_timeout(250)
-        assert app.url == original_url
-        assert not [
-            call
-            for call in page.evaluate("window.calls")
-            if call["method"] == "tools/call"
-        ]
+        payload,
+    )
+    page.wait_for_timeout(250)
+    assert app.url == original_url
+    assert not [
+        call for call in page.evaluate("window.calls") if call["method"] == "tools/call"
+    ]
 
-        containment = app.locator("#page-host").evaluate(
-            """host => {
+    containment = app.locator("#page-host").evaluate(
+        """host => {
               const style = getComputedStyle(host.shadowRoot.host);
               const bar = document.querySelector('.bar').getBoundingClientRect();
               const topmost = document.elementFromPoint(bar.left + 4, bar.top + 4);
@@ -1010,15 +970,13 @@ def test_mcp_snapshot_contains_hostile_navigation_and_authored_css(browser, page
                 topmostInHeader: Boolean(topmost?.closest('.bar')),
               };
             }"""
-        )
-        assert containment == {
-            "position": "relative",
-            "zIndex": "0",
-            "transform": "none",
-            "topmostInHeader": True,
-        }
-    finally:
-        page.close()
+    )
+    assert containment == {
+        "position": "relative",
+        "zIndex": "0",
+        "transform": "none",
+        "topmostInHeader": True,
+    }
 
 
 def test_mcp_app_is_read_only_when_the_host_cannot_proxy_server_tools(
@@ -1026,26 +984,19 @@ def test_mcp_app_is_read_only_when_the_host_cannot_proxy_server_tools(
 ):
     _, private = app_snapshot(str(page_dir))
     page = browser.new_page(viewport={"width": 900, "height": 700})
-    try:
-        page.set_content(HOST)
-        page.evaluate(
-            "leaf => { window.currentLeaf = leaf; window.hostCapabilities = {}; }",
-            private,
-        )
-        page.locator("#app").evaluate(
-            "(frame, html) => frame.srcdoc = html", app_html()
-        )
-        app = next(
-            frame for frame in page.frames if frame.parent_frame == page.main_frame
-        )
-        app.locator("#title").wait_for()
+    page.set_content(HOST)
+    page.evaluate(
+        "leaf => { window.currentLeaf = leaf; window.hostCapabilities = {}; }",
+        private,
+    )
+    page.locator("#app").evaluate("(frame, html) => frame.srcdoc = html", app_html())
+    app = next(frame for frame in page.frames if frame.parent_frame == page.main_frame)
+    app.locator("#title").wait_for()
 
-        assert app.locator("#comment-page").is_disabled()
-        assert app.locator("#refresh").is_disabled()
-        assert app.locator("#browser").is_enabled()
-        assert "read-only" in app.locator("#status").text_content()
-    finally:
-        page.close()
+    assert app.locator("#comment-page").is_disabled()
+    assert app.locator("#refresh").is_disabled()
+    assert app.locator("#browser").is_enabled()
+    assert "read-only" in app.locator("#status").text_content()
 
 
 # Three passages a host paints differently from the way the authored document holds them: the
@@ -1173,10 +1124,9 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
         host.close()
 
     page = open_page(browser, live_url(url))
-    try:
-        expect(page.locator(".lf-thread")).to_have_count(3)
-        expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
-        landed = page.evaluate("""() => {
+    expect(page.locator(".lf-thread")).to_have_count(3)
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
+    landed = page.evaluate("""() => {
             // The paint pass writes a hidden line into every commented text block, so a
             // block's own words are its text-node children rather than its childNodes.
             const words = (selector) => [
@@ -1203,13 +1153,11 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
               at(want, Range.START_TO_START), at(want, Range.END_TO_END),
             ]);
         }""")
-        assert landed == [
-            [1, 1],
-            [1, 1],
-            [1, 1],
-        ], f"the marks did not land on the passages ({landed})"
-    finally:
-        page.close()
+    assert landed == [
+        [1, 1],
+        [1, 1],
+        [1, 1],
+    ], f"the marks did not land on the passages ({landed})"
 
 
 def test_an_element_anchor_names_the_page_and_never_the_apps_own_shell(browser, serve):

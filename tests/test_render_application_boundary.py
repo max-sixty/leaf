@@ -222,23 +222,22 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(url, wait_until="load")
-        page.wait_for_function(
-            "() => document.querySelector('#page-local')?.dataset.startupInvalidated"
-        )
-        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-        assert held, "the positive control did not hold the first authoritative state"
-        expect(page.locator("#page-local").get_by_role("button")).to_be_disabled()
-        expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
-        controller_renders = int(
-            page.locator("#page-local").get_attribute("data-controller-renders")
-        )
-        # The synchronous subscription paints once; the widget's deliberate startup
-        # defer/resume invalidation paints the same complete provisional reading once.
-        assert controller_renders == 2
-        waiting = page.evaluate(
-            """async () => {
+    page.goto(url, wait_until="load")
+    page.wait_for_function(
+        "() => document.querySelector('#page-local')?.dataset.startupInvalidated"
+    )
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    assert held, "the positive control did not hold the first authoritative state"
+    expect(page.locator("#page-local").get_by_role("button")).to_be_disabled()
+    expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
+    controller_renders = int(
+        page.locator("#page-local").get_attribute("data-controller-renders")
+    )
+    # The synchronous subscription paints once; the widget's deliberate startup
+    # defer/resume invalidation paints the same complete provisional reading once.
+    assert controller_renders == 2
+    waiting = page.evaluate(
+        """async () => {
               const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
               const runtime = await import(
                 new URL('runtime/semantic-state.js', new URL(entry, location.href)).href
@@ -254,22 +253,22 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
                 pending: presentation.pending,
               };
             }"""
-        )
-        assert waiting["phase"] == "waiting"
-        assert waiting["presented"] == waiting["epoch"]
-        assert waiting["pending"] == []
-        assert page.evaluate(
-            "document.querySelector('script[data-lf-entry]').lfCurrentPresentationReady()"
-        )
+    )
+    assert waiting["phase"] == "waiting"
+    assert waiting["presented"] == waiting["epoch"]
+    assert waiting["pending"] == []
+    assert page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfCurrentPresentationReady()"
+    )
 
-        held.pop(0).continue_()
-        page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
-        expect(page.locator("#page-local")).to_have_attribute(
-            "data-controller-renders", str(controller_renders + 1)
-        )
-        ready = page.evaluate(
-            """() => {
+    held.pop(0).continue_()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
+    expect(page.locator("#page-local")).to_have_attribute(
+        "data-controller-renders", str(controller_renders + 1)
+    )
+    ready = page.evaluate(
+        """() => {
               const application = readStartupApplication();
               const presentation = readStartupPresentation();
               return {
@@ -279,13 +278,11 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
                 pending: presentation.pending,
               };
             }"""
-        )
-        assert ready["phase"] == "ready"
-        assert ready["epoch"] > waiting["epoch"]
-        assert ready["presented"] == ready["epoch"]
-        assert ready["pending"] == []
-    finally:
-        page.close()
+    )
+    assert ready["phase"] == "ready"
+    assert ready["epoch"] > waiting["epoch"]
+    assert ready["presented"] == ready["epoch"]
+    assert ready["pending"] == []
 
 
 APPROVAL_PAGE = leaf_page(
@@ -311,18 +308,15 @@ def test_approval_waits_for_a_reading_of_the_log(browser, serve):
     answered."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route("**/api/state*", refuse)
-    try:
-        page.goto(serve(APPROVAL_PAGE), wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
-        expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
-        approval = page.locator(".lf-signoff")
-        expect(approval).to_be_visible()
-        expect(approval).to_be_disabled()
-        expect(approval).to_have_attribute(
-            "title", "Approval waits until this page has read its current state"
-        )
-    finally:
-        page.close()
+    page.goto(serve(APPROVAL_PAGE), wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
+    expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
+    approval = page.locator(".lf-signoff")
+    expect(approval).to_be_visible()
+    expect(approval).to_be_disabled()
+    expect(approval).to_have_attribute(
+        "title", "Approval waits until this page has read its current state"
+    )
 
 
 def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):

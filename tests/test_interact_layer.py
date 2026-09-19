@@ -1502,7 +1502,25 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
 
     A new exception is a line in this list naming the file it belongs to and the
     reason, not a call that quietly joins the others.
+
+    The end of the loan is read for too. A page or context the `browser` fixture
+    made is closed by that fixture, after it has read what the page reported; a
+    `finally` that closes one in the test body does the same work a step early, and
+    the reading it cuts short is its own. The exception is a page that keeps making
+    the fault its test is about, where the consume has to follow a close of its own
+    (tests/CLAUDE.md, "A page is ready when it says what has finished").
     """
+    closes_to_stop_a_repeating_fault = {
+        "test_a_website_session_reference_survives_a_failed_first_read",
+        "test_a_malformed_first_state_keeps_interaction_unresolved",
+    }
+    from_browser = (
+        "browser.new_page",
+        "browser.new_context",
+        "browser.unwatched.new_page",
+        "browser.unwatched.new_context",
+        "open_page(browser",
+    )
     owners = {
         "Popen": ("spawn", {"conftest.py"}),
         "mkdtemp": ("socket_dir", {"interact_support.py"}),
@@ -1521,6 +1539,27 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
             if called in owners and path.name not in owners[called][1]:
                 owner = owners[called][0]
                 bypassed.append(f"{path.name}:{node.lineno} {called} — {owner} owns it")
+        for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
+            if "browser" not in [argument.arg for argument in function.args.args]:
+                continue
+            if function.name in closes_to_stop_a_repeating_fault:
+                continue
+            lent = {
+                target.id: ast.unparse(statement.value)
+                for statement in ast.walk(function)
+                if isinstance(statement, ast.Assign)
+                for target in statement.targets
+                if isinstance(target, ast.Name)
+            }
+            for node in ast.walk(function):
+                if not isinstance(node, ast.Try) or len(node.finalbody) != 1:
+                    continue
+                ending = ast.unparse(node.finalbody[0])
+                held = lent.get(ending.removesuffix(".close()"), "")
+                if ending.endswith(".close()") and held.startswith(from_browser):
+                    bypassed.append(
+                        f"{path.name}:{node.lineno} {ending} — the browser fixture does"
+                    )
     assert not bypassed, bypassed
 
 

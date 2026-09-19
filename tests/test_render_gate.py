@@ -171,12 +171,9 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
         "**/theme.css",
         lambda route: route.fulfill(body="main { display: none; }"),
     )
-    try:
-        findings = render_gate_scheme.start_with_pre_upgrade_proof(
-            page, serve(source, packages=())
-        )
-    finally:
-        page.close()
+    findings = render_gate_scheme.start_with_pre_upgrade_proof(
+        page, serve(source, packages=())
+    )
 
     assert findings == ["authored main has no measurable pre-upgrade layout"]
 
@@ -367,15 +364,12 @@ def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
     monkeypatch.setattr(page, "unroute", recorded_unroute)
     monkeypatch.setattr(page, "wait_for_load_state", recorded_wait_for_load_state)
     source = leaf_page("entry hold", "<h1>Held before Leaf starts</h1>")
-    try:
-        assert (
-            render_gate_scheme.start_with_pre_upgrade_proof(
-                page, serve(source, packages=())
-            )
-            == []
+    assert (
+        render_gate_scheme.start_with_pre_upgrade_proof(
+            page, serve(source, packages=())
         )
-    finally:
-        page.close()
+        == []
+    )
 
     assert registrations == [("**/leaf.js", {})], registrations
     assert order == ["route **/leaf.js", "reached load", "unroute **/leaf.js"], order
@@ -844,7 +838,7 @@ def test_arrival_reading_reports_a_deterministic_transition(browser, serve):
             }, { once: true });"""
         )
 
-    arrival = arrival_findings(primed(browser, start_transition), url)
+    arrival = arrival_findings(primed(browser.unwatched, start_transition), url)
     assert (
         "[first visit] color transitioned on p#arrival before presentation" in arrival
     )
@@ -855,36 +849,33 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(browser, 
     page = browser.new_page()
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(serve(PANEL_PAGE), wait_until="load")
-        render_checks_model.wait_for_probe(page, "upgraded")
-        assert held, "the state read completed before the shadow guard was observed"
-        assert page.locator("body").get_attribute("data-lf-presented") is None
-        assert (
-            page.evaluate(
-                """() => {
+    page.goto(serve(PANEL_PAGE), wait_until="load")
+    render_checks_model.wait_for_probe(page, "upgraded")
+    assert held, "the state read completed before the shadow guard was observed"
+    assert page.locator("body").get_attribute("data-lf-presented") is None
+    assert (
+        page.evaluate(
+            """() => {
                   const root = document.querySelector("#how-patch").shadowRoot;
                   const style = document.createElement("style");
                   style.textContent = "details { transition: color 60s linear; }";
                   root.append(style);
                   return getComputedStyle(root.querySelector("details")).transitionProperty;
                 }"""
-            )
-            == "none"
         )
+        == "none"
+    )
 
-        held.pop().continue_()
-        page.unroute("**/api/state*")
-        render_checks_model.wait_for_probe(page, "currentPresented")
-        assert (
-            page.evaluate(
-                """() => getComputedStyle(document.querySelector("#how-patch")
+    held.pop().continue_()
+    page.unroute("**/api/state*")
+    render_checks_model.wait_for_probe(page, "currentPresented")
+    assert (
+        page.evaluate(
+            """() => getComputedStyle(document.querySelector("#how-patch")
                   .shadowRoot.querySelector("details")).transitionProperty"""
-            )
-            == "color"
         )
-    finally:
-        page.close()
+        == "color"
+    )
 
 
 def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
@@ -2253,24 +2244,21 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
     The corpus, because a tie shows only where both rules meet one element, and it is
     the page that holds every widget and every idiom at once."""
     page = open_page(browser, serve(CORPUS_PAGE))
-    try:
-        page.evaluate("() => document.getAnimations().forEach((one) => one.pause())")
-        adopted = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
-        rules = page.evaluate(RELOCATE_ADOPTED)
-        assert rules["adopted"] and rules["adopted"] == rules["linked"], (
-            f"{rules['adopted']} adopted rules became {rules['linked']} linked ones,"
-            " so the comparison below is between a page and itself"
-        )
-        linked = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
-        # Put the sheets back. The corpus is still going about its business — the
-        # gallery builds a replay frame, a pulse reaches its next step — and those
-        # values move whatever this test does to the cascade. A value the sheet's
-        # position decided comes back when the position does; one the page moved by
-        # itself stays where it went.
-        assert page.evaluate(RESTORE_ADOPTED), "the sheets were not put back"
-        restored = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
-    finally:
-        page.close()
+    page.evaluate("() => document.getAnimations().forEach((one) => one.pause())")
+    adopted = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+    rules = page.evaluate(RELOCATE_ADOPTED)
+    assert rules["adopted"] and rules["adopted"] == rules["linked"], (
+        f"{rules['adopted']} adopted rules became {rules['linked']} linked ones,"
+        " so the comparison below is between a page and itself"
+    )
+    linked = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+    # Put the sheets back. The corpus is still going about its business — the
+    # gallery builds a replay frame, a pulse reaches its next step — and those
+    # values move whatever this test does to the cascade. A value the sheet's
+    # position decided comes back when the position does; one the page moved by
+    # itself stays where it went.
+    assert page.evaluate(RESTORE_ADOPTED), "the sheets were not put back"
+    restored = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
 
     assert len(adopted) > 1000, f"only {len(adopted)} elements read from the corpus"
     decided = []

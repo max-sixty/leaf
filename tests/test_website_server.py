@@ -3308,58 +3308,52 @@ def test_the_preview_generator_updates_every_linked_example_image(
 
 def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     page = browser.new_page()
-    try:
-        failures = verify_site.observe_startup(page)
-        url = "https://site-verifier.test/broken"
-        page.route(
-            url,
-            lambda route: route.fulfill(
-                content_type="text/html",
-                body="""<!doctype html><body><script>
+    failures = verify_site.observe_startup(page)
+    url = "https://site-verifier.test/broken"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<!doctype html><body><script>
                   console.error('widget resource unavailable');
                   throw new Error('runtime initialization failed');
                 </script></body>""",
-            ),
-        )
-        page.goto(url)
-        with pytest.raises(RuntimeError) as caught:
-            verify_site.await_presentation(page, url, failures, timeout=100)
-        assert "widget resource unavailable" in str(caught.value)
-        assert "runtime initialization failed" in str(caught.value)
-        assert "no startup milestone" in str(caught.value)
-        # The same two faults the verifier reported are what this page said.
-        consume_browser_errors(
-            page, "widget resource unavailable", "runtime initialization failed"
-        )
-    finally:
-        page.close()
+        ),
+    )
+    page.goto(url)
+    with pytest.raises(RuntimeError) as caught:
+        verify_site.await_presentation(page, url, failures, timeout=100)
+    assert "widget resource unavailable" in str(caught.value)
+    assert "runtime initialization failed" in str(caught.value)
+    assert "no startup milestone" in str(caught.value)
+    # The same two faults the verifier reported are what this page said.
+    consume_browser_errors(
+        page, "widget resource unavailable", "runtime initialization failed"
+    )
 
 
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     page = browser.new_page()
-    try:
-        verify_site.observe_startup(page)
-        url = "https://site-verifier.test/visible-response"
-        page.route(
-            url,
-            lambda route: route.fulfill(
-                content_type="text/html",
-                body="""<div class="lf-threads" style="height: 100px; overflow: auto">
+    verify_site.observe_startup(page)
+    url = "https://site-verifier.test/visible-response"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<div class="lf-threads" style="height: 100px; overflow: auto">
                   <div style="height: 500px"></div>
                   <div class="lf-msg agent"><span class="lf-msg-text">Visible reply</span></div>
                 </div>""",
-            ),
-        )
-        page.goto(url)
-        page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-        page.wait_for_timeout(100)
-        assert page.evaluate("window.__leafVerifier.visibleReplyAt") is None
+        ),
+    )
+    page.goto(url)
+    page.evaluate("window.__leafVerifier.startVisibleReplyClock")
+    page.wait_for_timeout(100)
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt") is None
 
-        page.locator(".lf-msg.agent").scroll_into_view_if_needed()
-        page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
-        assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
-    finally:
-        page.close()
+    page.locator(".lf-msg.agent").scroll_into_view_if_needed()
+    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
 
 
 def test_a_page_that_never_presents_names_itself_and_how_far_it_got():

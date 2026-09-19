@@ -1815,16 +1815,13 @@ def test_export_state_route_follows_the_canonical_page_root(browser):
     page.set_content(
         '<link rel="canonical" href="/p/page-capability/" data-lf-runtime>'
     )
-    try:
-        assert (
-            exporting_model._state_url(
-                page,
-                "https://leaf.invalid/p/page-capability/versions/v2.html",
-            )
-            == "https://leaf.invalid/p/page-capability/api/state"
+    assert (
+        exporting_model._state_url(
+            page,
+            "https://leaf.invalid/p/page-capability/versions/v2.html",
         )
-    finally:
-        page.close()
+        == "https://leaf.invalid/p/page-capability/api/state"
+    )
 
 
 def test_export_state_route_refuses_a_missing_canonical_without_waiting():
@@ -1930,33 +1927,30 @@ body { --export-tone: rgb(12, 34, 56); }
     page = browser.new_page()
     requests = []
     page.on("request", lambda request: requests.append(request.url))
-    try:
-        page.goto(out.as_uri(), wait_until="load")
-        expect(page.locator("#title")).to_have_css("color", "rgb(12, 34, 56)")
-        expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
-            "naturalWidth", 24
-        )
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("#title")).to_have_css("color", "rgb(12, 34, 56)")
+    expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
+        "naturalWidth", 24
+    )
+    assert (
+        page.locator("#vector image")
+        .get_attribute("href")
+        .startswith("data:image/svg+xml;base64,")
+    )
+    assert (
+        page.locator("#responsive")
+        .get_attribute("srcset")
+        .count("data:image/svg+xml;base64,")
+        == 2
+    )
+    expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
+    for selector in ("#badge", "#inline"):
         assert (
-            page.locator("#vector image")
-            .get_attribute("href")
-            .startswith("data:image/svg+xml;base64,")
+            page.locator(selector)
+            .evaluate("el => getComputedStyle(el).backgroundImage")
+            .startswith('url("data:image/svg+xml;base64,')
         )
-        assert (
-            page.locator("#responsive")
-            .get_attribute("srcset")
-            .count("data:image/svg+xml;base64,")
-            == 2
-        )
-        expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
-        for selector in ("#badge", "#inline"):
-            assert (
-                page.locator(selector)
-                .evaluate("el => getComputedStyle(el).backgroundImage")
-                .startswith('url("data:image/svg+xml;base64,')
-            )
-        assert requests == [out.as_uri()]
-    finally:
-        page.close()
+    assert requests == [out.as_uri()]
 
 
 def test_export_refuses_a_rendered_asset_outside_the_page(browser, serve):
@@ -2458,17 +2452,14 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
             route.fulfill(status=204, body=""),
         ),
     )
-    try:
-        page.goto(out.as_uri(), wait_until="load")
-        page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
-        assert page.locator("#relative").evaluate("link => link.protocol") == "file:"
-        page.locator("#escape").evaluate("form => form.requestSubmit()")
-        page.wait_for_function("() => window.__cspViolations.includes('form-action')")
-        assert escaped == []
-        # Both refusals asserted above are reported on the console as well.
-        consume_browser_errors(page, "violates the following Content Security Policy")
-    finally:
-        page.close()
+    page.goto(out.as_uri(), wait_until="load")
+    page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
+    assert page.locator("#relative").evaluate("link => link.protocol") == "file:"
+    page.locator("#escape").evaluate("form => form.requestSubmit()")
+    page.wait_for_function("() => window.__cspViolations.includes('form-action')")
+    assert escaped == []
+    # Both refusals asserted above are reported on the console as well.
+    consume_browser_errors(page, "violates the following Content Security Policy")
 
 
 def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):

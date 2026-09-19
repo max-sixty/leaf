@@ -663,6 +663,91 @@ def test_a_continuation_that_cannot_start_receipts_the_move_it_was_for(
     assert (record["eventId"], record["settled"]) == (comment["id"], True)
 
 
+def test_a_move_queued_behind_one_that_could_not_start_is_reached_too(
+    page_dir, monkeypatch
+):
+    """Receipting a move the container could not start is not the end of the chain.
+
+    A delivery carries at most one reply-owing move, so two messages sent during a
+    turn are two obligations, both answered `started` on that turn's thread. The
+    ending is the only scan either gets: one that stopped at the first failure would
+    leave the second with no delivery, no dispatch and nothing coming, which reads as
+    `listening` until the reader sends a third.
+    """
+    comments = [
+        append_event(page_dir, {"kind": "comment", "author": "user", "text": text})
+        for text in ("edit the page", "and the title")
+    ]
+    host = website_server.WebsiteCodexHost("codex")
+    host.following_threads.add("hosted-thread")
+    monkeypatch.setattr(host, "_follow_turn", lambda *_: None)
+    attempted = []
+
+    def attach(target, event_id):
+        attempted.append(event_id)
+        raise RuntimeError("Codex App Server did not start a turn: refused")
+
+    monkeypatch.setattr(host, "attach", attach)
+    host._run_follow_turn(
+        "socket",
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            "delivery-1",
+            ("first-event",),
+            "provider-turn",
+        ),
+    )
+
+    assert attempted == [comment["id"] for comment in comments]
+    receipts = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [receipt["responds"] for receipt in receipts] == attempted
+    assert {receipt["failure"] for receipt in receipts} == {"startup_failed"}
+    state = website_server.full_state(page_dir, read_events(page_dir))
+    assert state["activity"]["obligations"] == []
+
+
+def test_a_follower_that_faults_still_hands_the_page_on(page_dir, monkeypatch):
+    """The chain runs on what the page still owes, not on how the turn ended.
+
+    A turn whose accounting throws — closing it re-reads the page, which its own work
+    may have left unopenable — leaves exactly the moves outstanding that a clean one
+    would. Gating the scan on a clean ending stranded them for the container's life.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    host.following_threads.add("hosted-thread")
+
+    def fault(*_):
+        raise RuntimeError("closing the turn faulted")
+
+    monkeypatch.setattr(host, "_follow_turn", fault)
+    continued = []
+    monkeypatch.setattr(
+        host, "attach", lambda target, event_id: continued.append(event_id)
+    )
+
+    with pytest.raises(RuntimeError, match="closing the turn faulted"):
+        host._run_follow_turn(
+            "socket",
+            website_server.HostedTurn(
+                host,
+                page_dir,
+                "hosted-thread",
+                "delivery-1",
+                ("first-event",),
+                "provider-turn",
+            ),
+        )
+
+    assert continued == [comment["id"]]
+    assert "hosted-thread" not in host.following_threads
+
+
 def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
     page_dir, monkeypatch, capsys
 ):

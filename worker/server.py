@@ -872,39 +872,53 @@ class WebsiteCodexHost:
         turn: HostedTurn,
         initial_messages: tuple[dict, ...] = (),
     ) -> None:
-        """Hold one thread's delivery scheduling seat while its turn is observed."""
+        """Hold one thread's delivery scheduling seat, then hand the page on.
+
+        Handing it on is part of the ending rather than a reward for a clean one: a
+        follower that faulted leaves the same page with the same moves outstanding as
+        one that did not, and this is the only place either is looked at.
+        """
         page_dir = turn.page_dir
-        thread_id = turn.thread_id
-        event_ids = turn.event_ids
-        continuation = None
-        completed = False
         try:
             self._follow_turn(turn, socket, initial_messages)
-            completed = True
         finally:
             with self.lock:
-                self.following_threads.discard(thread_id)
-                if completed:
-                    continuation = next_unaccepted_agent_event(
-                        page_dir,
-                        excluding=event_ids,
-                    )
-        if continuation is not None and not self.stop_event.is_set():
+                self.following_threads.discard(turn.thread_id)
+            self._continue_page(page_dir, turn.event_ids)
+
+    def _continue_page(self, page_dir: Path, excluding: tuple[str, ...]) -> None:
+        """Start the page's next unanswered move, receipting each start that cannot.
+
+        This is `next_unaccepted_agent_event`'s only caller and it runs once per turn
+        ending, so a move still outstanding when it returns has no delivery holding
+        it, no dispatch behind it and no later scan coming: the page reads
+        `listening` against that move until its reader sends another one. A start
+        that throws therefore cannot be the end of the chain. Its move gets the
+        `startup_failed` receipt — nobody else can write one, because the reader's
+        request for it was answered `started` on the turn that was already running,
+        which ended the Worker's dispatch — and the scan runs again for the next
+        move. Each receipted move joins `excluding`, since one that does not settle
+        would otherwise be handed back forever.
+
+        The first start that succeeds ends the loop. Its own follower ends here too,
+        so the rest of the page's moves are that turn's to carry.
+        """
+        while not self.stop_event.is_set():
+            with self.lock:
+                continuation = next_unaccepted_agent_event(
+                    page_dir, excluding=excluding
+                )
+            if continuation is None:
+                return
             try:
                 self.attach(page_dir, continuation)
+                return
             except Exception:  # noqa: BLE001 - receipted, never raised
-                # This is the one attachment nobody is holding. A move that arrives
-                # while a turn is already being followed is answered `started` on the
-                # thread that turn is on, so the Worker's dispatch — and the
-                # `startup_failed` receipt it writes when a start throws — ended with
-                # that answer. Here the start is the container's own, so without a
-                # receipt the move keeps its reader waiting on a turn that never
-                # began, and the scan that would find it again is the one that just
-                # produced it. `attach` has already recorded the fault; what this
-                # adds is which of the two owners answered for it. Every class,
-                # because what the reader is owed does not depend on which one: this
-                # is the top of a daemon thread, and anything not caught here is a
-                # traceback on stdout and a page that waits forever.
+                # `attach` has already recorded the fault; what this adds is which of
+                # the two owners answered for it. Every class, because what the reader
+                # is owed does not depend on which one: this is the top of a daemon
+                # thread, and anything not caught here is a traceback on stdout and a
+                # page that waits forever.
                 accepted = self.failure_receipt(
                     page_dir, continuation, "startup_failed"
                 )
@@ -913,6 +927,7 @@ class WebsiteCodexHost:
                     eventId=continuation,
                     settled=accepted is not None,
                 )
+            excluding = (*excluding, continuation)
 
     def _finish_turn(
         self,

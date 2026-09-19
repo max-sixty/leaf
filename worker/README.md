@@ -166,10 +166,11 @@ from Leaf's durable validation and append. `turn_interrupted` and
 a turn found running on a resumed thread. `turn_failure_reported` says how many of that
 delivery's moves the host settled with a failure receipt and how many it could not; a
 turn that answered everything it was given writes no such record.
-`container_continuation_receipted` marks the one start the Worker's dispatch is not
-holding — the move a follower found waiting when its turn ended — and says whether the
+`container_continuation_receipted` marks a start the Worker's dispatch is not holding
+— a move a follower found waiting when its turn ended — and says whether the
 `startup_failed` receipt it wrote settled that move, so a `container_start_failed` on
-either caller can be read for which of the two answered the reader.
+either caller can be read for which of the two answered the reader. One ending can
+write several, because the scan keeps going past a start it could not make.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
 first-byte, first-output, and completion records. Those records carry Codex's thread
@@ -321,6 +322,15 @@ owed an answer gets the `turn_failed` receipt, which its own pickup would otherw
 refuse every other writer. A thread found running a turn no follower holds, which means
 a container that died mid-turn, is interrupted before its next delivery starts. Neither
 a stalled stream nor a follower fault can leave a page reading working with no receipt.
+
+Every ending is also where the page's next move is started, and it is the only scan
+that move gets: a delivery carries at most one reply-owing move, so messages sent
+during a turn queue as obligations behind it, and one left here has no delivery holding
+it and nothing coming. So the scan runs on what the page still owes rather than on how
+the turn ended, and a start it cannot make is not the end of it — that move takes the
+`startup_failed` receipt, which nobody else can write once the reader's request was
+answered `started` on the turn already running, and the scan moves to the next. The
+first start that succeeds ends the chain, since its own follower ends here too.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the

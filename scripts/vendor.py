@@ -274,9 +274,8 @@ def build_beautiful_mermaid(work: Path) -> list[Path]:
     walked away from, and `lf-diagram` refuses a source rather than drawing the part
     that was read. The patch file says what it changes and when it goes away. A new
     pin that moves the lines it names fails the build rather than the page, which is
-    the point of keeping it a
-    patch: this stays upstream's code with a stated change to it, not a fork nobody
-    rereads.
+    the point of keeping it a patch: this stays upstream's code with a stated change to
+    it, not a fork nobody rereads.
     """
     out = package_vendor("diagram") / "beautiful-mermaid.esm.js"
     notices = package_vendor("diagram") / "beautiful-mermaid.LICENSES.txt"

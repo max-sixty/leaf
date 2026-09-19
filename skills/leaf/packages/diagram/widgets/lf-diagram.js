@@ -44,10 +44,13 @@ const prepareSvg = (svg) =>
  * somebody had already found, one guard at a time, while the next one stayed silent.
  *
  * The patch reaches the flowchart and state-diagram parsers, which is where the
- * divergences Leaf has found live. The sequence, class, ER and xychart parsers drop a
- * statement they cannot read on the same terms and do not report it yet; each is the
- * same `unread.push` at the point it gives up, and `unreadMermaidText` already answers
- * for a whole source, so widening the reading changes nothing here.
+ * divergences Leaf has found live. The sequence, class, ER and xychart parsers do not
+ * report yet, and only sequence and xychart are the one push at the end of a loop: the
+ * ER parser gives up a second time inside an entity body, and inside a `class` body the
+ * member reader never gives up — it guesses, exactly as the flowchart's bare-id
+ * fallback does, so that one is a change to the fallback. Either way
+ * `unreadMermaidText` already answers for a whole source, so widening the reading
+ * changes nothing here.
  *
  * An empty reading is not a promise the drawing is the one the author wanted; it is
  * that every statement the checked parsers saw was read whole. */

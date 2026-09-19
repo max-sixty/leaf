@@ -52,9 +52,11 @@ does a subgraph title, which the renderer reads with its own end-anchored regex:
 `subgraph S["Stage [1]"]`. And every statement ends at the newline, with no
 continuation, so a label opened on one line has to close on it; carry a second line
 inside the label with `<br/>` or `\n`. A sequence, class, ER, or XY source carries no
-such reading: its parser drops a statement it cannot read and draws the rest, and
-nothing reports that, so look at one of those once — a relationship, a note, or a
-participant the renderer does not implement is simply missing from the drawing.
+such reading: its parser drops or guesses at a statement it cannot read and draws the
+rest, and nothing reports that, so look at one of those once. A relationship, a note,
+or a participant the renderer does not implement is missing from the drawing, and a
+member inside a `class` body is drawn however the parser managed to split it, so read
+what a class or ER body rendered rather than only checking that it is there.
 Use `lf-chart` for quantities that need Leaf's data-first
 chart vocabulary: a comparison across a few categories, a run over time, a ranking,
 a composition, or two numbers against each other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`

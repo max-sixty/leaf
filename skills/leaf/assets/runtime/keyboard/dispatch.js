@@ -36,9 +36,9 @@
    A key may repeat across nesting scopes to mean the same intent in context. `c` reads
    that way: from the page it enters the nearest comment box; from the Threads list it
    enters the page-comment box one frame below that list. `g T`, not `c`, is what enters
-   Threads as a navigable surface and leaves `w` and `/` live. `activeRowLabel` projects
-   the dispatcher's live result into the destination composition box's placeholder. Each
-   box's `aria-label` remains its shortcut-free accessible name.
+   Threads as a navigable surface and leaves `w` and `/` live. `activeCommandLabel`
+   projects the dispatcher's live result into the destination composition box's
+   placeholder. Each box's `aria-label` remains its shortcut-free accessible name.
 
    Escape is an ordinary binding in each row and a semantic ordering in the dispatcher.
    An active mode and the focused control's specific inner step stand first, the latest
@@ -427,12 +427,15 @@ function commandMatching(matches) {
   return null;
 }
 const commandFor = (id) => commandMatching((command) => command.id === id);
-// A contextual surface asks the dispatcher which one of its command rows is reachable
-// from the reader's current scope. This includes shadowing by native text entry and modes,
-// not only each row's own liveness.
-export function activeRowLabel(rows) {
-  const candidates = new Set(rows);
-  const command = commandMatching((_entry, row) => candidates.has(row));
+// A contextual surface asks the dispatcher which of several routes to one capability is
+// reachable from the reader's current scope — `c` on the page and `c` from the Threads
+// list both enter the page-comment box, and the box's placeholder names whichever one
+// dispatch would answer. Asked by command id rather than by row, so the surface holds no
+// reference into another scope's declaration. This includes shadowing by native text entry
+// and modes, not only each row's own liveness.
+export function activeCommandLabel(ids) {
+  const wanted = new Set(ids);
+  const command = commandMatching((entry) => wanted.has(entry.id));
   return command ? spell(command.binding) : "";
 }
 // Snapshot every executable route while focus is still on the page. Keep both readings:

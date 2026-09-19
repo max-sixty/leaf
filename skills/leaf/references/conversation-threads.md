@@ -26,10 +26,10 @@ the active registry. Use only widget vocabulary shared by those registries. If
 no shared widget fits, ask in prose with `--text` (and `--awaits` on a reply), or
 use a page widget when the question and its answer belong in the final record.
 
-The thread panel is a narrow column beside the page. Replies should feel light
-and conversational, answer the local thread, and keep the page as the main
-surface for evidence, comparisons, and detailed reasoning. Give the reader
-enough context to know what changed or where to look without retelling the page.
+The thread panel is a narrow column beside the page, so a paragraph that reads fine
+in chat is a wall there. A reply says what changed or where to look: a sentence or
+two, or one short paragraph or list item per point when there are several. The page
+carries the evidence, and a stamp's changelog carries the full list of changes.
 
 A browser comment may carry a drawing that continues across the page. A mark begun over
 or in the margin beside an addressable element anchors there; one begun where no addressable element shares its
@@ -49,7 +49,9 @@ directory cannot answer, in text as in markup, because the log is append-only an
 broken image posted to it stays broken. It reads the link and image destinations the
 runtime resolves, so a path written about in a sentence stays prose.
 
-`--text` takes inline text; stdin accepts Markdown:
+Both routes render as Markdown. `--text` is for a one-liner; write anything longer to
+a file and redirect it to stdin, where its paragraphs and list items are visible as
+you write them.
 
 ```bash
 leaf reply <page> --text "…"

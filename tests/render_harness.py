@@ -1000,6 +1000,27 @@ BOTH_STAMPS = """() => {
   const entry = document.querySelector('script[data-lf-entry]');
   return entry?.lfCurrentPresentationReady?.() ?? false;
 }"""
+FIRST_PAINT = """() => performance
+  .getEntriesByType('paint')
+  .some(entry => entry.name === 'first-contentful-paint')"""
+
+
+def displayed(page):
+    """Wait until the browser has painted the document the reader arrived on.
+
+    A box is not a paint. `getBoundingClientRect`, and every driver read built over it
+    including `to_be_visible`, forces layout from the stylesheets that have arrived so
+    far, while a render-blocking stylesheet still in flight holds the paint itself
+    back. A geometry read taken behind element visibility alone can therefore answer
+    with the user agent's own layout of the authored HTML, and a test that compares
+    that reading against the page's later one reports the theme arriving as the page
+    moving. First contentful paint is the browser's own record that the render-blocking
+    head has been applied and what it composed is on screen, which is the state a test
+    about what a reader sees before the runtime loads means to measure.
+    """
+    page.wait_for_function(FIRST_PAINT)
+
+
 HANDOVER_DEADLINE_MS = 90_000
 """How long a complete page handover may take before the page counts as wedged.
 

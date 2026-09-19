@@ -16,9 +16,9 @@ from interact_support import record_claim, running_http_server
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import scheme as render_gate_model
@@ -1042,6 +1042,30 @@ def button_radius(page):
     )
 
 
+def glyph_action_face(control):
+    """What a reader sees of a glyph action, as one reading both its tests share.
+
+    Send and Add option are the same face: a bare glyph in the action's own ink over a
+    28px disc that stays clear at rest and takes the action's tint under the pointer.
+    The press paints nothing of its own in either state, so `press` is the claim that
+    the disc is the whole of the paint and `discWidth` is why it does not grow with the
+    hit box around it.
+    """
+    return control.evaluate(
+        """el => {
+             const press = getComputedStyle(el);
+             const disc = getComputedStyle(el, '::before');
+             return {
+               press: press.backgroundColor,
+               glyph: press.color,
+               disc: disc.backgroundColor,
+               discWidth: disc.width,
+               discRadius: disc.borderRadius,
+             };
+           }"""
+    )
+
+
 def mark_edges(page, ident, ink):
     """How wide the mark is painted on each side of an element, in device pixels.
 
@@ -1158,7 +1182,7 @@ def live_leaf(tmp_path, monkeypatch):
     held = []
 
     def go(name, title):
-        d = host_model.state_home() / "pages" / name
+        d = machine_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
         stamp_page(

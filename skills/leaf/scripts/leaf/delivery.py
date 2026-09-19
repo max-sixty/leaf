@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .events import build_threads
 from .files import read_json, write_json
-from .host import state_home
+from .machine import state_home
 from .passages import active_enclosing
 from .registry.contract import RegistryError, handling
 from .registry.reactions import described

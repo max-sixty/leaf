@@ -110,7 +110,8 @@ host and control selector;
 by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry, addressable-element comment entry,
-and page-click routing;
+page-click routing, and the one Comment command every route into it shares — which box the
+press enters, the word each surface says over it, and the composer's own keys;
 `runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text
 search: the scene, chip, and activation it declares over the shared hint session in
 `runtime/keyboard/hints.js`, and the synchronous keyed Lit overlay and mechanical
@@ -145,6 +146,9 @@ disclosed, and inline child order;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
 vertical packing, collision bands for wide page content, and transient margin-entry
 label placement;
+`runtime/thread-card-geometry.js` states, as arithmetic over client rectangles, where
+the inline thread card stands relative to the cluster that opened it and the visible
+boundary the margin projection supplies;
 `runtime/reactions.js` owns reaction vocabulary, composer choices, sending, keyboard
 mode, registered conversation-control mechanics, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
@@ -257,7 +261,9 @@ and trays, and page repaint caused by shell motion or reflow. It does not own th
 place across that reflow: the shell yields its strip as a transparent border rather than a
 margin, which keeps the change off the scroll-anchoring suppression list, so the browser
 holds the place and nothing here may take that back (theme.css, at the body strip);
-`runtime/thread-panel.js` owns panel visibility and workspace transitions;
+`runtime/thread-panel.js` owns panel visibility, workspace transitions, and the two Escape
+rungs the panel offers a reader who reached it without a keyboard entry — the narrowing,
+then the panel itself;
 `runtime/auxiliary-chrome.js` captures and restores the reader's workspace for navigation;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
 the words it projects;
@@ -281,7 +287,8 @@ conversion from viewport boxes to document-positioned chrome;
 `runtime/keyboard/key-badge-placement.js` adds the readings that account for the room
 chrome leaves and for a member covered without being clipped, which every target hint
 and Ask binding badge is admitted and seated by;
-`runtime/navigation.js` owns reader travel; `reading-regions.js` selects its scroller;
+`runtime/navigation.js` owns reader travel and its keys — the reading-page step, the small
+scroll, and the open-thread walk; `reading-regions.js` selects its scroller;
 `runtime/anchor-resolution.js` resolves anchors without importing paint or travel;
 `runtime/anchor-paint.js` owns their placed readings and marks;
 `runtime/anchor-note-view.js` Lit-renders the native accessibility control beside each
@@ -304,7 +311,8 @@ and their presentation-batch checkpoints;
 `runtime/conversation/folding.js` owns settlement continuations and mechanical
 resolution-fold state and motion;
 `runtime/conversation/landing.js` owns conversation input discovery, focus travel,
-and panel arrival;
+panel arrival, and the two scopes standing over that relation: a text box's way back out,
+and a thread's own reply and resolution keys;
 `runtime/conversation/narrowing.js` owns the immutable comment-panel search and lifecycle,
 scope, subject, and detached-placement intent and derives one complete narrowing reading;
 `runtime/conversation/narrowing-view.js` synchronously Lit-renders that reading as the
@@ -326,8 +334,10 @@ from canonical activity and captured fragment membership; message owners place r
 Lit receipts, which own their words and semantic paint;
 and
 `runtime/conversation/presentation.js` composes retained conversation rendering;
-`runtime/conversation/panel.js` owns the panel composer, and `panel-elements.js` owns the
-passive panel elements, its one narrowing-view seat, and geometry readings;
+`runtime/conversation/panel.js` owns the panel composer and the Threads list's own keys —
+its search, waiting filter, match walk, and local route into the page-comment box — and
+`panel-elements.js` owns the passive panel elements, its one narrowing-view seat, and
+geometry readings;
 `runtime/projection/authored.js` decodes typed authored initial values from validated
 source markup before upgrade and owns authored parentage;
 `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
@@ -393,8 +403,10 @@ they never read either attribute back as semantic input.
 Startup order is load-bearing:
 
 1. Construct the application, page commands, and UI owners in `leaf.js` before any
-   mount reads another owner. Page keys must exist before the first input is wired,
-   because its initial paint reads the input's binding badge. Adopt the sheets,
+   mount reads another owner. Each owner contributes its own keys as it is constructed, and
+   the register assembles and checks the page's stack on the first read of it, so every
+   owner must stand before the first input is wired: its initial paint reads the input's
+   binding badge, which resolves that stack. Adopt the sheets,
    attach chrome, mount the owners, and wire the shared repaint phases. Repaint invalidations made
    before repaint is mounted retain their intent without executing an incomplete frame.
 2. Begin the first state read without applying its answer.

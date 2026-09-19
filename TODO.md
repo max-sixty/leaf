@@ -164,14 +164,6 @@ the workspace research below, which reaches #23, so a new item starts above that
   leading them: what makes the folds reachable without a browser is giving them a home off
   the DOM.
 
-- **#8 — Decentralize keyboard feature knowledge.** Have feature owners contribute explicit
-  capabilities at boot and leave the dispatcher generic. The condition this item waited on
-  is met: `createPageKeys` takes 53 named capabilities and `leaf.js` mirrors all 53, so a
-  core command costs one line in each of three files, while a package widget already
-  registers through `keys()` and costs none. Eleven of the 53 are scopes a feature declared
-  locally and `page.js` names again. It moves about 900 lines and deletes about 170,
-  including the `rung()` ladder whose own guard stands down for the layer stack.
-
 - **#27 — Admit every event through one door.** Six of the nine `append_event` callers
   check no contract: `cmd_comment`, `cmd_reply`, `cmd_edit` and `cmd_resolve` in
   `conversation.py`, the `pickup` in `session.py`, and the `note` in `publishing.py`. Of

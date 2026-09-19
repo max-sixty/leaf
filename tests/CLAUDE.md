@@ -424,6 +424,19 @@ manual navigations as well; the `upgraded=False` escape in `open_page` is only
 for a test whose subject is the interval before those stamps, waits for the
 banner module to exist, and must make its later readiness explicit.
 
+A test whose subject is the page before the runtime lands needs the other end of
+that distinction, and element visibility does not carry it. A forced layout —
+`bounding_box`, and `to_be_visible` with it — answers from the stylesheets that
+have arrived, so an element has a box while the render-blocking theme is still in
+flight, and the geometry read behind it is the user agent's own. `displayed` waits
+on first contentful paint, the browser's record that the head has been applied and
+what it composed is on screen. Every pre-runtime measurement takes it first, in
+`test_authored_html_paints_while_runtime_startup_is_held`,
+`test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads`, and
+the two site shells: the reading it excludes is the unstyled document, which
+differs from the presented page by the whole theme and arrives as a report that
+startup moved the shell.
+
 `watched` must be installed before navigation. It collects console warnings, console
 errors, and `pageerror`, and calls `leaf.render_checks.install_window_errors` so browser
 `error` events without an exception reach the same list. That script is shared
@@ -522,6 +535,16 @@ too. Every anchor pass calls `CSS.highlights.set` for each of its names, empty
 ranges included, so wait on what the pass put in it
 (`(CSS.highlights.get(name)?.size ?? 0) > 0`, or `wait_for_pending_mark`),
 never on the name being there.
+
+A surface the page paints before the server answers is that surface too. A
+comment is rendered the turn it is sent, under the `pending:` identity
+`conversationForAttempt` gives it, so a `.lf-thread` count reads the same on the
+path where the request is refused. Wait on the identity the response replaced it
+with (`.lf-thread:not([data-id^="pending:"])`) or enclose the gesture in
+`sending`. Where the refusal under test is a request failure the outbox retries
+rather than settles, the identity is the only one of the two that answers:
+`round_trip` inside `sending` waits out its whole deadline on it
+(`test_the_captured_quote_is_prose_a_file_can_hold`).
 
 A retrying assertion that a paint has not happened is the same trap with the
 other sign, and worse: a negative assertion is satisfied by the first poll, and

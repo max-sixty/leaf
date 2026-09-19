@@ -4509,7 +4509,7 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
                   coveredBottomChrome: bottomChrome.filter(box => overlaps(card, box)).length};
         }"""
     )
-    assert geometry["placement"] == "right", geometry
+    assert geometry["placement"] in ("below", "above"), geometry
     assert (
         geometry["cardBottom"] <= geometry["controlsTop"] - 7
         or geometry["cardTop"] >= geometry["controlsBottom"] + 7
@@ -4580,27 +4580,152 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     assert geometry["targetTop"] >= geometry["bannerBottom"], geometry
     assert geometry["targetBottom"] <= 900, geometry
 
+    # The card's top edge is the cluster's while the whole card fits under it, and it
+    # holds at the boundary's foot once the cluster scrolls lower than that. Each scroll
+    # is read after the frame the scroll listener places the card in.
     moved = page.evaluate(
         """async () => {
-          const positions = () => ({
-                card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
-                controls: document.querySelector(
-                  '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect().top,
-            scrollY,
-          });
-          const before = positions();
-          scrollBy(0, 40);
-          await new Promise(resolve => requestAnimationFrame(
+          const positions = () => {
+            const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+            const foot = Math.min(...[...document.querySelectorAll(
+              '.lf-shortcut-bar, .lf-bottom-status')].filter(node => node.checkVisibility())
+              .map(node => node.getBoundingClientRect().top));
+            return {
+              card: card.top, cardBottom: card.bottom, foot,
+              controls: document.querySelector(
+                '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect().top,
+              scrollY,
+            };
+          };
+          const placed = () => new Promise(resolve => requestAnimationFrame(
             () => requestAnimationFrame(resolve)));
-          return {before, after: positions()};
+          scrollBy(0, 250);
+          await placed();
+          const high = positions();
+          scrollBy(0, 40);
+          await placed();
+          const higher = positions();
+          scrollBy(0, -450);
+          await placed();
+          const low = positions();
+          return {high, higher, low};
         }"""
     )
-    assert moved["after"]["scrollY"] - moved["before"]["scrollY"] >= 39
-    assert moved["after"]["card"] - moved["after"]["controls"] == pytest.approx(
-        moved["before"]["card"] - moved["before"]["controls"], abs=0.5
-    )
+    assert moved["high"]["card"] == pytest.approx(moved["high"]["controls"], abs=0.5)
+    assert moved["higher"]["scrollY"] - moved["high"]["scrollY"] >= 39
+    assert moved["higher"]["card"] - moved["higher"]["controls"] == pytest.approx(
+        moved["high"]["card"] - moved["high"]["controls"], abs=0.5
+    ), moved
+    assert moved["low"]["controls"] > moved["low"]["card"], moved
+    assert moved["low"]["cardBottom"] == pytest.approx(
+        moved["low"]["foot"] - 8, abs=0.5
+    ), moved
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.evaluate("scrollBy(0, innerHeight)")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
+def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser, serve):
+    """A rail a few pixels short of the card's measure narrows the card, not its height."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.evaluate("location.hash = 'bg-margin-controls'")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    geometry = page.evaluate(
+        """() => {
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const list = cardNode.querySelector('.lf-margin-preview-list');
+          const card = cardNode.getBoundingClientRect();
+          const controls = document.querySelector(
+            '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect();
+          const style = getComputedStyle(cardNode);
+          return {placement: cardNode.dataset.lfThreadPlacement,
+                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+                  controlsRight: controls.right, viewport: innerWidth,
+                  preferred: parseFloat(style.getPropertyValue('--thread-card')),
+                  minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
+                  clipped: list.scrollHeight - list.clientHeight};
+        }"""
+    )
+    assert geometry["placement"] == "right", geometry
+    assert geometry["cardLeft"] == pytest.approx(
+        geometry["controlsRight"] + 8, abs=0.5
+    ), geometry
+    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["minimum"] <= geometry["cardWidth"] < geometry["preferred"], (
+        geometry
+    )
+    assert geometry["clipped"] <= 0, geometry
+
+
+def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks(
+    browser, serve
+):
+    """A short rail narrows the card to its minimum at the visible edge, at full height."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1024, 900)
+    page.evaluate("location.hash = 'bg-margin-controls'")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    geometry = page.evaluate(
+        """() => {
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const card = cardNode.getBoundingClientRect();
+          const controls = document.querySelector(
+            '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect();
+          const main = document.querySelector('main').getBoundingClientRect();
+          const style = getComputedStyle(cardNode);
+          const list = cardNode.querySelector('.lf-margin-preview-list');
+          const foot = Math.min(...[...document.querySelectorAll(
+            '.lf-shortcut-bar, .lf-bottom-status')].filter(node => node.checkVisibility())
+            .map(node => node.getBoundingClientRect().top));
+          return {placement: cardNode.dataset.lfThreadPlacement,
+                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+                  cardTop: card.top, cardBottom: card.bottom, foot,
+                  clipped: list.scrollHeight - list.clientHeight,
+                  controlsTop: controls.top, controlsBottom: controls.bottom,
+                  controlsRight: controls.right, mainRight: main.right, viewport: innerWidth,
+                  minimum: parseFloat(style.getPropertyValue('--thread-card-min'))};
+        }"""
+    )
+    assert geometry["viewport"] - 8 - geometry["controlsRight"] < geometry["minimum"], (
+        geometry
+    )
+    assert geometry["placement"] in ("below", "above"), geometry
+    # This conversation is taller than the room under or over its cluster. It keeps its
+    # whole height and holds at the foot, across the controls, rather than shrinking
+    # into either room.
+    assert geometry["cardBottom"] - geometry["cardTop"] > max(
+        geometry["controlsTop"] - 50, geometry["foot"] - geometry["controlsBottom"]
+    ), geometry
+    assert geometry["clipped"] <= 0, geometry
+    assert geometry["cardBottom"] == pytest.approx(geometry["foot"] - 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["cardWidth"] == pytest.approx(geometry["minimum"], abs=0.5), (
+        geometry
+    )
+    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["cardLeft"] < geometry["mainRight"], geometry
 
 
 def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
@@ -5403,8 +5528,9 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(page.locator(".lf-page-map-toggle")).to_be_focused()
 
 
-# Read the card with the selected target's whole control cluster. The overlay may cover
-# the document, but it keeps that cluster clear and stays aligned with its outside edge.
+# Read the card with the selected target's whole control cluster. A card the rail cannot
+# hold beside that cluster keeps it clear, takes the card's minimum measure, and puts
+# its right edge on the visible edge, so it crosses the column by only what the rail lacks.
 THREAD_CARD_GEOMETRY = """() => {
   const main = document.querySelector('main').getBoundingClientRect();
   const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
@@ -5419,6 +5545,8 @@ THREAD_CARD_GEOMETRY = """() => {
     cardLeft: card.left, cardRight: card.right, cardTop: card.top,
     cardBottom: card.bottom, cardWidth: card.width,
     replyWidth: reply.width, innerWidth: window.innerWidth,
+    minimum: parseFloat(getComputedStyle(document.querySelector('.lf-margin-preview'))
+      .getPropertyValue('--thread-card-min')),
   };
 }"""
 
@@ -5436,7 +5564,7 @@ def send_anchored_comment(page, text):
 
 
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, serve):
-    """An accepted comment opens at full measure beside or over either page shape."""
+    """An accepted comment opens readable beside or over either page shape."""
     sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
@@ -5445,13 +5573,15 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     send_anchored_comment(page, "Check the January failure mode.")
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert narrow["cardWidth"] >= 459, narrow
+    assert narrow["innerWidth"] - 8 - narrow["controlsRight"] < narrow["minimum"], (
+        narrow
+    )
+    assert narrow["cardWidth"] == pytest.approx(narrow["minimum"], abs=0.5), narrow
     assert narrow["replyWidth"] >= 160, narrow
-    assert narrow["cardLeft"] >= 0, narrow
-    assert narrow["cardRight"] <= narrow["innerWidth"] + 0.5, narrow
+    assert narrow["cardRight"] == pytest.approx(narrow["innerWidth"] - 8, abs=0.5), (
+        narrow
+    )
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
-    assert narrow["cardRight"] > narrow["mainLeft"], narrow
-    assert narrow["cardRight"] == pytest.approx(narrow["controlsRight"], abs=0.5)
     assert (
         narrow["cardBottom"] <= narrow["controlsTop"] - 7
         or narrow["cardTop"] >= narrow["controlsBottom"] + 7
@@ -5543,8 +5673,8 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     expect(page.locator(".lf-thread.flash")).to_have_count(0)
 
 
-def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, serve):
-    """The shipped exchange stays beside the page without obscuring its own controls."""
+def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
+    """The shipped exchange stands beside its controls, and crosses them before it shrinks."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page = open_page(browser, serve(example))
     page.emulate_media(reduced_motion="reduce")
@@ -5685,23 +5815,28 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
           const main = document.querySelector('main').getBoundingClientRect();
           const marker = document.querySelector('[data-lf-kinds="comment"]')
           const controls = marker.closest('[data-lf-margin-for]').getBoundingClientRect();
-          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const card = cardNode.getBoundingClientRect();
+          const list = cardNode.querySelector('.lf-margin-preview-list');
           return {mainLeft: main.left, mainRight: main.right,
                   controlsRight: controls.right, controlsTop: controls.top,
                   controlsBottom: controls.bottom, cardLeft: card.left,
                   cardRight: card.right, cardTop: card.top,
                   cardBottom: card.bottom, cardWidth: card.width,
+                  clipped: list.scrollHeight - list.clientHeight,
                   shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert beside["cardLeft"] >= beside["mainRight"], beside
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
     assert beside["cardWidth"] >= 319, beside
-    assert (
-        beside["cardLeft"] >= beside["controlsRight"] + 7
-        or beside["cardBottom"] <= beside["controlsTop"] - 7
-        or beside["cardTop"] >= beside["controlsBottom"] + 7
+    # This shell leaves less than the card's minimum beside the wide cluster, and the
+    # exchange is taller than the room under or over it. It keeps its whole height.
+    assert beside["shellWidth"] - 8 - beside["controlsRight"] < 320, beside
+    assert beside["cardBottom"] - beside["cardTop"] > max(
+        beside["controlsTop"] - 50, 847 - beside["controlsBottom"]
     ), beside
+    assert beside["clipped"] <= 0, beside
 
     resized(page, 1471, 900)
     expect(preview).to_be_visible()

@@ -1200,9 +1200,13 @@ def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve
     )
     assert geometry["box"]["left"] >= 0, geometry
     assert geometry["box"]["right"] <= geometry["viewport"]["width"], geometry
+    # The card stands beside the header's docked cluster, above the body it would have
+    # been clamped into had the body been its boundary.
     assert (
         geometry["box"]["left"] < geometry["pane"]["left"]
         or geometry["box"]["right"] > geometry["pane"]["right"]
+        or geometry["box"]["top"] < geometry["pane"]["top"]
+        or geometry["box"]["bottom"] > geometry["pane"]["bottom"]
     ), geometry
 
 
@@ -6249,9 +6253,37 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
     expect(line).to_contain_text("dismiss conversation")
+    # The reference names the ladder once. Inside the preview the reader is in the chrome,
+    # so the innermost step that still holds is backing out onto the page.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    way_out = help_el.locator('tr[data-lf-command="navigation.back"]')
+    expect(way_out).to_have_count(1)
+    expect(way_out).to_contain_text("Back out onto the page")
+    # Out of the reference, then the shelf it was opened from, and the card is back under
+    # the reader with its own dismissal the next press.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
+    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
+    expect(line).to_contain_text("dismiss conversation")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+    # And the state the one row is for: standing on a mark out on the page, where letting
+    # go and backing onto the page both hold. The reference still names the innermost once,
+    # rather than listing every step whose own condition is true.
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-mark-note")).to_be_focused()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    standing_out = help_el.locator('tr[data-lf-command="navigation.back"]')
+    expect(standing_out).to_have_count(1)
+    expect(standing_out).to_contain_text("Let go of what you are standing on")
 
 
 def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):

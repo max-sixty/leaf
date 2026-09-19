@@ -72,7 +72,7 @@ import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
 import { el, PRESSABLE } from "../widget-elements.js";
-import { allButCommandReference } from "./register.js";
+import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThread } from "../conversation/focus.js";
 import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
@@ -830,15 +830,19 @@ export function createGoToSequence({
     keys: ["g"],
     does: "Go to a visible target, panel, page, or edge",
     line: "go to",
+    // The sequence is still a route out of a covering auxiliary surface; its own scope
+    // moves its root to that surface while armed.
+    covering: true,
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setGoToSequence(true),
   };
 
   const goToSequenceActive = () => goToActive;
 
+  pageScope("go to", GO_TO_SCOPE);
+  pageCommand(OPEN_GO_TO);
+
   return {
-    GO_TO_SCOPE,
-    OPEN_GO_TO,
     goToStatus,
     formatGoToAddress,
     setGoToSequence,

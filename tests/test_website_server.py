@@ -4057,6 +4057,61 @@ def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
     assert slept == []
 
 
+class _Allocation:
+    """One activating read, answering as the edge or as the container it reached."""
+
+    def __init__(self, answer: _Read):
+        self.answer = answer
+        self.request = self
+        self.asked: list[str] = []
+
+    def get(self, url: str, **kwargs) -> _Read:
+        self.asked.append(url)
+        return self.answer
+
+
+def _answered(status: int, headers: dict) -> _Read:
+    answer = _Read({}, "this release is still starting", headers=headers)
+    answer.ok = status < 400
+    answer.status = status
+    return answer
+
+
+ACTIVATION = "https://leaf.page/examples/triage-board/api/view?revision=1&through_seq=1"
+
+
+def test_the_rollout_answer_is_the_one_503_the_activating_read_waits_on():
+    """Both passes make this request, so one function reads what comes back.
+
+    Run 35320758891 printed `...api/view?revision=1&through_seq=1 returned 503` seven
+    times: six inside the release pass's `until` loop, then the seventh in the agent
+    pass, which ended the deploy. Every one was the Worker's own `rollingOut` answer,
+    which says the deployment is still landing. A bare status cannot say that, and
+    two investigations went to Cloudflare's control plane instead.
+    """
+    rolling = _Allocation(
+        _answered(503, {"retry-after": "5", "leaf-release": "a" * 64})
+    )
+
+    assert verify_site.activation_read(rolling, ACTIVATION) is None
+    assert rolling.asked == [ACTIVATION]
+
+
+def test_a_503_the_worker_did_not_write_is_this_release_failing():
+    """`Retry-After` separates the Worker's rollout answer from a container's own 503.
+
+    A container answering `503` for itself comes back through the pass-through path
+    without the header, and waiting that out would sit on a broken release until the
+    workflow's deadline instead of reporting it.
+    """
+    broken = _Allocation(_answered(503, {"leaf-session": "active"}))
+
+    with pytest.raises(RuntimeError) as failure:
+        verify_site.activation_read(broken, ACTIVATION)
+
+    assert str(failure.value) == f"{ACTIVATION} returned 503"
+
+
 def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(
     monkeypatch, capsys
 ):

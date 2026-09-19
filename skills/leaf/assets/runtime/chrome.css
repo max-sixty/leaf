@@ -83,10 +83,9 @@
    a component that names the same property wins by coming later: .lf-key-badge and the
    whole margin-entry family in theme.css, and .lf-ui, .lf-btn and its focus ring,
    .lf-chip, a thread mark's note and the aim floor in shadow.css, which also reaches the
-   widget trees this sheet never does. What stays here is the paint the
-   runtime lays over the page, which has to beat page and widget alike. `box-sizing`
-   stays for the same
-   reason — the layer's reset, not its face — and it travels with its own `*`
+   widget trees this sheet never does. What stays here is the paint the runtime lays
+   over the page, which has to beat page and widget alike. `box-sizing` stays for the
+   same reason — the layer's reset, not its face — and it travels with its own `*`
    companion below.
 
    Two tests hold this. No selector is dressed for one property both here and in a

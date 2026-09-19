@@ -172,6 +172,11 @@
      to be a fixed size under a finger — a margin entry, the shortcut bar's More — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
+  /* The smallest face a reader types in. Only a finger's platform asks for one: iOS
+     Safari zooms the page onto a text field set smaller as the field takes focus. The
+     field rule that holds it is in shadow.css, and a surface that shows words before
+     opening a field on them holds the same floor so the two sizes agree. */
+  --entry-floor: 0px;
   /* A margin entry's box: 32px of marker, or the floor where a finger raises it. The
      rail's claim below reserves the same length, so it is named rather than written
      into each. */
@@ -399,10 +404,10 @@ html:root {
 @media screen and (width <= 600px) {
   html:root { --lf-tray-slot-width: min(100vw, max(220px, var(--lf-tray-slot-choice, 300px))); }
 }
-/* The other half of --aim-floor, and the whole of what a coarse pointer changes about how
-   small a control may be. Every rule that states the floor reads the token, so a control
-   joins both answers by joining one of them. */
-@media (pointer: coarse) { :root { --aim-floor: 44px; } }
+/* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
+   changes about how small a control, or the words typed in one, may be. Every rule that
+   states a floor reads its token, so a control joins both answers by joining one of them. */
+@media (pointer: coarse) { :root { --aim-floor: 44px; --entry-floor: 16px; } }
 /* Which here ring this is, said by the rule that draws it. An outline carries no word
    for which of the layer's rules put it there — so a reader that had to know worked it
    back from the selectors, matching the layer's own rules against the document by hand.
@@ -837,19 +842,6 @@ h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
 p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
-/* The face every widget-injected control wears. `offer()` writes `lf-ui` on each one it
- * builds, so this is the layer's answer for a control standing in the page's own prose:
- * the chrome's family, size and ink rather than the document's serif.
- *
- * It is a default, and it stands this early so that it behaves like one — a component
- * that names the same property below, or in a package theme concatenated after this
- * file, wins on ordinary cascade order. It cannot live in chrome.css, which is adopted
- * and so cascades after both: the same declarations there beat every component's own
- * rule instead, and .lf-ref drew ink at 14px where it asked for muted at 11.5px while
- * .lf-worktree-head and .lf-swipe-progress drew sans where they asked for mono. Nothing
- * catches that, because no test and no browser gate reads a rule that never applied. */
-.lf-ui { font-family: var(--sans); font-size: var(--t-5);
-    line-height: var(--lf-ui-lh); color: var(--ink); }
 /* One sequential step keeps one geometry in options, the shortcut bar, banner controls
  * and the reference. A sequence composes these fixed boxes instead of making spaces
  * inside one keycap carry time. A compact choice label such as g / G remains one
@@ -858,9 +850,9 @@ li { margin: 6px 0; }
  *
  * The badge is worn on both sides of the chrome's scope line — an option's own corner
  * in the page, and the sequence's hints in the Go-to hint layer — and its box is stated
- * here, right after the face it overrides. In chrome.css it outranked a component
- * asking for a different badge, for no reason beyond that sheet being adopted; the
- * chrome's own step keys spell the same list again inside the scope
+ * here, after the .lf-ui face it overrides in shadow.css. In chrome.css it outranked
+ * a component asking for a different badge, for no reason beyond that sheet being
+ * adopted; the chrome's own step keys spell the same list again inside the scope
  * (`.lf-binding-sequence > kbd`), because naming them here would put two private names
  * on the document-level surface the coined-class probe pins. Keep the two lists
  * identical. */

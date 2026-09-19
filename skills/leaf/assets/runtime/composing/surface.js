@@ -20,9 +20,11 @@
    field grows in place and never transfers text into a second composer card. A
    one-line note uses the shared action corner. A longer one widens up to a readable
    80ch and then wraps. Without a horizontal rail, a quoted passage chooses the
-   vertical side with more reachable room. The field keeps that side and moves the
-   reading region only enough to keep the passage and field visible together; it
-   finally scrolls internally. Other targets grow toward the available viewport edge.
+   vertical side with more reachable room; on a touch screen, whose own selection menu
+   stands above the words, it goes below whenever the page can make room there. The
+   field keeps that side and moves the reading region only enough to keep the passage
+   and field visible together; it finally scrolls internally. Other targets grow toward
+   the available viewport edge.
    The target chooses a placement from the field's minimum footprint once. Later
    content and margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the reader keeps their response.
@@ -47,7 +49,8 @@
    chrome are the only collision boundary: page and margin content may be overlaid.
    Leaf chooses the stable side from the block and its reachable reading room. Floating
    UI owns coordinate conversion, overflow, and reflow updates; CSS owns content sizing
-   within the width and height its middleware supplies.
+   within the width and height its middleware supplies. The viewport holds the bar in
+   only while its target is on screen, so a target scrolled away takes the bar with it.
 
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
@@ -118,6 +121,8 @@ import { moveScrollerBy } from "../scrolling.js";
 const COMMENT_COMMANDS = ["comment.create", "comment.write"];
 
 const BANNER_CLEAR = 48;
+// Whether the reader's primary pointer is a finger, as the theme's --aim-floor asks it.
+const coarsePointer = matchMedia("(pointer: coarse)");
 let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
@@ -492,6 +497,10 @@ export function createResponseSurface({
       if (Math.ceil(sideRoom("left")) >= Math.ceil(minimum)) return "left-start";
       const below = verticalRoom("bottom");
       const above = verticalRoom("top");
+      // A touch selection wears the platform's own menu (Copy, Look Up) in the band above
+      // it, where that menu covers a bar standing over the block. So on a touch screen a
+      // bar the page can make room for below the block takes that side.
+      if (coarsePointer.matches && below >= minimumFabHeight()) return "bottom-end";
       return below > above ||
         (below === above && visibleVerticalRoom("bottom") > visibleVerticalRoom("top"))
         ? "bottom-end"
@@ -555,7 +564,12 @@ export function createResponseSurface({
     }[requestedPlacement];
     if (fabPlacement === null) setWidth(boundary.width);
     const room = quotedVertical ? verticalRoom(requestedSide) : boundary.height;
-    setHeight(quotedVertical && room >= minimumFabHeight() ? room : boundary.height);
+    // A passage's vertical side is chosen from the room the page can make there, and the
+    // travel below makes it, so only a side that cannot hold the bar is left to Floating
+    // UI's flip. Flipping a settled side on pixels re-decided it over the pixel between
+    // the bar as measured here and the bar as laid out.
+    const settledSide = quotedVertical && room >= minimumFabHeight();
+    setHeight(settledSide ? room : boundary.height);
     // The choices deliberately wrap inside the response surface, so their intrinsic
     // scroll width is not a fit requirement. Only the compact control's minimum is: a
     // covering panel may genuinely leave less than that, while an ordinary narrow page
@@ -606,68 +620,83 @@ export function createResponseSurface({
     const initial = fabPlacement === null;
     const stillCurrent = () => epoch === fabPositionEpoch && fabAnchor && fabFloating;
     void floatingUi()
-      .then(({ autoUpdate, computePosition, flip, offset, shift, size }) => {
-        if (!stillCurrent()) return null;
-        watchFabPosition(owner ?? document.documentElement, autoUpdate);
-        return computePosition(reference, fabBar, {
-          placement: requestedPlacement,
-          strategy: "fixed",
-          middleware: [
-            offset(({ placement, rects }) => {
-              const beside = /^(left|right)/.test(placement);
-              return {
-                mainAxis: 6,
-                // The paragraph chooses the horizontal lane; the selected line chooses
-                // where in that lane the response starts. Above and below, preserve the
-                // initial inline start as the field or its choices grow.
-                crossAxis: beside
-                  ? target.top - keepClear.top - 6
-                  : fabInlineConnection === null
-                    ? 0
-                    : fabInlineConnection + rects.floating.width,
-              };
-            }),
-            // Size precedes the one initial flip so the decision sees the width into
-            // which the compact control can actually shrink. This is Floating UI's
-            // documented initial-placement composition; putting size last makes a
-            // fractional CSS pixel look like a missing margin rail.
-            size({
-              ...overflow,
-              apply({ availableWidth, placement }) {
-                if (!stillCurrent()) return;
-                const side = placement.split("-", 1)[0];
-                const laneWidth =
-                  side === "right"
-                    ? boundary.right - keepClear.right - 6
-                    : side === "left"
-                      ? keepClear.left - boundary.left - 6
-                      : fabInlineConnection === null
-                        ? availableWidth
-                        : boundary.right - (keepClear.right + fabInlineConnection);
-                // A side placement consumes its current rail. Above or below, the
-                // relative connection preserves the field's inline start as its content
-                // grows while allowing target reflow to carry that start with it.
-                setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
-                const vertical = block && /^(top|bottom)$/.test(side);
-                const available = vertical ? verticalRoom(side) : boundary.height;
-                setHeight(
-                  vertical && available >= minimumFabHeight()
-                    ? available
-                    : boundary.height,
-                );
-              },
-            }),
-            initial &&
-              flip({
-                ...overflow,
-                crossAxis: false,
-                fallbackPlacements,
-                fallbackStrategy: "bestFit",
+      .then(
+        ({ autoUpdate, computePosition, flip, limitShift, offset, shift, size }) => {
+          if (!stillCurrent()) return null;
+          watchFabPosition(owner ?? document.documentElement, autoUpdate);
+          return computePosition(reference, fabBar, {
+            placement: requestedPlacement,
+            strategy: "fixed",
+            middleware: [
+              offset(({ placement, rects }) => {
+                const beside = /^(left|right)/.test(placement);
+                return {
+                  mainAxis: 6,
+                  // The paragraph chooses the horizontal lane; the selected line chooses
+                  // where in that lane the response starts. Above and below, preserve the
+                  // initial inline start as the field or its choices grow.
+                  crossAxis: beside
+                    ? target.top - keepClear.top - 6
+                    : fabInlineConnection === null
+                      ? 0
+                      : fabInlineConnection + rects.floating.width,
+                };
               }),
-            shift({ ...overflow, mainAxis: true, crossAxis: true }),
-          ],
-        });
-      })
+              // Size precedes the one initial flip so the decision sees the width into
+              // which the compact control can actually shrink. This is Floating UI's
+              // documented initial-placement composition; putting size last makes a
+              // fractional CSS pixel look like a missing margin rail.
+              size({
+                ...overflow,
+                apply({ availableWidth, placement }) {
+                  if (!stillCurrent()) return;
+                  const side = placement.split("-", 1)[0];
+                  const laneWidth =
+                    side === "right"
+                      ? boundary.right - keepClear.right - 6
+                      : side === "left"
+                        ? keepClear.left - boundary.left - 6
+                        : fabInlineConnection === null
+                          ? availableWidth
+                          : boundary.right - (keepClear.right + fabInlineConnection);
+                  // A side placement consumes its current rail. Above or below, the
+                  // relative connection preserves the field's inline start as its content
+                  // grows while allowing target reflow to carry that start with it.
+                  setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
+                  const vertical = block && /^(top|bottom)$/.test(side);
+                  const available = vertical ? verticalRoom(side) : boundary.height;
+                  setHeight(
+                    vertical && available >= minimumFabHeight()
+                      ? available
+                      : boundary.height,
+                  );
+                },
+              }),
+              initial &&
+                !settledSide &&
+                flip({
+                  ...overflow,
+                  crossAxis: false,
+                  fallbackPlacements,
+                  fallbackStrategy: "bestFit",
+                }),
+              // The viewport holds the bar in only while its target is still there: past
+              // that the bar leaves with it, rather than staying pinned to the viewport's
+              // edge over whatever the reader scrolled to. Only the block axis is limited;
+              // the reading boundary still holds the bar in across it.
+              shift({
+                ...overflow,
+                mainAxis: true,
+                crossAxis: true,
+                limiter: limitShift(({ placement }) => {
+                  const vertical = /^(top|bottom)/.test(placement);
+                  return { mainAxis: !vertical, crossAxis: vertical };
+                }),
+              }),
+            ],
+          });
+        },
+      )
       .then((position) => {
         if (!position) return;
         const { x, y, placement } = position;
@@ -1350,11 +1379,19 @@ export function createResponseSurface({
     does: `Comment on the ${word}`,
     line: `comment on the ${word}`,
   });
+  // The box this press opens is the first of the comment gesture's two surfaces: a send
+  // takes it off the page and carries the reader into the thread it became, a card put up
+  // in its place or that thread in an open panel. So this frame retires with the box, and
+  // hands the place it recorded to the thread's frame, which enters on it as the same one
+  // rung. Without the handover the card entered with no place at all, and the margin's
+  // own fallback rung answered for it with the entry the card hangs from — a control the
+  // reader never stood on, saying its transient label as they arrived.
   const composerReturnFrame = () => ({
     active: () => composerOpen,
     close: dismissFab,
     does: "Return to where you were",
     line: "back",
+    handsOn: true,
   });
   function commentDestination() {
     const anchor = fabAnchorAt();

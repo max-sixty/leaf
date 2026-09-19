@@ -28,6 +28,14 @@ is false. Omit bounded edge cases, exhaustive same-pattern cleanup, minor
 simplification, and prose or test polish unless they expose one of those
 problems.
 
+A diff that resolves its reported symptom without reaching what produced it is
+an architectural seam, not polish. Ask what underlying issue the problem
+betrays and keep asking until the answer names nothing above itself, then read
+the diff against that answer: where it works around the answer rather than
+fixing it, name the underlying problem and withhold approval. A narrow change
+is approvable when it leaves that problem as easy to fix as it found it and
+says what it is — not when the real fix is merely filed behind it.
+
 ## Cloudflare logs
 
 `CLOUDFLARE_API_TOKEN` in the agent's environment is the

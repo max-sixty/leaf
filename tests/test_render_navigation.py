@@ -925,7 +925,15 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
         if event["kind"] == "comment" and event.get("about") == "design"
     ][-1]
     assert design_comment["anchor"] == {"section": "bg-choice-street"}
+    # Design mode withholds the card, so the send opened Threads on the new thread, and
+    # that opening is the send's to undo: one Escape closes the panel, and the next
+    # leaves design mode, the press that came before it.
+    threads = page.locator(".lf-thread-panel")
+    expect(threads).to_have_class(re.compile(r"\bopen\b"))
     page.locator("body").focus()
+    page.keyboard.press("Escape")
+    expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 

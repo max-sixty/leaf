@@ -32,11 +32,11 @@
 
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath a re-shown popover cannot linger
-   as a false floor. The exception is an entry under an active modal: `showModal` hides
-   the auto popovers beneath it and the command reference re-shows the ones it displaced,
-   so those entries wait with their frames intact rather than retiring. The modal marks
-   them suspended as it is pushed, and only a suspended or standing entry is lifted when
-   its node reopens. `current()` is the top entry when it carries a live frame and nothing
+   as a false floor. Beneath an active modal, not standing does not show a surface gone:
+   `showModal` hides the auto popovers beneath it and the command reference re-shows the
+   ones it displaced, so every entry under a live modal waits with its frame intact,
+   whatever took its surface down. The modal marks them suspended as it is pushed, and
+   only a suspended or standing entry is lifted when its node reopens. `current()` is the top entry when it carries a live frame and nothing
    otherwise, which is the whole suspension rule: a frame is unavailable because something
    stands above it, not because of an order comparison.
 
@@ -118,9 +118,9 @@
    fresh page accepts native scrolling before asynchronous upgrade, without stealing focus
    from a control the reader reaches during that upgrade.
 
-   A pointer press that opens a layer is a command too, and enters through `invoke` with
-   the place it displaced: the Threads toggle, a margin marker or its unfolded option
-   row, a page mark, its note. A pointer moves focus onto what it pressed before the
+   A pointer press that takes the reader into a layer, opening it or finding it standing,
+   is a command too, and enters through `invoke` with the place it displaced: the Threads
+   toggle, a margin marker or its unfolded option row, a page mark, its note. A pointer moves focus onto what it pressed before the
    click arrives, so that place is read at pointerdown and handed out by `pressOrigin`; a
    keyboard activation's click finds no press in flight and reads focus at the click,
    which is the control the reader stood on. The Escape that closes a clicked-open panel
@@ -203,6 +203,30 @@ export function pressOrigin() {
   if (!capturePlace)
     throw new Error("leaf: pressOrigin read before the keyboard mounted");
   return pressed ? capturePlace(pressed.control) : capturePlace();
+}
+
+// The page the reader is on, with no control in it, as a place a frame can hand back.
+// `pressOrigin` names what a press displaced; this names what a press displaced when the
+// reader held no control to begin with, because the pointer or their last landing had
+// already put them on the page. One reading either way, carrying a control or not.
+export function readingPlace() {
+  if (!capturePlace)
+    throw new Error("leaf: readingPlace read before the keyboard mounted");
+  return capturePlace(null);
+}
+
+// The place recorded by the frame standing over the page, for a surface that hands its
+// layer on to a successor rather than closing it. One press is one rung however many
+// surfaces answer it in turn, so the successor enters with the place that press displaced
+// instead of capturing a second, weaker one from the scene the first surface left behind.
+// Read before the handover, while the surface being replaced still stands.
+//
+// Only a frame that says `handsOn` answers. A surface that happens to be standing when
+// an unframed one opens beneath it — a tray the reader left open, the panel — is not that
+// press, and inheriting its place would put the reader somewhere they never were.
+export function currentOrigin() {
+  const frame = current();
+  return frame?.handsOn ? (frame.origin ?? null) : null;
 }
 
 // The stack itself. Commands declare their second half as `returnFrame`; the dispatcher

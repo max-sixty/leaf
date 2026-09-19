@@ -1553,7 +1553,10 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
           generated: n.dataset.lfGen === '1',
           hidden: n.getAttribute('aria-hidden'),
           userSelect: getComputedStyle(n).userSelect,
+          face: [getComputedStyle(n).fontFamily, getComputedStyle(n).fontSize],
         })),
+        code: [getComputedStyle(d.querySelector('pre[data-diff]')).fontFamily,
+               getComputedStyle(d.querySelector('pre[data-diff]')).fontSize],
       };
     })""")
     by_path = {f["path"]: f["lines"] for f in files}
@@ -1584,6 +1587,11 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         and number["userSelect"] == "none"
         for number in numbers
     ), numbers
+    # A line number wears `lf-ui` because `offer()` built it, and it takes its face from
+    # the diff it counts: the control face stays out of the declared tree.
+    assert all(
+        number["face"] == file["code"] for file in files for number in file["numbers"]
+    ), [(file["code"], file["numbers"][:1]) for file in files]
 
     reading = page.evaluate("""async () => {
       const { says, textNodesUnder, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -4980,6 +4988,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     note.press("Enter")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    # The note carried the reader into a thread the diff already seats, so the press put
+    # nothing up, and one Escape hands the note back. Enter goes in again.
+    page.keyboard.press("Escape")
+    expect(note).to_be_focused()
+    note.press("Enter")
+    expect(thread).to_be_focused()
 
     # The same draft has two views, across the shadow boundary. An empty Send paints
     # nothing, showing whatever ground it stands on; typing fills the same disc in

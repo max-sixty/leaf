@@ -138,39 +138,45 @@ ordering contract these items extend.
 
 The 2026-09-13 to 09-17 Lit application arc closed #1 and #3, which git history now
 carries. A 2026-09-18 survey measured what remains and raised the items below; its
-evidence is the `leaf-simplification` page directory in the state home.
-
-- **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
-  imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the
-  connection lifecycle `AppServerClient` owns: the `initialize`/`initialized`/`thread/resume`
-  prologue three times across the two files, `_send` twice, and the reconnect backoff four
-  times — already drifted, `min(failures, 5)` against `min(self.failures - 1, 5)`. One
-  subscription class with a delivery-source hook deletes 550 to 650 lines. Both carriers
-  are live and tested, so this is a restructure rather than a deletion of dead code.
+evidence is the `leaf-simplification` page directory in the state home. #4 landed in
+#808, #8 in #815 and #27 in #797. #25 — one App Server client for the Worker — is
+closed: #811, #813 and #834 dissolved the duplication it named, and what survived it
+is now stated under #6.
 
 - **#5 — Separate the pure margin model from stateful presentation.** Produce the complete
   cluster and Page Map reading as immutable data, then let retained-control presentation
-  and placement consume it independently. `margin-projection.js` is 3,072 lines in one
-  factory; roughly 650 would move and what it deletes directly is small. The return is that
-  the model becomes testable without Chrome, which `test_render_margin.py` currently spends
-  6,351 lines on, and that an entry's identity and focus standing stop living on
-  `dataset.lfMarginEntry*` across the 77 sites that write them onto nodes and read them
-  back.
+  and placement consume it independently. `margin-projection.js` is 3,133 lines built
+  around one `createMarginProjection` factory — the largest runtime module by a thousand
+  lines over the next; roughly 650 would move and what it deletes directly is small. The
+  return is that the model becomes testable without Chrome, which `test_render_margin.py`
+  currently spends 6,802 lines on, and that an entry's identity and focus standing stop
+  living on `dataset.lfMarginEntry*`. Measured 2026-09-19: the runtime and bundled packages
+  carry `lf` state on DOM nodes at 305 sites under 104 keys across 77 of 194 modules, and
+  `margin-projection.js` holds the largest single share at 25.
 
 - **#6 — Separate Codex delivery protocol, durable state, and process supervision.** Keep
   App Server message interpretation, the queue and receipt ledger, and adapter process and
   lease management in distinct layers if hosted-agent delivery remains a product priority.
+  #811, #813 and #834 already did the protocol half by hand: `codex.py` exports
+  `app_server_connect`, `app_server_handshake` and `app_server_request`, `AppServerClient`
+  moved out to `codex_adapter.py`, and `worker/server.py` imports 17 public names and no
+  private one. What remains is two turn supervisors over that one protocol —
+  `HostedTurn` and `WebsiteCodexHost` in `worker/server.py`, about 900 lines, against
+  `TaskObserver` and `DeliveryTurn` in `codex_adapter.py`, about 1,000. They supervise
+  different things, a local Codex process with a queue and a lease against a hosted
+  per-reader container turn, so merging them is a restructure with no deletion and is
+  worth doing only under that same product condition.
 
 - **#7 — Test model rules without rebuilding whole browser journeys.** Keep browser tests
   for focus, selection, pointer identity, layout, accessibility, and synchronous
   presentation. Cover pure folds with compact model fixtures. The declarative layer
-  manifest landed in #753. `tests/` is 137,643 lines against 106,577 of implementation, and
-  1,372 of the 2,315 tests are browser render tests across 88,868 lines. Of those, 296
-  across 13,263 lines drive no input, read no geometry and assert on no focus — they load a
-  page to read state back, and are what a model fixture would replace. No pure test covers
-  `projection.py`, `asks.py` or `conversation.py`. This follows #5 and #4 rather than
-  leading them: what makes the folds reachable without a browser is giving them a home off
-  the DOM.
+  manifest landed in #753. Measured 2026-09-19: `tests/` is 141,297 lines against 104,266
+  of implementation, and 1,418 of the 2,388 tests are browser render tests across 91,159
+  lines. Of those, 325 across 14,750 lines drive no input, read no geometry and assert on
+  no focus — they load a page to read state back, and are what a model fixture would
+  replace. Five test sites call `projection.page_reading` or `asks.answered_ask` directly.
+  This follows #5 rather than leading it, #4 having landed: what makes the folds reachable
+  without a browser is giving them a home off the DOM.
 
 - **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
   now keeps the reader's place through the browser's own scroll anchoring, and that hold

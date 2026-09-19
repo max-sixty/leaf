@@ -32,6 +32,7 @@ import { threadsBox } from "../conversation/panel-elements.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
+import { currentOrigin, invoke, readingPlace } from "../keyboard/layer-stack.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
@@ -128,6 +129,7 @@ export function createSelectionComposer({
   reactionTokens,
   designModeActive,
   marginOpenInlineThread,
+  marginThreadFrame,
   threadTransitionOrigin,
   anchorStands,
   anchorTargetAt,
@@ -146,10 +148,10 @@ export function createSelectionComposer({
   wireInput,
 }) {
   const closeReactions = () => setReact(false);
-  const openInlineThread = (id, ...rest) => {
+  const openInlineThread = (id, options) => {
     const local = focusSurface(id);
     return (
-      local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, ...rest)
+      local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, options)
     );
   };
 
@@ -607,10 +609,18 @@ export function createSelectionComposer({
         const suggestion = suggestCheck.checked;
         const about = pendingAbout;
         const drawing = structuredClone(pendingDrawing);
-        // The accepted comment becomes a thread card. Keep the last box the reader was
-        // looking at so the inline card can carry that box into its new surface after the
-        // draft settlement has removed the composer from the page.
+        // The accepted comment becomes a thread, drawn as a card beside the passage unless
+        // Threads is open. Keep the last box the reader was looking at so the inline card
+        // can carry that box into its new surface after the draft settlement has removed
+        // the composer from the page.
         const transition = threadTransitionOrigin(composerInput, visible);
+        // And keep the place that press displaced, while the box's own frame still stands
+        // to be asked for it. The thread is the press's second surface rather than a
+        // second press: `c` from a control opens the box on what the reader is standing
+        // in, so one Escape from the thread it becomes owes them that control back. Where
+        // the press displaced no control — the pointer had already put the reader on the
+        // page to select the words it is about — that same place is the page.
+        const entered = currentOrigin() ?? readingPlace();
         const epoch = composerEpoch;
         const sent = sendMessage(
           ctx,
@@ -641,26 +651,44 @@ export function createSelectionComposer({
           mayLandTyping(reply, composerInput);
         // Continue in the surface already in use. Closing an open panel here reflows the
         // passage just as the reader's comment moves across it to a new floating card.
-        const inlineThread =
-          shouldLand && !panelIsOpen()
-            ? openInlineThread(sent.id, transition, (thread) =>
-                landTyping(thread.querySelector("textarea"), composerInput),
-              )
-            : null;
-        const inlineReply = inlineThread?.querySelector("textarea") ?? null;
-        // Expand the destination before placement so Floating UI measures the final card.
-        // Focus still waits for that placement; it must not change the measured shape.
-        inlineReply?.lfRevealReply?.();
-        reply = inlineReply ?? reply;
-        if (!inlineReply && (shouldLand || panelIsOpen())) {
-          await showThread(sent.id, { focus: shouldLand ? "reply" : false });
-          reply ??= threadsBox.querySelector(
-            `.lf-thread[data-id="${sent.id}"] textarea`,
-          );
-        }
-        // The composer this was sent from is gone with the send; the thread it became
-        // carries the same conversation, so its reply box is where typing continues.
-        if (shouldLand && !inlineReply) landTyping(reply, composerInput);
+        // Whichever surface that is, the comment press took the reader there, so the
+        // landing enters the stack with the place that press displaced.
+        let landedIn = null;
+        const land = async () => {
+          const inlineThread =
+            shouldLand && !panelIsOpen()
+              ? openInlineThread(sent.id, {
+                  transition,
+                  onPositioned: (thread) =>
+                    landTyping(thread.querySelector("textarea"), composerInput),
+                })
+              : null;
+          const inlineReply = inlineThread?.querySelector("textarea") ?? null;
+          // Expand the destination before placement so Floating UI measures the final
+          // card. Focus still waits for that placement; it must not change the measured
+          // shape.
+          inlineReply?.lfRevealReply?.();
+          reply = inlineReply ?? reply;
+          if (!inlineReply && (shouldLand || panelIsOpen())) {
+            await showThread(sent.id, { focus: shouldLand ? "reply" : false });
+            reply ??= threadsBox.querySelector(
+              `.lf-thread[data-id="${sent.id}"] textarea`,
+            );
+          }
+          // The composer this was sent from is gone with the send; the thread it became
+          // carries the same conversation, so its reply box is where typing continues.
+          if (shouldLand && !inlineReply) landTyping(reply, composerInput);
+          if (shouldLand) landedIn = inlineThread ?? reply?.closest(".lf-thread");
+        };
+        await invoke(
+          {
+            id: "comment.sent",
+            returnFrame: () => marginThreadFrame(() => landedIn),
+          },
+          null,
+          land,
+          entered,
+        );
       },
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);

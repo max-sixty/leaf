@@ -2137,7 +2137,10 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
 
 
 def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
-    """Floating UI's scroll observer keeps the field attached to its passage."""
+    """Floating UI's scroll observer keeps the field attached to its passage, and the
+    viewport holds the field in only while the passage is there: once the passage has
+    scrolled away the field goes with it, rather than staying pinned under the banner over
+    whatever the reader scrolled to."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
@@ -2161,6 +2164,12 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
         }""",
         arg=before,
     )
+    page.evaluate("document.scrollingElement.scrollTop += 2 * innerHeight")
+    page.wait_for_function("""() => {
+      const passage = document.getElementById('p30').getBoundingClientRect();
+      const composer = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+      return passage.bottom < 0 && composer.bottom < 0;
+    }""")
 
 
 def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serve):

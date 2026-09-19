@@ -8149,6 +8149,66 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     assert "no watcher" in json.loads(capsys.readouterr().out)["reason"]
 
 
+def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
+    tmp_path, page_dir, monkeypatch, capsys
+):
+    """The claims directory is one per machine, and the worktrees writing it are
+    each on their own commit, so a session routinely reads records a different
+    version wrote. Found in the wild: a session held six preview pages claimed
+    before #811 named a harness, merged a main that had landed it, and every
+    `leaf wait` after that died in `owned_by` on `claim["harness"]` — taking the
+    watcher off the unrelated page the user was actually reading.
+
+    Stage owes nothing to what an older version wrote, so the record is not
+    migrated and its old shape is never read. It is dropped where it is read,
+    which leaves its page unclaimed and every other page working."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    # The walk is in path order, so a name ahead of the reader's page is what
+    # puts the unreadable record in front of the batch the session came for.
+    stale = tmp_path / "held-preview"
+    assert (
+        CliRunner().invoke(cli_model.cli, ["page", "init", str(stale)]).exit_code == 0
+    )
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "hi"}
+    )
+    assert service_model.claim_page(stale)
+    assert service_model.claim_page(page_dir)
+    assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
+
+    claim = service_model.page_claim(stale)
+    written_before_811 = {**claim, "host": claim["harness"]}
+    del written_before_811["harness"]
+    files_model.write_json(service_model.claim_path(stale), written_before_811)
+
+    # The reported failure: the watcher walks every page the session holds, and
+    # the record it cannot read belongs to a page the reader is not on.
+    delivered = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert delivered.exception is None, repr(delivered.exception)
+    assert delivered.exit_code == 0, repr(delivered.output)
+    assert json.loads(delivered.output)["batches"][0]["events"][0]["text"] == "hi"
+
+    assert service_model.page_claim(stale) is None
+    assert service_model.owned_pages("s8") == [page_dir.resolve()]
+
+    # The same reading answers for the two records a later rename leaves behind,
+    # and the Stop hook shows both: a harness name outside this version's table
+    # raises in `host.claim_harness`, which dispatches on that value rather than
+    # reading it, and a record missing a field a reader brackets is taken for a
+    # live claim, putting its page back in front of the guard — and in front of
+    # `event_endpoint`'s nudge, which brackets `turn_closed` under the append
+    # lock.
+    for unreadable in (
+        {**claim, "harness": "some-host-a-later-leaf-named"},
+        {key: value for key, value in claim.items() if key != "turn_closed"},
+    ):
+        files_model.write_json(service_model.claim_path(stale), unreadable)
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s8"})
+        assert str(stale) not in capsys.readouterr().out
+        assert service_model.page_claim(stale) is None
+
+
 def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
     tmp_path, under_codex, codex_env
 ):

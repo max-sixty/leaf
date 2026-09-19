@@ -1174,6 +1174,55 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     )
 
 
+# The layer's page-side order, as layer.py's `composed_sheets` builds it: each root's
+# shadow.css and then its theme.css, the assets root before every package.
+_LAYER_SHEET_ORDER = [
+    sheet
+    for source in [
+        schema_model.ASSETS,
+        *sorted(
+            package
+            for package in schema_model.BUNDLED_PACKAGES.iterdir()
+            if package.is_dir()
+        ),
+    ]
+    for sheet in (source / "shadow.css", source / "theme.css")
+    if sheet.is_file()
+]
+
+
+def test_the_injected_control_face_is_a_default_only_the_document_reads():
+    """`.lf-ui` is a default. `offer()` writes it on every control a widget builds, and a
+    component that states the same property overrides it, so the face stands first in
+    the layer's page-side order and loses on position. It keeps a class's specificity,
+    so the page's own element rules lose to it. And a declared tree copies shadow.css,
+    where lf-diff marks its line numbers `lf-ui`, so the selector reaches only elements
+    under the document's root.
+
+    Each of the three has broken once: stated in theme.css after shadow.css, Send drew
+    near-black instead of the accent; at the head of shadow.css as a plain `.lf-ui`, the
+    diff's line numbers took the control's size and ink; as `:where(.lf-ui)`, a page's
+    `button, a` rule took the family of half corpus.html's widget controls. The browser
+    cases that read those faces are `test_a_single_space_is_message_content_in_every_
+    composer`, `test_a_diff_is_colored_by_each_files_own_path` and
+    `test_a_pages_own_element_rules_leave_the_layers_controls_alone`; this one names the
+    single rule all three depend on."""
+    faces = [
+        (f"{sheet.parent.name}/{sheet.name}", selector)
+        for sheet in _LAYER_SHEET_ORDER
+        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        if any(name in _FACE for name, _value in declarations)
+    ]
+    assert faces, "no face was read from the layer's sheets — the reading is broken"
+    assert faces[0] == ("assets/shadow.css", ":where(:root) .lf-ui"), faces[0]
+    defaults = [
+        face
+        for face in faces
+        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui"}
+    ]
+    assert defaults == [faces[0]], defaults
+
+
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     """A media query cannot read a custom property, so the sheets state the covering
     widths, the strip-taking tray, the width properties, and the Ask stamp as literals

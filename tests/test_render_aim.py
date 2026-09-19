@@ -1675,9 +1675,11 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(panel_reply).to_have_count(1)
     expect(panel_reply).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    # Escape backs out one rung at a time — the reply, then the mode.
+    # Escape backs out one rung a press: the send's, which opened Threads on the new
+    # thread and takes it off again, then the mode's.
     page.keyboard.press("Escape")
-    expect(panel.locator(".lf-thread:focus")).to_have_count(1)
+    expect(panel).to_be_hidden()
+    expect(page.locator("body")).to_be_focused()
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
@@ -1849,10 +1851,15 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     # The thread's mark is the outline an element anchor wears, on the chrome too.
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(page.locator(".lf-thread textarea")).to_be_focused()
+    # The send opened Threads on the new thread, the card being withheld in the mode,
+    # so its one Escape takes the panel off again and hands back the page.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread")).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator("body")).to_be_focused()
     page.keyboard.press("l")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
 
     # And the thread panel, which is the case where the aim's own geometry had nothing to
     # say. A fixed box is not clipped by the root scrollport, while body is the page shell

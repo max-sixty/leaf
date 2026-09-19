@@ -17,6 +17,14 @@ thrown away. The handoff says nothing about them either. Steps for reviving
 stranded state are that same migration written in prose, and they spend the
 user's attention on state nobody needs.
 
+The reader throws it away. The state home is one directory per machine, written
+at once by every worktree, host and session on it, each running the leaf it was
+built from, so a record older than the code reading it is ordinary rather than
+exceptional. A reading drops a record whose fields it does not find, at the one
+place it reads them, and the thing that record described reads as absent. It
+does not migrate the record, and it does not raise: a session is never taken
+down by state it does not own.
+
 The suite does not constrain new code either. Agents wrote every test in
 `tests/`, and most are overfit on the implementation they were written against:
 they assert the shape the code happened to take rather than the behavior a
@@ -27,9 +35,24 @@ better app, and say in the commit which behavior moved.
 The code is post-vibe-coded: written fast, with weak abstractions, and it
 produces a steady supply of small bugs. Most of them are one missing primitive,
 one boundary drawn in the wrong place, or one rule nothing states, surfacing
-again under a different name. So when fixing a bug, ask what underlying
-abstraction it betrays, then fix that abstraction at the highest reasonable
-level. Do not add another patch on top of the ones already there.
+again under a different name. So a problem is evidence about the code that
+produced it rather than a defect to close. Ask what underlying issue it
+betrays, ask the same of that answer, and keep asking until an answer names
+nothing above itself; that last answer is what the change is against, fixed at
+the highest reasonable level.
+
+Do not add another patch on top of the ones already there. A change that
+settles the immediate symptom and leaves the code harder to maintain does not
+go in, and filing the real fix behind it does not redeem it: the patch is what
+the next reader has to undo first. The shapes that recur are a second special
+case beside the first, a caller repeating what its callee should settle, a
+guard restating a rule nothing states, and a flag threaded through a stack to
+reach one call site. Deferring is for an underlying problem the change leaves
+as easy to fix as it found it, and a change that defers names it.
+
+Ask the same question of a change under review. A diff whose fix stops at the
+symptom is incomplete however small it is, and naming what produced the problem
+is the review.
 
 Use this freedom to try coherent new features and learn from them without
 settling every product detail first. Surface architectural problems, but fix

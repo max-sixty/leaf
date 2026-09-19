@@ -5,10 +5,12 @@ import re
 from urllib.parse import urljoin
 
 import pytest
+from interact_support import append_command
 from leaf import event_log as events_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    REPORT_PAGE,
     SUGGESTION_PAGE,
     live_url,
     panel_comment,
@@ -30,6 +32,7 @@ from render_harness import (
     panel_settled,
     resized,
     sending,
+    take_browser_errors,
     told,
     watched,
 )
@@ -138,6 +141,40 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
         """() => window.__lfFavicon ===
           document.querySelector('link[rel=icon][data-lf-runtime]')"""
     ), "in-place activation replaced or removed the runtime favicon"
+
+
+def test_a_state_read_outlives_the_chrome_the_copy_takes_out(browser, serve):
+    """Baking a copy removes `.lf-chrome` from the live page while its state stream is
+    still running, so the reads that land in the gap before the tab closes find the
+    Leaves tray gone. A tray that has left the document has no region to present into,
+    and a reading that arrives after it leaves is not the reading's fault: the read must
+    still apply, and the page must report nothing.
+
+    It reported twice per read — `State presentation failed` and `read failed`, both
+    naming the tray — because the list threw for the handle its own
+    `disconnectedCallback` had dropped, and that throw came back out of the whole state
+    application. Which read lands in the gap is a matter of the machine's load, so the
+    copy tests saw it as an occasional error on a page whose copy was correct. Here the
+    chrome is taken out directly and the read is provoked, so the gap is the
+    arrangement rather than the weather."""
+    page = open_page(browser, serve(REPORT_PAGE))
+    page.evaluate(
+        "() => document.querySelectorAll('.lf-chrome').forEach(node => node.remove())"
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A word said after the chrome went.",
+        },
+    )
+    # `told` reads the page's own applied reading, which state application writes only
+    # once it has presented, so this is the assertion that the read landed rather than a
+    # wait for one that quietly failed.
+    told(page)
+    assert take_browser_errors(page) == []
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
@@ -575,6 +612,70 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve):
     ]
     assert comment["text"] == "From a phone"
     assert comment["anchor"]["quote"] == "Paragraph one", comment
+
+
+PHONE_READING_PAGE = leaf_page(
+    "phone reading",
+    "<h1 id='t'>Phone</h1>"
+    + "<aside class='sidenote'><lf-draft id='note'><pre>A draft set in the sidenote's"
+    " type.</pre></lf-draft></aside>"
+    + "".join(
+        f"<p id='p{n}'>Paragraph {n}. "
+        + "Filler words for the reading column. " * 8
+        + "</p>"
+        for n in range(12)
+    ),
+    head='<meta name="viewport" content="width=device-width, initial-scale=1">',
+)
+
+
+def test_a_phone_comment_field_keeps_clear_of_what_ios_draws_itself(iphone, serve):
+    """On a phone the comment field stays out of the way of the platform's own apparatus.
+
+    Safari zooms the page onto a text field set under 16px as the field takes focus, and
+    leaves it zoomed: tapping the field jumped the view, then left the reader panning
+    sideways across a page wider than the screen. So no field the page holds is smaller,
+    and a draft, whose editor wears the words' own face, shows them on the same floor, or
+    one set in a sidenote's smaller type opens a size larger than it showed.
+
+    iOS draws its selection menu (Copy, Look Up) in the band above the selected words,
+    where it covered a field standing over the paragraph. So the field goes below the
+    paragraph, although this paragraph has more room above it and too little below: the
+    page makes the room, as it would for any field that has chosen its side."""
+    page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
+    sizes = page.evaluate(
+        "() => [...document.querySelectorAll('input, textarea, select')]"
+        ".map(field => parseFloat(getComputedStyle(field).fontSize))"
+    )
+    assert sizes and min(sizes) >= 16, sizes
+    note = page.locator("#note")
+    shown = note.locator(".lf-draft-body").evaluate(
+        "body => parseFloat(getComputedStyle(body).fontSize)"
+    )
+    note.locator(".lf-draft-body").tap()
+    editing = note.locator(".lf-draft-edit").evaluate(
+        "field => parseFloat(getComputedStyle(field).fontSize)"
+    )
+    assert shown == editing >= 16, (shown, editing)
+    page.keyboard.press("Escape")
+
+    page.locator("#p6").evaluate("""paragraph => {
+      const box = paragraph.getBoundingClientRect();
+      document.scrollingElement.scrollTop += box.bottom - (innerHeight - 20);
+      const range = document.createRange();
+      range.setStart(paragraph.firstChild, 0);
+      range.setEnd(paragraph.firstChild, "Paragraph 6".length);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }""")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    placed = page.evaluate("""() => {
+      const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+      const paragraph = document.getElementById('p6').getBoundingClientRect();
+      return {barTop: bar.top, barBottom: bar.bottom, paragraphBottom: paragraph.bottom};
+    }""")
+    assert placed["barTop"] >= placed["paragraphBottom"], placed
+    assert placed["barBottom"] <= page.evaluate("innerHeight"), placed
 
 
 ORDERED_PAGE = leaf_page(

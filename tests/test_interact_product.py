@@ -973,6 +973,10 @@ def test_a_resolved_version_thread_is_still_named_a_version_thread(page_dir):
     )
     assert resolved.exit_code == 0, resolved.output
 
+    ask_route = (
+        "open a separate thread on the same Ask with `leaf comment <page> "
+        "--section choice`"
+    )
     mistaken = CliRunner().invoke(
         cli_model.cli,
         ["comment", str(page_dir), "--section", proposal["id"], "--text", "more"],
@@ -980,10 +984,12 @@ def test_a_resolved_version_thread_is_still_named_a_version_thread(page_dir):
     assert mistaken.exit_code != 0
     assert (
         f"{proposal['id']} is a comment in this page's log — its thread takes a page "
-        "version rather than a reply"
+        "version rather than a reply; incorporate its request in the next version, "
+        f"or {ask_route}"
     ) in mistaken.output
 
-    # And the writer a route would have named refuses it, which is why none is named.
+    # The reply door refuses it and names the same route, off the same reading: the
+    # Ask is the root's own anchor rather than a placeholder for the agent to fill.
     initiated = CliRunner().invoke(
         cli_model.cli,
         [
@@ -998,6 +1004,14 @@ def test_a_resolved_version_thread_is_still_named_a_version_thread(page_dir):
     )
     assert initiated.exit_code != 0
     assert "requires a page version and cannot take a reply" in initiated.output
+    assert ask_route in initiated.output
+
+    # And the route both name is one the writer takes.
+    asked = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--section", "choice", "--text", "how long?"],
+    )
+    assert asked.exit_code == 0, asked.output
 
 
 def test_a_version_response_can_clear_a_pick_and_settle(page_dir):

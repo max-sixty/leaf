@@ -35,6 +35,7 @@ from leaf.validation.admission import (
     logged_id,
     read_text_arg,
     thread_obligation,
+    version_thread_recourse,
 )
 
 
@@ -510,9 +511,7 @@ def cmd_reply(
                     return None
                 sys.exit(
                     f"thread {root_id!r} requires a page version and cannot take a "
-                    "reply; incorporate its request in the next version, or open a "
-                    "separate thread on the same Ask with `leaf comment <page> "
-                    "--section <ask-id>` if you need an answer first"
+                    f"reply; {version_thread_recourse(events, root_id)}"
                 )
             if expected is None or expected["kind"] != "reply":
                 if skip_if_settled:
@@ -533,9 +532,7 @@ def cmd_reply(
                 return None
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
-                "incorporate its request in the next version, or open a separate "
-                "thread on the same Ask with `leaf comment <page> --section "
-                "<ask-id>` if you need an answer first"
+                f"{version_thread_recourse(events, root_id)}"
             )
         if for_event is not None:
             expected = responses.get(for_event)

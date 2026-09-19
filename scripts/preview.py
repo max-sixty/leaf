@@ -20,16 +20,16 @@ An example can also ship companion `.jsonl` events and `.data.json` source
 values. The first lets a page arrive mid-conversation; the second supplies the
 same page-bound external data a real host would replace through `leaf data set`.
 
-A source or layer edit stops the preview service, stamps changed source, and restarts
-at the same URL. `watchfiles` owns the watching: it reports which paths changed and
-groups an editor's save batch, so this script only says which paths it follows and
-what each one means. A layer edit also re-vendors, through the normal compatibility
-gate; a source edit alone does not, because vendoring mints a fresh layer generation
-and a revision carrying one is a different program, which the browser can only follow
-into a fresh document. So a prose edit here arrives the way it arrives for a reader,
-patched into the page they are standing in. The page log
-and reader decisions survive; a refused update stays visible in the terminal
-or background log and is retried after the next edit. Existing slots resume.
+Only a layer edit takes the server down. Re-vendoring goes through the normal
+compatibility gate, and `page init` refuses a page whose service is enabled, so that
+update stops the server and restarts it at the same URL. A source edit does not
+re-vendor — vendoring mints a fresh layer generation, and a revision carrying one is a
+different program the browser can only follow into a fresh document — so it is stamped
+into the page the reader is standing in, which is how a prose edit arrives for them.
+`watchfiles` owns the watching: it reports which paths changed and groups an editor's
+save batch, so this script only says which paths it follows and what each one means.
+The page log and reader decisions survive; a refused update stays visible in the
+terminal or background log and is retried after the next edit. Existing slots resume.
 Changing fixture identity or seeded history is refused so a slot keeps its feedback.
 Use `--reset` to discard that feedback and rebuild the slot. `version stamp` lints
 the example on the way past. The browser gate a page normally passes before its URL
@@ -41,6 +41,8 @@ pages.
 Named slots let several previews coexist. `--source` keeps one authored fixture
 fixed while `--runtime` vendors it from another Leaf checkout. `--background`
 detaches the watcher and returns its URL instead of holding the terminal.
+`LEAF_PREVIEWS_ROOT` moves where slots live, which is how the suite keeps its own
+out of the checkout and out of the way of a developer's standing preview.
 
 A slot is its page directory. The fixture it was built from, the digest of the
 source last stamped into it, and the browser chrome's own preview identity are
@@ -277,11 +279,26 @@ def mark_preview(source: Path, page: Path, runtime: Path, identity: dict) -> Non
     )
 
 
+def previews_root() -> Path:
+    """Where this command's slots live.
+
+    Read per call rather than at import, so a caller that sets the variable for
+    the worker it is about to launch resolves the same directory the worker will.
+    The suite points it at its own temporary root: a slot is a page directory the
+    checkout's `.tmp` otherwise keeps forever, and a preview left running there by
+    a developer is a page the suite would find and count.
+
+    Resolved, because the worker runs in the selected checkout rather than here,
+    and a relative setting read from two directories is two different roots.
+    """
+    return Path(os.environ.get("LEAF_PREVIEWS_ROOT", TMP / "previews")).resolve()
+
+
 def preview_directory(source: Path, slot: str | None, automation: bool) -> Path:
     name = re.sub(r"[^A-Za-z0-9._-]", "-", source.stem).strip("._-")[:64] or "preview"
     if automation and slot is None:
         name = f"{name}-automation"
-    return TMP / "previews" / (slot or name)
+    return previews_root() / (slot or name)
 
 
 def preview_log(page: Path) -> Path:
@@ -317,20 +334,31 @@ def slot_identity(page: Path) -> dict | None:
 
 
 def refresh_media(source: Path, page: Path) -> None:
-    """Add immutable assets; historical revisions may still reference every copy."""
+    """Add immutable assets; historical revisions may still reference every copy.
+
+    `media/` is a served directory and the page stays up through a source edit, so
+    the assets go in the way every other page writer puts bytes where a request can
+    reach them: staged beside their names and renamed in, as one set. A request
+    finds a whole asset or no asset, and a name that already means something here
+    is refused before any of them lands.
+    """
+    from leaf.files import replace_files
+
     media = media_source(source)
-    incoming = [path for path in media.rglob("*") if path.is_file()]
-    for path in incoming:
+    writes = []
+    for path in sorted(media.rglob("*")):
+        if not path.is_file():
+            continue
         target = page / "media" / path.relative_to(media)
         if digest(target) not in (None, digest(path)):
             raise ValueError(
                 f"media/{path.relative_to(media)} has different bytes in the preview; use a new filename to preserve historical revisions"
             )
-    for path in incoming:
-        target = page / "media" / path.relative_to(media)
         if not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(path, target)
+            writes.append((target, path.read_bytes(), False))
+    if writes:
+        replace_files(writes)
 
 
 def digest(path: Path) -> str | None:
@@ -382,11 +410,8 @@ def refused(reason) -> bool:
 
 def refresh_preview(
     source: Path,
-    page: Path,
-    launcher: Path,
-    runtime: Path,
     identity: dict,
-    automation: bool,
+    service: "PreviewService",
     vendor: bool = True,
 ) -> bool:
     """Replace only admitted layer/source changes; never recreate the page log.
@@ -403,8 +428,15 @@ def refresh_preview(
     the one place this is watched by eye, could only ever show the reload path. The
     watcher re-vendors when the layer it watches changed, and copies the source alone
     when that is all that changed.
+
+    That is also the whole of what the service cannot be up for, so the server is
+    taken down here and nowhere else: `page init` refuses a page whose service is
+    enabled. The rest is what any agent does to a page a reader is reading — an
+    atomic media write, a stamped revision — and the caller brings the server back
+    only when this took it away.
     """
-    if not identifies(identity, source_identity(source, runtime, automation)):
+    page, runtime = service.page, service.runtime
+    if not identifies(identity, source_identity(source, runtime, service.automation)):
         return refused(
             "fixture identity or seeded history changed; choose a new --slot to "
             "preserve feedback, or rerun with --reset to discard it"
@@ -429,14 +461,15 @@ def refresh_preview(
             (page / "registry.json").read_text(encoding="utf-8")
         )["$layer"]["packages"]
         if vendor or packages != vendored_packages:
-            leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+            service.stop()
+            leaf(service.launcher, runtime, "page", "init", *selection_args, str(page))
         refresh_media(source, page)
         if source_changed:
             previous = authored.read_bytes()
             authored.write_bytes(incoming)
             try:
                 leaf(
-                    launcher,
+                    service.launcher,
                     runtime,
                     "version",
                     "stamp",
@@ -807,8 +840,7 @@ def serve_preview(
     changes = None
     try:
         if page.exists():
-            service.stop()
-            refresh_preview(source, page, launcher, runtime, identity, automation)
+            refresh_preview(source, identity, service)
             prepared = f"resumed {source.stem} (feedback preserved)"
         else:
             page.parent.mkdir(parents=True, exist_ok=True)
@@ -834,6 +866,8 @@ def serve_preview(
         changes = watch_changes(watched)
         preview_ready({"prepared": prepared, "url": url, "note": note}, ready_fd)
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
+        # Whether this preview means the server to be up, which is not whether it is:
+        # the pair is what tells an outside stop apart from a restart this refused.
         serving = True
         while not lock_is_held(stop_path):
             reported = {path for _, path in next(changes)}
@@ -853,10 +887,9 @@ def serve_preview(
             if not reported & (watched.paths | current.paths):
                 continue
             vendored = bool(reported & (watched.layer | current.layer))
-            service.stop()
-            if refresh_preview(
-                source, page, launcher, runtime, identity, automation, vendor=vendored
-            ):
+            stamped = identity["source_digest"]
+            updated = refresh_preview(source, identity, service, vendor=vendored)
+            if updated:
                 roots = layer_inputs(
                     tuple(read_json(page / "registry.json")["$layer"]["packages"])
                 )
@@ -873,9 +906,19 @@ def serve_preview(
             watched = rebuilt
             if lock_is_held(stop_path):
                 return
-            serving = service.start() is not None
-            if serving:
-                print(f"Reloaded {source.stem}", flush=True)
+            reloaded = False
+            if not service.running:
+                serving = service.start() is not None
+                reloaded = serving
+            # What the developer is waiting to read is that their edit reached the
+            # page. A refusal has already said it did not, and a save that rewrote
+            # the same bytes has nothing to report: the refresh stamps a revision
+            # only when the source moved, and records the digest it then holds. So
+            # the line is the reload the reader saw, or the revision they did not.
+            if updated and (reloaded or identity["source_digest"] != stamped):
+                print(
+                    f"{'Reloaded' if reloaded else 'Revised'} {source.stem}", flush=True
+                )
     finally:
         if changes is not None:
             changes.close()
@@ -922,14 +965,12 @@ def start_preview_worker(
         "--_worker",
     ]
     # The caller's page path is retained even when the selected runtime is elsewhere.
-    if page.parent == TMP / "previews":
+    if page.parent == previews_root():
         command.extend(("--slot", page.name))
     if automation:
         command.append("--automation")
     if reset:
-        result = subprocess.run([*command, "--reset"], cwd=runtime, check=False)
-        if result.returncode:
-            raise SystemExit(result.returncode)
+        command.append("--reset")
     if stop:
         command.append("--stop")
     if not background:
@@ -963,20 +1004,23 @@ def main() -> None:
         runtime = args.runtime.resolve()
         source = args.source.resolve()
         page = preview_directory(source, args.slot, args.automation)
-        if args.reset:
-            retire_preview(page, discard=True)
-        elif args.stop:
+        if args.stop:
             retire_preview(page, discard=False)
             print(f"stopped preview {page}", flush=True)
-        else:
-            watch_preview(
-                source,
-                page,
-                runtime / "bin" / "leaf",
-                runtime,
-                args._ready_fd,
-                args.automation,
-            )
+            return
+        if args.reset:
+            # Discarding and serving are one worker, so the slot is free for as
+            # little as it takes to take its lease, and a reset costs one
+            # environment rather than two.
+            retire_preview(page, discard=True)
+        watch_preview(
+            source,
+            page,
+            runtime / "bin" / "leaf",
+            runtime,
+            args._ready_fd,
+            args.automation,
+        )
         return
     runtime, launcher = checkout(parser, args.runtime)
     source = (

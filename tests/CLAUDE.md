@@ -282,11 +282,12 @@ Server ownership has two layers:
   keeps names only the launcher.
 - `_no_page_outlives_its_test` releases the suite's held leases, searches the
   temporary page and state roots, and stops every live leaf server it finds.
-- `preview_slot` discards the slots a preview test names, because those pages
-  live in the checkout's `.tmp/previews` rather than under a root that sweep
-  walks. It discards through `preview.retire_preview`, so a watcher that
-  outlived its test is retired rather than having its page pulled out from
-  under it.
+- `preview_slot` sets `LEAF_PREVIEWS_ROOT` under `tmp_path`, so a preview test's
+  pages are in the roots that sweep walks rather than in the checkout's shared
+  `.tmp/previews`. It then discards each of them through
+  `preview.retire_preview`, because a watcher is detached into a session of its
+  own: neither the sweep nor `spawn` reaches one, and the discard retires it
+  rather than pulling its page out from under it.
 
 The search is intentional: a cleanup list catches only the server a test
 remembered to register. A page server is spawned into its own process session,

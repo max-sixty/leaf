@@ -53,7 +53,6 @@ const applicationOwners = [
   "delivery.js",
   "keyboard/go-to-sequence.js",
   "keyboard/controller.js",
-  "keyboard/page.js",
   "thread-panel.js",
   "pending/state.js",
   "projection/commands.js",
@@ -125,7 +124,9 @@ export default {
     },
     {
       name: "page-keyboard-from-boot-only",
-      comment: "Only leaf.js may import keyboard/page.js.",
+      comment:
+        "keyboard/page.js declares the page's own keys as it evaluates and exports " +
+        "nothing; only leaf.js imports it, for that effect.",
       severity: "error",
       from: { path: `^${runtime}`, pathNot: isModule("keyboard/page.js") },
       to: { path: isModule("keyboard/page.js") },

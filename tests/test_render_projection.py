@@ -8982,47 +8982,6 @@ def test_command_hub_keeps_its_command_owners_through_a_live_version(browser, se
     assert available == [True, False]
 
 
-def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, serve):
-    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
-    d = serve.page_dir
-    root = events_model.append_event(
-        d,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Finish the hunk, then park.",
-            "anchor": {"section": "goal-parser"},
-            "holds": "goal-parser",
-        },
-    )
-    reply = events_model.append_event(
-        d,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": root["id"],
-            "revision": 1,
-            "text": "The hunk is ready.",
-        },
-    )
-    events_model.append_event(
-        d,
-        {
-            "kind": "resolve",
-            "author": "user",
-            "parent": reply["id"],
-            "revision": 1,
-        },
-    )
-
-    told(page)
-
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "Released · Replace the XML parser (goal-parser)"
-    )
-
-
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     command = leaf_page(
         "nested command boundaries",

@@ -1081,6 +1081,13 @@ def test_a_quote_of_words_an_edit_replaced_is_refused_naming_the_edit(page_dir):
     assert across.exit_code != 0 and "rewrote § note" in across.output
 
 
+# The draft rewritten under `restated`, taking back whatever the reader wrote over it.
+RESTATED = DRAFTED.replace(
+    '<lf-draft id="note"><pre>\nAdds --dry-run to every mutating command.',
+    '<lf-draft id="note" restated><pre>\nOnly purge gets a dry-run; the rest apply live.',
+)
+
+
 def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     """`restated` retracts the edit, so replay stops painting it and the reading
     returns to the version as authored: the new body quotable, the retracted edit's
@@ -1088,11 +1095,7 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     version's page. A fresh edit on the new version stands again."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
-    revised = DRAFTED.replace(
-        '<lf-draft id="note"><pre>\nAdds --dry-run to every mutating command.',
-        '<lf-draft id="note" restated><pre>\nOnly purge gets a dry-run; the rest apply live.',
-    )
-    (page_dir / "index.html").write_text(revised)
+    (page_dir / "index.html").write_text(RESTATED)
     noted = stamp(page_dir, "took the pen back")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "the rest apply live", "--text", "x")
@@ -1102,6 +1105,26 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     edit(page_dir, "Fine, but default the flag on.", version=2)
     again = comment(page_dir, "--quote", "default the flag on", "--text", "x")
     assert again.exit_code == 0, again.output
+
+
+def test_restating_what_an_earlier_version_took_back_names_that_version(page_dir):
+    """The retraction lives in the log, so a later version has nothing to repeat.
+
+    An author who carries `restated` forward — the habit the design exists to break —
+    is refused, and told which version already did it. The answer is its own rather
+    than the never-decided one, which would read as if the reader had done nothing.
+    """
+    drafted(page_dir)
+    edit(page_dir, "Adds --dry-run to purge and rebuild only.")
+    (page_dir / "index.html").write_text(RESTATED)
+    assert stamp(page_dir, "took the pen back").exit_code == 0
+
+    (page_dir / "index.html").write_text(
+        RESTATED.replace("<title>t</title>", "<title>t · again</title>")
+    )
+    repeated = stamp(page_dir, "again")
+    assert repeated.exit_code != 0
+    assert "r2 already took that back" in repeated.output
 
 
 def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):

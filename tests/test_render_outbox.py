@@ -55,7 +55,6 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -402,10 +401,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     def close_page():
         if page.is_closed():
             return
-        try:
-            page.unroute_all(behavior="wait")
-        finally:
-            page.close()
+        page.unroute_all(behavior="wait")
 
     request.addfinalizer(close_page)
     older = []
@@ -1284,7 +1280,6 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     this page never saw."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
-    watched(page)
     cut = CutOff().hold(page)
     page.goto(serve(BOARD_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
@@ -1332,7 +1327,6 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     authoritative read has released it."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
-    watched(page)
     cut = CutOff().hold(page)
     page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
@@ -1872,8 +1866,6 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"
     )
-    one.close()
-    two.close()
 
 
 def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, serve):
@@ -1941,12 +1933,6 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     assert fresh.eval_on_selector_all(*order) == standing, (
         "a tab reading the log fresh disagrees with the tab that heard the undo"
     )
-    # The stale tab's own console too: `refuse` cancels rather than fails a
-    # request, so stopping its polls leaves nothing for it to report.
-    stale.close()
-    mover.close()
-    heard.close()
-    fresh.close()
 
 
 def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
@@ -1984,8 +1970,6 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     told(moved_on)
     told(moved_on)
     expect(moved_on.locator("#col-todo #card-baffle")).to_have_count(1)
-    pinned.close()
-    moved_on.close()
 
 
 def test_a_second_tab_takes_the_decision_back_too(browser, serve):
@@ -2028,8 +2012,6 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] in ("action", "undo")
     ] == ["accept", "undo", "reject"]
-    one.close()
-    two.close()
 
 
 def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve):
@@ -2066,7 +2048,6 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
     again = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
     expect(again.locator(".lf-asks")).to_have_text("Asks 0/3")
-    again.close()
 
 
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):

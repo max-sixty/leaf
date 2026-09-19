@@ -333,6 +333,8 @@ const version = createVersionController({
   syncLayout: () => layout.syncLayout(),
   captureRetainedStanding: () => app?.margin.captureStanding() ?? null,
   restoreRetainedStanding: (standing) => app?.margin.restoreStanding(standing) ?? false,
+  captureAskStanding: () => asks.captureStanding(),
+  restoreAskStanding: (standing) => asks.restoreStanding(standing),
 });
 // Body is the stable programmatic destination when the reader lets go of a control.
 // Register the stop after version.js snapshots source attributes, so later authored

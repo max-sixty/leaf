@@ -947,6 +947,41 @@ export function createAskView({
     standOn(record, review);
   }
 
+  // The reader's standing on an Ask, said in terms a replaced document can still answer.
+  // Focus by shape does not cross a document replacement — version.js says why — but an
+  // Ask is not a shape. Its id is a declared identity that the inventory, the tray rows,
+  // and the walk already resolve against whichever document is standing, so a reader
+  // working an Ask when a revision lands is put back on the same Ask rather than dropped
+  // to `body`.
+  //
+  // The id is the whole of what is captured, and the Ask itself is the whole of what is
+  // handed back. Which control inside it they held is not something this can answer: the
+  // controls are the widget's, most carry no id of their own, and `standOn`'s first
+  // answering control is the walk's landing rule rather than a restore. Handing that back
+  // is the failure version.js's header names — a reader holding the second option was
+  // given the first, and their next press chose it. The Ask's own opening is the one
+  // place that cannot misfire, because it holds a lent tab stop rather than a decision:
+  // the Ask's digit routes are live there and Space decides nothing.
+  //
+  // Chrome is excluded because it has nothing to restore: a tray row and a margin entry
+  // for the same Ask are keyed by that id already, so a patch hands each of them back as
+  // the same element, still holding the focus the reader put on it.
+  function captureStanding() {
+    const held = documentFocused();
+    if (!held || held === document.body || inChrome(held)) return null;
+    return standingAsk()?.id ?? null;
+  }
+
+  // Put the reader back, once the arriving document has been upgraded and presented.
+  // Standing is restored rather than asserted: a reader the revision left where they were
+  // is already standing there, and an Ask the revision took away is nowhere to stand, so
+  // each of those returns and `body` keeps the focus the replacement gave it.
+  function restoreStanding(ask) {
+    if (!ask || standingAsk()?.id === ask) return;
+    const record = allAsks().find((candidate) => candidate.id === ask);
+    if (record) arriveAt(record);
+  }
+
   // The screen the reader can use, and the distance two boxes stand apart in it. The
   // clearance is the scroller's own declared scroll-padding, where it already says how
   // much of its top edge the banner stands over, rather than a second copy of that number
@@ -1251,6 +1286,8 @@ export function createAskView({
     standsWith,
     askPlace,
     standingIn,
+    captureStanding,
+    restoreStanding,
     markHere,
     goToAsk,
     stepAsk,

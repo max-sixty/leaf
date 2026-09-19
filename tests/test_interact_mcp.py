@@ -14,7 +14,7 @@ from interact_support import PAGE, run_async
 from leaf import event_log as events_model
 from leaf.files import replace_files
 from leaf.mcp_app import APP_MIME, SNAPSHOT_FORMAT, app_snapshot, apply_event
-from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
+from leaf.mcp_page import PAGE_RESOURCE_URI
 from leaf.mcp_server import make_mcp_server
 from leaf.passages import TEXT_BLOCK_TAGS
 from leaf.revisioning import activate_source
@@ -182,7 +182,7 @@ def test_mcp_snapshot_is_authored_source_with_current_cursors_and_private_bytes(
     assert private["eventSeq"] == 0
 
 
-def test_codex_manifest_launches_the_bundled_server():
+def test_codex_manifest_launches_the_bundled_server(page_server):
     root = Path(__file__).parent.parent
     plugin = json.loads((root / ".codex-plugin" / "plugin.json").read_text())
     launch = json.loads((root / ".codex-plugin" / "mcp.json").read_text())
@@ -192,13 +192,9 @@ def test_codex_manifest_launches_the_bundled_server():
         "mcpServers": {"leaf": {"command": "./bin/leaf", "args": ["mcp"], "cwd": "."}}
     }
 
-    pages = ProcessPageServer()
-    try:
-        capabilities = make_mcp_server(pages)._lowlevel_server.get_capabilities(
-            protocol_version="2026-07-28"
-        )
-    finally:
-        pages.close()
+    capabilities = make_mcp_server(page_server)._lowlevel_server.get_capabilities(
+        protocol_version="2026-07-28"
+    )
     assert capabilities.extensions == {
         "io.modelcontextprotocol/ui": {"mimeTypes": [APP_MIME]}
     }

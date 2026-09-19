@@ -96,7 +96,7 @@ import {
   snapSelection,
 } from "./capture.js";
 import { repaint } from "../repaint.js";
-import { letGo, takesLetters } from "../focus.js";
+import { focusDestination, letGo, readCaret, takesLetters } from "../focus.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
 import { pressOrigin } from "../keyboard/layer-stack.js";
 
@@ -294,26 +294,12 @@ export function createResponseSurface({
   const captureFabFocus = () => {
     const element = focused();
     if (!(element instanceof HTMLElement) || !fabBar.contains(element)) return null;
-    const selection =
-      element === fabInput
-        ? {
-            start: element.selectionStart,
-            end: element.selectionEnd,
-            direction: element.selectionDirection,
-          }
-        : null;
-    return { element, selection };
+    return { element, caret: readCaret(element) };
   };
 
   const restoreFabFocus = (held) => {
     if (!held || focused() === held.element || !held.element.isConnected) return;
-    held.element.focus({ preventScroll: true });
-    if (held.selection)
-      held.element.setSelectionRange(
-        held.selection.start,
-        held.selection.end,
-        held.selection.direction,
-      );
+    focusDestination(held.element, held.caret);
   };
 
   // Reparenting the canonical response bar is presentation, not a composer transition.

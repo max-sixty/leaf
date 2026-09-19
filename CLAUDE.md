@@ -66,8 +66,8 @@ example to the canonical Python server in a per-reader container. Its container
 adapter, `worker/server.py`, is ordinary Python that `tests/` covers. Its
 TypeScript half and the TypeScript under `scripts/browser/` are the two parts of
 the tree with gates of their own that `tests/` does not reach.
-Agents on `max-sixty` use the finely grained Cloudflare token available there
-for API and Wrangler access.
+`worker/README.md` names Leaf's three Cloudflare tokens, what each reaches, and
+how an unattended agent loads one for API and Wrangler access.
 
 `docs/` is the site's own content: each product document there is a Leaf source,
 which `scripts/site.py` publishes as a complete page directory beside the worked
@@ -179,7 +179,9 @@ that order is declared once, beside the coordinator, not repeated at each publis
 Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their
 mechanical browser owners until a gesture becomes a declared application fact. Their
 renderings are not semantic authority, and repainting them does not create a semantic
-epoch.
+epoch. That state also lives exactly as long as the node holding it: the log does not
+record it and no projection returns it, so whatever replaces a node hands it across
+itself, under the identity that replacement already keys on, or the reader loses it.
 
 Python also derives one top-level `activity` reading from the agent's status
 declaration, claim and turn identity, watcher lease, pickup events, and unsettled

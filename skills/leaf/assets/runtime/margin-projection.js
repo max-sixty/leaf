@@ -90,7 +90,7 @@ import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
 import { invoke, pressOrigin, readingPlace } from "./keyboard/layer-stack.js";
-import { pageSelection } from "./composing/capture.js";
+import { landTyping } from "./composing/capture.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS, word } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
@@ -2889,8 +2889,10 @@ export function createMarginProjection({
   // this function owns the surface choice so a mark, its accessibility note, and t/T
   // cannot drift into different policies. `focus` names the landing on every surface:
   // the thread itself, or its reply box, which on the card is opened before placement so
-  // the card is measured at the size it lands at, and which yields to words the reader
-  // has since selected on the page.
+  // the card is measured at the size it lands at. The card's placement is a frame or more
+  // after the press, so that landing yields to anything the reader has done since —
+  // selecting words, or typing in another box — which is `landTyping` read against where
+  // they stood when the press came.
   //
   // A press on marked words passes `travel: false`: the words are already under the
   // reader's hand, and centring them moves everything the reader was looking at. The
@@ -2920,6 +2922,7 @@ export function createMarginProjection({
     } = {},
   ) {
     let landed = null;
+    const stoodOn = focused();
     const open = () => {
       if (!threads && !panelIsOpen()) {
         const local = focusSurface(id, { focus });
@@ -2932,18 +2935,15 @@ export function createMarginProjection({
         const thread = openInlineThread(id, {
           transition,
           onPositioned: (positionedThread) => {
-            if (focus === "reply") {
-              if (!pageSelection())
-                positionedThread
-                  .querySelector("textarea")
-                  ?.focus({ preventScroll: true });
-              return;
+            if (focus === "reply")
+              landTyping(positionedThread.querySelector("textarea"), stoodOn);
+            else {
+              positionedThread.focus({ preventScroll: true });
+              positionedThread.scrollIntoView({
+                behavior: scrollBehavior(),
+                block: "nearest",
+              });
             }
-            positionedThread.focus({ preventScroll: true });
-            positionedThread.scrollIntoView({
-              behavior: scrollBehavior(),
-              block: "nearest",
-            });
             if (travel) scrollToThread(id);
           },
         });

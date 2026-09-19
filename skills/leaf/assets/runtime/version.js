@@ -1638,11 +1638,12 @@ export function createVersionController({
   // same expression written out twice.
   const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 
-  function captureReturnPlace() {
-    const control = focused();
-    return control && control !== document.body
-      ? { control, reading: null }
-      : { control: null, reading: readingBlock() };
+  // `control` is what the caller saw focused, for a press that has already moved it.
+  function captureReturnPlace(control = focused()) {
+    return {
+      control: control && control !== document.body ? control : null,
+      reading: readingBlock(),
+    };
   }
 
   // The quote and the section it's searched in come from the same block, or the search is

@@ -3291,19 +3291,16 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Closing the panel lands focus on the toggle on purpose, since dropping it on
-    `<body>` loses a keyboard reader's place with nothing said. The bill for that lands
-    on the reader who opened the panel with the pointer and never asked for a keyboard
-    place at all: the press that closes is a keypress, so the browser rings a control
-    they did not choose, and their next Space is that button rather than the page's
-    scroll — the panel they just dismissed comes back and nothing says why.
+    """Closing the panel hands the reader back the place they held before they opened it.
 
-    Both halves are asserted, because the ring alone reads as cosmetic and the reopening
-    alone reads as a stray press. The rung answers both, and it is Escape because the
-    reader is already holding it: the same key that unwound the chrome takes them out
-    of it.
+    Opened with the pointer from the page, the panel's Escape lands on the page. The click
+    put focus on the toggle, but the reader never chose that button: leaving them on it
+    rang a control they did not stand on and handed their next Space to it, so the panel
+    they had just dismissed came back and nothing said why. Opened from the keyboard, the
+    toggle was the reader's place, and the same press hands it back — ringed, since a
+    keypress closed — with the rung below that takes them off the chrome.
 
-    The scroll is what the rung has to hand back. Root scrolling is native now, but a
+    The scroll is what the landing has to hand back. Root scrolling is native now, but a
     focused button still owns Space; focus therefore returns to the page rather than
     merely blurring to nowhere."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
@@ -3313,6 +3310,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
         "() => document.querySelector('.lf-threads-toggle').matches(':focus-visible')"
     )
     top = "() => document.scrollingElement.scrollTop"
+    on_body = "() => document.activeElement === document.body"
 
     # A reader reading: native Space still pages through the document from body.
     page.keyboard.press("Space")
@@ -3326,22 +3324,11 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     expect(toggle).to_be_focused()
     assert not page.evaluate(ringed)
 
-    # Closed with the key, the ring comes on — the reader's report, and the smaller half.
+    # Closed with the key, the reader is back on the page: nothing rings, and Space is
+    # the page's again rather than the button's.
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
-    expect(toggle).to_be_focused()
-    assert page.evaluate(ringed), "the control the reader is standing on says nothing"
-
-    # The larger half: the same press that scrolled a moment ago is now the button's.
-    page.keyboard.press("Space")
-    expect(panel).to_be_visible()
-    assert page.evaluate(top) == was, "the page scrolled as well as reopening"
-    page.keyboard.press("Escape")
-
-    # The rung, and what it is worth: off the chrome, and Space is the page's again.
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to the page")
-    page.keyboard.press("Escape")
-    assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate(on_body)
     assert not page.evaluate(ringed)
     # And body wears no ring of its own, which is the thing a focus does that a blur
     # cannot: the reader has to be somewhere, and the somewhere must not be drawn.
@@ -3353,6 +3340,22 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     page.wait_for_function(
         "(was) => document.scrollingElement.scrollTop > was", arg=was
     )
+    page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+
+    # Opened from the keyboard, the toggle was the place, and Escape hands it back.
+    toggle.focus()
+    page.keyboard.press("Enter")
+    expect(panel).to_be_visible()
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    expect(toggle).to_be_focused()
+    assert page.evaluate(ringed), "the control the reader is standing on says nothing"
+
+    # The rung, and what it is worth: off the chrome, and Space is the page's again.
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to the page")
+    page.keyboard.press("Escape")
+    assert page.evaluate(on_body)
+    assert not page.evaluate(ringed)
 
 
 @pytest.mark.parametrize("width", [500, 1200])
@@ -3555,6 +3558,11 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
+    # Standing on a card the keyboard entry never put them on is its own rung: the first
+    # Escape lets go of it onto the list, and the entry's frame then hands the page back.
+    page.keyboard.press("Escape")
+    expect(threads).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
     # it was and the reading place needs no carry across the close.
     closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -5460,6 +5468,16 @@ RING_CASES = (
         {"pr-walkthrough": (("textarea.lf-fab-input", "inline-response"),)},
     ),
     ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
+    # The card the walk lands on wears the ring inset, over its quiet ground; a pointer
+    # arrival paints only the ground, so the specimen is the walk's own landing.
+    (
+        "a walked thread",
+        ("g", "Shift+t", "t"),
+        {"ship-review": ((None, "thread-card"),)},
+    ),
+    # The same walk with the panel shut lands in the margin's conversation view, on the
+    # thread itself rather than a control inside it.
+    ("an inline thread", ("t",), {"ship-review": ((None, "conversation-thread"),)}),
     ("passage search", ("/",), {"corpus": ((".lf-page-search-box", "target-search"),)}),
     # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -5595,6 +5613,8 @@ RING_SCOPE_SURFACE = {
         None,
     ),
     "the thread list": (".lf-thread-panel.open", None),
+    "a walked thread": (".lf-thread-panel.open", None),
+    "an inline thread": (".lf-margin-preview:popover-open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the Page Map dialog": (".lf-page-map-dialog[open]", None),
     "passage search": (".lf-page-search:not([hidden])", None),
@@ -5630,12 +5650,15 @@ RING_VIEWPORT = (1200, 900)
 RING_SCOPES_STARTING_WITHOUT_PANEL = {
     "an inline response",
     "the thread list",
+    "a walked thread",
+    "an inline thread",
     "a contents link",
     "a thread card",
     "the Page Map dialog",
 }
 RING_SCOPE_WIDTH = {
     "a contents link": 1600,
+    "an inline thread": 1600,
     "a thread card": 1600,
     "the Page Map dialog": 760,
 }

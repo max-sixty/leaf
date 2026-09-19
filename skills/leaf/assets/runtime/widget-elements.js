@@ -29,7 +29,7 @@
    press carrying page words becomes a span in a copy and keeps its words — so the copy
    clears the value where it strips the role, and the promise leaves with the thing
    that could have answered it. A guard in the theme would not do: it would have to be
-   written twice, once for the document and once for the slice a declared shadow tree
+   written twice, once for the document and once for the sheet a declared shadow tree
    renders under, where `html:not(.lf-copy)` matches nothing at all.
 
    A control that keeps its shape in a copy keeps its name too, and the name needs a

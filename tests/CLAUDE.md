@@ -669,8 +669,9 @@ Enabling interception on an already-running page can let that POST reach the
 server without a route callback. `open_page` arms each page it makes on a
 pattern nothing ever asks for, so a route a test registers later only adds to a
 list the browser is already consulting; a page made another way is unarmed.
-`held_events` also owns the server fixture ordering: its finalizer releases held
-requests before server shutdown rather than resuming them into a closed socket.
+A hold a test leaves standing needs no teardown of its own: closing the context
+is what ends a held request, and only a release run during teardown could resume
+one into a server that has already stopped.
 
 A handler that appends a route to `held` has established only that the browser
 made the request. Before reading that list — indexing it, asserting its length,

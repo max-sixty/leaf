@@ -6,6 +6,7 @@
  * claims, wraps, or rewrites the holder's authored or widget-owned children.
  */
 import { LitElement, html, nothing } from "../vendor/browser-runtime.js";
+import { pressOrigin } from "./keyboard/layer-stack.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime apparatus.
 const TAG = "leaf-anchor-note";
@@ -40,7 +41,10 @@ class AnchorNoteView extends LitElement {
 
   #activate = () => {
     if (this.model?.firstThreadId)
-      this.#openThread(this.model.firstThreadId, { focus: "thread" });
+      this.#openThread(this.model.firstThreadId, {
+        focus: "thread",
+        origin: pressOrigin(),
+      });
   };
 
   render() {

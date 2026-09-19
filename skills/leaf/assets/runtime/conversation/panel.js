@@ -202,6 +202,9 @@ export function createPanelComposer({
           close: () => narrowingView.readerControl.click(),
           does: "Show every thread again",
           line: "show all",
+          // The narrowing moves nobody, so a card the reader then stands on is theirs
+          // to let go of before the narrowing comes off.
+          standing: false,
         }),
         run: () => narrowingView.readerControl.click(),
       },

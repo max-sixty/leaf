@@ -94,6 +94,31 @@ def candidate_vocabulary_gaps(
         target = event.get("holds") or (event.get("anchor") or {}).get("section")
         return target in document.by_id
 
+    def visual_vocabulary_error(event):
+        """Whether the incoming layer still reads this anchor's part off the
+        revision the anchor was written on.
+
+        That is the only question this function owns: a gap is vocabulary the
+        selection takes away. Which parts a section declares is the candidate
+        author's to change, and `continuity_errors` is the reading that refuses a
+        drop a live conversation still needs — against the predecessor, naming the
+        moves that release it. Read against the candidate instead, a part a
+        conversation let go of and the author then dropped came back as vocabulary
+        the layer no longer speaks, which is not what happened: re-vendoring
+        refused, and a reader reopening the closed thread re-acquired a coordinate
+        no revision could restore.
+
+        A `leaf reply` transition checks itself by putting an unstamped
+        prospective anchor in front of this reading, and that one was written on
+        the candidate: it has no revision of its own to be read against.
+        """
+        if not (event.get("anchor") or {}).get("visual"):
+            return None
+        source = (
+            page(event["revision"]) if type(event.get("revision")) is int else document
+        )
+        return event_contracts.visual_anchor_error(event, source.by_id, incoming)
+
     missing = {}
     withdrawn = taken_back(events)
     for e in events:
@@ -126,25 +151,14 @@ def candidate_vocabulary_gaps(
                     )
                 )
             )
-            or (
-                kind == "comment"
-                and (
-                    error := event_contracts.visual_anchor_error(
-                        e, document.by_id, incoming
-                    )
-                )
-            )
+            or (kind == "comment" and (error := visual_vocabulary_error(e)))
         ):
             key = f"comment contract: {error}"
         elif (
             kind == "reply"
             and (e.get("anchor") or {}).get("visual")
             and anchor_participates(e)
-            and (
-                error := event_contracts.visual_anchor_error(
-                    e, document.by_id, incoming
-                )
-            )
+            and (error := visual_vocabulary_error(e))
         ):
             key = f"reply contract: {error}"
         elif e.get("markup") and (

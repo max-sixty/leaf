@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -33,7 +34,7 @@ from leaf.hosting import LeafHTTPServer
 from leaf.http import supervised_document
 from leaf.machine import pid_alive
 from leaf.revision_artifact import Resource
-from leaf.schema import ASSETS
+from leaf.schema import ASSETS, VENDORED_FILES
 from render_harness import consume_browser_errors
 
 ROOT = Path(__file__).parent.parent
@@ -4347,3 +4348,17 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     assert "Claude is handling 1 update" in str(named.value)
     assert "Server offline" not in str(named.value)
     assert told.revision_waits == [(2, verify_site.TURN_PRESENTATION)]
+
+
+def test_the_worker_routes_every_file_a_page_vendors():
+    """A page asks for its layer files at the page's own path, and the Worker answers
+    only the paths its route list names. The Python adapter builds its list from
+    schema.VENDORED_FILES; the Worker's copy in routing.ts cannot import that, so it is
+    held to the same contract here. A file missing from it is a 404 on every published
+    page that asks for it."""
+    source = (ROOT / "worker" / "src" / "routing.ts").read_text()
+    literal = re.search(r"const PAGE_RESOURCE =\s*/(.+)/;", source)
+    assert literal, "routing.ts no longer states PAGE_RESOURCE as a regex literal"
+    routed = re.compile(literal[1].replace("\\/", "/"))
+    missing = [name for name in VENDORED_FILES if not routed.match(name)]
+    assert not missing, f"routing.ts does not route {missing}"

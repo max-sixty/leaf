@@ -841,14 +841,18 @@ li { margin: 6px 0; }
  * builds, so this is the layer's answer for a control standing in the page's own prose:
  * the chrome's family, size and ink rather than the document's serif.
  *
- * It is a default, and it stands this early so that it behaves like one — a component
- * that names the same property below, or in a package theme concatenated after this
- * file, wins on ordinary cascade order. It cannot live in chrome.css, which is adopted
- * and so cascades after both: the same declarations there beat every component's own
- * rule instead, and .lf-ref drew ink at 14px where it asked for muted at 11.5px while
- * .lf-worktree-head and .lf-swipe-progress drew sans where they asked for mono. Nothing
- * catches that, because no test and no browser gate reads a rule that never applied. */
-.lf-ui { font-family: var(--sans); font-size: var(--t-5);
+ * It is a default, and :where() gives it no specificity so that it behaves like one: any
+ * component rule that names the same property wins, wherever the composition puts it.
+ * Standing early in this file was not enough once shadow.css, which the composition puts
+ * ahead of this file, held the rules that refine it; .lf-compose-submit drew ink instead
+ * of the accent. It cannot live in chrome.css, which is adopted and so cascades after
+ * every sheet: the same declarations there beat every component's own rule instead, and
+ * .lf-ref drew ink at 14px where it asked for muted at 11.5px while .lf-worktree-head and
+ * .lf-swipe-progress drew sans where they asked for mono. Nor in shadow.css: lf-diff's
+ * code lines wear lf-ui and take their mono face and colours from the widget's host, so
+ * the rule would repaint them in a declared tree. Nothing catches either, because no test
+ * and no browser gate reads a rule that never applied. */
+:where(.lf-ui) { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
 /* One sequential step keeps one geometry in options, the shortcut bar, banner controls
  * and the reference. A sequence composes these fixed boxes instead of making spaces

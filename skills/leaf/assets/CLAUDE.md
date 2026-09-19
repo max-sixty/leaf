@@ -260,7 +260,10 @@ stage;
 tokens, element styles, class idioms, and the element-widgets CSS alone renders; a
 package's `theme.css` is appended after it. `shadow.css` holds the rules a declared shadow
 tree needs as well as the document: every root's copy is composed into `/shadow.css` for
-the stage, and into `/theme.css` just ahead of that root's `theme.css`;
+the stage, and into `/theme.css` just ahead of that root's `theme.css`. A rule in
+`shadow.css` therefore comes before every `theme.css` rule of its root, so a default that
+a `shadow.css` rule refines cannot rank by position: `.lf-ui`, the face every `offer()`
+control wears, is `:where(.lf-ui)` in `theme.css`, where any component rule outranks it;
 `runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
 into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;

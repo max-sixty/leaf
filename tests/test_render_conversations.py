@@ -3430,14 +3430,24 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # The shared vocabulary's faces are the theme's, for the reason chrome.css's
         # header gives: stated in the adopted sheet they beat each component's own rule
         # on nothing better than that sheet arriving last. The runtime sheet still names
-        # each of these inside its scope — the chip and the badge to say where the
-        # chrome's own copies stand, the margin entry to give a finger a bigger box —
-        # and the movement the theme's rule causes is that deliberate face.
-        "lf-chip",
+        # the badge inside its scope, to say where the chrome's own copy stands, and the
+        # movement the theme's rule causes is that deliberate face.
         "lf-key-badge",
-        "lf-margin-entry",
         "lf-compose-field",
         "lf-compose-submit",
+        # The aim floor is one selector list in shadow.css, and the document reads that
+        # sheet, so each control the floor sizes wears a document-level rule naming its
+        # class. The floor states a minimum box and nothing else; the chrome's scoped
+        # rules still give each of these controls its face. The chip and the margin entry
+        # left this set with the same change: chrome.css stated their aim itself, and the
+        # floor is the one statement of it now.
+        "lf-command-reference-command",
+        "lf-layer-reference",
+        "lf-preview",
+        "lf-quote",
+        "lf-thread-action",
+        "lf-version-diff",
+        "lf-version-row",
         # The one canonical composer can be seated in a widget's own Thread outlet,
         # where the chrome's scoped rules cannot reach it. The authored theme dresses
         # that seat at document level, under [data-lf-presentation="inline"], so every
@@ -3474,9 +3484,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-open",
         "lf-react-palette",
         "lf-react-strip",
-        "lf-react-surface",
         "lf-react-trigger",
-        "lf-react-trigger-icon",
         "lf-resolve",
         # The inline seat again: the composer's own row of response actions.
         "lf-response-action",

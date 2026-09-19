@@ -27,7 +27,9 @@
    remains live and stays in the reference.
 
    `RUNG_LADDER` is Escape's fallback for state the reader reached without a registered
-   entry: a pointer-opened panel, a captured target, ordinary focus traversal. Its rungs
+   entry: a captured target, a pointer-opened tray, a panel open on arrival, ordinary
+   focus traversal. Standing on something is not a rung but the "standing" scope ahead of
+   the frames, since letting go is the newest thing the reader can undo. Its rungs
    are contributed like everything else, each by the owner of the state it takes off, and
    `rung` resolves them into the one `navigation.back` row every surface reads. One row
    rather than one per step, because the ladder is one capability whose sentence changes:
@@ -37,7 +39,7 @@
    `when` says — no step answers while a commanded entry stands, because that entry is the
    registered way back. */
 import { bindings, checked, word } from "./bindings.js";
-import { current, RETURN } from "./layer-stack.js";
+import { current, outsideCurrentFrame, RETURN } from "./layer-stack.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
 const PAGE = Symbol("the page's own keys");
@@ -59,6 +61,10 @@ const STACK = [
   "target chooser",
   ELEMENTS,
   RETURN,
+  // Right after the frames, so the line's Escape chip keeps the front of the line
+  // whichever of the two owns it; among inner scopes the order is moot, since the modes
+  // and the Page Map stand it down themselves.
+  "standing",
   "versions",
   "composer",
   "text entry",
@@ -77,7 +83,6 @@ const STACK = [
 // Each rung names what the press takes off, innermost first.
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
-  "standing", // what the reader is standing on, out on the page
   "tray", // the tray that holds the edge
   "narrowing", // the narrowing the reader put on the thread list
   "panel", // the thread panel
@@ -167,10 +172,11 @@ export function pageRung(name, reading) {
 function rung() {
   for (const name of RUNG_LADDER) {
     const step = rungs.get(name)();
-    if (step) return step;
+    if (step) return { ...step, name };
   }
   return null;
 }
+const stepName = () => `navigation.back:${rung()?.name}`;
 
 // The page's own Escape, said and run off that one object: each rung states the act, the
 // word the line paints over it, and the sentence the reference lists. The sentence is the
@@ -183,7 +189,18 @@ const BACK_OUT = {
   line: () => rung()?.says,
   lineWhen: () => word(rung()?.lineWhen) !== false,
   promoteEscape: () => word(rung()?.promoteEscape) !== false,
-  when: () => !current() && Boolean(rung()),
+  // The fallback, so silent while a commanded entry stands — except for a step that
+  // takes off something the reader put on outside the surface that entry entered, which
+  // is newer than the entry and not its to undo.
+  when: () => {
+    const step = rung();
+    return (
+      Boolean(step) &&
+      (!current() || outsideCurrentFrame(step.root ?? document, [stepName()]))
+    );
+  },
+  // One command for the whole ladder, so the step it stands for says which it is.
+  escapeStep: stepName,
   run: () => rung().out(),
 };
 

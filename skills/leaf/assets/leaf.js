@@ -146,7 +146,7 @@ import {
 import { chromeTop } from "./runtime/keyboard/key-badge-placement.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
-import "./runtime/keyboard/page.js";
+import { declareStanding } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
@@ -210,6 +210,7 @@ const navigation = createNavigation({
     openPageThread: (...args) => app.margin.openPageThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
     activeInlineThread: () => app.margin.activeInlineThread(),
+    inlineThreadView: () => app.margin.inlineThreadView,
   },
 });
 const panelModality = auxiliaryModality.registerAuxiliarySurface({
@@ -378,6 +379,7 @@ app = mountApplication({
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
   setPanel: (...args) => threadPanelController.setPanel(...args),
+  panelFrame: (...args) => threadPanelController.panelFrame(...args),
   panelIsOpen,
   panelCovers: () => layout.panelCovers(),
   onConversationChanged: repaint,
@@ -429,6 +431,16 @@ app = mountApplication({
   },
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
+
+// The let-go reads state four owners hold; all four stand by now, and the first input is
+// wired further down, so the scope is declared before anything reads the register.
+declareStanding({
+  panelIsOpen,
+  fabAnchorAt: () => responseSurface.fabAnchorAt(),
+  designModeActive: designMode.active,
+  drawModeActive: () => drawing.drawModeActive(),
+  pageMapRung: () => Boolean(app.margin.keyboardRung()),
+});
 
 pageMapDialog = createPageMapDialog({
   activeInMargin: app.margin.pageMapActive,
@@ -653,6 +665,7 @@ goToSequence = createGoToSequence({
   panelIsOpen,
   panelCovers: navigation.panelCovers,
   elements: { banner, toggleBtn },
+  panelFrame: threadPanelController.panelFrame,
   hintChrome,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
   captureAuxiliaryChromeState: auxiliaryChrome.captureAuxiliaryChromeState,

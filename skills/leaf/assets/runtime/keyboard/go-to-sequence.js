@@ -111,6 +111,7 @@ export function createGoToSequence({
   captureAuxiliaryChromeState,
   restoreAuxiliaryChromeState,
   setPanel,
+  panelFrame,
   setOpenTray,
   scrollToElement,
   showThread,
@@ -241,7 +242,18 @@ export function createGoToSequence({
         }
       },
       active: (...args) => panelIsOpen(...args),
+      // The mnemonic pressed over an open panel closes it outright. The frame is the
+      // panel's own, the one the toggle pushes: its arrival is the list, the panel's
+      // floor, so what the reader then stands on is theirs to let go of before it answers
+      // — unless the press carried an inline thread in and stood them on its card, which
+      // the one Escape then gives back.
       close: () => setPanel(false),
+      frame: () =>
+        panelFrame({
+          carried: activeInlineThread()?.dataset.thread ?? null,
+          does: "Return from Threads panel",
+          line: "back",
+        }),
       toggle: true,
     },
     {
@@ -258,6 +270,7 @@ export function createGoToSequence({
       },
       active: () => currentTray() === "asks",
       close: () => setOpenTray(null),
+      surface: () => asksPanel,
       toggle: true,
     },
     {
@@ -274,6 +287,7 @@ export function createGoToSequence({
       },
       active: () => currentTray() === "leaves",
       close: () => setOpenTray(null),
+      surface: () => othersPanel,
       toggle: true,
     },
     {
@@ -736,14 +750,26 @@ export function createGoToSequence({
           when: () => atGoToTargets() && destination.when(),
           returnFrame: () => {
             const previousAuxiliaryChrome = captureAuxiliaryChromeState();
+            // A destination whose surface has a frame of its own — the panel's — hands
+            // it over, read before the run as every frame is. Its close may take a layer
+            // off inside the surface and say false, and the frame stays for the press
+            // that closes it.
+            const own = destination.frame?.() ?? {};
+            const leave = own.close ?? destination.close;
             return {
               active: destination.active,
-              close: () => {
-                destination.close?.();
-                return restoreAuxiliaryChromeState(previousAuxiliaryChrome);
-              },
               does: `Return from ${word(destination.line)}`,
               line: "back",
+              // A direct destination lands on a floor or a chrome row — the list, a tray's
+              // first row, a version — so what the reader then stands on is theirs to let
+              // go of first, unless the destination says its arrival was a standing.
+              standing: destination.standing?.() ?? false,
+              surface: destination.surface,
+              ...own,
+              close: () => {
+                if (leave?.() === false) return false;
+                return restoreAuxiliaryChromeState(previousAuxiliaryChrome);
+              },
             };
           },
           run: () => {

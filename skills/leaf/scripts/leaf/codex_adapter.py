@@ -198,6 +198,17 @@ class TaskObserver:
         with self.lock:
             return bool(self.carried)
 
+    def working(self) -> bool:
+        """Whether the last notification read left a turn of the task's running.
+
+        This comes off the standing subscription, so the delivery loop can hold back
+        without opening a connection every second to ask. It is a fold and it can
+        lag, which is why it only ever holds a delivery back: the status that lets
+        one start is read on the starting connection itself, one request before the
+        start.
+        """
+        return self.events.turn_id is not None
+
     def _send(self, socket, method: str, request_id: int, params: dict) -> dict:
         """Request on this observer's connection, folding what it does not hold."""
         return app_server_request(
@@ -221,15 +232,20 @@ class TaskObserver:
             )
             resumed = result.get("thread", {})
             self._restore_bindings(resumed)
-            if resumed.get("status", {}).get("type") == "active":
-                active = next(
-                    (
-                        turn["id"]
-                        for turn in reversed(resumed.get("turns", []))
-                        if turn.get("status") == "inProgress"
-                    ),
-                    "active",
-                )
+            active = next(
+                (
+                    turn["id"]
+                    for turn in reversed(resumed.get("turns", []))
+                    if turn.get("status") == "inProgress"
+                ),
+                None,
+            )
+            if resumed.get("status", {}).get("type") == "active" and active is not None:
+                # Only a turn this can name. A resume that reports the task active
+                # without naming its turn — a paginated thread whose `turns` the
+                # response left out — used to record the word "active" as the turn
+                # id, which no `turn/completed` matches, so both the reading below
+                # and the fold `working` reads stood until the next reconnect.
                 self.events.turn_id = active
                 set_stream_activity(self.thread_id, active, "Working in Codex")
             if not self.started:
@@ -471,9 +487,17 @@ def start_delivery_turn(
             buffered.append,
         )
         status = (resumed.get("thread") or {}).get("status") or {}
-        if status.get("type") != "idle":
+        if status.get("type") == "active":
             socket.close()
             return None
+        if status.get("type") != "idle":
+            # `notLoaded` and `systemError` are not states a task comes out of by
+            # being left alone, so waiting for one to pass is waiting forever with
+            # the reader's move held and nothing saying why. Raising puts it in the
+            # adapter's log and on the delivery loop's retry ladder.
+            raise RuntimeError(
+                f"the Codex task is not taking turns: {status.get('type', 'unknown')}"
+            )
         reply_target = stream_reply_target(payload)
         if reply_target is not None:
             reserve_delivery_reply(session_id, payload["id"], reply_target)
@@ -589,19 +613,34 @@ class DeliveryTurn:
         }
 
     def commit(self, terminal: dict) -> None:
-        """Account for the turn: its reply, its Leaf turn, its activity reading."""
-        error = None
-        if self.reply_stream is not None:
-            error = self.reply_stream.finish(
-                terminal.get("status") or "failed",
-                self.events.final_text(terminal),
-            )
-        elif self.reply_target is not None:
-            release_delivery_reply(self.session_id, self.delivery_id, self.reply_target)
-        close_stream_turn(self.session_id, self.turn_id)
-        clear_stream_activity(self.session_id, self.turn_id)
-        if error is not None:
-            print(f"Codex final reply rejected: {error}", file=sys.stderr, flush=True)
+        """Account for the turn: its reply, its Leaf turn, its activity reading.
+
+        The reply is written first and it can fault — it re-reads a page the turn's
+        own work may have left unopenable, and `DeliveryReply` guards only the
+        commit of a completed answer. The turn has ended either way, so the last two
+        run from a `finally`: until the Leaf turn closes and the activity reading
+        comes off, the page goes on telling its reader the agent is working, and
+        nothing but the claim's own fifteen-minute grace ever corrects it.
+        """
+        try:
+            if self.reply_stream is not None:
+                error = self.reply_stream.finish(
+                    terminal.get("status") or "failed",
+                    self.events.final_text(terminal),
+                )
+                if error is not None:
+                    print(
+                        f"Codex final reply rejected: {error}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+            elif self.reply_target is not None:
+                release_delivery_reply(
+                    self.session_id, self.delivery_id, self.reply_target
+                )
+        finally:
+            close_stream_turn(self.session_id, self.turn_id)
+            clear_stream_activity(self.session_id, self.turn_id)
 
     def disconnect(self) -> None:
         """Leave a still-running turn to a later carrier, with its text on the page."""
@@ -776,10 +815,12 @@ def _offer_queued_delivery(
     its reply and its receipt are the follower's, and they are written where every
     other carrier writes them.
     """
-    if observer is not None and observer.busy():
-        # The task takes one turn at a time and this process is already carrying a
-        # delivery into one. Nothing is offered until that turn ends, and saying so
-        # is not work done: the loop goes on watching pages while it runs.
+    if observer is not None and (observer.busy() or observer.working()):
+        # The task takes one turn at a time, and one is already running — this
+        # process's delivery, or the user's own work in the terminal. Both readings
+        # come off what the observer already holds, so holding back costs nothing;
+        # opening a connection a second to ask the task instead is what this avoids.
+        # Saying so is not work done: the loop goes on watching pages meanwhile.
         return False
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)

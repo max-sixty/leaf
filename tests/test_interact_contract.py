@@ -5195,17 +5195,7 @@ def _swipe_page(page_dir, deck=None):
 
     `deck` defaults to the package's own example, whose queue holds one card.
     """
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry.update(
-        json.loads(
-            (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
-        )
-    )
-    shutil.copyfile(
-        schema_model.BUNDLED_PACKAGES / "swipe" / "widgets" / "lf-swipe-deck.js",
-        page_dir / "widgets" / "lf-swipe-deck.js",
-    )
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    registry = registry_storage.require_registry(page_dir)
     source = PAGE.replace(
         "</section>", (deck or registry["lf-swipe-deck"]["x-example"]) + "</section>"
     )

@@ -309,12 +309,12 @@ graph LR
 # lf-diagram and lf-diff declarations out of the vendored registry, so the selection
 # names the packages those three now travel in. The template cache is keyed by this
 # same list, so a page built for one selection is never handed to another.
-PAGE_PACKAGES = ("command-hub", "diagram", "diff")
+PAGE_PACKAGES = ("command-hub", "diagram", "diff", "swipe")
 
 
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch, initialized_page):
-    """A mutable page with the default, Command Hub, diagram and diff vocabularies."""
+    """A mutable page with the default, Command Hub, diagram, diff and swipe vocabularies."""
     monkeypatch.chdir(tmp_path)  # resolve fixture package paths
     d = tmp_path / "page"
 

@@ -121,9 +121,12 @@ What the account-wide entries expose is logs. The agent token and the Tend CI to
 every Worker's Observability records and every Analytics Engine dataset on the account,
 and `Workers Metadata Read-Only` lets the agent token open a live tail on any Worker;
 that is what a leaked token would give away. The Tend CI token sits in the agent's
-launch environment, where whatever code the workspace holds can read it, so
-`.config/tend.yaml` withholds it from every agent whose workspace holds a pull request's
-code. Agents that work from `main` — on issues, schedules, and red runs — keep it.
+launch environment, where any code the agent runs can read it. `.config/tend.yaml`
+therefore hands it only to agents answering an issue or a red run on `main`. Reviews,
+mentions on pull requests, and the scheduled polls — the notifications poll reviews fork
+pull requests — run with it empty. An agent answering an issue can still fetch a pull
+request's code for itself, and `running-tend` has it drop the token before running that
+code; that is an instruction, not a mechanism.
 
 On the maintainer's machine, the `Cloudflare Leaf agent administration` item in the
 `Max` 1Password vault holds the token of the same name. An agent reads it through the

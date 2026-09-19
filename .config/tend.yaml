@@ -48,14 +48,16 @@ sandbox_setup:
 # credentials, so this token reaches the agent through its launch environment,
 # where `sandbox_setup` and anything the agent runs can read it.
 #
-# A review, and a mention on a pull request, put that pull request's code in the
-# workspace, and `sandbox_setup` builds it with `uv sync` before the agent
-# starts. The expression withholds the token there, by the test Tend's workspace
-# checkout applies: the event names a pull request, its issue is one, or it is a
-# relayed review carrying a `client_payload`. The empty value has to be the `||`
-# arm, because `cond && '' || secret` yields the secret either way.
+# The expression hands it only to agents answering an issue or a red run on
+# `main` — `issues`, `issue_comment` on an issue rather than a pull request, and
+# `ci-fix`'s `workflow_run` — which is when `running-tend` sends an agent to the
+# logs. Every other agent may run a pull request's code: a review and a mention
+# on a pull request start with it in the workspace, where `sandbox_setup` builds
+# it before the agent starts, and the notifications poll reviews fork pull
+# requests. The empty value has to be the `||` arm, because
+# `cond && '' || secret` yields the secret either way.
 sandbox_env:
-  CLOUDFLARE_API_TOKEN: "${{ !(github.event.pull_request || github.event.issue.pull_request || github.event.client_payload) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
+  CLOUDFLARE_API_TOKEN: "${{ (github.event_name == 'workflow_run' || (github.event.issue && !github.event.issue.pull_request)) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
 
 workflows:
   ci-fix:

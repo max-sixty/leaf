@@ -33,10 +33,12 @@ problems.
 `CLOUDFLARE_API_TOKEN` in the agent's environment is the
 `Leaf observability (Tend CI)` token in `worker/README.md`: it reads the
 deployed site's Workers Observability logs and Analytics Engine events and
-cannot deploy. It is empty when the workspace holds a pull request's code, in a
-review or a mention on a pull request. When an issue or a red `publish-site`
+cannot deploy. It is set only for an agent answering an issue or a red run on
+`main`, and empty everywhere else. When an issue or a red `publish-site`
 concerns the deployed site, query its logs as that README describes and diagnose
-from the records.
+from the records. Before running a pull request's code in a session that holds
+the token, drop it from that command's environment with
+`env -u CLOUDFLARE_API_TOKEN`.
 
 ## Filing issues in other repos
 

@@ -42,7 +42,7 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 1,
             "revision": 1,
             "text": "published",

@@ -185,7 +185,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
         )[1]
     )["state"]["events"][-1]
     agent_closed = events_model.append_event(
-        page_dir, {"kind": "resolve", "author": "claude", "parent": posted["id"]}
+        page_dir, {"kind": "resolve", "author": "agent", "parent": posted["id"]}
     )
 
     for bad, says in [
@@ -512,7 +512,7 @@ def test_init_does_not_revalidate_a_written_receipt_lifecycle(
             {
                 "id": f"receipt-{index}",
                 "kind": "receipt",
-                "author": "claude",
+                "author": "agent",
                 "request": request,
                 "status": "succeeded",
                 "text": "Host operation completed",
@@ -568,7 +568,7 @@ def test_init_refuses_a_historical_event_record_outside_its_declared_schema(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "mood": "uncertain",
             "revision": 1,
@@ -1474,7 +1474,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 2,
             "revision": second.revision,
             "text": "Retract the local choice.",
@@ -2216,7 +2216,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 2,
             "revision": 2,
             "text": "reworded the poll interval",
@@ -2237,7 +2237,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 3,
             "revision": 3,
             "text": "rewrote the suggestion",

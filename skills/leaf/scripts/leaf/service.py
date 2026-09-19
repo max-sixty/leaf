@@ -20,17 +20,17 @@ from leaf.event_log import (
 )
 from leaf.files import read_json, write_json
 from leaf.host import (
-    host_identity,
+    Harness,
     message_identity,
-    pid_alive,
-    session_lifetime,
-    state_home,
+    session_harness,
 )
 from leaf.locations import page_key, paths_same
+from leaf.machine import pid_alive, state_home
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,
     STATUS_FILE,
+    UNCLAIMED_AGENT,
 )
 
 # A repeated live detail carries only liveness. Renew it comfortably before the
@@ -57,7 +57,7 @@ def page_claim(page_dir: Path) -> dict | None:
 def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: the job record a background
     job's claim points at, the recent touch an `activity` claim stands on, or
-    the process every other claim's pid names (`session_lifetime`). The only
+    the process every other claim's pid names (`Harness.lifetime`). The only
     reading of that rule: the hooks reach it through `uv` rather than keeping a
     copy, so a host that states its lifetime a new way joins here alone."""
     if not claim or claim["released"] is not None:
@@ -139,7 +139,13 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_is_active(claim) else None
 
-    def take_claim(self, identity: dict, lifetime: dict) -> tuple[dict | None, dict]:
+    def take_claim(self, harness: Harness) -> tuple[dict | None, dict]:
+        """Record this session as the page's watcher.
+
+        The record carries the claimant's harness as well as its id, so every
+        later reader — the page server, the append door, the Stop hook, none of
+        them necessarily the claimant's own process — rebuilds what the claimant
+        declared instead of reading its own environment."""
         previous = self.claim
         path = claim_path(self.page_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -147,15 +153,15 @@ class PageTransaction:
             previous
             and claim_is_active(previous)
             and previous["released"] is None
-            and previous["id"] == identity["id"]
+            and previous["id"] == harness.session
             and previous.get("turn_closed") is None
         )
         claim = {
             "page": str(self.page_dir),
-            "id": identity["id"],
-            "host": identity["host"],
-            **lifetime,
-            "agent": identity["agent"],
+            "id": harness.session,
+            "harness": harness.name,
+            **harness.lifetime(),
+            "agent": harness.agent,
             "cwd": os.getcwd(),
             "ts": now_iso(),
             "released": None,
@@ -182,13 +188,13 @@ class PageTransaction:
         else:
             write_json(path, previous)
 
-    def owned_by(self, identity: dict | None) -> bool:
+    def owned_by(self, harness: Harness | None) -> bool:
         """Whether this transaction may act for the given waiter."""
-        if identity is None:
+        if harness is None:
             return self.active_claim is None
         claim = self.active_claim
         return bool(
-            claim and (claim["host"], claim["id"]) == (identity["host"], identity["id"])
+            claim and (claim["harness"], claim["id"]) == (harness.name, harness.session)
         )
 
     def release_claim(self) -> None:
@@ -320,7 +326,6 @@ class PageTransaction:
             status["handling"] = current_handling
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
-            identity = message_identity()
             claims = [held for held in claims if held["subject"] != work["subject"]]
             claims.append(
                 {
@@ -328,25 +333,35 @@ class PageTransaction:
                     **work,
                     "detail": detail,
                     "ts": status["ts"],
-                    "agent": identity.get("agent")
-                    or (self.claim or {}).get("agent", "Claude"),
-                    "session": identity.get("session") or (self.claim or {}).get("id"),
+                    **self.voice(),
                 }
             )
         if claims:
             status["work"] = claims
         if handling:
-            identity = message_identity()
             status["handling"] = {
                 "id": secrets.token_hex(4),
                 **handling,
                 "detail": detail,
                 "ts": status["ts"],
-                "agent": identity.get("agent")
-                or (self.claim or {}).get("agent", "Claude"),
-                "session": identity.get("session") or (self.claim or {}).get("id"),
+                **self.voice(),
             }
         write_json(self.page_dir / STATUS_FILE, status)
+
+    def voice(self) -> dict:
+        """Who a line written on this page speaks as: the posting session where
+        one is running, and the page's claimant otherwise — a delegate reporting
+        its own subject speaks in its own name, while a line written by a server
+        speaks in the name of whoever holds the page. `UNCLAIMED_AGENT` covers a
+        page nothing has claimed, where there is no name to use and inventing
+        one would put words in a program's mouth."""
+        identity = message_identity()
+        claim = self.claim
+        return {
+            "agent": identity.get("agent")
+            or (claim["agent"] if claim else UNCLAIMED_AGENT),
+            "session": identity.get("session") or (claim["id"] if claim else None),
+        }
 
     def set_stream_activity(self, session_id: str, turn_id: str, detail: str) -> None:
         """Record activity observed directly from the task's live event stream."""
@@ -431,7 +446,9 @@ class PageTransaction:
             "text": text,
             "state": state,
             "settles": settles,
-            "agent": (self.claim or {}).get("agent", "Codex"),
+            # The claimant's name: a stream reply is the task that holds the page
+            # speaking, and `take_claim` always wrote one.
+            "agent": self.claim["agent"],
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
         }
@@ -590,8 +607,8 @@ class PageTransaction:
     def cursor(self) -> int:
         return read_cursor(self.page_dir)
 
-    def watch_state(self, identity: dict | None) -> str:
-        if not self.owned_by(identity):
+    def watch_state(self, harness: Harness | None) -> str:
+        if not self.owned_by(harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
 
@@ -602,12 +619,11 @@ def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     `server start` and named `leaf wait` claim; authoring commands do not. A
     bare-shell serve makes no claim and therefore starts as standing.
     """
-    identity = host_identity()
-    if not identity:
+    harness = session_harness()
+    if not harness:
         return None
-    lifetime = session_lifetime(identity)
     with PageTransaction(page_dir) as page:
-        return page.take_claim(identity, lifetime)
+        return page.take_claim(harness)
 
 
 def claim_page(page_dir: Path) -> bool:

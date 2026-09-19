@@ -103,11 +103,11 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
     claim = record_claim(
         serve.page_dir,
         id="codex-thread",
-        host="codex",
+        harness="codex",
         agent="Codex",
     )
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(serve.page_dir, claim)
+        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease
     request.addfinalizer(lease.close)
@@ -165,7 +165,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
         serve.page_dir,
         {
             "kind": "edit",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "session": "codex-thread",
             "message": reply["id"],
@@ -206,7 +206,7 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
             serve.page_dir,
             {
                 "kind": "reply",
-                "author": "claude" if i % 2 else "user",
+                "author": "agent" if i % 2 else "user",
                 "parent": root,
                 "revision": 1,
                 "text": f"Follow-up {i}. " + "This exchange needs its context. " * 5,
@@ -852,7 +852,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
         serve.page_dir,
         "Can you show me the rendering fault?",
         {"section": "how-store"},
-        "claude",
+        "agent",
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -1049,7 +1049,7 @@ def test_an_arriving_reply_leaves_the_list_where_the_reader_put_it(browser, serv
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "parent": first["id"],
@@ -1119,7 +1119,7 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "parent": source,
@@ -1215,7 +1215,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "parent": first["id"],
@@ -1250,7 +1250,7 @@ def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serv
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": first,
             "revision": 1,
@@ -1265,7 +1265,7 @@ def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serv
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{first}"]')
     neighbor = page.locator(f'.lf-thread[data-id="{second}"]')
-    trigger = card.locator(".lf-msg.claude .lf-react-trigger")
+    trigger = card.locator(".lf-msg.agent .lf-react-trigger")
     trigger.hover()
     before = {
         "card": card.bounding_box(),
@@ -2121,7 +2121,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     mine = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
-    theirs = panel_comment(d, "Is forty enough?", {"section": "how-cap"}, "claude")
+    theirs = panel_comment(d, "Is forty enough?", {"section": "how-cap"}, "agent")
 
     page = open_page(browser, url)
     # The key belongs to the panel, not to the page: a list the reader is not looking at
@@ -2228,7 +2228,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     d = serve.page_dir
     pagewide = panel_comment(d, "A page-wide content note.")
     waiting = panel_comment(
-        d, "Which local wording is right?", {"section": "lede"}, "claude"
+        d, "Which local wording is right?", {"section": "lede"}, "agent"
     )
     design = events_model.append_event(
         d,
@@ -2576,7 +2576,7 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
 
     events_model.append_event(
         serve.page_dir,
-        {"kind": "resolve", "author": "claude", "agent": "Indexer", "parent": c1},
+        {"kind": "resolve", "author": "agent", "agent": "Indexer", "parent": c1},
     )
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
@@ -2726,7 +2726,7 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": root["id"],
             "text": "This arrived after resolution.",
@@ -3080,7 +3080,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": roots[5],
             "text": "Noted, and still looking.",
         },
@@ -3137,7 +3137,7 @@ def test_an_external_resolution_leaves_the_reader_on_the_thread_list(browser, se
 
     events_model.append_event(
         serve.page_dir,
-        {"kind": "resolve", "author": "claude", "parent": root["id"]},
+        {"kind": "resolve", "author": "agent", "parent": root["id"]},
     )
     told(page)
     going = page.locator(f'.lf-going[data-id="{root["id"]}"]')
@@ -3318,7 +3318,7 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "parent": c1,
@@ -3427,7 +3427,16 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # also supplies the same controls inside declared widget trees. Keep that exception
     # as explicit as the runtime sheet's shared vocabulary below.
     assert set(surface["themed"]) == {
-        "claude",
+        "agent",
+        # The shared vocabulary's faces are the theme's, for the reason chrome.css's
+        # header gives: stated in the adopted sheet they beat each component's own rule
+        # on nothing better than that sheet arriving last. The runtime sheet still names
+        # each of these inside its scope — the chip and the badge to say where the
+        # chrome's own copies stand, the margin entry to give a finger a bigger box —
+        # and the movement the theme's rule causes is that deliberate face.
+        "lf-chip",
+        "lf-key-badge",
+        "lf-margin-entry",
         "lf-compose-field",
         "lf-compose-submit",
         # The one canonical composer can be seated in a widget's own Thread outlet,
@@ -3483,13 +3492,14 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-thread-head",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
-        # Primary buttons keep the authored theme's filled action face when they
+        # Primary buttons keep the authored theme's accent action face when they
         # enter chrome rows whose quiet controls deliberately clear that paint.
         "primary",
     }, "the authored-theme class surface changed: widen the exception on purpose"
-    # Every one of these is worn by something the runtime puts inside the page rather than
-    # inside its own container — or, for lf-key-badge, on both sides of that line at once,
-    # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
+    # Every one of these is worn by something the runtime puts inside the page rather
+    # than inside its own container: a scoped rule cannot reach the copy in the page.
+    # What is not here is the shared vocabulary, whose faces the theme states — see the
+    # exception above, and chrome.css's header for why. Except the
     # first two, which document level names only to hold a rule off them and which are here
     # for the other half of the sentence. lf-copy is the medium `version export` marks on
     # the root, and the runtime names it under a negation to withhold the live page's
@@ -3512,8 +3522,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-focus",
         "lf-focus-visible",
         "lf-btn",
-        "lf-chip",
-        "lf-key-badge",
         "lf-over-mark",
         "lf-mark-el",
         "lf-projected-mark",  # an element mark projects above authored paint
@@ -3521,7 +3529,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-mark-here",  # the same element mark, for the comment the reader is in
         "lf-pending",
         "lf-ins-block",
-        "lf-mark-note",
         "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
         "lf-over-item",
@@ -3548,19 +3555,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-el",
         "lf-react-mark",
         "lf-react",
-        # Target actions are contributed outside the chrome scope and share one complete
-        # item. These names are the deliberate document-level half of that seam.
-        "lf-margin-options",
-        "lf-margin-entry",
-        "lf-margin-entry-glyph",
-        "lf-margin-entry-icon",
-        "lf-margin-entry-space",
-        "lf-margin-entry-label",
-        # The label's two lines: the role's own word, and the context under it that says
-        # which item the role is on. Both are inside the label the seam already names.
-        "lf-margin-entry-label-word",
-        "lf-margin-entry-context",
-        "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",
@@ -3642,7 +3636,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "tv-decisioned",
             "revision": 1,
             "text": "Depends what you want to keep:",
@@ -4166,7 +4160,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
         {
             "kind": "reply",
             "id": "tv-kept",
-            "author": "claude",
+            "author": "agent",
             "parent": "tv-lost",
             "revision": 1,
             "text": "the answer that survived it",
@@ -4184,7 +4178,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
         {
             "kind": "reply",
             "id": "tv-later",
-            "author": "claude",
+            "author": "agent",
             "parent": "tv-kept",
             "revision": 1,
             "text": "the later plain reply",
@@ -5218,7 +5212,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
         d,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which way round should this go?",
             "anchor": {"section": "how-store"},
@@ -5296,7 +5290,7 @@ def test_a_narrowing_that_hides_the_card_the_reader_stands_in_lands_them_on_the_
     card but the reply box the reader is typing in."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
-    theirs = panel_comment(d, "Is forty enough?", {"section": "how-cap"}, "claude")
+    theirs = panel_comment(d, "Is forty enough?", {"section": "how-cap"}, "agent")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

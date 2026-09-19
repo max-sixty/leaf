@@ -33,6 +33,7 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import passages as passages_model
@@ -356,7 +357,7 @@ def publish(d, version=1):
         d,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": version,
             "revision": activated.revision,
             "text": "published",
@@ -402,12 +403,15 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
-def record_claim(page, **fields):
-    """Write the canonical claim shape for lifecycle fixtures."""
+def record_claim(page, harness="claude-code", **fields):
+    """Write the canonical claim shape for lifecycle fixtures.
+
+    `harness` is checked against Leaf's own table, so a fixture cannot record a
+    name `take_claim` would never write."""
     record = {
         "page": str(page.resolve()),
         "id": "s1",
-        "host": "claude-code",
+        "harness": host_model.HARNESSES[harness].name,
         "pid": os.getpid(),
         "agent": "Claude",
         "cwd": str(Path.cwd()),
@@ -941,7 +945,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
             directory,
             {
                 "kind": "note",
-                "author": "claude",
+                "author": "agent",
                 "version": 1,
                 "revision": 1,
                 "text": "t",
@@ -1018,7 +1022,7 @@ def claimed(page_dir, monkeypatch):
 @pytest.fixture(scope="session")
 def codex_program(tmp_path_factory):
     """A program named `codex` to run a session under, which is the whole of what
-    `session_lifetime` looks for above a leaf: a copy of this interpreter wearing that
+    `CodexHarness.lifetime` looks for above a leaf: a copy of this interpreter wearing that
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that

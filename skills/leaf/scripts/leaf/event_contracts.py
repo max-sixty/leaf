@@ -29,7 +29,7 @@ from leaf.asks import (
     page_awaiting_values,
     projected_action_holders,
     quoted_in,
-    thread_ask_projection,
+    thread_ask_readings,
 )
 from leaf.data import read_data
 from leaf.document_reading import read_document
@@ -524,7 +524,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
             events, enclosing_ids(parse_revision(page_dir, revision))
         )
         settled = {root for root, value in threads.items() if value["resolved"]}
-        _, awaiting_values = thread_ask_projection(
+        awaiting_values = thread_ask_readings(
             events,
             registry,
             settled,
@@ -537,7 +537,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
                 )
             ),
             reading=thread,
-        )
+        )["awaiting"]
 
     holders = projected_action_holders(projection, byid, registry)
     if error := position_record_error(event, spec, current, byid, registry, holders):

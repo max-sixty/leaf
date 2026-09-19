@@ -216,7 +216,7 @@ def cmd_receipt(page_dir: Path, request: str, status: str, text) -> None:
             page,
             {
                 "kind": "receipt",
-                "author": "claude",
+                "author": "agent",
                 **message_identity(),
                 "request": request,
                 "status": status,

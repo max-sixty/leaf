@@ -43,10 +43,10 @@ from leaf import data as data_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
-from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import media as media_model
 from leaf import page_snapshot as page_snapshot_model
 from leaf import presence as presence_model
@@ -479,7 +479,7 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 1,
             "revision": first.revision,
             "text": "first",
@@ -760,7 +760,7 @@ def test_server_round_trip(server, page_dir):
             {
                 "kind": "comment",
                 "id": "c9",
-                "author": "claude",
+                "author": "agent",
                 "agent": "Codex",
                 "session": "s-forged",
                 "ts": "1900-01-01T00:00:00Z",
@@ -1638,7 +1638,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 2,
             "revision": 2,
             "text": "Restated the option under its new owner.",
@@ -1701,7 +1701,7 @@ def test_undo_candidates_keep_only_standing_reader_gestures():
         {
             "id": "reply",
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "rx2",
             "text": "answered",
         },
@@ -2270,7 +2270,7 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": first["id"],
             "status": "failed",
             "text": "Worker lease disappeared",
@@ -2284,7 +2284,7 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": retry["id"],
             "status": "succeeded",
             "text": "Archived the branch",
@@ -2329,7 +2329,7 @@ def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "Choose the host operation.",
@@ -2396,7 +2396,7 @@ def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "Choose.",
@@ -2471,7 +2471,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
     assert message in json.loads(state)["source_error"]
 
 
-def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
+def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     publish(page_dir)
     event_model.append_event(
         page_dir,
@@ -3191,7 +3191,7 @@ def test_unchanged_neighbor_logs_are_read_once_until_their_stamp_moves(
     page_dir, monkeypatch
 ):
     """Neighbor presence reuses its parsed event window while its files are stable."""
-    neighbour = host_model.state_home() / "pages" / "neighbor-cache"
+    neighbour = machine_model.state_home() / "pages" / "neighbor-cache"
     neighbour_page(neighbour, title="Cached neighbor")
     real_read_events = presence_model.read_events
     reads = 0
@@ -3231,7 +3231,7 @@ def test_neighbor_activity_cache_expires_at_the_projected_transition(
     The browser asks when the canonical deadline arrives; the neighbor cache must
     then project a fresh server answer rather than returning the pre-deadline one.
     """
-    neighbour = host_model.state_home() / "pages" / "neighbor-deadline"
+    neighbour = machine_model.state_home() / "pages" / "neighbor-deadline"
     neighbour_page(neighbour, title="Timed neighbor")
     record_claim(neighbour, id="timed")
     files_model.write_json(
@@ -3272,7 +3272,7 @@ def test_neighbor_activity_cache_expires_when_status_loses_its_last_proof(
     page_dir, monkeypatch
 ):
     """A waiting declaration with no owner becomes unheld on its own deadline."""
-    neighbour = host_model.state_home() / "pages" / "neighbor-status-deadline"
+    neighbour = machine_model.state_home() / "pages" / "neighbor-status-deadline"
     neighbour_page(neighbour, title="Timed status neighbor")
     started = datetime.now().astimezone()
     files_model.write_json(
@@ -4288,7 +4288,7 @@ def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
         server_model.host_key()
 
     assert len(staged) == 1 and not staged[0].exists()
-    assert not (host_model.state_home() / "access.json").exists()
+    assert not (machine_model.state_home() / "access.json").exists()
 
 
 def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
@@ -4388,7 +4388,7 @@ def test_a_page_left_standing_is_the_sweeps_to_stop():
     ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
     watch that happen. Not `spawn`, whose teardown would end the holder before
     the sweep reached it."""
-    hold_standing(host_model.state_home() / "pages" / "left", subprocess.Popen)
+    hold_standing(machine_model.state_home() / "pages" / "left", subprocess.Popen)
 
 
 def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
@@ -4477,7 +4477,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     and that page's own banner judge from one shape — where the claiming session
     is working included, which is the one thing on a row's hover that no title
     could ever say."""
-    pages = host_model.state_home() / "pages"
+    pages = machine_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     files_model.write_json(
         pages / "live" / "status.json",
@@ -4528,8 +4528,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "listening": False,
         "cursor": 0,
         "pending": 0,
-        "agent": "Claude",
-        "host": None,
+        "agent": "Agent",
         "session_alive": None,
         "claim_session": None,
         "claim_turn": None,
@@ -4574,7 +4573,6 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "url": claimed_url,
             **unclaimed,
             "agent": "Claude",
-            "host": "claude-code",
             "session_alive": False,
             "claim_session": "s1",
             "claim_turn": "turn-1",
@@ -4592,7 +4590,6 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 "after": 0,
             },
             "agent": "Codex",
-            "host": "claude-code",
             "session_alive": True,
             "claim_session": "s9",
             "claim_turn": "turn-1",
@@ -4624,7 +4621,9 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
 
 def test_others_ships_on_a_network_facing_bind_too(page_dir):
     """Neighbour discovery is independent of the server's network-facing bind."""
-    neighbour_page(host_model.state_home() / "pages" / "live", title="The other page")
+    neighbour_page(
+        machine_model.state_home() / "pages" / "live", title="The other page"
+    )
     httpd = hosting_model.LeafHTTPServer(
         ("0.0.0.0", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
@@ -4668,7 +4667,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     def resolve_then_claim():
         writer_entered.set()
         with service_model.PageTransaction(page_dir) as page:
-            page._append_record({"kind": "resolve", "author": "claude", "parent": "c1"})
+            page._append_record({"kind": "resolve", "author": "agent", "parent": "c1"})
             page.set_status(
                 "working",
                 "checking",
@@ -4915,7 +4914,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         {
             "kind": "reply",
             "id": "r-kept",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-lost",
             "revision": 1,
             "text": "the answer that survived it",
@@ -4955,6 +4954,8 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         {
             "id": "orphan-decision",
             "tag": "lf-ask",
+            "source": "orphan-choice",
+            "source_tag": "lf-options",
             "conversation": "c-lost",
         }
     ]

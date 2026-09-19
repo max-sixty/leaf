@@ -354,7 +354,7 @@ def cmd_comment(
             check_markup(page_dir, "comment", markup, events)
         event = {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             **message_identity(),
             "revision": revision,
             "text": body,
@@ -653,7 +653,7 @@ def cmd_reply(
             revision, anchor = None, None
         event = {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             **posting_identity,
             "parent": to,
             "text": body,
@@ -693,7 +693,7 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
         require_registry(page_dir)
         events = page.events
         target = _message(events, to)
-        if target["author"] != "claude":
+        if target["author"] != "agent":
             sys.exit(f"message {to!r} is not agent-authored")
         identity = message_identity()
         owner = target.get("session")
@@ -705,7 +705,7 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
             page,
             {
                 "kind": "edit",
-                "author": "claude",
+                "author": "agent",
                 **identity,
                 "message": to,
                 "text": body,
@@ -733,7 +733,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
             )
         event = {
             "kind": "resolve",
-            "author": "claude",
+            "author": "agent",
             **message_identity(),
             "parent": to,
         }
@@ -777,7 +777,7 @@ def cmd_report(
         activate_source(page_dir, events)
         event = {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             **message_identity(),
             "widget": widget,
             "action": verb,

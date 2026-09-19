@@ -30,7 +30,7 @@
 #
 # psutil is a compiled extension, so every install fetches a platform wheel for it
 # rather than pure Python. It is a runtime dependency because every page claim
-# reads the process tree above it (`host.py`).
+# reads the process tree above it (`machine.py`).
 #
 # Playwright is a runtime dependency because the skill's own flow runs the
 # browser: `version check --render` gates every finished page and `version

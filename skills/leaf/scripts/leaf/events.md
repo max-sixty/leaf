@@ -57,7 +57,7 @@ of the undo re-derives the still-standing action.
 
 The server stamps every browser-posted event `author=user`. `leaf comment`,
 `leaf reply`, `leaf edit`, `leaf report`, `leaf receipt`, and `version stamp`
-stamp `author=claude` plus the posting session's own voice: `agent`, its display
+stamp `author=agent` plus the posting session's own voice: `agent`, its display
 name, and `session`, its host session id. Several agent sessions can write to one
 page, so the voice is read from the poster's environment rather than from the
 watcher's claim record, and identity is the session id, because a display name is

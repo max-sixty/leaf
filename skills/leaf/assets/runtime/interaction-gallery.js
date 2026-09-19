@@ -594,7 +594,9 @@ const scenarios = {
       await demo.movePointer(toggle, generation);
       await demo.wait(360, generation);
       await demo.press(generation);
-      await demo.track(demo.frameApi.setThreads(true), generation);
+      // The panel stands and the page makes room for it in the press itself: nothing
+      // follows it to wait out, so the replay's pause on the result is the only hold.
+      demo.frameApi.setThreads(true);
       await demo.waitFor(
         demo.frameApi.threadsOpen,
         "the Threads panel did not open",
@@ -603,7 +605,7 @@ const scenarios = {
       await demo.wait(RESULT_PAUSE, generation);
       await demo.movePointer(toggle, generation);
       await demo.press(generation);
-      await demo.track(demo.frameApi.setThreads(false), generation);
+      demo.frameApi.setThreads(false);
       await demo.finish(generation);
     },
   },

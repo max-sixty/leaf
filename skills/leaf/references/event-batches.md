@@ -1,7 +1,7 @@
 # Delivered event batches
 
-Read this after a direct wait or Codex delivery produces a batch and before
-processing any event in it.
+Read this after your host produces a delivery batch and before processing any event
+in it.
 
 ## One envelope on every transport
 
@@ -24,9 +24,9 @@ Every carrier presents the same immutable object:
 }
 ```
 
-A direct wait prints it; App Server supplies it as `leaf_delivery`; a queued
-Codex turn supplies `<leaf-delivery id="…">`, which `leaf delivery read <id>`
-resolves. These differ only in transport. Process every batch and every event.
+Some hosts deliver it inline; others deliver a pointer that `leaf delivery read <id>`
+resolves to the same object. Your host contract names which. These differ only in
+transport. Process every batch and every event.
 
 Each event retains its stored identity and order, then adds three delivery
 readings:
@@ -74,9 +74,9 @@ is monotonic and idempotent; an event posted between wait and ack has a higher
 sequence and stays pending. Until ack, wait repeats the batch. `leaf events`
 reads the full log without acking it.
 
-In Codex the detached adapter owns wait and acknowledgement; `host-codex.md`
-owns that route. Whatever the host, treat a page-and-sequence pair already handled in
-this task as a retry, even if a later delivery also includes newer events.
+Whatever the host, treat a page-and-sequence pair already handled in this task as a
+retry, even if a later delivery also includes newer events; your host contract owns
+the wait and acknowledgement route.
 
 An embedded MCP App changes where the page is drawn, not this carrier. Its
 events enter the same log, and a successful `ui/message` response is not a

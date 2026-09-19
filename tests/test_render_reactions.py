@@ -39,7 +39,6 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     told,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -671,7 +670,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": root,
             "text": "Because the finches take it through the cold.",
@@ -1863,7 +1862,6 @@ def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
     out = tmp_path / "diagram-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     assert page.evaluate(
         """() => ({
@@ -1894,7 +1892,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": root,
             "text": "The one we ship to schools.",
@@ -1905,7 +1903,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": quiet_root,
             "text": "And nothing stands on the earlier answer here.",
@@ -2014,7 +2012,7 @@ def _thread(page_dir):
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": root,
             "text": "Forty is what the slowest device we ship on can hold.",
@@ -2209,7 +2207,6 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     out = tmp_path / "copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     copy = page.evaluate(
         """() => ({

@@ -45,7 +45,7 @@ def standing_work_claims(status: dict, events: list) -> list:
                 continue
             replied = any(
                 msg["kind"] == "reply"
-                and msg["author"] == "claude"
+                and msg["author"] == "agent"
                 and msg["seq"] > after
                 for msg in thread["msgs"]
             )
@@ -157,7 +157,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
             work["event"] = next(
                 message["id"]
                 for message in reversed(spoken_turns(thread))
-                if message["author"] != "claude"
+                if message["author"] != "agent"
             )
         return work
     if widget is not None:

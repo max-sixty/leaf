@@ -90,12 +90,23 @@
    as one Escape rung. A multi-letter generated hint narrows the visible target map
    instead; Escape removes one typed letter before another Escape closes the sequence.
 
-   The stack records entry history; `rung()` is only the fallback for state reached
-   without a registered entry, such as a pointer-opened panel or focus the reader moved by
-   ordinary traversal. A keyboard command with `returnFrame` never asks `rung()` to guess
-   its inverse. Moving within an entered surface—`t` walking from the Threads list to a
-   thread, for example—does not push another frame, so Escape still returns through the
-   entry that opened the surface.
+   The stack records entry history; `rung()` is only the fallback for chrome state reached
+   without a registered entry, such as a pointer-opened panel. A keyboard command with
+   `returnFrame` never asks `rung()` to guess its inverse.
+
+   Standing — holding a destination inside a layer: a card in the list, an Ask or a
+   heading on the page — is one rung of its own, however the reader got there. The page's
+   STANDING scope lets go of it onto the floor of the layer they are in, the list or the
+   body, and that step is inner: it stands ahead of every frame, because standing is the
+   newest thing the reader did with a Tab, a hint, or a pointer. A press that stood them
+   there instead records itself as a frame, and a frame holds the standing unless it
+   declares `standing: false`, so it answers in the stack's order: `t` from the list
+   pushes one frame for the whole walk, a second `t` made standing on a thread pushes
+   nothing, `t` then `w` unwinds the narrowing before the walk, and `a` opening the panel
+   for an Ask closes the panel in the one Escape that undoes the one press. A frame says
+   false when its press stood the reader nowhere: `g T` and the trays land on a floor or
+   a chrome row, and `w` moves nobody. `heldStanding` is that reading, and a `standing`
+   that reads focus retires with it, as `a`'s does once the reader Tabs off its Ask.
 
    `restoreReturnPlace` restores the exact connected control a command displaced. When the
    reader had no control focused it restores the captured reading block without leaving
@@ -105,20 +116,49 @@
    alone. Focus rather than blur hands Space, PageDown, arrows, Home, and End back to the
    page's actual scroll box. `letGo` also runs synchronously during module evaluation so a
    fresh page accepts native scrolling before asynchronous upgrade, without stealing focus
-   from a control the reader reaches during that upgrade. */
+   from a control the reader reaches during that upgrade.
+
+   A pointer press that opens a layer is a command too, and enters through `invoke` with
+   the place it displaced: the Threads toggle, a margin marker or its unfolded option
+   row, a page mark, its note. A pointer moves focus onto what it pressed before the
+   click arrives, so that place is read at pointerdown and handed out by `pressOrigin`; a
+   keyboard activation's click finds no press in flight and reads focus at the click,
+   which is the control the reader stood on. The Escape that closes a clicked-open panel
+   or conversation view therefore hands back the reader's place before the click — the
+   page, for a reader who was reading — and never the control the click happened to
+   focus. A close by pointer — the view's ×, the panel's Close — is not that way out: the
+   pointer is already on the surface that is closing, and focus lands on the surviving
+   control that reopens it. */
 import { word } from "./bindings.js";
+import { focused } from "./scopes.js";
 import { focusDestination } from "../focus.js";
+import { retainReaderIntent } from "../reader-intent.js";
 import { repaint } from "../repaint.js";
+import { under } from "../shadow.js";
 
 export function restoreReturnPlace({ control, reading }) {
-  if (control) {
+  const landed = () => {
     if (control.isConnected) focusDestination(control);
-    // Reconciliation may replace a control in the same task. Its first paint is
-    // asynchronous, so give that exact node one frame to reconnect before conceding.
-    if (!control.isConnected || !control.matches(":focus"))
-      requestAnimationFrame(() => {
-        if (control.isConnected) focusDestination(control);
-      });
+    return control.matches(":focus");
+  };
+  if (control) {
+    if (landed()) return;
+    // Reconciliation may replace a control in the same task, and a paint the close asked
+    // for may still hold it hidden — a widened list shows its cards on its next paint.
+    // That first paint is asynchronous, so give that exact node one frame before
+    // conceding. A control that is then gone or hidden is so for good — the layer it
+    // stood in closed under the press this frame records, as the conversation view does
+    // when the toggle carries its thread into the panel — and the place is the block the
+    // reader was reading, which every origin carries beside its control. A control that
+    // is there to see and still refused focus keeps the one retry and nothing more:
+    // taking the reader somewhere else over it would be a second guess. Neither happens
+    // to a reader who has moved on inside that frame: their next press is the newer word.
+    const mayLand = retainReaderIntent();
+    requestAnimationFrame(() => {
+      if (!mayLand() || landed()) return;
+      if (!control.isConnected || !control.checkVisibility())
+        restoreReturnPlace({ control: null, reading });
+    });
     return;
   }
   if (reading?.isConnected) {
@@ -127,6 +167,42 @@ export function restoreReturnPlace({ control, reading }) {
     return;
   }
   document.body.focus({ preventScroll: true });
+}
+
+// The place a press displaced (see the header). `mountPressOrigin` is wired once by the
+// keyboard controller with the same capture the dispatcher uses for a key's origin.
+//
+// Whether a click had a press behind it is the click's own fact: a keyboard or scripted
+// activation carries `detail` 0, and it forgets whatever press came before it, in the
+// capture phase, ahead of every door. So a press that became no click — a right-click, a
+// drag that ended elsewhere — never lends its place to the Enter that follows, and no
+// timer has to win a race against the reader's next key to say so: a key pressed straight
+// after a click reaches the page before a timeout queued at that click's release does. A
+// click that did have a press always follows its own pointerdown, which has already
+// replaced the record, so nothing else needs clearing.
+let capturePlace = null;
+let pressed = null;
+export function mountPressOrigin(capture) {
+  capturePlace = capture;
+  document.addEventListener(
+    "pointerdown",
+    () => {
+      pressed = { control: focused() };
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (!event.detail) pressed = null;
+    },
+    true,
+  );
+}
+export function pressOrigin() {
+  if (!capturePlace)
+    throw new Error("leaf: pressOrigin read before the keyboard mounted");
+  return pressed ? capturePlace(pressed.control) : capturePlace();
 }
 
 // The stack itself. Commands declare their second half as `returnFrame`; the dispatcher
@@ -231,28 +307,73 @@ function descriptorFor(row, binding) {
     throw new TypeError(
       `leaf: ${row.id} must return active, close, does, and line from returnFrame`,
     );
+  if (!["undefined", "boolean", "function"].includes(typeof frame.standing))
+    throw new TypeError(
+      `leaf: ${row.id} must return standing as a boolean or a function from returnFrame`,
+    );
+  if (!["undefined", "boolean"].includes(typeof frame.ownEntry))
+    throw new TypeError(
+      `leaf: ${row.id} must return ownEntry as a boolean from returnFrame`,
+    );
+  if (!["undefined", "object", "function"].includes(typeof frame.surface))
+    throw new TypeError(
+      `leaf: ${row.id} must return surface as an element or a function from returnFrame`,
+    );
   return frame;
 }
 
 // The caller captures the origin before the command runs. Evaluate the frame before the
 // run too, because its descriptor may preserve pre-entry auxiliary chrome state; publish it only
 // after the command has really entered the layer. A liveness guard that changed during
-// the command therefore cannot leave a phantom frame behind.
+// the command therefore cannot leave a phantom frame behind. A command whose entry lands
+// asynchronously — the Ask walk opens the panel and reveals its destination across
+// several awaits — says so by returning its promise, and its frame is judged when that
+// settles, which is the first moment the layer it declared is either standing or not.
 export function invoke(row, binding, run, suppliedOrigin = null) {
   const frame = descriptorFor(row, binding);
   const origin = frame ? suppliedOrigin : null;
+  // Read before the run, like the origin: what already answers Escape is older than this
+  // press, whatever it goes on to open.
+  const older = frame?.surface === undefined ? null : escapeCensus();
   const before = new Set(entries);
   const result = run();
-  prune();
-  if (frame?.active()) {
+  // What the run itself pushed, read now: a settle that lands later must not adopt a
+  // layer something else opened in the meantime.
+  const pushed = entries.at(-1);
+  const settle = () => {
+    prune();
+    if (!frame?.active()) return;
     const top = entries.at(-1);
     // One gesture, one entry: a command that opened a native layer is that layer's way
     // out, so it takes over the entry its own run pushed rather than stacking a second
-    // rung the reader never asked for.
-    if (top && top.root && !top.does && !before.has(top))
-      Object.assign(top, frame, { origin, active: top.active, holds: frame.active });
-    else entries.push({ ...frame, origin, holds: frame.active });
-  }
+    // rung the reader never asked for. A frame whose life is not the layer's — the
+    // thread walk outlives the conversation view it opened when it walks on to a thread
+    // seated on the page — says `ownEntry` and stands above the layer as its own.
+    if (
+      top &&
+      top === pushed &&
+      top.root &&
+      !top.does &&
+      !before.has(top) &&
+      !frame.ownEntry
+    )
+      Object.assign(top, frame, {
+        origin,
+        older,
+        active: top.active,
+        holds: frame.active,
+      });
+    else entries.push({ ...frame, origin, older, holds: frame.active });
+  };
+  if (frame && typeof result?.then === "function")
+    result.then(
+      () => {
+        settle();
+        repaint();
+      },
+      () => {},
+    );
+  else settle();
   return result;
 }
 
@@ -260,6 +381,43 @@ export function current() {
   prune();
   const top = entries.at(-1);
   return top?.does && top.holds() ? top : null;
+}
+
+// Whether a live frame holds what the reader is standing on. A frame does unless it says
+// `standing: false`: the press that pushed it is what stood the reader where they are —
+// the `t` walk on a card, `a` on an Ask it opened the panel for, a widget command in the
+// layer it opened — so the scene's own "let go" stands down and Escape goes back through
+// that press instead. `g T` says false because its arrival is the list, the panel's own
+// floor, and what the reader then stands on in that panel is theirs to let go of first.
+export function heldStanding() {
+  prune();
+  return entries.some(
+    (entry) => entry.does && word(entry.standing) !== false && entry.holds(),
+  );
+}
+
+// Whether an Escape step rooted at `root` takes off something newer than the current
+// frame. A frame that stood the reader nowhere says which surface its press entered —
+// the panel, a tray — and what the reader has since put on outside that surface came
+// after it without a frame of its own: a selection, the page composer a click opened, a
+// margin cluster they unfolded, a mode. Those unwind first. Since, and not merely
+// outside: a target captured before `g T` is older than the panel, and the one Escape
+// still closes the panel over it. Unframed state records no time of its own, so the
+// stack takes a census of the steps already answering Escape as each such press is made
+// (`mountEscapeCensus`, installed by the dispatcher, which is the one that can name
+// them), and a step in that census is not newer. A step inside the surface is the
+// frame's own to order (its `close` takes an inner layer off and says false), and a
+// frame that names no surface, or holds the standing, yields to nothing.
+let escapeCensus = () => new Set();
+export function mountEscapeCensus(read) {
+  escapeCensus = read;
+}
+export function outsideCurrentFrame(root, steps) {
+  const frame = current();
+  if (!frame || heldStanding()) return false;
+  const surface = word(frame.surface);
+  if (!surface || under(root, surface)) return false;
+  return steps.some((step) => !frame.older?.has(step));
 }
 
 function back() {

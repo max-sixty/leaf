@@ -100,7 +100,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-  # The complete suite, including the nightly-marked modules that broad discovery
+  # The complete suite, including the nightly-marked tests that broad discovery
   # skips and the everyday `test` job therefore never reaches. A push to main runs it,
   # so a regression in one of them surfaces in the hour or two after it lands rather
   # than at the next morning's cron, and the failed run reaches tend-ci-fix.

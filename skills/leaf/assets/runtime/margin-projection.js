@@ -34,11 +34,24 @@
    opened. Page Map and Go-to arrivals activate the exact visible control;
    they do not choose another action for the reader.
 
-   The thread card stays attached to its owning cluster. Leaf prefers the right then left
-   page lane before overlaying the document; Floating UI fits the card within that lane or
-   reading region. The card closes after its cluster leaves the region. It contains the
+   The thread card stands by its owning cluster, or, where the rail has no room for that
+   cluster, by the page target the cluster is about. `thread-card-geometry.js` states
+   where it stands: in the rail beside the cluster when the room there takes the card's
+   minimum measure, otherwise under or over the cluster with its right edge on the
+   visible edge, so it crosses the column by no more than the rail's shortfall. The card
+   keeps its height in every case; one too tall for its spot slides across its cluster
+   rather than shrinking. This module supplies the visible boundary — the reading region
+   or the viewport under the banner and over the bottom chrome — measures the card, and
+   closes it once what it stands by has left that boundary. The card contains the
    complete inline conversation view; the Threads panel remains the complete index and
    takes over when already open.
+
+   Placing the card changes its geometry and nothing inside it. The reader's place in
+   its transcript is the list's own scroll, which the browser holds through reflow; only
+   a gesture moves it — a landing through `revealConversation`, a send revealing the
+   reply, a step to another thread starting it at the top. Every state read places the
+   card, so a scroll written there would move a reader partway up the transcript on each
+   status the agent writes.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -76,8 +89,9 @@ import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
+import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
-import { clampedRow, PRESS } from "./keyboard/bindings.js";
+import { clampedRow, PRESS, word } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
@@ -86,10 +100,9 @@ import {
   readingRegionFor,
   shownRegionBounds,
 } from "./reading-regions.js";
-import { panelWouldCover } from "./conversation/panel-elements.js";
-import { COVERING } from "./chrome-layout.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
+import { pageScope } from "./keyboard/register.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
@@ -112,9 +125,32 @@ import { anchorLabel } from "./conversation/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
+import { bannerControlDoor } from "./banner-shelf.js";
+import { threadCardGeometry } from "./thread-card-geometry.js";
 
-let floatingUiModule = null;
-const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
+// Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
+// posture on `main` where it claims the rail, and this reads that answer rather than
+// deriving one of its own from a width. It resolves a container query, so a read after a
+// write forces layout, and the layout pass calls it from inside its write loops, once
+// per row. So the answer is read once per task and reused: a pass is synchronous, and
+// nothing it writes can change the reading, since the claim comes out of `main`'s room
+// inside the shell while the container answers on the shell itself. The microtask that
+// clears it runs before anything outside the pass can ask.
+const readRailPosture = () => {
+  const main = document.querySelector("main");
+  return (
+    Boolean(main) &&
+    getComputedStyle(main).getPropertyValue("--lf-rail-posture").trim() === "margin"
+  );
+};
+let railReading = null;
+const railStands = () => {
+  if (railReading === null) {
+    railReading = readRailPosture();
+    queueMicrotask(() => (railReading = null));
+  }
+  return railReading;
+};
 
 export function createMarginProjection({
   panelIsOpen,
@@ -133,10 +169,10 @@ export function createMarginProjection({
   bottomChromeBoxes,
   placedAt,
   showThread,
+  panelFrame,
   goToAsk,
   scrollToElement,
   scrollToThread,
-  landInConversation,
 }) {
   const KINDS = {
     action: { label: "Action", icon: "dot", priority: -1 },
@@ -291,13 +327,37 @@ export function createMarginProjection({
     };
   }
 
-  function changePosture() {
-    const marginHeld =
-      toolbar.contains(document.activeElement) ||
-      preview.contains(document.activeElement);
-    if (panelWouldCover() && preview.matches(":popover-open")) closePreview();
-    if (panelWouldCover() && marginHeld) requestAnimationFrame(() => focusMapControl());
-    renderMargin.refresh();
+  // Where focus was when it last moved, rather than where it is. The rail falling hides
+  // the control holding it, and the browser takes focus off a hidden element itself,
+  // onto body — sometimes before this owner hears that the shell moved and sometimes
+  // after, since what decides it is whether the focus fixup lands before the resize
+  // observation. Measured on the live reading alone, a held marker reached the Page Map
+  // on four of five narrowings and body on the fifth. A blur to nothing writes nothing
+  // here, so the remembered reading survives the hide.
+  let marginHeld = false;
+  const holdsMargin = () =>
+    toolbar.contains(document.activeElement) ||
+    preview.contains(document.activeElement);
+  document.addEventListener(
+    "focusin",
+    () => {
+      marginHeld = holdsMargin();
+    },
+    { capture: true },
+  );
+
+  function changePosture(stands) {
+    if (!stands && preview.matches(":popover-open")) closePreview();
+    // Both orderings answer: where the fixup has not landed the live reading holds, and
+    // where it has, the remembered one does. Requiring body of the remembered reading
+    // bounds the handoff to the hide — a reader who left the margin some other way,
+    // with no `focusin` to land anywhere, keeps wherever they went.
+    if (
+      !stands &&
+      (holdsMargin() || (marginHeld && document.activeElement === document.body))
+    )
+      requestAnimationFrame(() => focusMapControl());
+    schedulePostureRender();
   }
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = "lf-margin-preview";
@@ -436,9 +496,8 @@ export function createMarginProjection({
   function scheduleThreadTransition(origin, entry) {
     clearThreadTransition();
     const epoch = threadTransitionEpoch;
-    // Margin packing finishes on the next frame. The placement reset keeps the real card
-    // transparent until its asynchronous position lands; this frame must not clear that
-    // gate while the carried shell aims at the marker's settled position.
+    // Margin packing finishes on the next frame, so the card is placed again from its
+    // cluster's settled position before the carried shell reads where to aim.
     return new Promise((resolve) => {
       requestAnimationFrame(() => {
         if (
@@ -450,8 +509,7 @@ export function createMarginProjection({
           return;
         }
         resetThreadPreviewPosition();
-        placeThreadPreview();
-        resolve(threadPreviewPositioned());
+        resolve(placedThreadPreview());
       });
     }).then((positioned) => {
       if (
@@ -769,7 +827,6 @@ export function createMarginProjection({
   let postureFrame = 0;
   let previewPositionFrame = 0;
   let previewPositionDismissDetached = false;
-  let previewPositionEpoch = 0;
   let previewReferenceSeen = false;
   let previewPositionWaiters = [];
   let previewFocusPending = null;
@@ -780,8 +837,13 @@ export function createMarginProjection({
   }
   const threadPreviewPositioned = () =>
     new Promise((resolve) => previewPositionWaiters.push(resolve));
+  // Placement is synchronous, so a card that can be placed is placed now. One that
+  // cannot yet — its popover not open this rendering turn, its owner not connected, no
+  // room — is answered by the placement a later frame lands, or by the close that
+  // abandons it.
+  const placedThreadPreview = () =>
+    placeThreadPreview() ? Promise.resolve(true) : threadPreviewPositioned();
   function resetThreadPreviewPosition() {
-    previewPositionEpoch += 1;
     cancelAnimationFrame(previewPositionFrame);
     previewPositionFrame = 0;
     previewPositionDismissDetached = false;
@@ -797,25 +859,6 @@ export function createMarginProjection({
       renderMargin.refresh();
     });
   }
-  function keepThreadPreviewFocusVisible() {
-    const active = document.activeElement;
-    if (!(active instanceof HTMLElement) || !preview.contains(active)) return;
-    // A conversation root is a reading destination, not a control that must fit
-    // whole. Its header stays outside this scrollport, as does settlement.
-    if (
-      active.matches(".lf-conversation-thread") ||
-      active.closest(".lf-thread-head") ||
-      !previewList.contains(active)
-    )
-      return;
-    const card = previewList.getBoundingClientRect();
-    const activeBox = active.getBoundingClientRect();
-    const inset = 12;
-    if (activeBox.bottom > card.bottom - inset)
-      previewList.scrollTop += activeBox.bottom - card.bottom + inset;
-    else if (activeBox.top < card.top + inset)
-      previewList.scrollTop -= card.top + inset - activeBox.top;
-  }
   function deferThreadPreviewFocus(positioned, focus) {
     const pending = { key: previewEntry?.key, holding: document.activeElement };
     previewFocusPending = pending;
@@ -830,184 +873,91 @@ export function createMarginProjection({
     });
   }
 
+  const CARD_GAP = 8;
+  // The room a card may stand in: its target's reading region, else the viewport, less
+  // the banner over it and the bottom chrome under it. The chrome's boxes stand in one
+  // row at the foot, so the tallest of them bounds the whole width.
+  function threadCardBoundary(target) {
+    const region = containingReadingRegionFor(target);
+    const bounds = region ? shownRegionBounds(region) : null;
+    const bannerBottom =
+      document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
+    const left = (bounds?.left ?? 0) + CARD_GAP;
+    const right = (bounds?.right ?? document.documentElement.clientWidth) - CARD_GAP;
+    const top = Math.max(bounds?.top ?? 0, bannerBottom) + CARD_GAP;
+    const bottom =
+      Math.min(
+        bounds?.bottom ?? innerHeight,
+        ...bottomChromeBoxes().map((box) => box.top),
+      ) - CARD_GAP;
+    return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+  }
+  function measureThreadCard(width) {
+    preview.style.setProperty("--lf-thread-width", `${width}px`);
+    return preview.getBoundingClientRect().height;
+  }
+  // The reply scrolls internally once it fills the conversation's remaining room. A
+  // viewport-only cap can put its first line and Send on opposite sides of the
+  // transcript's clipping boundary.
+  function fitThreadCardEditors() {
+    for (const input of previewList.querySelectorAll(".lf-say textarea")) {
+      const row = input.closest(".lf-say");
+      const thread = row.closest(".lf-conversation-thread");
+      const style = getComputedStyle(thread);
+      const furniture = row.offsetHeight - input.offsetHeight;
+      const inset = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      input.style.setProperty(
+        "--lf-thread-editor-room",
+        `${Math.max(40, previewList.clientHeight - furniture - inset)}px`,
+      );
+    }
+  }
+
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (
       !preview.matches(":popover-open") ||
       !preview.hasAttribute("data-lf-thread") ||
       !previewMarginEntry?.isConnected
     )
-      return Promise.resolve(false);
-    const controls =
+      return false;
+    // A row the rail has no room for is withheld and has no box. A card placed against
+    // that empty box stood in the boundary's corner over the words the reader pressed,
+    // and read as detached before it had stood anywhere, so no scroll could dismiss it.
+    // It stands by the row's target instead. A row whose target is not shown is withheld
+    // too, and that target has no box to stand by either.
+    const row =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
-    const target = controls.getBoundingClientRect();
-    const readingRegion = containingReadingRegionFor(previewEntry?.target);
-    const regionBounds = readingRegion && shownRegionBounds(readingRegion);
-    const main = readingRegion
-      ? null
-      : document.querySelector("main")?.getBoundingClientRect();
-    const bannerBottom =
-      document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-    const gap = 8;
-    const firstLeft = (regionBounds?.left ?? 0) + gap;
-    const lastRight =
-      (regionBounds?.right ?? document.documentElement.clientWidth) - gap;
-    const firstTop = Math.max(regionBounds?.top ?? 0, bannerBottom) + gap;
-    const baseBottom = (regionBounds?.bottom ?? innerHeight) - gap;
-    const visibleBoundary = new DOMRect(
-      firstLeft,
-      firstTop,
-      Math.max(0, lastRight - firstLeft),
-      Math.max(0, baseBottom - firstTop),
-    );
+    const cluster = (
+      row.checkVisibility() ? row : (previewEntry?.target ?? row)
+    ).getBoundingClientRect();
+    const boundary = threadCardBoundary(previewEntry?.target);
+    if (!boundary.width || !boundary.height) return false;
     const style = getComputedStyle(preview);
-    const preferredWidth = Math.min(
-      parseFloat(style.getPropertyValue("--thread-card")),
-      visibleBoundary.width,
-    );
-    const minimumWidth = parseFloat(style.getPropertyValue("--thread-card-min"));
-    const bottomFor = (left, width) =>
-      bottomChromeBoxes()
-        .filter((box) => left < box.right && box.left < left + width)
-        .reduce((edge, box) => Math.min(edge, box.top - gap), baseBottom);
-    const adjacentLeft = ({ name, left, right }, width) =>
-      name === "right"
-        ? Math.min(Math.max(target.right + gap, left), right - width)
-        : Math.max(left, Math.min(target.left - gap - width, right - width));
-    const side = (
-      main
-        ? [
-            { name: "right", left: main.right + gap, right: lastRight },
-            { name: "left", left: firstLeft, right: main.left - gap },
-          ]
-        : []
-    ).find((candidate) => {
-      const { left, right } = candidate;
-      const width = Math.min(preferredWidth, right - left);
-      const cardLeft = adjacentLeft(candidate, width);
-      return right - left >= minimumWidth && bottomFor(cardLeft, width) > firstTop;
-    });
-    const boundaryLeft = side?.left ?? firstLeft;
-    const boundaryRight = side?.right ?? lastRight;
-    const width = Math.min(preferredWidth, boundaryRight - boundaryLeft);
-    const cardLeft = side
-      ? adjacentLeft(side, width)
-      : Math.max(firstLeft, Math.min(target.right - width, lastRight - width));
-    const boundary = new DOMRect(
-      boundaryLeft,
-      firstTop,
-      Math.max(0, boundaryRight - boundaryLeft),
-      Math.max(0, bottomFor(cardLeft, width) - firstTop),
-    );
-    if (!boundary.width || !boundary.height) return Promise.resolve(false);
-    const sourceOutside = target.bottom <= firstTop || target.top >= baseBottom;
-    const crossesSource =
-      cardLeft < target.right + gap && target.left - gap < cardLeft + width;
-    const alignment = side?.name === "left" ? "start" : "end";
-    const placement = side
-      ? crossesSource
-        ? `bottom-${alignment}`
-        : side.name
-      : "bottom-end";
-    const fallbackPlacements = !side || crossesSource ? [`top-${alignment}`] : [];
-    const reference = {
-      contextElement: controls,
-      getBoundingClientRect: () =>
-        new DOMRect(
-          !side || crossesSource
-            ? cardLeft
-            : side.name === "right"
-              ? cardLeft - gap
-              : cardLeft + width + gap,
-          target.top,
-          !side || crossesSource ? width : 0,
-          target.height,
-        ),
-    };
-    preview.style.setProperty("--lf-thread-width", `${width}px`);
+    // The boundary alone caps the card's height; the geometry measures it under that
+    // cap at the width it chose, which the card is then wearing.
     preview.style.setProperty("--lf-thread-max-height", `${boundary.height}px`);
-    const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
-    const epoch = ++previewPositionEpoch;
-    const stillCurrent = () =>
-      epoch === previewPositionEpoch &&
-      preview.matches(":popover-open") &&
-      previewMarginEntry?.isConnected;
-    return floatingUi()
-      .then(({ computePosition, flip, hide, offset, shift, size }) =>
-        computePosition(reference, preview, {
-          placement,
-          strategy: "fixed",
-          middleware: [
-            offset(gap),
-            fallbackPlacements.length &&
-              flip({
-                ...overflow,
-                fallbackPlacements,
-                fallbackStrategy: "bestFit",
-                crossAxis: false,
-              }),
-            size({
-              ...overflow,
-              apply({ availableHeight, availableWidth, placement: placed }) {
-                if (!stillCurrent()) return;
-                const beside = /^(left|right)/.test(placed);
-                preview.style.setProperty(
-                  "--lf-thread-width",
-                  `${Math.max(0, Math.min(width, availableWidth))}px`,
-                );
-                preview.style.setProperty(
-                  "--lf-thread-max-height",
-                  `${Math.max(0, beside ? boundary.height : availableHeight)}px`,
-                );
-                // The reply scrolls internally once it fills the conversation's
-                // remaining room. A viewport-only cap can put its first line and
-                // Send on opposite sides of the transcript's clipping boundary.
-                for (const input of previewList.querySelectorAll(".lf-say textarea")) {
-                  const row = input.closest(".lf-say");
-                  const thread = row.closest(".lf-conversation-thread");
-                  const style = getComputedStyle(thread);
-                  const furniture = row.offsetHeight - input.offsetHeight;
-                  const inset =
-                    parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-                  input.style.setProperty(
-                    "--lf-thread-editor-room",
-                    `${Math.max(40, previewList.clientHeight - furniture - inset)}px`,
-                  );
-                }
-              },
-            }),
-            shift({
-              ...overflow,
-              mainAxis: true,
-              crossAxis: (!side || crossesSource) && sourceOutside,
-            }),
-            hide({ boundary: [], rootBoundary: visibleBoundary, padding: 0 }),
-          ],
-        }),
-      )
-      .then(({ x, y, placement, middlewareData }) => {
-        if (!stillCurrent()) return false;
-        const referenceHidden = middlewareData.hide?.referenceHidden ?? false;
-        if (referenceHidden && previewReferenceSeen && dismissDetached) {
-          closePreview();
-          return false;
-        }
-        if (!referenceHidden) previewReferenceSeen = true;
-        preview.dataset.lfThreadPlacement =
-          side?.name ??
-          placement.split("-", 1)[0].replace("bottom", "below").replace("top", "above");
-        preview.style.left = `${x}px`;
-        preview.style.top = `${y}px`;
-        preview.style.removeProperty("opacity");
-        preview.style.removeProperty("pointer-events");
-        keepThreadPreviewFocusVisible();
-        answerThreadPreviewPosition(true);
-        return true;
-      })
-      .catch((error) => {
-        if (!stillCurrent()) return false;
-        closePreview(true);
-        throw error;
-      });
+    const geometry = threadCardGeometry({
+      cluster,
+      boundary,
+      gap: CARD_GAP,
+      minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
+      preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
+      heightAt: measureThreadCard,
+    });
+    if (geometry.detached) {
+      if (previewReferenceSeen && dismissDetached) {
+        closePreview();
+        return false;
+      }
+    } else previewReferenceSeen = true;
+    preview.style.left = `${geometry.x}px`;
+    preview.style.top = `${geometry.y}px`;
+    preview.dataset.lfThreadPlacement = geometry.placement;
+    preview.style.removeProperty("opacity");
+    preview.style.removeProperty("pointer-events");
+    fitThreadCardEditors();
+    answerThreadPreviewPosition(true);
+    return true;
   }
   function scheduleThreadPreviewPosition(dismissDetached = false) {
     previewPositionDismissDetached ||= dismissDetached;
@@ -1423,7 +1373,7 @@ export function createMarginProjection({
       // The compact margin projection has no page rail. Dock every contributed entry even when a
       // positioned widget happens to leave enough local room for the absolute
       // prototype; that accident must not give one nested target a desktop posture.
-      hangs: () => !readingRegionFor(row.lfEntry?.target) && !panelWouldCover(),
+      hangs: () => !readingRegionFor(row.lfEntry?.target) && railStands(),
       // A wide row is hoisted into main's positioning context. If its live width no
       // longer fits the rail, move the same node beside its target before static flow
       // takes over; restore the hoist before measuring whether it fits again.
@@ -1646,14 +1596,19 @@ export function createMarginProjection({
       marker.focus({ preventScroll: true });
       return;
     }
-    if (mapButton.isConnected && mapButton.checkVisibility()) {
-      mapButton.focus({ preventScroll: true });
+    // The Map is a shelf control, so at a width that folds it the button itself is
+    // behind a shut door and cannot take focus. Ask the shelf for the way in.
+    const door = bannerControlDoor(mapButton);
+    if (door) {
+      door.focus({ preventScroll: true });
       return;
     }
     const visible = visibleRows();
-    (visible.find((row) => row.tabIndex === 0) ?? visible[0] ?? versionBtn).focus({
-      preventScroll: true,
-    });
+    const last =
+      visible.find((row) => row.tabIndex === 0) ??
+      visible[0] ??
+      bannerControlDoor(versionBtn);
+    last?.focus({ preventScroll: true });
   }
 
   // The rail holds one tab stop: the way in from the page, not the reading position,
@@ -1820,7 +1775,7 @@ export function createMarginProjection({
     }
   }
 
-  function externalPerch(target, main, flow = panelWouldCover()) {
+  function externalPerch(target, main, flow) {
     if (!main) return target;
     // A hanging item must be a child of main's own positioning context. In flow it
     // belongs immediately after the rendered block that owns its target. A declared
@@ -1841,7 +1796,7 @@ export function createMarginProjection({
   function moveExternalHost(host, flow) {
     const main = document.querySelector("main");
     const target = host.lfEntry?.target;
-    if (!main || !target || panelWouldCover()) return;
+    if (!main || !target || !railStands()) return;
     const perch = externalPerch(target, main, flow);
     let after = perch;
     for (const entry of pageInventory) {
@@ -2232,6 +2187,7 @@ export function createMarginProjection({
     const main = document.querySelector("main");
     if (!nav.isConnected) chromeRoot.append(nav);
     const mainRect = main?.getBoundingClientRect();
+    const flow = !railStands();
     measureMargin(mainRect)?.();
     syncInlineOffers();
     pageInventory = collectEntries().filter((entry) => entry.target);
@@ -2389,7 +2345,7 @@ export function createMarginProjection({
       const primary = presentCluster(host, marker, more, entry, projection);
       if (entry.offers.length || readingRegionFor(entry.target)) {
         keeps(host, "data-lf-external", "1");
-        const perch = externalPerch(entry.target, main);
+        const perch = externalPerch(entry.target, main, flow);
         const dock = externalDocks.get(perch) ?? perch;
         if (dock.nextSibling !== host) moveHost(host, () => dock.after(host));
         externalDocks.set(perch, host);
@@ -2628,8 +2584,7 @@ export function createMarginProjection({
         previewShowing = false;
       }
     }
-    placeThreadPreview();
-    const positioned = threadPreviewPositioned();
+    const positioned = placedThreadPreview();
     refreshHighlight();
     for (const row of rows.values())
       syncReadingRelation(row, primaryReading(row.lfEntry));
@@ -2639,27 +2594,51 @@ export function createMarginProjection({
     return positioned;
   }
 
+  // A press on a margin control is a command like `t`: it enters the layer stack with
+  // the place the reader held before the press, so the Escape that dismisses the view
+  // hands that place back — the page, for a reader who clicked a marker — rather than
+  // whichever margin control the view hangs from by then. A view already showing takes
+  // the thread in under whatever entry it has; the press only changes what it shows.
+  const OPENED_BY_PRESS = {
+    id: "margin.conversation",
+    returnFrame: () => ({
+      active: () => inlineThreadView.showing(),
+      close: () => closePreview(),
+      does: "Dismiss the conversation view",
+      line: "dismiss conversation",
+    }),
+  };
   function togglePinned(entry, button) {
     if (pinnedKey === entry.key && previewMarginEntry === button) {
       pinnedKey = null;
       closePreview();
       return;
     }
-    pinnedKey = entry.key;
-    const positioned = showPreview(entry, button);
-    if (previewList.querySelector(".lf-conversation-thread"))
-      deferThreadPreviewFocus(positioned, () => {
-        if (previewEntry?.key !== entry.key) return;
-        const thread = previewList.querySelector(".lf-conversation-thread");
-        if (!thread) return;
-        thread.focus({ preventScroll: true });
-        revealConversation(thread, thread);
-      });
+    const open = () => {
+      pinnedKey = entry.key;
+      const positioned = showPreview(entry, button);
+      if (previewList.querySelector(".lf-conversation-thread"))
+        deferThreadPreviewFocus(positioned, () => {
+          if (previewEntry?.key !== entry.key) return;
+          const thread = previewList.querySelector(".lf-conversation-thread");
+          if (!thread) return;
+          thread.focus({ preventScroll: true });
+          revealConversation(thread, thread);
+        });
+    };
+    if (inlineThreadView.showing()) {
+      open();
+      return;
+    }
+    invoke(OPENED_BY_PRESS, null, open, pressOrigin());
   }
 
   function closePreview(returnFocus = false) {
     clearThreadTransition();
     const button = previewMarginEntry;
+    // A cluster the walk unfolded to hang the view from folds with the view; one the
+    // reader unfolded stays, and is its own rung.
+    const forcedOptionsKey = forcedInlineOptionsKey;
     pinnedKey = null;
     forcedInlineKey = null;
     forcedInlineOptionsKey = null;
@@ -2670,6 +2649,8 @@ export function createMarginProjection({
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
     if (preview.matches(":popover-open")) preview.hidePopover();
+    if (forcedOptionsKey && expandedOptionsKey === forcedOptionsKey)
+      setOptionsOpen(null, false);
     refreshHighlight();
     for (const row of rows.values())
       syncReadingRelation(row, primaryReading(row.lfEntry));
@@ -2682,6 +2663,17 @@ export function createMarginProjection({
     }
     paintKeys();
   }
+
+  // The way back out of the conversation view a walk opened from the page: a `t` from the
+  // page never stood on the margin, so its frame closes the view and leaves the reader's
+  // place to the frame that captured it. The view's own close control, pressed by pointer,
+  // hands focus to the margin entry the view hangs from, since that is where the pointer
+  // is; a press that opened the view has a frame of its own (`togglePinned`).
+  const inlineThreadView = {
+    showing: () =>
+      preview.matches(":popover-open") && preview.hasAttribute("data-lf-thread"),
+    dismiss: () => closePreview(),
+  };
 
   // The card and its owning margin entry cluster are one page-map stack even though the card
   // is hoisted into the chrome. Expose the current rung to the one keyboard register so
@@ -2720,6 +2712,31 @@ export function createMarginProjection({
       };
     return null;
   }
+
+  // A thread card and the unfolded margin entry cluster that owns it are one page-map
+  // stack, though the card itself is hoisted into the chrome. This is a scene-derived
+  // fallback: a later keyboard entry returns through its captured frame before this rung.
+  // Without one, the registered rung precedes the reaction and navigation fallbacks just as
+  // the surface's old local listener did: Escape closes the card first, then folds the
+  // cluster on a second press.
+  const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
+  pageScope("page map", {
+    title: "In the Page Map",
+    root: () => pageMapRung()?.root ?? document,
+    when: () => Boolean(pageMapRung(false)),
+    at: () => Boolean(pageMapRung()),
+    rows: [
+      {
+        id: "margin.back",
+        keys: ["Escape"],
+        does: () => pageMapRung(false)?.does,
+        line: () => pageMapRung()?.says,
+        commandReferenceWhen: () => Boolean(pageMapRung(false)),
+        when: () => Boolean(pageMapRung()),
+        run: () => pageMapRung()?.out(),
+      },
+    ],
+  });
 
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
@@ -2809,45 +2826,80 @@ export function createMarginProjection({
   // opened on demand. Threads remains the complete fallback for a detached or otherwise
   // unaddressable conversation. Callers choose only the landing within the conversation;
   // this function owns the surface choice so a mark, its accessibility note, and t/T
-  // cannot drift into different policies.
-  function openPageThread(id, { focus = "reply" } = {}) {
+  // cannot drift into different policies. The margin card always lands on the thread
+  // itself.
+  //
+  // A press on marked words passes `travel: false`: the words are already under the
+  // reader's hand, and centring them moves everything the reader was looking at. The
+  // card needs no trip, since placeThreadPreview keeps it inside the viewport.
+  //
+  // A press — on the mark, or on its note — passes `origin`, the place it displaced, and
+  // whatever the press opened enters the layer stack with it, as a marker press does in
+  // togglePinned: the view where the thread has a place on the page, else the panel,
+  // which is where a thread with none is indexed. One frame reads which of the two the
+  // run opened, so Escape closes that one and hands back the place. A view already
+  // showing takes the thread in without a new entry. The `t` walk passes no origin: its
+  // own frame holds the walk.
+  function openPageThread(id, { focus = "reply", travel = true, origin = null } = {}) {
     if (!panelIsOpen()) {
       const local = focusSurface(id, { focus });
       if (local) {
-        const optionsKey = forcedInlineOptionsKey;
         closePreview();
-        if (optionsKey && expandedOptionsKey === optionsKey)
-          setOptionsOpen(null, false);
-        scrollToThread(id);
+        if (travel) scrollToThread(id);
         return local;
       }
-      const thread = openInlineThread(id, null, (positionedThread) => {
-        const destination =
-          focus === "thread"
-            ? positionedThread
-            : (positionedThread.querySelector("textarea:not([disabled])") ??
-              positionedThread);
-        if (destination === positionedThread) {
+    }
+    const panelWasShut = !panelIsOpen();
+    let opened = null;
+    const open = () => {
+      if (!panelIsOpen()) {
+        const thread = openInlineThread(id, null, (positionedThread) => {
           positionedThread.focus({ preventScroll: true });
           positionedThread.scrollIntoView({
             behavior: scrollBehavior(),
             block: "nearest",
           });
-          scrollToThread(id);
-        } else {
-          landInConversation(destination);
+          if (travel) scrollToThread(id);
+        });
+        if (thread) {
+          opened = "view";
+          return thread;
         }
-      });
-      if (thread) {
-        const destination =
-          focus === "thread"
-            ? thread
-            : (thread.querySelector("textarea:not([disabled])") ?? thread);
-        return destination;
       }
-    }
-    showThread(id, { focus });
-    return null;
+      showThread(id, { focus });
+      opened = panelWasShut ? "panel" : null;
+      return null;
+    };
+    if (!origin || inlineThreadView.showing()) return open();
+    // The panel's half is the panel's own frame, the one its toggle pushes, with this
+    // thread as the one the press stood the reader on; the view's half holds the
+    // standing the way a marker press does.
+    const panelHalf = panelFrame({ carried: id });
+    const viewHalf = {
+      active: () => opened === "view" && inlineThreadView.showing(),
+      close: () => closePreview(),
+      does: "Dismiss the conversation view",
+      line: "dismiss conversation",
+      standing: true,
+      surface: null,
+    };
+    const half = () => (opened === "panel" ? panelHalf : viewHalf);
+    return invoke(
+      {
+        id: "margin.thread",
+        returnFrame: () => ({
+          active: () => half().active(),
+          close: () => half().close(),
+          does: () => word(half().does),
+          line: () => word(half().line),
+          standing: () => word(half().standing),
+          surface: () => word(half().surface),
+        }),
+      },
+      null,
+      open,
+      origin,
+    );
   }
 
   // The row's acknowledgment face is read out of the published state projection rather
@@ -2977,7 +3029,6 @@ export function createMarginProjection({
     previewClose.onclick = () => closePreview(true);
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    preview.addEventListener("focusin", keepThreadPreviewFocusVisible);
     preview.addEventListener("toggle", (event) => {
       if (event.newState !== "closed") return;
       for (const reply of previewList.querySelectorAll("textarea"))
@@ -3037,7 +3088,16 @@ export function createMarginProjection({
       schedulePostureRender();
     });
     renderMargin();
-    matchMedia(COVERING).addEventListener("change", changePosture);
+    // The rail stands or falls with the shell, which a resize and a strip taken or
+    // given back both move. The repaint that follows a flip waits a frame, since this
+    // observer must not move body itself.
+    let railStood = railStands();
+    new ResizeObserver(() => {
+      const stands = railStands();
+      if (stands === railStood) return;
+      railStood = stands;
+      changePosture(stands);
+    }).observe(document.body);
     chromeRoot.append(nav, preview);
   }
   return {
@@ -3057,6 +3117,7 @@ export function createMarginProjection({
     marginEntryKind,
     activateMarginEntry,
     closePreview,
+    inlineThreadView,
     keyboardRung,
     openInlineThread,
     openPageThread,

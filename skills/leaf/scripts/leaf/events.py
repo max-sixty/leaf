@@ -157,8 +157,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     Answer effects survive retirement of their source widget. An unrelated action
     on another facet cannot supersede one, while an explicit answer with null
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
-    the current page location, while ``detached_from`` retains the last real anchor
-    only when an explicit null replacement leaves the thread detached.
+    the thread's current page location, and ``detached_from`` retains the last real
+    anchor only when an explicit null replacement leaves the thread detached.
     """
     floors = retractions(events)
     if withdrawn is None:
@@ -248,15 +248,47 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     return threads
 
 
-def anchored_ids(events: list, within: dict) -> set:
-    """Element ids an unresolved thread still points at. A reaction nobody has
-    answered is a mark and not a thread, so it holds no id: a reaction never
-    gates a version, and its anchor re-resolves or detaches like a comment's."""
-    return {
-        (t["anchor"] or {}).get("section")
+def current_anchors(events: list, within: dict) -> list:
+    """The anchors live conversations still bind the page with.
+
+    A thread's target is its latest anchor, so a thread a reply moved or detached
+    binds the page at the new coordinate or at none: the log keeps the opening
+    comment's words and the coordinate they were written at, and nothing resolves
+    that coordinate against the page again. `detached_from` is the same fact read
+    from the thread's side. A closed conversation lets its target go on the same
+    terms, and so does a reaction nobody has answered — paint on the page, and no
+    thread yet.
+
+    One rule for every reader that asks whether a written anchor still binds the
+    page, because a version check refusing to drop what a thread has already let
+    go is the same bug as a browser painting a mark there. `within` is the
+    containment the settlement half reads, as every other fold of the threads
+    takes it."""
+    return [
+        t["anchor"]
         for t in build_threads(events, within).values()
-        if not t["resolved"] and not bare_reaction(t)
-    } - {None}
+        if t["anchor"] and not t["resolved"] and not bare_reaction(t)
+    ]
+
+
+def anchored_ids(events: list, within: dict) -> set:
+    """Element ids a live conversation still points at — the section half of
+    `current_anchors`, for the ids an author writes."""
+    anchors = current_anchors(events, within)
+    return {anchor.get("section") for anchor in anchors} - {None}
+
+
+def anchored_parts(events: list, within: dict) -> set:
+    """(section, visual part) coordinates a live conversation still points at.
+
+    The visual half of `current_anchors`, for the parts an authored inventory
+    declares: a part is addressable markup the way an id is, and a version may
+    retire one the moment no conversation points at it."""
+    return {
+        (anchor["section"], anchor["visual"])
+        for anchor in current_anchors(events, within)
+        if anchor.get("visual")
+    }
 
 
 def awaits_agent(thread: dict) -> bool:
@@ -273,7 +305,7 @@ def awaits_agent(thread: dict) -> bool:
     the same question as theirs is one fact told two ways.
 
     Not the agent, rather than the reader: `author` is an open string on every message
-    contract, and the two the code writes are `user` and `claude`. A line from anywhere
+    contract, and the two the code writes are `user` and `agent`. A line from anywhere
     else therefore reads as owed an answer, which is the direction to err in — an
     unanswered word is invisible to everyone, while one answer too many costs a reply.
 
@@ -283,15 +315,14 @@ def awaits_agent(thread: dict) -> bool:
     runtime's `awaitsAgent` reads the same list for the same reason."""
     said = spoken_turns(thread)
     unanswered = next(
-        (message for message in reversed(said) if message["author"] != "claude"),
+        (message for message in reversed(said) if message["author"] != "agent"),
         None,
     )
     return bool(
         not thread["resolved"]
         and unanswered
         and not any(
-            message["author"] == "claude"
-            and message.get("responds") == unanswered["id"]
+            message["author"] == "agent" and message.get("responds") == unanswered["id"]
             for message in said
         )
     )

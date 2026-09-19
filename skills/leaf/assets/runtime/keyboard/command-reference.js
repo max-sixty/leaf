@@ -42,9 +42,11 @@ import {
   coveringAuxiliaryFocus,
   coveringAuxiliarySurface,
   ELEMENTS,
+  pageScope,
   pageScopes,
   auxiliaryAllowsNativeLayer,
 } from "./register.js";
+import { EVERYTHING } from "./text-entry.js";
 import {
   byCommand,
   focused,
@@ -74,7 +76,18 @@ commandReferenceDialog.tabIndex = -1;
 export const commandReferenceClose = el("button", "lf-btn lf-command-reference-close");
 commandReferenceClose.type = "button";
 
-export function presentCommandReferenceClose(returningToMore) {
+// What the reader is sent back to when the reference closes. The shortcut shelf is the one
+// surface that can stand behind it, and it declares itself here rather than being read from
+// here: the bar that owns the shelf already reads this module, so the edge only goes one
+// way. The close control's words and its Escape row read this one answer, so the button and
+// the key cannot promise different destinations.
+let shelfBehindReference = () => false;
+export const declareShelfBehindReference = (reading) => {
+  shelfBehindReference = reading;
+};
+
+function presentCommandReferenceClose() {
+  const returningToMore = Boolean(shelfBehindReference());
   const label = returningToMore ? "Back to more shortcuts" : "Close";
   const title = returningToMore
     ? "Back to more shortcuts"
@@ -83,7 +96,7 @@ export function presentCommandReferenceClose(returningToMore) {
   keeps(commandReferenceClose, "data-lf-key-title", title);
   keeps(commandReferenceClose, "aria-label", title);
 }
-presentCommandReferenceClose(false);
+presentCommandReferenceClose();
 
 // Every scope the page has, gathered by title, for the reference. This is not the current
 // stack: the catalog answers what the reader could do here, so it includes a card grip's
@@ -683,6 +696,7 @@ function commandReferenceTemplate() {
 
 function presentCommandReference() {
   updateCommandReferenceView();
+  presentCommandReferenceClose();
   render(commandReferenceTemplate(), commandReferenceDialog);
 }
 
@@ -870,3 +884,73 @@ export const openCommandReference = (invokeCommand, captureOrigin) =>
   showCommandReference(true, true, invokeCommand, captureOrigin);
 export const closeCommandReference = (restoreFocus = true) =>
   showCommandReference(false, restoreFocus, null, null);
+
+// The dialog's own keys. It is a modal search context and claims the whole keyboard while
+// it stands, so its rows are the only ones the reader can reach; the boundary's one route
+// through to another layer is the universal reference binding itself. None of these runs
+// from the reference, which is this dialog.
+pageScope("command reference", {
+  title: "In the command reference",
+  escape: "inner",
+  root: () => commandReferenceDialog,
+  at: () => commandReferenceOpen(),
+  claims: EVERYTHING,
+  rows: [
+    {
+      id: "command.reference.focus.walk",
+      keys: ["Tab", "Shift+Tab"],
+      does: "Move through the command reference",
+      line: "move",
+      repeat: true,
+      runFromCommandReference: false,
+      run: (binding) => moveCommandReferenceFocus(binding === "Tab" ? 1 : -1),
+    },
+    {
+      id: "command.reference.command.next",
+      keys: ["ArrowDown"],
+      does: "Choose the next command",
+      line: "choose next",
+      repeat: true,
+      runFromCommandReference: false,
+      // The list is built before search receives focus, so physical liveness is false at
+      // that instant even though this is one of the reference's standing instructions.
+      commandReferenceWhen: () => true,
+      when: () => commandReferenceCommandActive(),
+      run: () => moveCommandReferenceSelection(1),
+    },
+    {
+      id: "command.reference.command.previous",
+      keys: ["ArrowUp"],
+      does: "Choose the previous command",
+      line: "choose previous",
+      repeat: true,
+      runFromCommandReference: false,
+      commandReferenceWhen: () => true,
+      when: () => commandReferenceCommandActive(),
+      run: () => moveCommandReferenceSelection(-1),
+    },
+    {
+      id: "command.reference.command.activate",
+      keys: ["Enter"],
+      does: "Activate the chosen command",
+      line: "activate",
+      runFromCommandReference: false,
+      commandReferenceWhen: () => true,
+      when: () => commandReferenceCommandActive(),
+      run: () => activateSelectedCommand(),
+    },
+    {
+      id: "command.reference.close",
+      keys: ["Escape"],
+      does: () =>
+        shelfBehindReference()
+          ? "Back to more keyboard shortcuts"
+          : "Close the command reference",
+      line: () =>
+        shelfBehindReference() ? "back to more shortcuts" : "close command reference",
+      control: () => commandReferenceClose,
+      runFromCommandReference: false,
+      run: () => commandReferenceClose.click(),
+    },
+  ],
+});

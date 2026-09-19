@@ -71,6 +71,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     TOKEN,
     author_test_widget,
+    consume_browser_errors,
     leaf_page,
     margins_laid_out,
     nudge,
@@ -83,7 +84,6 @@ from render_harness import (
     stamp_page,
     told,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -336,10 +336,10 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # An action-only log owes no thread: inventing one would misstate the history
         # whose decisions this same gate is meant to replay.
         if any(
-            event["kind"] == "reply" and event["author"] == "claude" for event in events
+            event["kind"] == "reply" and event["author"] == "agent" for event in events
         ):
             replied.append(example.stem)
-            expect(page.locator(".lf-thread .lf-msg.claude")).not_to_have_count(0)
+            expect(page.locator(".lf-thread .lf-msg.agent")).not_to_have_count(0)
 
         # The other thing a log carries. A widget can arrive as a message's markup
         # rather than as authored page content, and it draws in the body the panel
@@ -528,7 +528,7 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
             d,
             {
                 "kind": "comment",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "id": f"written{i}",
                 "anchor": anchor,
@@ -626,7 +626,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(toggle).to_have_text("Threads (1)")  # counted as open, like any other thread
     toggle.click()
     thread = page.locator(".lf-thread").first
-    expect(thread.locator(".lf-msg.claude .lf-msg-head b")).to_have_text("Codex")
+    expect(thread.locator(".lf-msg.agent .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
     thread.locator("textarea").fill("three is the retry budget, not a guess")
@@ -640,7 +640,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
     kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
-    assert ("comment", "claude") in kinds
+    assert ("comment", "agent") in kinds
     assert ("reply", "user") in kinds and ("resolve", "user") in kinds
 
 
@@ -704,7 +704,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
             d,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "agent": "Codex",
                 "parent": root["id"],
                 "text": "this one does",
@@ -714,12 +714,12 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         page.evaluate(
             "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).agentName()"
         )
-        == "Claude"
+        == "Agent"
     )
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)
 
-    expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_count(0)
+    expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
     expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
         "which host answers?"
     )
@@ -740,7 +740,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     told(page)
     expect(notice_el).to_have_text("Codex replied — open Threads")
     expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
-    expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_text("this one does")
+    expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 
 
 @pytest.mark.parametrize("draft", [False, True], ids=["empty", "draft"])
@@ -794,7 +794,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
             serve.page_dir,
             {
                 "kind": "comment",
-                "author": "claude",
+                "author": "agent",
                 "agent": "Codex",
                 "revision": 1,
                 "anchor": {"section": "proposal"},
@@ -875,7 +875,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     ) as fault:
         events_model.append_event(
             serve.page_dir,
-            {"kind": "resolve", "author": "claude", "parent": root["id"]},
+            {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)
@@ -932,7 +932,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     ) as fault:
         events_model.append_event(
             page_dir,
-            {"kind": "resolve", "author": "claude", "parent": root["id"]},
+            {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
 
     assert fault.value.text in page.lf_errors
@@ -1616,6 +1616,9 @@ def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
             f"#{source['id']}'s source starts at {source['at']:.0f}px and the column at "
             f"{at['left']:.0f}px: it is set as a drawing is placed rather than read"
         )
+    # The blocked module is the state under test, and what the page says about it is
+    # the refusal itself.
+    consume_browser_errors(page, "lf-diagram.js", "net::ERR_FAILED")
 
 
 def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
@@ -2090,7 +2093,6 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(
@@ -2139,7 +2141,6 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     moment it makes the claim."""
     url = serve(RAIL_AND_WIDE_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.add_init_script(AT_THE_HANDOVER)
 
     laid_out = []
@@ -2198,7 +2199,6 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(LATE_MARGIN_WIDGET)
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.add_init_script(AT_THE_HANDOVER)
     answered = []
 
@@ -2589,7 +2589,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         {
             "kind": "reply",
             "id": "r-fix",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-fix",
             "revision": 1,
             "text": "Like this:",
@@ -2647,7 +2647,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
         {
             "kind": "reply",
             "id": "r-stores",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-stores",
             "revision": 1,
             "text": "Side by side:",
@@ -2922,7 +2922,6 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1400, "height": 900})
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     stated = page.evaluate("() => document.documentElement.getAttribute('style') ?? ''")
@@ -3021,8 +3020,6 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
             f"{medium} shrank the board inside the measure its own prose is set to: "
             f"board {wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
         )
-
-    copy.close()
 
 
 def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
@@ -3191,8 +3188,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('body > main').getAnimations().length === 0
-          && document.querySelector('.lf-asks-panel').getAnimations().length === 0
+        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0
           && document.querySelector('lf-toc').getAnimations().length === 0"""
     )
     geometry = page.evaluate(
@@ -3466,7 +3462,6 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert copied["padding"] == {"left": 0, "right": 384}
     assert copied["column"]["width"] == 720
     assert copied["sideways"] == 0
-    copy.close()
 
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):
@@ -3594,3 +3589,5 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     page.goto(url.rsplit("?", 1)[0], wait_until="load")
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
+    # The refusal is the subject: a reader without the key is answered 403.
+    consume_browser_errors(page, "403")

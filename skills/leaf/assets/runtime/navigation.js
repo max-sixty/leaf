@@ -5,12 +5,15 @@ import {
   panelWouldCover,
 } from "./conversation/panel-elements.js";
 import { openThreads } from "./conversation/thread-list.js";
-import { narrowed } from "./conversation/narrowing.js";
+import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
+import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./conversation/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
+import { focusedThreadOf } from "./conversation/focus.js";
+import { focused } from "./keyboard/scopes.js";
 import { announce } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
@@ -184,14 +187,124 @@ export function stopGlide(box) {
   glide = null;
 }
 
-export function createNavigation({ panelIsOpen, coveringAuxiliaryScroller }) {
+export function createNavigation({
+  panelIsOpen,
+  coveringAuxiliaryScroller,
+  threadDestinations,
+}) {
+  const { activeInlineThread, inlineThreadView } = threadDestinations;
   const panelCovers = () => panelIsOpen() && panelWouldCover();
   const inPanel = () => panelFocusIsInside(panelIsOpen);
+  const move = (amount, unit) =>
+    stepReading(amount, unit, coveringAuxiliaryScroller, inPanel);
+  const walkThreads = (dir) => stepThread(dir, threadDestinations, panelIsOpen);
+
+  // Travel's own page keys. All three remain reachable inside a covering auxiliary
+  // surface: the surface replaces the page the reader is reading rather than ending the
+  // reading, and t/T follows whichever surface is presenting the threads.
+  pageCommand({
+    id: "thread.walk",
+    // A walk's letter names its category; Shift reverses it. The page's walks therefore
+    // share one compact, repeatable grammar.
+    keys: ["t", "Shift+t"],
+    routes: [
+      { id: "thread.next", binding: "t", does: "Next open thread" },
+      { id: "thread.previous", binding: "Shift+t", does: "Previous open thread" },
+    ],
+    does: "Next / previous open thread",
+    line: "threads",
+    covering: true,
+    // Once textual search owns the panel, n/N are the canonical walk there. Keep t/T as
+    // the page's open-thread walk without leaving two spellings for the same panel action.
+    when: () =>
+      openThreads({ visibleOnly: panelIsOpen() }).length > 0 &&
+      (!coveringAuxiliarySurface() || inPanel()) &&
+      !(threadSearchActive() && inPanel()),
+    repeat: true,
+    // The press that puts the reader on a thread is one rung, however many threads the
+    // walk then visits: the press made off the threads pushes the frame, and a later
+    // one, made standing on a thread, pushes nothing. In the panel the walk moves focus
+    // and opens nothing, so the frame closes nothing and Escape hands back the place the
+    // press displaced — the list after `g T`, or the page place the reader pressed from
+    // with the panel already standing beside them. With the panel shut the walk reaches
+    // a thread on the page where a widget seats one and opens the margin's conversation
+    // view for the rest, so a press that opened that view is an entry even from a
+    // standing on a seated thread, and the frame dismisses the view on the way back;
+    // the rail control the view hangs from is nowhere the reader stood, so it is
+    // nowhere on the way out. The frame is its own entry rather than the view's,
+    // because the walk outlives the view when it steps on to a seated thread.
+    returnFrame: () => {
+      if (panelIsOpen()) {
+        if (focusedThreadOf()) return null;
+        const fromList = threadsBox === focused();
+        return {
+          active: () => panelIsOpen() && Boolean(focusedThreadOf()),
+          close: () => {},
+          does: "Let go of the thread",
+          line: fromList ? "back to list" : "let go",
+        };
+      }
+      const view = inlineThreadView();
+      const standingBefore = Boolean(activeInlineThread());
+      const showingBefore = view.showing();
+      // Whether the press was an entry is read once, on the stack's first look after
+      // the run: it stood the reader on a thread, or it opened the view.
+      let entered = null;
+      return {
+        active: () => {
+          entered ??= !standingBefore || (!showingBefore && view.showing());
+          return entered && Boolean(activeInlineThread());
+        },
+        close: () => view.dismiss(),
+        does: () =>
+          view.showing() ? "Dismiss the conversation view" : "Let go of the thread",
+        line: () => (view.showing() ? "dismiss conversation" : "let go"),
+        ownEntry: true,
+      };
+    },
+    run: (binding) => walkThreads(binding === "t" ? 1 : -1),
+  });
+  pageCommand({
+    id: "page.move",
+    keys: ["d", "u"],
+    routes: [
+      {
+        id: "page.down",
+        binding: "d",
+        does: "Move 60% of a page down",
+        line: "page down",
+      },
+      { id: "page.up", binding: "u", does: "Move 60% of a page up", line: "page up" },
+    ],
+    does: "Move 60% of a page down or up",
+    line: "page down / up",
+    covering: true,
+    repeat: true,
+    run: (binding) => move(binding === "d" ? 0.6 : -0.6, "page"),
+  });
+  pageCommand({
+    id: "scroll.move",
+    keys: ["j", "k"],
+    routes: [
+      {
+        id: "scroll.down",
+        binding: "j",
+        does: "Scroll down a little",
+        line: "scroll down",
+      },
+      { id: "scroll.up", binding: "k", does: "Scroll up a little", line: "scroll up" },
+    ],
+    does: "Scroll down or up a little",
+    line: "scroll down / up",
+    covering: true,
+    repeat: true,
+    run: (binding) => move(binding === "j" ? 60 : -60, "pixel"),
+  });
+
   return {
     panelCovers,
     seenScroller: () => seenScroller(coveringAuxiliaryScroller),
-    stepReading: (amount, unit) =>
-      stepReading(amount, unit, coveringAuxiliaryScroller, inPanel),
-    stepThread: (dir, commands) => stepThread(dir, commands, panelIsOpen),
+    stepReading: move,
+    stepThread: walkThreads,
   };
 }

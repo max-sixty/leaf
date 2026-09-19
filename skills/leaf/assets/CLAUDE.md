@@ -62,7 +62,14 @@ done to the page — a selection, an open disclosure, a lent tab stop, a tokeniz
 spans, a module's own output — is written over only where the author wrote; every
 judgement it cannot make from the DOM alone is its caller's; conversation owners supply
 reaction teardown when removing their surfaces;
-`runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
+`runtime/focus.js` puts the reader on an element — the focus, lending a tab stop only
+when needed, and the caret inside it, which an arrival that is a return reads before its
+element goes away and hands back in the same act;
+`runtime/carry.js` owns the mechanical reader state an install carries between two
+nodes the author gave the same id — a control's value and caret, a tick, a disclosure,
+an inner scroll, and focus — reading each against what the author wrote for the revision
+the reader is standing in, so that what crosses is what the author did not write; it
+carries nothing for an element the author left unnamed;
 `runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
 document roots so authored revision replacement can leave that live state in place;
 `runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
@@ -90,8 +97,8 @@ reading, document-bound target-reference capture, declared-role dispatch validat
 subscription lifetime, total state rendering before auxiliary subscribers, generic
 settlement paint, and the widget presentation ticket through `updateComplete`;
 `runtime/widget-descriptors.js` captures each revision-bound widget's declaration,
-authored ancestry, Ask and conversation predicates, retirement edges, request offers,
-and stable target boundary before content modules upgrade or move its node;
+authored ancestry, exhibit fence, request offers and bindings, and stable target
+boundary before content modules upgrade or move its node;
 `runtime/target-references.js` owns stable id and structural target records, exact
 resolution, immutable page and frozen-fragment boundaries, and the shared pointer and
 keyboard candidate walk;
@@ -102,15 +109,17 @@ match before it may move focus or scroll the reader;
 each package supplies its words and bound detail;
 `runtime/asks/model.js` exposes immutable Ask selectors and the semantic subscription
 from the application publisher; inventory, answer state, retirement, and thread
-obligations are folded by that publisher;
-`runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and
-Ask-local contextual command projection; `asks/view-elements.js` owns its passive paint
-host and control selector;
+obligations are folded by Python and carried on the wire the publisher adopts;
+`runtime/asks/view.js` owns Ask chrome, marking, the Ask walk,
+Ask-local contextual command projection, and the reader's standing on an Ask as a
+declared id a replacing document can be asked for; `asks/view-elements.js` owns its
+passive paint host and control selector;
 `runtime/projection-watch.js` owns the lifetime-bound invalidation subscription shared
 by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry, addressable-element comment entry,
-and page-click routing;
+page-click routing, and the one Comment command every route into it shares — which box the
+press enters, the word each surface says over it, and the composer's own keys;
 `runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text
 search: the scene, chip, and activation it declares over the shared hint session in
 `runtime/keyboard/hints.js`, and the synchronous keyed Lit overlay and mechanical
@@ -145,6 +154,9 @@ disclosed, and inline child order;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
 vertical packing, collision bands for wide page content, and transient margin-entry
 label placement;
+`runtime/thread-card-geometry.js` states, as arithmetic over client rectangles, where
+the inline thread card stands relative to the cluster that opened it and the visible
+boundary the margin projection supplies;
 `runtime/reactions.js` owns reaction vocabulary, composer choices, sending, keyboard
 mode, registered conversation-control mechanics, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
@@ -214,8 +226,8 @@ marked block discloses, version document loading, the one activation door and th
 installs behind it — the authored page patched in place, or a fresh document — which
 the arriving revision's executable identity decides, the per-widget digests each
 revision's delivery states that decide which widgets a patch may keep, the persisted
-semantic reading landmarks carried across either, and the page-block reading
-directional walks start from;
+semantic reading landmarks, the carried mechanical state and the Ask standing that cross
+either of them, and the page-block reading directional walks start from;
 `runtime/version-chooser.js` consumes one frozen version presentation reading and owns
 the retained native chooser button, versions popover, and latest-version chip in their
 separate chrome seats: their synchronous Lit paint, keyed rows, disclosure focus and
@@ -236,28 +248,41 @@ which would move page modules after `DOMContentLoaded`;
 `runtime/chrome.css` is the comment layer's private stylesheet, which the boot module
 adopts, and keeps the chrome's paint hosts out of the containing-block chain for
 document-positioned chrome. It also keeps page-attached paint below covering auxiliary surfaces
-and paint for chrome targets above them.
+and paint for chrome targets above them. Being adopted, it cascades after `theme.css`
+and after every package theme concatenated onto it, so a face stated there at ordinary
+specificity beats each component's own rule and nothing renders to gate the loser: the
+shared vocabulary's faces belong in `theme.css`, and what stays here is what has to beat
+the page. A test relocates these rules to the front of the head and reads the corpus
+again, so anything winning on position rather than on its selectors is a failure.
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
 `theme.css` is the render-blocking default theme: the live shell's final page claims,
-tokens, element styles, class idioms, and the element-widgets CSS alone renders, with the
-shadow slice widgets adopt; a package's `theme.css` is appended after it;
+tokens, element styles, class idioms, and the element-widgets CSS alone renders; a
+package's `theme.css` is appended after it. `shadow.css` holds the rules a declared shadow
+tree needs as well as the document: every root's copy is composed into `/shadow.css` for
+the stage, and into `/theme.css` just ahead of that root's `theme.css`;
 `runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
 into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;
 `runtime/visual-parts.js` owns the package-declared semantic parts of a rendered
 visual;
 `runtime/chrome-layout.js` owns chrome geometry, the document room left after the panel
-and trays, the final-layout column motion between auxiliary chrome states, and page repaint
-caused by shell motion or reflow;
-`runtime/thread-panel.js` owns panel visibility and workspace transitions;
+and trays, and page repaint caused by shell motion or reflow. It does not own the reader's
+place across that reflow: the shell yields its strip as a transparent border rather than a
+margin, which keeps the change off the scroll-anchoring suppression list, so the browser
+holds the place and nothing here may take that back (theme.css, at the body strip);
+`runtime/thread-panel.js` owns panel visibility, workspace transitions, the one return
+frame every press that opens the panel records — the toggle's click, `g T`, and a page
+thread carried in — and the two Escape rungs it offers a reader whose panel no press
+opened, a Tab into the list or a panel open when the page arrived: the narrowing, then the
+panel itself;
 `runtime/auxiliary-chrome.js` captures and restores the reader's workspace for navigation;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
 the words it projects;
 `runtime/reach.js` owns keyboard access to overflow, the containing block a
 scroller owes what it scrolls, and the mark a box wears while it shows less
 than it holds across;
-`runtime/shadow.js` owns declared shadow roots, their theme slice, shared
+`runtime/shadow.js` owns declared shadow roots, their `shadow.css` rules, shared
 highlight rules, the parent walk that crosses a root, and the chrome question
 (`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
 owns the stage an x-shadow widget renders into;
@@ -271,9 +296,11 @@ revision patches into the page;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
 conversion from viewport boxes to document-positioned chrome;
-`runtime/keyboard/key-badge-placement.js` adds the readings that account for fixed
-chrome, which every target hint and Ask binding badge is admitted and seated by;
-`runtime/navigation.js` owns reader travel; `reading-regions.js` selects its scroller;
+`runtime/keyboard/key-badge-placement.js` adds the readings that account for the room
+chrome leaves and for a member covered without being clipped, which every target hint
+and Ask binding badge is admitted and seated by;
+`runtime/navigation.js` owns reader travel and its keys — the reading-page step, the small
+scroll, and the open-thread walk; `reading-regions.js` selects its scroller;
 `runtime/anchor-resolution.js` resolves anchors without importing paint or travel;
 `runtime/anchor-paint.js` owns their placed readings and marks;
 `runtime/anchor-note-view.js` Lit-renders the native accessibility control beside each
@@ -296,7 +323,8 @@ and their presentation-batch checkpoints;
 `runtime/conversation/folding.js` owns settlement continuations and mechanical
 resolution-fold state and motion;
 `runtime/conversation/landing.js` owns conversation input discovery, focus travel,
-and panel arrival;
+panel arrival, and the two scopes standing over that relation: a text box's way back out,
+and a thread's own reply and resolution keys;
 `runtime/conversation/narrowing.js` owns the immutable comment-panel search and lifecycle,
 scope, subject, and detached-placement intent and derives one complete narrowing reading;
 `runtime/conversation/narrowing-view.js` synchronously Lit-renders that reading as the
@@ -318,8 +346,10 @@ from canonical activity and captured fragment membership; message owners place r
 Lit receipts, which own their words and semantic paint;
 and
 `runtime/conversation/presentation.js` composes retained conversation rendering;
-`runtime/conversation/panel.js` owns the panel composer, and `panel-elements.js` owns the
-passive panel elements, its one narrowing-view seat, and geometry readings;
+`runtime/conversation/panel.js` owns the panel composer and the Threads list's own keys —
+its search, waiting filter, match walk, and local route into the page-comment box — and
+`panel-elements.js` owns the passive panel elements, its one narrowing-view seat, and
+geometry readings;
 `runtime/projection/authored.js` decodes typed authored initial values from validated
 source markup before upgrade and owns authored parentage;
 `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
@@ -352,6 +382,7 @@ Each mutable fact has one writer:
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
+| which Asks stand, which the reader owes, and whose turn each thread is | the server's one `leaf.asks` fold, shipped as the view's `document.asks`, the conversation's `asks`, and each thread's `awaits_reader` | the publisher concatenates the page and thread readings and publishes them unchanged; `foldThreads` hands a thread to the agent for the reader's own unsent reply, and a thread the reader list still names keeps its obligation over that |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region inside that publication and paints on the pass after it, projection before conversation before Asks; no caller orders a paint |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
@@ -365,10 +396,21 @@ Each mutable fact has one writer:
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` preserves it through generated presentation, receipt updates, provisional work, and resolution folds |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |
+| the margin card's place in its transcript | the card list's own scroll, which the browser holds through reflow | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
 | tray visibility | `trayIsOpenKey` | `setOpenTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
-| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and return frames pushed; inner Escape steps, an eligible causal return frame, then fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
+| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and return frames pushed; inner Escape steps, then whatever the reader put on since a frame that stood them nowhere, then an eligible causal return frame, then the remaining fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
+
+Reader state that a document replacement would otherwise destroy has four routes, and
+which one a fact takes is decided by what the fact is, not by where it was noticed:
+the patch keeps the node, so state on a node it did not rewrite needs nothing; an
+authored id gets `carry.js`'s mechanical carry; a module's own state is the module's to
+write to its store and read back under that same id, as the tab store and the draft
+store already do; and a walk restores its standing by declared id on top of those. A
+hold — deferring the revision — is for a gesture that is not a value: an open composer,
+a drag, an unresolved delivery, an open menu. A value never justifies a hold, because a
+hold postpones the loss rather than preventing it: the words die when the reader blurs.
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts. A rendering may expose state,
@@ -384,8 +426,10 @@ they never read either attribute back as semantic input.
 Startup order is load-bearing:
 
 1. Construct the application, page commands, and UI owners in `leaf.js` before any
-   mount reads another owner. Page keys must exist before the first input is wired,
-   because its initial paint reads the input's binding badge. Adopt the sheets,
+   mount reads another owner. Each owner contributes its own keys as it is constructed, and
+   the register assembles and checks the page's stack on the first read of it, so every
+   owner must stand before the first input is wired: its initial paint reads the input's
+   binding badge, which resolves that stack. Adopt the sheets,
    attach chrome, mount the owners, and wire the shared repaint phases. Repaint invalidations made
    before repaint is mounted retain their intent without executing an incomplete frame.
 2. Begin the first state read without applying its answer.
@@ -469,11 +513,20 @@ record answers the Ask, so no private completion flag can diverge from the durab
 arrangement. An answer or thread-completion verb cannot require its own awaiting value, or
 an aggregate parent's awaiting value, to be false: either prerequisite is circular
 while the Ask stands. `x-awaits.rollup` carries the logical OR of its nearest
-local Asks and child roll-ups in both the admitted server projection and the
-application publisher's pending overlay; the aggregate owner never originates or
+local Asks and child roll-ups; the aggregate owner never originates or
 surfaces an Ask. Quoted, retired, and resolved-thread sources are absent from the
-inventory and the rollup through the same captured-descriptor existence reading. The
-browser receives the resulting ids and awaiting values.
+inventory and the rollup through the same existence reading.
+
+`leaf.asks` is the one implementation of all of that. It folds the page and
+frozen-thread readings under the page transaction that answers each state read, and
+`browser_state` serializes both: each view's `document.asks` and the conversation's
+`asks`, as `{all, reader, unanswered, awaiting, unanswered_awaiting}`. Each listed Ask
+names the surface the reader is sent to and the `source` that answers it. The browser
+concatenates the two, page before thread. No runtime module folds a declaration to
+decide which Asks stand, which of them the reader still owes, or whether one is
+answered, so an answer reaches the tray, the walk, the banner count, and an action's
+`requires` gate when the state its POST returns is adopted — one reading after the
+widget state the reader sees change at once.
 
 Python's `state_projection` is the durable derived view. Under the same page
 transaction as `/api/state`, `browser_state` serializes its classified events and
@@ -487,10 +540,12 @@ conversation coordinates use the unbounded frozen-markup window.
 
 `awaitsReader` first reads any standing local `x-awaits` or `x-request.ask`
 Ask carried anywhere in the unresolved thread; a later plain turn does not hide
-an earlier structural Ask. The publisher derives that obligation from its effective
-Ask reading, so a pending answer or Undo changes the thread and Ask list in one
-publication. Frozen descriptors name both their canonical thread root and containing
-message. With no such Ask, the obligation reads the latest spoken turn:
+an earlier structural Ask. Python derives that obligation beside the Ask reading it
+shares a fold with, and ships it as each thread's `awaits_reader`; the browser reads
+it. The reader's own unsent reply hands its thread to the agent through `foldThreads`,
+and a thread still named in the reader's Ask list keeps the obligation over that, so an
+Ask the reply does not answer stays theirs while it travels rather than turning over
+and back. With no such Ask, the obligation reads the latest spoken turn:
 an agent comment is a question and an agent reply's explicit `awaits` field marks a
 prose request. A `settles` token standing on that latest prose request answers it
 without closing the thread.

@@ -16,6 +16,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -29,9 +30,11 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from leaf import cli as cli_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import passages as passages_model
@@ -42,7 +45,6 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
-from leaf.registry import storage as registry_storage_model
 from leaf.served_state import page as served_page
 from leaf.validation import instances as validation_model
 
@@ -90,15 +92,13 @@ from leaf import cli as cli_model
 
 
 def append_command(page_dir, command):
-    """Seed a widget command through the real transaction's admission step.
+    """Seed a widget command through the real append door.
 
     A test of raw storage or retired vocabulary passes an explicitly admitted
     event, including meaning, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
-        return page.append_event(
-            command, registry_storage_model.require_registry(page_dir)
-        )
+        return event_contracts_model.append_admitted(page, command)
 
 
 def run_async(entry):
@@ -358,12 +358,30 @@ def publish(d, version=1):
         d,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": version,
             "revision": activated.revision,
             "text": "published",
         },
     )
+
+
+def let_a_pick_settle_a_thread(page_dir):
+    """Declare `resolves` on `lf-options`' `choose`, before the page publishes.
+
+    A settling answer rests on its widget and on the ids that widget's detail
+    names inside itself, so a version rewriting one of those takes the answer
+    back. Nothing shipped exercises both halves: of every verb in an
+    `x-awaits.answers` list, only `lf-suggestion`'s `accept` declares a
+    `resolves` detail, and its answer rests on the widget alone. A test of the
+    two together declares the verb it needs on the page it is about to publish,
+    which is where the append door reads the vocabulary that admits an action.
+    """
+    registry = files_model.read_json(page_dir / "registry.json")
+    registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["resolves"] = {
+        "type": "string"
+    }
+    files_model.write_json(page_dir / "registry.json", registry)
 
 
 def stamp(d, text="stamped", completes=()):
@@ -386,12 +404,15 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
-def record_claim(page, **fields):
-    """Write the canonical claim shape for lifecycle fixtures."""
+def record_claim(page, harness="claude-code", **fields):
+    """Write the canonical claim shape for lifecycle fixtures.
+
+    `harness` is checked against Leaf's own table, so a fixture cannot record a
+    name `take_claim` would never write."""
     record = {
         "page": str(page.resolve()),
         "id": "s1",
-        "host": "claude-code",
+        "harness": host_model.HARNESSES[harness].name,
         "pid": os.getpid(),
         "agent": "Claude",
         "cwd": str(Path.cwd()),
@@ -596,19 +617,19 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     resume = threading.Event()
     checked_without_writer = threading.Event()
     finish_vendoring = threading.Event()
-    original_append_event = service_model.PageTransaction.append_event
-    original_composed_theme = layer_model.composed_theme
+    original_append_record = service_model.PageTransaction._append_record
+    original_composed_sheets = layer_model.composed_sheets
 
-    def held_append_event(page, event, registry=None):
+    def held_append_record(page, event):
         if event.get("kind") == kind:
             entering.set()
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
-        return original_append_event(page, event, registry)
+        return original_append_record(page, event)
 
-    def held_composed_theme(sources):
+    def held_composed_sheets(sources):
         checked_without_writer.set()
         assert finish_vendoring.wait(timeout=10), "the writer never resumed"
-        return original_composed_theme(sources)
+        return original_composed_sheets(sources)
 
     def init_result():
         try:
@@ -618,16 +639,16 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         return None
 
     monkeypatch.setattr(
-        service_model.PageTransaction, "append_event", held_append_event
+        service_model.PageTransaction, "_append_record", held_append_record
     )
-    monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
+    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     with ThreadPoolExecutor(max_workers=2) as executor:
         writing = executor.submit(write)
         assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
         vendoring = executor.submit(init_result)
         passed_check = checked_without_writer.wait(timeout=2)
         # Release either acquisition order without relying on a scheduler: a
-        # broken re-vendor may already own the page lease at composed_theme.
+        # broken re-vendor may already own the page lease at composed_sheets.
         finish_vendoring.set()
         resume.set()
         written = writing.result(timeout=10)
@@ -807,6 +828,21 @@ def server(page_dir):
     temporary.close()
 
 
+@pytest.fixture
+def socket_dir():
+    """A directory short enough to hold a Unix socket, gone when the test ends.
+
+    `sun_path` is 104 bytes, and pytest spends most of them before the test's own
+    files begin: a socket under `tmp_path` is refused outright, with `AF_UNIX path
+    too long` naming the length rather than the directory that made it. So the
+    sockets go under a short root — and, because that root is outside every sweep
+    the run makes, they are this fixture's to remove rather than the test's.
+    """
+    directory = Path(tempfile.mkdtemp(prefix="lf", dir="/tmp"))
+    yield directory
+    shutil.rmtree(directory, ignore_errors=True)
+
+
 def fetch(url, data=None, token=TOKEN, layer=None, headers=None):
     """A request arriving the way a user's does: the key in the query, and a
     cookie jar to carry it onward. The live root and the runtime's later query-less
@@ -925,7 +961,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
             directory,
             {
                 "kind": "note",
-                "author": "claude",
+                "author": "agent",
                 "version": 1,
                 "revision": 1,
                 "text": "t",
@@ -1002,7 +1038,7 @@ def claimed(page_dir, monkeypatch):
 @pytest.fixture(scope="session")
 def codex_program(tmp_path_factory):
     """A program named `codex` to run a session under, which is the whole of what
-    `session_lifetime` looks for above a leaf: a copy of this interpreter wearing that
+    `CodexHarness.lifetime` looks for above a leaf: a copy of this interpreter wearing that
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that

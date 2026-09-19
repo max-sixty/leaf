@@ -46,6 +46,7 @@ from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
+from leaf import requests as requests_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -788,7 +789,7 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Choose a route.",
             "markup": 'Before <lf-options id="frozen" choose><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options> after.',
@@ -856,7 +857,7 @@ def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "The reviewed instructions and their current replacement.",
             "markup": '<lf-text-document id="reviewed" source="instructions" snapshot="1"></lf-text-document>'
@@ -1909,7 +1910,7 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
     assert result.exit_code != 0
     assert "this turn's opened delivery" in result.output
     assert not any(
-        event["kind"] == "reply" and event["author"] == "claude"
+        event["kind"] == "reply" and event["author"] == "agent"
         for event in events_model.read_events(page_dir)
     )
 
@@ -1966,7 +1967,57 @@ def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
     assert "this turn's opened delivery" in result.output
 
 
+def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
+    """One door, so a rule is stated once and holds for whoever appends.
+
+    The `leaf` writers used to append with whatever contract each of them
+    remembered: four with none at all, and the two that checked reaching two
+    different homes. Nothing between them and the log read the event's own
+    record schema, so a shape the browser door has always refused could still
+    land — and stay, because `page init` re-reads every stored record before it
+    will replace a layer, and refuses the re-vendor rather than the event.
+
+    Each arm below is a writer that reaches the log by a different route: a reply
+    whose gate is the record contract alone, a receipt whose gate belongs to
+    `requests`, and a report whose gate belongs to `event_contracts`. All three
+    are refused in the writer's own voice.
+    """
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
+    )
+    with pytest.raises(SystemExit) as refused:
+        conversation_model.cmd_reply(
+            page_dir,
+            "c1",
+            "Answered.",
+            "",
+            initiates=True,
+            for_event=None,
+            attempt="r1",
+        )
+    assert "'r1' does not match" in str(refused.value)
+
+    with pytest.raises(SystemExit) as unknown_request:
+        requests_model.cmd_receipt(page_dir, "no-such-request", "succeeded", "done")
+    assert "unknown request 'no-such-request'" in str(unknown_request.value)
+
+    with pytest.raises(SystemExit) as unknown_widget:
+        conversation_model.cmd_report(page_dir, "no-such-widget", "status", ())
+    assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
+
+    assert [event["kind"] for event in events_model.read_events(page_dir)] == [
+        "note",
+        "comment",
+    ]
+
+
 def test_inferred_reply_attempt_is_idempotent(page_dir):
+    """An attempt is an opaque durable key, and the append door holds every
+    writer to the record contract's shape for one — the delivery carriers mint
+    theirs from a digest, so a short hand-written label is not a retry key."""
+    attempt = "retry-inferred-reply-1"
     comment = events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
@@ -1987,7 +2038,7 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
         "Updated.",
         "",
         for_event=None,
-        attempt="retry-1",
+        attempt=attempt,
     )
     retried = conversation_model.cmd_reply(
         page_dir,
@@ -1995,7 +2046,7 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
         "Updated.",
         "",
         for_event=None,
-        attempt="retry-1",
+        attempt=attempt,
     )
 
     assert retried["id"] == first["id"]
@@ -2315,7 +2366,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "revision": files_model.latest_revision(page_dir),
             "widget": "b1",
             "action": "move",
@@ -2458,7 +2509,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0, sent.output
     event = events_model.read_events(page_dir)[-1]
-    assert event["kind"] == "report" and event["author"] == "claude"
+    assert event["kind"] == "report" and event["author"] == "agent"
     assert (event["agent"], event["session"]) == ("Indexer", "worker-1")
     assert event["widget"] == "t-parser" and event["action"] == "status"
     assert event["detail"] == {"status": "review"} and event["revision"] == 1
@@ -2598,7 +2649,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
         page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": first["id"],
             "status": "failed",
             "text": "Worker lease disappeared",
@@ -2741,16 +2792,16 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     _tasks_version(page_dir, "review")
     at_commit = threading.Event()
     resume = threading.Event()
-    original_append_event = service_model.PageTransaction.append_event
+    original_append_record = service_model.PageTransaction._append_record
 
-    def held_append_event(page, event, registry=None):
+    def held_append_record(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
             at_commit.set()
             assert resume.wait(timeout=10), "the report did not enter the publish gap"
-        return original_append_event(page, event, registry)
+        return original_append_record(page, event)
 
     monkeypatch.setattr(
-        service_model.PageTransaction, "append_event", held_append_event
+        service_model.PageTransaction, "_append_record", held_append_record
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
@@ -3431,9 +3482,16 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         "sources": {},
     }
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
-    # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
+    # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The ask
+    # names the region the reader is sent to and the group that answers it.
     assert state["asks"] == [
-        {"id": "g1-decision", "tag": "lf-ask", "conversation": None}
+        {
+            "id": "g1-decision",
+            "tag": "lf-ask",
+            "source": "g1",
+            "source_tag": "lf-options",
+            "conversation": None,
+        }
     ]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == []
@@ -4341,7 +4399,13 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
 
     state = state_json(page_dir)
     assert state["asks"] == [
-        {"id": "plan-decision", "tag": "lf-ask", "conversation": None}
+        {
+            "id": "plan-decision",
+            "tag": "lf-ask",
+            "source": "g1",
+            "source_tag": "lf-options",
+            "conversation": None,
+        },
     ]
 
     append_command(
@@ -4381,7 +4445,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "worker",
             "revision": 1,
             "widget": "g1",
@@ -4438,7 +4502,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Indexer",
             "parent": opened["id"],
             "text": "two of them share a power rail",
@@ -4526,7 +4590,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which mitigations?",
             "markup": '<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
@@ -4537,7 +4601,13 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
+        {
+            "id": "gm-decision",
+            "tag": "lf-ask",
+            "source": "gm",
+            "source_tag": "lf-options",
+            "conversation": root["id"],
+        },
     ]
     append_command(
         page_dir,
@@ -4551,7 +4621,13 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
+        {
+            "id": "gm-decision",
+            "tag": "lf-ask",
+            "source": "gm",
+            "source_tag": "lf-options",
+            "conversation": root["id"],
+        },
     ]
     append_command(
         page_dir,
@@ -4595,8 +4671,20 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     publish(page_dir)
 
     assert state_json(page_dir)["asks"] == [
-        {"id": "future-decision", "tag": "lf-ask", "conversation": None},
-        {"id": "decision-decision", "tag": "lf-ask", "conversation": None},
+        {
+            "id": "future-decision",
+            "tag": "lf-ask",
+            "source": "future-review",
+            "source_tag": "lf-options",
+            "conversation": None,
+        },
+        {
+            "id": "decision-decision",
+            "tag": "lf-ask",
+            "source": "decision-options",
+            "source_tag": "lf-options",
+            "conversation": None,
+        },
     ]
 
 
@@ -4617,7 +4705,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "worker",
             "revision": 1,
             "widget": "t-parser",
@@ -4658,7 +4746,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 2,
             "revision": 2,
             "text": "absorbed",
@@ -4702,7 +4790,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "widget": "t-parser",
             "action": "status",
@@ -4719,7 +4807,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "widget": "t-parser",
             "action": "status",
@@ -4872,7 +4960,13 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == [
-        {"id": "real-decision", "tag": "lf-ask", "conversation": None}
+        {
+            "id": "real-decision",
+            "tag": "lf-ask",
+            "source": "real",
+            "source_tag": "lf-options",
+            "conversation": None,
+        },
     ]
 
 
@@ -4895,7 +4989,13 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == [
-        {"id": "cargo", "tag": "lf-draft", "conversation": None}
+        {
+            "id": "cargo",
+            "tag": "lf-draft",
+            "source": "cargo",
+            "source_tag": "lf-draft",
+            "conversation": None,
+        },
     ]
 
     append_command(

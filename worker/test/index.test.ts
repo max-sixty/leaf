@@ -246,6 +246,48 @@ describe("product-site delivery", () => {
     }
   });
 
+  it("keeps what a failed start says it could not load, and bounds it", async () => {
+    const sessionId = "15".repeat(16);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      const named = await worker.fetch(
+        new Request("https://leaf.page/api/performance", {
+          method: "POST",
+          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+          body: JSON.stringify(
+            startupReport({
+              outcome: "failed",
+              presentedMs: null,
+              reason: "entry module did not load",
+            }),
+          ),
+        }),
+        environment(),
+      );
+      const overlong = await worker.fetch(
+        new Request("https://leaf.page/api/performance", {
+          method: "POST",
+          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+          body: JSON.stringify(
+            startupReport({ outcome: "failed", reason: "x".repeat(301) }),
+          ),
+        }),
+        environment(),
+      );
+
+      expect(named.status).toBe(204);
+      expect(overlong.status).toBe(400);
+      expect(logged).toHaveBeenCalledOnce();
+      expect(logged.mock.calls[0][0]).toMatchObject({
+        component: "leaf-startup",
+        outcome: "failed",
+        reason: "entry module did not load",
+      });
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   it("refuses unbound or non-canonical startup reports", async () => {
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
@@ -655,11 +697,21 @@ describe("product-site delivery", () => {
       }),
       env,
     );
+    // Startup recovery marks the one document it asks for so it can tell a replacement
+    // from the copy it already has. That mark asks nothing of the Worker, so the edge
+    // answers it as it answers any other document.
+    const recovered = await worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/?_leaf-recovered=", {
+        headers,
+      }),
+      env,
+    );
 
     expect(await ordinary.text()).toContain("Built");
     expect(await neighbor.text()).toContain("Built");
     expect(await marked.text()).toContain("Published revision");
-    expect(assetFetch).toHaveBeenCalledTimes(2);
+    expect(await recovered.text()).toContain("Built");
+    expect(assetFetch).toHaveBeenCalledTimes(3);
     expect(getContainer).toHaveBeenCalledOnce();
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
     expect(containerFetch).toHaveBeenCalledOnce();

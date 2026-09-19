@@ -187,12 +187,11 @@ const SETTLE_MS = 80;
    `extras` are chips the caller keeps outside the coded map, such as named destinations
    on fixed chrome; they are seated first and become barriers for the coded ones.
    `chrome` reads the standing furniture the placement pass must keep clear.
-   `followsScroll` redraws the coded chips while the page moves rather than withholding
-   them until it settles. Either way membership is frozen for the length of the scroll;
-   what the flag buys is the cost of the layout pass, which hit-tests once per standing
-   member per frame. The chooser's map is bounded by a viewport's addressable blocks and
-   can afford it; the Go-to map reads every link, control and fold on a dense page and
-   cannot. */
+   A map paints through a scroll once it has stood still long enough to be read: its
+   chips ride with the things they name, so the codes the reader is reading stay where
+   they were read and stay pressable, while membership waits for the scene to settle. A
+   map armed into a page already in flight has stood still for nobody, and shows nothing
+   until it settles rather than putting codes on a scene that is leaving. */
 export function createHintSession({
   layer,
   walk: walkKey,
@@ -205,9 +204,11 @@ export function createHintSession({
   words,
   chrome,
   extras = () => [],
-  followsScroll = false,
 }) {
   let armed = false;
+  // The page has been still for a settle since this map was armed, so the reader has had
+  // the chance to read these codes where they now stand.
+  let stood = false;
   let prefix = "";
   let candidates = [];
   // Where the audible walk stands in `hinted()`, or -1 when no hint has been heard.
@@ -236,7 +237,13 @@ export function createHintSession({
 
   function arm() {
     armed = true;
+    stood = false;
     rest();
+    // Arming cannot see whether the page is already moving — a scroll is only heard while
+    // armed — so the map waits out one settle before it counts as stood. A page at rest
+    // sends nothing and the wait simply ends; a page in flight sends a scroll first, and
+    // the map goes back to waiting for the scene it will land on.
+    settleTimer = setTimeout(settled, SETTLE_MS);
     return hold(read());
   }
 
@@ -344,9 +351,7 @@ export function createHintSession({
       return;
     }
     const extraPlans = extras();
-    // A moving page target cannot carry a readable opaque route where the caller says
-    // so; fixed chips stay put and remain visible throughout the scroll.
-    if (scrolling && !followsScroll) return draw(extraPlans, []);
+    if (scrolling && !stood) return draw(extraPlans, []);
     const wasWalking = at >= 0;
     const heard = hinted()[at];
     const emptyBefore = candidates.length === 0;
@@ -378,6 +383,7 @@ export function createHintSession({
 
   function settled() {
     clearTimeout(settleTimer);
+    stood = true;
     if (!scrolling) return;
     scrolling = false;
     repaint();

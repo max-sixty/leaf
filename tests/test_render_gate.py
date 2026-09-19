@@ -8,6 +8,7 @@ import time
 from urllib.parse import urlsplit
 
 import pytest
+import tinycss2
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     append_command,
@@ -72,6 +73,7 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOTH_STAMPS,
+    CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
@@ -83,6 +85,7 @@ from render_harness import (
     _traffic,
     _until,
     author_test_widget,
+    consume_browser_errors,
     leaf_page,
     open_page,
     panel_settled,
@@ -169,12 +172,9 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
         "**/theme.css",
         lambda route: route.fulfill(body="main { display: none; }"),
     )
-    try:
-        findings = render_gate_scheme.start_with_pre_upgrade_proof(
-            page, serve(source, packages=())
-        )
-    finally:
-        page.close()
+    findings = render_gate_scheme.start_with_pre_upgrade_proof(
+        page, serve(source, packages=())
+    )
 
     assert findings == ["authored main has no measurable pre-upgrade layout"]
 
@@ -190,7 +190,7 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
     wrote onto a socket it had already closed reaches the gate.
     """
     source = leaf_page("held module", "<h1>Waiting on a module</h1>")
-    page = browser.new_page()
+    page = browser.unwatched.new_page()
     page.set_default_timeout(5_000)
     holding = []
 
@@ -209,7 +209,6 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
     finally:
         for route in holding:
             route.abort()
-        page.close()
 
     assert holding, "the page asked for no runtime module, so nothing was held"
     path = urlsplit(holding[0].request.url).path
@@ -226,7 +225,7 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     beside what the page is waiting for would point a reader at the hold rather than
     at the file that never came."""
     source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
-    page = browser.new_page()
+    page = browser.unwatched.new_page()
     page.set_default_timeout(5_000)
     holding = []
 
@@ -242,7 +241,6 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     finally:
         for route in holding:
             route.abort()
-        page.close()
 
     assert holding, "the page asked for no theme stylesheet, so nothing was held"
     path = urlsplit(holding[0].request.url).path
@@ -281,7 +279,7 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
         ._replace(netloc=f"127.0.0.1:{httpd.server_address[1]}")
         .geturl()
     )
-    page = browser.new_page()
+    page = browser.unwatched.new_page()
     page.set_default_timeout(5_000)
     with running_http_server(httpd):
         try:
@@ -292,7 +290,6 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
             ).path
         finally:
             release.set()
-            page.close()
 
     assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
     assert str(stopped.value) == (
@@ -317,7 +314,7 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     refused = served.split("?")[0] + "?t=not-the-page-key"
 
     failures, _notices, completed = render_gate_scheme._render_scheme(
-        browser, refused, "light", {"width": 1200, "height": 900}, 3_000, []
+        browser.unwatched, refused, "light", {"width": 1200, "height": 900}, 3_000, []
     )
 
     assert completed is False
@@ -365,15 +362,12 @@ def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
     monkeypatch.setattr(page, "unroute", recorded_unroute)
     monkeypatch.setattr(page, "wait_for_load_state", recorded_wait_for_load_state)
     source = leaf_page("entry hold", "<h1>Held before Leaf starts</h1>")
-    try:
-        assert (
-            render_gate_scheme.start_with_pre_upgrade_proof(
-                page, serve(source, packages=())
-            )
-            == []
+    assert (
+        render_gate_scheme.start_with_pre_upgrade_proof(
+            page, serve(source, packages=())
         )
-    finally:
-        page.close()
+        == []
+    )
 
     assert registrations == [("**/leaf.js", {})], registrations
     assert order == ["route **/leaf.js", "reached load", "unroute **/leaf.js"], order
@@ -532,7 +526,7 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
         )
 
     failures = render_gate_model.render_version(
-        primed(browser, make_readiness_async),
+        primed(browser.unwatched, make_readiness_async),
         serve(LONG_PAGE),
         served_timeout_ms=500,
     )
@@ -575,7 +569,6 @@ def test_current_presentation_probe_reopens_and_ignores_superseded_work(browser,
     page.evaluate("() => probeOlder")
     assert render_checks_model.evaluate_probe(page, "currentPresented") is True
     page.evaluate("() => probePresentation.disconnect()")
-    page.close()
 
 
 def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
@@ -806,7 +799,7 @@ def test_every_restore_case_a_reader_can_return_to_is_arrived_in(browser, serve)
     assert suggestion_state == "accept"
     assert option_transition == "box-shadow, transform"
 
-    arrived = [f for f in arrival_findings(primed(browser, prepare), url)]
+    arrived = [f for f in arrival_findings(primed(browser.unwatched, prepare), url)]
     assert [f.split("]")[0].lstrip("[") for f in arrived] == [
         a["name"] for a in restore_cases
     ]
@@ -842,7 +835,7 @@ def test_arrival_reading_reports_a_deterministic_transition(browser, serve):
             }, { once: true });"""
         )
 
-    arrival = arrival_findings(primed(browser, start_transition), url)
+    arrival = arrival_findings(primed(browser.unwatched, start_transition), url)
     assert (
         "[first visit] color transitioned on p#arrival before presentation" in arrival
     )
@@ -853,36 +846,33 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(browser, 
     page = browser.new_page()
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(serve(PANEL_PAGE), wait_until="load")
-        render_checks_model.wait_for_probe(page, "upgraded")
-        assert held, "the state read completed before the shadow guard was observed"
-        assert page.locator("body").get_attribute("data-lf-presented") is None
-        assert (
-            page.evaluate(
-                """() => {
+    page.goto(serve(PANEL_PAGE), wait_until="load")
+    render_checks_model.wait_for_probe(page, "upgraded")
+    assert held, "the state read completed before the shadow guard was observed"
+    assert page.locator("body").get_attribute("data-lf-presented") is None
+    assert (
+        page.evaluate(
+            """() => {
                   const root = document.querySelector("#how-patch").shadowRoot;
                   const style = document.createElement("style");
                   style.textContent = "details { transition: color 60s linear; }";
                   root.append(style);
                   return getComputedStyle(root.querySelector("details")).transitionProperty;
                 }"""
-            )
-            == "none"
         )
+        == "none"
+    )
 
-        held.pop().continue_()
-        page.unroute("**/api/state*")
-        render_checks_model.wait_for_probe(page, "currentPresented")
-        assert (
-            page.evaluate(
-                """() => getComputedStyle(document.querySelector("#how-patch")
+    held.pop().continue_()
+    page.unroute("**/api/state*")
+    render_checks_model.wait_for_probe(page, "currentPresented")
+    assert (
+        page.evaluate(
+            """() => getComputedStyle(document.querySelector("#how-patch")
                   .shadowRoot.querySelector("details")).transitionProperty"""
-            )
-            == "color"
         )
-    finally:
-        page.close()
+        == "color"
+    )
 
 
 def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
@@ -1018,7 +1008,7 @@ def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     assert failures == []
@@ -1039,7 +1029,7 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     assert len(pages) == 8
@@ -1054,7 +1044,7 @@ def test_a_console_warning_fails_the_render_gate(browser, serve):
         )
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     warnings = [
@@ -1071,7 +1061,7 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     assert len(pages) == 8
@@ -1102,7 +1092,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser.unwatched, prepare), serve(LONG_PAGE)
     )
 
     assert any(
@@ -1272,7 +1262,7 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
         )
     }
     failures = render_gate_model.render_version(
-        browser,
+        browser.unwatched,
         serve(
             markup,
             layer_registry=GENERIC_VISUAL_LAYER,
@@ -1329,7 +1319,7 @@ def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):
 <lf-diagram id="flow"><pre>
 flowchart LR
   Missing[Missing] --&gt; Fallback[Fallback]
-  classDef missing fill:var(--accent-tint),stroke:var(--accent),color:var(--ink)
+  classDef missing fill:var(--accent-glow),stroke:var(--accent),color:var(--ink)
   classDef fallback fill:var(--diagram-safe),stroke:var(--ok),color:var(--ok-ink)
   class Missing missing
   class Fallback fallback
@@ -1360,14 +1350,14 @@ flowchart LR
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-paint",
             "revision": 1,
             "text": "Here it is:",
             "markup": """<lf-diagram id="sent"><pre>
 flowchart LR
   Missing[Missing]
-  classDef missing fill:var(--accent-tint),stroke:var(--accent),color:var(--ink)
+  classDef missing fill:var(--accent-glow),stroke:var(--accent),color:var(--ink)
   class Missing missing
 </pre></lf-diagram>""",
         },
@@ -1379,7 +1369,7 @@ flowchart LR
     assert len(unresolved) == 4, failures
     for diagram in ("flow", "sent"):
         expected = (
-            f"<lf-diagram id='{diagram}'> renders fill='var(--accent-tint)' on <rect> "
+            f"<lf-diagram id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
             "for data-id='Missing'"
         )
         assert sum(expected in failure for failure in unresolved) == 2, unresolved
@@ -1540,7 +1530,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
         {
             "kind": "reply",
             "id": "r-anonymous",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-anonymous",
             "revision": 1,
             "text": "Here they are:",
@@ -1634,7 +1624,7 @@ def test_action_and_report_state_do_not_excuse_unrelated_verbatim_corruption(
     )
     command = {
         "kind": kind,
-        "author": "user" if kind == "action" else "claude",
+        "author": "user" if kind == "action" else "agent",
         "revision": 1,
         "widget": "owner",
         "action": "change" if kind == "action" else "status",
@@ -1760,7 +1750,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
         {
             "kind": "reply",
             "id": "r-scope",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-scope",
             "revision": 1,
             "text": "Here it is:",
@@ -1969,7 +1959,7 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-wrapper",
             "revision": 1,
             "text": "Here it is:",
@@ -2140,12 +2130,232 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
         )
         held |= set(answer["held"])
         invalid |= set(answer["bad"])
+    # The sources carry the page's own module entry, which resolves against nothing
+    # on the blank document this asks its selector questions of. Consumed here rather
+    # than avoided: what this page is for is the engine, not the load.
+    consume_browser_errors(page, "Failed to resolve module specifier")
     page.close()
 
     assert not invalid, f"not selectors, so nothing can ask for them: {sorted(invalid)}"
     assert not set(idioms) - held, (
         f"no example holds {', '.join(sorted(set(idioms) - held))}"
         " — see examples/CLAUDE.md"
+    )
+
+
+# Computed values, so a shorthand in one sheet and its longhands in the other read as
+# one answer, and a var() and the length it resolves to are the same reading.
+ORDER_SENSITIVE = (
+    "display",
+    "visibility",
+    "position",
+    "zIndex",
+    "width",
+    "height",
+    "minWidth",
+    "minHeight",
+    "color",
+    "backgroundColor",
+    "borderTopColor",
+    "borderTopWidth",
+    "borderTopStyle",
+    "borderTopLeftRadius",
+    "boxShadow",
+    "outlineColor",
+    "outlineWidth",
+    "fontFamily",
+    "fontSize",
+    "fontWeight",
+    "lineHeight",
+    "letterSpacing",
+    "textAlign",
+    "paddingTop",
+    "paddingLeft",
+    "opacity",
+    "cursor",
+    "resize",
+)
+
+COMPUTED_FACES = """([properties]) => {
+    const faces = {};
+    const counted = new Map();
+    for (const element of document.querySelectorAll('body *')) {
+        // getAttribute, because an SVG element's className is an SVGAnimatedString and
+        // every one of them would key as the same element.
+        const stem =
+            element.tagName.toLowerCase() + '.' + (element.getAttribute('class') ?? '');
+        const nth = (counted.get(stem) ?? 0) + 1;
+        counted.set(stem, nth);
+        const computed = getComputedStyle(element);
+        faces[stem + '#' + nth] = properties.map((name) => computed[name]);
+    }
+    return faces;
+}"""
+
+RELOCATE_ADOPTED = """async () => {
+    const rules = document.adoptedStyleSheets.flatMap((sheet) => [...sheet.cssRules]);
+    const style = document.createElement('style');
+    style.nonce = document.querySelector('script[nonce], style[nonce]')?.nonce ?? '';
+    style.textContent = rules.map((rule) => rule.cssText).join('\\n');
+    // A copy: adoptedStyleSheets is a live array, so the assignment below would empty
+    // the saved reference along with it.
+    window.__lfAdopted = {sheets: [...document.adoptedStyleSheets], style};
+    document.head.prepend(style);
+    document.adoptedStyleSheets = [];
+    await new Promise((settled) =>
+        requestAnimationFrame(() => requestAnimationFrame(settled)));
+    return {adopted: rules.length, linked: style.sheet?.cssRules.length ?? 0};
+}"""
+
+RESTORE_ADOPTED = """async () => {
+    const {sheets, style} = window.__lfAdopted;
+    style.remove();
+    document.adoptedStyleSheets = sheets;
+    await new Promise((settled) =>
+        requestAnimationFrame(() => requestAnimationFrame(settled)));
+    return document.adoptedStyleSheets.length;
+}"""
+
+
+def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
+    """The runtime's sheets are adopted, so they cascade after theme.css and after every
+    package theme concatenated onto it. That position is an accident of how they are
+    delivered, and a rule that wins by it beats the page's own rule at equal specificity
+    — a default outranking the thing it is a default for. Nothing catches that, because
+    no test and no browser gate can read a rule that never applied: .lf-ui's face stated
+    there drew .lf-ref at 14px ink where its own rule asked for 11.5px muted, and
+    .lf-margin-more's ink never reached the `…` it was written for.
+
+    So the same rules are served from a stylesheet standing first in the head instead.
+    Specificity does not change, so every computed value that moves was decided by sheet
+    order alone. Zero of them is the contract: what the runtime lays over the page has
+    to beat page and widget alike, and it must do that on its selectors rather than on
+    where it is delivered.
+
+    Layer order is the one other thing the move reverses — theme.css opens an anonymous
+    layer and chrome.css a named `lf-reset`, and the first one declared wins an
+    important declaration. The two never meet on this page: every rule in that anonymous
+    layer asks for a body without `data-lf-presented` or `data-lf-upgraded`, and
+    open_page has waited for both.
+
+    The corpus, because a tie shows only where both rules meet one element, and it is
+    the page that holds every widget and every idiom at once."""
+    page = open_page(browser, serve(CORPUS_PAGE))
+    page.evaluate("() => document.getAnimations().forEach((one) => one.pause())")
+    adopted = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+    rules = page.evaluate(RELOCATE_ADOPTED)
+    assert rules["adopted"] and rules["adopted"] == rules["linked"], (
+        f"{rules['adopted']} adopted rules became {rules['linked']} linked ones,"
+        " so the comparison below is between a page and itself"
+    )
+    linked = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+    # Put the sheets back. The corpus is still going about its business — the
+    # gallery builds a replay frame, a pulse reaches its next step — and those
+    # values move whatever this test does to the cascade. A value the sheet's
+    # position decided comes back when the position does; one the page moved by
+    # itself stays where it went.
+    assert page.evaluate(RESTORE_ADOPTED), "the sheets were not put back"
+    restored = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+
+    assert len(adopted) > 1000, f"only {len(adopted)} elements read from the corpus"
+    decided = []
+    for key in adopted.keys() & linked.keys() & restored.keys():
+        moved = [
+            f"{ORDER_SENSITIVE[at]} {was} -> {now}"
+            for at, (was, now, back) in enumerate(
+                zip(adopted[key], linked[key], restored[key], strict=True)
+            )
+            if was != now and back == was
+        ]
+        if moved:
+            decided.append(f"{key}: {', '.join(moved)}")
+    assert not decided, (
+        f"{len(decided)} of {len(adopted)} elements are drawn by the adopted sheet's"
+        " position rather than by its selectors:\n" + "\n".join(sorted(decided)[:20])
+    )
+
+
+# The layer's own list of aims, read from the rule that floors them rather than copied
+# here: a control joins the floor by joining that selector list, and the sweep below has
+# to follow it there.
+AIM_FLOOR_RULE = "min-height: var(--aim-floor); min-width: var(--aim-floor);"
+
+
+def aim_selectors():
+    sheet = (schema_model.ASSETS / "shadow.css").read_text()
+    rules = [
+        rule
+        for rule in tinycss2.parse_stylesheet(
+            sheet, skip_comments=True, skip_whitespace=True
+        )
+        if rule.type == "qualified-rule"
+        and " ".join(tinycss2.serialize(rule.content).split()) == AIM_FLOOR_RULE
+    ]
+    assert len(rules) == 1, f"{len(rules)} rules in shadow.css state the aim floor"
+    return " ".join(tinycss2.serialize(rules[0].prelude).split())
+
+
+AIM_BOXES = """(selectors) => {
+  const floor = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--aim-floor")
+  );
+  const short = [];
+  let seen = 0;
+  const sweep = (root) => {
+    for (const el of root.querySelectorAll(selectors)) {
+      const box = el.getBoundingClientRect();
+      // A box and not checkVisibility(): the corpus renders much of itself inside
+      // content-visibility sections, which this browser answers no for, and a control
+      // laid out inside one is a control a reader reaches by scrolling to it.
+      if (!box.width || !box.height) continue;
+      const shown = getComputedStyle(el);
+      // Hidden, or standing there for a pointer a finger is not: the diff's line
+      // comment is transparent and takes no presses until its row is hovered, and a
+      // finger never hovers it.
+      if (shown.visibility === "hidden") continue;
+      if (shown.opacity === "0" || shown.pointerEvents === "none") continue;
+      seen += 1;
+      if (Math.min(box.width, box.height) < floor - 0.5)
+        short.push(`${Math.round(box.width)}x${Math.round(box.height)} ${el.className}`);
+    }
+    for (const el of root.querySelectorAll("*"))
+      if (el.shadowRoot) sweep(el.shadowRoot);
+  };
+  sweep(document);
+  return {floor, seen, short};
+}"""
+
+
+def test_every_aim_the_layer_offers_takes_a_finger(browser, serve):
+    """One floor, and it has to reach the page as well as the chrome.
+
+    The rule naming Leaf's aims used to stand inside chrome.css's `@scope`, so it floored
+    the controls in the runtime's own chrome and nothing else: under a finger, 41 of this
+    page's 73 buttons and all 21 of its margin entries stood below 44px while the six
+    inside the chrome were correct. Stated in shadow.css it reaches the document, the
+    chrome, and the declared widget trees alike.
+
+    Reach is only half of it. The floor is one rule at each control's own weight, so any
+    rule that states a minimum of its own for one of these outranks it — and a package's
+    38px button or the chrome's 28px step is shorter than a finger. Those fold the floor
+    in with max(), and this sweep is what says they did: it reads the layer's selector
+    list, then measures every visible control on the corpus, which is the page that holds
+    every widget and idiom at once."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, serve(CORPUS_PAGE), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
+        "the touch fixture never reached Leaf's coarse-pointer rules"
+    )
+    measured = page.evaluate(AIM_BOXES, aim_selectors())
+
+    assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
+    assert measured["seen"] > 50, f"only {measured['seen']} aims stood on the corpus"
+    assert not measured["short"], (
+        f"{len(measured['short'])} of {measured['seen']} aims are smaller than "
+        f"{measured['floor']}px under a finger:\n"
+        + "\n".join(sorted(measured["short"]))
     )
 
 
@@ -3019,9 +3229,6 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     page.locator(f"{edge.region} .lf-edge").press(
         "ArrowRight" if edge.side == "right" else "ArrowLeft"
     )
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     stepped = geometry(page, edge)
 
     page.reload(wait_until="load")
@@ -3073,15 +3280,9 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     drawn = geometry(page, edge)
 
     resized(page, narrow, 900)
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     squeezed = geometry(page, edge)
 
     resized(page, 1400, 900)
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     roomy = geometry(page, edge)
     page.close()
 
@@ -3151,9 +3352,6 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
 
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    page.wait_for_function(
-        "() => document.querySelector('body > main').getAnimations().length === 0"
-    )
     given_back = page.evaluate(posture)
     page.close()
 
@@ -3167,10 +3365,10 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
 def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_leaf):
     """The shell adopts a workspace's final room in one layout pass.
 
-    The first sample precedes the press. Every later frame should read the final room while
-    the presentation offset carries the column there. More than those two values means the
-    shell is moving through transient widths and making its container queries repeatedly
-    lay out the page.
+    The first sample precedes the press. Every later frame should read the final room,
+    which the column is already laid out in. More than those two values means the shell is
+    moving through transient widths and making its container queries repeatedly lay out
+    the page.
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
@@ -3408,7 +3606,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-list",
             "revision": 1,
             "text": "Tick what belongs and press Done:",

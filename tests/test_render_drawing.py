@@ -203,8 +203,6 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert mark_relation(returned, posted, "#bg-choice-trail") == pytest.approx(
         relation, abs=0.02
     )
-    page.close()
-    returned.close()
 
 
 def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
@@ -365,8 +363,6 @@ def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_reader
     expect(remote.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
-    local.close()
-    remote.close()
 
 
 def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_reader):
@@ -394,8 +390,6 @@ def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_r
     assert remote_path.get_attribute("d") == local.locator(
         ".lf-drawing-pending path"
     ).get_attribute("d")
-    local.close()
-    remote.close()
 
 
 def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):

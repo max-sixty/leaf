@@ -142,7 +142,7 @@ def _thread_heading(thread: dict) -> str:
     if thread["root"].get("about") == "design":
         head += "  — about the design"
     closed = thread["resolved"]
-    if closed and closed["author"] == "claude":
+    if closed and closed["author"] == "agent":
         # Named where the reader was not the one who closed it. A transcript is
         # read away from the page, so the panel's own line saying so is not in it.
         head += "  — resolved by " + closed.get("agent", "Agent")
@@ -152,7 +152,7 @@ def _thread_heading(thread: dict) -> str:
 
 
 def _print_message(message: dict, registry: dict) -> None:
-    who = message.get("agent", "Agent") if message["author"] == "claude" else "User"
+    who = message.get("agent", "Agent") if message["author"] == "agent" else "User"
     if is_reaction(message):
         # A mark rather than a turn: the token's glyph and word, plus an explanation
         # only when the page's package deliberately supplied one.

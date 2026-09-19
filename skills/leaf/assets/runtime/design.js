@@ -6,6 +6,7 @@ import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.j
 import { closestAcross, containsAcross, cut, inChrome } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
 import { CONTROL_WORD_CAP, designName, DESIGN_MODE_KEY } from "./design-readings.js";
+import { pageCommand, pageScope } from "./keyboard/register.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -295,6 +296,42 @@ export function createDesignMode({
     banner.removeAttribute("data-lf-design-mode");
     designModeOn = false;
   }
+
+  // A page mode the reader stands in for a batch of design remarks. Its Escape is the
+  // innermost rung while it stands — a composer opened in it closes first, the composer's
+  // scope being nearer — then the mode, then the panels. The press the mode is made of is
+  // not a key at all, so that row binds nothing and says nothing on the line, the way the
+  // ⌥ aim's row does.
+  pageScope("design mode", {
+    title: "In Design mode",
+    at: () => designModeOn,
+    rows: [
+      {
+        id: "design.mode.comment",
+        keys: [],
+        label: "click",
+        does: "Comment on what the click lands on — a widget, a control, the chrome; prose still selects",
+      },
+      {
+        // Both keys, on one row: l is the toggle and Escape the mode's own rung, and two
+        // chips reading "leave design" said one thing twice on the line.
+        id: "design.mode.exit",
+        keys: ["Escape", "l"],
+        does: "Exit Design mode",
+        line: "exit Design mode",
+        run: () => setDesignMode(false),
+      },
+    ],
+  });
+  // The way in; the mode's own scope takes the letter back out, nearer than this row, so
+  // while the mode stands this one is shadowed off the line.
+  pageCommand({
+    id: "design.mode.enter",
+    keys: ["l"],
+    does: "Enter Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
+    line: "design mode",
+    run: () => setDesignMode(true),
+  });
 
   return {
     destroy,

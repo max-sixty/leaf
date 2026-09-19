@@ -5,13 +5,15 @@ import itertools
 import json
 import os
 import re
-import shutil
 import signal
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
+import preview as preview_model
 import pytest
 from click.testing import CliRunner
 from interact_support import install_payload, wait_for
@@ -20,7 +22,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
-from leaf import hosting as hosting_model
+from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import render_checks as render_checks_model
@@ -45,6 +47,7 @@ from render_harness import (
     CORPUS_SOURCES,
     LONG_PAGE,
     REPLAYED_PAGE,
+    consume_browser_errors,
     leaf_page,
     open_page,
     panel_settled,
@@ -54,7 +57,6 @@ from render_harness import (
     restarting,
     round_trip,
     sending,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -63,13 +65,35 @@ ROOT = Path(__file__).parent.parent
 
 
 @pytest.fixture
-def preview_slot(tmp_path):
+def preview_slot(tmp_path, monkeypatch):
+    """A previews root of this test's own, and no watcher left running in it.
+
+    `LEAF_PREVIEWS_ROOT` puts the slots under `tmp_path` instead of the checkout's
+    `.tmp/previews`, which every run in this checkout shares. That settles both
+    directions at once: a run leaves nothing behind there — a slot is a page
+    directory plus a background watcher's log, and at a few hundred entries
+    `test_a_detached_preview_restarts_under_its_original_codex_claim` stops meeting
+    its thirty-second reload — and a preview a developer has standing is not a page
+    these tests find.
+
+    The files then go with `tmp_path`, and the servers the way every other page's
+    do, since `_no_page_outlives_its_test` walks `tmp_path` for them. A watcher does
+    not: it is detached into a session of its own, so `spawn` does not reach it
+    either. `retire_preview` does, holding the stop request the watcher reads and
+    waiting for its lease, so a watcher that outlived its test is retired rather
+    than having its page pulled out from under it. Whatever the test named its
+    slots — `{slot}-reader`, `{slot}-before` — they are all in here.
+
+    The root comes back from `previews_root` rather than being spelled twice, so
+    the directory this sweeps is the one the script builds slots under.
+    """
+    monkeypatch.setenv("LEAF_PREVIEWS_ROOT", str(tmp_path / "previews"))
+    root = preview_model.previews_root()
     slot = f"pytest-{os.getpid()}-{tmp_path.name}"
-    page = ROOT / ".tmp" / "previews" / slot
-    yield slot, page
-    if server_model.running_server(page):
-        hosting_model.cmd_stop(page)
-    shutil.rmtree(page, ignore_errors=True)
+    yield slot, root / slot
+    for page in sorted(root.iterdir()) if root.is_dir() else ():
+        if page.is_dir():
+            preview_model.retire_preview(page, discard=False)
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
@@ -82,6 +106,7 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
             "heat-loss",
             "--slot",
             slot,
+            "--reader",
         ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
@@ -212,6 +237,35 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
         )
     ] == []
     assert [root for root in watched.roots if ".tmp" in root.parts] == []
+
+
+def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
+    """An edit made while nobody is reading the subscription is still in it.
+
+    watchfiles starts its rust watcher on the subscription's first read, and the
+    read a preview's loop makes comes after the preview has announced its URL —
+    so the edit a developer makes the moment that URL appears used to land in a
+    window nothing was watching. The interval here is that announcement: long
+    enough that the write is over and reported by the platform before anything
+    reads, which is what an unstarted subscription cannot survive.
+    """
+    edited = tmp_path / "source.html"
+    edited.write_text("<p>authored</p>", encoding="utf-8")
+    changes = preview_model.watch_changes(
+        preview_model.Watched((tmp_path,), frozenset(), frozenset())
+    )
+    try:
+        edited.write_text("<p>edited</p>", encoding="utf-8")
+        time.sleep(1)
+        reported = set()
+        deadline = time.monotonic() + 10
+        while str(edited) not in reported:
+            assert time.monotonic() < deadline, (
+                f"the edit was never reported: {reported}"
+            )
+            reported |= {path for _, path in next(changes)}
+    finally:
+        changes.close()
 
 
 def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_path):
@@ -379,7 +433,7 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
 
 
 def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
-    browser, tmp_path
+    browser, tmp_path, preview_slot
 ):
     """A developer can hold one fixture still while two vendored runtimes serve it.
 
@@ -393,7 +447,8 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         REPLAYED_PAGE.replace("Rollout", "Shared runtime comparison", 1),
         encoding="utf-8",
     )
-    prefix = f"pytest-{os.getpid()}-{tmp_path.name}"
+    # Both slots sit in the fixture's own previews root, so its teardown retires them.
+    prefix, default = preview_slot
     installed = install_payload(tmp_path / "other-runtime")
     runtime_marker = "/* preview runtime marker */"
     installed_runtime = installed / "skills" / "leaf" / "assets" / "leaf.js"
@@ -403,7 +458,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     )
     slots = [f"{prefix}-before", f"{prefix}-after"]
     runtimes = [ROOT, installed]
-    pages = [ROOT / ".tmp" / "previews" / slot for slot in slots]
+    pages = [default.parent / slot for slot in slots]
     urls = []
     try:
         for slot, runtime in zip(slots, runtimes, strict=True):
@@ -447,7 +502,6 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
 
         for url, runtime in zip(urls, runtimes, strict=True):
             page = browser.new_page(viewport={"width": 1200, "height": 900})
-            watched(page)
             page.goto(url, wait_until="load")
             expect(page.locator(".lf-preview")).to_contain_text(
                 f"Preview · {runtime.name}"
@@ -476,26 +530,25 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
                 text=True,
                 timeout=30,
             )
-            shutil.rmtree(page, ignore_errors=True)
 
 
-def test_automation_preview_records_real_gestures_outside_the_task(
+def test_a_preview_records_real_gestures_outside_the_task(
     browser, tmp_path, preview_slot, spawn, request
 ):
-    """Automation and reader previews use the same event door but different lifetimes.
+    """A preview and a `--reader` one share the event door and differ in lifetime.
 
     The selected runtime's temporary server is held by the watcher rather than a
-    service record. Its log survives source reloads, while a distinct reader slot is
-    claimed for task delivery and cannot be overwritten by automation.
+    service record. Its log survives source reloads, while a distinct `--reader`
+    slot is claimed for task delivery and cannot be overwritten by an unclaimed one.
     """
     slot, page_dir = preview_slot
-    source = tmp_path / "automation.html"
+    source = tmp_path / "driven.html"
     source.write_text(
         REPLAYED_PAGE,
         encoding="utf-8",
     )
-    runtime = install_payload(tmp_path / "automation-runtime")
-    automation_command = [
+    runtime = install_payload(tmp_path / "driven-runtime")
+    driven_command = [
         sys.executable,
         str(ROOT / "scripts" / "preview.py"),
         "--source",
@@ -504,37 +557,34 @@ def test_automation_preview_records_real_gestures_outside_the_task(
         str(runtime),
         "--slot",
         slot,
-        "--automation",
     ]
-    automation_process = spawn(
-        automation_command,
+    driven_process = spawn(
+        driven_command,
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert automation_process.stdout.readline() == ("prepared automation (1 version)\n")
-    assert automation_process.stdout.readline() == "\n"
-    automation_url = automation_process.stdout.readline().strip()
-    assert automation_url.startswith("http://127.0.0.1:")
+    assert driven_process.stdout.readline() == ("prepared driven (1 version)\n")
+    assert driven_process.stdout.readline() == "\n"
+    driven_url = driven_process.stdout.readline().strip()
+    assert driven_url.startswith("http://127.0.0.1:")
     assert (
-        automation_process.stderr.readline().strip()
-        == "server   temporary (stops with this command)"
+        driven_process.stderr.readline().strip()
+        == "server   preview (no task claim; stops with its watcher and with this "
+        "agent session)"
     )
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    watcher_metadata = page_dir.with_name(f"{page_dir.name}.preview.json")
-    assert "url" not in json.loads(watcher_metadata.read_text())
+    assert json.loads((page_dir / "preview.json").read_text())["url"] == driven_url
     assert page_dir not in service_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
-    automation = open_page(browser, automation_url)
-    expect(automation.locator(".lf-preview")).to_contain_text(
-        f"Automation · {runtime.name}"
-    )
-    with sending(automation, "the automation option pick"):
-        automation.locator("#opt-shim .lf-pick").click()
-    expect(automation.locator("#opt-shim")).to_have_attribute("chosen", "")
+    driven = open_page(browser, driven_url)
+    expect(driven.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
+    with sending(driven, "the agent-driven option pick"):
+        driven.locator("#opt-shim .lf-pick").click()
+    expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
     [automated_event] = [
         event
         for event in events_model.read_events(page_dir)
@@ -543,27 +593,27 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     feedback = (page_dir / "events.jsonl").read_bytes()
     inode = (page_dir / "events.jsonl").stat().st_ino
 
-    with restarting(automation):
+    with restarting(driven):
         source.write_text(
             source.read_text(encoding="utf-8").replace(
-                "Rollout", "Automation follows source edits", 1
+                "Rollout", "A preview follows source edits", 1
             ),
             encoding="utf-8",
         )
         expect(
-            automation.get_by_role("heading", name="Automation follows source edits")
+            driven.get_by_role("heading", name="A preview follows source edits")
         ).to_be_visible(timeout=30000)
-    expect(automation.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    automation.close()
+    driven.close()
 
-    automation_process.send_signal(signal.SIGINT)
-    _, automation_stderr = automation_process.communicate(timeout=10)
-    assert automation_process.returncode == 130, automation_stderr
-    assert "Traceback" not in automation_stderr
+    driven_process.send_signal(signal.SIGINT)
+    _, driven_stderr = driven_process.communicate(timeout=10)
+    assert driven_process.returncode == 130, driven_stderr
+    assert "Traceback" not in driven_stderr
 
     reader_slot = f"{slot}-reader"
     reader_dir = page_dir.with_name(reader_slot)
@@ -576,6 +626,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
         str(runtime),
         "--slot",
         reader_slot,
+        "--reader",
     ]
 
     def cleanup_reader():
@@ -587,7 +638,6 @@ def test_automation_preview_records_real_gestures_outside_the_task(
             text=True,
             timeout=30,
         )
-        shutil.rmtree(reader_dir, ignore_errors=True)
 
     request.addfinalizer(cleanup_reader)
     reader_result = subprocess.run(
@@ -605,7 +655,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     claim = service_model.page_claim(reader_dir)
     assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
     reader = open_page(browser, reader_url)
-    expect(reader.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
+    expect(reader.locator(".lf-preview")).to_contain_text(f"Reader · {runtime.name}")
     with sending(reader, "the reader option pick"):
         reader.locator("#opt-stage .lf-pick").click()
     expect(reader.locator("#opt-stage")).to_have_attribute("chosen", "")
@@ -620,7 +670,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     )
     reader_feedback = (reader_dir / "events.jsonl").read_bytes()
     refused = subprocess.run(
-        [*reader_command, "--automation"],
+        [command for command in reader_command if command != "--reader"],
         cwd=ROOT,
         capture_output=True,
         check=False,
@@ -628,44 +678,205 @@ def test_automation_preview_records_real_gestures_outside_the_task(
         timeout=30,
     )
     assert refused.returncode == 1
-    assert "choose a new --slot" in refused.stderr
+    assert "serves its reader interaction; add --reader to join it" in refused.stderr
     assert "--reset" in refused.stderr
     assert (reader_dir / "events.jsonl").read_bytes() == reader_feedback
     reader.close()
 
-    reset_automation = spawn(
-        [*reader_command, "--automation", "--reset"],
+    reset_driven = spawn(
+        [
+            *(command for command in reader_command if command != "--reader"),
+            "--reset",
+        ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert reset_automation.stdout.readline() == "prepared automation (1 version)\n"
-    assert reset_automation.stdout.readline() == "\n"
-    reset_url = reset_automation.stdout.readline().strip()
+    assert reset_driven.stdout.readline() == "prepared driven (1 version)\n"
+    assert reset_driven.stdout.readline() == "\n"
+    reset_url = reset_driven.stdout.readline().strip()
     assert reset_url.startswith("http://127.0.0.1:")
     assert (
-        reset_automation.stderr.readline().strip()
-        == "server   temporary (stops with this command)"
+        reset_driven.stderr.readline().strip()
+        == "server   preview (no task claim; stops with its watcher and with this "
+        "agent session)"
     )
     assert service_model.page_claim(reader_dir) is None
     assert reader_event not in events_model.read_events(reader_dir)
 
     reset_page = open_page(browser, reset_url)
     expect(reset_page.locator(".lf-preview")).to_contain_text(
-        f"Automation · {runtime.name}"
+        f"Preview · {runtime.name}"
     )
     expect(reset_page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
     reset_page.close()
 
-    reset_automation.send_signal(signal.SIGINT)
-    _, reset_stderr = reset_automation.communicate(timeout=10)
-    assert reset_automation.returncode == 130, reset_stderr
+    reset_driven.send_signal(signal.SIGINT)
+    _, reset_stderr = reset_driven.communicate(timeout=10)
+    assert reset_driven.returncode == 130, reset_stderr
     assert "Traceback" not in reset_stderr
 
 
-@pytest.fixture
-def watched_preview(tmp_path, preview_slot):
+def _reachable(url: str) -> bool:
+    """Whether a preview's published address still answers."""
+    try:
+        with urllib.request.urlopen(url, timeout=5) as answer:
+            return answer.status == 200
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def test_a_detached_preview_keeps_its_gestures_out_of_the_stop_hook(
+    tmp_path, preview_slot, request, capsys
+):
+    """An agent drives its preview across many tool calls, so it needs `--background`.
+
+    Who presses the page and whether the watcher detaches are separate choices.
+    While they were one, the only backgroundable preview was the claimed one, and a
+    session driving four of them through browser proof read its own presses back as
+    reader input: six Stop hooks blocked on `.tmp/previews/` slots inside subagent
+    worktrees no reader could see.
+
+    A `--reader` preview still reports its reader, which is the reading
+    `test_a_preview_owes_no_watcher_but_still_carries_its_reader` holds. The
+    difference is upstream, in whether the preview took a claim at all.
+    """
+    slot, page_dir = preview_slot
+    source = tmp_path / "detached.html"
+    source.write_text(REPLAYED_PAGE, encoding="utf-8")
+    runtime = install_payload(tmp_path / "detached-runtime")
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+    ]
+    request.addfinalizer(
+        lambda: subprocess.run(
+            [*command, "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    )
+    started = subprocess.run(
+        [*command, "--background"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert started.returncode == 0, (
+        f"stdout:\n{started.stdout}\nstderr:\n{started.stderr}"
+    )
+    url = started.stdout.splitlines()[-1]
+    assert url.startswith("http://127.0.0.1:")
+    assert preview_model.watcher_note(page_dir) in started.stderr
+    assert _reachable(url)
+
+    # The address is the one thing a caller cannot rebuild, and a temporary
+    # server writes no `service.json` to read it off, so a second invocation
+    # answers from the slot's own record rather than starting a rival. A string
+    # alone would also come back from a watcher that has since died.
+    resumed = subprocess.run(
+        [*command, "--background"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert resumed.returncode == 0, resumed.stderr
+    assert resumed.stdout.splitlines()[-1] == url
+    assert _reachable(url)
+
+    session = os.environ["CLAUDE_CODE_SESSION_ID"]
+    assert service_model.page_claim(page_dir) is None
+    assert page_dir not in service_model.owned_pages(session)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": session})
+    assert capsys.readouterr().out == ""
+
+
+def test_a_detached_preview_ends_with_the_session_that_started_it(
+    tmp_path, preview_slot, spawn, request
+):
+    """Every preview is reaped by the session's lifetime; only the route differs.
+
+    A `--reader` preview is reaped through its claim: the serving process exits
+    when the lifetime ends, and the watcher sees an empty service. An unclaimed
+    preview holds its server in its own thread, so nothing outside it would ever
+    notice. Detached, that left a Python process and a loopback port standing
+    after the session, the terminal and the host were gone — and the
+    baseline/candidate recipe starts two of them.
+    """
+    slot, page_dir = preview_slot
+    source = tmp_path / "reaped.html"
+    source.write_text(REPLAYED_PAGE, encoding="utf-8")
+    runtime = install_payload(tmp_path / "reaped-runtime")
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+    ]
+    request.addfinalizer(
+        lambda: subprocess.run(
+            [*command, "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    )
+    # A process of the test's own standing in for the host session, so ending it
+    # is the fact under test rather than the end of this run.
+    host = spawn([sys.executable, "-c", "import time; time.sleep(600)"])
+    started = subprocess.run(
+        [*command, "--background"],
+        cwd=ROOT,
+        env={**os.environ, "CLAUDE_PID": str(host.pid)},
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert started.returncode == 0, (
+        f"stdout:\n{started.stdout}\nstderr:\n{started.stderr}"
+    )
+    url = started.stdout.splitlines()[-1]
+    assert _reachable(url)
+
+    host.terminate()
+    host.wait(timeout=10)
+    # The record is the later fact: the server's socket closes inside the stop
+    # that then writes it, so waiting on the address would race the write.
+    wait_for(
+        lambda: json.loads((page_dir / "preview.json").read_text())["url"],
+        lambda recorded: recorded is None,
+        failure="the detached preview outlived its session",
+        timeout=30,
+    )
+    assert not _reachable(url)
+
+
+def watching(tmp_path, preview_slot, reader: bool):
     source = tmp_path / "watched.html"
     original = REPLAYED_PAGE
     source.write_text(original, encoding="utf-8")
@@ -680,6 +891,7 @@ def watched_preview(tmp_path, preview_slot):
         str(runtime),
         "--slot",
         slot,
+        *(["--reader"] if reader else []),
         "--background",
     ]
     started = subprocess.run(
@@ -699,6 +911,107 @@ def watched_preview(tmp_path, preview_slot):
     assert stopped.returncode == 0, stopped.stdout + stopped.stderr
 
 
+@pytest.fixture
+def watched_preview(tmp_path, preview_slot):
+    """A detached watcher on an ordinary preview, which takes no claim."""
+    yield from watching(tmp_path, preview_slot, reader=False)
+
+
+@pytest.fixture
+def served_preview(tmp_path, preview_slot):
+    """A detached `--reader` watcher, for what only the durable service records."""
+    yield from watching(tmp_path, preview_slot, reader=True)
+
+
+def test_a_preview_states_a_lifetime_every_reading_of_a_claim_can_judge(
+    tmp_path, preview_slot, codex_program, codex_env, spawn, request
+):
+    """The preview is the second writer of a claim's lifetime fields, so its
+    record has to answer `claim_is_active` for every shape a harness states.
+
+    A claim `PageTransaction` wrote carries `ts` whatever shape follows it, and
+    the `activity` reading needs it: Codex's ChatGPT app multiplexes every
+    conversation through one `app-server`, so such a session names no process and
+    is judged live by when its page was last touched. Building the record from
+    `Harness.lifetime()` alone left that host raising `KeyError: 'ts'` on the
+    watcher's first liveness poll — a quarter of a second after `--background`
+    had already handed the URL over, with the traceback only in the slot's log.
+    """
+    source = tmp_path / "multiplexed.html"
+    source.write_text(REPLAYED_PAGE, encoding="utf-8")
+    slot, directory = preview_slot
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--slot",
+        slot,
+        "--background",
+    ]
+    request.addfinalizer(
+        lambda: subprocess.run(
+            [*command[:-1], "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    )
+    ready = tmp_path / "started.json"
+    # `app-server` in the host's own argv is the whole of what `CodexHarness`
+    # looks at to tell the multiplexed shape from a per-conversation `codex`.
+    owner = spawn(
+        [
+            str(codex_program),
+            "-c",
+            (
+                "import json, pathlib, subprocess, sys; "
+                "result = subprocess.run(sys.argv[3:], capture_output=True, text=True); "
+                "pathlib.Path(sys.argv[2]).write_text(json.dumps([result.returncode, result.stdout, result.stderr])); "
+                "sys.stdin.read()"
+            ),
+            "app-server",
+            str(ready),
+            *command,
+        ],
+        env=codex_env
+        | {"CODEX_THREAD_ID": "preview-multiplexed", "PYTHONHOME": sys.base_prefix},
+        stdin=subprocess.PIPE,
+    )
+    wait_for(
+        ready.exists,
+        bool,
+        failure="the preview command did not report its result",
+        timeout=90,
+    )
+    result = json.loads(ready.read_text())
+    assert result[0] == 0, result
+    url = result[1].splitlines()[-1]
+    assert service_model.page_claim(directory) is None
+    log = directory.with_name(f"{directory.name}.preview.log")
+
+    # A reload is several liveness polls later, so it is what says the watcher
+    # read its own lifetime and lived: the first poll lands about 250ms in, well
+    # before this edit.
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "Rollout", "Multiplexed revision", 1
+        ),
+        encoding="utf-8",
+    )
+    wait_for(
+        log.read_text,
+        lambda output: "Reloaded" in output or "Traceback" in output,
+        failure="the detached preview neither reloaded nor reported why not",
+        timeout=30,
+    )
+    assert "Traceback" not in log.read_text(), log.read_text()
+    assert _reachable(url)
+    owner.terminate()
+
+
 def test_a_detached_preview_restarts_under_its_original_codex_claim(
     tmp_path, preview_slot, codex_program, codex_env, spawn
 ):
@@ -713,6 +1026,7 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
         str(source),
         "--slot",
         slot,
+        "--reader",
         "--background",
     ]
     ready = tmp_path / "started.json"
@@ -730,7 +1044,11 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
             *command,
         ],
         env=codex_env
-        | {"CODEX_THREAD_ID": "preview-codex", "PYTHONHOME": sys.base_prefix},
+        | {
+            "CODEX_THREAD_ID": "preview-codex",
+            "PYTHONHOME": sys.base_prefix,
+            "LEAF_PREVIEWS_ROOT": str(directory.parent),
+        },
         stdin=subprocess.PIPE,
     )
     wait_for(
@@ -774,14 +1092,16 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
         )
         assert server_model.running_server(directory) is None
         assert service_model.page_claim(directory)["released"] is not None
-        lease = directory.with_name(f"{directory.name}.preview.lock")
+        lease, _ = preview_model.preview_locks(directory)
         wait_for(
             lambda: leases_model.lock_is_held(lease),
             lambda held: not held,
             failure="the released session left its watcher alive",
         )
-        metadata = directory.with_name(f"{directory.name}.preview.json")
-        assert json.loads(metadata.read_text())["enabled"] is False
+        # The slot's own record outlives the watcher, so a later start resumes it.
+        assert json.loads((directory / "preview.json").read_text())["source"] == str(
+            source
+        )
     finally:
         subprocess.run(
             [*command[:-1], "--stop"], check=True, capture_output=True, timeout=30
@@ -890,10 +1210,18 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
     assert reset.returncode == 0, reset.stdout + reset.stderr
     assert (directory / "index.html").read_bytes() == source.read_bytes()
     assert b'"kind": "action"' not in (directory / "events.jsonl").read_bytes()
+    # The log the reset names is the new watcher's, and only the new watcher's: the
+    # launcher cleared the old one's lines before the worker discarded the slot.
+    log = directory.with_name(f"{directory.name}.preview.log")
+    assert f"watch log {log}" in reset.stderr
+    wait_for(
+        lambda: log.read_text() if log.exists() else "",
+        lambda output: output.count("Watching ") == 1,
+        failure="the reset's watcher did not write to the log it was named",
+    )
 
     fresh = open_page(browser, reset.stdout.splitlines()[-1])
     expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")
-    fresh.close()
 
 
 @pytest.mark.parametrize(
@@ -940,26 +1268,34 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     page.route(
         "**/" + ("leaf.js" if resource == "syntax" else resource), interrupt_resource
     )
-    page.goto(url, wait_until="load")
-    status = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
-    expect(status).to_be_visible()
-    # Hearing the same server does not loop on a persistent syntax/startup fault.
-    with page.expect_response("**/registry.json") as response:
-        pass
-    assert response.value.ok
-    assert len(navigations) == 1
-    expect(status).to_be_visible()
-    generation = json.loads((directory / "registry.json").read_text())["$layer"][
-        "generation"
-    ]
-    # A refused re-vendor still replaces the server; the old layer is now loadable.
-    (runtime / "skills" / "leaf" / "packages" / "default" / "registry.json").write_text(
-        "{", encoding="utf-8"
-    )
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=30000
-    )
-    expect(status).not_to_be_visible()
+    # The interruption and the replacement server between them are a restart, and
+    # what the browser says inside one is the fetch that was in flight rather than
+    # the condition: a refused resource, a connection to a server that has gone, a
+    # decoding that stopped halfway. The span is bracketed rather than the wordings
+    # listed (tests/CLAUDE.md, "A test cannot assert over noise it makes itself").
+    with restarting(page):
+        page.goto(url, wait_until="load")
+        status = page.get_by_text(
+            "Leaf couldn't start. Waiting for the server to update."
+        )
+        expect(status).to_be_visible()
+        # Hearing the same server does not loop on a persistent syntax/startup fault.
+        with page.expect_response("**/registry.json") as response:
+            pass
+        assert response.value.ok
+        assert len(navigations) == 1
+        expect(status).to_be_visible()
+        generation = json.loads((directory / "registry.json").read_text())["$layer"][
+            "generation"
+        ]
+        # A refused re-vendor still replaces the server; the old layer is now loadable.
+        (
+            runtime / "skills" / "leaf" / "packages" / "default" / "registry.json"
+        ).write_text("{", encoding="utf-8")
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-presented", "1", timeout=30000
+        )
+        expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert len(navigations) == 2
@@ -1006,12 +1342,17 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
 
     page.route("**/leaf.js", interrupt_entry)
     page.route("**/registry.json", static_registry)
-    page.goto(url, wait_until="load")
-    status = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
-    expect(status).to_be_visible()
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
-    )
+    # As above: the refused entry and the server that replaces it are one restart,
+    # and its noise belongs to the span rather than to a list of wordings.
+    with restarting(page):
+        page.goto(url, wait_until="load")
+        status = page.get_by_text(
+            "Leaf couldn't start. Waiting for the server to update."
+        )
+        expect(status).to_be_visible()
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-presented", "1", timeout=10000
+        )
     assert len(probes) >= 2
     assert len(navigations) == 2
     expect(status).not_to_be_visible()
@@ -1019,7 +1360,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
 
 @pytest.mark.parametrize("interrupted", ["registry.json", "widgets/lf-options.js"])
 def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
-    browser, watched_preview, interrupted
+    browser, served_preview, interrupted
 ):
     """A start the restart interrupts reports the vanished server and comes back.
 
@@ -1028,10 +1369,15 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     start's own fetches, because the words are the fetch's rather than the condition's:
     the registry is a plain `fetch` and a widget is a dynamic import, and only the second
     names the module. Whichever one the loaded machine loses is which wording arrives.
+
+    Claimed, because the tab recovers at the address it already has: `service.json`
+    holds the port across a stop and the access key is the machine's, while an
+    unclaimed preview's server is its watcher's, and a fresh watcher mints a port
+    and a key of its own for the next reader to read.
     """
-    _, _, _, command, url = watched_preview
+    _, _, _, command, url = served_preview
     page = browser.new_page()
-    errors = watched(page)
+    errors = page.lf_errors
     stopped = []
 
     def stop_the_service(route):
@@ -1119,10 +1465,10 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
     assert (directory / "media" / image.name).read_bytes() == expected
 
 
-def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spawn):
+def test_stopping_a_preview_waits_for_its_active_recompose(served_preview, spawn):
     """Stop intent survives an update's own stopped-service interval and returns last."""
-    source, runtime, directory, command, _ = watched_preview
-    metadata = directory.with_name(f"{directory.name}.preview.json")
+    source, runtime, directory, command, _ = served_preview
+    _, stop_request = preview_model.preview_locks(directory)
     # Real page-transaction contention pauses init after the watcher stops the service.
     # The stop command must wait for that work and suppress its pending restart.
     with events_model.flocked(directory / "events.jsonl"):
@@ -1140,14 +1486,15 @@ def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spaw
             stderr=subprocess.PIPE,
             text=True,
         )
-        while json.loads(metadata.read_text())["enabled"]:
+        while not leases_model.lock_is_held(stop_request):
             assert time.monotonic() < deadline, "stop did not record its intent"
             time.sleep(0.05)
         assert stopping.poll() is None
     stdout, stderr = stopping.communicate(timeout=30)
     assert stopping.returncode == 0, stdout + stderr
     assert server_model.running_server(directory) is None
-    assert not json.loads(metadata.read_text())["enabled"]
+    # The request is the stop command's own; nothing is left holding it afterwards.
+    assert not leases_model.lock_is_held(stop_request)
     assert (directory / "events.jsonl").is_file()
     assert (directory / "index.html").read_bytes() == source.read_bytes()
 
@@ -1293,13 +1640,11 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
     assert result.exit_code == 0, result.output
 
     page = browser.new_page()
-    watched(page)
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=10000
     )
     expect(page.locator(".lf-chrome")).to_have_count(0)
-    page.close()
 
 
 def test_interactive_export_runs_captured_local_behavior_without_a_host(
@@ -1360,7 +1705,6 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert "<script" not in static.lower()
 
     page = browser.new_page(viewport={"width": 1000, "height": 800})
-    watched(page)
     external = []
     document_url = interactive.as_uri()
     page.on(
@@ -1407,7 +1751,6 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert refused == [None, None, None]
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     assert external == []
-    page.close()
 
 
 def test_interactive_export_hydrates_captured_data_fragments_offline(
@@ -1444,7 +1787,6 @@ def test_interactive_export_hydrates_captured_data_fragments_offline(
     assert result.exit_code == 0, result.output
 
     page = browser.new_page()
-    watched(page)
     external = []
     document_url = interactive.as_uri()
     page.on(
@@ -1462,7 +1804,6 @@ def test_interactive_export_hydrates_captured_data_fragments_offline(
         page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     ).to_have_count(1)
     assert external == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -1497,7 +1838,6 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
     live.close()
 
     record = browser.new_page(viewport={"width": 480, "height": 700})
-    watched(record)
     record.goto(static_path.as_uri(), wait_until="load")
     expect(record.locator("script")).to_have_count(0)
     expect(record.locator("lf-playground").get_by_role("button")).to_have_count(0)
@@ -1532,7 +1872,6 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
     assert result.exit_code == 0, result.output
 
     offline = browser.new_page(viewport={"width": 900, "height": 700})
-    watched(offline)
     external = []
     document_url = interactive_path.as_uri()
     offline.on(
@@ -1565,7 +1904,6 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
             "style", re.compile(r"width: 420px")
         )
     assert external == []
-    offline.close()
 
 
 def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
@@ -1590,7 +1928,6 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     assert result.stdout.splitlines()[-1] == str(out.resolve())
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.on(
         "requestfailed",
         lambda request: page.lf_errors.append(f"unfetched {request.url}"),
@@ -1760,16 +2097,13 @@ def test_export_state_route_follows_the_canonical_page_root(browser):
     page.set_content(
         '<link rel="canonical" href="/p/page-capability/" data-lf-runtime>'
     )
-    try:
-        assert (
-            exporting_model._state_url(
-                page,
-                "https://leaf.invalid/p/page-capability/versions/v2.html",
-            )
-            == "https://leaf.invalid/p/page-capability/api/state"
+    assert (
+        exporting_model._state_url(
+            page,
+            "https://leaf.invalid/p/page-capability/versions/v2.html",
         )
-    finally:
-        page.close()
+        == "https://leaf.invalid/p/page-capability/api/state"
+    )
 
 
 def test_export_state_route_refuses_a_missing_canonical_without_waiting():
@@ -1873,36 +2207,32 @@ body { --export-tone: rgb(12, 34, 56); }
     out = tmp_path / "captured.html"
     out.write_text(exported, encoding="utf-8")
     page = browser.new_page()
-    watched(page)
     requests = []
     page.on("request", lambda request: requests.append(request.url))
-    try:
-        page.goto(out.as_uri(), wait_until="load")
-        expect(page.locator("#title")).to_have_css("color", "rgb(12, 34, 56)")
-        expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
-            "naturalWidth", 24
-        )
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("#title")).to_have_css("color", "rgb(12, 34, 56)")
+    expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
+        "naturalWidth", 24
+    )
+    assert (
+        page.locator("#vector image")
+        .get_attribute("href")
+        .startswith("data:image/svg+xml;base64,")
+    )
+    assert (
+        page.locator("#responsive")
+        .get_attribute("srcset")
+        .count("data:image/svg+xml;base64,")
+        == 2
+    )
+    expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
+    for selector in ("#badge", "#inline"):
         assert (
-            page.locator("#vector image")
-            .get_attribute("href")
-            .startswith("data:image/svg+xml;base64,")
+            page.locator(selector)
+            .evaluate("el => getComputedStyle(el).backgroundImage")
+            .startswith('url("data:image/svg+xml;base64,')
         )
-        assert (
-            page.locator("#responsive")
-            .get_attribute("srcset")
-            .count("data:image/svg+xml;base64,")
-            == 2
-        )
-        expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
-        for selector in ("#badge", "#inline"):
-            assert (
-                page.locator(selector)
-                .evaluate("el => getComputedStyle(el).backgroundImage")
-                .startswith('url("data:image/svg+xml;base64,')
-            )
-        assert requests == [out.as_uri()]
-    finally:
-        page.close()
+    assert requests == [out.as_uri()]
 
 
 def test_export_refuses_a_rendered_asset_outside_the_page(browser, serve):
@@ -1918,7 +2248,8 @@ document.querySelector('#external').src = 'https://outside.invalid/evidence.svg'
         SystemExit,
         match="could not embed its captured assets: export resource is outside the page",
     ):
-        exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+        # The export's own page, which is where the blocked image is reported.
+        exporting_model.export_page(browser.unwatched, url, serve.page_dir, "v1.html")
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -2042,7 +2373,6 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
@@ -2081,14 +2411,12 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
     out = tmp_path / "gloss-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
     expect(copy.locator(".lf-gloss-popover")).to_be_visible()
     expect(copy.locator(".lf-gloss-mark")).to_have_count(0)
     expect(copy.locator("lf-gloss")).to_contain_text(
         "walking skeletonA thin path through the real system."
     )
-    copy.close()
 
 
 def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
@@ -2121,7 +2449,6 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     out = tmp_path / "work-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator(".lf-receipt")).to_have_count(0)
@@ -2189,7 +2516,6 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
     out = tmp_path / "thread-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     copy = browser.new_page()
-    watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
     thread = copy.locator(selector)
     expect(thread).to_have_count(1)
@@ -2210,7 +2536,6 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         expect(thread.locator(".lf-conversation-body")).to_be_hidden()
     copy.emulate_media(media="print")
     expect(thread.locator(".lf-conversation-body")).to_be_visible()
-    copy.close()
 
 
 RECEIPT_DRAFT = leaf_page(
@@ -2275,7 +2600,6 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
@@ -2311,7 +2635,6 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     card = page.locator("#card-importer")
     expect(card).to_have_attribute("data-lf-reader-override", "1")
@@ -2368,7 +2691,6 @@ def test_a_copy_keeps_generated_native_controls_and_their_labels(
     expect(copy.get_by_role("textbox", name="Review note")).to_have_value(
         "Retained native input"
     )
-    copy.close()
 
 
 def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
@@ -2386,7 +2708,11 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
     )
     url = serve(source)
     out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    # The authored `<base>` is refused on the live page too, and that page is the
+    # export's own to read.
+    out.write_text(
+        exporting_model.export_page(browser.unwatched, url, serve.page_dir, "v1.html")
+    )
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.add_init_script(
@@ -2405,15 +2731,14 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
             route.fulfill(status=204, body=""),
         ),
     )
-    try:
-        page.goto(out.as_uri(), wait_until="load")
-        page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
-        assert page.locator("#relative").evaluate("link => link.protocol") == "file:"
-        page.locator("#escape").evaluate("form => form.requestSubmit()")
-        page.wait_for_function("() => window.__cspViolations.includes('form-action')")
-        assert escaped == []
-    finally:
-        page.close()
+    page.goto(out.as_uri(), wait_until="load")
+    page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
+    assert page.locator("#relative").evaluate("link => link.protocol") == "file:"
+    page.locator("#escape").evaluate("form => form.requestSubmit()")
+    page.wait_for_function("() => window.__cspViolations.includes('form-action')")
+    assert escaped == []
+    # Both refusals asserted above are reported on the console as well.
+    consume_browser_errors(page, "violates the following Content Security Policy")
 
 
 def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
@@ -2436,7 +2761,6 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900}, bypass_csp=True)
-    watched(page)
     page.on("requestfailed", lambda r: page.lf_errors.append(f"unfetched {r.url}"))
     render_checks_model.prepare_standalone_probes(page)
     page.goto(out.as_uri(), wait_until="load")
@@ -2626,7 +2950,6 @@ def test_comparison_export_keeps_both_results_and_the_recorded_choice(
     )
 
     page = browser.new_page(viewport={"width": 760, "height": 900}, bypass_csp=True)
-    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     current = page.locator("#comparison-current")
     proposed = page.locator("#comparison-proposed")
@@ -2825,4 +3148,3 @@ def test_a_copy_drops_live_element_projection_state(browser, serve, tmp_path):
     expect(copy.locator("#fig")).not_to_have_class(
         re.compile(r"\blf-(?:mark-el|projected-mark)\b")
     )
-    copy.close()

@@ -56,10 +56,9 @@ that live state.
 
 When the host sets `$LEAF`, use that launcher for every command shown as `leaf`.
 Otherwise resolve the directory containing this `SKILL.md` and use its
-`../../bin/leaf` launcher. In Claude Code that path is
-`${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code also puts it on `PATH`. If
-the resolved file is absent, report that the plugin payload is incomplete. A
-checkout keeps the launcher at `bin/leaf`.
+`../../bin/leaf` launcher; your host contract may name that path directly or put
+it on `PATH`. If the resolved file is absent, report that the plugin payload is
+incomplete. A checkout keeps the launcher at `bin/leaf`.
 
 1. Run `leaf page init <page>`. Optional shapes need their packages named here:
    `diagram` for Mermaid, `diff` for a unified diff, `swipe` for rapid
@@ -102,8 +101,8 @@ checkout keeps the launcher at `bin/leaf`.
 
 When input arrives, read `references/event-batches.md` before processing it and
 `references/conversation-threads.md` when a conversation needs work. Every host
-delivers the same `leaf-delivery-v1` envelope: direct waits and App Server carry
-it inline, while queued Codex carries its immutable id. Read
+delivers the same `leaf-delivery-v1` envelope; your host contract names whether it
+arrives inline or as a pointer to resolve. Read
 `references/page-checkpoints.md` before stamping or ending. Edit only
 `index.html`; Leaf alone writes immutable revisions and public version mappings.
 

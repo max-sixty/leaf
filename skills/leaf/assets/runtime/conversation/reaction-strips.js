@@ -9,12 +9,12 @@ export function reactionReading(thread, message, complete) {
   if (
     !complete ||
     thread.resolved ||
-    message.author !== "claude" ||
+    message.author !== "agent" ||
     !isAddressable(message)
   )
     return null;
   const latest = thread.msgs.findLast(
-    (item) => item.author === "claude" && isAddressable(item),
+    (item) => item.author === "agent" && isAddressable(item),
   );
   const standing = thread.msgs.filter(
     (item) => isReaction(item) && item.author === "user" && item.parent === message.id,

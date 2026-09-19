@@ -4,6 +4,8 @@ import { notice } from "../notifications.js";
 import { elementById, inChrome } from "../passages.js";
 import { widgetDescriptor } from "../widget-descriptors.js";
 import { paintKeys } from "../keyboard/scopes.js";
+import { pageCommand } from "../keyboard/register.js";
+import { undoSentence } from "../reactions.js";
 import { authoredStates } from "./authored.js";
 
 function canUndoAction(candidate) {
@@ -74,6 +76,25 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
     const event = undoable();
     if (event) await withdraw(event);
   }
+
+  // The last thing the reader did to this page, put back. Its own key rather than the
+  // platform's ⌘Z, which belongs to the box a reader is typing in and is taken by the
+  // browser everywhere else: this is a page-level press like every other letter, and the
+  // typing scope keeps it off a composer's words by claiming its letters. The word is
+  // "undo" and never the verb it is about to state — `move` is one widget's word, and a
+  // line that said it would be naming a member where the mechanism is what holds.
+  pageCommand({
+    id: "history.undo",
+    keys: ["z"],
+    does: () => undoSentence(undoable),
+    line: "undo",
+    // Dead while the page holds a gesture no log read accounts for, this one's own send
+    // included: the walk would name the gesture *before* the one they just made and take
+    // that back instead. The line drops the chip for as long as that is true rather than
+    // promising a press that would undo the wrong thing.
+    when: () => !unaccountedGesture() && Boolean(undoable()),
+    run: (...args) => undoLast(...args),
+  });
 
   return {
     undoable,

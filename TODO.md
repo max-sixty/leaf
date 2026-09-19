@@ -1,10 +1,12 @@
 # TODO
 
 Items are ordered by priority. Each names the result. When an item needs active
-investigation detail, keep it in a linked note. Completed work and rejected alternatives
-remain in git history. An item decided against leaves rather than staying with its
-reasoning attached: a dependency, platform, or storage choice goes to the Rejected table
-in [the survey note](notes/dependency-survey.md) as one line and the number that decided
+investigation detail, keep it in a linked note. Item ids are one space shared with
+`notes/`, so a new item takes the next id free in both rather than the next one here.
+Completed work and rejected alternatives remain in git history. An item decided against
+leaves rather than staying with its reasoning attached: a dependency, platform, or
+storage choice goes to the Rejected table in
+[the survey note](notes/dependency-survey.md) as one line and the number that decided
 it, and anything else goes to git history.
 
 ## Now
@@ -30,6 +32,13 @@ it, and anything else goes to git history.
   intended editorial and technical aesthetic. Fix repeated system-level gaps in type,
   spacing, framing, control hierarchy, and responsive behavior; avoid playful consumer-app
   ornament.
+
+- **Weigh the focus ring once, for every keyboard target.** The 2px accent ring
+  (`--here-ring` in `skills/leaf/assets/theme.css`) may be too strong on a large target:
+  a walked-to thread card or inline thread wears it inset over the quiet ground, and the
+  perimeter reads heavier there than around a button. The card was given the ring so that
+  a keyboard arrival looks the same everywhere, so whatever weight wins applies to every
+  target that wears it; do not soften it on the card alone.
 
 ## Make Leaf feel like a game
 
@@ -128,25 +137,8 @@ ordering contract these items extend.
 ## Architecture simplification
 
 The 2026-09-13 to 09-17 Lit application arc closed #1 and #3, which git history now
-carries. A 2026-09-18 survey measured what remains and added #25 to #27; its evidence is
-the `leaf-simplification` page directory in the state home. Ids here share one space with
-the workspace research below, which reaches #23, so a new item starts above that.
-
-- **#4 — Delete the browser's second derivation of the server's semantics.** The server
-  already folds the Ask inventory, winner and retraction resolution, and each thread's
-  `awaits_reader`, and ships all three on `/api/state`; the browser discards them and
-  derives them again in `scripts/browser/application.ts` — `deriveAsks` across lines 342 to
-  517, `deriveThreadReaderObligations` 528 to 582, the ask predicates between them, plus a
-  re-fold of the `actions` and `desired` id lists the wire carries for exactly that purpose.
-  Roughly 750 lines, arrived in #746. The two copies of the `when` predicate already
-  disagree, Python testing presence and TypeScript testing non-null, so an attribute
-  recorded as `null` reads differently on each side. Nothing on either side compares them.
-  Keep the pending-attempt ledger and the DOM-captured authored baseline, which are the
-  browser's real work. Restore the ~35 lines of page-ask serialization
-  `served_state/document.py` computes and drops, and delete the ask payload
-  `served_state/conversation.py` ships that nothing reads. A shared parity corpus follows
-  this rather than preceding it: built first, it would police an implementation that is
-  about to go.
+carries. A 2026-09-18 survey measured what remains and raised the items below; its
+evidence is the `leaf-simplification` page directory in the state home.
 
 - **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
   imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the
@@ -180,24 +172,23 @@ the workspace research below, which reaches #23, so a new item starts above that
   leading them: what makes the folds reachable without a browser is giving them a home off
   the DOM.
 
-- **#8 — Decentralize keyboard feature knowledge.** Have feature owners contribute explicit
-  capabilities at boot and leave the dispatcher generic. The condition this item waited on
-  is met: `createPageKeys` takes 53 named capabilities and `leaf.js` mirrors all 53, so a
-  core command costs one line in each of three files, while a package widget already
-  registers through `keys()` and costs none. Eleven of the 53 are scopes a feature declared
-  locally and `page.js` names again. It moves about 900 lines and deletes about 170,
-  including the `rung()` ladder whose own guard stands down for the layer stack.
-
-- **#27 — Admit every event through one door.** Six of the nine `append_event` callers
-  check no contract: `cmd_comment`, `cmd_reply`, `cmd_edit` and `cmd_resolve` in
-  `conversation.py`, the `pickup` in `session.py`, and the `note` in `publishing.py`. Of
-  the three that do check, `cmd_report` reaches `event_contracts.py` and `cmd_receipt`
-  uses a validator `requests.py` defines itself, so the rules are in two homes as well as
-  the gate being in three — `event_endpoint.accept_event` for browser events and
-  `service.append_event` for widget kinds, with the CLI going through neither.
-  `event_log` stamps an id and a timestamp and checks no schema, so whatever a caller
-  hands it lands in the log. Validate once at the edge: one admission door the CLI writers
-  share, not a validator added per caller.
+- **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
+  now keeps the reader's place through the browser's own scroll anchoring, and that hold
+  rests on an ordering rather than a guarantee: `main`'s `left` (via `--lf-shift`) and its
+  `width` do change when the strip is taken, both are on Chromium's suppression list, and
+  they escape it only because the container-query recalc that moves them runs inside
+  layout, after `ScrollAnchor::NotifyBeforeLayout` has walked the anchor's ancestors.
+  Measured 2026-09-18: across three pages and six widths, `left` changed at 1440 and 1200
+  and `width` at ≤1200, and the reader held within 2px in all 18 cases. Make `body` a
+  three-track grid for column placement only — keep the border strip, so every
+  `lf-shell` floor keeps its meaning — and give `main` `grid-column: 2; width: 100%`, so
+  its inset never changes. That deletes `--lf-shift`, `--lf-gutter`, `--lf-sidebar-edge`,
+  `left`, and the `50cqi ± --lf-shift` terms in `packages/default/theme.css`, with the same
+  layout at every width and the same sideways jump. Keep `main`'s `max-width`, or
+  `_column_width` (`scripts/leaf/styles.py`) silently falls back to 780. About half a day;
+  the space-bound arithmetic is where the 134px and 34px overlaps were measured, so expect
+  `test_render_margin.py` and the `withheldRoom` gate to need iteration. Low priority:
+  `--lf-shift` has been touched by two commits, so this is insurance, not accretion.
 
 ## Platform and dependency cutover
 
@@ -300,11 +291,11 @@ thread panel's touch grip has its own item under Later.
   targets the keyboard does.
 
 - **Show a phone reader that a passage has a thread.** Margin markers and pickup receipts
-  are hidden below 900px (`runtime/margin-projection.js`'s `hide` fallback,
-  `assets/theme.css`), so a comment beside a task is invisible, although tapping the text
-  still opens it and Threads still lists it. The reaction row already moves into the text
-  flow when the margin has no room; the same reflow for markers would keep the page
-  honest about what it holds.
+  are hidden wherever the page shell is 840px or narrower (`runtime/margin-projection.js`'s
+  `hide` fallback, `assets/theme.css`), so a comment beside a task is invisible, although
+  tapping the text still opens it and Threads still lists it. The reaction row already
+  moves into the text flow when the margin has no room; the same reflow for markers
+  would keep the page honest about what it holds.
 
 - **Make a delivered document declare its viewport.** `references/page-authoring.md` puts
   `<meta name="viewport">` in the authoring template and nothing checks for it, so a page

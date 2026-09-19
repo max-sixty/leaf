@@ -21,6 +21,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    standing_ring,
     token_colour,
 )
 from render_cases_navigation import (
@@ -622,8 +623,8 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     dock them withholds them as `lf-withheld` instead; the gallery stands still too
     now, but it docks no row at that viewport at all — measured, none of the
     eighteen it draws wears `lf-docked`. The posture is therefore reached directly:
-    under `COVERING` a contributed row cannot hang whatever the local room, and a
-    page with one target settles.
+    where the rail does not stand a contributed row cannot hang whatever the local
+    room, and a page with one target settles.
 
     The guard must not cost the mark, so the narrowing is read too — the row
     arrives hanging, and it is the pass that docks it. The pass itself is counted
@@ -648,7 +649,7 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     row = page.locator(".lf-margin-cluster")
     expect(row).to_have_count(1)
     expect(row).not_to_have_class(re.compile(r"lf-docked"))
-    # Inside the covering boundary, which is 840px wide.
+    # Under the rail's floor, a shell of 840px or less.
     resized(page, 800, 900)
     margins_laid_out(page)
     expect(row).to_have_class(re.compile(r"lf-docked"))
@@ -679,6 +680,155 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     )
     assert marks == {"passes": 5, "marks": []}, marks
     expect(row).to_have_class(re.compile(r"lf-docked"))
+
+
+def test_a_held_marker_hands_the_reader_to_the_page_map_when_the_rail_falls(
+    browser, serve
+):
+    """A marker the keyboard is on stops being drawn when the shell loses its rail, so
+    the reader is put on the control that still reaches what the marker held.
+
+    The browser takes focus off an element it hides, onto body, and whether it does so
+    before or after the owner hears that the shell moved is not ordered: a handoff that
+    reads `document.activeElement` when it hears finds nobody holding the margin about
+    one narrowing in three, and leaves that reader on body. So this asserts the settled
+    end state, and on the reading it replaced it is red at that rate rather than always
+    — measured, six of six here and four of five there. The reading it needs is the one
+    taken when focus last moved, which no hide can overwrite."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Hold this thread's marker with the keyboard.",
+        "anchor": {"section": "how-cap"},
+    }
+    page = open_page(browser, serve(PANEL_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    marker = page.locator(".lf-margin-marker.lf-margin-entry").first
+    marker.focus()
+    expect(marker).to_be_focused()
+
+    resized(page, 700, 900)
+    expect(marker).to_be_hidden()
+    expect(page.locator(".lf-page-map-toggle")).to_be_focused()
+
+
+def test_a_held_marker_reaches_a_folded_map_through_the_door_that_holds_it(
+    browser, serve
+):
+    """The Map is a banner control, so at a width that folds it the button stands behind
+    a shut door: it fails `checkVisibility()` and takes no focus. A handoff that asked
+    the button rather than the shelf left the reader on body, since by then the rail has
+    fallen and there is no margin row to fall back to either, and the Versions button the
+    last resort named can be folded away just as easily. Asking the shelf answers with
+    the door the reader can actually press."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    # The gallery docks most of its clusters even with a rail, and a docked marker is
+    # not in the rail to lose. Hold one that hangs.
+    marker = page.locator(
+        ".lf-margin-cluster:not(.lf-docked) .lf-margin-marker.lf-margin-entry:visible"
+    ).first
+    marker.focus()
+    expect(marker).to_be_focused()
+
+    resized(page, 390, 700)
+    expect(marker).to_be_hidden()
+    more = page.get_by_role("button", name="More page controls", exact=True)
+    expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
+    expect(more).to_be_focused()
+
+
+def test_a_panel_takes_the_markers_and_hands_the_reader_the_map(browser, serve):
+    """The rail is drawn in the shell, so what decides whether the margin stands is the
+    room a panel leaves rather than the room the window has. This is the case the
+    container query exists for and the one no window query can answer: the window does
+    not move, the markers go, and the Page Map arrives in their place.
+
+    1100 does both halves. The panel's 420px strip leaves a 680px shell, well under the
+    floor, while the window stays 260px clear of it — so a reading taken from the window
+    would keep drawing markers in a rail the page has no room for, which is exactly what
+    it used to do. The Map is read as offered rather than as visible, since the shelf may
+    fold it behind the More door at a width the banner is crowded at; folded or not, the
+    page is stating that the whole map is the way to what the markers held."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "A thread the margin draws a marker for.",
+        "anchor": {"section": "how-cap"},
+    }
+    page = open_page(browser, serve(PANEL_PAGE, events=[comment]))
+    offered = """() => {
+      const map = document.querySelector('.lf-page-map-toggle');
+      return Boolean(map) && !map.hidden && getComputedStyle(map).display !== 'none';
+    }"""
+    marker = page.locator(".lf-margin-marker.lf-margin-entry").first
+
+    resized(page, 1100, 900)
+    margins_laid_out(page)
+    expect(marker).to_be_visible()
+    assert not page.evaluate(offered), (
+        "a page with a rail offers the map in the margin, not in the banner"
+    )
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    margins_laid_out(page)
+    expect(marker).to_be_hidden()
+    assert page.evaluate(offered), (
+        "the panel took the rail's room at an unchanged window and the page offered "
+        "the reader nothing in its place"
+    )
+
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    margins_laid_out(page)
+    expect(marker).to_be_visible()
+    assert not page.evaluate(offered), "the room came back and the margin did not"
+
+
+def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
+    """The floor grants the rail out of the shell, so the shell has to hold what it
+    grants: the column (720), its padding (2 x 24) and the claim. A finger raises the
+    claim from 59 to 71, which puts the requirement at 839 against a floor of 840 — one
+    pixel, and until now nothing but the prose beside the rule stood behind it. So this
+    walks the shell down through the flip with the aim floor at the value a coarse
+    pointer gives it, and holds the column whole wherever the rail stands.
+
+    A floor set too low reads here as a column narrower than its measure, which is the
+    bug the floor exists to stop: the markers go flush against whatever took the room."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    page.evaluate(
+        "() => document.documentElement.style.setProperty('--aim-floor', '44px')"
+    )
+    stood = []
+    for width in range(880, 815, -5):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        reading = page.evaluate(
+            """() => {
+              const main = document.querySelector('main');
+              const style = getComputedStyle(main);
+              return {
+                posture: style.getPropertyValue('--lf-rail-posture').trim(),
+                column: Math.round(parseFloat(style.width)),
+                shell: Math.round(document.body.clientWidth),
+              };
+            }"""
+        )
+        if reading["posture"] != "margin":
+            continue
+        stood.append(reading)
+        assert reading["column"] >= 720, (
+            f"a {reading['shell']}px shell claimed the rail and left a "
+            f"{reading['column']}px column: the floor granted room the page lacks"
+        )
+    assert stood, "no width in this sweep claimed the rail, so nothing here was tested"
+    assert min(r["shell"] for r in stood) <= 850, (
+        "the sweep stopped above the flip, so the narrowest claim went untested"
+    )
 
 
 def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
@@ -3281,7 +3431,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()
-    expect(thread_margin_entry).to_be_focused()
+    # Back where the reader stood before the press, which was the accept control the
+    # pointer's click displaced, not the option the click focused.
+    expect(accept).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
@@ -3660,7 +3812,7 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "Two of them can share a visit; the third cannot.",
@@ -4509,7 +4661,7 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
                   coveredBottomChrome: bottomChrome.filter(box => overlaps(card, box)).length};
         }"""
     )
-    assert geometry["placement"] == "right", geometry
+    assert geometry["placement"] in ("below", "above"), geometry
     assert (
         geometry["cardBottom"] <= geometry["controlsTop"] - 7
         or geometry["cardTop"] >= geometry["controlsBottom"] + 7
@@ -4580,27 +4732,152 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     assert geometry["targetTop"] >= geometry["bannerBottom"], geometry
     assert geometry["targetBottom"] <= 900, geometry
 
+    # The card's top edge is the cluster's while the whole card fits under it, and it
+    # holds at the boundary's foot once the cluster scrolls lower than that. Each scroll
+    # is read after the frame the scroll listener places the card in.
     moved = page.evaluate(
         """async () => {
-          const positions = () => ({
-                card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
-                controls: document.querySelector(
-                  '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect().top,
-            scrollY,
-          });
-          const before = positions();
-          scrollBy(0, 40);
-          await new Promise(resolve => requestAnimationFrame(
+          const positions = () => {
+            const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+            const foot = Math.min(...[...document.querySelectorAll(
+              '.lf-shortcut-bar, .lf-bottom-status')].filter(node => node.checkVisibility())
+              .map(node => node.getBoundingClientRect().top));
+            return {
+              card: card.top, cardBottom: card.bottom, foot,
+              controls: document.querySelector(
+                '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect().top,
+              scrollY,
+            };
+          };
+          const placed = () => new Promise(resolve => requestAnimationFrame(
             () => requestAnimationFrame(resolve)));
-          return {before, after: positions()};
+          scrollBy(0, 250);
+          await placed();
+          const high = positions();
+          scrollBy(0, 40);
+          await placed();
+          const higher = positions();
+          scrollBy(0, -450);
+          await placed();
+          const low = positions();
+          return {high, higher, low};
         }"""
     )
-    assert moved["after"]["scrollY"] - moved["before"]["scrollY"] >= 39
-    assert moved["after"]["card"] - moved["after"]["controls"] == pytest.approx(
-        moved["before"]["card"] - moved["before"]["controls"], abs=0.5
-    )
+    assert moved["high"]["card"] == pytest.approx(moved["high"]["controls"], abs=0.5)
+    assert moved["higher"]["scrollY"] - moved["high"]["scrollY"] >= 39
+    assert moved["higher"]["card"] - moved["higher"]["controls"] == pytest.approx(
+        moved["high"]["card"] - moved["high"]["controls"], abs=0.5
+    ), moved
+    assert moved["low"]["controls"] > moved["low"]["card"], moved
+    assert moved["low"]["cardBottom"] == pytest.approx(
+        moved["low"]["foot"] - 8, abs=0.5
+    ), moved
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.evaluate("scrollBy(0, innerHeight)")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
+def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser, serve):
+    """A rail a few pixels short of the card's measure narrows the card, not its height."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.evaluate("location.hash = 'bg-margin-controls'")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    geometry = page.evaluate(
+        """() => {
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const list = cardNode.querySelector('.lf-margin-preview-list');
+          const card = cardNode.getBoundingClientRect();
+          const controls = document.querySelector(
+            '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect();
+          const style = getComputedStyle(cardNode);
+          return {placement: cardNode.dataset.lfThreadPlacement,
+                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+                  controlsRight: controls.right, viewport: innerWidth,
+                  preferred: parseFloat(style.getPropertyValue('--thread-card')),
+                  minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
+                  clipped: list.scrollHeight - list.clientHeight};
+        }"""
+    )
+    assert geometry["placement"] == "right", geometry
+    assert geometry["cardLeft"] == pytest.approx(
+        geometry["controlsRight"] + 8, abs=0.5
+    ), geometry
+    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["minimum"] <= geometry["cardWidth"] < geometry["preferred"], (
+        geometry
+    )
+    assert geometry["clipped"] <= 0, geometry
+
+
+def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks(
+    browser, serve
+):
+    """A short rail narrows the card to its minimum at the visible edge, at full height."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1024, 900)
+    page.evaluate("location.hash = 'bg-margin-controls'")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    geometry = page.evaluate(
+        """() => {
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const card = cardNode.getBoundingClientRect();
+          const controls = document.querySelector(
+            '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect();
+          const main = document.querySelector('main').getBoundingClientRect();
+          const style = getComputedStyle(cardNode);
+          const list = cardNode.querySelector('.lf-margin-preview-list');
+          const foot = Math.min(...[...document.querySelectorAll(
+            '.lf-shortcut-bar, .lf-bottom-status')].filter(node => node.checkVisibility())
+            .map(node => node.getBoundingClientRect().top));
+          return {placement: cardNode.dataset.lfThreadPlacement,
+                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+                  cardTop: card.top, cardBottom: card.bottom, foot,
+                  clipped: list.scrollHeight - list.clientHeight,
+                  controlsTop: controls.top, controlsBottom: controls.bottom,
+                  controlsRight: controls.right, mainRight: main.right, viewport: innerWidth,
+                  minimum: parseFloat(style.getPropertyValue('--thread-card-min'))};
+        }"""
+    )
+    assert geometry["viewport"] - 8 - geometry["controlsRight"] < geometry["minimum"], (
+        geometry
+    )
+    assert geometry["placement"] in ("below", "above"), geometry
+    # This conversation is taller than the room under or over its cluster. It keeps its
+    # whole height and holds at the foot, across the controls, rather than shrinking
+    # into either room.
+    assert geometry["cardBottom"] - geometry["cardTop"] > max(
+        geometry["controlsTop"] - 50, geometry["foot"] - geometry["controlsBottom"]
+    ), geometry
+    assert geometry["clipped"] <= 0, geometry
+    assert geometry["cardBottom"] == pytest.approx(geometry["foot"] - 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["cardWidth"] == pytest.approx(geometry["minimum"], abs=0.5), (
+        geometry
+    )
+    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["cardLeft"] < geometry["mainRight"], geometry
 
 
 def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
@@ -4673,7 +4950,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "Second thread joined while the first card was open.",
@@ -4694,7 +4971,9 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(thread).to_be_focused()
+    # The pointer's press displaced the page, and Escape hands the page back; the card's
+    # ownership is read off the control's aria state above, not off where focus lands.
+    assert page.evaluate("() => document.activeElement === document.body")
 
     resized(page, 1440, 900)
     expect(thread).to_have_attribute("aria-controls", "lf-margin-preview")
@@ -4704,9 +4983,11 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     thread.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(thread).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(thread).to_be_focused()
+    expect(thread).to_have_attribute("aria-expanded", "false")
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
@@ -4957,6 +5238,156 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_hidden()
+
+
+# A conversation longer than the card at 1440x900, so its transcript scrolls under the
+# reply pinned to the card's foot.
+LONG_THREAD_PAGE = leaf_page(
+    "Long thread",
+    """
+<h1 id="title">Long thread</h1>
+<p>The open questions follow.</p>
+<section id="open"><h2>What this leaves open</h2>
+<p>Two layers close onto the control that opened them rather than the page.</p>
+</section>
+""",
+)
+LONG_THREAD_ROOT = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "text": "What should we do about these, and why are they hard to follow?",
+    "anchor": {"section": "open"},
+    "id": "a" * 32,
+    "ts": "2026-09-18T18:29:21-07:00",
+}
+LONG_THREAD = [
+    LONG_THREAD_ROOT,
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Claude",
+        "parent": LONG_THREAD_ROOT["id"],
+        "responds": LONG_THREAD_ROOT["id"],
+        "revision": 1,
+        "text": "\n\n".join(
+            f"{n}. A layer the mouse opened closes to the page, so the Escape that "
+            "follows a click lands where the reader was reading rather than on the "
+            "button they pressed."
+            for n in range(1, 13)
+        ),
+        "id": "b" * 32,
+        "ts": "2026-09-18T18:34:26-07:00",
+    },
+    {
+        "kind": "reply",
+        "author": "user",
+        "parent": LONG_THREAD_ROOT["id"],
+        "revision": 1,
+        "text": "Start with the first two.",
+        "id": "c" * 32,
+        "ts": "2026-09-18T18:42:22-07:00",
+    },
+]
+
+
+def open_long_thread(browser, serve):
+    """The long thread's margin card, its transcript scrolled partway down."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    transcript = preview.locator(".lf-margin-preview-list")
+    room = transcript.evaluate("list => list.scrollHeight - list.clientHeight")
+    assert room > 300, f"the transcript scrolls {room}px, too little to stand mid-way"
+    transcript.hover()
+    page.mouse.wheel(0, room // 2)
+    page.wait_for_function(
+        "list => list.scrollTop > 100", arg=transcript.element_handle()
+    )
+    return page, preview, transcript
+
+
+def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, serve):
+    """A reply stuck over a transcript scrolled partway still has room for its ring.
+
+    Pinned, the reply row stands on the edge the transcript clips to, where the list's
+    scroll padding reserves nothing. Both of the row's rings are read: the resting
+    Reply control's from the keyboard, and the text box's once the reader is in it.
+    """
+    page, preview, transcript = open_long_thread(browser, serve)
+    row = preview.locator(".lf-say")
+    pinned = """([row, list]) =>
+      Math.abs(row.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom)
+        < 0.5 && list.scrollTop < list.scrollHeight - list.clientHeight - 20"""
+    assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()]), (
+        "the reply row is not pinned over the transcript"
+    )
+
+    disclosure = preview.get_by_role("button", name="Reply", exact=True)
+    page.keyboard.press("Tab")
+    disclosure.focus()
+    expect(disclosure).to_be_focused()
+    assert disclosure.evaluate("node => node.matches(':focus-visible')")
+    assert standing_ring(page)["cuts"] == []
+
+    disclosure.press("Enter")
+    editor = preview.locator("textarea")
+    expect(editor).to_be_focused()
+    assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()])
+    assert standing_ring(page)["cuts"] == []
+
+
+def test_agent_status_leaves_the_margin_transcript_where_the_reader_scrolled_it(
+    browser, serve
+):
+    """A state read places the card, and placing the card moves nothing inside it.
+
+    The reader stands in the reply while reading partway up the transcript, then at its
+    end, and the agent's working and waiting statuses arrive meanwhile. Scroll
+    anchoring is off on the transcript. It can restore a place a placement disturbed
+    within one task: the headless shell restored it in every run, while headed Chrome
+    scrolled by a real gesture kept the disturbed place. With it off, the reading is
+    what the placement itself did.
+    """
+    page, preview, transcript = open_long_thread(browser, serve)
+    transcript.evaluate("list => list.style.overflowAnchor = 'none'")
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    expect(preview.locator("textarea")).to_be_focused()
+    place = "list => [list.scrollTop, list.scrollHeight - list.clientHeight]"
+    settled = (
+        "() => new Promise(resolve => "
+        "requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+
+    def statuses():
+        for status in (
+            ["working", "Reading your feedback", "--on", "a" * 32],
+            ["waiting"],
+        ):
+            result = CliRunner().invoke(
+                cli_model.cli, ["status", str(serve.page_dir), *status]
+            )
+            assert result.exit_code == 0, result.output
+            told(page)
+            page.evaluate(settled)
+            ticked(page)
+            yield status[0], transcript.evaluate(place)
+
+    partway = transcript.evaluate(place)
+    assert 0 < partway[0] < partway[1] - 20, partway
+    assert dict(statuses()) == {"working": partway, "waiting": partway}
+
+    transcript.hover()
+    page.mouse.wheel(0, partway[1])
+    page.wait_for_function(
+        "list => list.scrollTop >= list.scrollHeight - list.clientHeight - 1",
+        arg=transcript.element_handle(),
+    )
+    end = transcript.evaluate(place)
+    assert dict(statuses()) == {"working": end, "waiting": end}
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
@@ -5403,8 +5834,9 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(page.locator(".lf-page-map-toggle")).to_be_focused()
 
 
-# Read the card with the selected target's whole control cluster. The overlay may cover
-# the document, but it keeps that cluster clear and stays aligned with its outside edge.
+# Read the card with the selected target's whole control cluster. A card the rail cannot
+# hold beside that cluster keeps it clear, takes the card's minimum measure, and puts
+# its right edge on the visible edge, so it crosses the column by only what the rail lacks.
 THREAD_CARD_GEOMETRY = """() => {
   const main = document.querySelector('main').getBoundingClientRect();
   const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
@@ -5419,6 +5851,8 @@ THREAD_CARD_GEOMETRY = """() => {
     cardLeft: card.left, cardRight: card.right, cardTop: card.top,
     cardBottom: card.bottom, cardWidth: card.width,
     replyWidth: reply.width, innerWidth: window.innerWidth,
+    minimum: parseFloat(getComputedStyle(document.querySelector('.lf-margin-preview'))
+      .getPropertyValue('--thread-card-min')),
   };
 }"""
 
@@ -5436,7 +5870,7 @@ def send_anchored_comment(page, text):
 
 
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, serve):
-    """An accepted comment opens at full measure beside or over either page shape."""
+    """An accepted comment opens readable beside or over either page shape."""
     sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
@@ -5445,13 +5879,15 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     send_anchored_comment(page, "Check the January failure mode.")
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert narrow["cardWidth"] >= 459, narrow
+    assert narrow["innerWidth"] - 8 - narrow["controlsRight"] < narrow["minimum"], (
+        narrow
+    )
+    assert narrow["cardWidth"] == pytest.approx(narrow["minimum"], abs=0.5), narrow
     assert narrow["replyWidth"] >= 160, narrow
-    assert narrow["cardLeft"] >= 0, narrow
-    assert narrow["cardRight"] <= narrow["innerWidth"] + 0.5, narrow
+    assert narrow["cardRight"] == pytest.approx(narrow["innerWidth"] - 8, abs=0.5), (
+        narrow
+    )
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
-    assert narrow["cardRight"] > narrow["mainLeft"], narrow
-    assert narrow["cardRight"] == pytest.approx(narrow["controlsRight"], abs=0.5)
     assert (
         narrow["cardBottom"] <= narrow["controlsTop"] - 7
         or narrow["cardTop"] >= narrow["controlsBottom"] + 7
@@ -5543,8 +5979,8 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     expect(page.locator(".lf-thread.flash")).to_have_count(0)
 
 
-def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, serve):
-    """The shipped exchange stays beside the page without obscuring its own controls."""
+def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
+    """The shipped exchange stands beside its controls, and crosses them before it shrinks."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page = open_page(browser, serve(example))
     page.emulate_media(reduced_motion="reduce")
@@ -5685,23 +6121,28 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
           const main = document.querySelector('main').getBoundingClientRect();
           const marker = document.querySelector('[data-lf-kinds="comment"]')
           const controls = marker.closest('[data-lf-margin-for]').getBoundingClientRect();
-          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const card = cardNode.getBoundingClientRect();
+          const list = cardNode.querySelector('.lf-margin-preview-list');
           return {mainLeft: main.left, mainRight: main.right,
                   controlsRight: controls.right, controlsTop: controls.top,
                   controlsBottom: controls.bottom, cardLeft: card.left,
                   cardRight: card.right, cardTop: card.top,
                   cardBottom: card.bottom, cardWidth: card.width,
+                  clipped: list.scrollHeight - list.clientHeight,
                   shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert beside["cardLeft"] >= beside["mainRight"], beside
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
     assert beside["cardWidth"] >= 319, beside
-    assert (
-        beside["cardLeft"] >= beside["controlsRight"] + 7
-        or beside["cardBottom"] <= beside["controlsTop"] - 7
-        or beside["cardTop"] >= beside["controlsBottom"] + 7
+    # This shell leaves less than the card's minimum beside the wide cluster, and the
+    # exchange is taller than the room under or over it. It keeps its whole height.
+    assert beside["shellWidth"] - 8 - beside["controlsRight"] < 320, beside
+    assert beside["cardBottom"] - beside["cardTop"] > max(
+        beside["controlsTop"] - 50, 847 - beside["controlsBottom"]
     ), beside
+    assert beside["clipped"] <= 0, beside
 
     resized(page, 1471, 900)
     expect(preview).to_be_visible()
@@ -6115,7 +6556,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "A second reading arrived while the map was open.",
@@ -6153,7 +6594,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "revision": 1,
             "text": "A second reading arrived while the preview was pinned.",
@@ -6284,68 +6725,78 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
 
 
 def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serve):
-    """The margin's rows ride the shell carry and are laid out once more at rest.
+    """The margin's rows land with the column, in the gesture that moves it.
 
-    Closing Threads carries the reading column back across the window. The body's
-    width change laid the margin rows out on the carry's first frame, against a
-    column a few pixels into its move, and nothing asked again once it had arrived:
-    a resize observer hears a box change size, not place. So two thread margin entries
-    stood over the prose the column had moved under them, until the next poll or
-    pointer move — a screenshot a blind drive took, and the kind of frame the
-    movement tests do not compare because no control was pressed.
+    Closing Threads moves the reading column back across the window, and a thread on
+    plain prose stands in the toolbar host, which is placed off the column's box — so a
+    row placed against the column where it was stands over the prose the column moved
+    under it. A resize observer cannot catch that: it hears a box change size, not place.
 
-    On the shipped page it happened on: a thread on plain prose stands in the
-    toolbar host, which is placed off the column's box, where a contributed
-    cluster is hoisted into the column and rides it for free."""
+    The column arrives in the same layout pass as the state change now, and the margin is
+    placed against it before the gesture returns (`moveContentFrame`). So the read is taken
+    in the very task that closes the panel, with no frame between: a repaint deferred to
+    the next frame, which is how this used to be done while the column was still gliding,
+    would leave the row at its open-panel place here. Every route that closes the panel
+    is walked, because each is its own caller."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "log-retention"))
     )
     resized(page, 1440, 900)
     margins_laid_out(page)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first
-    rest = marker.bounding_box()["x"]
-    # Every margin layout the page makes, timestamped, and the carry's end from the
-    # animation itself: the fact to consume is a layout after the column came to
-    # rest, not a number of frames.
-    page.evaluate(
-        """() => {
-          window.__lfLayouts = [];
-          document.addEventListener('lf-margin-layout',
-            () => window.__lfLayouts.push(performance.now()));
-        }"""
-    )
-    for close in ("Close threads", "toggle", "Escape"):
+    marker = '.lf-margin-marker[data-lf-kinds="comment"]'
+    rest = page.locator(marker).first.bounding_box()["x"]
+    # Close, then read the row's place in the same task, before any frame can run.
+    close_and_read = {
+        "toggle": "document.querySelector('.lf-threads-toggle').click()",
+        "Close threads": (
+            "[...document.querySelectorAll('.lf-thread-panel button')]"
+            ".find(b => b.getAttribute('aria-label') === 'Close threads').click()"
+        ),
+    }
+    for route, close in close_and_read.items():
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        if close == "toggle":
-            page.locator(".lf-threads-toggle").click()
-        elif close == "Escape":
-            page.locator(".lf-threads").focus()
-            page.keyboard.press("Escape")
-        else:
-            page.get_by_role("button", name=close, exact=True).click()
-        # The carry runs to its own end rather than being finished for it: the stale
-        # placement is the one the body's resize laid out two frames into the move,
-        # and finishing the carry before that frame would settle the column first
-        # and read a page the reader never sees.
-        page.evaluate(
-            """() => {
-              window.__lfCarryEnd = null;
-              const carries = document.querySelector('body > main').getAnimations();
-              if (!carries.length) { window.__lfCarryEnd = performance.now(); return; }
-              Promise.all(carries.map(carry => carry.finished)).then(
-                () => { window.__lfCarryEnd = performance.now(); });
-            }"""
+        opened = page.locator(marker).first.bounding_box()["x"]
+        assert opened != pytest.approx(rest, abs=1), (
+            "opening the panel did not move the row, so closing it cannot show whether the"
+            f" row follows the column: {opened} against {rest}"
         )
-        page.wait_for_function(
-            "() => !document.querySelector('.lf-thread-panel').classList.contains('open')"
+        landed = page.evaluate(
+            f"""(sel) => {{
+              {close};
+              return document.querySelector(sel).getBoundingClientRect().x;
+            }}""",
+            marker,
         )
-        page.wait_for_function(
-            "() => window.__lfCarryEnd !== null"
-            " && window.__lfLayouts.some(t => t >= window.__lfCarryEnd)",
-            timeout=5000,
-        )
-        landed = marker.bounding_box()["x"]
         assert landed == pytest.approx(rest, abs=1), (
-            f"after {close}: the thread margin entry stands at {landed}, the column's rest is {rest}"
+            f"after {route}: in the closing task the thread margin entry stands at "
+            f"{landed}, but the column's rest is {rest}"
         )
+    # Escape reaches the panel through the keyboard dispatcher rather than a click, so it
+    # is the one route walked with a real key, and the one that would catch a keyboard
+    # caller closing the panel without going through `moveContentFrame`.
+    #
+    # Pressing and then reading is two round trips with a frame free between them, which
+    # is enough for a deferred repaint to land and the read to pass whatever the runtime
+    # does. So the read rides the press: the dispatcher's own listener is a plain document
+    # keydown registered at boot that never stops propagation, so one added afterwards
+    # runs after it and inside the same task.
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate(
+        """(sel) => {
+          document.addEventListener("keydown", () => {
+            window.__lfEscapeLanded =
+              document.querySelector(sel).getBoundingClientRect().x;
+          }, { once: true });
+        }""",
+        marker,
+    )
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("Escape")
+    landed = page.evaluate("() => window.__lfEscapeLanded")
+    assert landed is not None, "the read never rode the press"
+    assert landed == pytest.approx(rest, abs=1), (
+        f"after Escape: in the closing task the thread margin entry stands at {landed}, "
+        f"but the column's rest is {rest}"
+    )

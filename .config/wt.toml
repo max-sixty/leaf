@@ -17,8 +17,8 @@
 checks = "uv run pre-commit run -a"
 node = "npm ci"
 
-# Broad discovery keeps the local gate quick. CI adds the nightly browser and
-# published-site integration suites after main moves.
+# Broad discovery keeps the local gate quick. CI runs the nightly-marked tests after
+# main moves.
 [[pre-merge]]
 tests = "uv run pytest tests"
 

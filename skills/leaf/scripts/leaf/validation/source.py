@@ -207,16 +207,26 @@ def _registry_errors(
 
 
 def _presentation_errors(page_dir: Path, parser) -> tuple[int, list[str]]:
-    """Validate authored and vendored CSS and return the readable column width."""
-    theme_css = (
-        (page_dir / "theme.css").read_text(encoding="utf-8")
-        if (page_dir / "theme.css").exists()
+    """Validate authored and vendored CSS and return the readable column width.
+
+    Every sheet the page vendors is checked, not theme.css alone: shadow.css is the
+    one each widget's shadow root adopts, so a malformed rule there reaches a reader
+    as an unstyled widget with nothing said about it. The column and its tokens are
+    the theme's, which is the sheet the document itself is laid out by.
+    """
+    vendored = {
+        name: (page_dir / name).read_text(encoding="utf-8")
+        if (page_dir / name).exists()
         else ""
-    )
+        for name in VENDORED_FILES
+        if name.endswith(".css")
+    }
+    theme_css = vendored["theme.css"]
     errors = list(css_syntax_errors(parser.css, "page <style>"))
     for number, style in enumerate(parser.inline_styles, 1):
         errors.extend(css_syntax_errors(style, f"inline style #{number}", block=True))
-    errors.extend(css_syntax_errors(theme_css, "theme.css"))
+    for name, css in vendored.items():
+        errors.extend(css_syntax_errors(css, name))
     errors.extend(inline_presentation_override_errors(parser))
     column = _column_width(parser.css, theme_css)
     errors.extend(_overwide_elements(parser, column, root_tokens(theme_css)))

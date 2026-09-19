@@ -3,6 +3,11 @@
 Read this immediately before handing a page over in Claude Code, and when
 recovering its wait process.
 
+## Launcher
+
+The skill directory's `../../bin/leaf` launcher resolves to
+`${CLAUDE_SKILL_DIR}/../../bin/leaf`. Claude Code also puts it on `PATH`.
+
 ## Serve the page
 
 ```bash
@@ -16,9 +21,11 @@ key, the address it binds, and a URL the reader cannot reach.
 
 ## Wait loop
 
+New reader input reaches you only between your own operations, at the next tool
+result.
+
 One unnamed `leaf wait` watches every page the host session owns. It prints one
-complete `leaf-delivery-v1` envelope, the same object an App Server carries
-inline and a queued Codex task reads by id. Each batch names its `page`,
+complete `leaf-delivery-v1` envelope inline. Each batch names its `page`,
 `through_seq`, `conversations`, `handling`, and complete ordered `events`. Name a
 page only to pick up a page this session did not serve; `leaf wait <page>` claims
 it.
@@ -64,8 +71,11 @@ Code's session messaging, so it is presented as coming from another session.
 A page put up to be looked at — a preview of an example, a fixture for a visual
 check — is not a handoff, so it owes no watcher. `scripts/preview.py` in a Leaf
 checkout marks every page it builds as a preview, and the per-turn reminder to
-start one skips those. Nothing else is exempt: a comment left on a preview is a
-delivery this session owes like any other, and the reminder says so.
+start one skips those. Nothing else is exempt: on a preview this session claimed,
+a comment is a delivery it owes like any other, and the reminder says so. A
+preview nobody claimed keeps its comments in its own log, where only a reader of
+that log finds them, so start one you mean to hand over with
+`scripts/preview.py --reader`, which claims it.
 
 Do not idle a fixture to quiet the loop. `idle` closes the page in the browser,
 which changes the banner a visual check may be reading.

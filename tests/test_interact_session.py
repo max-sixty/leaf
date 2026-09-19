@@ -13,7 +13,6 @@ import signal
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import urllib.parse
@@ -40,6 +39,7 @@ from interact_support import (
     check,
     fetch,
     fifo_writer,
+    let_a_pick_settle_a_thread,
     page_state,
     publish,
     record_claim,
@@ -53,6 +53,7 @@ from interact_support import (
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex as codex_model
+from leaf import codex_adapter as codex_adapter_model
 from leaf import conversation as conversation_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
@@ -63,6 +64,7 @@ from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import presence as presence_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -75,8 +77,30 @@ from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.served_state import page as served_page
 from page_fixtures import package_selection_args
+from websockets.exceptions import ConnectionClosedError, WebSocketException
 from websockets.sync.server import serve as serve_websocket
 from websockets.sync.server import unix_serve as serve_unix_websocket
+
+
+def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
+    """Collect every activity reading a turn writes, instead of a page taking it.
+
+    Two bindings of the same two functions write them: a carrier calls them for the
+    connection it is opening or giving up on, and `leaf.codex` calls them for
+    everything the projection reads off the stream. A test that wants the readings,
+    or wants them to touch nothing, has to say so at both.
+    """
+    for module in (codex_model, codex_adapter_model):
+        monkeypatch.setattr(
+            module,
+            "set_stream_activity",
+            lambda session, turn, detail: updates.append((session, turn, detail)),
+        )
+        monkeypatch.setattr(
+            module,
+            "clear_stream_activity",
+            lambda session, turn=None: clears.append((session, turn)),
+        )
 
 
 def last_deliverable_seq(page_dir: Path) -> int:
@@ -286,25 +310,10 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
-    identity = {
-        "id": "hosted-thread",
-        "host": "codex",
-        "agent": "Leaf guide",
-    }
+    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
 
-    prompt = codex_model.prepare_codex_delivery(
-        page_dir,
-        identity,
-        {"pid": os.getpid()},
-    )
-    assert (
-        codex_model.prepare_codex_delivery(
-            page_dir,
-            identity,
-            {"pid": os.getpid()},
-        )
-        == prompt
-    )
+    prompt = codex_model.prepare_codex_delivery(page_dir, harness)
+    assert codex_model.prepare_codex_delivery(page_dir, harness) == prompt
     [accepted] = codex_model.accept_codex_delivery("hosted-thread")
 
     assert prompt.prompt.startswith("```xml\n<leaf-delivery ")
@@ -320,9 +329,9 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     }
     assert batch["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
-    assert {key: claim[key] for key in ("id", "host", "pid", "agent")} == {
+    assert {key: claim[key] for key in ("id", "harness", "pid", "agent")} == {
         "id": "hosted-thread",
-        "host": "codex",
+        "harness": "embedded",
         "pid": os.getpid(),
         "agent": "Leaf guide",
     }
@@ -343,7 +352,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     queue = files_model.read_json(history)
     assert queue["state"] == "accepted"
     assert queue["batches"][0]["receipted"] is True
-    assert codex_model.delivery_path(history.stem).is_file()
+    assert delivery_model.delivery_path(history.stem).is_file()
 
 
 def test_only_one_plain_reply_can_bind_the_app_server_final_message():
@@ -424,8 +433,7 @@ def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
 
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
 
     [batch] = prepared.payload["batches"]
@@ -437,12 +445,12 @@ def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
 
 
 def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir):
-    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
     first = events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
-    codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    codex_model.prepare_codex_delivery(page_dir, harness)
     codex_model.accept_codex_delivery("hosted-thread")
     first_turn = service_model.page_claim(page_dir)["turn"]
 
@@ -450,7 +458,7 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
         page_dir,
         {"kind": "comment", "author": "user", "text": "also change the title"},
     )
-    codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    codex_model.prepare_codex_delivery(page_dir, harness)
     codex_model.accept_codex_delivery("hosted-thread")
 
     claim = service_model.page_claim(page_dir)
@@ -471,16 +479,14 @@ def test_embedded_codex_delivery_retries_the_same_immutable_pointer(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
-    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
-    first = codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+    first = codex_model.prepare_codex_delivery(page_dir, harness)
 
-    second = codex_model.prepare_codex_delivery(
-        page_dir, identity, {"pid": os.getpid()}
-    )
+    second = codex_model.prepare_codex_delivery(page_dir, harness)
 
     assert second == first
-    [(path, queue)] = codex_model._queues("hosted-thread")
-    payload = files_model.read_json(codex_model.delivery_path(path.stem))
+    [(path, queue)] = codex_model.queue_records("hosted-thread")
+    payload = files_model.read_json(delivery_model.delivery_path(path.stem))
     assert queue["state"] == "offering"
     assert [event["text"] for event in payload["batches"][0]["events"]] == [
         "make this editable"
@@ -492,12 +498,10 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_queue_record(page_dir
         page_dir,
         {"kind": "comment", "author": "user", "text": "first"},
     )
-    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
-    first_prompt = codex_model.prepare_codex_delivery(
-        page_dir, identity, {"pid": os.getpid()}
-    )
-    [(first_path, _)] = codex_model._queues("hosted-thread")
-    first_payload = codex_model.delivery_path(first_path.stem)
+    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+    first_prompt = codex_model.prepare_codex_delivery(page_dir, harness)
+    [(first_path, _)] = codex_model.queue_records("hosted-thread")
+    first_payload = delivery_model.delivery_path(first_path.stem)
 
     codex_model.abandon_codex_delivery("hosted-thread", first["id"])
     conversation_model.cmd_reply(
@@ -512,11 +516,9 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_queue_record(page_dir
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
     )
-    second_prompt = codex_model.prepare_codex_delivery(
-        page_dir, identity, {"pid": os.getpid()}
-    )
+    second_prompt = codex_model.prepare_codex_delivery(page_dir, harness)
 
-    assert codex_model._queues("hosted-thread")[0][1]["state"] == "offering"
+    assert codex_model.queue_records("hosted-thread")[0][1]["state"] == "offering"
     assert second_prompt != first_prompt
     assert first_payload.is_file()
 
@@ -544,12 +546,11 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
 
     codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
 
-    [(path, _queue)] = codex_model._queues("hosted-thread")
-    payload = files_model.read_json(codex_model.delivery_path(path.stem))
+    [(path, _queue)] = codex_model.queue_records("hosted-thread")
+    payload = files_model.read_json(delivery_model.delivery_path(path.stem))
     delivered_events = payload["batches"][0]["events"]
     assert [event["text"] for event in delivered_events] == ["first", "second"]
     assert "obligation" not in delivered_events[0]
@@ -583,12 +584,11 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
 
     codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
 
-    [(path, _queue)] = codex_model._queues("hosted-thread")
-    payload = files_model.read_json(codex_model.delivery_path(path.stem))
+    [(path, _queue)] = codex_model.queue_records("hosted-thread")
+    payload = files_model.read_json(delivery_model.delivery_path(path.stem))
     assert [event["id"] for event in payload["batches"][0]["events"]] == [
         action["id"],
         comment["id"],
@@ -596,7 +596,44 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
 
 
 @pytest.fixture
-def codex_app_server():
+def app_server():
+    """Serve an App Server stand-in for one handler, until the test ends.
+
+    The observer under test connects over a real websocket, so a test that made its
+    own server owned three things: the server, the thread serving it, and the stop
+    that ends both. One of them ran that stop on the last line of the test body,
+    which is the line a failing assertion never reaches — the thread then served on
+    for the rest of the worker, holding its socket, under later tests that had
+    nothing to do with it.
+
+    Returns the endpoint to connect to: a loopback port, or the Unix socket path the
+    caller names.
+    """
+    serving = []
+
+    def serve(handle, socket_path=None) -> str:
+        server = (
+            serve_unix_websocket(handle, str(socket_path))
+            if socket_path
+            else serve_websocket(handle, "127.0.0.1", 0)
+        )
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        serving.append((server, worker))
+        return (
+            f"unix://{socket_path}"
+            if socket_path
+            else f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+        )
+
+    yield serve
+    for server, worker in reversed(serving):
+        server.shutdown()
+        worker.join(timeout=5)
+
+
+@pytest.fixture
+def codex_app_server(app_server):
     """A WebSocket App Server that emits two turns when the test advances it."""
     received = []
     observer_replies = []
@@ -706,23 +743,19 @@ def codex_app_server():
         )
         finish.wait(timeout=5)
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    port = server.socket.getsockname()[1]
     yield (
-        f"ws://127.0.0.1:{port}",
+        app_server(handle),
         received,
         observer_replies,
         first_turn,
         second_turn,
         finish,
     )
+    # Released here rather than left to the server's own stop, which would otherwise
+    # wait out the handler's five seconds on every test that used this.
     first_turn.set()
     second_turn.set()
     finish.set()
-    server.shutdown()
-    worker.join(timeout=5)
 
 
 def codex_queues(session_id: str) -> list[tuple[Path, dict]]:
@@ -1061,14 +1094,14 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     assert ended["obligations"][0]["dropped"] is True
 
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
     events_model.append_event(
         claimed,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": comment["id"],
             "responds": comment["id"],
             "text": "answered",
@@ -1103,7 +1136,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
     session_model.cmd_status(claimed, "waiting", "Comment on the page")
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
     with service_model.PageTransaction(claimed) as transaction:
@@ -1129,7 +1162,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     session_model.cmd_status(claimed, "waiting", "comment on the page")
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
 
@@ -1208,7 +1241,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
 
@@ -1270,7 +1303,7 @@ def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
     comment = events_model.append_event(
@@ -1303,7 +1336,7 @@ def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, claim)
+        leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
     events_model.append_event(
@@ -1612,6 +1645,7 @@ def test_app_server_activity_throttles_stream_deltas(monkeypatch):
     monkeypatch.setattr(codex_model.time, "monotonic", lambda: next(clock))
     updates = []
     clears = []
+    take_stream_activity(monkeypatch, updates, clears)
     last_update = 0.0
 
     for delta in ("one", " two", " three"):
@@ -1629,8 +1663,6 @@ def test_app_server_activity_throttles_stream_deltas(monkeypatch):
             message,
             events.read(message),
             last_update,
-            lambda *args: updates.append(args),
-            lambda *args: clears.append(args),
         )
 
     assert updates == [
@@ -1648,17 +1680,8 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
     )
     updates = []
     clears = []
-    monkeypatch.setattr(
-        codex_model,
-        "_set_stream_activity",
-        lambda session, turn, detail: updates.append((session, turn, detail)),
-    )
-    monkeypatch.setattr(
-        codex_model,
-        "_clear_stream_activity",
-        lambda session, turn=None: clears.append((session, turn)),
-    )
-    observer = codex_model.AppServerClient(endpoint, "codex-thread")
+    take_stream_activity(monkeypatch, updates, clears)
+    observer = codex_adapter_model.TaskObserver(endpoint, "codex-thread")
     request.addfinalizer(observer.stop)
 
     observer.start()
@@ -1669,7 +1692,6 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
         failure="the first Codex turn did not clear its stream activity",
         timeout=5,
     )
-    assert observer.available.is_set()
 
     second_turn.set()
     wait_for(
@@ -1678,7 +1700,6 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
         failure="the second Codex turn did not clear its stream activity",
         timeout=5,
     )
-    assert observer.available.is_set()
     observer.stop()
 
     assert [message["method"] for message in received] == [
@@ -1699,10 +1720,10 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
     assert observer_replies == []
 
 
-def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, request):
-    temporary = tempfile.TemporaryDirectory(prefix="leaf-test-", dir="/tmp")
-    request.addfinalizer(temporary.cleanup)
-    socket_path = Path(temporary.name) / "app-server.sock"
+def test_app_server_observer_connects_over_a_private_unix_socket(
+    monkeypatch, request, socket_dir, app_server
+):
+    socket_path = socket_dir / "app-server.sock"
     received = []
     request_headers = []
     release = threading.Event()
@@ -1731,20 +1752,17 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
         )
         release.wait(timeout=5)
 
-    server = serve_unix_websocket(handle, socket_path)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    monkeypatch.setattr(codex_model, "_clear_stream_activity", lambda *_: None)
-    observer = codex_model.AppServerClient(f"unix://{socket_path}", "codex-thread")
+    endpoint = app_server(handle, socket_path)
+    take_stream_activity(monkeypatch, [], [])
+    observer = codex_adapter_model.TaskObserver(endpoint, "codex-thread")
     request.addfinalizer(observer.stop)
 
+    # `start` returns only once the observer has resumed the task, and raises
+    # otherwise, so reaching here is the readiness signal.
     observer.start()
-    assert observer.available.is_set()
     observer.stop()
-    assert not observer.available.is_set()
+    assert not observer.thread.is_alive()
     release.set()
-    server.shutdown()
-    worker.join(timeout=5)
 
     assert [message["method"] for message in received] == [
         "initialize",
@@ -1754,9 +1772,16 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
     assert "Sec-WebSocket-Extensions" not in request_headers[0]
 
 
-def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
-    page_dir, request
+def test_a_delivery_turn_streams_and_commits_its_reply_on_its_own_connection(
+    page_dir, request, app_server
 ):
+    """One connection carries the turn from the start that made it to its reply.
+
+    `thread/resume` subscribes the connection that asked, for as long as it lives,
+    and `turn/start` neither subscribes nor unsubscribes, so everything this turn
+    says arrives where it was started. The follower knows which turn is its own from
+    the response, before it reads any of it.
+    """
     activated = revisioning_model.activate_source(page_dir, [])
     assert activated.error is None and activated.revision == 1
     comment = events_model.append_event(
@@ -1765,12 +1790,11 @@ def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     claim = service_model.page_claim(page_dir)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page_dir, claim)
+        leases_model.waiter_lease_path(page_dir, claim["id"])
     )
     assert lease
     request.addfinalizer(lease.close)
@@ -1925,26 +1949,28 @@ def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
         )
         completed.set()
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(server.shutdown)
-    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
-    observer = codex_model.AppServerClient(endpoint, "codex-thread")
-    observer.start()
-    request.addfinalizer(observer.stop)
-
-    assert observer.start_delivery(prepared.payload) == {
-        "phase": "opened",
-        "turn": "leaf-turn",
-    }
-    [thread] = page_state(page_dir)["browser"]["conversation"]["threads"]
-    streamed = thread["msgs"][-1]
-    assert (streamed["text"], streamed["pending"], streamed["parent"]) == (
-        "Streaming",
-        True,
-        comment["id"],
+    endpoint = app_server(handle)
+    turn = codex_adapter_model.start_delivery_turn(
+        endpoint, "codex-thread", prepared.payload
     )
+    assert turn.turn_id == "leaf-turn"
+    follower = threading.Thread(
+        target=codex_adapter_model._follow_delivery_turn,
+        args=(turn, lambda: False),
+        daemon=True,
+    )
+    follower.start()
+    request.addfinalizer(lambda: follower.join(timeout=5))
+
+    streamed = wait_for(
+        lambda: page_state(page_dir)["browser"]["conversation"]["threads"][0]["msgs"][
+            -1
+        ],
+        lambda message: message["text"] == "Streaming",
+        failure="the streamed reply did not reach the page",
+        timeout=5,
+    )
+    assert (streamed["pending"], streamed["parent"]) == (True, comment["id"])
 
     release.set()
     assert completed.wait(timeout=5)
@@ -1977,6 +2003,29 @@ def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
     assert thread["msgs"][-1]["id"] == replies[0]["id"]
 
 
+def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_its_bound():
+    """Separate an App Server that is thinking from one that stopped delivering.
+
+    `recv` reports every idle second the same way, so the reading that tells the two
+    apart is how long the silence has run against the bound its carrier gave. The
+    website gives one because nobody is at that task and a turn nothing will finish
+    holds a reader on a page that says the agent is working. The adapter gives none:
+    its task is a terminal someone is sitting at, and a turn waiting on an approval
+    is silent for exactly as long as they take to answer it.
+    """
+
+    class Socket:
+        def recv(self, timeout):
+            raise TimeoutError
+
+    socket = Socket()
+    long_ago = time.monotonic() - 3600
+    assert codex_model.recv_notification(socket, time.monotonic(), 120.0) is None
+    assert codex_model.recv_notification(socket, long_ago, None) is None
+    with pytest.raises(TimeoutError):
+        codex_model.recv_notification(socket, long_ago, 120.0)
+
+
 def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_dir):
     comment = events_model.append_event(
         page_dir,
@@ -1984,10 +2033,9 @@ def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
-    client = codex_model.AppServerClient("ws://127.0.0.1:1", "codex-thread")
+    client = codex_adapter_model.TaskObserver("ws://127.0.0.1:1", "codex-thread")
     pointer = {
         "id": "queued-input",
         "type": "userMessage",
@@ -2046,10 +2094,9 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
-    client = codex_model.AppServerClient("ws://127.0.0.1:1", "codex-thread")
+    client = codex_adapter_model.TaskObserver("ws://127.0.0.1:1", "codex-thread")
 
     client._restore_bindings(
         {
@@ -2116,7 +2163,7 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer the first turn"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     target = {
         "page": str(page_dir),
         "reply_to": comment["id"],
@@ -2149,7 +2196,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer the first turn"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     target = {
         "page": str(page_dir),
         "reply_to": comment["id"],
@@ -2190,7 +2237,7 @@ def test_a_delivery_bound_final_is_the_only_plain_reply_writer(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Move this reply too"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-1")
     target = {
@@ -2240,7 +2287,7 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer this once"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     target = {
         "page": str(page_dir),
         "reply_to": comment["id"],
@@ -2268,7 +2315,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer this"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
@@ -2314,7 +2361,7 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
         page_dir,
         {"kind": "comment", "author": "user", "text": "Change this page"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-1")
     target = {
@@ -2346,7 +2393,7 @@ def test_partial_text_is_not_committed_without_a_completed_final(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer this"},
     )
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
@@ -2390,7 +2437,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
     refreshed = created + timedelta(minutes=10)
     moments = iter((created.isoformat(), refreshed.isoformat()))
     monkeypatch.setattr(service_model, "now_iso", lambda: next(moments))
-    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
 
     with service_model.PageTransaction(page_dir) as page:
         page.set_stream_reply(
@@ -2426,7 +2473,9 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
 
 
 def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    observer = codex_adapter_model.TaskObserver.__new__(
+        codex_adapter_model.TaskObserver
+    )
     observer.thread_id = "codex-thread"
     observer.events = codex_model.AppServerEvents("codex-thread")
     observer.events.turn_id = "turn-complete"
@@ -2439,8 +2488,8 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     observer.bindings = {"turn-complete": Stream()}
     closed = []
     monkeypatch.setattr(
-        codex_model,
-        "_close_stream_turn",
+        codex_adapter_model,
+        "close_stream_turn",
         lambda session, turn: closed.append((session, turn)),
     )
 
@@ -2469,10 +2518,8 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     assert observer.events.turn_id is None
 
 
-def test_app_server_malformed_start_response_finishes_the_delivery(request):
-    """A broken connection must answer the delivery already removed from its queue."""
-    received = threading.Event()
-    release = threading.Event()
+def _idle_app_server(answers=None):
+    """A handler that resumes one idle task, then replies from `answers` in order."""
 
     def handle(socket):
         initialize = json.loads(socket.recv())
@@ -2493,208 +2540,429 @@ def test_app_server_malformed_start_response_finishes_the_delivery(request):
                 }
             )
         )
-        socket.recv()  # turn/start
-        received.set()
-        socket.send("this is not json")
-        release.wait(timeout=5)
+        for answer in answers or ():
+            request = json.loads(socket.recv())
+            socket.send(answer(request) if callable(answer) else answer)
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(server.shutdown)
-    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
-    observer = codex_model.AppServerClient(endpoint, "codex-thread")
-    observer.start()
-    request.addfinalizer(observer.stop)
-    outcome = queue.Queue(maxsize=1)
-
-    def start_delivery():
-        try:
-            observer.start_delivery(
-                {"format": delivery_model.DELIVERY_FORMAT, "id": "delivery-1"},
-            )
-        except RuntimeError as error:
-            outcome.put(error)
-
-    caller = threading.Thread(target=start_delivery, daemon=True)
-    caller.start()
-
-    assert received.wait(timeout=2)
-    error = outcome.get(timeout=2)
-    assert isinstance(error, RuntimeError)
-    assert "Expecting value" in str(error)
-    caller.join(timeout=2)
-    assert not caller.is_alive()
-    release.set()
+    return handle
 
 
-def test_app_server_unexpected_notification_error_clears_availability(request):
-    """Any observer failure must stop new deliveries before reconnecting."""
-    sent = threading.Event()
-    release = threading.Event()
-    request.addfinalizer(release.set)
-
-    def handle(socket):
-        initialize = json.loads(socket.recv())
-        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
-        socket.recv()  # initialized
-        resume = json.loads(socket.recv())
-        socket.send(
-            json.dumps(
-                {
-                    "id": resume["id"],
-                    "result": {
-                        "thread": {
-                            "id": "codex-thread",
-                            "status": {"type": "idle"},
-                            "turns": [],
-                        }
-                    },
-                }
-            )
-        )
-        socket.send(
-            json.dumps(
-                {
-                    "method": "item/started",
-                    "params": {
-                        "threadId": "codex-thread",
-                        "turnId": "turn-live",
-                        "item": {"id": "command-live", "type": "commandExecution"},
-                    },
-                }
-            )
-        )
-        sent.set()
-        release.wait(timeout=5)
-
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(server.shutdown)
-    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
-    observer = codex_model.AppServerClient(endpoint, "codex-thread")
-    observer.start()
-    request.addfinalizer(observer.stop)
-
-    assert sent.wait(timeout=2)
-    wait_for(
-        observer.available.is_set,
-        lambda available: not available,
-        failure="the notification error did not clear app-server availability",
-        timeout=2,
+def _codex_delivery(page_dir, text="Answer this"):
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": text}
     )
-    assert observer.start_delivery({}) is None
-    observer.stop()
-    release.set()
+    return codex_model.prepare_codex_delivery(
+        page_dir,
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
+    )
 
 
-def test_stopping_an_app_server_client_releases_every_delivery_waiter(monkeypatch):
-    class Socket:
-        def close(self):
-            pass
+def test_a_busy_codex_task_keeps_its_delivery_for_a_later_turn(page_dir, app_server):
+    """A delivery waits for an idle task rather than joining the user's turn.
 
-    class Thread:
-        def __init__(self, client):
-            self.client = client
+    `turn/start` against a running turn does not refuse. App Server steers the
+    delivery into that turn instead, and says so of `turnTrigger`: "Ignored when
+    this request steers an already-active turn". That turn has one final answer and
+    it answers whatever the user asked, so the status is read on this connection,
+    one request before the start, and a working task keeps the frozen delivery for
+    the next pass.
+    """
+    prepared = _codex_delivery(page_dir, "Answer when idle")
+    target = codex_model.stream_reply_target(prepared.payload)
 
-        def join(self, timeout):
-            # A request already owned by the observer may become deferred while
-            # the closing socket lets its thread finish.
-            assert not self.client._defer_delivery({"id": "deferred"})
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        resume = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "id": resume["id"],
+                    "result": {
+                        "thread": {
+                            "id": "codex-thread",
+                            "status": {"type": "active", "activeFlags": []},
+                        }
+                    },
+                }
+            )
+        )
 
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    endpoint = app_server(handle)
+    assert (
+        codex_adapter_model.start_delivery_turn(
+            endpoint, "codex-thread", prepared.payload
+        )
+        is None
+    )
+    assert codex_model.delivery_queue_state("codex-thread", prepared.payload["id"]) == (
+        "offering"
+    )
+    assert not conversation_model.delivery_reply_reserved(
+        "codex-thread", prepared.payload["id"], target
+    )
+
+
+def test_a_refused_turn_gives_up_the_seat_it_reserved(page_dir, app_server):
+    """A provider that refuses before executing has started nothing.
+
+    The reserved seat is what stops any other writer answering the reader while the
+    provider is about to. A start that certainly did not happen gives it up, because
+    until it does the reader has neither an answer nor anything able to say one is
+    not coming.
+    """
+    prepared = _codex_delivery(page_dir)
+    target = codex_model.stream_reply_target(prepared.payload)
+    endpoint = app_server(
+        _idle_app_server(
+            [
+                lambda request: json.dumps(
+                    {
+                        "id": request["id"],
+                        "error": {"message": "the active turn cannot be steered"},
+                    }
+                )
+            ]
+        )
+    )
+
+    with pytest.raises(codex_model.AppServerRequestRejected, match="cannot be steered"):
+        codex_adapter_model.start_delivery_turn(
+            endpoint, "codex-thread", prepared.payload
+        )
+
+    assert not conversation_model.delivery_reply_reserved(
+        "codex-thread", prepared.payload["id"], target
+    )
+
+
+def test_an_unacknowledged_turn_keeps_the_seat_it_reserved(page_dir, app_server):
+    """A request whose answer never came back may have started a turn.
+
+    Nothing here can tell, so the seat stays reserved: no other writer may answer
+    for a delivery a running turn might be about to answer itself. The observer
+    adopts that turn the moment it says anything, and the delivery record stays
+    offered until it does.
+    """
+    prepared = _codex_delivery(page_dir)
+    target = codex_model.stream_reply_target(prepared.payload)
+    endpoint = app_server(_idle_app_server([lambda _request: "this is not json"]))
+
+    with pytest.raises(
+        codex_adapter_model.AppServerDeliveryUncertain, match="not acknowledged"
+    ):
+        codex_adapter_model.start_delivery_turn(
+            endpoint, "codex-thread", prepared.payload
+        )
+
+    assert conversation_model.delivery_reply_reserved(
+        "codex-thread", prepared.payload["id"], target
+    )
+
+
+def test_a_turn_this_process_carries_is_not_adopted_by_its_observer(page_dir):
+    """Both connections see the turn, and only its follower answers for it.
+
+    Two connections may resume one thread and both then receive everything it says,
+    so a turn a follower started is announced to the observer too. Adopting it there
+    would bind a second reply stream to one delivery, and two writers would answer
+    the reader once each. The observer holds the delivery from before the turn
+    exists, because the turn's own `turn/started` can arrive before the response
+    naming it does.
+    """
+    prepared = _codex_delivery(page_dir)
+    payload = prepared.payload
+    observer = codex_adapter_model.TaskObserver.__new__(
+        codex_adapter_model.TaskObserver
+    )
     observer.thread_id = "codex-thread"
-    observer.stop_event = threading.Event()
-    observer.available = threading.Event()
-    observer.available.set()
-    observer.socket = Socket()
+    observer.events = codex_model.AppServerEvents("codex-thread")
     observer.bindings = {}
-    observer.requests = queue.Queue()
-    observer.waiter_lock = threading.Lock()
-    deferred_answer = queue.Queue(maxsize=1)
-    queued_answer = queue.Queue(maxsize=1)
-    observer.deferred = None
-    observer.waiters = {
-        "deferred": deferred_answer,
-        "queued": queued_answer,
+    observer.lock = threading.Lock()
+    observer.carried = set()
+    observer.last_activity_update = 0.0
+    announcement = {
+        "method": "item/started",
+        "params": {
+            "threadId": "codex-thread",
+            "turnId": "leaf-turn",
+            "startedAtMs": 1,
+            "item": {
+                "id": "delivery",
+                "type": "functionCallOutput",
+                "name": "leaf_delivery",
+                "output": json.dumps(payload),
+            },
+        },
     }
-    observer.thread = Thread(observer)
-    observer.requests.put({"id": "queued"})
-    monkeypatch.setattr(codex_model, "_clear_stream_activity", lambda *_: None)
 
-    observer.stop()
+    observer.carry(payload["id"])
+    observer._read(announcement)
+    assert observer.bindings == {}
+    assert codex_model.delivery_queue_state("codex-thread", payload["id"]) == "offering"
 
-    for answer in (deferred_answer, queued_answer):
-        result, error = answer.get_nowait()
-        assert result is None
-        assert isinstance(error, RuntimeError)
-        assert str(error) == "Codex App Server client stopped"
-    assert observer.deferred is None
-    assert observer.requests.empty()
+    # Once no follower holds it, the same announcement is the observer's to take:
+    # a turn nobody is following is one whose reply nothing else will write.
+    observer.release(payload["id"])
+    observer._read(announcement)
+    assert set(observer.bindings) == {"leaf-turn"}
+    assert codex_model.delivery_queue_state("codex-thread", payload["id"]) == "accepted"
 
 
-def test_stopping_an_app_server_client_cannot_miss_a_registering_waiter(monkeypatch):
-    enqueue_started = threading.Event()
-    resume_enqueue = threading.Event()
+def test_a_connection_that_drops_ends_the_turn_it_was_carrying(page_dir):
+    """Losing the connection is the turn ending, not a gap to read across.
 
-    class PausingQueue(queue.Queue):
-        def put(self, item, block=True, timeout=None):
-            enqueue_started.set()
-            assert resume_enqueue.wait(timeout=2)
-            super().put(item, block, timeout)
+    The connection the turn was started on is the only one carrying what that turn
+    says, so a follower that loses it will never see the turn finish. It closes the
+    turn on the page and gives up the reply seat, which is what lets anything else
+    answer the reader.
+    """
+    prepared = _codex_delivery(page_dir)
+    payload = prepared.payload
+    target = codex_model.stream_reply_target(payload)
+    conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
 
     class Socket:
+        def recv(self, timeout=None):
+            raise ConnectionClosedError(None, None)
+
         def close(self):
             pass
 
-    class Thread:
-        def join(self, timeout):
+    turn = codex_adapter_model.DeliveryTurn(
+        "codex-thread", Socket(), "leaf-turn", payload["id"], target, []
+    )
+    codex_adapter_model._follow_delivery_turn(turn, lambda: False)
+
+    assert codex_model.delivery_queue_state("codex-thread", payload["id"]) == "accepted"
+    assert not conversation_model.delivery_reply_reserved(
+        "codex-thread", payload["id"], target
+    )
+    assert service_model.page_claim(page_dir)["turn_closed"] is not None
+
+
+def test_a_stopping_adapter_leaves_a_running_turn_to_a_later_carrier(page_dir):
+    """An adapter shutting down is not its turn's ending.
+
+    The provider turn goes on running in a task the user owns, so the follower stops
+    claiming to speak for it and leaves what it has on the page. The seat stays
+    reserved, because that turn may still answer and a later carrier will read it
+    back off the transcript.
+    """
+    prepared = _codex_delivery(page_dir)
+    payload = prepared.payload
+    target = codex_model.stream_reply_target(payload)
+    conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
+
+    class Socket:
+        def recv(self, timeout=None):
+            raise ConnectionClosedError(None, None)
+
+        def close(self):
             pass
 
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    turn = codex_adapter_model.DeliveryTurn(
+        "codex-thread", Socket(), "leaf-turn", payload["id"], target, []
+    )
+    codex_adapter_model._follow_delivery_turn(turn, lambda: True)
+
+    assert conversation_model.delivery_reply_reserved(
+        "codex-thread", payload["id"], target
+    )
+    reply = files_model.read_json(page_dir / "status.json")["stream"]["reply"]
+    assert reply["state"] == "disconnected"
+
+
+def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypatch):
+    """The page stops saying the agent is working, however the reply went.
+
+    `DeliveryReply` guards only the commit of a completed answer: setting the
+    state and releasing the binding open a page transaction of their own, and the
+    turn's own work may have left that page unopenable. The turn has ended either
+    way, and until its Leaf turn closes and its activity reading comes off, the
+    page tells its reader the agent is still working until the claim's
+    fifteen-minute grace runs out.
+    """
+    prepared = _codex_delivery(page_dir)
+    payload = prepared.payload
+    target = codex_model.stream_reply_target(payload)
+    conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
+    turn = codex_adapter_model.DeliveryTurn(
+        "codex-thread", None, "leaf-turn", payload["id"], target, []
+    )
+    codex_model.open_stream_turn("codex-thread", "leaf-turn")
+    codex_model.set_stream_activity("codex-thread", "leaf-turn", "Working")
+
+    class Stream:
+        def finish(self, _state, _text):
+            raise OSError("the page could not be opened")
+
+    turn.reply_stream = Stream()
+
+    with pytest.raises(OSError, match="could not be opened"):
+        turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
+
+    assert service_model.page_claim(page_dir)["turn_closed"] is not None
+    assert (files_model.read_json(page_dir / "status.json").get("stream") or {}).get(
+        "activity"
+    ) is None
+
+
+def test_a_task_that_will_never_take_a_turn_is_reported_rather_than_waited_on(
+    page_dir, app_server
+):
+    """`systemError` is not a state a task comes out of by being left alone.
+
+    Holding the delivery for an idle task that never arrives leaves the reader's
+    move picked up, unanswered, and unexplained for the adapter's life. Raising
+    puts it in the log and on the delivery loop's retry ladder, where every other
+    failure this carrier cannot fix by itself already is.
+    """
+    prepared = _codex_delivery(page_dir)
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        resume = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "id": resume["id"],
+                    "result": {
+                        "thread": {
+                            "id": "codex-thread",
+                            "status": {"type": "systemError"},
+                        }
+                    },
+                }
+            )
+        )
+
+    endpoint = app_server(handle)
+    with pytest.raises(RuntimeError, match="not taking turns: systemError"):
+        codex_adapter_model.start_delivery_turn(
+            endpoint, "codex-thread", prepared.payload
+        )
+
+
+def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
+    codex_claimed_page, monkeypatch
+):
+    """The observer's own reading is what the delivery loop waits on.
+
+    Status is only readable by opening a connection, so asking the task each pass
+    would reconnect, handshake and resume once a second for as long as the user's
+    turn runs. The observer is already subscribed and already folds every
+    `turn/started` and `turn/completed`, so the loop reads that instead. It can
+    lag, which is why it only holds a delivery back — the status that lets one
+    start is still read on the starting connection.
+    """
+    page = codex_claimed_page
+    events_model.append_event(
+        page, {"kind": "comment", "id": "later", "author": "user", "text": "and this"}
+    )
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [events_model.read_events(page)[-1]],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
+
+    observer = codex_adapter_model.TaskObserver.__new__(
+        codex_adapter_model.TaskObserver
+    )
+    observer.lock = threading.Lock()
+    observer.carried = set()
+    observer.events = codex_model.AppServerEvents("codex-thread")
+    observer.events.turn_id = "a-turn-the-user-started"
+    monkeypatch.setattr(
+        codex_adapter_model,
+        "start_delivery_turn",
+        lambda *_: pytest.fail("the task was asked while a turn of its own ran"),
+    )
+
+    assert not codex_adapter_model._offer_queued_delivery(
+        "codex", "codex-thread", observer, lambda turn: None
+    )
+
+    # The turn ends and the fold says so, without anything reconnecting to ask.
+    observer.events.turn_id = None
+    assert observer.working() is False
+
+
+def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
+    """A turn id has to be a turn, or nothing ever clears what it was written on.
+
+    `thread/resume` can report a task active without naming its running turn: full
+    history is deprecated for paginated threads, so `turns` may not carry it. The
+    word "active" used to be recorded in its place, and no `turn/completed`
+    matches that, so the page's activity reading and the fold the delivery loop
+    waits on both stood until the next reconnect.
+    """
+    observer = codex_adapter_model.TaskObserver.__new__(
+        codex_adapter_model.TaskObserver
+    )
     observer.thread_id = "codex-thread"
-    observer.stop_event = threading.Event()
-    observer.available = threading.Event()
-    observer.available.set()
-    observer.socket = Socket()
-    observer.thread = Thread()
+    observer.events = codex_model.AppServerEvents("codex-thread")
     observer.bindings = {}
-    observer.deferred = None
-    observer.waiter_lock = threading.Lock()
-    observer.waiters = {}
-    observer.requests = PausingQueue()
-    monkeypatch.setattr(codex_model, "_clear_stream_activity", lambda *_: None)
-    outcome = queue.Queue(maxsize=1)
+    observer.started = True
+    observer.stop_event = threading.Event()
+    observer.ready = queue.Queue(maxsize=1)
+    observer.lock = threading.Lock()
+    observer.carried = set()
+    observer.last_activity_update = 0.0
+    updates = []
+    take_stream_activity(monkeypatch, updates, [])
 
-    def start_delivery():
-        try:
-            observer.start_delivery({"id": "registering"})
-        except BaseException as error:  # noqa: BLE001
-            outcome.put(error)
+    observer._restore_bindings({"turns": []})
+    sent = []
 
-    caller = threading.Thread(target=start_delivery, daemon=True)
-    caller.start()
-    assert enqueue_started.wait(timeout=2)
+    def send(_socket, _method, _request_id, params):
+        sent.append(params)
+        return {"thread": {"id": "codex-thread", "status": {"type": "active"}}}
 
-    stopper = threading.Thread(target=observer.stop, daemon=True)
-    stopper.start()
-    assert observer.stop_event.wait(timeout=2)
-    resume_enqueue.set()
+    observer._send = send
 
-    error = outcome.get(timeout=2)
-    caller.join(timeout=2)
-    stopper.join(timeout=2)
-    assert isinstance(error, codex_model.AppServerDeliveryUncertain)
-    assert str(error) == "Codex App Server client stopped"
-    assert not caller.is_alive()
-    assert not stopper.is_alive()
-    assert observer.requests.empty()
+    class Socket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def recv(self, timeout=None):
+            observer.stop_event.set()
+            raise TimeoutError
+
+    monkeypatch.setattr(codex_adapter_model, "app_server_connect", lambda _e: Socket())
+    monkeypatch.setattr(
+        codex_adapter_model, "app_server_handshake", lambda *_args: None
+    )
+    observer.endpoint = "unix:///probe.sock"
+    observer._connect()
+
+    assert observer.working() is False
+    assert updates == []
 
 
-def test_an_app_server_failure_releases_every_delivery_waiter_before_cleanup(
+def test_an_app_server_failure_cleans_up_its_streams_before_retrying(
     monkeypatch, capsys
 ):
+    """Every projection this observer put on a page comes off before it reconnects.
+
+    A cleanup that fails is reported rather than raised: this is the top of the
+    observer thread, and the connection it is going back for is what would repair
+    the reading it could not take down.
+    """
+
     class StopAfterFailure:
         stopped = False
 
@@ -2705,11 +2973,11 @@ def test_an_app_server_failure_releases_every_delivery_waiter_before_cleanup(
             self.stopped = True
             return True
 
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    observer = codex_adapter_model.TaskObserver.__new__(
+        codex_adapter_model.TaskObserver
+    )
     observer.thread_id = "codex-thread"
     observer.stop_event = StopAfterFailure()
-    observer.available = threading.Event()
-    observer.available.set()
     cleanup = []
 
     class Stream:
@@ -2720,263 +2988,20 @@ def test_an_app_server_failure_releases_every_delivery_waiter_before_cleanup(
     observer.bindings = {"turn": Stream()}
     observer.started = True
     observer.ready = queue.Queue(maxsize=1)
-    observer.requests = queue.Queue()
-    observer.waiter_lock = threading.Lock()
-    deferred_answer = queue.Queue(maxsize=1)
-    queued_answer = queue.Queue(maxsize=1)
-    observer.deferred = {"id": "deferred"}
-    observer.waiters = {
-        "deferred": deferred_answer,
-        "queued": queued_answer,
-    }
-    observer.requests.put({"id": "queued"})
     observer._connect = lambda: (_ for _ in ()).throw(ConnectionError("offline"))
 
     def fail_activity_cleanup(*_args):
         cleanup.append("activity")
         raise OSError("activity cleanup failed")
 
-    monkeypatch.setattr(codex_model, "_clear_stream_activity", fail_activity_cleanup)
+    monkeypatch.setattr(
+        codex_adapter_model, "clear_stream_activity", fail_activity_cleanup
+    )
 
     observer._run()
 
-    for answer in (deferred_answer, queued_answer):
-        result, error = answer.get_nowait()
-        assert result is None
-        assert isinstance(error, ConnectionError)
-        assert str(error) == "offline"
-    assert not observer.available.is_set()
-    assert observer.deferred is None
-    assert observer.requests.empty()
     assert cleanup == ["activity", "stream"]
     assert "stream cleanup failed: activity cleanup failed" in capsys.readouterr().err
-
-
-def test_an_app_server_does_not_displace_a_deferred_delivery():
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.events.turn_id = "active-turn"
-    observer.waiter_lock = threading.Lock()
-    observer.waiters = {
-        "first": queue.Queue(maxsize=1),
-        "second": queue.Queue(maxsize=1),
-    }
-    observer.deferred = {"id": "first"}
-    observer.requests = queue.Queue()
-    observer.requests.put({"id": "second"})
-
-    assert observer._next_delivery() is None
-    assert observer.deferred == {"id": "first"}
-
-    observer.events.turn_id = None
-    assert observer._next_delivery() == {"id": "first"}
-    assert observer.deferred is None
-    assert observer._next_delivery() == {"id": "second"}
-
-
-def test_an_active_app_server_turn_starts_the_delivery_once_idle(page_dir):
-    events_model.append_event(
-        page_dir,
-        {"kind": "comment", "author": "user", "text": "Answer when idle"},
-    )
-    prepared = codex_model.prepare_codex_delivery(
-        page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
-    )
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
-    observer.thread_id = "codex-thread"
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.events.turn_id = "active-turn"
-    observer.request_id = 2
-    observer.deferred = None
-    observer.waiter_lock = threading.Lock()
-    observer.waiters = {}
-    observer.bindings = {}
-    observer.last_activity_update = 0.0
-    sent = []
-
-    def send(_socket, method, request_id, params, _pending):
-        sent.append((method, request_id, params))
-        return {"turn": {"id": "leaf-turn", "status": "inProgress", "items": []}}
-
-    observer._send = send
-    answer = queue.Queue()
-
-    payload = prepared.payload
-    observer.waiters[payload["id"]] = answer
-    observer._start_delivery(None, payload)
-
-    assert answer.empty()
-    assert sent == []
-    deferred = observer.deferred
-    assert deferred is not None
-    observer.deferred = None
-    observer.events.turn_id = None
-    observer._start_delivery(None, deferred)
-
-    assert answer.empty()
-    observer._read(
-        {
-            "method": "item/started",
-            "params": {
-                "threadId": "codex-thread",
-                "turnId": "leaf-turn",
-                "startedAtMs": 1,
-                "item": {
-                    "id": "delivery",
-                    "type": "functionCallOutput",
-                    "name": "leaf_delivery",
-                    "output": json.dumps(payload),
-                },
-            },
-        }
-    )
-
-    assert answer.get_nowait() == ({"phase": "opened", "turn": "leaf-turn"}, None)
-    assert sent == [
-        (
-            "turn/start",
-            2,
-            codex_model.app_server_turn_start_params("codex-thread", payload),
-        )
-    ]
-
-
-def test_a_binding_failure_keeps_the_delivery_waiter_reachable(page_dir, monkeypatch):
-    events_model.append_event(
-        page_dir,
-        {"kind": "comment", "author": "user", "text": "Bind this reply"},
-    )
-    prepared = codex_model.prepare_codex_delivery(
-        page_dir,
-        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
-        {"pid": os.getpid()},
-    )
-    payload = prepared.payload
-    answer = queue.Queue(maxsize=1)
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
-    observer.thread_id = "codex-thread"
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.bindings = {}
-    observer.deferred = payload
-    observer.waiter_lock = threading.Lock()
-    observer.waiters = {payload["id"]: answer}
-    observer.requests = queue.Queue()
-    observer.last_activity_update = 0.0
-
-    def fail_binding(*_args):
-        raise OSError("cannot persist reply binding")
-
-    monkeypatch.setattr(observer, "_bind", fail_binding)
-
-    with pytest.raises(OSError, match="cannot persist reply binding") as failure:
-        observer._read(
-            {
-                "method": "item/started",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "leaf-turn",
-                    "startedAtMs": 1,
-                    "item": {
-                        "id": "delivery",
-                        "type": "functionCallOutput",
-                        "name": "leaf_delivery",
-                        "output": json.dumps(payload),
-                    },
-                },
-            }
-        )
-
-    assert answer.empty()
-    assert observer.waiters[payload["id"]] is answer
-    assert observer.deferred == payload
-
-    observer._fail_pending(failure.value)
-
-    result, error = answer.get_nowait()
-    assert result is None
-    assert error is failure.value
-    assert observer.waiters == {}
-    assert observer.deferred is None
-
-
-def test_an_idle_app_server_rejection_returns_to_the_retry_boundary():
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
-    observer.thread_id = "codex-thread"
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.request_id = 2
-    observer.deferred = None
-    observer.waiter_lock = threading.Lock()
-    observer.waiters = {"delivery-1": queue.Queue()}
-
-    sent = []
-
-    def reject(_socket, method, request_id, params, _pending):
-        sent.append((method, request_id, params))
-        if method == "turn/start":
-            raise codex_model.AppServerRequestRejected(
-                "the active turn cannot be steered"
-            )
-        pytest.fail("a rejected direct turn must wait for App Server to become idle")
-
-    observer._send = reject
-    with pytest.raises(
-        codex_model.AppServerRequestRejected,
-        match="active turn cannot be steered",
-    ):
-        observer._start_delivery(None, {"id": "delivery-1"})
-
-    assert observer.waiters["delivery-1"].empty()
-    assert [request[:2] for request in sent] == [("turn/start", 2)]
-    assert observer.deferred is None
-
-
-def test_a_rejected_direct_turn_still_reads_the_turn_it_was_refused_for(monkeypatch):
-    """The notifications held back behind turn/start survive its refusal.
-
-    A refused turn/start is the provider saying its task is busy, and the turn that
-    made it busy announces itself in the notifications buffered behind the request.
-    Dropping them left this client believing the thread idle, so the page said nothing
-    about work Codex had already started."""
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
-    observer.thread_id = "codex-thread"
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.bindings = {}
-    observer.last_activity_update = 0.0
-    observer.request_id = 2
-    observer.deferred = None
-    observer.waiter_lock = threading.Lock()
-    observer.waiters = {"delivery-1": queue.Queue()}
-    opened = []
-    activity = []
-    monkeypatch.setattr(
-        codex_model, "_open_stream_turn", lambda session, turn: opened.append(turn)
-    )
-    monkeypatch.setattr(
-        codex_model,
-        "_set_stream_activity",
-        lambda session, turn, detail: activity.append((turn, detail)),
-    )
-
-    def reject(socket, method, request_id, params, pending=None):
-        pending.append(
-            {
-                "method": "turn/started",
-                "params": {"turn": {"id": "desktop-turn", "items": []}},
-            }
-        )
-        raise codex_model.AppServerRequestRejected("the active turn cannot be steered")
-
-    observer._send = reject
-    observer._start_delivery(None, {"id": "delivery-1"})
-
-    assert observer.waiters["delivery-1"].empty()
-    assert observer.deferred is not None
-    assert observer.deferred["id"] == "delivery-1"
-    assert observer.events.turn_id == "desktop-turn"
-    assert opened == ["desktop-turn"]
-    assert activity == [("desktop-turn", "Starting")]
 
 
 def test_codex_launch_owns_one_private_app_server(tmp_path, monkeypatch):
@@ -3286,7 +3311,7 @@ def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(pag
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": comment["id"],
             "text": "Because the retry won.",
             "ts": work["ts"],
@@ -3367,7 +3392,7 @@ def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
     )
     events_model.append_event(
         page_dir,
-        {"kind": "resolve", "author": "claude", "parent": comment["id"]},
+        {"kind": "resolve", "author": "agent", "parent": comment["id"]},
     )
     events_model.append_event(
         page_dir,
@@ -3455,7 +3480,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "Indexer",
             "session": "worker-1",
             "widget": "t1",
@@ -3531,7 +3556,7 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
     )
     parent = root["id"]
     messages = [root]
-    for author, text in (("claude", "two"), ("user", "three")):
+    for author, text in (("agent", "two"), ("user", "three")):
         message = events_model.append_event(
             page_dir,
             {"kind": "reply", "author": author, "parent": parent, "text": text},
@@ -3556,7 +3581,7 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
         messages[0]["id"],
         messages[1]["id"],
     ]
-    assert [item["author"] for item in reading["content"]] == ["user", "claude"]
+    assert [item["author"] for item in reading["content"]] == ["user", "agent"]
     assert reading["content"][1]["parent"] == messages[0]["id"]
     assert reading["activity"]["obligations"][0]["response"] == {
         "kind": "reply",
@@ -3643,7 +3668,7 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which region?",
             "markup": '<lf-options id="region" choose>'
@@ -3699,7 +3724,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which regions?",
             "markup": '<lf-options id="regions" choose multiple>'
@@ -3765,7 +3790,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": opened["id"],
             "text": "the vendor has acknowledged it without naming a date",
         },
@@ -3798,7 +3823,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
     assert thread["resolved"] is None
     assert [(m["id"], m["author"]) for m in thread["messages"]] == [
         (opened["id"], "user"),
-        (answered["id"], "claude"),
+        (answered["id"], "agent"),
     ]
     assert "without naming a date" in thread["messages"][1]["text"]
 
@@ -3848,7 +3873,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "And which region first?",
             "markup": '<lf-options id="rg" choose>'
@@ -3860,7 +3885,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Which mitigations should I carry into the patch?",
             "markup": '<lf-options id="gm" choose multiple>'
@@ -3946,7 +3971,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "Here is the proposed answer.",
             "markup": '<lf-suggestion id="thread-answer" resolves="c-target">'
@@ -4015,14 +4040,20 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     """A host request is meaningful only beside the message that declared its
     package widget. Keep that message even when a long conversation would normally
     elide it from the delivery envelope."""
-    (page_dir / "index.html").write_text(PAGE)
+    subjects = (
+        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</section>", subjects + "</section>")
+    )
     publish(page_dir)
     serving(page_dir, 1)
     root = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "How should I recover this branch?",
         },
@@ -4032,7 +4063,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     for index in range(11):
         message = {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": parent,
             "text": f"Recovery context {index}.",
         }
@@ -4079,7 +4110,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
         page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": requested["id"],
             "status": "succeeded",
             "text": "restarted",
@@ -4261,7 +4292,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 2,
             "revision": 2,
             "text": "rewrote the suggestion",
@@ -4309,6 +4340,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     in what they agree on, so neither can be passing on a delivery that never
     settles anything."""
     (page_dir / "index.html").write_text(PICKS_PAGE)
+    let_a_pick_settle_a_thread(page_dir)
     serving(page_dir, 1)
     opened = events_model.append_event(
         page_dir,
@@ -4335,7 +4367,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     # not the thing on the page any more. Leaving it alone is the other arm.
     note = {
         "kind": "note",
-        "author": "claude",
+        "author": "agent",
         "version": 2,
         "revision": 2,
         "text": "rewrote the first option" if rewritten else "tidied the prose",
@@ -4398,7 +4430,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
             page_dir,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "parent": parent,
                 "text": "x" * 532,  # the shipped ship-review example's reply length
                 "markup": markup.format(i=f"w{turn}"),
@@ -4447,7 +4479,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
         page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": root["id"],
             "text": "Which mitigations?",
             "markup": '<lf-options id="gm" choose multiple>'
@@ -4473,7 +4505,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             page_dir,
             {
                 "kind": "reply",
-                "author": "user" if turn % 2 else "claude",
+                "author": "user" if turn % 2 else "agent",
                 "parent": parent,
                 "text": f"turn {turn}",
             },
@@ -4502,7 +4534,7 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 1,
             "revision": 1,
             "text": "published",
@@ -4538,7 +4570,7 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "widget": "t1",
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
@@ -4594,7 +4626,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
         text=True,
         env=os.environ,
     )
-    lease_path = leases_model.waiter_lease_path(page_dir, host_model.host_identity())
+    lease_path = leases_model.waiter_lease_path(
+        page_dir, host_model.session_harness().session
+    )
     wait_for(
         lambda: (leases_model.lock_is_held(lease_path), acknowledging.poll()),
         lambda reading: reading[0] or reading[1] is not None,
@@ -4623,9 +4657,9 @@ def test_ack_success_outlives_a_refused_rearm(page_dir):
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
-    identity = host_model.host_identity()
+    identity = host_model.session_harness()
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page_dir, identity)
+        leases_model.waiter_lease_path(page_dir, identity.session)
     )
     assert lease
     with lease:
@@ -4687,8 +4721,8 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
         text=True,
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
-    identity = host_model.host_identity()
-    lease_path = leases_model.waiter_lease_path(page_dir, identity)
+    identity = host_model.session_harness()
+    lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
@@ -4740,8 +4774,8 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
         text=True,
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
-    identity = host_model.host_identity()
-    lease_path = leases_model.waiter_lease_path(page_dir, identity)
+    identity = host_model.session_harness()
+    lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
@@ -5221,7 +5255,7 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
             claim
             and claim["id"] == "host-owner"
             and leases_model.lock_is_held(
-                leases_model.waiter_lease_path(page_dir, claim)
+                leases_model.waiter_lease_path(page_dir, claim["id"])
             )
         ),
         failure="the host wait never claimed the page and took its lease",
@@ -5248,7 +5282,7 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
     )
     delivered = events_model.read_events(page_dir)[-1]
     session_model.cmd_status(page_dir, "waiting", "successor is listening")
-    successor = record_claim(page_dir, id="successor", host="codex", agent="Codex")
+    successor = record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
             page_dir,
@@ -5260,14 +5294,14 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
             None,
             page,
         )
-        assert codex_model.capture_batch("original", reading)
+        assert codex_adapter_model.capture_batch("original", reading)
     epoch_path, epoch = current_codex_queue("original")
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
     batch = epoch["batches"][0]
 
-    codex_model._finish_batch(batch)
-    codex_model._finish_batch(batch)
+    codex_adapter_model._finish_batch(batch)
+    codex_adapter_model._finish_batch(batch)
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": delivered["seq"]}
     assert service_model.page_claim(page_dir) == successor
@@ -5298,8 +5332,8 @@ def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
         },
     )
 
-    assert not codex_model._recover_receipt("codex-thread")
-    assert not codex_model._has_delivery_work("codex-thread")
+    assert not codex_adapter_model._recover_receipt("codex-thread")
+    assert not codex_adapter_model._has_delivery_work("codex-thread")
     assert files_model.read_json(legacy)["delivery_id"] == "legacy-delivery"
 
 
@@ -5336,8 +5370,8 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     files_model.write_json(directory / "z-old.json", epoch(first, created_at=1))
     files_model.write_json(directory / "a-new.json", epoch(second, created_at=2))
 
-    assert codex_model._recover_receipt("codex-thread")
-    assert codex_model._recover_receipt("codex-thread")
+    assert codex_adapter_model._recover_receipt("codex-thread")
+    assert codex_adapter_model._recover_receipt("codex-thread")
     pickups = [
         event for event in events_model.read_events(page) if event["kind"] == "pickup"
     ]
@@ -5370,9 +5404,9 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
                 None,
                 transaction,
             )
-            assert codex_model.capture_batch("codex-thread", reading)
+            assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_queue("codex-thread")
-    codex_model._offer_delivery(epoch_path, epoch)
+    codex_model.offer_delivery(epoch_path, epoch)
     epoch = files_model.read_json(epoch_path)
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
@@ -5389,10 +5423,10 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
         },
     )
 
-    assert codex_model._recover_receipt("codex-thread")
+    assert codex_adapter_model._recover_receipt("codex-thread")
     first_pass = files_model.read_json(epoch_path)["batches"]
     assert [batch["receipted"] for batch in first_pass] == [True, False]
-    assert codex_model._recover_receipt("codex-thread")
+    assert codex_adapter_model._recover_receipt("codex-thread")
 
     history = epoch_path.parent / "history" / epoch_path.name
     assert all(
@@ -5436,14 +5470,14 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
                 None,
                 transaction,
             )
-            assert codex_model.capture_batch("codex-thread", reading)
+            assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_queue("codex-thread")
-    codex_model._offer_delivery(epoch_path, epoch)
+    codex_model.offer_delivery(epoch_path, epoch)
     epoch = files_model.read_json(epoch_path)
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
 
-    assert codex_model._recover_receipt("codex-thread")
+    assert codex_adapter_model._recover_receipt("codex-thread")
     batches = files_model.read_json(epoch_path)["batches"]
     [received] = [batch for batch in batches if batch["receipted"]]
     [pending] = [batch for batch in batches if not batch["receipted"]]
@@ -5451,13 +5485,34 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     # Reinitializing a page path starts its cursor again. Its batch is recovery
     # history, while the other page's batch is still live transport work.
     files_model.write_json(Path(received["page"]) / "cursor.json", {"seq": 0})
-    assert codex_model._recover_receipt("codex-thread")
+    assert codex_adapter_model._recover_receipt("codex-thread")
     history = epoch_path.parent / "history" / epoch_path.name
     assert files_model.read_json(history)["batches"] == [
         {**batch, "receipted": True} for batch in batches
     ]
     assert files_model.read_json(Path(pending["page"]) / "cursor.json") == {"seq": 1}
-    assert not codex_model._has_delivery_work("codex-thread")
+    assert not codex_adapter_model._has_delivery_work("codex-thread")
+
+
+class _CarriedDeliveries:
+    """The observer's turn ownership, without its connection."""
+
+    endpoint = "unix:///codex-probe.sock"
+
+    def __init__(self):
+        self.carried = set()
+
+    def carry(self, delivery_id):
+        self.carried.add(delivery_id)
+
+    def release(self, delivery_id):
+        self.carried.discard(delivery_id)
+
+    def busy(self):
+        return bool(self.carried)
+
+    def working(self):
+        return False
 
 
 def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
@@ -5479,33 +5534,49 @@ def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
             None,
             transaction,
         )
-        assert codex_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
 
     started = []
+    followed = []
 
-    class Observer:
-        def start_delivery(self, payload):
-            started.append(payload)
-            return {"phase": "opened", "turn": "app-server-turn"}
+    def start_delivery_turn(endpoint, session_id, payload):
+        started.append(payload)
+        return codex_adapter_model.DeliveryTurn(
+            session_id, None, "app-server-turn", payload["id"], None, []
+        )
 
+    monkeypatch.setattr(codex_adapter_model, "start_delivery_turn", start_delivery_turn)
     monkeypatch.setattr(
-        codex_model,
+        codex_adapter_model,
         "queue_delivery",
         lambda *_: pytest.fail("the addressed delivery used the Codex queue fallback"),
     )
 
-    assert codex_model._offer_queued_delivery(
+    assert codex_adapter_model._offer_queued_delivery(
         "codex",
         "codex-thread",
-        Observer(),
+        _CarriedDeliveries(),
+        followed.append,
     )
     [payload] = started
     assert payload["batches"][0]["events"][0]["id"] == comment["id"]
     assert "reply" not in payload
-    [(path, queue)] = codex_queues("codex-thread")
-    assert queue["transport"] == {"phase": "opened", "turn": "app-server-turn"}
 
-    assert codex_model._recover_receipt("codex-thread")
+    # The follower's first step, which the adapter runs on its own thread: the
+    # delivery is recorded against the turn that is now carrying it.
+    [turn] = followed
+    turn.begin()
+
+    # Accepting the delivery is the page receipt as well, so the record is complete
+    # and archived by the time the turn is under way.
+    assert codex_queues("codex-thread") == []
+    [history] = sorted(
+        (codex_model.delivery_dir("codex-thread") / "history").glob("*.json")
+    )
+    recorded = files_model.read_json(history)
+    assert recorded["transport"] == {"phase": "opened", "turn": "app-server-turn"}
+    assert all(batch["receipted"] for batch in recorded["batches"])
+
     pickup = next(
         event for event in events_model.read_events(page) if event["kind"] == "pickup"
     )
@@ -5514,7 +5585,83 @@ def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
         "app-server-turn",
         [comment["id"]],
     )
-    assert (path.parent / "history" / path.name).is_file()
+    assert not codex_adapter_model._has_delivery_work("codex-thread")
+
+
+def test_a_connection_failure_in_the_delivery_loop_is_retried(
+    codex_claimed_page, monkeypatch
+):
+    """The delivery loop survives every class its own connections can raise.
+
+    A delivery opens a connection of its own inside this loop, and `websockets`
+    raises `WebSocketException`, which descends from `Exception` alone. Naming the
+    classes worth retrying would let a refused handshake end the adapter and strand
+    every page it claims, which is the one thing a carrier exists not to do.
+    """
+    assert not issubclass(WebSocketException, (OSError, RuntimeError, ValueError))
+    for name in CLAUDE_IDENTITY:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+    attempts = []
+
+    def recover_receipt(session_id):
+        attempts.append(session_id)
+        if len(attempts) == 1:
+            raise WebSocketException("the handshake was refused")
+        return False
+
+    monkeypatch.setattr(codex_adapter_model, "_recover_receipt", recover_receipt)
+    monkeypatch.setattr(codex_adapter_model, "owned_pages", lambda _session: [])
+    monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
+    monkeypatch.setattr(codex_adapter_model, "retry_delay", lambda _failures: 0)
+
+    assert codex_adapter_model.run_adapter("codex") == 0
+    assert attempts == ["codex-thread", "codex-thread"]
+
+
+def test_a_delivery_already_being_carried_holds_back_the_next_one(
+    codex_claimed_page, monkeypatch
+):
+    """One turn at a time, and the loop keeps watching pages while it runs.
+
+    A reader who comments again during a turn is collected into a record of their
+    own, which waits for the task rather than steering into the answer already
+    being written. Holding back is not work done, so the delivery loop falls
+    through to its page read instead of spinning on the delivery it cannot offer.
+    """
+    page = codex_claimed_page
+    events_model.append_event(
+        page, {"kind": "comment", "id": "again", "author": "user", "text": "and this"}
+    )
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [events_model.read_events(page)[-1]],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
+
+    observer = _CarriedDeliveries()
+    observer.carry("a-delivery-in-a-turn")
+    monkeypatch.setattr(
+        codex_adapter_model,
+        "start_delivery_turn",
+        lambda *_: pytest.fail("a second turn was started under the first"),
+    )
+
+    assert not codex_adapter_model._offer_queued_delivery(
+        "codex",
+        "codex-thread",
+        observer,
+        lambda turn: pytest.fail("a second delivery was handed to a follower"),
+    )
+    [(_path, queue)] = codex_queues("codex-thread")
+    assert queue["state"] == "collecting"
 
 
 def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
@@ -5537,24 +5684,32 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
             None,
             transaction,
         )
-        assert codex_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
 
     attempted = []
+    observer = _CarriedDeliveries()
 
-    class Observer:
-        def start_delivery(self, payload):
-            attempted.append(payload)
-            raise codex_model.AppServerDeliveryUncertain("lost acknowledgement")
+    def start_delivery_turn(endpoint, session_id, payload):
+        attempted.append(payload)
+        # The seat an uncertain start reserved stays reserved, because a turn
+        # carrying this delivery may be running.
+        conversation_model.reserve_delivery_reply(
+            session_id, payload["id"], codex_model.stream_reply_target(payload)
+        )
+        raise codex_adapter_model.AppServerDeliveryUncertain("lost acknowledgement")
 
+    monkeypatch.setattr(codex_adapter_model, "start_delivery_turn", start_delivery_turn)
     with pytest.raises(
-        codex_model.AppServerDeliveryUncertain, match="lost acknowledgement"
+        codex_adapter_model.AppServerDeliveryUncertain, match="lost acknowledgement"
     ):
-        codex_model._offer_queued_delivery(
+        codex_adapter_model._offer_queued_delivery(
             "codex",
             "codex-thread",
-            Observer(),
+            observer,
+            lambda turn: pytest.fail("an unacknowledged start handed over a turn"),
         )
 
+    assert not observer.busy()
     [payload] = attempted
     [(path, queue)] = codex_queues("codex-thread")
     assert queue["state"] == "offering"
@@ -5568,23 +5723,24 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
             identity={"agent": "Codex", "session": "codex-thread"},
         )
     monkeypatch.setattr(
-        codex_model,
+        codex_adapter_model,
         "queue_delivery",
         lambda *_: pytest.fail("an observed uncertain delivery entered a local queue"),
     )
     with pytest.raises(
-        codex_model.AppServerDeliveryUncertain,
+        codex_adapter_model.AppServerDeliveryUncertain,
         match="awaiting reconciliation",
     ):
-        codex_model._offer_queued_delivery("codex", "codex-thread")
+        codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None, None)
 
-    observer = codex_model.AppServerClient.__new__(codex_model.AppServerClient)
+    observer = codex_adapter_model.TaskObserver.__new__(
+        codex_adapter_model.TaskObserver
+    )
     observer.thread_id = "codex-thread"
     observer.events = codex_model.AppServerEvents("codex-thread")
     observer.bindings = {}
-    observer.deferred = None
-    observer.waiter_lock = threading.Lock()
-    observer.waiters = {}
+    observer.lock = threading.Lock()
+    observer.carried = set()
     observer._restore_delivery_binding(
         {
             "id": "recovered-turn",
@@ -5641,26 +5797,31 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
             None,
             transaction,
         )
-        assert codex_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
 
     started = []
+    followed = []
 
-    class Observer:
-        def start_delivery(self, payload):
-            started.append(payload)
-            return {"phase": "opened", "turn": "app-server-turn"}
+    def start_delivery_turn(endpoint, session_id, payload):
+        started.append(payload)
+        return codex_adapter_model.DeliveryTurn(
+            session_id, None, "app-server-turn", payload["id"], None, []
+        )
 
+    monkeypatch.setattr(codex_adapter_model, "start_delivery_turn", start_delivery_turn)
     monkeypatch.setattr(
-        codex_model,
+        codex_adapter_model,
         "queue_delivery",
         lambda *_: pytest.fail("an idle App Server delivery was queued"),
     )
 
-    assert codex_model._offer_queued_delivery(
+    assert codex_adapter_model._offer_queued_delivery(
         "codex",
         "codex-thread",
-        Observer(),
+        _CarriedDeliveries(),
+        followed.append,
     )
+    followed[0].begin()
     [payload] = started
     assert [event["id"] for event in payload["batches"][0]["events"]] == ["first"]
     assert [
@@ -5668,7 +5829,8 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
     ] == []
     assert payload["batches"][0]["events"][0]["obligation"]["as_of_seq"] == 2
 
-    assert codex_model._recover_receipt("codex-thread")
+    # Accepting the first delivery receipts it, so the second comment is collected
+    # into a record of its own rather than joining the one already in a turn.
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -5680,9 +5842,9 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
             None,
             transaction,
         )
-        assert codex_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
     second_path, second = current_codex_queue("codex-thread")
-    second_payload = codex_model._offer_delivery(second_path, second).payload
+    second_payload = codex_model.offer_delivery(second_path, second).payload
     assert [
         event["id"] for batch in second_payload["batches"] for event in batch["events"]
     ] == ["second"]
@@ -5707,7 +5869,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
             None,
             transaction,
         )
-        assert codex_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
     first_path, _ = current_codex_queue("codex-thread")
 
     queue_started = threading.Event()
@@ -5717,9 +5879,11 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         queue_started.set()
         assert release_queue.wait(timeout=5)
 
-    monkeypatch.setattr(codex_model, "queue_delivery", queue_delivery)
+    monkeypatch.setattr(codex_adapter_model, "queue_delivery", queue_delivery)
     offering = threading.Thread(
-        target=lambda: codex_model._offer_queued_delivery("codex", "codex-thread")
+        target=lambda: codex_adapter_model._offer_queued_delivery(
+            "codex", "codex-thread", None, None
+        )
     )
     offering.start()
     assert queue_started.wait(timeout=5)
@@ -5733,12 +5897,12 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     assert not offering.is_alive()
     first_delivery = files_model.read_json(first_path)
     assert first_delivery["state"] == "accepted"
-    payload = files_model.read_json(codex_model.delivery_path(first_path.stem))
+    payload = files_model.read_json(delivery_model.delivery_path(first_path.stem))
     assert [
         event["id"] for batch in payload["batches"] for event in batch["events"]
     ] == ["first"]
 
-    assert codex_model._recover_receipt("codex-thread")
+    assert codex_adapter_model._recover_receipt("codex-thread")
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -5750,7 +5914,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
             None,
             transaction,
         )
-        assert codex_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
     second_path, second_delivery = current_codex_queue("codex-thread")
     assert second_path != first_path
     assert second_delivery["state"] == "collecting"
@@ -5783,9 +5947,9 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
             None,
             transaction,
         )
-        assert codex_model.capture_batch("codex-thread", reading)
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
     queue_path, queue = current_codex_queue("codex-thread")
-    codex_model._offer_delivery(queue_path, queue)
+    codex_model.offer_delivery(queue_path, queue)
     queue = files_model.read_json(queue_path)
     queue["state"] = "accepted"
     files_model.write_json(queue_path, queue)
@@ -5831,7 +5995,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         with service_model.PageTransaction(page) as transaction:
             transaction.release_claim()
     wait_for(
-        lambda: codex_model.adapter_is_live("codex-thread"),
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         lambda live: not live,
         failure="the Codex adapter stayed live after releasing its page",
     )
@@ -5851,7 +6015,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
-        "FAKE_CODEX_EXPECT_CWD": str(host_model.state_home()),
+        "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
     }
     if delivery_fault == "retry":
         environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(
@@ -5887,7 +6051,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     try:
         wait_for(
             lambda: (
-                codex_model.adapter_is_live("codex-thread"),
+                codex_adapter_model.adapter_is_live("codex-thread"),
                 page_state(page)["listening"],
             ),
             all,
@@ -5906,7 +6070,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             time.sleep(0.05)
         else:
             deliveries = codex_queues("codex-thread")
-            log_text = codex_model.adapter_log_path("codex-thread").read_text(
+            log_text = codex_adapter_model.adapter_log_path("codex-thread").read_text(
                 encoding="utf-8"
             )
             pytest.fail(
@@ -5953,7 +6117,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             assert delivery.tag == "leaf-delivery"
             assert delivery.attrib["operation"] == "delivery claim"
             assert set(delivery.attrib) == {"operation", "id"}
-            payload_path = codex_model.delivery_path(delivery.attrib["id"])
+            payload_path = delivery_model.delivery_path(delivery.attrib["id"])
             assert payload_path.exists()
             payload = files_model.read_json(payload_path)
             assert payload["format"] == delivery_model.DELIVERY_FORMAT
@@ -5988,7 +6152,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         assert files_model.read_json(page / "cursor.json") == {
             "seq": comments[-1]["seq"]
         }
-        assert codex_model.adapter_is_live("codex-thread")
+        assert codex_adapter_model.adapter_is_live("codex-thread")
 
         for comment in comments:
             conversation_model.cmd_reply(
@@ -6004,7 +6168,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             transaction.release_claim()
 
     wait_for(
-        lambda: codex_model.adapter_is_live("codex-thread"),
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         lambda live: not live,
         failure="the Codex adapter stayed live after finishing its deliveries",
     )
@@ -6042,11 +6206,11 @@ def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
     assert started.returncode == 0, f"{out}{err}"
 
     wait_for(
-        lambda: codex_model.adapter_is_live("codex-thread"),
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         lambda live: not live,
         failure="the Codex adapter stayed live with no restartable page",
     )
-    adapter_log = codex_model.adapter_log_path("codex-thread").read_text(
+    adapter_log = codex_adapter_model.adapter_log_path("codex-thread").read_text(
         encoding="utf-8"
     )
     assert adapter_log.count("server is not running") == 2
@@ -6135,9 +6299,9 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
                 break
             time.sleep(0.05)
         else:
-            adapter_log = codex_model.adapter_log_path("codex-thread").read_text(
-                encoding="utf-8"
-            )
+            adapter_log = codex_adapter_model.adapter_log_path(
+                "codex-thread"
+            ).read_text(encoding="utf-8")
             pytest.fail(
                 "the browser comment did not reach the Codex queue: "
                 f"adapter_log={adapter_log!r}"
@@ -6149,7 +6313,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
         prompt = queued[queued.index("--message") + 1]
         delivery = ElementTree.fromstring(prompt.splitlines()[1])
         payload = files_model.read_json(
-            codex_model.delivery_path(delivery.attrib["id"])
+            delivery_model.delivery_path(delivery.attrib["id"])
         )
         [delivered_comment] = payload["batches"][0]["events"]
         assert (delivered_comment["id"], delivered_comment["text"]) == (
@@ -6188,7 +6352,7 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
 
     try:
         wait_for(
-            lambda: codex_model.adapter_is_live("codex-thread"),
+            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
             bool,
             failure="the Codex adapter never became live for delivery retry",
         )
@@ -6214,7 +6378,7 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
             service_model.claim_path(page), {**claim, "pid": dead_pid}
         )
         wait_for(
-            lambda: codex_model.adapter_is_live("codex-thread"),
+            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
             lambda live: not live,
             failure="the Codex adapter outlived its page claim",
         )
@@ -6252,7 +6416,7 @@ def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
         text=True,
     )
     wait_for(
-        lambda: codex_model.adapter_is_live("codex-thread"),
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         bool,
         failure="the Codex adapter never became live for the accepted receipt",
     )
@@ -6268,7 +6432,7 @@ def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
         failure="the accepted receipt never entered the fake Codex queue",
     )
 
-    successor = record_claim(page, id="successor", host="codex", agent="Codex")
+    successor = record_claim(page, id="successor", harness="codex", agent="Codex")
     queue_wait.with_name(f"{queue_wait.name}.release").write_text("", encoding="utf-8")
     assert adapter.wait(timeout=10) == 0
 
@@ -6317,7 +6481,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
     try:
         wait_for(
             lambda: (
-                codex_model.adapter_is_live("codex-thread"),
+                codex_adapter_model.adapter_is_live("codex-thread"),
                 page_state(page)["listening"],
             ),
             all,
@@ -6360,16 +6524,16 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
         "FAKE_CODEX_LOG": str(log),
     }
     session_model.cmd_status(first, "waiting", "first page")
-    start_lock = codex_model.adapter_start_lock_path("codex-thread")
+    start_lock = codex_adapter_model.adapter_start_lock_path("codex-thread")
     read_gate = tmp_path / "adapter-read-gate"
     os.mkfifo(read_gate)
     reading = tmp_path / "adapter-reading"
     marker = tmp_path / "adapter-final-recheck"
     probe = """\
-from leaf import codex as codex_model
+from leaf import codex_adapter as codex_adapter_model
 
-native_read_watch_pass = codex_model.read_watch_pass
-native_flocked = codex_model.flocked
+native_read_watch_pass = codex_adapter_model.read_watch_pass
+native_flocked = codex_adapter_model.flocked
 finishing = False
 
 def observed_read_watch_pass(*args, **kwargs):
@@ -6390,9 +6554,9 @@ def observed_flocked(path, **kwargs):
     with native_flocked(path, **kwargs) as stream:
         yield stream
 
-codex_model.read_watch_pass = observed_read_watch_pass
-codex_model.flocked = observed_flocked
-raise SystemExit(codex_model.run_adapter(os.environ["CODEX_PATH"]))
+codex_adapter_model.read_watch_pass = observed_read_watch_pass
+codex_adapter_model.flocked = observed_flocked
+raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
 """
     adapter = spawn_probe(
         spawn,
@@ -6411,7 +6575,7 @@ raise SystemExit(codex_model.run_adapter(os.environ["CODEX_PATH"]))
     )
     wait_for(
         lambda: (
-            codex_model.adapter_is_live("codex-thread"),
+            codex_adapter_model.adapter_is_live("codex-thread"),
             page_state(first)["listening"],
             reading.exists(),
         ),
@@ -6469,7 +6633,7 @@ raise SystemExit(codex_model.run_adapter(os.environ["CODEX_PATH"]))
         )
         wait_for(
             lambda: (
-                codex_model.adapter_is_live("codex-thread"),
+                codex_adapter_model.adapter_is_live("codex-thread"),
                 page_state(second)["listening"],
             ),
             all,
@@ -6526,12 +6690,13 @@ def test_failed_codex_delivery_start_restores_the_previous_page_claim(
 def test_a_codex_command_claims_the_page_for_its_thread(codex_claimed_page):
     session = service_model.page_claim(codex_claimed_page)
     assert session["id"] == "codex-thread"
-    assert session["agent"] == "Codex" and session["host"] == "codex"
+    assert session["agent"] == "Codex"
+    assert session["harness"] == "codex"
     assert set(session) == {
         "page",
         "id",
         "agent",
-        "host",
+        "harness",
         "pid",
         "cwd",
         "ts",
@@ -6575,7 +6740,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
     for name in CLAUDE_IDENTITY + CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "thread-nobody")
-    monkeypatch.setattr(host_model, "process_info", lambda _pid: (1, "python"))
+    monkeypatch.setattr(machine_model, "process_info", lambda _pid: (1, "python"))
     refused = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert refused.exit_code == 1, refused.output
     assert "no codex process runs above this one" in refused.output
@@ -6624,14 +6789,14 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     page = tmp_path / "concurrent-page"
     reached_layer = threading.Event()
     resume = threading.Event()
-    original_composed_theme = layer_model.composed_theme
+    original_composed_sheets = layer_model.composed_sheets
 
-    def held_composed_theme(sources):
+    def held_composed_sheets(sources):
         reached_layer.set()
         assert resume.wait(timeout=10), "the concurrent init never released its peer"
-        return original_composed_theme(sources)
+        return original_composed_sheets(sources)
 
-    monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
+    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
@@ -6691,7 +6856,7 @@ def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
     assert waited.wait(timeout=60) == 0
     session = service_model.page_claim(page)
     assert session["id"] == "thread-9"
-    assert session["agent"] == "Indexer" and session["host"] == "codex"
+    assert session["agent"] == "Indexer" and session["harness"] == "codex"
 
 
 def test_hook_remedies_follow_the_host_not_the_display_name(
@@ -6725,7 +6890,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     session_model.cmd_status(page, "waiting", "")
     session = service_model.page_claim(page)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page, session)
+        leases_model.waiter_lease_path(page, session["id"])
     )
     assert lease
 
@@ -6768,7 +6933,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     # Pending output still has to cross context and be acknowledged before handling.
     events_model.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page, session)
+        leases_model.waiter_lease_path(page, session["id"])
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
@@ -6966,7 +7131,9 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     lease_path = (
         page_dir / "waiter.lock"
         if identity_names
-        else leases_model.waiter_lease_path(page_dir, host_model.host_identity())
+        else leases_model.waiter_lease_path(
+            page_dir, host_model.session_harness().session
+        )
     )
     first = spawn(
         [*LEAF_COMMAND, "wait", str(page_dir)],
@@ -7003,10 +7170,10 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "first")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    first = host_model.host_identity()
+    first = host_model.session_harness()
     first_turn = service_model.page_claim(page_dir)["turn"]
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page_dir, first)
+        leases_model.waiter_lease_path(page_dir, first.session)
     )
     assert lease and page_state(page_dir)["listening"]
 
@@ -7050,7 +7217,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
         assert service_model.claim_page(page_dir)
         claim = service_model.page_claim(page_dir)
         assert not leases_model.lock_is_held(
-            leases_model.waiter_lease_path(page_dir, claim)
+            leases_model.waiter_lease_path(page_dir, claim["id"])
         )
         assert leases_model.lock_is_held(page_dir / "waiter.lock")
         assert not page_state(page_dir)["listening"]
@@ -7086,7 +7253,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
@@ -7307,7 +7474,7 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     # A live watcher, and a closed page, each end the turn cleanly.
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
@@ -7323,6 +7490,35 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     record_claim(claimed, id="s2")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
+
+
+def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
+    claimed, tmp_path, capsys
+):
+    """Each page states its own debt; the protocol they share is stated once.
+
+    Every debt used to carry the whole protocol with it, so a session holding
+    three pages that owed the same thing spent three copies of the same ninety
+    words saying so — most of what the blocking message weighed, and all of it
+    between one page's line and the next.
+    """
+    second = tmp_path / "second-page"
+    shutil.copytree(claimed, second)
+    assert service_model.claim_page(second)
+    for page in (claimed, second):
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "look at this"}
+        )
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
+
+    assert str(claimed) in reason and str(second) in reason
+    assert reason.count("you haven't picked up") == 2
+    assert reason.count(schema_model.ACK_BATCH_INSTRUCTION) == 1
+    # The lines stand together, so the reader reaches every page before the
+    # first protocol rather than one page per protocol.
+    assert reason.index(str(second)) < reason.index(schema_model.ACK_BATCH_INSTRUCTION)
 
 
 def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys):
@@ -7416,11 +7612,12 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     answered, and the hook must say nothing. Without it a guard that blocked on
     every acknowledged comment would pass the other arm."""
     (claimed / "index.html").write_text(PICKS_PAGE)
+    let_a_pick_settle_a_thread(claimed)
     session_model.cmd_status(claimed, "waiting", "")
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, service_model.page_claim(claimed))
+        leases_model.waiter_lease_path(claimed, service_model.page_claim(claimed)["id"])
     )
     assert lease
     asked = events_model.append_event(
@@ -7440,7 +7637,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     )
     note = {
         "kind": "note",
-        "author": "claude",
+        "author": "agent",
         "version": 2,
         "revision": 2,
         "text": "rewrote the first option" if rewritten else "tidied the prose",
@@ -7479,7 +7676,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # clears nothing here.
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     asked = events_model.append_event(
@@ -7566,7 +7763,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # it is the last word rather than any reading of the root that says so.
     ask = events_model.append_event(
         claimed,
-        {"kind": "comment", "author": "claude", "text": "which storage engine?"},
+        {"kind": "comment", "author": "agent", "text": "which storage engine?"},
     )
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -7598,14 +7795,14 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     older_question = events_model.append_event(
         claimed,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "anchor": {"section": "choice"},
             "text": "Should the existing camera job include mounting?",
@@ -7628,14 +7825,14 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
     assert proposal["id"] in json.loads(capsys.readouterr().out)["reason"]
     events_model.append_event(
         claimed,
-        {"kind": "resolve", "author": "claude", "parent": older_question["id"]},
+        {"kind": "resolve", "author": "agent", "parent": older_question["id"]},
     )
 
     question = events_model.append_event(
         claimed,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "anchor": {"section": "choice"},
             "text": "Should the mounting cost be part of the option?",
@@ -7682,7 +7879,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     asked = events_model.append_event(
@@ -7712,7 +7909,7 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
     # second `leaf wait` would print every unacknowledged event twice.
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
@@ -7721,7 +7918,7 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
 
 
 def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
-    server, page_dir, tmp_path, monkeypatch
+    server, page_dir, tmp_path, monkeypatch, socket_dir
 ):
     """A running turn's Stop hook refuses to end with a reader move unpicked, and a
     live `leaf wait` delivers one, so the move nobody picks up arrives at a Claude
@@ -7737,13 +7934,12 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
     accept once the POST has answered was never messaged."""
     closed = "2026-09-17T09:00:00+00:00"
     publish(page_dir)
-    sockets = Path(tempfile.mkdtemp(prefix="lf", dir="/tmp"))  # sun_path is short
     config = tmp_path / "claude"
     (config / "sessions").mkdir(parents=True)
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
     listeners = {}
     for pid, session_id in ((4101, "s1"), (4102, "s2")):
-        address = str(sockets / f"{pid}.sock")
+        address = str(socket_dir / f"{pid}.sock")
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         listener.bind(address)
         listener.listen()
@@ -7785,7 +7981,7 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         # A live watcher delivers it.
         claim = record_claim(page_dir, turn_closed=closed)
         lease = leases_model.take_waiter_lease(
-            leases_model.waiter_lease_path(page_dir, claim)
+            leases_model.waiter_lease_path(page_dir, claim["id"])
         )
         assert lease
         react("while a wait holds the lease")
@@ -7793,7 +7989,7 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         assert messages("s1") is None
 
         # Codex's detached adapter queues its own turns; the socket is Claude Code's.
-        record_claim(page_dir, host="codex", turn_closed=closed)
+        record_claim(page_dir, harness="codex", turn_closed=closed)
         react("to a Codex task")
         assert messages("s1") is None
 
@@ -7829,7 +8025,6 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
     finally:
         for listener in listeners.values():
             listener.close()
-        shutil.rmtree(sockets)
 
 
 def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
@@ -7870,7 +8065,7 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
 ):
     """The one word that separates the two Codex shapes, and the claim each writes.
 
-    `session_lifetime` finds a session by walking for the nearest `codex`
+    `CodexHarness.lifetime` finds a session by walking for the nearest `codex`
     ancestor. Under the CLI that process is the session and its pid is exact.
     The ChatGPT app runs one `codex ... app-server` for the whole app and every
     conversation hangs off it, so the same walk handed every session one pid
@@ -7909,7 +8104,7 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
 
     app = claimed("app-thread", app_server=True)
     assert "pid" not in app
-    assert app["activity"] == "codex-app-server"
+    assert app["activity"] == "multiplexed"
 
 
 def test_a_claim_is_active_while_the_lifetime_it_names_holds(
@@ -7960,8 +8155,8 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     record_claim(
         activity,
         id="multiplexed",
-        host="codex",
-        activity="codex-app-server",
+        harness="codex",
+        activity="multiplexed",
         ts=events_model.now_iso(),
     )
     claim = service_model.page_claim(activity)
@@ -7975,8 +8170,8 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     record_claim(
         activity,
         id="multiplexed",
-        host="codex",
-        activity="codex-app-server",
+        harness="codex",
+        activity="multiplexed",
         ts=stale,
     )
     assert not service_model.claim_is_active(service_model.page_claim(activity))
@@ -8105,7 +8300,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         claimed,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "widget": "t1",
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
@@ -8784,7 +8979,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session)
+        leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
     events_model.append_event(

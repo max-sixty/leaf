@@ -1379,31 +1379,47 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * is room only where a grip hangs, so paper, copies and quoted boards floor a column at
  * the measure and its insets alone. */
 lf-board { display: grid; grid-auto-flow: column;
+           container: lf-board / inline-size;
            --lf-card-measure: 136px; --lf-reading-column-inset: 8px; --lf-card-inset: 10px;
            --lf-reading-column-floor: calc(var(--lf-card-measure)
              + 2 * var(--lf-reading-column-inset) + 2 * var(--lf-card-inset)
              + var(--lf-grip-room, 0px) + 2px); /* the card's two 1px borders */
-           grid-auto-columns: minmax(var(--lf-reading-column-floor), 1fr);
-           gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto; }
-lf-column { display: block; background: var(--field);
-            border-radius: var(--r); padding: var(--lf-reading-column-inset); min-height: 64px;
+           grid-auto-columns: 1fr;
+           gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto;
+           scroll-snap-type: inline proximity; }
+/* The column states its own floor rather than the board stating it as a track, because a
+   track cannot read the box it sits in and a column can. `1fr` is `minmax(auto, 1fr)`,
+   and a specified min-width is exactly what that automatic minimum resolves to, so the
+   track is the width it was. A track width is a border-box measure, so the column is
+   sized as one too, and its min-height restates the outer box it stated before. */
+lf-column { display: block; background: var(--field); box-sizing: border-box;
+            border-radius: var(--r); padding: var(--lf-reading-column-inset);
+            min-width: var(--lf-reading-column-floor);
+            min-height: calc(64px + 2 * var(--lf-reading-column-inset));
             --lf-block-frame: 1; }
 .lf-board-destinations { display: none; }
-/* On a phone, one column needs enough room to read while the next remains visible as the
-   cue that the board continues sideways. The floor still wins inside a narrower frame. */
-@media screen and (max-width: 640px) {
-  lf-board { grid-auto-columns: max(var(--lf-reading-column-floor),
-             calc(100% - var(--sp-4))); scroll-snap-type: inline proximity; }
-  lf-column { scroll-snap-align: start; }
+/* Where sharing the board between columns would leave none of them readable, one column
+   takes the width and the next stays visible as the cue that the board continues
+   sideways. The floor still wins inside a narrower frame. The board asks its own box, so
+   a board beside an open panel answers for the room it has rather than for the room the
+   window has; snapping needs no condition of its own, since proximity snapping does
+   nothing until a column offers a snap position. */
+@media screen {
+  @container lf-board (width <= 640px) {
+    lf-column { min-width: max(var(--lf-reading-column-floor),
+                calc(100cqi - var(--sp-4))); scroll-snap-align: start; }
+  }
 }
-@media screen and (max-width: 640px) and (pointer: coarse) {
-  .lf-board-destinations {
-    display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-1);
-    margin-top: var(--sp-2); }
-  .lf-board-destinations-label { color: var(--muted); font-size: var(--t-6); }
-  .lf-board-destination { min-height: var(--aim-floor); padding: var(--sp-1) var(--sp-2);
-                          border: 1px solid var(--border-2); border-radius: var(--chip-r);
-                          background: var(--field); color: var(--ink-2); cursor: pointer; }
+@media screen and (pointer: coarse) {
+  @container lf-board (width <= 640px) {
+    .lf-board-destinations {
+      display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-1);
+      margin-top: var(--sp-2); }
+    .lf-board-destinations-label { color: var(--muted); font-size: var(--t-6); }
+    .lf-board-destination { min-height: var(--aim-floor); padding: var(--sp-1) var(--sp-2);
+                            border: 1px solid var(--border-2); border-radius: var(--chip-r);
+                            background: var(--field); color: var(--ink-2); cursor: pointer; }
+  }
 }
 /* The heading is written by lf-board.js rather than by the x-says pass, because
    it is the list's accessible name as well as its visible words and the pass
@@ -2101,6 +2117,12 @@ lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--h
    is the part a grid could move. */
 lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
              width: max-content; min-width: 100%; box-sizing: border-box; }
+/* max-content is the unwrapped line, so the sheet's wrap finds no break to take while
+   it stands and the row draws its full width through the block's border. Paper gives
+   the width back, and the line wraps inside the frame with its gutter on the first row.
+   Screen keeps the scroller: sideways is a gesture there and the column still means
+   something. */
+@media print { lf-code .lf-code-line { width: auto; } }
 lf-code .lf-code-line::before { counter-increment: lf-code-line;
              content: counter(lf-code-line); display: inline-block; width: 38px;
              margin-right: 8px; padding-right: 10px; box-sizing: border-box;
@@ -2135,7 +2157,15 @@ lf-text-document figcaption {
   color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }
-lf-text-document pre { margin: 0; border: 0; border-radius: 0; }
+/* A capture wraps. `pre`'s UA `white-space: pre` is right for source, where the column
+   carries meaning, and a text document is as often prose: a paragraph captured as one
+   line ran off the side of the frame, so reading a sentence meant working the scrollbar
+   at its foot. Wrapping costs a capture nothing — there is no alignment here to lose,
+   which is the whole reason lf-diff makes its own wrap the reader's switch and this is
+   simply the default. The frame keeps `overflow-x: auto` for what no line box can break:
+   a path, a URL, minified data. An author whose capture is columnar has no attribute to
+   say so yet; add one when a page needs it. */
+lf-text-document pre { margin: 0; border: 0; border-radius: 0; white-space: pre-wrap; }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded
    corners, so an outside ring loses a pixel on three sides. */

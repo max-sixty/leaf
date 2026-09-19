@@ -33,11 +33,18 @@ browser gate and the shared chrome contracts whose regressions must block a pull
 uv run pytest tests
 ```
 
-The `test_render_*.py` modules and `test_site.py` are marked nightly;
-`test_chrome_contracts.py` holds the small browser surface in the everyday gate. Broad
-discovery skips nightly tests. An explicit file, node id, `-k`, `-m`, or `--lf`
-selection runs what it names. During development, select the owning file or one named
-case and use `-n 0` so the trace and process tree stay local:
+A test is nightly when a pull request can land without it: the broad browser corpus in
+most `test_render_*.py` modules, and the published site in `test_site.py`. The everyday
+gate keeps `test_chrome_contracts.py`, `test_render_mcp.py`, and
+`test_render_application_boundary.py`, so the `test_render_` prefix does not say which
+run a file belongs to. A test does not become nightly because it is expensive. The
+expensive copying is already there: `test_site.py` builds and stages the published site,
+and its `staged_site` fixture records what that costs. Every `copytree` left in the
+everyday suite duplicates one initialized page or one source directory instead — 195
+files and under 4M at the largest, in under 0.1s. Broad discovery skips nightly tests.
+An explicit file, node id, `-k`, `-m`, or `--lf` selection runs what it names. During
+development, select the owning file or one named case and use `-n 0` so the trace and
+process tree stay local:
 
 ```sh
 uv run pytest tests/test_render_widgets.py -q -n0 -k board
@@ -99,7 +106,7 @@ corpus sweeps include them. File-side fixtures live in `interact_support.py`. Br
 fixtures live in `render_harness.py`; reusable browser cases are grouped by
 interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
 Both fixture modules use `TemporaryPageServer`, the same process-owned server as
-`scripts/preview.py --automation`. Test modules import support from its owning
+an unclaimed `scripts/preview.py`. Test modules import support from its owning
 module directly. `test_site.py` reads the
 built site through its served URLs. Product documentation tests compare the docs
 with the shipped vocabulary and command surface: a shown command the click tree
@@ -268,12 +275,26 @@ a test body.
 
 ### A process the suite starts ends with the run
 
+The run catches SIGINT itself, so every child starts at the default disposition
+a terminal gives. A run launched as a shell's background job inherits SIGINT set
+to SIG_IGN and passes it to everything it spawns, and a test that interrupts its
+own child would otherwise pass or fail on how the run was launched rather than
+on the code.
+
 Server ownership has two layers:
 
-- `spawn` owns every child process started directly by a test and terminates
-  any survivor during teardown.
+- `spawn` owns every child process started directly by a test and ends any
+  survivor during teardown — the group, for a child given a session of its own,
+  because such a child's own children join that group and the handle the test
+  keeps names only the launcher.
 - `_no_page_outlives_its_test` releases the suite's held leases, searches the
   temporary page and state roots, and stops every live leaf server it finds.
+- `preview_slot` sets `LEAF_PREVIEWS_ROOT` under `tmp_path`, so a preview test's
+  pages are in the roots that sweep walks rather than in the checkout's shared
+  `.tmp/previews`. It then retires each slot's watcher through
+  `preview.retire_preview`, because a watcher is detached into a session of its
+  own: neither the sweep nor `spawn` reaches one, and retiring it waits for its
+  lease rather than pulling its page out from under it.
 
 The search is intentional: a cleanup list catches only the server a test
 remembered to register. A page server is spawned into its own process session,
@@ -287,6 +308,17 @@ the serving thread, socket close, and bounded join.
 A standing server is the explicit exception. It declines session ownership by
 definition, and tests of standing lifetime must stop it themselves. Keep that
 exception narrow and short-lived.
+
+A Unix socket is the one file that cannot live under those roots: `sun_path` is 104
+bytes and pytest has spent most of them before a test's own files begin. `socket_dir`
+owns that exception — a short directory under the system temporary root, removed when
+the test ends — so a test never names `/tmp` itself.
+
+A fixture cannot stop a test making its own, so
+`test_the_resources_a_fixture_owns_are_taken_from_that_fixture` reads the suite for
+the calls these fixtures exist in place of — starting a process, launching a browser,
+making a socket directory — and names the owner of each. An exception is a line in
+that list saying which file holds it and why.
 
 The sweep's roots are the run's own: the test's `tmp_path` and the state home
 `isolated_session` returns. An autouse fixture that needs the isolated home takes
@@ -342,9 +374,10 @@ initialized layer the same way.
 page moved to the path it asked for, and when the test ends the page goes back
 to the pool, where the next loan resets it: every file whose inode, size or
 modification time moved is put back from the shape, and everything the test
-added is removed. Copying the layer instead cost 146 files a test, which put
-2,272 pages and 393,473 directory entries through a nightly run — bytes a hard
-link shares, but a directory entry is what a filesystem event watcher counts.
+added is removed. Copying the layer instead costs 195 files a test. Measured when
+a page was 146, that put 2,272 pages and 393,473 directory entries through a
+nightly run — bytes a hard link shares, but a directory entry is what a
+filesystem event watcher counts.
 
 Runtime and vendor files are immutable fixture inputs and are hard links into
 the shape; the rest is a private copy. Nothing may write a page's layer in
@@ -383,6 +416,13 @@ element (`data-lf-traffic`, `runtime/traffic.js`). Network conditions come from
 browser's error surfaces. `primed` lets a render or export call create its own
 page while the test attaches those external controls before navigation.
 
+A page the product opens to read for itself is the product's: `render_version`
+collects that page's console and `pageerror` and reports them as findings. A gate or
+export test whose page is meant to be faulty therefore hands over `browser.unwatched`,
+rather than asserting the same errors twice — once against the gate's report and once
+against the suite's collector. A product call whose page should be clean takes the
+ordinary browser, where an unexpected error fails the test that caused it.
+
 An init script is justified only when the fact cannot survive long enough to
 cross the Playwright boundary: recording a sequence frame by frame, or capturing
 an instant between one DOM write and the next rendering turn. The injected code
@@ -391,9 +431,8 @@ outside the page.
 
 ## A page is ready when it says what has finished
 
-Open ordinary browser pages through `open_page`. It installs `Traffic` and
-`watched` before navigation, waits for the load event, and then waits on
-`BOTH_STAMPS`:
+Open ordinary browser pages through `open_page`. It navigates, waits for the load
+event, and then waits on `BOTH_STAMPS`:
 
 - `data-lf-upgraded="1"` says widget upgrade finished.
 - `data-lf-applied` says a replay pass applied the event log.
@@ -411,11 +450,53 @@ manual navigations as well; the `upgraded=False` escape in `open_page` is only
 for a test whose subject is the interval before those stamps, waits for the
 banner module to exist, and must make its later readiness explicit.
 
-`watched` must be installed before navigation. It collects console warnings, console
-errors, and `pageerror`, and calls `leaf.render_checks.install_window_errors` so browser
-`error` events without an exception reach the same list. That script is shared
-with `render_version`; the suite and the handover gate must not disagree about
-which browser error channels count.
+A test whose subject is the page before the runtime lands needs the other end of
+that distinction, and element visibility does not carry it. A forced layout —
+`bounding_box`, and `to_be_visible` with it — answers from the stylesheets that
+have arrived, so an element has a box while the render-blocking theme is still in
+flight, and the geometry read behind it is the user agent's own. `displayed` waits
+on first contentful paint, the browser's record that the head has been applied and
+what it composed is on screen. Every pre-runtime measurement takes it first, in
+`test_authored_html_paints_while_runtime_startup_is_held`,
+`test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads`, and
+the two site shells: the reading it excludes is the unstyled document, which
+differs from the presented page by the whole theme and arrives as a report that
+startup moved the shell.
+
+Every page the `browser` fixture makes arrives readable: the problem list `watched`
+collects into, the interception arm, and the `Traffic` ledger, installed by
+`WatchedBrowser` in the call that makes the page. None of the three can be added
+afterwards — an init script has to precede the navigation it instruments, and a
+console entry from a page nobody was listening to is gone — so a test that makes a
+page cannot end up with one that reports nothing. It used to: 38 test functions made
+a page of their own and never asked for the readings, and every one of them was green
+about a page whose console, `pageerror` and window `error` channels nothing read.
+A page must therefore come from that fixture, or from a context it made.
+
+The fixture ends it too, so a test that has finished with a page leaves it open. It
+closes every context after reading what the pages reported, in that order and for
+this reason: closing stops event delivery, so a close written at the end of a test
+cuts the reading short — its own reading, a step before the fixture takes it.
+
+A close inside a test is a different thing, and it stays: a second tab shut to show
+what the first one still holds is the gesture the test is about, and the assertions
+after it are what read the close. So the rule is the ending, not the call, and
+`test_the_resources_a_fixture_owns_are_taken_from_that_fixture` reads for exactly
+that — a close anywhere in a `finally`, or on the line a test ends on, followed down
+through the loop or branch it ends inside — on anything the browser fixture handed
+over, however it travelled. Its one exception is the page that keeps making the
+fault its test is about, where the consume has to follow a close of its own.
+
+For the same reason nothing installs them a second time. `watched` returns the list a
+page already has, because a second list would take `lf_errors` with it and leave the
+first collecting into a reading no test can consume; and nothing installs them from
+inside a Playwright event handler, where a `page.route` leaves the `add_init_script`
+after it without effect and says nothing about it.
+
+`watched` collects console warnings, console errors, and `pageerror`, and calls
+`leaf.render_checks.install_window_errors` so browser `error` events without an
+exception reach the same list. That script is shared with `render_version`; the suite
+and the handover gate must not disagree about which browser error channels count.
 
 `navigate` handles the one browser notice that needs confirmation: a
 ResizeObserver-loop notice raised during handover is repeated with a complete
@@ -428,6 +509,11 @@ causal point; every collected entry must match one of its named fragments. Use
 `take_browser_errors` only when the test itself asserts the exact list or partitions
 every entry. Filtering the collector or leaving expected noise behind is not an
 assertion.
+
+A fault the page keeps meeting has no causal point to be consumed at: a route that
+answers every `/api/state` with a refusal is met again two seconds later, and a list
+read before the next one is a list with a later entry still to come. Consume that
+after `page.close()`, which is what settles it; the entries survive the page.
 
 ## A wait consumes a fact the system states
 
@@ -510,6 +596,16 @@ ranges included, so wait on what the pass put in it
 (`(CSS.highlights.get(name)?.size ?? 0) > 0`, or `wait_for_pending_mark`),
 never on the name being there.
 
+A surface the page paints before the server answers is that surface too. A
+comment is rendered the turn it is sent, under the `pending:` identity
+`conversationForAttempt` gives it, so a `.lf-thread` count reads the same on the
+path where the request is refused. Wait on the identity the response replaced it
+with (`.lf-thread:not([data-id^="pending:"])`) or enclose the gesture in
+`sending`. Where the refusal under test is a request failure the outbox retries
+rather than settles, the identity is the only one of the two that answers:
+`round_trip` inside `sending` waits out its whole deadline on it
+(`test_the_captured_quote_is_prose_a_file_can_hold`).
+
 A retrying assertion that a paint has not happened is the same trap with the
 other sign, and worse: a negative assertion is satisfied by the first poll, and
 the first poll is before the frame. Wait on a positive fact the same frame
@@ -537,8 +633,11 @@ reply, or reaction states is its paint or its card (`test_render_reactions.py`'s
 the page.
 
 For layout, animation, and navigation, identify the final fact precisely.
-`panel_settled` waits for the requested panel class and then for the body's
-finite animations to empty. `resized` waits for the resize event to reach listeners
+`panel_settled` waits for the requested panel class and nothing past it: the runtime
+places the margin and the page's marks against the moved column inside the gesture, so
+no frame is left for a read to race, and
+`test_closing_the_panel_lands_the_margin_where_the_column_lands` holds that.
+`resized` waits for the resize event to reach listeners
 and then for one rendering update behind it; the document's own scrolling area is
 published in the update after the one the event arrived in. An observer or protocol
 record that outlives a motion is read after `moving` says finite motion has ended. An
@@ -578,8 +677,9 @@ Enabling interception on an already-running page can let that POST reach the
 server without a route callback. `open_page` arms each page it makes on a
 pattern nothing ever asks for, so a route a test registers later only adds to a
 list the browser is already consulting; a page made another way is unarmed.
-`held_events` also owns the server fixture ordering: its finalizer releases held
-requests before server shutdown rather than resuming them into a closed socket.
+A hold a test leaves standing needs no teardown of its own: closing the context
+is what ends a held request, and only a release run during teardown could resume
+one into a server that has already stopped.
 
 A handler that appends a route to `held` has established only that the browser
 made the request. Before reading that list — indexing it, asserting its length,
@@ -610,8 +710,8 @@ as long as the route stands.
 
 Every hold has a release path. If the verdict depends on a response remaining
 lost, make the assertion first, then continue or fulfill the route, wait for the
-handler to finish, remove the route, and only then close the page. Put release
-and `unroute` in cleanup that also runs when the assertion fails. When a handler
+handler to finish, and remove the route; the fixture closes the page after that.
+Put release and `unroute` in cleanup that also runs when the assertion fails. When a handler
 calls `route.fetch()`, use `page.unroute_all(behavior="wait")` before teardown,
 because the fetched body belongs to that page and ordinary close can dispose it
 while a handler is still reading it.
@@ -666,8 +766,9 @@ teardown is not left waiting. `window.__lfHeld` is what is still held; a motion
 the page cancels stays, because a cancelled move is evidence a gesture was taken
 back. A gesture on the way to the one under test still has to reach its end
 state under that hold, and the harness helper for the gesture owns it:
-`panel_settled` and `edge_settled` finish the shell carry rather than waiting out
-a clock the test has stopped.
+`edge_settled` finishes a region's arrival slide rather than waiting out a clock the
+test has stopped. Opening Threads starts no motion, so `panel_settled` has none to
+finish.
 
 A sequence is ordered evidence across frames.
 `test_the_fold_never_paints_a_frame_that_undoes_the_last` records every painted

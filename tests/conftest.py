@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -10,12 +11,20 @@ from typing import NamedTuple
 import pytest
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import host as host_model
+from leaf import machine as machine_model
+from leaf.mcp_page import ProcessPageServer
 from playwright.sync_api import sync_playwright
 
 # The canonical subprocess command. Tests of the installed host boundary invoke
 # that payload's `bin/leaf`; every other process test runs the checkout directly.
 LEAF_COMMAND = [sys.executable, "-m", "leaf"]
+# Start every child the way a terminal starts one. A run launched as a shell's
+# background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
+# survives both Python startup and `exec`, so everything the run spawns ignores
+# the signal too: a test that interrupts its own child would pass or fail on how
+# the run was launched, and the child would outlive it still serving its page.
+# A caught signal is what `exec` resets to the default in each child.
+signal.signal(signal.SIGINT, signal.default_int_handler)
 # Domain test modules import their assertions explicitly. Register only the modules
 # that own fixtures once for the complete suite.
 pytest_plugins = (
@@ -27,12 +36,12 @@ pytest_plugins = (
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it
-# is made of is what a copy costs: an initialized page is 146 files, 99 of them
-# runtime modules, and the suite wants one page per test. Copying them all makes
-# a complete nightly run 2,272 pages and 393,473 directory entries, which is the
-# number a filesystem event watcher charges for — hard links share the bytes but
-# not the entry. So the layer is written once per shape and lent, and only what
-# a test actually changed is put back.
+# is made of is what a copy costs: an initialized page is 195 files, 158 of them
+# runtime modules, and the suite wants one page per test. Measured when a page
+# was 146, copying them all made a complete nightly run 2,272 pages and 393,473
+# directory entries, which is the number a filesystem event watcher charges for
+# — hard links share the bytes but not the entry. So the layer is written once
+# per shape and lent, and only what a test actually changed is put back.
 LENT_LINKED_DIRS = frozenset({"runtime", "vendor"})
 
 
@@ -205,6 +214,20 @@ def initialized_page(_page_pool):
         _page_pool.give_back(name, page)
 
 
+@pytest.fixture
+def page_server():
+    """The one HTTP origin an MCP host reads a run's pages through.
+
+    `ProcessPageServer` holds a socket and the thread serving it until it is
+    closed, and nine tests each made one and closed it in a `finally` of their
+    own. `close` is idempotent, so a test whose subject is the server going away
+    still closes it where the assertion after it reads that.
+    """
+    pages = ProcessPageServer()
+    yield pages
+    pages.close()
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--run-nightly",
@@ -230,7 +253,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 # A host session states its identity in the environment, under names of its own.
-# The suite is a Claude Code session, and `host_identity` reads that set first, so
+# The suite is a Claude Code session, and `session_harness` reads that set first, so
 # a test about a Codex session, or about no session at all, takes it away.
 CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID", "CLAUDE_JOB_DIR")
 CODEX_IDENTITY = ("CODEX_THREAD_ID", "LEAF_SESSION_ID", "LEAF_AGENT")
@@ -266,7 +289,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
     for name in CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
-    return host_model.state_home()
+    return machine_model.state_home()
 
 
 @pytest.fixture
@@ -280,8 +303,30 @@ def sessionless(monkeypatch):
 def codex_env():
     """The environment a Codex session's commands run in, for the tests that put
     a real one above a leaf: everything this process holds but the Claude Code
-    identity, which `host_identity` would answer with instead."""
+    identity, which `session_harness` would answer with instead."""
     return {k: v for k, v in os.environ.items() if k not in CLAUDE_IDENTITY}
+
+
+def _retire(process: subprocess.Popen) -> None:
+    """End one started process, and anything still in the group it leads.
+
+    A child given a session of its own leads a group, and what it spawns joins
+    that group: `scripts/preview.py` re-executes into `uv run`, which holds the
+    watcher as a child, so the handle the test keeps names the launcher rather
+    than the process doing the work. Ending the handle alone leaves the watcher
+    running — past the test, past the run, still serving its page and still
+    watching the checkout every later test reads. A child that shares the run's
+    own group is ended through its handle, because signalling that group would
+    signal the worker running the test.
+    """
+    if process.poll() is None:
+        # Read the group only while the process is running and unreaped, so the
+        # pid cannot have become someone else's by the time it is signalled.
+        if os.getpgid(process.pid) == process.pid:
+            os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+    process.wait(timeout=5)
 
 
 @pytest.fixture
@@ -298,9 +343,7 @@ def spawn():
 
     yield start
     for process in reversed(started):
-        if process.poll() is None:
-            process.terminate()
-        process.wait(timeout=5)
+        _retire(process)
 
 
 @pytest.fixture
@@ -345,12 +388,16 @@ def browser(_browser):
     teardown makes health and lifetime fixture guarantees instead of conventions
     repeated at the end of each journey. Closing may itself cancel outstanding requests,
     so it happens after the health reading.
+
+    Handed over wrapped, because the health half of that guarantee has to be installed
+    on each page before it navigates: a test that makes its own page gets one already
+    reporting to the collector this reads (`render_harness.WatchedBrowser`).
     """
-    from render_harness import clean_browser
+    from render_harness import WatchedBrowser, clean_browser
 
     try:
         with clean_browser():
-            yield _browser
+            yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
             context.close()
@@ -361,13 +408,13 @@ def iphone(_playwright):
     """A WebKit context shaped like an iPhone: its viewport, pixel ratio, touch, and
     user agent. WebKit is the engine iPhone browsers run on, so this is what a phone
     reader meets whichever browser they open the page in. Browser problems are rejected
-    as in `browser`."""
-    from render_harness import clean_browser
+    as in `browser`, and its pages arrive readable for the same reason."""
+    from render_harness import WatchedContext, clean_browser
 
     webkit = _playwright.webkit.launch()
     try:
         with clean_browser():
-            yield webkit.new_context(**_playwright.devices["iPhone 15"])
+            yield WatchedContext(webkit.new_context(**_playwright.devices["iPhone 15"]))
     finally:
         webkit.close()
 

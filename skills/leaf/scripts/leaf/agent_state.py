@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from .asks import thread_asks
+from .asks import thread_ask_readings
 from .construction import constructed_content
 from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
@@ -349,7 +349,6 @@ def _write_page_state(
             "cursor",
             "pending",
             "agent",
-            "host",
             "session_alive",
             "claim_session",
             "claim_turn",
@@ -389,13 +388,13 @@ def _write_page_state(
         registry,
         {"kind": "thread"},
     )
-    state["asks"] += thread_asks(
+    state["asks"] += thread_ask_readings(
         events,
         registry,
         {root for root, thread in threads.items() if thread["resolved"]},
         request_phases=request_phases(thread_requests),
         reading=thread_reading,
-    )
+    )["reader"]
     state["asks"] = [
         {
             key if key != "thread" else "conversation": value

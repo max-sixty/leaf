@@ -36,16 +36,21 @@ import { registerMarginContribution } from "./margin-entries.js";
 import { runtime } from "./context.js";
 import { CONTROL_WORD_CAP } from "./design-readings.js";
 import { registry } from "./registry.js";
-import { fabBar, fabOptions } from "./composing/selection.js";
+import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
+import { pageSelection } from "./composing/capture.js";
 import { el, offer, responseAction } from "./widget-elements.js";
 
 import { cut, elementById } from "./passages.js";
-import { addressableWord, visualPartLabel } from "./anchor-resolution.js";
+import {
+  addressableWord,
+  anchoringIsReady,
+  visualPartLabel,
+} from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 
-import { allButCommandReference } from "./keyboard/register.js";
+import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./conversation/messages.js";
@@ -96,6 +101,8 @@ export function createReactionController({
   fabTargetAt,
   hasPageSelectionTarget,
   showFab,
+  showFabOptions,
+  updateFab,
   visualActionAnchor,
   standingConversation,
   standingElement,
@@ -521,13 +528,42 @@ export function createReactionController({
       else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
     });
   }
+  pageScope("reactions", REACT);
+  // `e` opens the list on the target the reader has already named: the current selection,
+  // item, or agent reply. Digits are optional accelerators in the registry's declared
+  // order, and the mode's own scope above owns them once the list is open.
+  pageCommand({
+    id: "reaction.open",
+    keys: ["e"],
+    does: () =>
+      `Open reactions — ${reactionTokens()
+        .slice(0, 9)
+        .map(([name, entry]) => `${entry.glyph} ${name}`)
+        .join(
+          ", ",
+        )} — for the selection, the item you are standing on, or the reply you are reading`,
+    line: "react",
+    when: () =>
+      reactionTokens().length > 0 &&
+      hasReactionTarget() &&
+      (anchoringIsReady() || !pageSelection()),
+    run: () => {
+      // Selection capture normally follows the pointer gesture in its queued turn. A fast
+      // `e` may arrive before that turn even though the native Selection is already
+      // complete. Capture it now so the command cannot advertise reaction digits while
+      // opening no corresponding choices.
+      if (pageSelection() && !fabAnchorAt()) updateFab();
+      if (composerOpen && fabAnchorAt()) showFabOptions({ reaction: true });
+      else setReact(true);
+    },
+  });
+
   return {
     registerReactSurface,
     buildReactBar,
     hasReactionTarget,
     syncReactLayout,
     setReact,
-    REACT,
     isReactArmed,
     reactionContextContains,
     mount,

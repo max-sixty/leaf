@@ -54,7 +54,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
-from leaf import event_endpoint as event_endpoint_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -185,7 +185,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
         )[1]
     )["state"]["events"][-1]
     agent_closed = events_model.append_event(
-        page_dir, {"kind": "resolve", "author": "claude", "parent": posted["id"]}
+        page_dir, {"kind": "resolve", "author": "agent", "parent": posted["id"]}
     )
 
     for bad, says in [
@@ -253,7 +253,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     # same standing target and proceed, while the transactional handler keeps the
     # second outside until the first append is visible. A bounded wait keeps the
     # correct serialization from deadlocking the probe itself.
-    real_undo_error = event_endpoint_model.undo_error
+    real_undo_error = event_contracts_model.undo_error
     validation_lock = threading.Lock()
     second_validation = threading.Event()
     validation_calls = 0
@@ -270,7 +270,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
             second_validation.set()
         return error
 
-    monkeypatch.setattr(event_endpoint_model, "undo_error", expose_validation_gap)
+    monkeypatch.setattr(event_contracts_model, "undo_error", expose_validation_gap)
     start = threading.Barrier(3)
     results = []
 
@@ -512,7 +512,7 @@ def test_init_does_not_revalidate_a_written_receipt_lifecycle(
             {
                 "id": f"receipt-{index}",
                 "kind": "receipt",
-                "author": "claude",
+                "author": "agent",
                 "request": request,
                 "status": "succeeded",
                 "text": "Host operation completed",
@@ -568,7 +568,7 @@ def test_init_refuses_a_historical_event_record_outside_its_declared_schema(
         page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "mood": "uncertain",
             "revision": 1,
@@ -907,14 +907,14 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     report_validated = threading.Event()
     release_report = threading.Event()
     init_waiting = threading.Event()
-    real_append = service_model.PageTransaction.append_event
+    real_append = service_model.PageTransaction._append_record
     real_flocked = vendoring_model.flocked
 
-    def paused_append(page, event, registry=None):
+    def paused_append(page, event):
         if event["kind"] == "report":
             report_validated.set()
             assert release_report.wait(5)
-        return real_append(page, event, registry)
+        return real_append(page, event)
 
     @contextlib.contextmanager
     def observed_flocked(path):
@@ -923,7 +923,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
         with real_flocked(path) as held:
             yield held
 
-    monkeypatch.setattr(service_model.PageTransaction, "append_event", paused_append)
+    monkeypatch.setattr(service_model.PageTransaction, "_append_record", paused_append)
     monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
     outcomes, errors = [], []
 
@@ -1474,7 +1474,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 2,
             "revision": second.revision,
             "text": "Retract the local choice.",
@@ -2216,7 +2216,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 2,
             "revision": 2,
             "text": "reworded the poll interval",
@@ -2237,7 +2237,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
         page_dir,
         {
             "kind": "note",
-            "author": "claude",
+            "author": "agent",
             "version": 3,
             "revision": 3,
             "text": "rewrote the suggestion",
@@ -4278,13 +4278,17 @@ def test_check_reads_a_page_stylesheet_as_css(page_dir):
     assert checked("/* .wide { width: 900px } */").exit_code == 0
 
 
-def test_check_reports_css_syntax_errors_in_every_authored_source(page_dir):
-    theme = page_dir / "theme.css"
-    theme.write_text(theme.read_text() + "\n.theme { color red; }\n")
+def test_check_reports_css_syntax_errors_in_every_source_the_page_carries(page_dir):
+    """The page's own <style>, each inline style, and every sheet it vendors.
+    shadow.css is the sheet each widget's shadow root adopts, so a malformed rule
+    there reaches the reader as an unstyled widget with nothing said about it."""
+    for name in ("theme.css", "shadow.css"):
+        sheet = page_dir / name
+        sheet.write_text(f"{sheet.read_text()}\n.vendored {{ color red; }}\n")
     (page_dir / "index.html").write_text(
         styled(
             '.page { color: "unterminated\n; }',
-            '<p style="color red">All three CSS inputs are malformed.</p>',
+            '<p style="color red">Every CSS input is malformed.</p>',
         )
     )
 
@@ -4294,7 +4298,8 @@ def test_check_reports_css_syntax_errors_in_every_authored_source(page_dir):
     assert "page <style> syntax error" in result.output
     assert "inline style #1 syntax error" in result.output
     assert "theme.css syntax error" in result.output
-    assert result.output.count("syntax error") == 3
+    assert "shadow.css syntax error" in result.output
+    assert result.output.count("syntax error") == 4
 
 
 def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):

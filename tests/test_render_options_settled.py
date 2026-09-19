@@ -239,7 +239,7 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "And settled in here.",
             "markup": '<lf-ask id="th-done-decision"><h3>Where, again?</h3>'

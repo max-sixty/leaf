@@ -34,6 +34,10 @@ from render_cases_interaction import (
     COMMAND_HUB_EXAMPLE,
     COMMAND_HUB_PAGE,
     KEPT_SECTION_PAGE,
+    LIVE_KEYS_APPARATUS,
+    LIVE_KEYS_APPARATUS_REWRITTEN,
+    LIVE_KEYS_ASK_REWRITTEN,
+    LIVE_KEYS_ASK_WITHDRAWN,
     LIVE_KEYS_V1,
     LIVE_KEYS_V2,
     LIVE_KEYS_V3,
@@ -112,7 +116,6 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -392,7 +395,6 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
     page = browser.new_page(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
     )
-    watched(page)
     held = []
     page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
     try:
@@ -406,7 +408,6 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
     finally:
         while held:
             held.pop(0).continue_()
-        page.close()
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -1238,9 +1239,6 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     finally:
         while held:
             held.pop(0).abort()
-        if page:
-            page.close()
-        context.close()
 
 
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
@@ -2808,6 +2806,10 @@ def test_a_live_revision_reapplies_the_authored_conversation_seat_predicate(
         composer.get_by_role("button", name="Send", exact=True).click()
 
     def reader_asks():
+        # The Ask reading is the log's, so ask it of a page that has taken in what the
+        # server holds: a trip is over when the outbox empties, one beat before the
+        # answer it carried has been applied.
+        told(page)
         return page.evaluate(
             """async () => {
               const {openAsks} = await window.__lfRuntimeImport('/runtime/application.js');
@@ -3367,8 +3369,6 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     expect(pinned).to_have_title("Live first")
     expect(pinned).to_have_url(re.compile(r"/versions/v1\.html"))
     expect(pinned.locator(".lf-version")).to_contain_text("v1")
-    pinned.close()
-    live.close()
 
 
 def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, serve):
@@ -3487,6 +3487,364 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     round_trip(page)
 
 
+def test_a_revision_that_restates_an_ask_leaves_the_reader_standing_in_it(
+    browser, serve
+):
+    """The Ask a reader is working survives the revision that rewrites it.
+
+    A patch keeps every node the revision did not rewrite, so an untouched control is
+    still holding the focus the reader put on it. The question they are answering is the
+    one thing a revision is most likely to rewrite, and rewriting it replaced every node
+    inside — which used to drop the reader onto `body` in the same breath as "Updated
+    to …". An Ask is named by a declared id rather than by a control's shape, so the
+    standing is a lookup: the reader is put back on the Ask, or on the control that
+    answers it, according to which of the two they held. A revision that withdraws the
+    Ask has nowhere to put them back, which the tests below cover along with the reader
+    who was holding one of its controls.
+    """
+    version_url = serve(LIVE_KEYS_V1)
+    page = open_page(browser, live_url(version_url))
+    decision = page.locator("#lk-decision")
+
+    page.keyboard.press("a")
+    expect(decision).to_be_focused()
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ASK_REWRITTEN)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text(
+        "Updated to Draft after v1"
+    )
+    expect(decision).to_be_focused()
+    # Standing, not a bare tab stop: the Ask's own action routes are live over the reader
+    # again, and the third option the revision brought is among them.
+    assert "1–4\nOne / Two / Three / Another option" in shortcut_bar_text(page)
+    page.keyboard.press("3")
+    expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
+
+
+def test_a_restated_ask_returns_a_reader_to_the_question_not_to_a_control(
+    browser, serve
+):
+    """A reader inside the Ask comes back to its opening, never to a guessed control.
+
+    Which control they were holding is not a thing the Ask can answer: the controls are
+    the widget's, most carry no id, and the first one that answers the Ask is the walk's
+    landing rule rather than a restore. Handing that back is the failure version.js names
+    — a reader holding the second option would be given the first, and their next press
+    would choose it. The Ask's opening holds a lent tab stop rather than a decision, so
+    the digits still reach the option they meant and Space decides nothing. Where the
+    revision withdraws the question there is nothing to come back to, and `body` is the
+    honest answer.
+    """
+    version_url = serve(LIVE_KEYS_V1)
+    page = open_page(browser, live_url(version_url))
+    mark = page.locator("#lk-two .lf-pick")
+    mark.focus()
+    expect(mark).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ASK_REWRITTEN)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    expect(page.locator("#lk-decision")).to_be_focused()
+    # The press they had lined up decides nothing on its own, and the option they were
+    # holding is still the one their own digit reaches.
+    page.keyboard.press("Space")
+    expect(page.locator("lf-option[chosen]")).to_have_count(0)
+    page.keyboard.press("2")
+    expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
+
+
+def test_a_revision_gives_back_the_apparatus_the_reader_was_working_with(
+    browser, serve
+):
+    """What the author named survives the widget the revision replaced whole.
+
+    A patch keeps the nodes a revision did not rewrite, and a widget is never one of
+    them: a controller owns its children, so restating the question replaces the field
+    the reader was writing in, the box they had opened and the box they had scrolled.
+    None of that is in the log, so no projection puts it back. The authored id is what
+    makes it recoverable — the same identity the patch matches nodes on — so the carry
+    is a lookup, and an element the author left unnamed still keeps nothing.
+    """
+    version_url = serve(LIVE_KEYS_APPARATUS)
+    page = open_page(browser, live_url(version_url))
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+    page.locator("#lk-why").evaluate("el => { el.open = true; }")
+    page.locator("#lk-evidence").evaluate("el => { el.scrollTop = 40; }")
+    # Put the caret back inside the words rather than at their end, so a restore that
+    # merely refills the field is not mistaken for one that puts the reader back in it.
+    note.evaluate("el => el.setSelectionRange(4, 4)")
+    expect(note).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_APPARATUS_REWRITTEN)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The widget did go whole: the heading is the revision's.
+    expect(page.locator("#lk-decision h2")).to_have_text(
+        "Which one, now the costs are in?"
+    )
+    expect(page.locator("#lk-note")).to_have_value("half a thought")
+    expect(page.locator("#lk-note")).to_be_focused()
+    assert page.locator("#lk-note").evaluate("el => el.selectionStart") == 4
+    assert page.locator("#lk-why").evaluate("el => el.open") is True
+    assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
+    # Standing in the Ask is where the reader already is, so the Ask restore has nothing
+    # to do and does not pull them out of the field onto the question.
+    assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
+
+
+def test_a_revision_that_opens_a_box_the_reader_never_touched_arrives_open(
+    browser, serve
+):
+    """The other half of the carry: what the reader did not change is the author's to say.
+
+    A disclosure has no `defaultOpen` to answer with, so the state the carry reads off the
+    live box is the author's own until the reader moves it. Reading the box alone would
+    carry the outgoing revision's shut over an arriving revision that opens it, and the
+    reader would never see the box the author opened for them — only where it sits inside
+    a widget the install replaces whole, since a box the patch keeps is already right.
+    The baseline is the authored markup of the revision the reader stands in, so an
+    untouched box is left to the arriving revision while the words they typed still cross.
+    """
+    opened = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
+        '<details id="lk-why">', '<details id="lk-why" open>'
+    )
+    version_url = serve(LIVE_KEYS_APPARATUS)
+    page = open_page(browser, live_url(version_url))
+    # The reader stands in the widget and writes, but never touches the box: the case is
+    # about the author's change to it, not theirs.
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+    assert page.locator("#lk-why").evaluate("el => el.open") is False
+
+    (serve.page_dir / "index.html").write_text(opened)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The widget did go whole, so the carry is what decides the box.
+    expect(page.locator("#lk-decision h2")).to_have_text(
+        "Which one, now the costs are in?"
+    )
+    assert page.locator("#lk-why").evaluate("el => el.open") is True
+    # What the reader did put in crosses as before.
+    expect(page.locator("#lk-note")).to_have_value("half a thought")
+
+
+def test_a_revision_gives_values_to_controls_the_reader_never_touched(browser, serve):
+    """An untouched control is the author's to set, whatever kind of control it is.
+
+    A tick the author gave no value of its own answers `"on"`, and a range answers its
+    midpoint, both against a `defaultValue` the author left empty. Ask the platform's
+    default and every such control reads as reader state on the way out, and arrives
+    written over whatever the next revision authored. The authored node answers the same
+    way the live one does, so asking it instead finds nothing to carry.
+    """
+    unvalued = (
+        '<p><label for="lk-tick">Also</label>'
+        ' <input id="lk-tick" name="lk-tick" type="checkbox">'
+        ' <label for="lk-dial">How much</label>'
+        ' <input id="lk-dial" name="lk-dial" type="range"></p>'
+    )
+    valued = unvalued.replace('type="checkbox"', 'type="checkbox" value="yes"').replace(
+        'type="range"', 'type="range" value="80"'
+    )
+    first = LIVE_KEYS_APPARATUS.replace(
+        '<details id="lk-why">', unvalued + '<details id="lk-why">'
+    )
+    second = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
+        '<details id="lk-why">', valued + '<details id="lk-why">'
+    )
+
+    version_url = serve(first)
+    page = open_page(browser, live_url(version_url))
+    # The platform's own answers, standing against the empty default the author wrote.
+    assert page.locator("#lk-tick").evaluate("el => [el.value, el.defaultValue]") == [
+        "on",
+        "",
+    ]
+    assert page.locator("#lk-dial").evaluate("el => [el.value, el.defaultValue]") == [
+        "50",
+        "",
+    ]
+    # The reader works the field and leaves both of those alone.
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The widget did go whole, so the carry is what decides these controls.
+    expect(page.locator("#lk-decision h2")).to_have_text(
+        "Which one, now the costs are in?"
+    )
+    assert page.locator("#lk-tick").evaluate("el => el.value") == "yes"
+    assert page.locator("#lk-dial").evaluate("el => el.value") == "80"
+    # While the field whose value is the reader's own words still crosses.
+    expect(page.locator("#lk-note")).to_have_value("half a thought")
+
+
+def test_a_range_the_reader_moved_keeps_its_place_across_a_revision(browser, serve):
+    """The other side of that: a control the reader did move is theirs, whatever its kind.
+
+    The authored range still reads its midpoint, so a range the reader dragged disagrees
+    with it and crosses into the widget the revision replaced. A rule keyed on the kind of
+    control instead — words carry, the rest do not — keeps the untouched tick and range
+    of the test above from crossing only by leaving every range behind, the reader's drag
+    included.
+    """
+    unvalued = (
+        '<p><label for="lk-dial">How much</label>'
+        ' <input id="lk-dial" name="lk-dial" type="range"></p>'
+    )
+    first = LIVE_KEYS_APPARATUS.replace(
+        '<details id="lk-why">', unvalued + '<details id="lk-why">'
+    )
+    second = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
+        '<details id="lk-why">', unvalued + '<details id="lk-why">'
+    )
+
+    version_url = serve(first)
+    page = open_page(browser, live_url(version_url))
+    page.locator("#lk-dial").fill("17")
+    assert page.locator("#lk-dial").evaluate("el => el.value") == "17"
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The widget did go whole, so the carry is what decides the range.
+    expect(page.locator("#lk-decision h2")).to_have_text(
+        "Which one, now the costs are in?"
+    )
+    assert page.locator("#lk-dial").evaluate("el => el.value") == "17"
+
+
+def test_a_revision_that_rewrites_a_draft_leaves_the_reader_where_they_stand(
+    browser, serve
+):
+    """A draft's unsent edit comes back with it, and does not take the reader with it.
+
+    Escape sets a draft's edit aside rather than discarding it, and the draft reads the
+    edit back from its own store whenever it connects — which a revision rewriting the
+    draft makes it do. Getting the words back is right. The editor taking the focus is
+    not, when the reader had put the edit away and gone to stand on something else: the
+    revision is news, and news with no gesture behind it moves nobody.
+    """
+    draft = '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft>'
+    first = LIVE_KEYS_V1.replace('<p id="lk-para">', draft + '\n<p id="lk-para">')
+    second = first.replace(
+        "<title>Live keys first</title>", "<title>Live keys rewritten</title>"
+    ).replace("<pre>Ship it.</pre>", "<pre>Ship it on Friday.</pre>")
+
+    page = open_page(browser, live_url(serve(first)))
+    page.locator(
+        '[data-lf-margin-entry-owner="draft:plan"][data-lf-margin-entry-key="edit"]:visible'
+    ).click()
+    editor = page.locator("lf-draft textarea")
+    expect(editor).to_be_focused()
+    editor.fill("Ship it, but louder.")
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    # The reader goes and stands on the question instead.
+    pick = page.locator("#lk-one .lf-pick")
+    pick.focus()
+    expect(pick).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The rewritten draft has connected and read its edit back: the words are kept.
+    expect(editor).to_have_value("Ship it, but louder.")
+    expect(pick).to_be_focused()
+
+
+def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
+    """A revision that opens a fresh document carries the same named state across.
+
+    Nothing of the old document survives here, so every record in the handoff names
+    something the reader would otherwise have lost — there is no held node to skip. The
+    reader was told the same "Updated to …" either way and cannot tell the two installs
+    apart, so neither may answer differently.
+    """
+    module = """<script type="module">
+customElements.define('page-counter', class extends HTMLElement {
+  connectedCallback() { this.textContent = 'count 0'; }
+});
+</script>"""
+    first = LIVE_KEYS_APPARATUS.replace("</head>", module + "</head>")
+    second = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
+        "</head>", module.replace("count 0", "count 10") + "</head>"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+    page.locator("#lk-why").evaluate("el => { el.open = true; }")
+    page.locator("#lk-evidence").evaluate("el => { el.scrollTop = 40; }")
+    original_document = page.evaluate("performance.timeOrigin")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+
+    expect(page).to_have_title("Live keys rewritten")
+    assert page.evaluate("performance.timeOrigin") != original_document, (
+        "the revision was patched in, so this proves nothing about the other install"
+    )
+    expect(page.locator("#lk-note")).to_have_value("half a thought")
+    expect(page.locator("#lk-note")).to_be_focused()
+    assert page.locator("#lk-why").evaluate("el => el.open") is True
+    assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
+
+
+def test_a_withdrawn_ask_leaves_the_reader_on_the_page(browser, serve):
+    """A revision that takes the question away has nowhere to put the reader back."""
+    version_url = serve(LIVE_KEYS_V1)
+    page = open_page(browser, live_url(version_url))
+    mark = page.locator("#lk-two .lf-pick")
+    mark.focus()
+    expect(mark).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ASK_WITHDRAWN)
+    told(page)
+    expect(page).to_have_title("Live keys without it")
+    expect(page.locator("body")).to_be_focused()
+
+
+def test_a_reader_working_an_ask_keeps_it_across_a_replacing_document(browser, serve):
+    """The fresh-document install hands back the same standing the patch does.
+
+    A revision whose executable identity differs cannot be patched in, so the reader
+    arrives in a new document where nothing they held exists. They were told the same
+    "Updated to …" either way and cannot tell the two installs apart, so the Ask rides
+    across in the one-use handoff beside their reading position.
+    """
+    module = """<script type="module">
+customElements.define('page-counter', class extends HTMLElement {
+  connectedCallback() { this.textContent = 'count 0'; }
+});
+</script>"""
+    first = LIVE_KEYS_V1.replace("</head>", module + "</head>")
+    second = LIVE_KEYS_ASK_REWRITTEN.replace(
+        "</head>", module.replace("count 0", "count 10") + "</head>"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.keyboard.press("a")
+    expect(page.locator("#lk-decision")).to_be_focused()
+    original_document = page.evaluate("performance.timeOrigin")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+
+    expect(page).to_have_title("Live keys rewritten")
+    assert page.evaluate("performance.timeOrigin") != original_document, (
+        "the revision was patched in, so this proves nothing about the other install"
+    )
+    expect(page.locator("#lk-decision")).to_be_focused()
+    assert "1–4\nOne / Two / Three / Another option" in shortcut_bar_text(page)
+
+
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
     """A request started by the old realm cannot apply a later response in the new one."""
     version_url = serve(LIVE_V1)
@@ -3571,7 +3929,6 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         # passed.
         release_the_held_read()
         page.unroute("**/api/state*")
-        page.close()
 
 
 def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
@@ -3938,10 +4295,13 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
-    # The chrome's own control, reached the way the ladder lands a reader on it: opened
-    # by pointer, closed by key, which is what earns the ring at all.
+    # The chrome's own control, reached the way a frame hands a reader back to it: opened
+    # by key from the control, closed by key, which is what earns the ring at all. A
+    # pointer open hands back the page instead
+    # (test_a_press_that_opens_a_layer_returns_the_place_it_displaced).
     toggle = page.locator(".lf-threads-toggle")
-    toggle.click()
+    toggle.focus()
+    page.keyboard.press("Enter")
     page.keyboard.press("Escape")
     expect(toggle).to_be_focused()
     assert toggle.evaluate(RING) == decision_ring, (
@@ -4259,7 +4619,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             d,
             {
                 "kind": "report",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "widget": "t-parser",
                 "action": "status",
@@ -4502,7 +4862,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Claude",
             "parent": thread["id"],
             "revision": 1,
@@ -5118,7 +5478,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
-        ("report", "claude", "tally-fitted", "measure", "9"),
+        ("report", "agent", "tally-fitted", "measure", "9"),
         ("action", "user", "tally-seen", "set", "5"),
     ]:
         append_command(
@@ -5453,8 +5813,6 @@ customElements.define("lf-token", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('token-c')")
     assert render_checks_model.evaluate_probe(page, "relativeReplays") == []
     told(sender)
-    page.close()
-    sender.close()
 
 
 def test_the_render_gate_catches_a_relative_state_renderer(
@@ -5636,6 +5994,8 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     assert page.evaluate("() => document.body.dataset.lfPresented") is None, (
         "the page presented anyway, so the words with nothing over them are in it"
     )
+    # The refusal asserted above reaches the collector as well.
+    consume_browser_errors(page, '<lf-drift id="drift-note">')
 
 
 def test_the_render_gate_reads_a_page_that_has_finished_arriving(
@@ -5897,9 +6257,6 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     expect(
         third.get_by_role("button", name="Move: Wire the importer — Done", exact=True)
     ).to_be_visible()
-
-    for tab in (page, second, third):
-        tab.close()
 
 
 def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve):
@@ -6408,7 +6765,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-decision",
             "revision": 1,
             "text": MARKDOWN_REPLY,
@@ -6416,7 +6773,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
-    body = page.locator(".lf-msg.claude .lf-msg-body")
+    body = page.locator(".lf-msg.agent .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
     expect(body.locator("blockquote")).to_have_text("which one wins?")
@@ -6686,7 +7043,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "body-question",
             "text": "Edit these words.",
@@ -6800,7 +7157,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
             {
                 "kind": "reply",
                 "parent": "draft-question",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "text": "Edit this draft.",
                 "markup": '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n</pre></lf-draft>',
@@ -6886,7 +7243,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-decision",
             "revision": 1,
             "text": SPECIMEN_TEXT,
@@ -7032,19 +7389,20 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     ), "replaying the answer left an attribute the entry never declared"
     other.close()
 
-    # Taking back a recordless chrome answer rebuilds its authored controls and the
-    # same standing projection opens the decision again. The selection is another facet,
-    # so it survives that rebuild. Hold the command at the wire: reopening belongs to
-    # the local projection, not to a later server read. In particular, the surviving
-    # `choose` action cannot answer a thread set whose `x-awaits.until` names `answer`.
+    # Taking back a recordless chrome answer rebuilds its authored controls at once —
+    # the withdrawal is the reader's own gesture on their own widget. The selection is
+    # another facet, so it survives that rebuild. Whether the decision is open again is
+    # the log's reading, so the count moves when the withdrawal reaches it and not while
+    # it is held at the wire. In particular, the surviving `choose` action cannot answer
+    # a thread set whose `x-awaits.until` names `answer`.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.keyboard.press("z")
-    expect(decisions).to_have_text("Asks 1/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
+    expect(decisions).to_have_text("Asks 2/2")
     holding(page, held, 1, "the thread answer's withdrawal")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -7288,7 +7646,7 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
     events_model.append_event(
-        serve.page_dir, {"kind": "resolve", "author": "claude", "parent": "c-which"}
+        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
     expect(page.locator(".lf-asks")).to_be_hidden()
@@ -7384,7 +7742,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
         {
             "kind": "comment",
             "id": "c-tree",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "The worker's evidence, for the record.",
             "markup": '<lf-roster id="msg-team"><lf-agent id="msg-worker" '
@@ -7469,7 +7827,10 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     browser, serve
 ):
     """A typed host request paints and locks its siblings before the log answers,
-    then waits for its exact receipt."""
+    then waits for its exact receipt.
+
+    The tray row is the other half: whether the Ask the request stands for is still the
+    reader's is the log's reading, so the row turns over when the request reaches it."""
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
@@ -7493,13 +7854,14 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     operations.get_by_role("button", name="Restart with a fresh worker").click()
     holding(page, held, 1, "the restart request")
     expect(operations).to_contain_text("restart requested · waiting for the host")
+    expect(request_row).to_have_attribute("data-lf-answer-state", "open")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
     expect(request_row.locator(".lf-asks-answer")).to_have_text(
         "Restart with a fresh worker"
     )
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
     requests = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -7635,7 +7997,6 @@ def test_request_controls_join_presentation_without_replacing_authored_items(
         page.unroute("**/api/event")
 
     round_trip(page)
-    page.close()
 
 
 def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
@@ -7737,7 +8098,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "Choose the host operation.",
@@ -7755,7 +8116,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "text": "The operation above remains ready when you are.",
@@ -8477,7 +8838,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Relay",
             "parent": root["id"],
             "revision": 1,
@@ -8523,7 +8884,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
         d,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "worker",
             "revision": 1,
             "widget": "parser-dedupe",
@@ -8550,7 +8911,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
         d,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "worker",
             "revision": 3,
             "widget": "parser-dedupe",
@@ -8639,7 +9000,7 @@ def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, s
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": root["id"],
             "revision": 1,
             "text": "The hunk is ready.",

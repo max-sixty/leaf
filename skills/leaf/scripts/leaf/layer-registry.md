@@ -45,7 +45,7 @@ init records two deliberately different identities under `$layer`:
   ask its running payload for the same source identity with `leaf --version`.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. A served
-page's inline, CSP-hashed bootstrap supervises startup before the module graph
+page's inline, nonce-authorized bootstrap supervises startup before the module graph
 or stylesheet can fail. After a startup failure it reloads when the server
 incarnation, layer generation, or website release changes. A published page also
 reloads when its release-addressed probe disappears. This includes a rejected

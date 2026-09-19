@@ -54,6 +54,24 @@ interface WireProjection {
   desired: string[];
 }
 
+/** One wire Ask, as `served_state` serializes it. */
+interface WireAsk {
+  id: string;
+  tag: string;
+  source: string;
+  source_tag: string;
+  thread: string | null;
+}
+
+interface WireAsks {
+  all: WireAsk[];
+  reader: WireAsk[];
+  unanswered: WireAsk[];
+  awaiting: Record<string, boolean>;
+  unanswered_awaiting: Record<string, boolean>;
+}
+
+/** The public Ask record packages read. */
 export interface AskRecord {
   id: string;
   tag: string;
@@ -88,21 +106,6 @@ export interface WidgetDescriptor {
   parent: { id: string; tag: string } | null;
   ancestors: readonly { id: string; tag: string }[];
   quoted: boolean;
-  retiredBy: readonly { ownerId: string; outcome: string }[];
-  conversation?: {
-    authored: Readonly<Record<string, string | null>>;
-    when: Readonly<Record<string, readonly (string | boolean)[]>>;
-  } | null;
-  ask?: {
-    authored?: Readonly<Record<string, string | null>>;
-    when?: Readonly<Record<string, readonly (string | boolean)[]>>;
-    answers: readonly string[];
-    until?: {
-      verb: string;
-      when: Readonly<Record<string, readonly (string | boolean)[]>>;
-    } | null;
-    empty: Readonly<Record<string, string | null>>;
-  } | null;
   bindings: Readonly<Record<string, string | null>>;
   offers: readonly { tag: string; attribute: string; verb: string }[];
 }
@@ -122,6 +125,7 @@ export interface AuthoritativeState {
         document: {
           projection: WireProjection;
           requests?: { seat: { widget: string }; phase: string }[];
+          asks?: WireAsks;
         };
         undo?: { event: Event }[];
         coverage: object[];
@@ -133,6 +137,7 @@ export interface AuthoritativeState {
       threads: Thread[];
       projection: WireProjection;
       requests?: { seat: { widget: string }; phase: string }[];
+      asks?: WireAsks;
       done?: Event[];
     };
     receipts: Event[];
@@ -204,381 +209,49 @@ const projectedParent = (
   return typeof parentId === "string" ? descriptors.get(parentId) : undefined;
 };
 
-const localAsk = (descriptor: WidgetDescriptor) => {
-  const awaits = descriptor.declaration["x-awaits"] as { rollup?: boolean } | undefined;
-  return Boolean(
-    (awaits && !awaits.rollup) ||
-    (descriptor.declaration["x-request"] as { ask?: boolean } | undefined)?.ask,
-  );
+const NO_ASKS = {
+  all: [] as AskRecord[],
+  reader: [] as AskRecord[],
+  unanswered: [] as AskRecord[],
+  awaiting: {} as Record<string, boolean>,
+  unansweredAwaiting: {} as Record<string, boolean>,
 };
 
-function surfaceFor(
-  descriptors: ReadonlyMap<string, WidgetDescriptor>,
-  projection: any,
-  source: WidgetDescriptor,
+const askRecord = (ask: WireAsk): AskRecord => ({
+  id: ask.id,
+  tag: ask.tag,
+  sourceId: ask.source,
+  sourceTag: ask.source_tag,
+  thread: ask.thread,
+});
+
+/* The admitted Ask reading, page asks before conversation asks.
+ *
+ * Which Asks a document holds, which of them the reader still owes, and every
+ * declared target's awaiting value are folded by `leaf.asks` under the same page
+ * transaction as the rest of this state. Nothing here folds those declarations
+ * again, so an answer reaches these lists when the state its POST returns is
+ * adopted — one reading after the widget state the reader sees change at once. */
+function normalizedAsks(
+  view: AuthoritativeState["browser"]["views"][string] | undefined,
+  conversation: AuthoritativeState["browser"]["conversation"] | undefined,
 ) {
-  let holder: WidgetDescriptor | undefined = source;
-  const seen = new Set<string>();
-  while (holder && !seen.has(holder.id)) {
-    seen.add(holder.id);
-    if (holder.declaration["x-ask-surface"]) return holder;
-    holder = projectedParent(descriptors, projection, holder);
-  }
-  return source;
-}
-
-const nonempty = (value: unknown) =>
-  Array.isArray(value)
-    ? value.length > 0
-    : value !== null && value !== undefined && value !== "";
-
-function actionAskAnswered(
-  document: SemanticDocument,
-  projection: any,
-  descriptor: WidgetDescriptor,
-  reading: { answers: readonly string[]; explicit: boolean },
-) {
-  const ask = descriptor.ask;
-  if (!ask) return false;
-  return reading.answers.some((verb) => {
-    const spec = (descriptor.declaration["x-state"] as Record<string, ActionSpec>)[
-      verb
-    ];
-    if (!spec) return false;
-    const held = [...projection.actions.values()].find(
-      ({ e }: any) => e.widget === descriptor.id && e.action === verb,
-    );
-    // A frozen Ask's matching `until` verb is a completion gesture, not a value
-    // declaration. Its action must stand even when authored state already carries a
-    // nonempty value, and it completes even when the posted record clears that value.
-    if (reading.explicit) return Boolean(held);
-    if (
-      spec.unit === "widget" &&
-      ["attribute", "value"].includes(spec.record?.kind ?? "")
-    )
-      return nonempty(
-        held?.value ?? document.authored.get(descriptor.id)?.state[spec.facet]?.value,
-      );
-    if (!held) return false;
-    if (!(verb in ask.empty)) return true;
-    const container = ask.empty[verb];
-    return (
-      container !== null &&
-      ![...document.descriptors.values()].some(
-        (child) =>
-          projectedParent(document.descriptors, projection, child)?.id === container,
-      )
-    );
-  });
-}
-
-const conditionMatches = (
-  attributes: Readonly<Record<string, string | boolean | null>>,
-  when: Readonly<Record<string, readonly (string | boolean)[]>> = {},
-) =>
-  Object.entries(when).every(([attribute, values]) =>
-    values.some((value) =>
-      typeof value === "boolean"
-        ? (attributes[attribute] !== null) === value
-        : attributes[attribute] === value,
-    ),
-  );
-
-function effectiveActionAsk(
-  descriptor: WidgetDescriptor,
-  widgets: ReturnType<typeof foldWidgetStates>,
-) {
-  const ask = descriptor.ask;
-  if (!ask) return null;
-  const attributes: Record<string, string | boolean | null> = {
-    ...(ask.authored ?? {}),
-  };
-  const widget = widgets.get(descriptor.id) as
-    | { entries?: { e: Event; spec: ActionSpec }[] }
-    | undefined;
-  for (const { e, spec } of widget?.entries ?? []) {
-    const record = spec.record;
-    if (record?.kind === "value" && record.attr && record.attr in attributes)
-      attributes[record.attr] = foldedFacet(e, record) as string | boolean | null;
-  }
-  const until = descriptor.document.kind === "thread" ? ask.until : null;
-  const explicit = Boolean(until && conditionMatches(attributes, until.when));
-  return {
-    local: conditionMatches(attributes, ask.when),
-    answers: explicit ? [until!.verb] : ask.answers,
-    explicit,
-  };
-}
-
-function requestPhase(
-  descriptor: WidgetDescriptor,
-  lifecycle: { page: any; conversation: any },
-  pendingRequestEvents: Event[],
-) {
-  if (pendingRequestEvents.some((event) => event.widget === descriptor.id))
-    return "pending";
-  const requests =
-    descriptor.document.kind === "thread"
-      ? lifecycle.conversation.requests
-      : lifecycle.page.requests;
-  return (
-    requests?.find((item: any) => item.seat.widget === descriptor.id)?.phase ?? "ready"
-  );
-}
-
-const retirementStands = (
-  projection: any,
-  relation: { ownerId: string; outcome: string },
-) =>
-  [...projection.actions.values()].some(
-    ({ e }: any) => e.widget === relation.ownerId && e.action === relation.outcome,
-  );
-
-const retiredByAnother = (descriptor: WidgetDescriptor, projection: any) =>
-  (descriptor.retiredBy ?? []).some(
-    (relation) =>
-      relation.ownerId !== descriptor.id && retirementStands(projection, relation),
-  );
-
-function deriveAsks(
-  document: SemanticDocument,
-  projection: any,
-  widgets: ReturnType<typeof foldWidgetStates>,
-  threads: Thread[],
-  lifecycle: { page: any; conversation: any },
-  pendingRequestEvents: Event[],
-) {
-  const descriptors = document.descriptors;
-  const actionAsks = new Map(
-    [...descriptors.values()].flatMap((descriptor) => {
-      const reading = effectiveActionAsk(descriptor, widgets);
-      return reading ? [[descriptor.id, reading] as const] : [];
-    }),
-  );
-  const activeThreads = new Set(
-    threads
-      .filter((thread: any) => !thread.resolved)
-      .map((thread: any) => thread.root.id),
-  );
-  const exists = (descriptor: WidgetDescriptor) =>
-    !descriptor.quoted &&
-    !retiredByAnother(descriptor, projection) &&
-    (descriptor.document.kind === "page" ||
-      (typeof descriptor.document.thread === "string" &&
-        activeThreads.has(descriptor.document.thread)));
-
-  // Authored descriptors are the complete Ask inventory. The effective projection
-  // decides which captured retirement edges stand, and the effective thread fold
-  // decides which frozen documents remain active. This one existence reading drives
-  // both visible inventory and rollups; accepted and pending gestures take the same
-  // path instead of patching deltas onto the server's previous list.
-  const inventory: AskRecord[] = [];
-  for (const descriptor of descriptors.values()) {
-    const requestAsk = Boolean(
-      (descriptor.declaration["x-request"] as { ask?: boolean } | undefined)?.ask,
-    );
-    const actionAsk = actionAsks.get(descriptor.id);
-    if (
-      !exists(descriptor) ||
-      !localAsk(descriptor) ||
-      (!actionAsk?.local && !requestAsk)
-    )
-      continue;
-    const surface = surfaceFor(descriptors, projection, descriptor);
-    inventory.push({
-      id: surface.id,
-      tag: surface.tag,
-      sourceId: descriptor.id,
-      sourceTag: descriptor.tag,
-      thread:
-        descriptor.document.kind === "thread"
-          ? (descriptor.document.thread ?? null)
-          : null,
-    });
-  }
-  const documentOrder = new Map(
-    [...descriptors.keys()].map((id, index) => [id, index]),
-  );
-  const all = [
-    ...new Map(
-      inventory
-        .sort(
-          (left, right) =>
-            (documentOrder.get(left.id) ??
-              documentOrder.get(left.sourceId) ??
-              Infinity) -
-            (documentOrder.get(right.id) ??
-              documentOrder.get(right.sourceId) ??
-              Infinity),
-        )
-        .map((record) => [`${record.thread ?? ""}:${record.id}`, record]),
-    ).values(),
+  const page = view?.document.asks;
+  const thread = conversation?.asks;
+  const records = (kind: "all" | "reader" | "unanswered") => [
+    ...(page?.[kind] ?? []).map(askRecord),
+    ...(thread?.[kind] ?? []).map(askRecord),
   ];
-  const unansweredAwaiting: Record<string, boolean> = {};
-  const awaiting: Record<string, boolean> = {};
-  const unansweredBySource = new Map<string, boolean>();
-
-  for (const descriptor of descriptors.values()) {
-    const awaits = descriptor.declaration["x-awaits"] as
-      | { rollup?: boolean }
-      | undefined;
-    if (awaits && !awaits.rollup) {
-      const actionAsk = actionAsks.get(descriptor.id);
-      const open =
-        exists(descriptor) &&
-        Boolean(actionAsk?.local) &&
-        !actionAskAnswered(
-          document,
-          projection,
-          descriptor,
-          actionAsk ?? { answers: [], explicit: false },
-        );
-      unansweredBySource.set(descriptor.id, open);
-      unansweredAwaiting[descriptor.id] = open;
-      awaiting[descriptor.id] =
-        open &&
-        !(
-          descriptor.document.kind === "page" &&
-          descriptor.conversation !== null &&
-          descriptor.conversation !== undefined &&
-          conditionMatches(
-            descriptor.conversation.authored,
-            descriptor.conversation.when,
-          ) &&
-          threads.some(
-            (thread: any) =>
-              thread.seat === descriptor.id && thread.awaits_agent && !thread.resolved,
-          )
-        );
-    } else if (
-      (descriptor.declaration["x-request"] as { ask?: boolean } | undefined)?.ask
-    ) {
-      const open =
-        exists(descriptor) &&
-        requestPhase(descriptor, lifecycle, pendingRequestEvents) === "ready";
-      unansweredBySource.set(descriptor.id, open);
-      unansweredAwaiting[descriptor.id] = open;
-      awaiting[descriptor.id] = open;
-    }
-  }
-
-  const direct = new Map<string, WidgetDescriptor[]>();
-  for (const candidate of descriptors.values()) {
-    const candidateAwaits = candidate.declaration["x-awaits"] as
-      | { rollup?: boolean }
-      | undefined;
-    if (!localAsk(candidate) && !candidateAwaits?.rollup) continue;
-    let holder = projectedParent(descriptors, projection, candidate);
-    const seen = new Set([candidate.id]);
-    while (holder && !seen.has(holder.id)) {
-      seen.add(holder.id);
-      const holderAwaits = holder.declaration["x-awaits"] as
-        | { rollup?: boolean }
-        | undefined;
-      if (holderAwaits?.rollup) {
-        const children = direct.get(holder.id) ?? [];
-        children.push(candidate);
-        direct.set(holder.id, children);
-        break;
-      }
-      holder = projectedParent(descriptors, projection, holder);
-    }
-  }
-
-  const rollup = new Map<string, boolean>();
-  const rollupValue = (owner: WidgetDescriptor, stack = new Set<string>()): boolean => {
-    if (rollup.has(owner.id)) return rollup.get(owner.id)!;
-    if (stack.has(owner.id) || !exists(owner)) return false;
-    const nextStack = new Set(stack).add(owner.id);
-    const value = (direct.get(owner.id) ?? []).some((candidate) => {
-      if (!exists(candidate)) return false;
-      const candidateAwaits = candidate.declaration["x-awaits"] as
-        | { rollup?: boolean }
-        | undefined;
-      return candidateAwaits?.rollup
-        ? rollupValue(candidate, nextStack)
-        : Boolean(unansweredBySource.get(candidate.id));
-    });
-    rollup.set(owner.id, value);
-    return value;
+  return {
+    all: records("all"),
+    reader: records("reader"),
+    unanswered: records("unanswered"),
+    awaiting: { ...page?.awaiting, ...thread?.awaiting },
+    unansweredAwaiting: {
+      ...page?.unanswered_awaiting,
+      ...thread?.unanswered_awaiting,
+    },
   };
-  for (const descriptor of descriptors.values())
-    if (
-      (descriptor.declaration["x-awaits"] as { rollup?: boolean } | undefined)?.rollup
-    ) {
-      const open = rollupValue(descriptor);
-      unansweredAwaiting[descriptor.id] = open;
-      awaiting[descriptor.id] = open;
-    }
-
-  const unanswered = all.filter((ask) => unansweredBySource.get(ask.sourceId) ?? false);
-  const reader = all.filter((ask) => awaiting[ask.sourceId] ?? false);
-  return { all, reader, unanswered, awaiting, unansweredAwaiting };
-}
-
-const NO_ASKS: ReturnType<typeof deriveAsks> = {
-  all: [],
-  reader: [],
-  unanswered: [],
-  awaiting: {},
-  unansweredAwaiting: {},
-};
-
-const isReaction = (message: any) => Boolean(message.token);
-
-function deriveThreadReaderObligations(
-  document: SemanticDocument,
-  threads: Thread[],
-  asks: ReturnType<typeof deriveAsks>,
-) {
-  const openAskThreads = new Set(
-    asks.reader
-      .map((ask) => ask.thread)
-      .filter((thread): thread is string => Boolean(thread)),
-  );
-  const asksByMessage = new Map<string, WidgetDescriptor[]>();
-  for (const descriptor of document.descriptors.values()) {
-    if (descriptor.document.kind !== "thread" || !localAsk(descriptor)) continue;
-    const message = descriptor.document.message;
-    if (typeof message !== "string") continue;
-    const existing = asksByMessage.get(message) ?? [];
-    existing.push(descriptor);
-    asksByMessage.set(message, existing);
-  }
-  const settlingTokens = (document.registry["$reactions"]?.tokens ?? {}) as Record<
-    string,
-    { settles?: boolean }
-  >;
-  return threads.map((thread: any) => {
-    let awaitsReader = false;
-    if (!thread.resolved) {
-      if (openAskThreads.has(thread.root.id)) awaitsReader = true;
-      else {
-        const turns = thread.msgs.filter((message: any) => !isReaction(message));
-        const last = turns.at(-1);
-        if (last?.author === "claude") {
-          const declared =
-            last.kind === "reply" ? (asksByMessage.get(last.id) ?? []) : [];
-          const structuralAnswered =
-            declared.length > 0 &&
-            !declared.some((descriptor) => asks.awaiting[descriptor.id]);
-          const expectsReply =
-            last.kind !== "reply" || declared.length > 0 || Boolean(last.awaits);
-          const settledByReaction = thread.msgs.some(
-            (message: any) =>
-              isReaction(message) &&
-              message.author === "user" &&
-              message.parent === last.id &&
-              settlingTokens[message.token]?.settles,
-          );
-          awaitsReader = expectsReply && !structuralAnswered && !settledByReaction;
-        }
-      }
-    }
-    return thread.awaits_reader === awaitsReader
-      ? thread
-      : { ...thread, awaits_reader: awaitsReader };
-  });
 }
 
 function requirementMatches(
@@ -595,18 +268,13 @@ function requirementMatches(
   let child: WidgetDescriptor | undefined = descriptor;
   const visited = new Set([descriptor.id]);
   while (child) {
-    const positioned = [...root.effective.projection.desired.values()].find(
-      ({ unit, spec }) => unit === child?.id && spec.record?.kind === "position",
+    const parent = projectedParent(
+      root.document.descriptors as ReadonlyMap<string, WidgetDescriptor>,
+      root.effective.projection,
+      child,
     );
-    const parentId = positioned
-      ? positioned.e.detail[positioned.spec.record.value]
-      : child.parent?.id;
-    if (typeof parentId !== "string" || visited.has(parentId)) return false;
-    visited.add(parentId);
-    const parent = root.document.descriptors.get(parentId) as
-      | WidgetDescriptor
-      | undefined;
-    if (!parent) return false;
+    if (!parent || visited.has(parent.id)) return false;
+    visited.add(parent.id);
     if (declaredOwners.includes(parent.tag))
       return (
         Boolean(root.effective.asks.unansweredAwaiting[parent.id]) ===
@@ -850,7 +518,7 @@ export function createSemanticApplication({
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
-    let threads = ready
+    const folded = ready
       ? foldThreads(
           state?.browser.conversation.threads ?? [],
           unreadMessages(unresolved, receipts),
@@ -860,22 +528,17 @@ export function createSemanticApplication({
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const projectedRequests = pendingRequests(unresolved, receipts);
-    const asks = ready
-      ? deriveAsks(document, projection, widgets, threads, lifecycle, projectedRequests)
-      : NO_ASKS;
-    let admittedUnansweredAsks = asks.unanswered;
-    if (ready && unresolved.length) {
-      const admittedProjection = foldProjection(admitted);
-      admittedUnansweredAsks = deriveAsks(
-        document,
-        admittedProjection,
-        foldWidgetStates(document.authored, admittedProjection),
-        foldThreads(state?.browser.conversation.threads ?? [], [], [], []),
-        lifecycle,
-        [],
-      ).unanswered;
-    }
-    threads = deriveThreadReaderObligations(document, threads, asks);
+    const asks = ready ? normalizedAsks(active, state?.browser.conversation) : NO_ASKS;
+    // An Ask the server says the reader still owes is carried by the thread it stands
+    // in, and the reader's own unsent reply does not answer it. `foldThreads` hands
+    // that thread to the agent for the reply; the standing obligation goes back on top
+    // of it, from the same reader list the tray and the walk read.
+    const owed = new Set(asks.reader.map((ask) => ask.thread));
+    const threads = folded.map((thread: any) =>
+      owed.has(thread.root.id) && !thread.awaits_reader
+        ? { ...thread, awaits_reader: true }
+        : thread,
+    );
     return {
       hostAvailable,
       projection,
@@ -891,10 +554,6 @@ export function createSemanticApplication({
         done: state?.browser.conversation.done ?? [],
       },
       asks,
-      // Approval is irreversible. While projection paint is deferred, its gate uses
-      // this admitted selection instead of an optimistic answer the reader cannot yet
-      // see committed to the document.
-      admittedUnansweredAsks,
       // These are semantic inputs to package rendering, not transport metadata.
       // A worker row with no report dates its claim from the active revision, while
       // report-backed rows render the accepted update sequence. Keep both inside the

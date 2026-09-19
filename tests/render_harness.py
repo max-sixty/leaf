@@ -523,7 +523,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 d,
                 {
                     "kind": "note",
-                    "author": "claude",
+                    "author": "agent",
                     "version": 1,
                     "revision": 1,
                     "text": "t",
@@ -1000,6 +1000,27 @@ BOTH_STAMPS = """() => {
   const entry = document.querySelector('script[data-lf-entry]');
   return entry?.lfCurrentPresentationReady?.() ?? false;
 }"""
+FIRST_PAINT = """() => performance
+  .getEntriesByType('paint')
+  .some(entry => entry.name === 'first-contentful-paint')"""
+
+
+def displayed(page):
+    """Wait until the browser has painted the document the reader arrived on.
+
+    A box is not a paint. `getBoundingClientRect`, and every driver read built over it
+    including `to_be_visible`, forces layout from the stylesheets that have arrived so
+    far, while a render-blocking stylesheet still in flight holds the paint itself
+    back. A geometry read taken behind element visibility alone can therefore answer
+    with the user agent's own layout of the authored HTML, and a test that compares
+    that reading against the page's later one reports the theme arriving as the page
+    moving. First contentful paint is the browser's own record that the render-blocking
+    head has been applied and what it composed is on screen, which is the state a test
+    about what a reader sees before the runtime loads means to measure.
+    """
+    page.wait_for_function(FIRST_PAINT)
+
+
 HANDOVER_DEADLINE_MS = 90_000
 """How long a complete page handover may take before the page counts as wedged.
 
@@ -1051,7 +1072,8 @@ def clean_browser():
 
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
-    by `open_page`, render/export helpers, and tests that navigate a page themselves.
+    by `WatchedBrowser`, render/export helpers, and tests that navigate a page
+    themselves.
     """
     global _BROWSER_PROBLEM_LISTS
     assert _BROWSER_PROBLEM_LISTS is None, "browser problem collector already active"
@@ -1087,10 +1109,15 @@ def watched(page):
     and this suite holding the same invariants, and a channel read on one side only is
     that drift in its quietest form.
 
-    Must be called before the page navigates, the init script being what carries it."""
+    Must be called before the page navigates, the init script being what carries it.
+
+    One list per page, whoever asks: a second list would take `lf_errors` with it and
+    leave the first one collecting into a reading no test can consume."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
         "watched pages need the function-scoped browser fixture"
     )
+    if (existing := getattr(page, "lf_errors", None)) is not None:
+        return existing
     errors = []
     _BROWSER_PROBLEM_LISTS.append((page, errors))
     page.lf_errors = errors
@@ -1302,7 +1329,11 @@ def open_page(
     upgraded=True,
     color_scheme="light",
 ):
-    """A page with its browser problems collected and document and log state applied.
+    """A page at a URL, with its document and log state applied before it is handed over.
+
+    The readings — the problem list, the traffic ledger, the interception arm — come
+    from the browser this asks for the page, so they are installed whether a test calls
+    this or opens a page itself (`readable`, `WatchedBrowser`).
 
     `pin` asks for the version the URL names rather than the newest, and is a keyword
     because the URL a handover carries already has a query holding the page's key: a
@@ -1332,15 +1363,6 @@ def open_page(
         else browser.new_page(
             viewport={"width": 1200, "height": 900}, color_scheme=color_scheme
         )
-    )
-    page.lf_traffic = Traffic(page)
-    arm_interception(page)
-    errors = watched(page)
-    # The console's own word for a bad response is "Failed to load resource", which
-    # names nothing; carry the status and URL so a failure says what went missing.
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
     )
     if init_script:
         page.add_init_script(init_script)
@@ -1439,12 +1461,12 @@ def opened_tab(page, destination, press, timeout=10_000):
         finally:
             browser_session.detach()
 
-    tab = page.context.new_page()
-    try:
-        tab.goto(destination)
-    except Exception:
-        tab.close()
-        raise
+    # `page.context` is Playwright's own context, not the `WatchedContext` the fixture
+    # handed over, so the tab this makes is readable only because it is made readable
+    # here — and before the navigation, which is the only side of it an init script
+    # reaches.
+    tab = readable(page.context.new_page())
+    tab.goto(destination)
     return tab
 
 
@@ -1469,6 +1491,96 @@ NEVER_ASKED_FOR = render_gate_model.INTERCEPTION_ARM
 arm_interception = render_gate_model.arm_interception
 
 
+def readable(page):
+    """Install what the suite reads off a page, before the page navigates.
+
+    The three readings are the same for every page: the delivery ledger the traffic
+    helpers consume, the arm that keeps a later route real, and the problem list the
+    browser fixture rejects at the end of the test. None of them can be installed
+    afterwards — an init script has to precede the navigation it instruments, and a
+    console entry from a page nobody was listening to is simply gone — so a page that
+    reaches a test without them is a page whose errors that test does not check and
+    whose routes it cannot rely on.
+
+    They are therefore installed where a page is made rather than asked for by each
+    test, which is what `WatchedBrowser` is for. A page that already carries them is
+    left alone, since a second response listener would report every failure twice.
+    """
+    if getattr(page, "lf_errors", None) is not None:
+        return page
+    page.lf_traffic = Traffic(page)
+    arm_interception(page)
+    errors = watched(page)
+    # The console's own word for a bad response is "Failed to load resource", which
+    # names nothing; carry the status and URL so a failure says what went missing.
+    page.on(
+        "response",
+        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
+    )
+    return page
+
+
+class WatchedContext:
+    """A context whose every page arrives readable.
+
+    Every page here is one this asks for. A page the browser opens by itself — a
+    popup, a `target=_blank` — arrives on the context's `page` event instead, and
+    that is not a place these readings can be installed from: measured, a
+    `page.route` inside that handler leaves the `add_init_script` after it without
+    effect and says nothing, which is a page whose listeners are installed and whose
+    init scripts are missing. `opened_tab` is how the suite meets a tab Chromium
+    opened.
+    """
+
+    def __init__(self, context):
+        self._context = context
+
+    def new_page(self, **kwargs):
+        return readable(self._context.new_page(**kwargs))
+
+    def __getattr__(self, name):
+        return getattr(self._context, name)
+
+    def __enter__(self):
+        self._context.__enter__()
+        return self
+
+    def __exit__(self, *exception):
+        return self._context.__exit__(*exception)
+
+
+class WatchedBrowser:
+    """The browser a test is handed: nothing it makes can arrive unreadable.
+
+    The readings below used to be each caller's to install, and 38 test functions
+    made a page without them — no console, no `pageerror`, no window `error` event,
+    so every one of those tests was green about a page nobody was listening to. A
+    guarantee the browser fixture makes for the pages it hands out cannot be
+    declined by making a page a different way.
+
+    `unwatched` is the one way past it, and it is for a page the product opens to
+    read for itself: `render_version` collects a page's console and `pageerror` and
+    reports them as findings, so a gate test driving a page that is meant to be
+    faulty hands over this browser rather than asserting the same errors twice, once
+    against the gate's report and once against the collector here. Everything else —
+    including the product calls whose page is expected to be clean — takes the
+    watched browser, where an unexpected error fails the test that caused it.
+    """
+
+    def __init__(self, browser):
+        self._browser = browser
+        self.unwatched = browser
+
+    def new_context(self, **kwargs):
+        return WatchedContext(self._browser.new_context(**kwargs))
+
+    def new_page(self, **kwargs):
+        return readable(self._browser.new_page(**kwargs))
+
+    def __getattr__(self, name):
+        return getattr(self._browser, name)
+
+
 def primed(browser, prepare):
     """A browser whose pages reach the product with the suite's hands already on them.
 
@@ -1487,7 +1599,11 @@ def primed(browser, prepare):
     the page as everything else here now does. Refusing the first `/api/state` is the one
     that has earned its keep: the runtime starts that read beside widget startup but never
     applies it there. A refusal lets `lf-upgraded` land while replay remains held, putting
-    the two readiness facts on opposite sides of a deterministic boundary."""
+    the two readiness facts on opposite sides of a deterministic boundary.
+
+    The browser is passed through as given, so a page made for a test's own journey
+    (`held_events`) is readable and one made for the gate's report
+    (`browser.unwatched`) is not."""
 
     def new_page(**kwargs):
         page = browser.new_page(**kwargs)
@@ -1498,29 +1614,22 @@ def primed(browser, prepare):
 
 
 @pytest.fixture
-def held_events(browser, request):
+def held_events(browser):
     """Hold event requests from navigation onward, including the first POST.
 
     Enabling interception on an already loaded page can let its first POST escape
-    both the route and Playwright's request events. Tests release each held route
-    explicitly; teardown releases any left behind after a failed assertion. Owning the
-    server fixture makes that release precede server shutdown, so a held request never
-    resumes into a closed socket during teardown.
+    both the route and Playwright's request events. Each test releases the routes
+    its own assertions are about; what is left when the test ends is left held.
+    Teardown used to release those too, and to pull `serve` in ahead of itself so
+    that release would precede the server's shutdown — but closing the context is
+    what ends a held request, and nothing resumes one into a closed socket unless
+    teardown releases it. Measured: a test failing on a held `/api/event` and
+    `/api/state` tears down in about two seconds either way.
     """
-    request.getfixturevalue("serve")
     held = []
 
     def prepare(page):
         page.route("**/api/event", lambda route: held.append(route))
-
-        def release():
-            if page.is_closed():
-                return
-            while held:
-                held.pop(0).continue_()
-            page.unroute("**/api/event")
-
-        request.addfinalizer(release)
 
     return primed(browser, prepare), held
 
@@ -1557,40 +1666,46 @@ def margins_laid_out(page):
     )
 
 
+# The page shell's box on screen: where the document's room starts and ends. Body's
+# padding box, not the box it draws, because a standing panel or tray takes its strip as a
+# transparent border inside body (theme.css, at the body strip, says why it has to be one),
+# so `getBoundingClientRect()` now reaches the window. The runtime reads the same edge as
+# `shellRight` (geometry.js). This is the suite's one spelling of it, read off the DOM
+# rather than through that function, so a test comparing it with a region's box compares
+# two independent readings. An expression, so a larger evaluate can embed it and take it in
+# the same pass as what it is compared against.
+SHELL_BOX = """(() => {
+  const b = document.body, s = getComputedStyle(b);
+  const left = b.getBoundingClientRect().left + (parseFloat(s.borderLeftWidth) || 0);
+  return { left, right: left + b.clientWidth, width: b.clientWidth,
+           centre: left + b.clientWidth / 2 };
+})()"""
+
+
+def page_right(page):
+    """Where the page shell ends on the right; see `SHELL_BOX`."""
+    return page.evaluate(f"() => {SHELL_BOX}.right")
+
+
 def panel_settled(page, open=True):
-    """Wait for the panel to reach `open` and the page to finish making room for it.
+    """Wait for the panel to reach `open`, which is the settled page.
 
-    Two things happen, and they don't finish together: the dialog and final responsive
-    layout land at once, then a finite animation on `main` carries the reading column from
-    its old horizontal position. A geometry read taken on the flip reads that motion.
+    The panel's class, the shell, and the paint that follows the column all change in the
+    one gesture: `moveContentFrame` applies the state and then places the margin's rows
+    and the page's marks against the column where it now stands, synchronously, before
+    the gesture returns. So there is no pending frame for a geometry read to race, and
+    nothing to wait on past the class.
 
-    Ask the animation itself, via getAnimations(): the call flushes pending style, so the
-    motion the state change started is visible to the very first read, a finished one has
-    left the list, and a change that runs without motion — the
-    covering sheet, a pre-stamp load, reduced motion — reports empty and returns at
-    once. Waiting a duration instead would encode a number the stylesheet is free to
-    change, and still be a guess on a loaded machine; the frame-sampling this replaced
-    is the failure CLAUDE.md's wait norm is named for.
-
-    Finish that carry rather than sit out its clock. The carry is presentation only —
-    the layout it ends on is the layout the state change already installed — so its end
-    frame is the settled page either way, and this is the one wait a test can be holding
-    the clock still for: `HOLD_MOTION` pauses every animation the page starts at time
-    zero, which leaves a page whose reading column is parked mid-carry and a list that
-    never empties. Under it the panel is a step on the way to the gesture the test is
-    about, so the helper takes the carry to its end instead of waiting for a clock the
-    test has stopped. Finishing polls because the carry starts in the gesture's own
-    task: one that has not been made yet is finished on the next turn."""
+    That is a property of the runtime, and this helper relies on it rather than papering
+    over its absence. It was not always so: the column used to glide into place, the
+    repaint was deferred to follow it, and a read taken straight after the class flipped
+    could find the margin standing where the column had been. The glide went because
+    animating `main`'s `left` switched off the browser's scroll anchoring (theme.css, at
+    the body strip), and the deferral went with it.
+    `test_closing_the_panel_lands_the_margin_where_the_column_lands` holds the property."""
     page.wait_for_function(
         "(open) => document.querySelector('.lf-thread-panel').classList.contains('open') === open",
         arg=open,
-    )
-    page.wait_for_function(
-        """() => {
-          const main = document.querySelector('body > main');
-          for (const carry of main.getAnimations()) carry.finish();
-          return main.getAnimations().length === 0;
-        }"""
     )
 
 

@@ -62,9 +62,9 @@ export function motion(el, keyframes, ms) {
   // Hold the last frame until the caller's direct `finished.then(cleanup)` has made
   // that frame true in DOM/CSS, then release the effect. The extra microtask is the
   // ordering: our reaction was registered first, so cancelling in it would expose the
-  // unanimated box before the caller removed, hid or restated it. Presentation offsets
-  // such as a FLIP or shell carry need no cleanup because their underlying placement
-  // already is their last frame; they still leave no filled animation behind.
+  // unanimated box before the caller removed, hid or restated it. A presentation offset
+  // such as a FLIP needs no cleanup because its underlying placement already is its last
+  // frame; it still leaves no filled animation behind.
   // Cancellation is already the release, and the rejection arm consumes it so an
   // interrupted move reports no unhandled promise.
   played.finished.then(

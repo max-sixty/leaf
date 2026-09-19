@@ -72,18 +72,13 @@ import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
 import { el, PRESSABLE } from "../widget-elements.js";
-import { allButCommandReference } from "./register.js";
+import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThread } from "../conversation/focus.js";
 import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { fragmentId, addressableSays, resolveAnchor } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
-import {
-  closestAcross,
-  containsAcross,
-  elementFromPointAcross,
-  pageQueryAll,
-} from "../passages.js";
+import { closestAcross, pageQueryAll } from "../passages.js";
 import { inPanel as panelFocusIsInside } from "../conversation/panel-elements.js";
 import { threadsBox } from "../conversation/panel-elements.js";
 import {
@@ -116,6 +111,7 @@ export function createGoToSequence({
   captureAuxiliaryChromeState,
   restoreAuxiliaryChromeState,
   setPanel,
+  panelFrame,
   setOpenTray,
   scrollToElement,
   showThread,
@@ -246,7 +242,18 @@ export function createGoToSequence({
         }
       },
       active: (...args) => panelIsOpen(...args),
+      // The mnemonic pressed over an open panel closes it outright. The frame is the
+      // panel's own, the one the toggle pushes: its arrival is the list, the panel's
+      // floor, so what the reader then stands on is theirs to let go of before it answers
+      // — unless the press carried an inline thread in and stood them on its card, which
+      // the one Escape then gives back.
       close: () => setPanel(false),
+      frame: () =>
+        panelFrame({
+          carried: activeInlineThread()?.dataset.thread ?? null,
+          does: "Return from Threads panel",
+          line: "back",
+        }),
       toggle: true,
     },
     {
@@ -263,6 +270,7 @@ export function createGoToSequence({
       },
       active: () => currentTray() === "asks",
       close: () => setOpenTray(null),
+      surface: () => asksPanel,
       toggle: true,
     },
     {
@@ -279,6 +287,7 @@ export function createGoToSequence({
       },
       active: () => currentTray() === "leaves",
       close: () => setOpenTray(null),
+      surface: () => othersPanel,
       toggle: true,
     },
     {
@@ -389,17 +398,6 @@ export function createGoToSequence({
   );
   const GO_TO_HINT_KEYS = HINT_KEYS.filter((key) => !STRUCTURAL_KEYS.has(key));
 
-  const pointIn = (box) => ({
-    x: Math.max(0, Math.min(innerWidth - 1, (box.left + box.right) / 2)),
-    y: Math.max(0, Math.min(innerHeight - 1, (box.top + box.bottom) / 2)),
-  });
-
-  function exposed(member, box, exposure) {
-    const point = pointIn(box);
-    const onTop = elementFromPointAcross(point.x, point.y);
-    return exposure === "self" ? member.contains(onTop) : containsAcross(member, onTop);
-  }
-
   const visibleWords = (member) => member.innerText?.replace(/\s+/g, " ").trim();
   const nativeLabelWords = (member) =>
     [...(member.labels ?? [])].map(visibleWords).filter(Boolean).join(" ");
@@ -421,7 +419,7 @@ export function createGoToSequence({
           closestAcross(member, "[inert]");
         if (unavailable) continue;
         const rect = placement.badgeBox(member);
-        if (!rect || !exposed(member, rect, entry.exposure)) continue;
+        if (!rect || !placement.exposes(member, rect, entry.exposure)) continue;
         seen.add(member);
         const says =
           member.getAttribute("aria-label")?.trim() ||
@@ -538,7 +536,7 @@ export function createGoToSequence({
         if (
           !candidate.member.checkVisibility() ||
           !rect ||
-          !exposed(candidate.member, rect, candidate.exposure)
+          !reading.exposes(candidate.member, rect, candidate.exposure)
         )
           return [];
         return {
@@ -752,14 +750,26 @@ export function createGoToSequence({
           when: () => atGoToTargets() && destination.when(),
           returnFrame: () => {
             const previousAuxiliaryChrome = captureAuxiliaryChromeState();
+            // A destination whose surface has a frame of its own — the panel's — hands
+            // it over, read before the run as every frame is. Its close may take a layer
+            // off inside the surface and say false, and the frame stays for the press
+            // that closes it.
+            const own = destination.frame?.() ?? {};
+            const leave = own.close ?? destination.close;
             return {
               active: destination.active,
-              close: () => {
-                destination.close?.();
-                return restoreAuxiliaryChromeState(previousAuxiliaryChrome);
-              },
               does: `Return from ${word(destination.line)}`,
               line: "back",
+              // A direct destination lands on a floor or a chrome row — the list, a tray's
+              // first row, a version — so what the reader then stands on is theirs to let
+              // go of first, unless the destination says its arrival was a standing.
+              standing: destination.standing?.() ?? false,
+              surface: destination.surface,
+              ...own,
+              close: () => {
+                if (leave?.() === false) return false;
+                return restoreAuxiliaryChromeState(previousAuxiliaryChrome);
+              },
             };
           },
           run: () => {
@@ -846,15 +856,19 @@ export function createGoToSequence({
     keys: ["g"],
     does: "Go to a visible target, panel, page, or edge",
     line: "go to",
+    // The sequence is still a route out of a covering auxiliary surface; its own scope
+    // moves its root to that surface while armed.
+    covering: true,
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setGoToSequence(true),
   };
 
   const goToSequenceActive = () => goToActive;
 
+  pageScope("go to", GO_TO_SCOPE);
+  pageCommand(OPEN_GO_TO);
+
   return {
-    GO_TO_SCOPE,
-    OPEN_GO_TO,
     goToStatus,
     formatGoToAddress,
     setGoToSequence,

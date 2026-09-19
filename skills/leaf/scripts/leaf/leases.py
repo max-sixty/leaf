@@ -2,10 +2,11 @@
 
 import functools
 import hashlib
+import sys
 from pathlib import Path
 
-from leaf.event_log import flocked, require_cross_process_locking
-from leaf.host import state_home
+from leaf.event_log import EventRefused, flocked, require_cross_process_locking
+from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
 
 try:
@@ -19,12 +20,17 @@ def lock_is_held(path: Path) -> bool:
 
     The kernel releases the lease on exit, crash, or reboot. A durable record
     can therefore outlive its writer without being mistaken for a live process.
+
+    The question is asked with a shared lock, which every lease here refuses and
+    no reading takes for longer than the question. An exclusive probe would be
+    answered by another reading's probe as readily as by a lease, so two
+    processes asking at once would tell each other a lease was held.
     """
     require_cross_process_locking()
     try:
         with open(path, "r+b") as probe:
             try:
-                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
             except OSError:
                 return True
             fcntl.flock(probe, fcntl.LOCK_UN)
@@ -53,25 +59,35 @@ def transition_lock(page_dir: Path) -> Path:
 
 
 def contract_writer(function):
-    """Keep a CLI event's validation and append on one vendored contract."""
+    """Keep a CLI event's validation and append on one vendored contract, and
+    report the append door's refusal the way these writers report their own.
+
+    The door raises, because it is shared with the browser endpoint, which owes
+    its caller a status rather than an exit. Every writer this decorates already
+    answers its own refusals with `sys.exit`, so a refusal from the door reaches
+    the agent as one more line of the same kind."""
 
     @functools.wraps(function)
     def locked(page_dir: Path, *args, **kwargs):
         with flocked(transition_lock(page_dir)):
-            return function(page_dir, *args, **kwargs)
+            try:
+                return function(page_dir, *args, **kwargs)
+            except EventRefused as error:
+                sys.exit(str(error))
 
     return locked
 
 
-def waiter_lease_path(page_dir: Path | None, session: dict | None) -> Path | None:
+def waiter_lease_path(page_dir: Path | None, session_id: str | None) -> Path | None:
     """The one lease a wait holds for its watch set.
 
     A host wait covers every page its session owns, so its lease belongs to the
-    session. Outside a host, a named page is the entire watch set and holds a
-    page-local lease. An unnamed bare-shell wait has no watch set and no lease.
+    session and takes only its id. Outside a host, a named page is the entire
+    watch set and holds a page-local lease. An unnamed bare-shell wait has no
+    watch set and no lease.
     """
-    if session:
-        return state_home() / "sessions" / f"{session['id']}.wait"
+    if session_id:
+        return state_home() / "sessions" / f"{session_id}.wait"
     return page_dir / WAITER_LOCK if page_dir is not None else None
 
 
@@ -104,7 +120,7 @@ def take_waiter_lease(path: Path):
     return record
 
 
-def wait_is_live(page_dir: Path, session: dict | None) -> bool:
+def wait_is_live(page_dir: Path, session_id: str | None) -> bool:
     """Whether this ownership scope's exact wait lease is held now."""
-    lease_path = waiter_lease_path(page_dir, session)
+    lease_path = waiter_lease_path(page_dir, session_id)
     return bool(lease_path and lock_is_held(lease_path))

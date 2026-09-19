@@ -10,7 +10,6 @@ import tempfile
 from pathlib import Path
 
 from .files import fsync_parents, json_bytes, read_json, replace_files
-from .host import package_store
 from .layer import (
     LayerComposition,
     checked_inputs,
@@ -27,6 +26,7 @@ from .locations import (
     path_location,
     paths_same,
 )
+from .machine import package_store
 from .schema import (
     ASSETS,
     BROWSER_DIRS,

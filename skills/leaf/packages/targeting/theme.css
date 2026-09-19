@@ -91,21 +91,26 @@ lf-targeting .lf-targeting-change-form {
   gap: var(--sp-2);
 }
 
-lf-targeting :is(input, select, textarea) {
-  box-sizing: border-box;
+/* Targeting offers its controls, so each wears `lf-ui` and reads the layer's own box:
+ * the face, size and ink from `.lf-ui`, and for the textarea the whole text box —
+ * padding, band, and the field-sizing that grows it as the reader types. What is left
+ * here is the face for the input and the select, which the layer dresses nowhere.
+ *
+ * The declarations this rule used to repeat never reached a textarea. `textarea.lf-ui`
+ * carries a class where this selector carries a type, so the layer won the padding, and
+ * `resize: vertical` lost to the `resize: none` that field-sizing makes correct — the
+ * handle it asked for has never been on screen. */
+lf-targeting :is(input, select) {
   min-height: var(--aim-floor);
   padding: var(--sp-2);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
-  color: var(--ink);
-  font: var(--t-5)/1.35 var(--sans);
 }
 
 lf-targeting textarea {
   width: 100%;
   min-height: 4.5rem;
-  resize: vertical;
 }
 
 lf-targeting .lf-targeting-name {

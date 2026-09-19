@@ -55,7 +55,6 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -137,7 +136,7 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     # agent closed with `leaf resolve` is not theirs to reopen by pressing undo.
     events_model.append_event(
         serve.page_dir,
-        {"kind": "resolve", "author": "claude", "agent": "A", "parent": comments[1]},
+        {"kind": "resolve", "author": "agent", "agent": "A", "parent": comments[1]},
     )
     told(page)
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
@@ -402,10 +401,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     def close_page():
         if page.is_closed():
             return
-        try:
-            page.unroute_all(behavior="wait")
-        finally:
-            page.close()
+        page.unroute_all(behavior="wait")
 
     request.addfinalizer(close_page)
     older = []
@@ -1284,7 +1280,6 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     this page never saw."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
-    watched(page)
     cut = CutOff().hold(page)
     page.goto(serve(BOARD_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
@@ -1332,7 +1327,6 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     authoritative read has released it."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
-    watched(page)
     cut = CutOff().hold(page)
     page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
@@ -1413,6 +1407,48 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     page.wait_for_timeout(100)
     expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
     page.unroute("**/api/event")
+
+
+def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, serve):
+    """`503` is a wait the reader is told about, not an answer the page could not read.
+
+    leaf.page's edge refuses every event with `503` and a plain-text body for the
+    minutes a container image takes to reach a reader's allocation, and the outbox has
+    always retried through it. What it said meanwhile came from the JSON decode that
+    body fails, which reports the page failing to read an answer the server never sent.
+    """
+    page = open_page(browser, serve(BOARD_PAGE))
+    starting = {"rollout": True}
+    refused = []
+
+    def still_starting(route):
+        if not starting["rollout"]:
+            route.continue_()
+            return
+        refused.append(route.request.post_data_json["attempt"])
+        route.fulfill(
+            status=503,
+            body="this release is still starting",
+            headers={"Retry-After": "5", "Content-Type": "text/plain;charset=UTF-8"},
+        )
+
+    page.route("**/api/event", still_starting)
+    page.locator("#card-baffle .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    holding(page, refused, 2, "the move the rollout would not take")
+    expect(page.locator(".lf-notice")).to_contain_text("isn't ready yet")
+    # The same gesture throughout: a refusal that admits nothing cannot mint a second.
+    assert len(set(refused)) == 1
+
+    starting["rollout"] = False
+    round_trip(page)
+    page.unroute("**/api/event")
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-baffle"
+    ]
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    consume_browser_errors(page, "503")
 
 
 def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
@@ -1872,8 +1908,6 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"
     )
-    one.close()
-    two.close()
 
 
 def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, serve):
@@ -1941,12 +1975,6 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     assert fresh.eval_on_selector_all(*order) == standing, (
         "a tab reading the log fresh disagrees with the tab that heard the undo"
     )
-    # The stale tab's own console too: `refuse` cancels rather than fails a
-    # request, so stopping its polls leaves nothing for it to report.
-    stale.close()
-    mover.close()
-    heard.close()
-    fresh.close()
 
 
 def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
@@ -1984,8 +2012,6 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     told(moved_on)
     told(moved_on)
     expect(moved_on.locator("#col-todo #card-baffle")).to_have_count(1)
-    pinned.close()
-    moved_on.close()
 
 
 def test_a_second_tab_takes_the_decision_back_too(browser, serve):
@@ -2028,8 +2054,6 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] in ("action", "undo")
     ] == ["accept", "undo", "reject"]
-    one.close()
-    two.close()
 
 
 def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve):
@@ -2066,7 +2090,6 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
     again = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
     expect(again.locator(".lf-asks")).to_have_text("Asks 0/3")
-    again.close()
 
 
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):
@@ -2352,7 +2375,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "question",
             "text": "Here is the detail.",
@@ -2467,7 +2490,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "approval-question",
             "text": "Here is the detail.",
@@ -2561,7 +2584,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "question",
             "text": "Here is the detail.",
@@ -2733,7 +2756,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "parent": "wake-question",
             "text": "This candidate still has a fallible preparation.",

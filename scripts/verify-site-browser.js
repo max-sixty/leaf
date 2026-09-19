@@ -92,7 +92,7 @@
       stopVisibleReplyWatch();
     });
     const observe = () => {
-      for (const message of document.querySelectorAll(".lf-msg.claude")) {
+      for (const message of document.querySelectorAll(".lf-msg.agent")) {
         if (
           !seen.has(message) &&
           message.querySelector(".lf-msg-text")?.textContent.trim()

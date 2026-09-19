@@ -30,7 +30,10 @@ import {
 
 import { threadsBox } from "../conversation/panel-elements.js";
 import { landTyping, mayLandTyping } from "./capture.js";
-import { focused, paintKeys } from "../keyboard/scopes.js";
+import { focused, keys, paintKeys } from "../keyboard/scopes.js";
+import { pageScope } from "../keyboard/register.js";
+import { PRESS } from "../keyboard/bindings.js";
+import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
 
 import { elementById, inChrome } from "../passages.js";
@@ -122,6 +125,7 @@ export let composerOpen = false;
 export function createSelectionComposer({
   panelIsOpen,
   setReact,
+  reactionTokens,
   designModeActive,
   marginOpenInlineThread,
   threadTransitionOrigin,
@@ -580,6 +584,7 @@ export function createSelectionComposer({
   };
 
   function mount() {
+    declareResponseOptionKeys();
     syncComposer = wireInput(composerInput, {
       hint: () =>
         suggestCheck.checked
@@ -674,6 +679,83 @@ export function createSelectionComposer({
       openComposer(fabAnchorAt(), "");
     };
   }
+  // The other-responses disclosure. Its choices apply only while focus is inside them, so
+  // they stand ahead of neither the field's exact send command nor native text entry. The
+  // same rows are declared twice on purpose: once as a page scope, which answers while the
+  // field itself holds focus, and once on the disclosure element, where Tab and the arrows
+  // move into and out of the choices themselves.
+  const RESPONSE_OPTIONS_TITLE = "With other responses open";
+  const RESPONSE_REACTION = {
+    id: "response.reaction.choose",
+    keys: () =>
+      responseReactionButtons()
+        .slice(0, 9)
+        .map((_, index) => String(index + 1)),
+    label: () => {
+      const count = Math.min(responseReactionButtons().length, 9);
+      return count > 1 ? `1–${count}` : "1";
+    },
+    does: () =>
+      `Put a reaction on the response target: ${reactionTokens()
+        .slice(0, 9)
+        .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
+        .join(", ")}`,
+    line: "react",
+    when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
+    run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
+  };
+  const RESPONSE_TAB = {
+    id: "response.tab",
+    keys: ["Tab", "Shift+Tab"],
+    does: "Move between the comment and other responses",
+    line: "move",
+    repeat: true,
+    run: stepResponseOptions,
+  };
+  const RESPONSE_MOVE = {
+    id: "response.move",
+    keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+    does: "Move through other responses",
+    line: "move",
+    repeat: true,
+    when: () => focusedResponseOption(),
+    run: stepResponseOptions,
+  };
+  const RESPONSE_ACTIVATE = {
+    id: "response.activate",
+    keys: PRESS,
+    does: "Use the focused response",
+    line: "choose",
+    when: () => focusedResponseOption(),
+    run: () => focused()?.click(),
+  };
+  const RESPONSE_CLOSE = {
+    id: "response.close",
+    keys: ["Escape"],
+    does: "Close other responses",
+    line: "close",
+    run: () => setResponseOptions(false, { returnFocus: true }),
+  };
+  const responseOptionRows = () => [
+    RESPONSE_REACTION,
+    RESPONSE_TAB,
+    RESPONSE_MOVE,
+    RESPONSE_ACTIVATE,
+    RESPONSE_CLOSE,
+  ];
+  pageScope("response options", {
+    title: RESPONSE_OPTIONS_TITLE,
+    escape: "inner",
+    at: () => responseOptionsAreOpen() && focused() === fabInput,
+    rows: responseOptionRows(),
+  });
+  function declareResponseOptionKeys() {
+    keys(fabOptions, RESPONSE_OPTIONS_TITLE, responseOptionRows(), {
+      when: responseOptionsAreOpen,
+      escape: "inner",
+    });
+  }
+
   return {
     pendingComposer,
     keptDraft,

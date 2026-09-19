@@ -458,7 +458,6 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     )
     page.wait_for_function("reconnectedOptionsReady")
     assert page.evaluate("optionIdentityHeld()") is True
-    page.close()
 
 
 def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(
@@ -2223,7 +2222,6 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
             "el => getComputedStyle(el).borderLeftColor"
         )
         assert gutter not in ("rgba(0, 0, 0, 0)", "transparent"), f"[{scheme}] {gutter}"
-        page.close()
 
 
 @pytest.mark.parametrize(
@@ -2444,7 +2442,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-decision",
             "revision": 1,
             "text": SPECIMEN_TEXT,
@@ -2539,7 +2537,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-decision",
             "revision": 1,
             "text": TABLE_REPLY,
@@ -2554,16 +2552,16 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     lines = """(el) => { const r = document.createRange();
                          r.selectNodeContents(el); return r.getClientRects().length; }"""
     assert page.get_by_role("cell", name="12,000").evaluate(lines) == 1
-    assert page.locator(".lf-msg.claude .lf-msg-body a").evaluate(lines) > 1
+    assert page.locator(".lf-msg.agent .lf-msg-body a").evaluate(lines) > 1
     # And the room the cells stopped giving up went where the theme puts it.
     assert (
-        page.locator(".lf-msg.claude .lf-msg-body table").evaluate(
+        page.locator(".lf-msg.agent .lf-msg-body table").evaluate(
             "(t) => t.scrollWidth - t.clientWidth"
         )
         > 0
     )
     assert (
-        page.locator(".lf-msg.claude .lf-msg-body").evaluate(
+        page.locator(".lf-msg.agent .lf-msg-body").evaluate(
             "(b) => b.scrollWidth - b.clientWidth"
         )
         == 0

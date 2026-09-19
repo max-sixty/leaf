@@ -1,5 +1,19 @@
 # Validation contract
 
+## Event admission
+
+Every event is validated where it enters the log, at the one append door every
+writer shares, and not at the writer that happens to send it. The door runs under
+the page transaction's lease, so the standing log a gate reads, the meaning derived
+from it, and the write are one transaction, and two tabs cannot both validate
+against the same standing target. It ends by checking the finished record against
+the stored-record contract of its kind, which is what `page init` re-checks over
+the whole log before a layer may replace another: a record no writer could produce
+is a record no re-vendor has to carry. `events.md` owns the order and the per-kind
+gates. What stays with a transport is what only that transport knows — which kinds
+a browser may post, which fields it may send, how a retry is answered, and whether
+it resolved its own anchors.
+
 ## Static validation
 
 `version check` is a deterministic check of the exact mutable `index.html` (no
@@ -16,10 +30,14 @@ authored inline module with the nonce its policy names. Every lf-* element valid
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
 comment); ids are unique, and ids needed by anchored unresolved threads, standing
-reader actions, or effective standing reports survive from the previous revision. An
-agent reply may detach a thread in the same transition that removes its subject. A
-declared retirement protects its holder and slots until its outcome licenses
-their removal. Other dropped ids are reported as advice. No fixed-pixel-width
+reader actions, or effective standing reports survive from the previous revision. A
+declared visual part survives on the same terms as an id: while a live
+conversation's current anchor names it, and no longer once every thread on it
+has moved, detached, or closed. That release is final — a revision the part has
+left cannot be asked for it back, so reopening the closed conversation restores
+the thread and not its target. An agent reply may detach a thread in the same
+transition that removes its subject. A declared retirement protects its holder and slots until its
+outcome licenses their removal. Other dropped ids are reported as advice. No fixed-pixel-width
 element is wider than the readable column (the rule that draws that column claims
 it with `--lf-reading-column: 1`, so the width and the claim come from one block). Near-free
 and deterministic is what makes running it on every save affordable, so keep a new

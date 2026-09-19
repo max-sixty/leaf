@@ -76,7 +76,7 @@ def _claim_effective(claim: dict, threads: dict, events: list) -> bool:
             and not thread["resolved"]
             and not any(
                 message["kind"] == "reply"
-                and message["author"] == "claude"
+                and message["author"] == "agent"
                 and message["seq"] > claim["log_floor"]
                 for message in thread["msgs"]
             )

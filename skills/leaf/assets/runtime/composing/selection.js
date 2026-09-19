@@ -612,13 +612,12 @@ export function createSelectionComposer({
         // looking at so the inline card can carry that box into its new surface after the
         // draft settlement has removed the composer from the page.
         const transition = threadTransitionOrigin(composerInput, visible);
-        // And keep the place the press that opened this box displaced, while the box's
-        // own frame still stands to be asked. The card is that press's second surface,
-        // not a second press: `c` from a control opens the box on what the reader is
-        // standing in, and one Escape from the card it becomes owes them that control
-        // back. A box nobody framed — a pointer entry, a draft reopened at load — has no
-        // such place, and the page the reader is reading is the whole of what its card
-        // can hand back.
+        // And keep the place that press displaced, while the box's own frame still stands
+        // to be asked for it. The card is the press's second surface rather than a second
+        // press: `c` from a control opens the box on what the reader is standing in, so
+        // one Escape from the card it becomes owes them that control back. Where the
+        // press displaced no control — the pointer had already put the reader on the page
+        // to select the words it is about — that same place is the page.
         const entered = currentOrigin() ?? readingPlace();
         const epoch = composerEpoch;
         const sent = sendMessage(

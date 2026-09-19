@@ -205,11 +205,10 @@ export function pressOrigin() {
   return pressed ? capturePlace(pressed.control) : capturePlace();
 }
 
-// The place a reader holds when the control they are in goes with the gesture: an
-// accepted comment takes its composer off the page and puts the thread card up in its
-// stead, so the page they were reading is all its frame can hand back. Naming the box
-// would cost `restoreReturnPlace` a frame's retry before it fell back to this same
-// reading.
+// The page the reader is on, with no control in it, as a place a frame can hand back.
+// `pressOrigin` names what a press displaced; this names what a press displaced when the
+// reader held no control to begin with, because the pointer or their last landing had
+// already put them on the page. One reading either way, carrying a control or not.
 export function readingPlace() {
   if (!capturePlace)
     throw new Error("leaf: readingPlace read before the keyboard mounted");

@@ -31,8 +31,21 @@ def read_registry(path: Path):
 
 
 def load_registry(page_dir: Path):
-    """The page's complete vendored vocabulary, or None before `page init`."""
-    return read_registry(page_dir / "registry.json")
+    """The page's complete vendored vocabulary, or None before `page init`.
+
+    A vendored layer is `page init`'s own output rather than anything an author
+    writes, so it fails this validation when the Leaf reading it is not the Leaf
+    that wrote it — `$events.kinds` alone is fixed per version and cannot match
+    across one. Re-vendoring is the only move that resolves that, and every
+    command that touches the page arrives through here, so the refusal names it
+    rather than leaving the reader with a contract and no way to meet it.
+    """
+    try:
+        return read_registry(page_dir / "registry.json")
+    except RegistryError as error:
+        raise RegistryError(
+            f"{error}; run `leaf page init {page_dir}` to re-vendor this page's layer"
+        ) from None
 
 
 def read_page_registry(page_dir: Path):

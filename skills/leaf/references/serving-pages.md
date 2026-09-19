@@ -88,6 +88,16 @@ same URL. Each successful initialization writes a new layer epoch into the
 runtime and registry, so an open or half-loaded tab from the previous contract
 reloads before its next read or event enters the replacement server.
 
+A page holds the layer the Leaf that vendored it wrote, so an install that updates
+under a standing page — a plugin auto-update mid-session is the ordinary way —
+leaves that layer behind. The commands that need the page's vocabulary —
+`version check`, `version stamp` and `reply` among them — then refuse, naming the
+re-vendor; `server stop` and `page init` still run, so the sequence above is the way
+through. Re-vendoring moves the layer and nothing else: it never reads the per-kind
+`record` schema back, so every standing comment, reply, and decision projects exactly
+as it did the moment before. It does not undo what the update itself changed: a field
+the new Leaf reads differently reads that way on both sides of the re-vendor.
+
 ## Page lifetime
 
 On a page with no recorded lifetime, a normal `server start` from an agent

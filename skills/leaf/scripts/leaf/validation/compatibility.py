@@ -56,8 +56,6 @@ def candidate_vocabulary_gaps(
     document: SourceDocument,
     incoming: dict,
     through_revision: int,
-    *,
-    validate_event_records: bool = False,
 ) -> list[str]:
     """Contracts the candidate would drop from its page or frozen-thread projection.
 
@@ -66,6 +64,16 @@ def candidate_vocabulary_gaps(
     boundary, so its markup and commands remain part of every candidate. Every action
     that can be classified is checked, rather than only the current winner, because
     undoing a later action exposes its predecessor.
+
+    A gap is something a layer selection owns and re-vendoring would therefore take
+    away. The per-kind `record` schema is not one: `$events.kinds` is the running
+    Leaf's fixed transport contract, so no selection restores the shape an earlier
+    Leaf wrote a log in, and the admission door is the only reader of that schema —
+    an event already in the log replays identically whichever layer is vendored over
+    it. Refusing there would have left the page unable to validate, reply, or
+    re-vendor, with re-vendoring the only move available. A kind the contract no
+    longer declares stays a gap, because nothing downstream can classify that event
+    at all.
     """
     if not events:
         return []
@@ -101,10 +109,6 @@ def candidate_vocabulary_gaps(
         key = None
         if kind not in contracts:
             key = f"kind `{kind}`"
-        elif validate_event_records and (
-            error := event_contracts.event_record_error(contracts[kind], e)
-        ):
-            key = f"kind `{kind}` record: {error}"
         elif e.get("token") and e["id"] not in withdrawn and e["token"] not in tokens:
             key = f"reaction token `{e['token']}` no longer declared by $reactions"
         elif anchor_participates(e) and (

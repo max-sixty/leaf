@@ -26,6 +26,7 @@ from interact_support import (
     check,
     element_declaration,
     install_payload,
+    publish,
     record_claim,
     shipped_payload,
 )
@@ -2237,6 +2238,66 @@ def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
     assert result.exit_code == 0, result.output
     assert interact_files.read_json(page_dir / "cursor.json") is None
     assert events_model.read_cursor(page_dir) == 0
+
+
+def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
+    """A page an earlier Leaf vendored is readable again through `page init`.
+
+    `$events.kinds` is the running Leaf's fixed transport contract, so no package
+    selection restores the shape an earlier one wrote its log and its vendored
+    layer in. Re-vendoring is the only move the reader has, which makes it the one
+    the first refusal has to name and the one `page init` has to take.
+    """
+    publish(page_dir)
+    revision = interact_files.latest_revision(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "revision": revision,
+            "text": "Which one?",
+            "anchor": {"section": "plan"},
+        },
+    )
+    # The agent's side of that thread as the earlier Leaf wrote it: the role
+    # spelled with the vendor token, against a kernel contract that required it.
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "r1",
+            "parent": "c1",
+            "author": "claude",
+            "agent": "Claude",
+            "revision": revision,
+            "text": "The first one.",
+            "anchor": {"section": "plan"},
+        },
+    )
+    registry = json.loads((page_dir / "registry.json").read_text())
+    kinds = registry["$events"]["kinds"]
+    dependent = kinds["reply"]["record"]["dependentSchemas"]
+    dependent["anchor"]["properties"]["author"]["const"] = "claude"
+    dependent["failure"]["properties"]["author"]["const"] = "claude"
+    kinds["edit"]["record"]["properties"]["author"]["const"] = "claude"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    stale = check(page_dir)
+    assert stale.exit_code != 0
+    assert "leaf page init" in stale.output
+
+    revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert revendored.exit_code == 0, revendored.output
+    kernel = json.loads((SKILL_ROOT / "assets" / "registry.json").read_text())
+    vendored = json.loads((page_dir / "registry.json").read_text())
+    assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
+    recovered = check(page_dir)
+    assert recovered.exit_code == 0, recovered.output
+    replied = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    assert replied.exit_code == 0, replied.output
+    assert "The first one." in replied.output
 
 
 def test_revendoring_removes_files_the_layer_retired(page_dir):

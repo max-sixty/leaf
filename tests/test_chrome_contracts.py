@@ -577,6 +577,56 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve):
     assert comment["anchor"]["quote"] == "Paragraph one", comment
 
 
+PHONE_READING_PAGE = leaf_page(
+    "phone reading",
+    "<h1 id='t'>Phone</h1>"
+    + "".join(
+        f"<p id='p{n}'>Paragraph {n}. "
+        + "Filler words for the reading column. " * 8
+        + "</p>"
+        for n in range(12)
+    ),
+    head='<meta name="viewport" content="width=device-width, initial-scale=1">',
+)
+
+
+def test_a_phone_comment_field_keeps_clear_of_what_ios_draws_itself(iphone, serve):
+    """On a phone the comment field stays out of the way of the platform's own apparatus.
+
+    Safari zooms the page onto a text field set under 16px as the field takes focus, and
+    leaves it zoomed: tapping the field jumped the view, then left the reader panning
+    sideways across a page wider than the screen. So no field the page holds is smaller.
+
+    iOS draws its selection menu (Copy, Look Up) in the band above the selected words,
+    where it covered a field standing over the paragraph. So the field goes below the
+    paragraph, although this paragraph has more room above it and too little below: the
+    page makes the room, as it would for any field that has chosen its side."""
+    page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
+    sizes = page.evaluate(
+        "() => [...document.querySelectorAll('input, textarea, select')]"
+        ".map(field => parseFloat(getComputedStyle(field).fontSize))"
+    )
+    assert sizes and min(sizes) >= 16, sizes
+
+    page.locator("#p6").evaluate("""paragraph => {
+      const box = paragraph.getBoundingClientRect();
+      document.scrollingElement.scrollTop += box.bottom - (innerHeight - 20);
+      const range = document.createRange();
+      range.setStart(paragraph.firstChild, 0);
+      range.setEnd(paragraph.firstChild, "Paragraph 6".length);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }""")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    placed = page.evaluate("""() => {
+      const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+      const paragraph = document.getElementById('p6').getBoundingClientRect();
+      return {barTop: bar.top, barBottom: bar.bottom, paragraphBottom: paragraph.bottom};
+    }""")
+    assert placed["barTop"] >= placed["paragraphBottom"], placed
+    assert placed["barBottom"] <= page.evaluate("innerHeight"), placed
+
+
 ORDERED_PAGE = leaf_page(
     "ordered",
     "<h1 id='t'>Ordered</h1><p id='p1'>One paragraph.</p>",

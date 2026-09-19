@@ -49,13 +49,15 @@
    draws its ring outside itself, and every scroll region that box can land in reserves
    `--here-ring-room` at its edges through `scroll-padding` — the document does this for
    its foot, the thread list for both of its own, where the outward rings are the controls
-   inside a card. A box whose own edge touches something that paints draws its ring inset
-   instead, because nothing outside it is free; a sticky run heading is that case with
-   the scroll taken out of it. A large composite region spends no ring room: it paints
-   a quiet ground inside its own box. Where a module decides whether a
-   compact control fits somewhere, the room is part of what has to fit; the suggestion
-   row carries it as trailing padding so the fit remains one measured box rather than a
-   length read out of CSS.
+   inside a card. Scroll padding governs only where scrolling puts a box, never where a
+   sticky offset pins one, so a sticky row whose controls ring outward keeps the room on
+   its pinned side as its own padding; the margin card's reply is that case. A box whose
+   own edge touches something that paints draws its ring inset instead, because nothing
+   outside it is free; a sticky run heading is that case with the scroll taken out of it.
+   A large composite region spends no ring room: it paints a quiet ground inside its own
+   box. Where a module decides whether a compact control fits somewhere, the room is part
+   of what has to fit; the suggestion row carries it as trailing padding so the fit
+   remains one measured box rather than a length read out of CSS.
 
    The response bar (`.lf-fab-bar`): `.lf-response-control` keeps the field and every
    choice on one baseline with one type, border, corner, and elevation; the bar keeps its
@@ -1559,8 +1561,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The reply surround shares the conversation's opaque surface, including its focus
      tint, so pinning the reply cannot introduce a separate background band. */
   :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }
+  /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
+     padding (the compact ring's room, in this file's header). */
   .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
-    padding-top: 12px; background: inherit; }
+    padding-block: 12px var(--here-ring-room); background: inherit; }
   .lf-margin-thread .lf-say textarea { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {

@@ -1,10 +1,12 @@
 # TODO
 
 Items are ordered by priority. Each names the result. When an item needs active
-investigation detail, keep it in a linked note. Completed work and rejected alternatives
-remain in git history. An item decided against leaves rather than staying with its
-reasoning attached: a dependency, platform, or storage choice goes to the Rejected table
-in [the survey note](notes/dependency-survey.md) as one line and the number that decided
+investigation detail, keep it in a linked note. Item ids are one space shared with
+`notes/`, so a new item takes the next id free in both rather than the next one here.
+Completed work and rejected alternatives remain in git history. An item decided against
+leaves rather than staying with its reasoning attached: a dependency, platform, or
+storage choice goes to the Rejected table in
+[the survey note](notes/dependency-survey.md) as one line and the number that decided
 it, and anything else goes to git history.
 
 ## Now
@@ -136,8 +138,7 @@ ordering contract these items extend.
 
 The 2026-09-13 to 09-17 Lit application arc closed #1 and #3, which git history now
 carries. A 2026-09-18 survey measured what remains and added #25 to #27; its evidence is
-the `leaf-simplification` page directory in the state home. Ids here share one space with
-the workspace research below, which reaches #23, so a new item starts above that.
+the `leaf-simplification` page directory in the state home.
 
 - **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
   imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the

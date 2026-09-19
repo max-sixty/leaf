@@ -1248,7 +1248,7 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
             "checkout": "leaf.status-floor-and-selection",
             "commit": "c79736ebfcc7",
             "dirty": True,
-            "interaction": "automation",
+            "interaction": "author",
             "started": "2026-09-06T12:00:00+00:00",
         },
     )

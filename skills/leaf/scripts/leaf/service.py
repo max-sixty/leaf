@@ -53,12 +53,30 @@ def page_claim(page_dir: Path) -> dict | None:
     return read_json(claim_path(page_dir))
 
 
+def claim_lifetime(page_dir: Path, harness: Harness) -> dict:
+    """The fields `claim_is_active` reads, as everything that writes them must.
+
+    Two things state a lifetime on this rule: a page's claim, and a preview that
+    takes no claim but is reaped by the session all the same. Neither is the
+    place to learn which fields the reading needs — a host stating its lifetime a
+    new way adds a branch below, and a writer that kept the old set fails on that
+    host alone. So the set is built here, next to the reading that consumes it,
+    and a claim carries these among its own fields rather than beside them."""
+    return {
+        "page": str(page_dir),
+        "ts": now_iso(),
+        "released": None,
+        **harness.lifetime(),
+    }
+
+
 def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: the job record a background
     job's claim points at, the recent touch an `activity` claim stands on, or
     the process every other claim's pid names (`Harness.lifetime`). The only
     reading of that rule: the hooks reach it through `uv` rather than keeping a
-    copy, so a host that states its lifetime a new way joins here alone."""
+    copy, so a host that states its lifetime a new way joins here alone, beside
+    the one constructor above that writes what this reads."""
     if not claim or claim["released"] is not None:
         return False
     if "job" in claim:
@@ -156,14 +174,11 @@ class PageTransaction:
             and previous.get("turn_closed") is None
         )
         claim = {
-            "page": str(self.page_dir),
+            **claim_lifetime(self.page_dir, harness),
             "id": harness.session,
             "harness": harness.name,
-            **harness.lifetime(),
             "agent": harness.agent,
             "cwd": os.getcwd(),
-            "ts": now_iso(),
-            "released": None,
             # Opaque identity of the currently open agent turn on this page.
             # Delivery transitions name it, so an unresolved pickup from an old
             # turn cannot become "being handled" merely because a later prompt

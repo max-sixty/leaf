@@ -21,6 +21,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    standing_ring,
     token_colour,
 )
 from render_cases_navigation import (
@@ -5088,6 +5089,156 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_hidden()
+
+
+# A conversation longer than the card at 1440x900, so its transcript scrolls under the
+# reply pinned to the card's foot.
+LONG_THREAD_PAGE = leaf_page(
+    "Long thread",
+    """
+<h1 id="title">Long thread</h1>
+<p>The open questions follow.</p>
+<section id="open"><h2>What this leaves open</h2>
+<p>Two layers close onto the control that opened them rather than the page.</p>
+</section>
+""",
+)
+LONG_THREAD_ROOT = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "text": "What should we do about these, and why are they hard to follow?",
+    "anchor": {"section": "open"},
+    "id": "a" * 32,
+    "ts": "2026-09-18T18:29:21-07:00",
+}
+LONG_THREAD = [
+    LONG_THREAD_ROOT,
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Claude",
+        "parent": LONG_THREAD_ROOT["id"],
+        "responds": LONG_THREAD_ROOT["id"],
+        "revision": 1,
+        "text": "\n\n".join(
+            f"{n}. A layer the mouse opened closes to the page, so the Escape that "
+            "follows a click lands where the reader was reading rather than on the "
+            "button they pressed."
+            for n in range(1, 13)
+        ),
+        "id": "b" * 32,
+        "ts": "2026-09-18T18:34:26-07:00",
+    },
+    {
+        "kind": "reply",
+        "author": "user",
+        "parent": LONG_THREAD_ROOT["id"],
+        "revision": 1,
+        "text": "Start with the first two.",
+        "id": "c" * 32,
+        "ts": "2026-09-18T18:42:22-07:00",
+    },
+]
+
+
+def open_long_thread(browser, serve):
+    """The long thread's margin card, its transcript scrolled partway down."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    transcript = preview.locator(".lf-margin-preview-list")
+    room = transcript.evaluate("list => list.scrollHeight - list.clientHeight")
+    assert room > 300, f"the transcript scrolls {room}px, too little to stand mid-way"
+    transcript.hover()
+    page.mouse.wheel(0, room // 2)
+    page.wait_for_function(
+        "list => list.scrollTop > 100", arg=transcript.element_handle()
+    )
+    return page, preview, transcript
+
+
+def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, serve):
+    """A reply stuck over a transcript scrolled partway still has room for its ring.
+
+    Pinned, the reply row stands on the edge the transcript clips to, where the list's
+    scroll padding reserves nothing. Both of the row's rings are read: the resting
+    Reply control's from the keyboard, and the text box's once the reader is in it.
+    """
+    page, preview, transcript = open_long_thread(browser, serve)
+    row = preview.locator(".lf-say")
+    pinned = """([row, list]) =>
+      Math.abs(row.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom)
+        < 0.5 && list.scrollTop < list.scrollHeight - list.clientHeight - 20"""
+    assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()]), (
+        "the reply row is not pinned over the transcript"
+    )
+
+    disclosure = preview.get_by_role("button", name="Reply", exact=True)
+    page.keyboard.press("Tab")
+    disclosure.focus()
+    expect(disclosure).to_be_focused()
+    assert disclosure.evaluate("node => node.matches(':focus-visible')")
+    assert standing_ring(page)["cuts"] == []
+
+    disclosure.press("Enter")
+    editor = preview.locator("textarea")
+    expect(editor).to_be_focused()
+    assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()])
+    assert standing_ring(page)["cuts"] == []
+
+
+def test_agent_status_leaves_the_margin_transcript_where_the_reader_scrolled_it(
+    browser, serve
+):
+    """A state read places the card, and placing the card moves nothing inside it.
+
+    The reader stands in the reply while reading partway up the transcript, then at its
+    end, and the agent's working and waiting statuses arrive meanwhile. Scroll
+    anchoring is off on the transcript. It can restore a place a placement disturbed
+    within one task: the headless shell restored it in every run, while headed Chrome
+    scrolled by a real gesture kept the disturbed place. With it off, the reading is
+    what the placement itself did.
+    """
+    page, preview, transcript = open_long_thread(browser, serve)
+    transcript.evaluate("list => list.style.overflowAnchor = 'none'")
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    expect(preview.locator("textarea")).to_be_focused()
+    place = "list => [list.scrollTop, list.scrollHeight - list.clientHeight]"
+    settled = (
+        "() => new Promise(resolve => "
+        "requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+
+    def statuses():
+        for status in (
+            ["working", "Reading your feedback", "--on", "a" * 32],
+            ["waiting"],
+        ):
+            result = CliRunner().invoke(
+                cli_model.cli, ["status", str(serve.page_dir), *status]
+            )
+            assert result.exit_code == 0, result.output
+            told(page)
+            page.evaluate(settled)
+            ticked(page)
+            yield status[0], transcript.evaluate(place)
+
+    partway = transcript.evaluate(place)
+    assert 0 < partway[0] < partway[1] - 20, partway
+    assert dict(statuses()) == {"working": partway, "waiting": partway}
+
+    transcript.hover()
+    page.mouse.wheel(0, partway[1])
+    page.wait_for_function(
+        "list => list.scrollTop >= list.scrollHeight - list.clientHeight - 1",
+        arg=transcript.element_handle(),
+    )
+    end = transcript.evaluate(place)
+    assert dict(statuses()) == {"working": end, "waiting": end}
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])

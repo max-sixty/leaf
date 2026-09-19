@@ -46,6 +46,13 @@
    complete inline conversation view; the Threads panel remains the complete index and
    takes over when already open.
 
+   Placing the card changes its geometry and nothing inside it. The reader's place in
+   its transcript is the list's own scroll, which the browser holds through reflow; only
+   a gesture moves it — a landing through `revealConversation`, a send revealing the
+   reply, a step to another thread starting it at the top. Every state read places the
+   card, so a scroll written there would move a reader partway up the transcript on each
+   status the agent writes.
+
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
    A print-media render is deferred until screen media returns because print removes the
@@ -805,25 +812,6 @@ export function createMarginProjection({
       renderMargin.refresh();
     });
   }
-  function keepThreadPreviewFocusVisible() {
-    const active = document.activeElement;
-    if (!(active instanceof HTMLElement) || !preview.contains(active)) return;
-    // A conversation root is a reading destination, not a control that must fit
-    // whole. Its header stays outside this scrollport, as does settlement.
-    if (
-      active.matches(".lf-conversation-thread") ||
-      active.closest(".lf-thread-head") ||
-      !previewList.contains(active)
-    )
-      return;
-    const card = previewList.getBoundingClientRect();
-    const activeBox = active.getBoundingClientRect();
-    const inset = 12;
-    if (activeBox.bottom > card.bottom - inset)
-      previewList.scrollTop += activeBox.bottom - card.bottom + inset;
-    else if (activeBox.top < card.top + inset)
-      previewList.scrollTop -= card.top + inset - activeBox.top;
-  }
   function deferThreadPreviewFocus(positioned, focus) {
     const pending = { key: previewEntry?.key, holding: document.activeElement };
     previewFocusPending = pending;
@@ -921,7 +909,6 @@ export function createMarginProjection({
     preview.style.removeProperty("opacity");
     preview.style.removeProperty("pointer-events");
     fitThreadCardEditors();
-    keepThreadPreviewFocusVisible();
     answerThreadPreviewPosition(true);
     return true;
   }
@@ -2989,7 +2976,6 @@ export function createMarginProjection({
     previewClose.onclick = () => closePreview(true);
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    preview.addEventListener("focusin", keepThreadPreviewFocusVisible);
     preview.addEventListener("toggle", (event) => {
       if (event.newState !== "closed") return;
       for (const reply of previewList.querySelectorAll("textarea"))

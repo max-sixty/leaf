@@ -346,7 +346,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         context=context,
     )
     badge = page.locator(".lf-preview")
-    expect(badge).to_have_text("Preview · fb77@26499ea1abcd+")
+    expect(badge).to_have_text("Reader · fb77@26499ea1abcd+")
     expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
 
     page.get_by_role("button", name="More page controls", exact=True).click()

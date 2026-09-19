@@ -30,22 +30,33 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
-from leaf.validation.admission import check_markup, read_text_arg
+from leaf.validation.admission import (
+    VERSION_THREAD_RECOURSE,
+    check_markup,
+    logged_id,
+    read_text_arg,
+    thread_obligation,
+)
 
 
 def _messages(events: list) -> dict[str, dict]:
     return {event["id"]: event for event in events if event["kind"] in MESSAGE_KINDS}
 
 
-def _message(events: list, to: str) -> dict:
+def _message(page_dir: Path, events: list, to: str) -> dict:
     messages = _messages(events)
     if to not in messages:
-        sys.exit(f"unknown comment id {to!r}; known: {sorted(messages)}")
+        held = logged_id(events, to, current_responses(page_dir, events))
+        sys.exit(
+            f"unknown comment id {to!r}"
+            + (f"; {held}" if held else "")
+            + f"; known: {sorted(messages)}"
+        )
     return messages[to]
 
 
-def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
-    _message(events, to)
+def _thread_root(page_dir: Path, events: list, to: str) -> tuple[str, dict | None]:
+    _message(page_dir, events, to)
     root_id = thread_roots(events)[to]
     return root_id, _messages(events).get(root_id)
 
@@ -313,38 +324,6 @@ def _current_anchor(
     )
 
 
-def _foreign_id_recourse(events: list, section: str) -> str:
-    """Name the option that takes `--section`'s value, when the log holds it as an event.
-
-    The CLI names three kinds of id with bare strings — an element id anchors a thread,
-    a message id answers one, and a delivered event id addresses the response it owes —
-    and nothing about a value says which namespace it came from. An agent holding the id
-    of the move it was handed reaches for `--section` with it, and the anchor refusal
-    alone sends it looking through the page's markup for an id that was never there. The
-    log settles the question, so the refusal says which option the value belongs to.
-
-    `--for` is that option for every kind the log holds, not only a message: a reader's
-    press on a widget frozen into a reply owes its answer through the event's own id and
-    nowhere else. A message answers to `--to` as well, so it is the one kind that names
-    both.
-    """
-    carrier = next((event for event in events if event.get("id") == section), None)
-    if carrier is None:
-        return ""
-    kind = carrier.get("kind")
-    answering = (
-        " — `leaf reply <page> --to <id>` answers a message and `--for <event-id>` "
-        "addresses a delivered move"
-        if kind in MESSAGE_KINDS
-        else " — `leaf reply <page> --for <event-id>` addresses a delivered move"
-    )
-    article = "an" if kind[:1] in "aeiou" else "a"
-    return (
-        f"; {section} is {article} {kind} in this page's log{answering}, while "
-        "`--section` takes an element id the page's markup declares"
-    )
-
-
 def _capture_anchor(
     page_dir: Path,
     events: list,
@@ -374,7 +353,17 @@ def _capture_anchor(
             additions=generated_children(page.projection.desired, page.document.ids),
         )
     except ValueError as err:
-        recourse = _foreign_id_recourse(events, section) if section else ""
+        held = (
+            logged_id(events, section, current_responses(page_dir, events))
+            if section
+            else None
+        )
+        recourse = (
+            f"; {held}, while `--section` takes an element id the page's markup "
+            "declares"
+            if held
+            else ""
+        )
         sys.exit(f"can't anchor in revision r{revision}: {err}{recourse}")
     return anchor
 
@@ -515,34 +504,35 @@ def cmd_reply(
         else:
             expected = responses.get(for_event)
             if expected is not None and expected["kind"] == "version":
-                root_id, _ = _thread_root(events, to or expected["conversation"])
+                root_id, _ = _thread_root(
+                    page_dir, events, to or expected["conversation"]
+                )
                 if skip_if_settled:
                     return None
                 sys.exit(
                     f"thread {root_id!r} requires a page version and cannot take a "
-                    "reply; incorporate its request in the next version, or open a "
-                    "separate thread on the same Ask with `leaf comment <page> "
-                    "--section <ask-id>` if you need an answer first"
+                    f"reply; {VERSION_THREAD_RECOURSE}"
                 )
             if expected is None or expected["kind"] != "reply":
                 if skip_if_settled:
                     return None
+                held = logged_id(events, for_event, responses)
                 sys.exit(
-                    f"event {for_event!r} no longer requires a reply; "
-                    "read the current delivery or conversation state"
+                    f"event {for_event!r} takes no reply; "
+                    + (held or f"this page's log holds no event {for_event!r}")
                 )
             if to is None:
                 to = expected["to"]
         assert to is not None
-        root_id, root = _thread_root(events, to)
-        if root and (root.get("response") or {}).get("kind") == "version":
+        root_id, root = _thread_root(page_dir, events, to)
+        if (thread_obligation(events, responses, root_id) or {}).get("kind") == (
+            "version"
+        ):
             if skip_if_settled:
                 return None
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
-                "incorporate its request in the next version, or open a separate "
-                "thread on the same Ask with `leaf comment <page> --section "
-                "<ask-id>` if you need an answer first"
+                f"{VERSION_THREAD_RECOURSE}"
             )
         if for_event is not None:
             expected = responses.get(for_event)
@@ -565,15 +555,11 @@ def cmd_reply(
                     f"event {for_event!r} is bound to this delivery's final message"
                 )
         else:
-            reply_roots = {
-                _thread_root(events, response["to"])[0]
-                for response in responses.values()
-                if response["kind"] == "reply"
-            }
-            if root_id in reply_roots:
+            standing = thread_obligation(events, responses, root_id)
+            if standing is not None and standing["kind"] == "reply":
                 sys.exit(
                     f"conversation {root_id!r} currently requires a response; "
-                    "use the delivered --for event instead of --initiates"
+                    f"use `--for {standing['for']}` instead of --initiates"
                 )
         if only_if_unclaimed and any(
             event["kind"] == "pickup" and for_event in event["events"]
@@ -737,7 +723,7 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         events = page.events
-        target = _message(events, to)
+        target = _message(page_dir, events, to)
         if target["author"] != "agent":
             sys.exit(f"message {to!r} is not agent-authored")
         identity = message_identity()
@@ -765,7 +751,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
         events = page.events
-        root_id, root = _thread_root(events, to)
+        root_id, root = _thread_root(page_dir, events, to)
         if (
             root
             and (root.get("response") or {}).get("kind") == "version"

@@ -137,9 +137,10 @@ user-path gates share — `exporting` is its other caller — and `command` owns
 CLI boundary. Import the owner directly; the package initializer is only a marker.
 
 Within `validation/`, `markup` owns shared document structure rules, `instances`
-owns registry-declared instance rules, `admission` owns incoming message markup,
-`compatibility` owns layer changes against the standing log, `source_history`
-owns predecessor readings and continuity, `transitions` compares authored
-revisions with standing actions and reports, `source` composes those gates into
-one reading, and `command` owns its CLI and render handoff. Import the owner
-directly; the package initializer is only a marker, not a second API to maintain.
+owns registry-declared instance rules, `admission` owns what an agent's writer
+hands in (message markup, bodies, and the ids it names), `compatibility` owns
+layer changes against the standing log, `source_history` owns predecessor
+readings and continuity, `transitions` compares authored revisions with standing
+actions and reports, `source` composes those gates into one reading, and
+`command` owns its CLI and render handoff. Import the owner directly; the package
+initializer is only a marker, not a second API to maintain.

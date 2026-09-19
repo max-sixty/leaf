@@ -937,6 +937,84 @@ def test_a_version_response_can_settle_a_standing_decision(page_dir):
     assert resolved.exit_code == 0, resolved.output
 
 
+def test_a_resolved_version_thread_is_still_named_a_version_thread(page_dir):
+    """The thread takes a version whether or not one is outstanding.
+
+    The obligation clears when the thread resolves; the root's own declaration stays
+    for the page's life, and `reply` refuses `--initiates` on it forever. A refusal
+    reading only the obligation called the thread unowed and named `--initiates`,
+    which is the writer that then refused it — so both read the one reading, and it
+    carries the version face.
+    """
+    declare_options_version_response(page_dir)
+    asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "index.html").write_text(asking)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "None of these.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    (page_dir / "index.html").write_text(
+        asking.replace(
+            '<lf-options id="choice" choose>',
+            '<lf-options id="choice" choose settled>',
+        )
+    )
+    publish(page_dir, version=2)
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["resolve", str(page_dir), "--to", proposal["id"]]
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+    ask_route = (
+        "open a separate thread on the same Ask with `leaf comment <page> "
+        "--section <ask-id>`"
+    )
+    mistaken = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--section", proposal["id"], "--text", "more"],
+    )
+    assert mistaken.exit_code != 0
+    assert (
+        f"{proposal['id']} is a comment in this page's log — its thread takes a page "
+        "version rather than a reply; incorporate its request in the next version, "
+        f"or {ask_route}"
+    ) in mistaken.output
+
+    # The reply door refuses it and names the same route. The Ask is a recipe, not an
+    # id: whether `--section` takes one is the anchor rule's to say against the active
+    # revision, and a later revision may retire the Ask the thread opened on.
+    initiated = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            proposal["id"],
+            "--initiates",
+            "--text",
+            "more",
+        ],
+    )
+    assert initiated.exit_code != 0
+    assert "requires a page version and cannot take a reply" in initiated.output
+    assert ask_route in initiated.output
+
+    # And the route both name is one the writer takes, filled with the Ask's id.
+    asked = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--section", "choice", "--text", "how long?"],
+    )
+    assert asked.exit_code == 0, asked.output
+
+
 def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
     declare_options_version_response(page_dir)
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(

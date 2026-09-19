@@ -251,16 +251,19 @@ document-positioned chrome. It also keeps page-attached paint below covering aux
 and paint for chrome targets above them. Being adopted, it cascades after `theme.css`
 and after every package theme concatenated onto it, so a face stated there at ordinary
 specificity beats each component's own rule and nothing renders to gate the loser: the
-shared vocabulary's faces belong in `theme.css`, and what stays here is what has to beat
-the page. A test relocates these rules to the front of the head and reads the corpus
-again, so anything winning on position rather than on its selectors is a failure.
+shared vocabulary's faces belong in the page-side sheets, and what stays here is what
+has to beat the page. A test relocates these rules to the front of the head and reads
+the corpus again, so anything winning on position rather than on its selectors is a
+failure.
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
 `theme.css` is the render-blocking default theme: the live shell's final page claims,
 tokens, element styles, class idioms, and the element-widgets CSS alone renders; a
 package's `theme.css` is appended after it. `shadow.css` holds the rules a declared shadow
 tree needs as well as the document: every root's copy is composed into `/shadow.css` for
-the stage, and into `/theme.css` just ahead of that root's `theme.css`;
+the stage, and into `/theme.css` just ahead of that root's `theme.css`. The layer's
+`.lf-ui` control face opens the assets root's `shadow.css`, so it stands before every
+component rule that overrides it;
 `runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
 into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;

@@ -15,6 +15,7 @@ from render_cases_layout import (
 )
 from render_harness import (
     CORPUS_SOURCES,
+    consume_browser_errors,
     leaf_page,
     open_page,
     resized,
@@ -242,6 +243,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     denied = browser.new_page()
     response = denied.goto(f"{base_target.origin}/versions/v1.html")
     assert response and response.status == 403
+    # The refusal is the point of this page: the reviewer has no capture credential.
+    consume_browser_errors(denied, "403")
     denied.close()
 
     context = browser.new_context(
@@ -547,4 +550,3 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert capture_key not in standalone
     assert capture_key not in data_text
     assert "?t=" not in data_text
-    reader.close()

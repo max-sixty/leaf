@@ -26,10 +26,10 @@ the active registry. Use only widget vocabulary shared by those registries. If
 no shared widget fits, ask in prose with `--text` (and `--awaits` on a reply), or
 use a page widget when the question and its answer belong in the final record.
 
-The thread panel is a narrow column beside the page. Replies should feel light
-and conversational, answer the local thread, and keep the page as the main
-surface for evidence, comparisons, and detailed reasoning. Give the reader
-enough context to know what changed or where to look without retelling the page.
+The thread panel is a narrow column beside the page, so a paragraph that reads fine
+in chat is a wall there. A reply says what changed or where to look: a sentence or
+two, or one short paragraph or list item per point when there are several. The page
+carries the evidence, and a stamp's changelog carries the full list of changes.
 
 A browser comment may carry a drawing that continues across the page. A mark begun over
 or in the margin beside an addressable element anchors there; one begun where no addressable element shares its
@@ -49,7 +49,9 @@ directory cannot answer, in text as in markup, because the log is append-only an
 broken image posted to it stays broken. It reads the link and image destinations the
 runtime resolves, so a path written about in a sentence stays prose.
 
-`--text` takes inline text; stdin accepts Markdown:
+Both routes render as Markdown. `--text` is for a one-liner; write anything longer to
+a file and redirect it to stdin, where its paragraphs and list items are visible as
+you write them.
 
 ```bash
 leaf reply <page> --text "…"
@@ -90,6 +92,14 @@ detached thread open under **No longer in this version**, and `page state` repor
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
 to a genuine replacement. Open a new thread for a different subject. Held command-goal
 threads cannot move or detach, and a version-response thread cannot take a reply.
+
+A declared visual part is held only while a live conversation's current anchor names
+it, so a version may drop the part once every thread on it has moved, detached, or
+been resolved, and `version check` names those three moves while one still holds it.
+Move or detach rather than resolving a thread whose part you are about to remove: the
+reader can reopen a resolved thread, and it comes back pointing at a coordinate no
+revision declares any more, while a detached thread reads as **No longer in this
+version** and a later reply may still move it to a replacement.
 
 Fragment links such as `[the decision](#decision)` take the reader to page
 content. `--markup` adds a validated widget after reply text; its ids must be new.

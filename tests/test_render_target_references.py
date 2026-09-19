@@ -87,4 +87,3 @@ def test_target_references_keep_exact_identity_across_document_boundaries(
             "unanchoredStatus": "resolved",
         },
     }
-    page.close()

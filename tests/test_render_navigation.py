@@ -80,7 +80,6 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1245,7 +1244,7 @@ def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
     tab = opened_tab(page, destination, press)
     assert presses == 1
     assert len(native) == 1
-    assert tab.context is one_reader
+    assert tab.context is page.context
     assert tab.url == destination
     after = targets()
     assert not (native.keys() & after.keys())
@@ -1298,7 +1297,6 @@ def test_an_external_link_says_and_opens_where_it_goes(
     tab = opened_tab(page, destination, external.click)
     expect(tab).to_have_url(destination)
     expect(page).to_have_url(url)
-    tab.close()
 
 
 def test_an_addressed_link_leaves_the_reader_at_its_destination(
@@ -1337,7 +1335,6 @@ def test_an_addressed_link_leaves_the_reader_at_its_destination(
     tab = opened_tab(page, destination, lambda: page.keyboard.type(external_code))
     expect(tab).to_have_url(destination)
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
-    tab.close()
 
 
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):
@@ -1784,7 +1781,6 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     finally:
         page.evaluate("failedAskRegion.disconnect()")
         round_trip(page)
-        page.close()
 
 
 def test_a_delayed_ask_reveal_yields_to_programmatic_reader_focus(browser, serve):
@@ -2533,32 +2529,29 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
     context = browser.new_context(forced_colors="active")
-    try:
-        page = open_page(
-            browser,
-            url,
-            context=context,
-        )
-        thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    page = open_page(
+        browser,
+        url,
+        context=context,
+    )
+    thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
 
-        reply = thread.locator("textarea")
-        reply.click()
-        expect(reply).to_be_focused()
-        assert thread.evaluate("el => el.matches(':focus-within')")
-        focus = thread.evaluate(
-            """el => { const s = getComputedStyle(el); return {
+    reply = thread.locator("textarea")
+    reply.click()
+    expect(reply).to_be_focused()
+    assert thread.evaluate("el => el.matches(':focus-within')")
+    focus = thread.evaluate(
+        """el => { const s = getComputedStyle(el); return {
               style: s.outlineStyle, width: s.outlineWidth,
               offset: s.outlineOffset, shadow: s.boxShadow,
             }; }"""
-        )
-        assert focus == {
-            "style": "solid",
-            "width": "2px",
-            "offset": "-2px",
-            "shadow": "none",
-        }
-    finally:
-        context.close()
+    )
+    assert focus == {
+        "style": "solid",
+        "width": "2px",
+        "offset": "-2px",
+        "shadow": "none",
+    }
 
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
@@ -7832,14 +7825,13 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    try:
-        page = open_page(browser, serve(ASKS_PAGE), context=context)
-        assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
-            "the touch fixture never reached Leaf's coarse-pointer rules"
-        )
-        expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
-        room = page.evaluate(
-            """() => {
+    page = open_page(browser, serve(ASKS_PAGE), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
+        "the touch fixture never reached Leaf's coarse-pointer rules"
+    )
+    expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
+    room = page.evaluate(
+        """() => {
               const line = document.querySelector('.lf-shortcut-bar');
               const chrome = document.querySelector('.lf-chrome');
               return {
@@ -7849,60 +7841,58 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
                 moreShown: document.querySelector('.lf-shortcut-more').checkVisibility(),
               };
             }"""
-        )
-        assert room == {
-            "display": "none",
-            "height": 0,
-            "reserved": "0px",
-            "moreShown": False,
-        }, room
+    )
+    assert room == {
+        "display": "none",
+        "height": 0,
+        "reserved": "0px",
+        "moreShown": False,
+    }, room
 
-        page.evaluate(
-            """async () => {
+    page.evaluate(
+        """async () => {
               (await window.__lfRuntimeImport('/runtime/notifications.js')).notice('Saved — sent');
               dispatchEvent(new Event('resize'));
             }"""
+    )
+    expect(page.locator(".lf-notice")).to_be_visible()
+    assert (
+        page.evaluate(
+            "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
         )
-        expect(page.locator(".lf-notice")).to_be_visible()
-        assert (
-            page.evaluate(
-                "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
-            )
-            == "0px"
-        ), "a transient notice reserved document space"
+        == "0px"
+    ), "a transient notice reserved document space"
 
-        # And the page is still whole underneath. Everything that asks how far down the
-        # page reaches asks it of the line's box, and a line with no box answers 0 — the
-        # top of the window — which reads as "all of it is covered". Item hints and the
-        # search's own highlight are drawn for boxes above that answer, so a tablet got
-        # `s` naming nothing and `/` painting no match, with the page itself intact and
-        # nothing on screen saying why.
-        page.keyboard.press("s")
-        expect(page.locator(".lf-target-chooser-hint").first).to_be_visible()
-        page.keyboard.press("Escape")
+    # And the page is still whole underneath. Everything that asks how far down the
+    # page reaches asks it of the line's box, and a line with no box answers 0 — the
+    # top of the window — which reads as "all of it is covered". Item hints and the
+    # search's own highlight are drawn for boxes above that answer, so a tablet got
+    # `s` naming nothing and `/` painting no match, with the page itself intact and
+    # nothing on screen saying why.
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-chooser-hint").first).to_be_visible()
+    page.keyboard.press("Escape")
 
-        page.keyboard.press("a")
-        line = page.locator(".lf-shortcut-bar")
-        expect(line).to_be_hidden()
-        position = page.locator(".lf-walk-position")
-        expect(position).to_have_text("Ask 1 of 4 open")
-        expect(position).to_be_visible()
-        active_room = page.evaluate(
-            """() => ({
+    page.keyboard.press("a")
+    line = page.locator(".lf-shortcut-bar")
+    expect(line).to_be_hidden()
+    position = page.locator(".lf-walk-position")
+    expect(position).to_have_text("Ask 1 of 4 open")
+    expect(position).to_be_visible()
+    active_room = page.evaluate(
+        """() => ({
               height: document.querySelector('.lf-walk-position')
                 .getBoundingClientRect().height,
               reserved: parseFloat(getComputedStyle(
                 document.querySelector('.lf-chrome')).paddingBottom),
             })"""
-        )
-        assert active_room["height"] > 0, active_room
-        assert active_room["reserved"] > 0, active_room
+    )
+    assert active_room["height"] > 0, active_room
+    assert active_room["reserved"] > 0, active_room
 
-        page.locator("#h").click()
-        expect(line).to_be_hidden()
-        page.close()
-    finally:
-        context.close()
+    page.locator("#h").click()
+    expect(line).to_be_hidden()
+    page.close()
     # The control the reading above needs, because `paddingBottom` computes to "0px" on a
     # chrome root syncLayout never wrote to: the same page at the same size under a fine
     # pointer has to reserve a band, or "reserved nothing" and "reserved nowhere" are the
@@ -7914,7 +7904,6 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
         "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
     )
     assert reserved != "0px" and float(reserved.removesuffix("px")) > 20, reserved
-    fine.close()
 
 
 FOOT_CONTROL_PAGE = NOTED_PAGE.replace(
@@ -8536,22 +8525,21 @@ def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
         viewport={"width": 1200, "height": 900},
         permissions=["clipboard-read", "clipboard-write"],
     )
-    try:
-        page = open_page(browser, serve(INLINE_PAGE), context=context)
-        paragraph = page.locator("#p")
-        paragraph.click(click_count=3)
-        expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page = open_page(browser, serve(INLINE_PAGE), context=context)
+    paragraph = page.locator("#p")
+    paragraph.click(click_count=3)
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
 
-        selected = page.evaluate("() => getSelection().toString()")
-        assert "A paragraph carrying" in selected
-        is_mac = page.evaluate(
-            "() => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)"
-        )
-        page.keyboard.press("Meta+c" if is_mac else "Control+c")
-        assert page.evaluate("() => navigator.clipboard.readText()") == selected
+    selected = page.evaluate("() => getSelection().toString()")
+    assert "A paragraph carrying" in selected
+    is_mac = page.evaluate(
+        "() => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)"
+    )
+    page.keyboard.press("Meta+c" if is_mac else "Control+c")
+    assert page.evaluate("() => navigator.clipboard.readText()") == selected
 
-        page.evaluate(
-            """() => {
+    page.evaluate(
+        """() => {
               window.lfContextMenu = null;
               document.addEventListener('contextmenu', event => {
                 setTimeout(() => {
@@ -8562,16 +8550,13 @@ def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
                 });
               }, {capture: true, once: true});
             }"""
-        )
-        paragraph.click(button="right")
-        page.wait_for_function("() => window.lfContextMenu !== null")
-        assert page.evaluate("() => window.lfContextMenu") == {
-            "prevented": False,
-            "selection": selected,
-        }
-        page.close()
-    finally:
-        context.close()
+    )
+    paragraph.click(button="right")
+    page.wait_for_function("() => window.lfContextMenu !== null")
+    assert page.evaluate("() => window.lfContextMenu") == {
+        "prevented": False,
+        "selection": selected,
+    }
 
 
 def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, serve):
@@ -9591,29 +9576,23 @@ def test_target_chooser_reveals_a_clipped_board_card_before_commenting(browser, 
             selector,
         )
 
-    try:
-        page = open_page(browser, url, context=context)
-        before = board_reading(page, "#card-migration")
-        assert before["visible"] == pytest.approx(before["width"], abs=1), before
-        choose(page, "#card-migration")
-        assert (
-            board_reading(page, "#card-migration")["scrollLeft"] == before["scrollLeft"]
-        )
-        page.close()
+    page = open_page(browser, url, context=context)
+    before = board_reading(page, "#card-migration")
+    assert before["visible"] == pytest.approx(before["width"], abs=1), before
+    choose(page, "#card-migration")
+    assert board_reading(page, "#card-migration")["scrollLeft"] == before["scrollLeft"]
+    page.close()
 
-        page = open_page(browser, url, context=context)
-        before = board_reading(page, "#card-tz")
-        assert 0 < before["visible"] < before["width"] / 4, before
-        choose(page, "#card-tz")
-        after = board_reading(page, "#card-tz")
-        assert after["visible"] == pytest.approx(after["width"], abs=1), after
-        assert after["scrollLeft"] > before["scrollLeft"], (before, after)
-        expect(page.locator(".lf-fab-input")).to_have_attribute(
-            "aria-label", re.compile("Digest email uses server timezone")
-        )
-        page.close()
-    finally:
-        context.close()
+    page = open_page(browser, url, context=context)
+    before = board_reading(page, "#card-tz")
+    assert 0 < before["visible"] < before["width"] / 4, before
+    choose(page, "#card-tz")
+    after = board_reading(page, "#card-tz")
+    assert after["visible"] == pytest.approx(after["width"], abs=1), after
+    assert after["scrollLeft"] > before["scrollLeft"], (before, after)
+    expect(page.locator(".lf-fab-input")).to_have_attribute(
+        "aria-label", re.compile("Digest email uses server timezone")
+    )
 
 
 def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
@@ -9744,30 +9723,25 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     Offline rather than mid-load, because it is the state that stays: a loading page
     answers a moment later, and a page whose server has stopped is where a reader sits."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
     page.route("**/api/state*", refuse)
-    try:
-        page.goto(serve(NOTED_PAGE), wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(page.locator(".lf-status-detail")).to_have_text(
-            "Server offline — reconnecting. Keep this page open so pending changes can send."
-        )
+    page.goto(serve(NOTED_PAGE), wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
+    )
 
-        page.keyboard.press("c")
-        expect(page.locator(".lf-general textarea")).to_be_focused()
-        page.keyboard.press("Escape")
-        page.keyboard.press("g")
-        page.keyboard.press("Shift+t")
-        expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-threads")).to_be_focused()
 
-        # The missing list takes away its waiting filter, but not the panel's own search:
-        # a search over nothing still belongs to the scope in front of the page.
-        line = page.locator(".lf-shortcut-bar")
-        expect(line).not_to_contain_text("waiting on you")
-        expect(line).to_contain_text("find")
-
-    finally:
-        page.close()
+    # The missing list takes away its waiting filter, but not the panel's own search:
+    # a search over nothing still belongs to the scope in front of the page.
+    line = page.locator(".lf-shortcut-bar")
+    expect(line).not_to_contain_text("waiting on you")
+    expect(line).to_contain_text("find")
 
 
 # Where the reader is standing, in the terms the next Tab is decided by: the document

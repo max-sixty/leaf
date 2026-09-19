@@ -221,7 +221,10 @@ let previewDiagnostics = "";
 function renderPreview(state) {
   const preview = state.preview;
   if (!preview) return;
-  const kind = preview.interaction === "automation" ? "Automation" : "Preview";
+  // A reader preview claims the page, so every press on it — the agent's own
+  // screenshots included — comes back to the session as reader input. That is the
+  // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
+  const kind = preview.interaction === "reader" ? "Reader" : "Preview";
   const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
   previewLabels = preview.commit ? [stem, `${stem}+`] : [stem];
   const label = preview.commit && preview.dirty ? `${stem}+` : stem;

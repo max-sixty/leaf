@@ -42,6 +42,29 @@ sandbox_setup:
   - uv run playwright install chromium webkit --only-shell
   - 'uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.stop()"'
 
+# The `tend` environment's Cloudflare token reads every Worker's logs and
+# Analytics Engine events on the account and cannot change a Worker or a zone
+# (`worker/README.md`). Tend's proxy injects only GitHub and Anthropic
+# credentials, so this token reaches the agent through its launch environment,
+# where `sandbox_setup` and anything the agent runs can read it.
+#
+# The expression hands it only to agents answering an issue or a red run on
+# `main` — `issues`, `issue_comment` on an issue rather than a pull request, and
+# `ci-fix`'s `workflow_run` — which is when `running-tend` sends an agent to the
+# logs. Every other agent may run a pull request's code: a review and a mention
+# on a pull request start with it in the workspace, where `sandbox_setup` builds
+# it before the agent starts, and the notifications poll reviews fork pull
+# requests.
+#
+# `ci-fix`'s own `branches: ["main"]` filter is not enough to mean main: it
+# matches the triggering run's head branch, which for a pull request is the head
+# ref, so a fork whose default branch is also `main` arrives as a red run on
+# `main` and would be reproduced from the fork's code. `head_repository` is what
+# says whose code that is. The empty value has to be the `||` arm, because
+# `cond && '' || secret` yields the secret either way.
+sandbox_env:
+  CLOUDFLARE_API_TOKEN: "${{ ((github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository) || (github.event.issue && !github.event.issue.pull_request)) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
+
 workflows:
   ci-fix:
     watched_workflows:

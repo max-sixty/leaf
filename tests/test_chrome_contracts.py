@@ -193,30 +193,29 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
     )
-    try:
-        url = serve(LONG_PAGE)
-        panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
-        page = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
-        compose = thread.locator(".lf-compose")
-        textarea = compose.locator("textarea")
-        send = thread.get_by_role("button", name="Send", exact=True)
-        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
-        close = page.get_by_role("button", name="Close threads", exact=True)
-        expect(send).to_be_visible()
-        expect(resolve).to_be_visible()
-        expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
-        expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
-        expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
-        expect(send).to_have_text("")
-        expect(resolve).to_have_text("")
-        expect(close).to_have_text("")
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    compose = thread.locator(".lf-compose")
+    textarea = compose.locator("textarea")
+    send = thread.get_by_role("button", name="Send", exact=True)
+    resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+    close = page.get_by_role("button", name="Close threads", exact=True)
+    expect(send).to_be_visible()
+    expect(resolve).to_be_visible()
+    expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
+    expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    expect(send).to_have_text("")
+    expect(resolve).to_have_text("")
+    expect(close).to_have_text("")
 
-        def geometry():
-            return thread.evaluate(
-                """thread => {
+    def geometry():
+        return thread.evaluate(
+            """thread => {
                   const rect = sel => {
                     const r = thread.querySelector(sel).getBoundingClientRect();
                     return {x: r.x, y: r.y, width: r.width, height: r.height,
@@ -251,47 +250,43 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
                 }"""
-            )
+        )
 
-        short = geometry()
-        assert short["field"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
-        assert short["thread"]["right"] - short["compose"]["right"] == pytest.approx(
-            short["compose"]["x"] - short["thread"]["x"], abs=1
-        )
-        assert short["textarea"]["right"] == pytest.approx(
-            short["field"]["right"], abs=1
-        )
-        assert short["send"]["right"] < short["textarea"]["right"]
-        assert short["send"]["bottom"] < short["textarea"]["bottom"]
-        assert short["padding"] >= short["send"]["width"] + 10
-        assert short["resolve"]["y"] == pytest.approx(short["quote"]["y"], abs=1)
-        assert short["resolve"]["right"] == pytest.approx(
-            short["thread"]["right"] - 9, abs=1
-        )
-        assert short["resolve"]["x"] - short["quote"]["right"] >= 8
-        assert short["resolve"]["bottom"] <= short["quote"]["bottom"] + 1
-        assert float(short["closeBorder"][:-2]) == 0
-        assert float(short["resolveBorder"][:-2]) == 0
-        assert float(short["sendBorder"][:-2]) == 0
-        assert set(short["radii"].values()) == {button_radius(page)}
-        assert short["overflow"] == 0
+    short = geometry()
+    assert short["field"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
+    assert short["thread"]["right"] - short["compose"]["right"] == pytest.approx(
+        short["compose"]["x"] - short["thread"]["x"], abs=1
+    )
+    assert short["textarea"]["right"] == pytest.approx(short["field"]["right"], abs=1)
+    assert short["send"]["right"] < short["textarea"]["right"]
+    assert short["send"]["bottom"] < short["textarea"]["bottom"]
+    assert short["padding"] >= short["send"]["width"] + 10
+    assert short["resolve"]["y"] == pytest.approx(short["quote"]["y"], abs=1)
+    assert short["resolve"]["right"] == pytest.approx(
+        short["thread"]["right"] - 9, abs=1
+    )
+    assert short["resolve"]["x"] - short["quote"]["right"] >= 8
+    assert short["resolve"]["bottom"] <= short["quote"]["bottom"] + 1
+    assert float(short["closeBorder"][:-2]) == 0
+    assert float(short["resolveBorder"][:-2]) == 0
+    assert float(short["sendBorder"][:-2]) == 0
+    assert set(short["radii"].values()) == {button_radius(page)}
+    assert short["overflow"] == 0
 
-        textarea.focus()
-        focused = geometry()
-        assert focused["send"] == short["send"]
-        assert focused["resolve"] == short["resolve"]
+    textarea.focus()
+    focused = geometry()
+    assert focused["send"] == short["send"]
+    assert focused["resolve"] == short["resolve"]
 
-        textarea.fill("First line.\nSecond line.\nThird line.\nFourth line.")
-        grown = geometry()
-        assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
-        assert grown["send"]["bottom"] == pytest.approx(
-            grown["textarea"]["bottom"] - 6, abs=1
-        )
-        assert grown["send"]["y"] > short["send"]["y"]
-        assert grown["resolve"] == short["resolve"]
-        assert grown["overflow"] == 0
-    finally:
-        context.close()
+    textarea.fill("First line.\nSecond line.\nThird line.\nFourth line.")
+    grown = geometry()
+    assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
+    assert grown["send"]["bottom"] == pytest.approx(
+        grown["textarea"]["bottom"] - 6, abs=1
+    )
+    assert grown["send"]["y"] > short["send"]["y"]
+    assert grown["resolve"] == short["resolve"]
+    assert grown["overflow"] == 0
 
 
 STATE_PAINT = """el => {

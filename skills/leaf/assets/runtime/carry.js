@@ -21,17 +21,24 @@
  * the apparatus they were reaching for it with. So a carry never creates a gesture, and a
  * value it puts back is exactly as unsent as it was before.
  *
- * Reader-changed state only, and what the reader changed is what the live node no longer
- * agrees with the author about. A field answers that itself: `defaultValue` and
- * `defaultChecked` are what the author wrote, so a field still matching one holds nothing
- * of the reader's, and the arriving revision's text is the better answer. A disclosure
- * answers nothing — `open` reflects, so the attribute moves with the reader — and the
- * baseline comes instead from the authored markup of the revision the reader is standing
- * in. That is the same `before` side `dom-children.js` diffs against, and for the same
- * reason it gives there: the live page differs from the author in everything the reader,
- * the runtime and every module have done to it since it loaded, so the page is never one
- * side of this comparison. Read the live box alone and a box the reader never touched is
- * carried over the arriving revision that opened it, which arrives shut.
+ * What the author did not write is what crosses. That is the reader's own state and the
+ * state the runtime put there on their behalf — a box `reveal` opened to take them to
+ * something inside it is theirs to keep standing in — and it is everything the live node
+ * no longer agrees with the author about.
+ *
+ * Some controls answer for that themselves: `defaultValue` and `defaultChecked` are what
+ * the author wrote, so a field still matching one holds nothing of anyone's, and the
+ * arriving revision's text is the better answer. Only where the value is words, though.
+ * The rest of the input family answers `value` with something the platform made up
+ * against an empty `defaultValue` — which `focus.js`'s `holdsWords` is the question for.
+ *
+ * A disclosure answers nothing at all: `open` reflects, so the attribute moves with the
+ * page. Its baseline is the authored markup of the revision the reader is standing in,
+ * the same `before` side `dom-children.js` diffs against, and for the reason it gives
+ * there: the live page differs from the author in everything the reader, the runtime and
+ * every module have done to it since it loaded, so the page is never one side of this
+ * comparison. Read the live box alone and a box nobody touched is carried over the
+ * arriving revision that opened it, which arrives shut.
  *
  * The baseline is also what the authored id means here. An id the outgoing source does
  * not carry was made by a module rather than by the author, and what a module makes is
@@ -44,10 +51,8 @@
  * the draft store's words — is already restored by that module reading its own store back
  * under the same id, and does not belong here.
  */
-import { focusDestination, readCaret } from "./focus.js";
+import { focusDestination, holdsWords, readCaret } from "./focus.js";
 
-const holdsWords = (node) =>
-  (node.tagName === "TEXTAREA" || node.tagName === "INPUT") && !node.isContentEditable;
 const holdsTick = (node) =>
   node.tagName === "INPUT" && (node.type === "checkbox" || node.type === "radio");
 

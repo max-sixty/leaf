@@ -68,7 +68,7 @@ element goes away and hands back in the same act;
 `runtime/carry.js` owns the mechanical reader state an install carries between two
 nodes the author gave the same id — a field's words and caret, a tick, a disclosure,
 an inner scroll, and focus — reading each against what the author wrote for the revision
-the reader is standing in, so that only what the reader themselves changed crosses; it
+the reader is standing in, so that what crosses is what the author did not write; it
 carries nothing for an element the author left unnamed;
 `runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
 document roots so authored revision replacement can leave that live state in place;

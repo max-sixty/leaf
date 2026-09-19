@@ -65,13 +65,24 @@ const TYPED_TYPES = new Set([
   "week",
 ]);
 
-export function takesLetters(node) {
+// A control whose value is the words in it: what the reader types is what it holds, and
+// `defaultValue` is the word the author wrote. The rest of the input family answers
+// `value` with something the platform made up against a `defaultValue` the author left
+// empty — "on" for a tick the author gave no value, the midpoint for a range, black for a
+// colour — so neither question can be asked of them: not what the reader typed, and not
+// what the author wrote.
+export function holdsWords(node) {
   return (
     Boolean(node) &&
     (node.tagName === "TEXTAREA" ||
-      node.tagName === "SELECT" ||
-      node.isContentEditable ||
       (node.tagName === "INPUT" && TYPED_TYPES.has(node.type)))
+  );
+}
+
+export function takesLetters(node) {
+  return (
+    Boolean(node) &&
+    (holdsWords(node) || node.tagName === "SELECT" || node.isContentEditable)
   );
 }
 

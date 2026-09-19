@@ -3640,6 +3640,60 @@ def test_a_revision_that_opens_a_box_the_reader_never_touched_arrives_open(
     expect(page.locator("#lk-note")).to_have_value("half a thought")
 
 
+def test_a_revision_gives_values_to_controls_the_reader_never_touched(browser, serve):
+    """`defaultValue` answers for the author only where the control's value is words.
+
+    A tick the author gave no value of its own answers `"on"`, and a range answers its
+    midpoint, both against a `defaultValue` the author left empty. Compare those two and
+    every such control reads as reader state on the way out, and arrives written over
+    whatever the next revision authored — the disclosure's bug on the other side of the
+    same line. Only a control that holds the author's own word can be asked that way.
+    """
+    unvalued = (
+        '<p><label for="lk-tick">Also</label>'
+        ' <input id="lk-tick" name="lk-tick" type="checkbox">'
+        ' <label for="lk-dial">How much</label>'
+        ' <input id="lk-dial" name="lk-dial" type="range"></p>'
+    )
+    valued = unvalued.replace('type="checkbox"', 'type="checkbox" value="yes"').replace(
+        'type="range"', 'type="range" value="80"'
+    )
+    first = LIVE_KEYS_APPARATUS.replace(
+        '<details id="lk-why">', unvalued + '<details id="lk-why">'
+    )
+    second = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
+        '<details id="lk-why">', valued + '<details id="lk-why">'
+    )
+
+    version_url = serve(first)
+    page = open_page(browser, live_url(version_url))
+    # The platform's own answers, standing against the empty default the author wrote.
+    assert page.locator("#lk-tick").evaluate("el => [el.value, el.defaultValue]") == [
+        "on",
+        "",
+    ]
+    assert page.locator("#lk-dial").evaluate("el => [el.value, el.defaultValue]") == [
+        "50",
+        "",
+    ]
+    # The reader works the field and leaves both of those alone.
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The widget did go whole, so the carry is what decides these controls.
+    expect(page.locator("#lk-decision h2")).to_have_text(
+        "Which one, now the costs are in?"
+    )
+    assert page.locator("#lk-tick").evaluate("el => el.value") == "yes"
+    assert page.locator("#lk-dial").evaluate("el => el.value") == "80"
+    # While the field whose value is the reader's own words still crosses.
+    expect(page.locator("#lk-note")).to_have_value("half a thought")
+
+
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
     """A revision that opens a fresh document carries the same named state across.
 

@@ -8061,7 +8061,7 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
 
 
 def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
-    tmp_path, page_dir, monkeypatch
+    tmp_path, page_dir, monkeypatch, capsys
 ):
     """The claims directory is one per machine, and the worktrees writing it are
     each on their own commit, so a session routinely reads records a different
@@ -8088,8 +8088,9 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     assert service_model.claim_page(page_dir)
     assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
 
-    written_before_811 = service_model.page_claim(stale)
-    written_before_811["host"] = written_before_811.pop("harness")
+    claim = service_model.page_claim(stale)
+    written_before_811 = {**claim, "host": claim["harness"]}
+    del written_before_811["harness"]
     files_model.write_json(service_model.claim_path(stale), written_before_811)
 
     # The reported failure: the watcher walks every page the session holds, and
@@ -8101,6 +8102,22 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
 
     assert service_model.page_claim(stale) is None
     assert service_model.owned_pages("s8") == [page_dir.resolve()]
+
+    # The same reading answers for the two records a later rename leaves behind,
+    # and the Stop hook shows both: a harness name outside this version's table
+    # raises in `host.claim_harness`, which dispatches on that value rather than
+    # reading it, and a record missing a field a reader brackets is taken for a
+    # live claim, putting its page back in front of the guard — and in front of
+    # `event_endpoint`'s nudge, which brackets `turn_closed` under the append
+    # lock.
+    for unreadable in (
+        {**claim, "harness": "some-host-a-later-leaf-named"},
+        {key: value for key, value in claim.items() if key != "turn_closed"},
+    ):
+        files_model.write_json(service_model.claim_path(stale), unreadable)
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s8"})
+        assert str(stale) not in capsys.readouterr().out
+        assert service_model.page_claim(stale) is None
 
 
 def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(

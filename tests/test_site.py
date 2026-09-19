@@ -46,6 +46,8 @@ from render_harness import (
     displayed,
     navigate,
     open_page,
+    panel_settled,
+    resized,
     select,
     sending,
 )
@@ -902,6 +904,54 @@ def test_published_workspaces_keep_their_allocation_under_site_context(
     expect(page.locator("body > main > .sitenote")).to_have_count(0)
     page.wait_for_function(
         "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
+    )
+
+
+SITE_LABEL_SHAPE = """
+() => {
+  const note = document.querySelector('body > main > * > header > .sitenote');
+  const [label, routes] = note.querySelectorAll(':scope > p');
+  const line = parseFloat(getComputedStyle(label).lineHeight);
+  return {
+    shared: Math.round(label.getBoundingClientRect().top)
+      === Math.round(routes.getBoundingClientRect().top),
+    labelLines: Math.round(label.getBoundingClientRect().height / line),
+  };
+}
+"""
+
+
+@pytest.mark.parametrize("name", framed_root_examples())
+def test_the_site_label_takes_one_row_only_where_that_row_fits(hosted, browser, name):
+    """The label is shaped by the seat it was given, not by the window around it.
+
+    The label sits in a framed task's own header, so every row it takes is height the
+    task does not get, and the routes belong beside it wherever both fit. Whether they
+    fit is a fact about that header, and Leaf's own panel is what makes the header and
+    the window disagree: a rule reading the window kept the routes beside a label that
+    no longer had the width for them, so the label wrapped where it stood and the
+    header grew anyway — the packaging rule in `skills/leaf/references/packages.md`,
+    failing in the direction it was written to catch.
+
+    Read at three shells behind one open panel, since a window with nothing standing in
+    it is the case where the two readings agree and the old rule also passed.
+    """
+    page = open_page(browser, f"{hosted}/examples/{name}/")
+    expect(page.locator("body > main > * > header > .sitenote")).to_be_visible()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page)
+    shapes = {}
+    for width in (1500, 1200, 1000):
+        resized(page, width, 900)
+        shapes[width] = page.evaluate(SITE_LABEL_SHAPE)
+    for width, shape in shapes.items():
+        assert not shape["shared"] or shape["labelLines"] == 1, (
+            f"{name} at {width}px: the routes stand beside a label wrapped over "
+            f"{shape['labelLines']} rows"
+        )
+    assert shapes[1500]["shared"], (
+        f"{name}: the routes took a row of their own at 1500px, where the header has "
+        f"room for both and the task has none to spare"
     )
 
 

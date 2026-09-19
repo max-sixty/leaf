@@ -133,7 +133,7 @@ export function messageReading(message, { panel, receipts, reactions }) {
     id: message.id,
     attempt: message.attempt ?? null,
     author: message.author,
-    by: message.author === "claude" ? message.agent || "Agent" : "You",
+    by: message.author === "agent" ? message.agent || "Agent" : "You",
     timestamp: message.ts,
     age: ago(message.ts),
     edited: message.edited ? `Edited ${ago(message.edited.ts)}` : null,

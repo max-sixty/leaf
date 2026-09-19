@@ -2872,7 +2872,7 @@ def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "old bar",
             "anchor": {
@@ -2906,7 +2906,7 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "older anchor",
             "anchor": {
@@ -3933,7 +3933,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
 
 def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
     """Without room for a rail, the thread's margin row is withheld and has no box. The
-    card used to stand against that empty box, in the viewport's top corner, over the
+    card used to stand against that empty box, in the boundary's top corner, over the
     very words the reader had pressed; it stands by the passage instead."""
     page, place_bottom = clearance_page(browser, serve)
     resized(page, 820, 800)
@@ -4126,7 +4126,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
             {
                 "kind": "reply",
                 "parent": "version-question",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "text": "Preparing the update.",
                 "markup": '<lf-menu-preparation id="version-preparation"><pre>Prepared</pre></lf-menu-preparation>',
@@ -4894,7 +4894,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "agent": "Codex",
             "parent": root["id"],
             "responds": root["id"],

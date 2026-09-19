@@ -63,14 +63,6 @@
    Suggest restores it in replacement-text mode. Their structural icons use the same
    stroked SVG vocabulary as target margin entries; only authored reaction tokens supply text
    glyphs. */
-/* Auxiliary chrome state changes the shell's size immediately; only this presentation
-   offset moves. Registering the length lets Web Animations interpolate it while
-   container queries continue to read the one final shell width. */
-@property --lf-shell-motion-x {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
 /* Page-attached chrome is absolute against the initial containing block, not against
    body. Body is the page shell and may move or narrow for standing auxiliary surfaces; the
    document coordinate system does neither, and root scrolling still carries absolute
@@ -1139,7 +1131,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   .lf-msg { margin: 16px 0; }
-  .lf-msg.claude { position: relative; }
+  .lf-msg.agent { position: relative; }
   /* A speaker belongs to the reading hierarchy; time and delivery are supporting
      metadata. The same sizes and rhythm dress inline conversation in theme.css. */
   .lf-msg-head { display: flex; gap: 8px; align-items: baseline; font-size: var(--t-6); }
@@ -1330,11 +1322,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
     fill: none; stroke: currentColor; stroke-width: 1.6;
     stroke-linecap: round; stroke-linejoin: round; }
-  .lf-msg.claude:is(:hover, :focus-within) > .lf-react-strip > .lf-react-trigger,
+  .lf-msg.agent:is(:hover, :focus-within) > .lf-react-strip > .lf-react-trigger,
   .lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
     opacity: 1;
   }
-  .lf-msg.claude:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
+  .lf-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
   .lf-react-strip.lf-react-open > .lf-react-palette {
     position: absolute; z-index: 3;
     inset-block-start: calc(max(28px, var(--aim-floor)) + 2px);
@@ -1515,8 +1507,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
   .lf-thread-transition-text { display: block; }
-  /* Floating UI measures the conversation against its selected page lane or the
-     source controls when the document leaves no free side lane. */
+  /* margin-projection.js writes the width thread-card-geometry.js chose and the visible
+     boundary's height as the cap; these are the fallbacks for a card no placement has
+     measured yet. */
   .lf-margin-preview[data-lf-thread] { inset: 0 auto auto 0;
     width: min(var(--lf-thread-width, var(--thread-card)), calc(100vw - 16px));
     max-height: var(--lf-thread-max-height,

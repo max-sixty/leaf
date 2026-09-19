@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 
 from .files import json_bytes, read_json
-from .host import state_home
 from .leases import lock_is_held
+from .machine import state_home
 from .schema import ORPHAN_GRACE_SECS, PREVIEW_FILE, SERVER_LOCK, SERVICE_FILE
 from .service import PageTransaction, claim_is_active, page_claim
 
@@ -30,8 +30,27 @@ def running_server(page_dir: Path):
 
 def preview_metadata(page_dir: Path) -> dict | None:
     """The identity a developer preview shows in browser chrome, as
-    `scripts/preview.py` wrote it, or None for a page that is not a preview."""
-    return read_json(page_dir / PREVIEW_FILE)
+    `scripts/preview.py` wrote it, or None for a page that is not a preview.
+
+    The file is that script's whole record of the slot, including the checkout
+    and fixture paths it watches. Only the fields named here are ever projected,
+    so what a preview tells the browser stays what a preview may say."""
+    preview = read_json(page_dir / PREVIEW_FILE)
+    if preview is None:
+        return None
+    return {
+        key: preview[key]
+        for key in (
+            "kind",
+            "example",
+            "checkout",
+            "interaction",
+            "started",
+            "commit",
+            "dirty",
+        )
+        if key in preview
+    }
 
 
 def lifetime_note(page_dir: Path) -> str:

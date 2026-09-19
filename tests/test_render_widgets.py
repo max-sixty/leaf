@@ -83,6 +83,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_right,
     panel_settled,
     post_event,
     refuse,
@@ -4906,17 +4907,20 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
     with page.expect_request("**/api/event"):
         deck.get_by_role("button", name="← Pass", exact=True).click()
 
-    # The final answer is already the visible application state even though its POST is
-    # still held. Every semantic consumer reads that moment: the deck, progress count,
-    # and approval gate cannot disagree for one network round trip.
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
-    expect(approve).to_be_enabled()
+    # The deck is the reader's own gesture on their own widget, so the last card leaves
+    # the queue while its POST is still held. Whether the deck has answered its Ask is
+    # the log's reading, so the progress count and the approval gate turn over together
+    # when that answer lands.
+    expect(page.locator("#ideas-queue > lf-swipe-card")).to_have_count(0)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(approve).to_be_disabled()
     holding(page, held, 1, "the final classification")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
 
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(approve).to_be_enabled()
     assert page.eval_on_selector_all(
         "#ideas-pass > lf-swipe-card", "cards => cards.map(card => card.id)"
     ) == ["idea-draft-warning", "idea-report-prefetch"]
@@ -4982,7 +4986,7 @@ def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
     assert mutations == []
 
 
-def test_clearing_an_answer_optimistically_restores_the_approval_gate(browser, serve):
+def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser, serve):
     """An answer verb with an empty recorded value leaves its Ask unanswered."""
     html = leaf_page(
         "approval after a cleared pick",
@@ -5009,17 +5013,18 @@ def test_clearing_an_answer_optimistically_restores_the_approval_gate(browser, s
     page.route("**/api/event", lambda route: held.append(route))
     pick.click()
     holding(page, held, 1, "the cleared selection")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect(approve).to_be_disabled()
-    expect(approve).to_have_attribute(
-        "title", "Answer every Ask before approving this work"
-    )
+    # The pick clears under the reader at once; whether that leaves the Ask unanswered
+    # is the log's reading, and the gate waits for it.
+    expect(page.locator("#release-ship")).not_to_have_attribute("chosen", "")
 
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect(approve).to_be_disabled()
+    expect(approve).to_have_attribute(
+        "title", "Answer every Ask before approving this work"
+    )
 
 
 def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):
@@ -5227,7 +5232,6 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
             "button", name="Return Bound fallback lifetime to queue", exact=True
         ).click()
     expect(page.locator("#session-queue > #swipe-b")).to_have_count(1)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     holding(page, held, 1, "the earlier card's withdrawal")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -5760,20 +5764,10 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     # The panel takes the right of the window, and the rail survives it: the rows
     # keep their line, clear of the column on one side and of the panel on the
     # other. Measured after the layout has moved, since opening the panel resizes
-    # the page and the rows re-place on the frame after that.
+    # the page and the rows re-place on the frame after that. Under full motion
+    # the rows used to dock for the length of the column's glide and come back at
+    # its end; there is no glide now, so both arms go straight to the settled page.
     page.locator(".lf-threads-toggle").click()
-    if reduced_motion == "no-preference":
-        # Hold the presentation offset while the resize-driven placements dock the
-        # rows. Let that frame's ResizeObserver delivery and its queued placement run
-        # before finishing the carry, so no pending resize accidentally repairs them.
-        page.wait_for_function(
-            "() => [...document.querySelectorAll('[data-lf-margin-for=sug-refill], "
-            "[data-lf-margin-for=sug-thistle]')]"
-            ".every(r => r.classList.contains('lf-docked'))"
-        )
-        page.evaluate("""() => new Promise(resolve => {
-          requestAnimationFrame(() => requestAnimationFrame(resolve));
-        })""")
     panel_settled(page)
     page.wait_for_function(
         "() => [...document.querySelectorAll("
@@ -5781,7 +5775,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         ".every(r => !r.classList.contains('lf-docked'))"
     )
     narrowed = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
-    room = page.evaluate("() => document.body.getBoundingClientRect().right")
+    room = page_right(page)
     for i in range(2):
         rect = margin_rows.nth(i).evaluate(box)
         assert rect["left"] > narrowed and rect["right"] <= room, (
@@ -5792,8 +5786,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
     page.get_by_role("button", name="Close threads").click()
-    # The panel gives the room back in one responsive layout, then carries the column to
-    # it. Wait for that route before reading the rows against their settled blocks.
+    # The panel gives the room back in one responsive layout, and the column is already
+    # in it. Wait for that before reading the rows against their settled blocks.
     panel_settled(page, open=False)
     resized(page, 820, 900)
     page.wait_for_function(
@@ -7795,7 +7789,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-which",
             "revision": 1,
             "text": "The second, but the cost lands on you either way:",
@@ -7853,7 +7847,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-room",
             "revision": 1,
             "text": "These, and who is on them:",
@@ -7922,7 +7916,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-store",
             "revision": 1,
             "text": "Depends what you want to keep:",
@@ -8005,7 +7999,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "cd-thread",
             "revision": 1,
             "text": "It does, with the wider plate.",
@@ -8054,7 +8048,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
         {
             "kind": "comment",
             "id": "edited-agent-message",
-            "author": "claude",
+            "author": "agent",
             "agent": "Indexer",
             "session": "worker-1",
             "revision": 1,
@@ -8090,7 +8084,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
         d,
         {
             "kind": "edit",
-            "author": "claude",
+            "author": "agent",
             "agent": "Indexer",
             "session": "worker-1",
             "message": message["id"],
@@ -8156,7 +8150,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-sent",
             "revision": 1,
             "text": "Depends what you want to keep:",
@@ -8481,15 +8475,6 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
           window.__lfReadAskPresentation = readApplicationPresentation;
           const list = document.querySelector('lf-asks-tray-list');
           window.__lfAskRows = [...list.querySelectorAll('button.lf-asks-row')];
-          const progress = document.querySelector('.lf-asks');
-          const progressFace = progress.querySelector('lf-ask-banner-face');
-          const progressUpdated = progressFace.updated.bind(progressFace);
-          window.__lfSawPreparedAskBanner = false;
-          progressFace.updated = (...args) => {
-            progressUpdated(...args);
-            if (progress.textContent.trim() === 'Asks 2/5')
-              window.__lfSawPreparedAskBanner = true;
-          };
           const render = list.render.bind(list);
           list.render = () => {
             list.render = render;
@@ -8506,7 +8491,6 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     holding(page, held, 1, "the semantic answer")
     page.evaluate("__lfWaitForAskListCurrent()")
     page.wait_for_function("__lfAskListCurrentReady")
-    assert page.evaluate("__lfSawPreparedAskBanner") is True
     assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
     expect(progress).to_have_text("Asks 1/5")
     expect(answer_all).to_have_text("Accept all (1)")
@@ -8549,15 +8533,6 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
           window.__lfAskBulk = document.querySelector('.lf-answer-all');
           window.__lfAskRows = [
             ...document.querySelectorAll('button.lf-asks-row')];
-          const progressFace = window.__lfAskProgress.querySelector(
-            'lf-ask-banner-face');
-          const progressUpdated = progressFace.updated.bind(progressFace);
-          window.__lfSawPartialAskBanner = false;
-          progressFace.updated = (...args) => {
-            progressUpdated(...args);
-            if (window.__lfAskProgress.textContent.trim() === 'Asks 2/5')
-              window.__lfSawPartialAskBanner = true;
-          };
           const bulkFace = window.__lfAskBulk.querySelector('lf-ask-banner-face');
           const render = bulkFace.render.bind(bulkFace);
           bulkFace.render = () => {
@@ -8575,7 +8550,6 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     holding(page, held, 1, "the semantic answer")
     page.evaluate("__lfWaitForAskCurrent()")
     page.wait_for_function("__lfAskCurrentReady")
-    assert page.evaluate("__lfSawPartialAskBanner") is True
     assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
     expect(progress).to_have_text("Asks 1/5")
     expect(answer_all).to_have_text("Accept all (1)")
@@ -8749,7 +8723,7 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     # And the room it takes comes back with it, or the tray returns lying over the
     # column it is meant to stand beside.
     page.wait_for_function(
-        """() => getComputedStyle(document.body).marginLeft !== '0px'"""
+        """() => getComputedStyle(document.body).borderLeftWidth !== '0px'"""
     )
 
 
@@ -8817,7 +8791,7 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
-        """() => getComputedStyle(document.body).marginLeft !== '0px'"""
+        """() => getComputedStyle(document.body).borderLeftWidth !== '0px'"""
     )
     wide = page.evaluate(geometry)
     assert wide["column"] >= wide["tray"], (
@@ -8829,7 +8803,7 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     # Narrow enough and the strip is more than the page can give, so it covers.
     resized(page, 560, 800)
     page.wait_for_function(
-        """() => getComputedStyle(document.body).marginLeft === '0px'"""
+        """() => getComputedStyle(document.body).borderLeftWidth === '0px'"""
     )
     assert page.evaluate(geometry)["sideways"] == 0
 
@@ -8863,7 +8837,7 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     expect(decisions).to_be_hidden()
     # The page has its room back the moment the Asks tray goes down.
     page.wait_for_function(
-        """() => getComputedStyle(document.body).marginLeft === '0px'"""
+        """() => getComputedStyle(document.body).borderLeftWidth === '0px'"""
     )
 
     # Leaves is a modal covering workspace, so its scrim correctly makes the page and
@@ -9495,7 +9469,7 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
         d,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": "c-chart",
             "revision": 1,
             "text": "Like this:",

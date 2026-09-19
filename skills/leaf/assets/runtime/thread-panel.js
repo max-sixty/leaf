@@ -65,7 +65,7 @@ export function createThreadPanelController({
     // body, where page CSS can see it without naming private chrome.
     setPanelOpen(open);
     panel.classList.toggle("open", open);
-    const played = moveContentFrame(() => {
+    moveContentFrame(() => {
       if (open) document.body.dataset.lfAuxiliarySurface = "threads";
       else delete document.body.dataset.lfAuxiliarySurface;
     });
@@ -93,7 +93,6 @@ export function createThreadPanelController({
     // the conversation paint, which reads :hover once the list it drew has laid out
     // (thread-list.js's postPaint); this is the half that has no render.
     refreshHover();
-    return played;
   }
   function mountThreadPanel() {
     let pressedInlineThread = null;

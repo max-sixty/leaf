@@ -1,10 +1,6 @@
 """Conversation-scoped browser projection."""
 
-from ..asks import (
-    local_ask_entry,
-    thread_ask_inventory,
-    thread_ask_projection,
-)
+from ..asks import local_ask_entry, thread_ask_readings
 from ..events import (
     awaits_agent,
     bare_reaction,
@@ -31,7 +27,7 @@ def _thread_awaits_reader(
     if thread_id in open_ask_threads:
         return True
     turns = spoken_turns(thread)
-    if not turns or turns[-1]["author"] != "claude":
+    if not turns or turns[-1]["author"] != "agent":
         return False
     last = turns[-1]
     if last["kind"] == "reply":
@@ -70,21 +66,15 @@ def browser_conversation(
         registry,
         {"kind": "thread"},
     )
-    asks, awaiting = thread_ask_projection(
+    asks = thread_ask_readings(
         events,
         registry,
         settled,
         reading=reading,
         request_phases=request_phases(requests),
     )
-    all_asks = thread_ask_inventory(
-        events,
-        registry,
-        settled,
-        reading=reading,
-        request_phases=request_phases(requests),
-    )
-    open_ask_threads = {ask["thread"] for ask in asks}
+    awaiting = asks["awaiting"]
+    open_ask_threads = {ask["thread"] for ask in asks["reader"]}
     rendered_threads = [
         {
             **thread,
@@ -120,12 +110,12 @@ def browser_conversation(
             target["msgs"] = [
                 *target["msgs"],
                 {
-                    "id": f"codex-stream:{live_reply['turn']}",
+                    "id": f"stream:{live_reply['turn']}",
                     "attempt": live_reply["attempt"],
                     "kind": "reply",
                     "addressable": False,
-                    "author": "claude",
-                    "agent": live_reply.get("agent") or "Codex",
+                    "author": "agent",
+                    "agent": live_reply["agent"],
                     "parent": live_reply["reply_to"],
                     "text": live_reply.get("text", ""),
                     "ts": live_reply["ts"],
@@ -139,12 +129,7 @@ def browser_conversation(
             "projection": browser_projection(
                 reading.projection, scope="conversation", within={}, floors={}
             ),
-            "asks": {
-                "all": all_asks,
-                "reader": asks,
-                "unanswered": asks,
-                "awaiting": awaiting,
-            },
+            "asks": asks,
             "requests": requests,
             "threads": rendered_threads,
             # Through the withdrawal, like every other fold: an approval a reader

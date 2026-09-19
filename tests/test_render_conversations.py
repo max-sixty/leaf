@@ -3430,12 +3430,23 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # The shared vocabulary's faces are the theme's, for the reason chrome.css's
         # header gives: stated in the adopted sheet they beat each component's own rule
         # on nothing better than that sheet arriving last. The runtime sheet still names
-        # each of these inside its scope — the chip and the badge to say where the
-        # chrome's own copies stand, the margin entry to give a finger a bigger box —
-        # and the movement the theme's rule causes is that deliberate face.
-        "lf-chip",
+        # the badge inside its scope, to say where the chrome's own copies stand, and the
+        # movement the theme's rule causes is that deliberate face.
         "lf-key-badge",
-        "lf-margin-entry",
+        # The aim floor is one plain selector list in shadow.css, so that a finger's
+        # 44px reaches the document, the chrome and every declared widget tree from one
+        # rule. Each name below is a press the chrome also dresses inside its scope, so
+        # the floor is a second, document-level rule on a scoped name. It states a
+        # minimum on two axes and nothing else. The chip and the margin entry are on
+        # that list too and are not here: nothing inside the scope names them any more,
+        # so they are no longer a scoped vocabulary this exception has to cover.
+        "lf-command-reference-command",
+        "lf-layer-reference",
+        "lf-preview",
+        "lf-quote",
+        "lf-thread-action",
+        "lf-version-diff",
+        "lf-version-row",
         "lf-compose-field",
         "lf-compose-submit",
         # The one canonical composer can be seated in a widget's own Thread outlet,
@@ -3474,9 +3485,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-open",
         "lf-react-palette",
         "lf-react-strip",
-        "lf-react-surface",
         "lf-react-trigger",
-        "lf-react-trigger-icon",
         "lf-resolve",
         # The inline seat again: the composer's own row of response actions.
         "lf-response-action",

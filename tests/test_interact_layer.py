@@ -1174,6 +1174,50 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     )
 
 
+# The layer's page-side order, as layer.py's `composed_sheets` builds it: each root's
+# shadow.css and then its theme.css, the assets root before every package.
+_LAYER_SHEET_ORDER = [
+    sheet
+    for source in [
+        schema_model.ASSETS,
+        *sorted(
+            package
+            for package in schema_model.BUNDLED_PACKAGES.iterdir()
+            if package.is_dir()
+        ),
+    ]
+    for sheet in (source / "shadow.css", source / "theme.css")
+    if sheet.is_file()
+]
+
+
+def test_the_injected_control_face_stands_before_every_rule_that_answers_it():
+    """`.lf-ui` is a default. `offer()` writes it on every control a widget builds, and a
+    component that states the same property overrides it. Both are one class, so the
+    later rule wins, and the default has to stand first to lose.
+
+    It stopped standing first when the components moved to shadow.css and the face
+    stayed in theme.css, which composes after it: Send and Add option asked for the
+    accent and drew near-black, and so did every other one-class component rule that
+    states a colour, a family, a size or a line height for a control a widget built.
+
+    The first rule that states a face, rather than the first rule in the file, because
+    a rule that states none cannot override this one."""
+    for sheet in _LAYER_SHEET_ORDER:
+        for _conditions, _enclosing, selector, declarations in _style_rules(sheet):
+            if not any(name in _FACE for name, _value in declarations):
+                continue
+            where = f"{sheet.parent.name}/{sheet.name}"
+            assert selector == ".lf-ui", (
+                f"`{selector}` states a face in {where} ahead of the layer's own "
+                ".lf-ui default, which every control it dresses then loses to"
+            )
+            return
+    raise AssertionError(
+        "no face was read from the layer's sheets — the reading is broken"
+    )
+
+
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     """A media query cannot read a custom property, so the sheets state the covering
     widths, the strip-taking tray, the width properties, and the Ask stamp as literals

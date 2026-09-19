@@ -1,10 +1,12 @@
 # TODO
 
 Items are ordered by priority. Each names the result. When an item needs active
-investigation detail, keep it in a linked note. Completed work and rejected alternatives
-remain in git history. An item decided against leaves rather than staying with its
-reasoning attached: a dependency, platform, or storage choice goes to the Rejected table
-in [the survey note](notes/dependency-survey.md) as one line and the number that decided
+investigation detail, keep it in a linked note. Item ids are one space shared with
+`notes/`, so a new item takes the next id free in both rather than the next one here.
+Completed work and rejected alternatives remain in git history. An item decided against
+leaves rather than staying with its reasoning attached: a dependency, platform, or
+storage choice goes to the Rejected table in
+[the survey note](notes/dependency-survey.md) as one line and the number that decided
 it, and anything else goes to git history.
 
 ## Now
@@ -30,6 +32,13 @@ it, and anything else goes to git history.
   intended editorial and technical aesthetic. Fix repeated system-level gaps in type,
   spacing, framing, control hierarchy, and responsive behavior; avoid playful consumer-app
   ornament.
+
+- **Weigh the focus ring once, for every keyboard target.** The 2px accent ring
+  (`--here-ring` in `skills/leaf/assets/theme.css`) may be too strong on a large target:
+  a walked-to thread card or inline thread wears it inset over the quiet ground, and the
+  perimeter reads heavier there than around a button. The card was given the ring so that
+  a keyboard arrival looks the same everywhere, so whatever weight wins applies to every
+  target that wears it; do not soften it on the card alone.
 
 ## Make Leaf feel like a game
 
@@ -129,9 +138,7 @@ ordering contract these items extend.
 
 The 2026-09-13 to 09-17 Lit application arc closed #1 and #3, which git history now
 carries. A 2026-09-18 survey measured what remains and raised the items below; its
-evidence is the `leaf-simplification` page directory in the state home. Ids here share
-one space with the workspace research below, which reaches #23, so a new item starts
-above that.
+evidence is the `leaf-simplification` page directory in the state home.
 
 - **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
   imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the
@@ -292,11 +299,11 @@ thread panel's touch grip has its own item under Later.
   targets the keyboard does.
 
 - **Show a phone reader that a passage has a thread.** Margin markers and pickup receipts
-  are hidden below 900px (`runtime/margin-projection.js`'s `hide` fallback,
-  `assets/theme.css`), so a comment beside a task is invisible, although tapping the text
-  still opens it and Threads still lists it. The reaction row already moves into the text
-  flow when the margin has no room; the same reflow for markers would keep the page
-  honest about what it holds.
+  are hidden wherever the page shell is 840px or narrower (`runtime/margin-projection.js`'s
+  `hide` fallback, `assets/theme.css`), so a comment beside a task is invisible, although
+  tapping the text still opens it and Threads still lists it. The reaction row already
+  moves into the text flow when the margin has no room; the same reflow for markers
+  would keep the page honest about what it holds.
 
 - **Make a delivered document declare its viewport.** `references/page-authoring.md` puts
   `<meta name="viewport">` in the authoring template and nothing checks for it, so a page

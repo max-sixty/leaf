@@ -90,13 +90,56 @@ WHERE blob6 = '239383829012'
 ORDER BY timestamp
 ```
 
-Trusted agents use one Cloudflare token for the account that hosts Leaf. Its account
-permissions cover the Leaf runtime: `Account Analytics: Read`, `Workers Scripts:
-Edit`, `Workers Containers: Edit`, `Workers Tail: Read`, and `Workers Observability:
-Write`. Cloudflare scopes Workers permissions to an account rather than one script. If
-the agent also manages the custom domain, its zone permissions cover only `leaf.page`
-and include `Workers Routes: Edit`; the token has no DNS permission. Store the token in
-the agent host's credential store rather than in this repository.
+Leaf uses three Cloudflare tokens, one for each holder. None is stored in this
+repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used. The
+permissions below are Cloudflare's permission groups under the names its token API
+reports:
+
+| Token | Reaches | Held by |
+| --- | --- | --- |
+| `Leaf agent administration` | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine |
+| `Leaf site deploy (CI)` | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account | `publish-site`, through the `cloudflare-deploy` environment |
+| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account | Tend's agent, through the `tend` environment |
+
+The account also serves Workers and zones that are not Leaf's, so each token that edits
+a Worker names the Workers it may edit. `Individual Workers Editor` deploys and
+configures the Workers its policy lists and refuses every other Worker in the account;
+it cannot delete one. Cloudflare keys the policy to the Worker's script tag rather than
+its name, so a Worker that is deleted and recreated needs its tokens re-scoped.
+
+The account-wide entries are the ones Cloudflare offers in no narrower form. Container
+images, the Observability query below, and Analytics Engine are account-level APIs. A
+deploy publishes the Worker and its custom domain through per-Worker endpoints, but a
+deploy to `workers.dev` also reads the account's `workers.dev` subdomain. Only
+`leaf-website-dev` deploys there, so only the agent token holds
+`Workers Metadata Read-Only`, which covers that read and stops short of any Worker's
+code. Zone permissions apply only to the zones a token names. No token here changes a
+Worker outside Leaf, reads another Worker's code, or manages DNS, members, billing, or
+API tokens; changing a domain or minting a token takes the account owner's own login.
+
+What the account-wide entries expose is logs. The agent token and the Tend CI token read
+every Worker's Observability records and every Analytics Engine dataset on the account,
+and `Workers Metadata Read-Only` lets the agent token open a live tail on any Worker;
+that is what a leaked token would give away. The Tend CI token sits in the agent's
+launch environment, where any code the agent runs can read it. `.config/tend.yaml`
+therefore hands it only to agents answering an issue or a red run on `main`. Reviews,
+mentions on pull requests, and the scheduled polls — the notifications poll reviews fork
+pull requests — run with it empty. An agent answering an issue can still fetch a pull
+request's code for itself, and `running-tend` has it drop the token before running that
+code; that is an instruction, not a mechanism.
+
+On the maintainer's machine, the `Cloudflare Leaf agent administration` item in the
+`Max` 1Password vault holds the token of the same name. An agent reads it through the
+1Password service account, which needs no approval. It loads the token into the process
+that uses it and never prints it or writes it to a file:
+
+```sh
+export CLOUDFLARE_API_TOKEN=$(~/.claude/skills/using-1password/scripts/op-read.sh \
+  "op://Max/Cloudflare Leaf agent administration/credential")
+```
+
+A bare `op` command signs in as the person instead and waits for an approval that an
+unattended session cannot give.
 
 Hosted turns also emit structured timing records under `component=leaf-agent`.
 Every request record carries the page's public session reference and canonical event
@@ -117,13 +160,17 @@ ready raises with App Server's whole log, whose reason is at its end.
 The `turn_reply_first_text_published` record marks the first non-empty final-answer
 text written into the addressed thread, which is the user-visible response milestone;
 `turn_stream_completed` and `turn_reply_commit_failed` distinguish provider completion
-from Leaf's durable validation and append. `turn_stream_reconnect_failed` records each
-failed recovery attempt, and `turn_stream_reconnected` records recovery of the dropped
-App Server subscription. `turn_delivery_unbound` names a turn that ended before this
-follower bound its delivery to a provider turn — which says nothing about whether one
-ran, since the case it was written for had a turn running unobserved.
-`turn_failure_reported` follows it with how many of that delivery's moves the host
-settled with a failure receipt and how many it left to the turn already handling them.
+from Leaf's durable validation and append. `turn_interrupted` and
+`turn_interrupt_failed` record the follower stopping a turn it can no longer watch, and
+`turn_abandoned_interrupt_started` and `turn_abandoned_interrupt_completed` the same for
+a turn found running on a resumed thread. `turn_failure_reported` says how many of that
+delivery's moves the host settled with a failure receipt and how many it could not; a
+turn that answered everything it was given writes no such record.
+`container_continuation_receipted` marks a start the Worker's dispatch is not holding
+— a move a follower found waiting when its turn ended — and says whether the
+`startup_failed` receipt it wrote settled that move, so a `container_start_failed` on
+either caller can be read for which of the two answered the reader. One ending can
+write several, because the scan keeps going past a start it could not make.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
 first-byte, first-output, and completion records. Those records carry Codex's thread
@@ -135,7 +182,7 @@ the incident window in Unix milliseconds. Use the canonical event id; when only 
 public session reference is known, set `lookup_key=reference` and use that value instead:
 
 ```sh
-account_id=...
+account_id=ece2539b9b32ab59dd74aa6b6285e5db
 lookup_key=eventId
 lookup_value=...
 from_ms=...
@@ -168,12 +215,10 @@ above returns the accepted event's `timestamp` and `index1`. A window from one m
 before that timestamp through twenty minutes after keeps the scan unsampled.
 
 Historical Worker and Container logs are available in Workers Observability because
-`wrangler.toml` enables it. The query requires `Workers Observability Write`. A trusted
-agent host loads the token into the query process from its credential store rather than
-printing or persisting it. In Max's agent setup, the `Cloudflare Leaf diagnostics` item
-in the `Max` 1Password vault carries the account id and current token. Agents may inspect
-the complete Cloudflare envelope, including request metadata, through the Observability
-API or `wrangler tail`.
+`wrangler.toml` enables it. Agents may inspect the complete Cloudflare envelope,
+including request metadata, through the Observability API. `wrangler tail` streams the
+same records live under the agent administration token; the Tend CI token holds no tail
+permission.
 
 Each public document emits one `component=leaf-startup` record from the inline
 bootstrap, including when the module graph fails. It identifies the route, release,
@@ -192,10 +237,13 @@ Workers Observability is the operational log store. Request-path records carry t
 canonical `eventId`; Worker-side records also carry the public `reference` and `route`.
 The public reference finds every request from one reader session, and the event id
 follows one request across the Worker and Container datasets. `turn_start_acknowledged`
-records the RPC result and its Codex `turnId`; `turn_delivery_bound` records the later
-provider item that proves which delivery the turn consumed. Model records carry that
-turn id. Analytics Engine holds
-aggregate product events rather than a second debugging log. Live incidents use
+records the RPC result and its Codex `turnId`, and `turn_delivery_bound` the Leaf turn
+opened for it. A turn that ends without its reader's answer records
+`turn_failure_reported` with the receipts it wrote, and one stopped by its own follower
+records `turn_interrupted`, or `turn_interrupt_failed` where the provider refused —
+which is ordinarily the turn having ended first. Model records carry that
+turn id. Analytics Engine holds aggregate product events rather than a second
+debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
 query builder.
 
@@ -243,9 +291,16 @@ and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
 cold runtime-filesystem work before a model command. Each App Server turn is bound to
-one immutable delivery id carried by the direct request as `clientUserMessageId`. A
-bound delivery with one
-plain reply streams the final-answer item into its addressed thread and commits that
+one immutable delivery id carried by the direct request as `clientUserMessageId`, so
+the response to that request names the turn that took it and the follower that watches
+it starts already knowing which turn is its own. A start that names no turn — refused,
+or lost — withdraws its delivery and raises, and the reader gets a `startup_failed`
+receipt inviting them to send the message again. Which side writes it follows who
+asked: the Worker's dispatch for the request it is still holding, and the container
+itself for a move a follower took up when its own turn ended, whose request was
+answered `started` on the turn that was already running.
+A bound delivery with one plain reply
+streams the final-answer item into its addressed thread and commits that
 same completed text through the canonical reply writer, even if its subscription drops,
 its turn closes, or the next turn opens first. The App Server adapter presents ordered
 input in delivery slices containing at most one plain reply; a later plain reply remains
@@ -256,13 +311,26 @@ reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 The bound final-answer message, a page revision closed with `leaf resolve`, or a `leaf
 receipt` settles accepted input.
-A failed, interrupted, or completed-but-unanswered provider turn closes its active
-claim turn without inventing a reply; its reader obligation remains unanswered. The
-follower owes that outcome for every way it can stop, so a fault of any shape closes
-the turn, and a subscription that goes quiet for longer than a running turn ever does
-is recovered like a dropped one: `thread/resume` reads the authoritative turn, which
-carries the terminal status a stream that stopped delivering never sent. Neither a
-stalled stream nor a follower fault can leave a page reading working with no receipt.
+A turn is followed on the connection it was started on, which App Server subscribes for
+that connection's life; nothing reconnects or resumes. A completion notification is the
+ordinary ending, and a dropped connection, a silence past `STREAM_SILENCE`, and a fault
+of any shape are endings too: Leaf holds only a reader of the turn, so the follower
+interrupts the provider turn rather than leaving it running with its answer going
+nowhere. Every ending then accounts for the turn the same way — the claim turn closes
+without inventing a reply, the activity reading comes off the page, and a move still
+owed an answer gets the `turn_failed` receipt, which its own pickup would otherwise
+refuse every other writer. A thread found running a turn no follower holds, which means
+a container that died mid-turn, is interrupted before its next delivery starts. Neither
+a stalled stream nor a follower fault can leave a page reading working with no receipt.
+
+Every ending is also where the page's next move is started, and it is the only scan
+that move gets: a delivery carries at most one reply-owing move, so messages sent
+during a turn queue as obligations behind it, and one left here has no delivery holding
+it and nothing coming. So the scan runs on what the page still owes rather than on how
+the turn ended, and a start it cannot make is not the end of it — that move takes the
+`startup_failed` receipt, which nobody else can write once the reader's request was
+answered `started` on the turn already running, and the scan moves to the next. The
+first start that succeeds ends the chain, since its own follower ends here too.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
@@ -306,10 +374,10 @@ both credentials from the process and creates the dev Worker with its OpenAI sec
 CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... npm run deploy:dev --prefix worker
 ```
 
-Later deployments need only `CLOUDFLARE_API_TOKEN`, which the agent host loads from its
-credential store. The command builds the current checkout, deploys only that named
-environment, gives its commit plus working-tree state a release identity, waits for
-that exact release, and runs the complete agent benchmark:
+Later deployments need only `CLOUDFLARE_API_TOKEN`, loaded from 1Password as above. The
+command builds the current checkout, deploys only that named environment, gives its
+commit plus working-tree state a release identity, waits for that exact release, and
+runs the complete agent benchmark:
 
 ```sh
 npm run deploy:dev --prefix worker
@@ -317,16 +385,17 @@ npm run deploy:dev --prefix worker
 
 The deploy requires a Cloudflare Workers Paid account with Containers enabled, a
 `cloudflare-deploy` GitHub environment in `max-sixty/leaf` whose deployment branch
-policy allows only `main`, and a `CLOUDFLARE_API_TOKEN` environment secret able to
-deploy the Worker, container, and `leaf.page` custom domain. This is the same boundary
-used by Tend: manual workflow dispatches from other branches cannot read the token. The
-domain already uses Cloudflare nameservers; a successful deployment makes the Worker
-the `leaf.page` origin. The deployed Worker also needs an `OPENAI_API_KEY` Wrangler
-secret. Deployment checks that the binding exists before changing production, then
-runs one private Codex turn through the public site and requires both its published
-revision and reply. The workflow build is otherwise self-contained.
+policy allows only `main`, and `Leaf site deploy (CI)` as that environment's
+`CLOUDFLARE_API_TOKEN` secret. The `tend` environment holds `Leaf observability (Tend
+CI)` under the same name and branch policy, so manual workflow dispatches from other
+branches cannot read either token. The domain already uses Cloudflare nameservers; a
+successful deployment makes the Worker the `leaf.page` origin. The deployed Worker also
+needs an `OPENAI_API_KEY` Wrangler secret. Deployment checks that the binding exists
+before changing production, then runs one private Codex turn through the public site and
+requires both its published revision and reply. The workflow build is otherwise
+self-contained.
 
-Create that GitHub boundary once, then enter the token when the last command prompts:
+Create that GitHub boundary once, then enter each secret when its command prompts:
 
 ```sh
 gh api --method PUT repos/max-sixty/leaf/environments/cloudflare-deploy \
@@ -337,17 +406,19 @@ gh api --method POST \
   -f name=main -f type=branch
 gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env cloudflare-deploy
+gh secret set CLOUDFLARE_API_TOKEN \
+  --repo max-sixty/leaf --env tend
 cd worker
 npx wrangler secret put OPENAI_API_KEY
 ```
 
-Create the token from Cloudflare's **Edit Cloudflare Workers** template, restrict it to
-the account and the `leaf.page` zone, and add **Workers Containers: Edit** at the
-account level. The stock template does not necessarily include the separate Containers
-permission. The deploy workflow gives each build attempt its own release identity,
-builds and pushes the container before it activates the Worker, and deploys the image
-by its immutable registry digest. It then requests an immediate container rollout and
-drives the public site in Chrome. The gate accepts only the exact build release: it
-checks the passive edge presentation, immutable module URLs, and browser errors, then
-activates that reader's private container and verifies that its state has the same
-release identity. A coherent old release cannot satisfy the gate.
+Create each token from **Manage Account → Account API Tokens** with exactly the
+permissions in the token table above, setting the Workers scope to the named Workers
+rather than to all of them. Cloudflare refuses a per-Worker scope on a user-owned token.
+The deploy workflow gives each build attempt its own release identity, builds and pushes
+the container before it activates the Worker, and deploys the image by its immutable
+registry digest. It then requests an immediate container rollout and drives the public
+site in Chrome. The gate accepts only the exact build release: it checks the passive
+edge presentation, immutable module URLs, and browser errors, then activates that
+reader's private container and verifies that its state has the same release identity. A
+coherent old release cannot satisfy the gate.

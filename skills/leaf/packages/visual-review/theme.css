@@ -545,7 +545,9 @@ lf-visual-review > .lf-reading-after {
 }
 
 .lf-vr-disposition {
-  min-height: 38px;
+  /* Taller than the shared floor with a mouse, and never shorter than it: a rule
+     stating its own minimum for a pressable carries the floor with max(). */
+  min-height: max(38px, var(--aim-floor));
   padding-inline: var(--sp-3);
   border-color: var(--ink-2);
   font-weight: 700;

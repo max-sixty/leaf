@@ -2868,7 +2868,6 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     expect(other.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
         "Changes · 3 edits"
     )
-    other.close()
 
 
 def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
@@ -2913,8 +2912,6 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
           .map(event => event.revision)"""
     )
     assert latest_sequence == [1, 2]
-    old.close()
-    latest.close()
 
 
 def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve):

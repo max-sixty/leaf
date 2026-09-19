@@ -33,7 +33,11 @@ import {
 import { announce } from "../notifications.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
-import { allButCommandReference } from "../keyboard/register.js";
+import {
+  allButCommandReference,
+  pageCommand,
+  pageScope,
+} from "../keyboard/register.js";
 
 // The target chooser and page search have separate faces. Hints and the active search result are paint only;
 // the search box is a real control, kept beside them so its focus and accessible name are
@@ -709,13 +713,28 @@ export function createTargetChooser({
     addEventListener("resize", followMatch);
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
+  pageScope("page search", PAGE_SEARCH_SCOPE);
+  pageScope("target chooser", TARGET_CHOOSER_SCOPE);
+  // The page itself is already a Comment target; `s` plus a hint names a more particular
+  // one. Either route opens Comment, while reactions wait for a target.
+  pageCommand({
+    id: "target.chooser.open",
+    keys: ["s"],
+    does: "Comment on a visible target by hint",
+    line: "comment on target",
+    // Once the field is open, its typing scope owns character keys. This gate also keeps
+    // the route off the short line while a target is in hand.
+    lineWhen: () => !Boolean(fabAnchorAt()),
+    when: anchoringIsReady,
+    run: (...args) => openTargetChooser(...args),
+  });
+  // Search remains one press from the shelf and named in full by the reference.
+  pageCommand(PAGE_SEARCH);
+  pageCommand(REPEAT_PAGE_SEARCH);
+
   return {
     visibleTargets,
     paintTargetChooserHints,
-    PAGE_SEARCH,
-    REPEAT_PAGE_SEARCH,
-    TARGET_CHOOSER_SCOPE,
-    PAGE_SEARCH_SCOPE,
     targetChooserOpen,
     openTargetChooser,
     closeTargetChooser,

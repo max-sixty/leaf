@@ -862,7 +862,6 @@ def test_a_shot_still_flips_with_every_script_removed(
     assert shown_frames(loose) == ["after"]
     loose.keyboard.press("Space")
     assert shown_frames(loose) == ["before"]
-    loose.close()
 
 
 def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):

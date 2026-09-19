@@ -21,6 +21,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    standing_ring,
     token_colour,
 )
 from render_cases_navigation import (
@@ -622,8 +623,8 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     dock them withholds them as `lf-withheld` instead; the gallery stands still too
     now, but it docks no row at that viewport at all — measured, none of the
     eighteen it draws wears `lf-docked`. The posture is therefore reached directly:
-    under `COVERING` a contributed row cannot hang whatever the local room, and a
-    page with one target settles.
+    where the rail does not stand a contributed row cannot hang whatever the local
+    room, and a page with one target settles.
 
     The guard must not cost the mark, so the narrowing is read too — the row
     arrives hanging, and it is the pass that docks it. The pass itself is counted
@@ -648,7 +649,7 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     row = page.locator(".lf-margin-cluster")
     expect(row).to_have_count(1)
     expect(row).not_to_have_class(re.compile(r"lf-docked"))
-    # Inside the covering boundary, which is 840px wide.
+    # Under the rail's floor, a shell of 840px or less.
     resized(page, 800, 900)
     margins_laid_out(page)
     expect(row).to_have_class(re.compile(r"lf-docked"))
@@ -679,6 +680,155 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     )
     assert marks == {"passes": 5, "marks": []}, marks
     expect(row).to_have_class(re.compile(r"lf-docked"))
+
+
+def test_a_held_marker_hands_the_reader_to_the_page_map_when_the_rail_falls(
+    browser, serve
+):
+    """A marker the keyboard is on stops being drawn when the shell loses its rail, so
+    the reader is put on the control that still reaches what the marker held.
+
+    The browser takes focus off an element it hides, onto body, and whether it does so
+    before or after the owner hears that the shell moved is not ordered: a handoff that
+    reads `document.activeElement` when it hears finds nobody holding the margin about
+    one narrowing in three, and leaves that reader on body. So this asserts the settled
+    end state, and on the reading it replaced it is red at that rate rather than always
+    — measured, six of six here and four of five there. The reading it needs is the one
+    taken when focus last moved, which no hide can overwrite."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Hold this thread's marker with the keyboard.",
+        "anchor": {"section": "how-cap"},
+    }
+    page = open_page(browser, serve(PANEL_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    marker = page.locator(".lf-margin-marker.lf-margin-entry").first
+    marker.focus()
+    expect(marker).to_be_focused()
+
+    resized(page, 700, 900)
+    expect(marker).to_be_hidden()
+    expect(page.locator(".lf-page-map-toggle")).to_be_focused()
+
+
+def test_a_held_marker_reaches_a_folded_map_through_the_door_that_holds_it(
+    browser, serve
+):
+    """The Map is a banner control, so at a width that folds it the button stands behind
+    a shut door: it fails `checkVisibility()` and takes no focus. A handoff that asked
+    the button rather than the shelf left the reader on body, since by then the rail has
+    fallen and there is no margin row to fall back to either, and the Versions button the
+    last resort named can be folded away just as easily. Asking the shelf answers with
+    the door the reader can actually press."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    # The gallery docks most of its clusters even with a rail, and a docked marker is
+    # not in the rail to lose. Hold one that hangs.
+    marker = page.locator(
+        ".lf-margin-cluster:not(.lf-docked) .lf-margin-marker.lf-margin-entry:visible"
+    ).first
+    marker.focus()
+    expect(marker).to_be_focused()
+
+    resized(page, 390, 700)
+    expect(marker).to_be_hidden()
+    more = page.get_by_role("button", name="More page controls", exact=True)
+    expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
+    expect(more).to_be_focused()
+
+
+def test_a_panel_takes_the_markers_and_hands_the_reader_the_map(browser, serve):
+    """The rail is drawn in the shell, so what decides whether the margin stands is the
+    room a panel leaves rather than the room the window has. This is the case the
+    container query exists for and the one no window query can answer: the window does
+    not move, the markers go, and the Page Map arrives in their place.
+
+    1100 does both halves. The panel's 420px strip leaves a 680px shell, well under the
+    floor, while the window stays 260px clear of it — so a reading taken from the window
+    would keep drawing markers in a rail the page has no room for, which is exactly what
+    it used to do. The Map is read as offered rather than as visible, since the shelf may
+    fold it behind the More door at a width the banner is crowded at; folded or not, the
+    page is stating that the whole map is the way to what the markers held."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "A thread the margin draws a marker for.",
+        "anchor": {"section": "how-cap"},
+    }
+    page = open_page(browser, serve(PANEL_PAGE, events=[comment]))
+    offered = """() => {
+      const map = document.querySelector('.lf-page-map-toggle');
+      return Boolean(map) && !map.hidden && getComputedStyle(map).display !== 'none';
+    }"""
+    marker = page.locator(".lf-margin-marker.lf-margin-entry").first
+
+    resized(page, 1100, 900)
+    margins_laid_out(page)
+    expect(marker).to_be_visible()
+    assert not page.evaluate(offered), (
+        "a page with a rail offers the map in the margin, not in the banner"
+    )
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    margins_laid_out(page)
+    expect(marker).to_be_hidden()
+    assert page.evaluate(offered), (
+        "the panel took the rail's room at an unchanged window and the page offered "
+        "the reader nothing in its place"
+    )
+
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    margins_laid_out(page)
+    expect(marker).to_be_visible()
+    assert not page.evaluate(offered), "the room came back and the margin did not"
+
+
+def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
+    """The floor grants the rail out of the shell, so the shell has to hold what it
+    grants: the column (720), its padding (2 x 24) and the claim. A finger raises the
+    claim from 59 to 71, which puts the requirement at 839 against a floor of 840 — one
+    pixel, and until now nothing but the prose beside the rule stood behind it. So this
+    walks the shell down through the flip with the aim floor at the value a coarse
+    pointer gives it, and holds the column whole wherever the rail stands.
+
+    A floor set too low reads here as a column narrower than its measure, which is the
+    bug the floor exists to stop: the markers go flush against whatever took the room."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    page.evaluate(
+        "() => document.documentElement.style.setProperty('--aim-floor', '44px')"
+    )
+    stood = []
+    for width in range(880, 815, -5):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        reading = page.evaluate(
+            """() => {
+              const main = document.querySelector('main');
+              const style = getComputedStyle(main);
+              return {
+                posture: style.getPropertyValue('--lf-rail-posture').trim(),
+                column: Math.round(parseFloat(style.width)),
+                shell: Math.round(document.body.clientWidth),
+              };
+            }"""
+        )
+        if reading["posture"] != "margin":
+            continue
+        stood.append(reading)
+        assert reading["column"] >= 720, (
+            f"a {reading['shell']}px shell claimed the rail and left a "
+            f"{reading['column']}px column: the floor granted room the page lacks"
+        )
+    assert stood, "no width in this sweep claimed the rail, so nothing here was tested"
+    assert min(r["shell"] for r in stood) <= 850, (
+        "the sweep stopped above the flip, so the narrowest claim went untested"
+    )
 
 
 def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
@@ -3281,7 +3431,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()
-    expect(thread_margin_entry).to_be_focused()
+    # Back where the reader stood before the press, which was the accept control the
+    # pointer's click displaced, not the option the click focused.
+    expect(accept).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
@@ -4819,7 +4971,9 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(thread).to_be_focused()
+    # The pointer's press displaced the page, and Escape hands the page back; the card's
+    # ownership is read off the control's aria state above, not off where focus lands.
+    assert page.evaluate("() => document.activeElement === document.body")
 
     resized(page, 1440, 900)
     expect(thread).to_have_attribute("aria-controls", "lf-margin-preview")
@@ -4829,9 +4983,11 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     thread.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(thread).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(thread).to_be_focused()
+    expect(thread).to_have_attribute("aria-expanded", "false")
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
@@ -5082,6 +5238,156 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_hidden()
+
+
+# A conversation longer than the card at 1440x900, so its transcript scrolls under the
+# reply pinned to the card's foot.
+LONG_THREAD_PAGE = leaf_page(
+    "Long thread",
+    """
+<h1 id="title">Long thread</h1>
+<p>The open questions follow.</p>
+<section id="open"><h2>What this leaves open</h2>
+<p>Two layers close onto the control that opened them rather than the page.</p>
+</section>
+""",
+)
+LONG_THREAD_ROOT = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "text": "What should we do about these, and why are they hard to follow?",
+    "anchor": {"section": "open"},
+    "id": "a" * 32,
+    "ts": "2026-09-18T18:29:21-07:00",
+}
+LONG_THREAD = [
+    LONG_THREAD_ROOT,
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Claude",
+        "parent": LONG_THREAD_ROOT["id"],
+        "responds": LONG_THREAD_ROOT["id"],
+        "revision": 1,
+        "text": "\n\n".join(
+            f"{n}. A layer the mouse opened closes to the page, so the Escape that "
+            "follows a click lands where the reader was reading rather than on the "
+            "button they pressed."
+            for n in range(1, 13)
+        ),
+        "id": "b" * 32,
+        "ts": "2026-09-18T18:34:26-07:00",
+    },
+    {
+        "kind": "reply",
+        "author": "user",
+        "parent": LONG_THREAD_ROOT["id"],
+        "revision": 1,
+        "text": "Start with the first two.",
+        "id": "c" * 32,
+        "ts": "2026-09-18T18:42:22-07:00",
+    },
+]
+
+
+def open_long_thread(browser, serve):
+    """The long thread's margin card, its transcript scrolled partway down."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    transcript = preview.locator(".lf-margin-preview-list")
+    room = transcript.evaluate("list => list.scrollHeight - list.clientHeight")
+    assert room > 300, f"the transcript scrolls {room}px, too little to stand mid-way"
+    transcript.hover()
+    page.mouse.wheel(0, room // 2)
+    page.wait_for_function(
+        "list => list.scrollTop > 100", arg=transcript.element_handle()
+    )
+    return page, preview, transcript
+
+
+def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, serve):
+    """A reply stuck over a transcript scrolled partway still has room for its ring.
+
+    Pinned, the reply row stands on the edge the transcript clips to, where the list's
+    scroll padding reserves nothing. Both of the row's rings are read: the resting
+    Reply control's from the keyboard, and the text box's once the reader is in it.
+    """
+    page, preview, transcript = open_long_thread(browser, serve)
+    row = preview.locator(".lf-say")
+    pinned = """([row, list]) =>
+      Math.abs(row.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom)
+        < 0.5 && list.scrollTop < list.scrollHeight - list.clientHeight - 20"""
+    assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()]), (
+        "the reply row is not pinned over the transcript"
+    )
+
+    disclosure = preview.get_by_role("button", name="Reply", exact=True)
+    page.keyboard.press("Tab")
+    disclosure.focus()
+    expect(disclosure).to_be_focused()
+    assert disclosure.evaluate("node => node.matches(':focus-visible')")
+    assert standing_ring(page)["cuts"] == []
+
+    disclosure.press("Enter")
+    editor = preview.locator("textarea")
+    expect(editor).to_be_focused()
+    assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()])
+    assert standing_ring(page)["cuts"] == []
+
+
+def test_agent_status_leaves_the_margin_transcript_where_the_reader_scrolled_it(
+    browser, serve
+):
+    """A state read places the card, and placing the card moves nothing inside it.
+
+    The reader stands in the reply while reading partway up the transcript, then at its
+    end, and the agent's working and waiting statuses arrive meanwhile. Scroll
+    anchoring is off on the transcript. It can restore a place a placement disturbed
+    within one task: the headless shell restored it in every run, while headed Chrome
+    scrolled by a real gesture kept the disturbed place. With it off, the reading is
+    what the placement itself did.
+    """
+    page, preview, transcript = open_long_thread(browser, serve)
+    transcript.evaluate("list => list.style.overflowAnchor = 'none'")
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    expect(preview.locator("textarea")).to_be_focused()
+    place = "list => [list.scrollTop, list.scrollHeight - list.clientHeight]"
+    settled = (
+        "() => new Promise(resolve => "
+        "requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+
+    def statuses():
+        for status in (
+            ["working", "Reading your feedback", "--on", "a" * 32],
+            ["waiting"],
+        ):
+            result = CliRunner().invoke(
+                cli_model.cli, ["status", str(serve.page_dir), *status]
+            )
+            assert result.exit_code == 0, result.output
+            told(page)
+            page.evaluate(settled)
+            ticked(page)
+            yield status[0], transcript.evaluate(place)
+
+    partway = transcript.evaluate(place)
+    assert 0 < partway[0] < partway[1] - 20, partway
+    assert dict(statuses()) == {"working": partway, "waiting": partway}
+
+    transcript.hover()
+    page.mouse.wheel(0, partway[1])
+    page.wait_for_function(
+        "list => list.scrollTop >= list.scrollHeight - list.clientHeight - 1",
+        arg=transcript.element_handle(),
+    )
+    end = transcript.evaluate(place)
+    assert dict(statuses()) == {"working": end, "waiting": end}
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])

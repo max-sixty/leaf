@@ -13,7 +13,6 @@ import signal
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import urllib.parse
@@ -596,7 +595,44 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
 
 
 @pytest.fixture
-def codex_app_server():
+def app_server():
+    """Serve an App Server stand-in for one handler, until the test ends.
+
+    The observer under test connects over a real websocket, so a test that made its
+    own server owned three things: the server, the thread serving it, and the stop
+    that ends both. One of them ran that stop on the last line of the test body,
+    which is the line a failing assertion never reaches — the thread then served on
+    for the rest of the worker, holding its socket, under later tests that had
+    nothing to do with it.
+
+    Returns the endpoint to connect to: a loopback port, or the Unix socket path the
+    caller names.
+    """
+    serving = []
+
+    def serve(handle, socket_path=None) -> str:
+        server = (
+            serve_unix_websocket(handle, str(socket_path))
+            if socket_path
+            else serve_websocket(handle, "127.0.0.1", 0)
+        )
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        serving.append((server, worker))
+        return (
+            f"unix://{socket_path}"
+            if socket_path
+            else f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+        )
+
+    yield serve
+    for server, worker in reversed(serving):
+        server.shutdown()
+        worker.join(timeout=5)
+
+
+@pytest.fixture
+def codex_app_server(app_server):
     """A WebSocket App Server that emits two turns when the test advances it."""
     received = []
     observer_replies = []
@@ -706,23 +742,19 @@ def codex_app_server():
         )
         finish.wait(timeout=5)
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    port = server.socket.getsockname()[1]
     yield (
-        f"ws://127.0.0.1:{port}",
+        app_server(handle),
         received,
         observer_replies,
         first_turn,
         second_turn,
         finish,
     )
+    # Released here rather than left to the server's own stop, which would otherwise
+    # wait out the handler's five seconds on every test that used this.
     first_turn.set()
     second_turn.set()
     finish.set()
-    server.shutdown()
-    worker.join(timeout=5)
 
 
 def codex_queues(session_id: str) -> list[tuple[Path, dict]]:
@@ -1689,10 +1721,10 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
     assert observer_replies == []
 
 
-def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, request):
-    temporary = tempfile.TemporaryDirectory(prefix="leaf-test-", dir="/tmp")
-    request.addfinalizer(temporary.cleanup)
-    socket_path = Path(temporary.name) / "app-server.sock"
+def test_app_server_observer_connects_over_a_private_unix_socket(
+    monkeypatch, request, socket_dir, app_server
+):
+    socket_path = socket_dir / "app-server.sock"
     received = []
     request_headers = []
     release = threading.Event()
@@ -1721,13 +1753,9 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
         )
         release.wait(timeout=5)
 
-    server = serve_unix_websocket(handle, socket_path)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
+    endpoint = app_server(handle, socket_path)
     take_stream_activity(monkeypatch, [], [])
-    observer = codex_adapter_model.AppServerClient(
-        f"unix://{socket_path}", "codex-thread"
-    )
+    observer = codex_adapter_model.AppServerClient(endpoint, "codex-thread")
     request.addfinalizer(observer.stop)
 
     observer.start()
@@ -1735,8 +1763,6 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
     observer.stop()
     assert not observer.available.is_set()
     release.set()
-    server.shutdown()
-    worker.join(timeout=5)
 
     assert [message["method"] for message in received] == [
         "initialize",
@@ -1747,7 +1773,7 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
 
 
 def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
-    page_dir, request
+    page_dir, request, app_server
 ):
     activated = revisioning_model.activate_source(page_dir, [])
     assert activated.error is None and activated.revision == 1
@@ -1916,11 +1942,7 @@ def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
         )
         completed.set()
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(server.shutdown)
-    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+    endpoint = app_server(handle)
     observer = codex_adapter_model.AppServerClient(endpoint, "codex-thread")
     observer.start()
     request.addfinalizer(observer.stop)
@@ -2460,7 +2482,7 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     assert observer.events.turn_id is None
 
 
-def test_app_server_malformed_start_response_finishes_the_delivery(request):
+def test_app_server_malformed_start_response_finishes_the_delivery(request, app_server):
     """A broken connection must answer the delivery already removed from its queue."""
     received = threading.Event()
     release = threading.Event()
@@ -2489,11 +2511,7 @@ def test_app_server_malformed_start_response_finishes_the_delivery(request):
         socket.send("this is not json")
         release.wait(timeout=5)
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(server.shutdown)
-    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+    endpoint = app_server(handle)
     observer = codex_adapter_model.AppServerClient(endpoint, "codex-thread")
     observer.start()
     request.addfinalizer(observer.stop)
@@ -2519,7 +2537,9 @@ def test_app_server_malformed_start_response_finishes_the_delivery(request):
     release.set()
 
 
-def test_app_server_unexpected_notification_error_clears_availability(request):
+def test_app_server_unexpected_notification_error_clears_availability(
+    request, app_server
+):
     """Any observer failure must stop new deliveries before reconnecting."""
     sent = threading.Event()
     release = threading.Event()
@@ -2559,11 +2579,7 @@ def test_app_server_unexpected_notification_error_clears_availability(request):
         sent.set()
         release.wait(timeout=5)
 
-    server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(server.shutdown)
-    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+    endpoint = app_server(handle)
     observer = codex_adapter_model.AppServerClient(endpoint, "codex-thread")
     observer.start()
     request.addfinalizer(observer.stop)
@@ -6643,14 +6659,14 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     page = tmp_path / "concurrent-page"
     reached_layer = threading.Event()
     resume = threading.Event()
-    original_composed_theme = layer_model.composed_theme
+    original_composed_sheets = layer_model.composed_sheets
 
-    def held_composed_theme(sources):
+    def held_composed_sheets(sources):
         reached_layer.set()
         assert resume.wait(timeout=10), "the concurrent init never released its peer"
-        return original_composed_theme(sources)
+        return original_composed_sheets(sources)
 
-    monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
+    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
@@ -7346,6 +7362,35 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     assert capsys.readouterr().out == ""
 
 
+def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
+    claimed, tmp_path, capsys
+):
+    """Each page states its own debt; the protocol they share is stated once.
+
+    Every debt used to carry the whole protocol with it, so a session holding
+    three pages that owed the same thing spent three copies of the same ninety
+    words saying so — most of what the blocking message weighed, and all of it
+    between one page's line and the next.
+    """
+    second = tmp_path / "second-page"
+    shutil.copytree(claimed, second)
+    assert service_model.claim_page(second)
+    for page in (claimed, second):
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "look at this"}
+        )
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
+
+    assert str(claimed) in reason and str(second) in reason
+    assert reason.count("you haven't picked up") == 2
+    assert reason.count(schema_model.ACK_BATCH_INSTRUCTION) == 1
+    # The lines stand together, so the reader reaches every page before the
+    # first protocol rather than one page per protocol.
+    assert reason.index(str(second)) < reason.index(schema_model.ACK_BATCH_INSTRUCTION)
+
+
 def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys):
     """A developer preview is a page put up to be looked at, not handed over.
 
@@ -7743,7 +7788,7 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
 
 
 def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
-    server, page_dir, tmp_path, monkeypatch
+    server, page_dir, tmp_path, monkeypatch, socket_dir
 ):
     """A running turn's Stop hook refuses to end with a reader move unpicked, and a
     live `leaf wait` delivers one, so the move nobody picks up arrives at a Claude
@@ -7759,13 +7804,12 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
     accept once the POST has answered was never messaged."""
     closed = "2026-09-17T09:00:00+00:00"
     publish(page_dir)
-    sockets = Path(tempfile.mkdtemp(prefix="lf", dir="/tmp"))  # sun_path is short
     config = tmp_path / "claude"
     (config / "sessions").mkdir(parents=True)
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
     listeners = {}
     for pid, session_id in ((4101, "s1"), (4102, "s2")):
-        address = str(sockets / f"{pid}.sock")
+        address = str(socket_dir / f"{pid}.sock")
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         listener.bind(address)
         listener.listen()
@@ -7851,7 +7895,6 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
     finally:
         for listener in listeners.values():
             listener.close()
-        shutil.rmtree(sockets)
 
 
 def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(

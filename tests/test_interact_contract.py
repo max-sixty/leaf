@@ -4278,13 +4278,17 @@ def test_check_reads_a_page_stylesheet_as_css(page_dir):
     assert checked("/* .wide { width: 900px } */").exit_code == 0
 
 
-def test_check_reports_css_syntax_errors_in_every_authored_source(page_dir):
-    theme = page_dir / "theme.css"
-    theme.write_text(theme.read_text() + "\n.theme { color red; }\n")
+def test_check_reports_css_syntax_errors_in_every_source_the_page_carries(page_dir):
+    """The page's own <style>, each inline style, and every sheet it vendors.
+    shadow.css is the sheet each widget's shadow root adopts, so a malformed rule
+    there reaches the reader as an unstyled widget with nothing said about it."""
+    for name in ("theme.css", "shadow.css"):
+        sheet = page_dir / name
+        sheet.write_text(f"{sheet.read_text()}\n.vendored {{ color red; }}\n")
     (page_dir / "index.html").write_text(
         styled(
             '.page { color: "unterminated\n; }',
-            '<p style="color red">All three CSS inputs are malformed.</p>',
+            '<p style="color red">Every CSS input is malformed.</p>',
         )
     )
 
@@ -4294,7 +4298,8 @@ def test_check_reports_css_syntax_errors_in_every_authored_source(page_dir):
     assert "page <style> syntax error" in result.output
     assert "inline style #1 syntax error" in result.output
     assert "theme.css syntax error" in result.output
-    assert result.output.count("syntax error") == 3
+    assert "shadow.css syntax error" in result.output
+    assert result.output.count("syntax error") == 4
 
 
 def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):

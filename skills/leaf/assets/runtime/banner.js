@@ -106,9 +106,8 @@ export const toneFor = (kind) => TONE[kind];
 //
 // The mark is the vendored icon.svg — the page's own asset like the theme, so a project
 // can put its own there — and all the runtime does to it is paint the one element it
-// declares. Refused rather than defaulted, as the theme's shadow block is: a mark with
-// no lf-tone leaves a tab that never changes, which is a status readout that silently
-// isn't one.
+// declares. Refused rather than defaulted: a mark with no lf-tone leaves a tab that
+// never changes, which is a status readout that silently isn't one.
 const tabLink = Object.assign(document.createElement("link"), {
   rel: "icon",
   type: "image/svg+xml",
@@ -221,7 +220,10 @@ let previewDiagnostics = "";
 function renderPreview(state) {
   const preview = state.preview;
   if (!preview) return;
-  const kind = preview.interaction === "automation" ? "Automation" : "Preview";
+  // A reader preview claims the page, so every press on it — the agent's own
+  // screenshots included — comes back to the session as reader input. That is the
+  // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
+  const kind = preview.interaction === "reader" ? "Reader" : "Preview";
   const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
   previewLabels = preview.commit ? [stem, `${stem}+`] : [stem];
   const label = preview.commit && preview.dirty ? `${stem}+` : stem;

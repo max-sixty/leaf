@@ -5,6 +5,7 @@ import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";
 import { focused } from "../keyboard/scopes.js";
+import { focusDestination, readCaret } from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { runtime } from "../context.js";
@@ -35,7 +36,7 @@ class ConversationSeat {
     activeBatch?.seats.add(this);
     const standing = focused();
     const held = this.node.contains(standing);
-    this.#focus ??= held ? standing : null;
+    this.#focus ??= held ? { element: standing, caret: readCaret(standing) } : null;
     this.#model = model;
     const wanted = new Set(model.threads.map((thread) => thread.key));
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
@@ -49,10 +50,7 @@ class ConversationSeat {
       view.present(descriptor);
       return { key: descriptor.key, node: view.node };
     });
-    const selection =
-      held && standing.localName === "textarea"
-        ? [standing.selectionStart, standing.selectionEnd, standing.selectionDirection]
-        : null;
+    const caret = held ? readCaret(standing) : null;
     render(
       [
         repeat(
@@ -69,10 +67,8 @@ class ConversationSeat {
       standing.isConnected &&
       !this.node.contains(focused()) &&
       this.node.contains(standing)
-    ) {
-      standing.focus({ preventScroll: true });
-      if (selection) standing.setSelectionRange(...selection);
-    }
+    )
+      focusDestination(standing, caret);
     if (!activeBatch) this.commit();
   }
 
@@ -91,7 +87,8 @@ class ConversationSeat {
   }
   retain() {
     this.present(this.#committed);
-    if (this.#focus?.isConnected) this.#focus.focus({ preventScroll: true });
+    if (this.#focus?.element.isConnected)
+      focusDestination(this.#focus.element, this.#focus.caret);
     this.#focus = null;
   }
   prune() {

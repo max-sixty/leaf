@@ -16,6 +16,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -617,7 +618,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     checked_without_writer = threading.Event()
     finish_vendoring = threading.Event()
     original_append_record = service_model.PageTransaction._append_record
-    original_composed_theme = layer_model.composed_theme
+    original_composed_sheets = layer_model.composed_sheets
 
     def held_append_record(page, event):
         if event.get("kind") == kind:
@@ -625,10 +626,10 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
         return original_append_record(page, event)
 
-    def held_composed_theme(sources):
+    def held_composed_sheets(sources):
         checked_without_writer.set()
         assert finish_vendoring.wait(timeout=10), "the writer never resumed"
-        return original_composed_theme(sources)
+        return original_composed_sheets(sources)
 
     def init_result():
         try:
@@ -640,14 +641,14 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     monkeypatch.setattr(
         service_model.PageTransaction, "_append_record", held_append_record
     )
-    monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
+    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     with ThreadPoolExecutor(max_workers=2) as executor:
         writing = executor.submit(write)
         assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
         vendoring = executor.submit(init_result)
         passed_check = checked_without_writer.wait(timeout=2)
         # Release either acquisition order without relying on a scheduler: a
-        # broken re-vendor may already own the page lease at composed_theme.
+        # broken re-vendor may already own the page lease at composed_sheets.
         finish_vendoring.set()
         resume.set()
         written = writing.result(timeout=10)
@@ -825,6 +826,21 @@ def server(page_dir):
     temporary = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
     yield temporary.origin
     temporary.close()
+
+
+@pytest.fixture
+def socket_dir():
+    """A directory short enough to hold a Unix socket, gone when the test ends.
+
+    `sun_path` is 104 bytes, and pytest spends most of them before the test's own
+    files begin: a socket under `tmp_path` is refused outright, with `AF_UNIX path
+    too long` naming the length rather than the directory that made it. So the
+    sockets go under a short root — and, because that root is outside every sweep
+    the run makes, they are this fixture's to remove rather than the test's.
+    """
+    directory = Path(tempfile.mkdtemp(prefix="lf", dir="/tmp"))
+    yield directory
+    shutil.rmtree(directory, ignore_errors=True)
 
 
 def fetch(url, data=None, token=TOKEN, layer=None, headers=None):

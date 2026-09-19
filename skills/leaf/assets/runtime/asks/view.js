@@ -140,6 +140,7 @@ import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { ASK_AT } from "./tray-list.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
+import { pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainReaderIntent } from "../reader-intent.js";
 import {
@@ -539,6 +540,11 @@ export function createAskView({
       : null;
   }
   const standingIn = () => askNode(standingAsk());
+  // Whether the reader holds an Ask at all, answered or not: the standing floor's
+  // question, which is where letting go lands rather than which Ask is the walk's. The
+  // same resolution as above, so a control hoisted into the margin holds the Ask it
+  // serves, and an answered Ask keeps its picks a place to stand.
+  const heldAsk = () => Boolean(askAt(allAsks(), documentFocused()));
 
   // The Ask-local action map. A package contributes exact controls through the same
   // command scopes dispatch and Help already consume. Each action receives a contextual
@@ -946,6 +952,41 @@ export function createAskView({
     standOn(record, review);
   }
 
+  // The reader's standing on an Ask, said in terms a replaced document can still answer.
+  // Focus by shape does not cross a document replacement — version.js says why — but an
+  // Ask is not a shape. Its id is a declared identity that the inventory, the tray rows,
+  // and the walk already resolve against whichever document is standing, so a reader
+  // working an Ask when a revision lands is put back on the same Ask rather than dropped
+  // to `body`.
+  //
+  // The id is the whole of what is captured, and the Ask itself is the whole of what is
+  // handed back. Which control inside it they held is not something this can answer: the
+  // controls are the widget's, most carry no id of their own, and `standOn`'s first
+  // answering control is the walk's landing rule rather than a restore. Handing that back
+  // is the failure version.js's header names — a reader holding the second option was
+  // given the first, and their next press chose it. The Ask's own opening is the one
+  // place that cannot misfire, because it holds a lent tab stop rather than a decision:
+  // the Ask's digit routes are live there and Space decides nothing.
+  //
+  // Chrome is excluded because it has nothing to restore: a tray row and a margin entry
+  // for the same Ask are keyed by that id already, so a patch hands each of them back as
+  // the same element, still holding the focus the reader put on it.
+  function captureStanding() {
+    const held = documentFocused();
+    if (!held || held === document.body || inChrome(held)) return null;
+    return standingAsk()?.id ?? null;
+  }
+
+  // Put the reader back, once the arriving document has been upgraded and presented.
+  // Standing is restored rather than asserted: a reader the revision left where they were
+  // is already standing there, and an Ask the revision took away is nowhere to stand, so
+  // each of those returns and `body` keeps the focus the replacement gave it.
+  function restoreStanding(ask) {
+    if (!ask || standingAsk()?.id === ask) return;
+    const record = allAsks().find((candidate) => candidate.id === ask);
+    if (record) arriveAt(record);
+  }
+
   // The screen the reader can use, and the distance two boxes stand apart in it. The
   // clearance is the scroller's own declared scroll-padding, where it already says how
   // much of its top edge the banner stands over, rather than a second copy of that number
@@ -1158,11 +1199,14 @@ export function createAskView({
       );
     // The walk reads the standing destination, so begin it after asynchronous reveal
     // has moved focus. A failed reveal has not arrived and must not register the prior
-    // focused Ask as this walk's destination.
+    // focused Ask as this walk's destination. The arrival is returned so the keyboard's
+    // layer stack judges the press's return frame once the panel it may have opened is
+    // standing.
     const ready = goToAsk(next, asks).then((arrived) => {
       if (arrived) begin();
     });
     void ready.catch(() => {});
+    return ready;
   }
 
   let mounted = false;
@@ -1196,6 +1240,49 @@ export function createAskView({
     lend(null);
   }
 
+  pageCommand(actionRow);
+  pageCommand({
+    id: "ask.walk",
+    keys: ["a", "Shift+a"],
+    routes: [
+      {
+        id: "ask.next",
+        binding: "a",
+        does: "Next ask this page is waiting on you for",
+      },
+      {
+        id: "ask.previous",
+        binding: "Shift+a",
+        does: "Previous ask this page is waiting on you for",
+      },
+    ],
+    does: "Next / previous ask this page is waiting on you for",
+    line: "asks",
+    when: () => openAsks().length > 0,
+    repeat: true,
+    // The same shape as the thread walk: the press made off the Asks is the entry and
+    // hands back the place it displaced, a later press made standing on an Ask is a step
+    // within that standing. An Ask seated in a thread is reached through the panel, so a
+    // press made with the panel shut opens it on the way, and that opening is the press's
+    // own to undo in the same one Escape. The arrival is asynchronous, and `run` returns
+    // it, so the stack judges this frame once the reader is standing.
+    returnFrame: () => {
+      if (standingAsk()) return null;
+      const panelWasShut = !panelIsOpen();
+      const opened = () => panelWasShut && panelIsOpen();
+      return {
+        active: () => Boolean(standingAsk()),
+        close: () => {
+          if (opened()) setPanel(false);
+        },
+        does: () =>
+          opened() ? "Close the thread panel" : "Let go of what you are standing on",
+        line: () => (opened() ? "close threads" : "let go"),
+      };
+    },
+    run: (binding) => stepAsk(binding === "a" ? 1 : -1),
+  });
+
   return {
     mount,
     destroy,
@@ -1204,7 +1291,9 @@ export function createAskView({
     standsWith,
     askPlace,
     standingIn,
-    actionRow,
+    heldAsk,
+    captureStanding,
+    restoreStanding,
     markHere,
     goToAsk,
     stepAsk,

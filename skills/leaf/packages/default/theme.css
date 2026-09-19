@@ -2101,6 +2101,12 @@ lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--h
    is the part a grid could move. */
 lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
              width: max-content; min-width: 100%; box-sizing: border-box; }
+/* max-content is the unwrapped line, so the sheet's wrap finds no break to take while
+   it stands and the row draws its full width through the block's border. Paper gives
+   the width back, and the line wraps inside the frame with its gutter on the first row.
+   Screen keeps the scroller: sideways is a gesture there and the column still means
+   something. */
+@media print { lf-code .lf-code-line { width: auto; } }
 lf-code .lf-code-line::before { counter-increment: lf-code-line;
              content: counter(lf-code-line); display: inline-block; width: 38px;
              margin-right: 8px; padding-right: 10px; box-sizing: border-box;
@@ -2135,7 +2141,15 @@ lf-text-document figcaption {
   color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }
-lf-text-document pre { margin: 0; border: 0; border-radius: 0; }
+/* A capture wraps. `pre`'s UA `white-space: pre` is right for source, where the column
+   carries meaning, and a text document is as often prose: a paragraph captured as one
+   line ran off the side of the frame, so reading a sentence meant working the scrollbar
+   at its foot. Wrapping costs a capture nothing — there is no alignment here to lose,
+   which is the whole reason lf-diff makes its own wrap the reader's switch and this is
+   simply the default. The frame keeps `overflow-x: auto` for what no line box can break:
+   a path, a URL, minified data. An author whose capture is columnar has no attribute to
+   say so yet; add one when a page needs it. */
+lf-text-document pre { margin: 0; border: 0; border-radius: 0; white-space: pre-wrap; }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded
    corners, so an outside ring loses a pixel on three sides. */

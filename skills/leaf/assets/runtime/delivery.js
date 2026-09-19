@@ -40,6 +40,16 @@ export function createDelivery({
         continue;
       }
       if (!sent.response) return { accepted: null };
+      // `503` is the server saying it cannot take this yet, which the website's edge
+      // sends for the minutes a container image takes to reach a reader's allocation.
+      // The loop already retries; what it reported without this was the failed decode
+      // of a plain-text body rather than what the server said.
+      if (sent.response.status === 503) {
+        if (!announced) notice("The server isn't ready yet — retrying your change…");
+        announced = true;
+        await retryPause();
+        continue;
+      }
       const decoded = await Promise.race([
         sent.response.json().then(
           (answer) => ({ answer }),

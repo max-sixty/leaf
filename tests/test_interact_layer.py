@@ -1023,46 +1023,114 @@ def _selector_list(prelude):
 _HOLDS_RULES = {"media", "supports", "container", "scope", "layer"}
 
 
-def _stated_faces(sheet, *, only_top_level):
-    """{complex selector: {property}} for every rule stating a shared visual property.
+def _style_rules(sheet):
+    """(conditions, enclosing, complex selector, declarations) for each style rule.
 
-    A selector list is split because a rule dressing four shapes states the same fact
-    about each, and the other sheet's copy may name only one of them."""
-    stated = {}
+    `conditions` are the preludes of the @media, @supports, @container and @layer a rule
+    stands under; `enclosing` is every at-rule keyword around it, @scope included, so a
+    reading can ask for chrome.css's top level or for only what its `@scope` holds. A
+    selector list is split, because a rule dressing four shapes states the same fact
+    about each and another sheet's copy may name only one of them. Values are kept: a
+    rule that answers another with a different value is an override, not a copy."""
 
-    def visit(rules):
+    def visit(rules, conditions, enclosing):
         for rule in rules:
             if rule.type == "at-rule":
-                if rule.lower_at_keyword not in _HOLDS_RULES:
+                if rule.lower_at_keyword not in _HOLDS_RULES or rule.content is None:
                     continue
-                if only_top_level and rule.lower_at_keyword in {"scope", "layer"}:
-                    continue
-                if rule.content is not None:
-                    visit(
-                        tinycss2.parse_rule_list(
-                            rule.content, skip_comments=True, skip_whitespace=True
-                        )
-                    )
+                keyword = rule.lower_at_keyword
+                query = " ".join(tinycss2.serialize(rule.prelude).split())
+                yield from visit(
+                    tinycss2.parse_rule_list(
+                        rule.content, skip_comments=True, skip_whitespace=True
+                    ),
+                    conditions
+                    if keyword == "scope"
+                    else (*conditions, f"@{keyword} {query}"),
+                    enclosing | {keyword},
+                )
                 continue
             if rule.type != "qualified-rule":
                 continue
-            properties = {
-                declaration.lower_name
+            declarations = [
+                (declaration.lower_name, tinycss2.serialize(declaration.value).strip())
                 for declaration in tinycss2.parse_declaration_list(
                     rule.content, skip_comments=True, skip_whitespace=True
                 )
-                if declaration.type == "declaration" and declaration.lower_name in _FACE
-            }
-            if properties:
-                for selector in _selector_list(rule.prelude):
-                    stated.setdefault(selector, set()).update(properties)
+                if declaration.type == "declaration"
+            ]
+            for selector in _selector_list(rule.prelude):
+                yield conditions, enclosing, selector, declarations
 
-    visit(
+    yield from visit(
         tinycss2.parse_stylesheet(
             sheet.read_text(), skip_comments=True, skip_whitespace=True
-        )
+        ),
+        (),
+        frozenset(),
     )
+
+
+def _stated_faces(sheet, *, only_top_level):
+    """{complex selector: {property}} for every rule stating a shared visual property."""
+    stated = {}
+    for _conditions, enclosing, selector, declarations in _style_rules(sheet):
+        if only_top_level and enclosing & {"scope", "layer"}:
+            continue
+        properties = {name for name, _value in declarations if name in _FACE}
+        if properties:
+            stated.setdefault(selector, set()).update(properties)
     return stated
+
+
+_PAGE_SIDE_SHEETS = [
+    schema_model.ASSETS / "theme.css",
+    schema_model.ASSETS / "shadow.css",
+    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
+    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/shadow.css")),
+]
+
+
+def _declared_rules(sheet, *, scoped):
+    """{(conditions, complex selector): [declarations]}; `scoped` keeps only what stands
+    inside chrome.css's `@scope`."""
+    found = {}
+    for conditions, enclosing, selector, declarations in _style_rules(sheet):
+        if scoped and "scope" not in enclosing:
+            continue
+        found.setdefault((conditions, selector), []).append(declarations)
+    return found
+
+
+def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
+    """A rule inside chrome.css's `@scope` reaches the chrome root; the same rule in
+    theme.css or shadow.css reaches the page, the widget trees, and the chrome root too.
+    Written in both, the shape has two statements to keep in step and the chrome's is the
+    one anybody reading the page's sheet cannot see — which is how the whole reaction
+    vocabulary came to be written twice, identically, in nineteen rules.
+
+    Equality is the reading, because a scoped rule that says something different is the
+    chrome answering the page on purpose: the margin projection's z-index above the
+    page's is that, and is not a copy."""
+    chrome = _declared_rules(
+        schema_model.ASSETS / "runtime" / "chrome.css", scoped=True
+    )
+    assert chrome, "no scoped rules read from chrome.css — the reading is broken"
+    restated = []
+    for sheet in _PAGE_SIDE_SHEETS:
+        for key, blocks in _declared_rules(sheet, scoped=False).items():
+            for block in blocks:
+                if block and block in chrome.get(key, []):
+                    conditions, selector = key
+                    where = f"{sheet.parent.name}/{sheet.name}"
+                    restated.append(
+                        f"`{' '.join((*conditions, selector))}` is stated identically "
+                        f"in chrome.css and {where}"
+                    )
+    assert not restated, (
+        "a rule written twice, once where the page cannot see it:\n"
+        + "\n".join(sorted(set(restated)))
+    )
 
 
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
@@ -1077,10 +1145,11 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     had drifted: theme.css's chip cleared the platform's button face and chrome.css's
     did not, so in the light DOM that reset had never once run.
 
-    Only chrome.css's top level is asked. A rule inside its `@scope` is private to the
-    chrome root and matches nothing a page-side sheet dresses, and a rule inside its
-    `@layer` loses to any unlayered choice whatever its specificity, so neither can win
-    this way.
+    Only chrome.css's top level is asked here. A rule inside its `@layer` loses to any
+    unlayered choice whatever its specificity, and a rule inside its `@scope` wins
+    inside the chrome root while the page-side copy still dresses the same shape
+    everywhere else — one statement in two files rather than one that never applies,
+    which the test above reads instead.
 
     One selector spelled the same on both sides is what this reads, which is the shape
     a copy takes. Two different selectors that tie on one element are the same defect
@@ -1091,10 +1160,7 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     )
     assert adopted, "no top-level faces read from chrome.css — the reading is broken"
     twice = []
-    for sheet in [
-        schema_model.ASSETS / "theme.css",
-        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
-    ]:
+    for sheet in _PAGE_SIDE_SHEETS:
         for selector, properties in _stated_faces(sheet, only_top_level=False).items():
             both = properties & adopted.get(selector, set())
             if both:
@@ -1142,6 +1208,26 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         'html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
+
+
+def test_the_rail_s_floor_is_one_width_in_every_sheet():
+    """theme.css claims the rail in a shell wider than its floor and stops drawing the
+    margin at or under it, and chrome.css offers the Page Map toggle at or under it. No
+    runtime constant stands behind the number — the runtime reads the posture the claim
+    states — so the three spellings are held to each other."""
+    theme = (schema_model.ASSETS / "theme.css").read_text()
+    chrome = (schema_model.ASSETS / "runtime" / "chrome.css").read_text()
+    floor = re.search(
+        r"@container lf-shell \(width > (\d+)px\) \{\s*:is\(\s*:root\[data-lf-rail\]",
+        theme,
+    ).group(1)
+    spelled = f"@container lf-shell (width <= {floor}px) {{"
+    assert spelled in theme, (
+        "the margin is drawn under a different floor than it is claimed"
+    )
+    assert spelled in chrome, (
+        "the Page Map toggle appears at a different floor than the rail"
+    )
 
 
 def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
@@ -1487,6 +1573,124 @@ def test_the_layer_composer_is_the_browser_module_population():
 def test_every_test_runs_against_a_throwaway_state_home(tmp_path_factory):
     """Fixture claims and installed packages stay outside the developer's state."""
     assert machine_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
+
+
+def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
+    """Each of these has one owner in the suite, and the owner is what ends it.
+
+    A process, a browser, and a directory short enough to hold a socket: what a test
+    gets by asking for the fixture is a teardown, and what it gets by calling the
+    primitive itself is a resource the run has no way to take back — a server still
+    serving after the test that started it, a browser held for the rest of the
+    worker, a directory under a root neither sweep walks. A fixture cannot stop a
+    test making its own, so the call is read for here instead, which is the only
+    place the rule can be enforced rather than written down.
+
+    A new exception is a line in this list naming the file it belongs to and the
+    reason, not a call that quietly joins the others.
+
+    The end of the loan is read for too. A page or context the `browser` fixture
+    made is closed by that fixture, after it has read what the page reported; a
+    close where the test ends with it does the same work a step early, and the
+    reading it cuts short is its own. The exception is a page that keeps making
+    the fault its test is about, where the consume has to follow a close of its own
+    (tests/CLAUDE.md, "A page is ready when it says what has finished").
+    """
+    closes_to_stop_a_repeating_fault = {
+        "test_a_website_session_reference_survives_a_failed_first_read",
+        "test_a_malformed_first_state_keeps_interaction_unresolved",
+    }
+    # What hands a test something the browser fixture will close: the fixtures built
+    # on it, and `opened_tab`, whose tab is made readable and so reports into the
+    # collector that fixture reads.
+    lending = {"browser", "iphone", "held_events", "one_reader", "opened_tab"}
+    owners = {
+        "Popen": ("spawn", {"conftest.py"}),
+        "mkdtemp": ("socket_dir", {"interact_support.py"}),
+        "TemporaryDirectory": ("socket_dir", {"interact_support.py"}),
+        "launch": ("browser, iphone", {"conftest.py"}),
+    }
+    bypassed = []
+    for path in sorted((ROOT / "tests").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            called = (
+                node.func.attr
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                else None
+            )
+            if called in owners and path.name not in owners[called][1]:
+                owner = owners[called][0]
+                bypassed.append(f"{path.name}:{node.lineno} {called} — {owner} owns it")
+        for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
+            if function.name in closes_to_stop_a_repeating_fault:
+                continue
+            # A fixture's own teardown is the owner ending what it lent. Read what
+            # the decorator calls, not its whole text, which also carries a
+            # `parametrize` whose ids can say "fixture".
+            if any(
+                ast.unparse(d).split("(")[0].endswith("fixture")
+                for d in function.decorator_list
+            ):
+                continue
+            # What the fixture owns is what came from it, however far the value
+            # travelled and whatever the function was handed it as:
+            # `host, app = open_snapshot_app(browser, page_dir)` hands back a page
+            # as surely as `browser.new_page()` does, `browser, held = held_events`
+            # hands over the browser itself, and `for tab in (first, second)` walks
+            # pages. A list of the spellings that count would read some and miss
+            # the next, so the names are followed until nothing new is reached.
+            bindings = []
+            for node in ast.walk(function):
+                if isinstance(node, ast.Assign):
+                    bindings.append((node.value, node.targets))
+                elif isinstance(node, ast.For):
+                    bindings.append((node.iter, [node.target]))
+                elif isinstance(node, ast.With):
+                    bindings += [
+                        (item.context_expr, [item.optional_vars])
+                        for item in node.items
+                        if item.optional_vars is not None
+                    ]
+            lent = set(lending)
+            while True:
+                reached = {
+                    name.id
+                    for value, targets in bindings
+                    if lent & {n.id for n in ast.walk(value) if isinstance(n, ast.Name)}
+                    for target in targets
+                    for name in ast.walk(target)
+                    if isinstance(name, ast.Name)
+                }
+                if reached <= lent:
+                    break
+                lent |= reached
+            # Only where the test is finished with the page: anywhere in a `finally`,
+            # which is the end of the block the page was used in, and the function's
+            # last line, followed down through a block it ends on. A close written
+            # anywhere else is the gesture under test — a second tab shut to show
+            # what the first one still holds — and the assertions after it are what
+            # read it.
+            endings = [
+                statement
+                for node in ast.walk(function)
+                if isinstance(node, ast.Try)
+                for final in node.finalbody
+                for statement in ast.walk(final)
+            ]
+            last = function.body[-1]
+            while isinstance(last, (ast.For, ast.If, ast.With)):
+                last = last.body[-1]
+            endings.append(last)
+            for node in endings:
+                if not isinstance(node, ast.Expr):
+                    continue
+                ending = ast.unparse(node)
+                if ending.endswith(".close()") and ending[: -len(".close()")] in lent:
+                    bypassed.append(
+                        f"{path.name}:{node.lineno} {ending} — the browser fixture does"
+                    )
+    assert not bypassed, bypassed
 
 
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):

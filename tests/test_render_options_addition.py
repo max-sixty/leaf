@@ -47,8 +47,6 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader)
 
     expect(second.locator("#jobs > .lf-another")).to_have_count(1)
     expect(second.locator("#jobs > .lf-another textarea")).to_have_value(text)
-    first.close()
-    second.close()
 
 
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):

@@ -51,15 +51,22 @@
    - `when` says whether the capability exists. When a destination surface is available
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.
+   - `covering`, on a row of the page's own scope, keeps that command reachable while an
+     auxiliary surface covers the document: the surface replaces the page the reader is
+     reading rather than ending the reading, so travel and the go-to sequence answer
+     inside it while the rest of page scope stays under the modal floor.
    - `at`, expressed by the current `readerIn` predicate, says whether this press can act
      at the reader's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
    - `returnFrame`, when the result enters a temporary layer, returns its `active`,
      `close`, `does`, and `line` contract. It may also return `lineWhen` to keep Escape
-     live while yielding the compact line to a more useful action in that layer. The
+     live while yielding the compact line to a more useful action in that layer, and
+     `standing: false` when its arrival is a floor the reader stands on nothing in, so
+     that what they then stand on there is let go of before this frame answers. The
      dispatcher captures the origin before `run`, validates the descriptor, and pushes it
-     only if the layer is active afterwards. Do not call the return stack from a command
+     only if the layer is active afterwards — after `run`'s promise settles, where the
+     entry lands asynchronously and `run` returns it. Do not call the return stack from a command
      or restore focus in the command's close path; declaring the frame is what makes
      keyboard invocation and command-reference invocation obey the same stack. A command surface
      that already displaced the reader, such as the modal command reference, passes its saved

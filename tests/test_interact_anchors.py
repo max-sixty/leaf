@@ -155,6 +155,38 @@ def test_a_section_the_version_has_no_id_for_is_refused(page_dir):
     assert "no element id 'backfil-first'" in result.output
 
 
+def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page_dir):
+    """The CLI names three kinds of id with bare strings, and only the log says which
+    namespace a value came from. An agent holding the id of the comment it is answering
+    reaches for `--section`, and `no element id` alone leaves it guessing at the page's
+    markup for an id that was never going to be there. So the refusal names the option
+    the value belongs to."""
+    root = json.loads(
+        comment(
+            published(page_dir), "--quote", "Ship dark", "--text", "how long?"
+        ).output
+    )
+    mistaken = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--section",
+            root["id"],
+            "--text",
+            "answering the comment I was handed",
+        ],
+    )
+    assert mistaken.exit_code != 0
+    assert f"no element id {root['id']!r}" in mistaken.output
+    assert f"{root['id']} is a comment in this page's log" in mistaken.output
+    assert "`leaf reply <page> --to <id>` answers a message" in mistaken.output
+    assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
+
+
 def test_a_section_scopes_where_a_quote_may_land(page_dir):
     """Naming a section is one of the two ways out of the ambiguity message, so it has
     to be a bound and not a label: the words go in the anchor's section field, and the

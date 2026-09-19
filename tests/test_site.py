@@ -651,6 +651,47 @@ def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, brow
     consume_browser_errors(page, "belong to different layers")
 
 
+def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, browser):
+    """A document whose release is gone asks for a newer one once, not in a loop.
+
+    Nothing this document names can load once its release is gone, so recovery has to
+    go and get another document. Where what answers is a copy of the same one — an edge
+    or intermediary cache, a reader offline — asking again lands on that same copy, and
+    the page asked for it as fast as the network could carry it. The count is the
+    assertion: one replacement, then the probe's own cadence.
+    """
+    _, url = served_example("triage-board")
+    page = browser.new_page()
+    documents = []
+
+    def answer(route):
+        request = route.request
+        if request.resource_type == "document":
+            documents.append(request.url)
+            route.continue_()
+        else:
+            route.fulfill(status=404, content_type="text/plain", body="")
+
+    # The entry module and the probe are the release's own two addresses: one says the
+    # page cannot start, the other says the release it belongs to is no longer served.
+    page.route("**/leaf.js", answer)
+    page.route("**/registry.json", answer)
+    page.route(url, answer)
+    page.route(url + "?*", answer)
+    page.goto(url, wait_until="load")
+    banner = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    expect(banner).to_be_visible()
+    # The probe answers every second, so this window holds several rounds of the loop
+    # this test is about.
+    page.wait_for_timeout(4000)
+    assert len(documents) == 2, documents
+    assert "_leaf-recovered" in documents[1], documents
+    # The mark is the runtime's own and does not stay in front of the reader.
+    assert "_leaf-recovered" not in page.evaluate("location.href")
+    expect(banner).to_be_visible()
+    consume_browser_errors(page, "404", "Failed to load resource", "error loading")
+
+
 def test_session_activation_reaches_other_tabs(served_example, browser):
     """One tab's first private request wakes its already-open peers."""
     _, url = served_example("triage-board")

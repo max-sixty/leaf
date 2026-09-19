@@ -23,6 +23,7 @@ import { focused, paintKeys } from "./keyboard/scopes.js";
 import { el } from "./widget-elements.js";
 import {
   BANNER_CONTROL_RANK,
+  bannerControlDoor,
   registerBannerControl,
   showBannerControl,
 } from "./banner-shelf.js";
@@ -362,9 +363,7 @@ export function createPageMapDialog({
   }
 
   function pageMapInvoker() {
-    const shelf = mapButton.closest(".lf-banner-menu");
-    if (shelf?.lfInvoker?.checkVisibility()) return shelf.lfInvoker;
-    return mapButton;
+    return bannerControlDoor(mapButton) ?? mapButton;
   }
 
   function renderPageMapDialog(nextEntries) {

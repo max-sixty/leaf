@@ -509,11 +509,12 @@ export function relabel(node, label, { says } = {}) {
 // measurement to look at; it is the control holding no room at all.
 export function reserve(control, labels) {
   // Standing the control out of flow hides it, and hiding a focused element takes the
-  // focus off it — onto body, silently, a frame after the reader put it here. The
-  // measurement is synchronous and invisible, and losing the reader's place is not part of
-  // what it was asked to do. Renewing the banner's reservations across a breakpoint is
-  // where this shows: a reader holding one banner control crosses 900px and is standing on
-  // nothing.
+  // focus off it — onto body, silently, and on no fixed frame: the browser runs that
+  // fixup around the layout, not after a turn this owner can count. The measurement is
+  // synchronous and invisible, and losing the reader's place is not part of what it was
+  // asked to do. Renewing the banner's reservations across a breakpoint is where this
+  // shows: a reader holding one banner control crosses the fold at 840px and is standing
+  // on nothing.
   const held = document.activeElement === control;
   const stood = { nodes: [...control.childNodes], css: control.style.cssText };
   Object.assign(control.style, {

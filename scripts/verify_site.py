@@ -19,7 +19,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 from leaf.render_gate.browser import launch_browser
-from playwright.sync_api import BrowserContext, Page, sync_playwright
+from playwright.sync_api import APIResponse, BrowserContext, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -126,6 +126,31 @@ def activation_url(page_url: str, state: dict) -> str:
     return urljoin(page_url, f"api/view?{query}")
 
 
+# What an activation made before the image rollout reached its container gives back,
+# in the words both passes report. The readings are the same tail: one is read off a
+# container that answered, the other is the edge answering in its place.
+STILL_STARTING = "was answered before the image rollout reached its container"
+
+
+def activation_read(context, activation: str) -> APIResponse | None:
+    """The read that allocates this session's container, or `None` while it rolls out.
+
+    Both passes make this request, so both read its answer the same way. Activating a
+    session allocates a container, and until the image rollout reaches it that
+    container answers for the previous release. Rather than hand a foreign release on,
+    the Worker unseats the session and answers every request but `GET api/state` with
+    `503` and a `Retry-After`. `worker/README.md` states that contract and
+    `worker/test/index.test.ts` holds the Worker to it, so a `503` carrying the header
+    is the deployment still landing, and any other unsuccessful status is this release
+    failing. Each pass sets its own bound on how long to wait.
+    """
+    response = context.request.get(activation, timeout=120_000)
+    if response.status == 503 and response.headers.get("retry-after") is not None:
+        return None
+    check(response.ok, f"{activation} returned {response.status}")
+    return response
+
+
 def verify_page(
     browser, path: str, kind: str, release: str, activate: bool, *, origin: str
 ) -> dict:
@@ -206,11 +231,11 @@ def verify_page(
         f"{state_url} left the edge before interaction",
     )
     activation = activation_url(url, passive_response.json())
-    activation_response = context.request.get(activation, timeout=120_000)
-    check(
-        activation_response.ok,
-        f"{activation} returned {activation_response.status}",
-    )
+    # This pass has no wait of its own: `publish-site` reruns the whole script until
+    # the release verifies, so a rollout it lands inside ends this run and the next
+    # one samples again. Naming the rollout keeps that log from reading as a fault.
+    activation_response = activation_read(context, activation)
+    check(activation_response is not None, f"{activation} {STILL_STARTING}")
     check(
         activation_response.headers.get("leaf-session") == "active",
         f"{activation} did not activate a private container",
@@ -341,25 +366,6 @@ def verify_cross_tab_activation(browser, *, origin: str) -> None:
     context.close()
 
 
-# What a container allocated before the image rollout reached it gives back, in the
-# words the gate's own wait reports. Both readings are the same tail: one is read off
-# a container that answered, the other is the edge answering in its place.
-STILL_STARTING = "was a container the image rollout had not reached"
-
-
-def rolling_out(response) -> bool:
-    """Whether the edge answered for itself because the rollout has not landed here.
-
-    Activating a session allocates a container, and until the image rollout reaches it
-    that container answers for the previous release. Rather than hand a foreign release
-    on, the Worker unseats the session and answers every request but `GET api/state`
-    with `503` and a `Retry-After`, so on this path the rollout arrives as a status
-    rather than as a release header to compare. `worker/README.md` states that
-    contract, and `worker/test/index.test.ts` holds the Worker to it.
-    """
-    return response.status == 503 and response.headers.get("retry-after") is not None
-
-
 def served_instead(reached: str | None, release: str) -> str:
     """What an allocation on the wrong release gave back, for the wait reporting it."""
     served = f"release {reached[:8]}" if reached else "no release"
@@ -390,14 +396,12 @@ def reader_session(
             return served_instead(reached, release)
         return AgentSession(context, page, failures, url, state_url, passive.json())
     activation = activation_url(url, passive.json())
-    activated = context.request.get(activation, timeout=120_000)
-    # This is the request that allocates the container, so it is where an unreached
-    # rollout surfaces. The reads below are past it: the session is pinned to the
-    # container this one activated, which has already answered for its own release.
-    if rolling_out(activated):
+    # The reads below are past this one: the session is pinned to the container this
+    # request allocated, which has already answered for its own release.
+    activated = activation_read(context, activation)
+    if activated is None:
         context.close()
         return STILL_STARTING
-    check(activated.ok, f"{activation} returned {activated.status}")
     check(
         activated.headers.get("leaf-session") == "active",
         f"{activation} did not activate a private container for its agent",

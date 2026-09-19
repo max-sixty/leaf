@@ -1,16 +1,17 @@
-/* The page's keyboard register: the two orders core's keyboard has, and the one door each
-   feature owner contributes through.
+/* The page's keyboard register: the orders core's keyboard has, and the doors each feature
+   owner contributes through.
 
    A command belongs to the layer that implements its result, so that layer declares it
    where its code is: `pageScope` for a scope of the feature's own — a mode, a surface, an
-   interaction holding the keyboard — and `pageCommand` for a row in the page's own scope.
-   Contribution runs as each owner is constructed, before anything reads a scope. This
-   module holds names, rows and order and never a capability, so a feature adds a command
-   without editing it. Widgets use the element register (`keys`, `commandScope`) and are
-   spliced in at ELEMENTS; these two doors are the same idea for a scope whose condition
-   is the page's rather than where the reader is standing.
+   interaction holding the keyboard — `pageCommand` for a row in the page's own scope, and
+   `pageRung` for a step of Escape's fallback ladder. Contribution runs as each owner is
+   constructed, before anything reads a scope. This module holds names, rows and order and
+   never a capability, so a feature adds a command without editing it. Widgets use the
+   element register (`keys`, `commandScope`) and are spliced in at ELEMENTS; these doors
+   are the same idea for a scope whose condition is the page's rather than where the
+   reader is standing.
 
-   The two orders below are what no single owner can state. `STACK` is the order the
+   The orders below are what no single owner can state. `STACK` is the order the
    dispatcher walks, innermost first: element scopes splice in where ELEMENTS stands and
    the return stack where RETURN does. For Escape the dispatcher reads an explicit
    `escape: "inner"` on active modes and the exact focused element, then RETURN, then every
@@ -28,13 +29,13 @@
    `RUNG_LADDER` is Escape's fallback for state the reader reached without a registered
    entry: a pointer-opened panel, a captured target, ordinary focus traversal. Its rungs
    are contributed like everything else, each by the owner of the state it takes off, and
-   `pageRungs` resolves them into the one `navigation.back` row every surface reads. One
-   row rather than one per rung, because the ladder is one capability whose sentence
-   changes: a reference listing each rung whose own condition happens to hold would
-   promise presses the innermost rung has already taken, and a guard on each rung against
-   the rungs behind it would be this list written six more times. Being the fallback is
-   also what its `when` says — no rung answers while a commanded entry stands, because
-   that entry is the registered way back. */
+   `rung` resolves them into the one `navigation.back` row every surface reads. One row
+   rather than one per step, because the ladder is one capability whose sentence changes:
+   a reference listing each step whose own condition happens to hold would promise presses
+   the innermost step has already taken, and a guard on each step against the steps behind
+   it would be this list written out once per step. Being the fallback is also what its
+   `when` says — no step answers while a commanded entry stands, because that entry is the
+   registered way back. */
 import { bindings, checked, word } from "./bindings.js";
 import { current, RETURN } from "./layer-stack.js";
 

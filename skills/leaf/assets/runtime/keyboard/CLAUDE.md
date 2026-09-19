@@ -20,8 +20,8 @@ Core owns commands that act on Leaf's page, chrome, navigation, comments, and sh
 conversation state. A widget owns commands that interpret or change its content. Widget
 scopes join the register only while their instance exists.
 
-Every owner declares its own keys where its code is, through one of two doors, and no
-module enumerates another's capabilities to do it. A widget or a generated control uses
+Every owner declares its own keys where its code is, and no module enumerates another's
+capabilities to do it. A widget or a generated control uses
 the element register — `keys(element, …)` and `commandScope(…)` in `scopes.js` — which
 applies while focus is inside that element. A core owner whose condition is the page's
 rather than the reader's position uses `register.js`: `pageScope(name, …)` for a scope of
@@ -29,8 +29,8 @@ its own, `pageCommand(row)` for a row of the page's own scope, and `pageRung(nam
 for a step of Escape's fallback ladder. Contribution runs as
 the owner is constructed, so a row closes over that owner's state and the register never
 holds a capability. Adding a command to a surface a feature already declares costs
-nothing outside that feature; a new page-level letter, or a new scope, takes its rank in
-the two orders `register.js` holds.
+nothing outside that feature; a new page-level letter, a new scope, or a new step of the
+Escape ladder takes its rank in the orders `register.js` holds.
 
 ## Scope resolution
 
@@ -84,8 +84,8 @@ binding invoke the original command through its stable identity and source scope
 - `scopes.js` owns element scopes and the shared command sections derived from them.
 - `register.js` owns the page's keyboard: the order core's scopes shadow one another in,
   the rank of the page's own commands, Escape's fallback ladder and the one command it
-  resolves to, the three doors owners contribute through, and the auxiliary-layer
-  readings the dispatcher reads without an edge to their owner.
+  resolves to, the doors owners contribute through, and the auxiliary-layer readings the
+  dispatcher reads without an edge to their owner.
 - `dispatch.js` owns precedence and platform-default handling; `controller.js` owns the
   physical input lifecycle; `text-entry.js` owns native editing claims.
 - `layer-stack.js` owns the ordered layers standing over the page: the popovers and modal

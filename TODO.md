@@ -172,14 +172,6 @@ evidence is the `leaf-simplification` page directory in the state home.
   leading them: what makes the folds reachable without a browser is giving them a home off
   the DOM.
 
-- **#8 — Decentralize keyboard feature knowledge.** Have feature owners contribute explicit
-  capabilities at boot and leave the dispatcher generic. The condition this item waited on
-  is met: `createPageKeys` takes 53 named capabilities and `leaf.js` mirrors all 53, so a
-  core command costs one line in each of three files, while a package widget already
-  registers through `keys()` and costs none. Eleven of the 53 are scopes a feature declared
-  locally and `page.js` names again. It moves about 900 lines and deletes about 170,
-  including the `rung()` ladder whose own guard stands down for the layer stack.
-
 - **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
   now keeps the reader's place through the browser's own scroll anchoring, and that hold
   rests on an ordering rather than a guarantee: `main`'s `left` (via `--lf-shift`) and its

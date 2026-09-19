@@ -1191,31 +1191,36 @@ _LAYER_SHEET_ORDER = [
 ]
 
 
-def test_the_injected_control_face_stands_before_every_rule_that_answers_it():
+def test_the_injected_control_face_is_a_default_only_the_document_reads():
     """`.lf-ui` is a default. `offer()` writes it on every control a widget builds, and a
-    component that states the same property overrides it. Both are one class, so the
-    later rule wins, and the default has to stand first to lose.
+    component that states the same property overrides it, so the face stands first in
+    the layer's page-side order and loses on position. It keeps a class's specificity,
+    so the page's own element rules lose to it. And a declared tree copies shadow.css,
+    where lf-diff marks its line numbers `lf-ui`, so the selector reaches only elements
+    under the document's root.
 
-    It stopped standing first when the components moved to shadow.css and the face
-    stayed in theme.css, which composes after it: Send and Add option asked for the
-    accent and drew near-black, and so did every other one-class component rule that
-    states a colour, a family, a size or a line height for a control a widget built.
-
-    The first rule that states a face, rather than the first rule in the file, because
-    a rule that states none cannot override this one."""
-    for sheet in _LAYER_SHEET_ORDER:
-        for _conditions, _enclosing, selector, declarations in _style_rules(sheet):
-            if not any(name in _FACE for name, _value in declarations):
-                continue
-            where = f"{sheet.parent.name}/{sheet.name}"
-            assert selector == ".lf-ui", (
-                f"`{selector}` states a face in {where} ahead of the layer's own "
-                ".lf-ui default, which every control it dresses then loses to"
-            )
-            return
-    raise AssertionError(
-        "no face was read from the layer's sheets — the reading is broken"
-    )
+    Each of the three has broken once: stated in theme.css after shadow.css, Send drew
+    near-black instead of the accent; at the head of shadow.css as a plain `.lf-ui`, the
+    diff's line numbers took the control's size and ink; as `:where(.lf-ui)`, a page's
+    `button, a` rule took the family of half corpus.html's widget controls. The browser
+    cases that read those faces are `test_a_single_space_is_message_content_in_every_
+    composer`, `test_a_diff_is_colored_by_each_files_own_path` and
+    `test_a_pages_own_element_rules_leave_the_layers_controls_alone`; this one names the
+    single rule all three depend on."""
+    faces = [
+        (f"{sheet.parent.name}/{sheet.name}", selector)
+        for sheet in _LAYER_SHEET_ORDER
+        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        if any(name in _FACE for name, _value in declarations)
+    ]
+    assert faces, "no face was read from the layer's sheets — the reading is broken"
+    assert faces[0] == ("assets/shadow.css", ":where(:root) .lf-ui"), faces[0]
+    defaults = [
+        face
+        for face in faces
+        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui"}
+    ]
+    assert defaults == [faces[0]], defaults
 
 
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():

@@ -82,8 +82,8 @@ const rejectCutLabel = (source) => {
  * set. Walking past every label that does close keeps a delimiter inside label text from
  * reading as an opening, since the parser takes the label lazily and `A[call foo(bar]`
  * and `A -- pay(cash --> B` both render today. Only `graph` and `flowchart` sources are
- * read this way: a state, class, or ER body opens a brace on one line and closes it on
- * another, which is that grammar working. */
+ * read this way: a `stateDiagram` body — the one other grammar this renderer reads —
+ * opens a brace on one line and closes it on another, which is that grammar working. */
 const FLOWCHART_HEADER = /^(?:graph|flowchart)\b/i;
 const LABEL_OPENING =
   /(?<![\w-])[\w][\w-]*(?<shape>[[({])|(?<pipe>\|)|(?<![-.=])(?<link>--|-\.|==)(?=\s)/g;
@@ -125,8 +125,12 @@ const rejectUnsupportedSource = (source) => {
     throw new Error(
       "click, accTitle and accDescr directives are not supported by Leaf diagrams",
     );
-  rejectUnclosedLabel(source);
+  // The cut guard speaks first where both have something to say. A label that closes
+  // on its line is the narrower reading, and it is the true one: `A -->|"a|b"| B` holds
+  // a pipe the shape cannot carry rather than a label continued on the next line, and
+  // the walk below would offer `<br/>` to an author whose label is already one line.
   rejectCutLabel(source);
+  rejectUnclosedLabel(source);
 };
 
 /* The renderer uses fixed ids for arrowheads, gradients and masks. Repeated ids make

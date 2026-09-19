@@ -1388,7 +1388,10 @@ def test_a_quoted_label_holding_its_own_closer_is_refused(browser, serve):
     whose closer is doubled, a pipe-delimited edge label, and a subgraph title —
     which the parser reads with its own end-anchored regex rather than through the
     node patterns — and a commented-out line, which the parser drops before any
-    pattern sees it, all reach the renderer whole.
+    pattern sees it, all reach the renderer whole. A pipe inside a pipe-delimited
+    edge label is this same cut, so it is diagnosed as one: the label walk that
+    runs after would call the trailing pipe an unclosed label and offer a line
+    break to an author whose label is already on one line.
     """
     labels = leaf_page(
         "diagram labels",
@@ -1401,6 +1404,10 @@ flowchart LR
 <lf-diagram id="cut-diamond"><pre>
 flowchart LR
   A{"m{k}"} --&gt; B[plain]
+</pre></lf-diagram>
+<lf-diagram id="cut-edge-label"><pre>
+flowchart LR
+  A --&gt;|"a|b"| B
 </pre></lf-diagram>
 <lf-diagram id="doubled-closer" parts="node:A node:B"><pre>
 flowchart LR
@@ -1428,9 +1435,11 @@ flowchart LR
     for diagram, label in (
         ("cut-rectangle", "names: list[str]"),
         ("cut-diamond", "m{k}"),
+        ("cut-edge-label", "a|b"),
     ):
         expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(label)
         expect(page.locator(f"#{diagram} svg")).to_have_count(0)
+    expect(page.locator("#cut-edge-label .lf-error")).to_contain_text("cannot hold |")
 
     for diagram in ("doubled-closer", "edge-label", "subgraph-title", "commented-out"):
         expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)

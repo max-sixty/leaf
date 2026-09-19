@@ -3752,7 +3752,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
         ],
     )
     assert stale.exit_code != 0
-    assert "no longer requires a reply" in stale.output
+    assert "event 'first' takes no reply" in stale.output
 
     current = CliRunner().invoke(
         cli_model.cli,

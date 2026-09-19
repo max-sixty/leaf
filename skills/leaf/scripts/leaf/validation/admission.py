@@ -8,7 +8,6 @@ from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_registry
-from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_structure
 
@@ -42,37 +41,40 @@ def read_text_arg(page_dir: Path, text) -> str:
     return body
 
 
-def logged_id_route(events: list, value: str) -> str | None:
-    """Say what the page's log holds a bare id as, and which command takes it.
+def logged_id(events: list, value: str, responses: dict | None = None) -> str | None:
+    """Say what the page's log holds a bare id as, and what the log still owes for it.
 
     The CLI names several kinds of id with bare strings — an element id anchors a
     thread, a message id answers one, a request id takes its receipt, and a delivered
     event id addresses the response it owes — and nothing about a value says which
     namespace it came from. An agent holding the id of the move it was handed reaches
-    for whichever of them it is writing, and a refusal that only repeats the value
-    leaves it nothing to change but the guess. The log settles the question, so every
-    writer that refuses an id asks this, and says where the value belongs.
+    for whichever writer it is using, and a refusal that only repeats the value leaves
+    it nothing to change but the guess. So every writer that refuses an id says what
+    the log holds it as.
 
-    `--for` takes every kind the log holds but a request, not only a message: a
-    reader's press on a widget frozen into a reply owes its answer through the event's
-    own id and nowhere else. A message answers to `--to` as well, and a request ends in
-    its receipt instead.
+    Which writer then takes it is not a matter of the event's kind but of what the log
+    still owes for it, which is `current_responses`: a reader's press is answered
+    through `--for` until it is answered and not after, and a resolve or an undo is
+    owed nothing at all. A writer that has that reading passes it, and the refusal
+    names the command that settles the id or says nothing is owed; one that cannot
+    reach it names the kind alone rather than guess at a route.
     """
     event = next((event for event in events if event.get("id") == value), None)
     if event is None:
         return None
     kind = event["kind"]
-    if kind == "request":
-        route = "`leaf receipt <page> <id> succeeded|failed` settles a request"
-    elif kind in MESSAGE_KINDS:
-        route = (
-            "`leaf reply <page> --to <id>` answers a message and `--for <event-id>` "
-            "addresses a delivered move"
-        )
-    else:
-        route = "`leaf reply <page> --for <event-id>` addresses a delivered move"
     article = "an" if kind[:1] in "aeiou" else "a"
-    return f"{value} is {article} {kind} in this page's log — {route}"
+    held = f"{value} is {article} {kind} in this page's log"
+    if responses is None:
+        return held
+    owed = responses.get(value)
+    if owed is None:
+        return f"{held}, and nothing is owed for it"
+    if owed["kind"] == "receipt":
+        return f"{held} — `leaf receipt <page> {value} succeeded|failed` settles it"
+    if owed["kind"] == "version":
+        return f"{held} — its thread takes a page version rather than a reply"
+    return f"{held} — `leaf reply <page> --for {value}` answers it"
 
 
 def version_ids(page_dir: Path) -> set:

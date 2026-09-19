@@ -10,7 +10,7 @@ from .registry.contract import schema_error
 from .service import PageTransaction
 from .structure import parse_revision
 from .thread_context import thread_structure
-from .validation.admission import logged_id_route, read_text_arg
+from .validation.admission import logged_id, read_text_arg
 from .validation.instances import reference_contract_error
 
 
@@ -170,9 +170,10 @@ def request_contract_error(
 def receipt_contract_error(event: dict, events: list) -> str | None:
     """Why a terminal receipt cannot settle the request it names.
 
-    A refusal names where a misdirected id belongs, as every writer's does, and
-    which requests are still open to receipt, since an agent that was handed no
-    request has nothing else to go looking for.
+    A refusal says what the log holds a misdirected id as, as every writer's does,
+    and which requests are still open to receipt, since an agent that was handed no
+    request has nothing else to go looking for. The door hands this the log and not
+    the page, so it cannot read what the id is still owed, and it names no route.
     """
     request_id = event["request"]
     request = next(
@@ -189,9 +190,8 @@ def receipt_contract_error(event: dict, events: list) -> str | None:
             for candidate in events
             if candidate["kind"] == "request" and candidate["id"] not in receipted
         ]
-        named = logged_id_route(events, request_id) or (
-            f"unknown request {request_id!r}"
-        )
+        held = logged_id(events, request_id)
+        named = f"{held}, not a request" if held else f"unknown request {request_id!r}"
         waiting = (
             "open requests: " + ", ".join(repr(open_id) for open_id in open_requests)
             if open_requests

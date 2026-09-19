@@ -2084,7 +2084,10 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     )
 
     assert result.exit_code != 0
-    assert "event 'c1' no longer requires a reply" in result.output
+    assert (
+        "event 'c1' takes no reply; c1 is a comment in this page's log, and nothing is "
+        "owed for it"
+    ) in result.output
 
 
 @pytest.mark.parametrize(
@@ -2574,17 +2577,28 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         ["receipt", str(page_dir), comment["id"], "failed", "--text", "No request"],
     )
     assert misdirected.exit_code == 1
-    assert f"{comment['id']} is a comment in this page's log" in misdirected.output
-    assert "`leaf reply <page> --to <id>` answers a message" in misdirected.output
-    assert f"open requests: {request['id']!r}" in misdirected.output
+    assert (
+        f"{comment['id']} is a comment in this page's log, not a request; "
+        f"open requests: {request['id']!r}"
+    ) in misdirected.output
     # And the other way round: a request handed to a writer that takes a message is
-    # sent to its receipt, rather than told only that it is not a comment.
+    # sent to its receipt, rather than told only that it is not a comment — from
+    # either door, since what settles it is what the log still owes for it.
+    settles = (
+        f"{request['id']} is a request in this page's log — "
+        f"`leaf receipt <page> {request['id']} succeeded|failed` settles it"
+    )
     resolved = CliRunner().invoke(
         cli_model.cli, ["resolve", str(page_dir), "--to", request["id"]]
     )
     assert resolved.exit_code != 0
-    assert f"{request['id']} is a request in this page's log" in resolved.output
-    assert "`leaf receipt <page> <id> succeeded|failed`" in resolved.output
+    assert settles in resolved.output
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--for", request["id"], "--text", "Restarted"],
+    )
+    assert replied.exit_code != 0
+    assert f"event {request['id']!r} takes no reply; {settles}" in replied.output
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "coordinator-1")
     monkeypatch.setenv("LEAF_AGENT", "Atlas lead")

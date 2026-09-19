@@ -30,27 +30,27 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
-from leaf.validation.admission import check_markup, logged_id_route, read_text_arg
+from leaf.validation.admission import check_markup, logged_id, read_text_arg
 
 
 def _messages(events: list) -> dict[str, dict]:
     return {event["id"]: event for event in events if event["kind"] in MESSAGE_KINDS}
 
 
-def _message(events: list, to: str) -> dict:
+def _message(page_dir: Path, events: list, to: str) -> dict:
     messages = _messages(events)
     if to not in messages:
-        route = logged_id_route(events, to)
+        held = logged_id(events, to, current_responses(page_dir, events))
         sys.exit(
             f"unknown comment id {to!r}"
-            + (f"; {route}" if route else "")
+            + (f"; {held}" if held else "")
             + f"; known: {sorted(messages)}"
         )
     return messages[to]
 
 
-def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
-    _message(events, to)
+def _thread_root(page_dir: Path, events: list, to: str) -> tuple[str, dict | None]:
+    _message(page_dir, events, to)
     root_id = thread_roots(events)[to]
     return root_id, _messages(events).get(root_id)
 
@@ -347,11 +347,15 @@ def _capture_anchor(
             additions=generated_children(page.projection.desired, page.document.ids),
         )
     except ValueError as err:
-        route = logged_id_route(events, section) if section else None
+        held = (
+            logged_id(events, section, current_responses(page_dir, events))
+            if section
+            else None
+        )
         recourse = (
-            f"; {route}, while `--section` takes an element id the page's markup "
+            f"; {held}, while `--section` takes an element id the page's markup "
             "declares"
-            if route
+            if held
             else ""
         )
         sys.exit(f"can't anchor in revision r{revision}: {err}{recourse}")
@@ -494,7 +498,9 @@ def cmd_reply(
         else:
             expected = responses.get(for_event)
             if expected is not None and expected["kind"] == "version":
-                root_id, _ = _thread_root(events, to or expected["conversation"])
+                root_id, _ = _thread_root(
+                    page_dir, events, to or expected["conversation"]
+                )
                 if skip_if_settled:
                     return None
                 sys.exit(
@@ -506,14 +512,15 @@ def cmd_reply(
             if expected is None or expected["kind"] != "reply":
                 if skip_if_settled:
                     return None
+                held = logged_id(events, for_event, responses)
                 sys.exit(
-                    f"event {for_event!r} no longer requires a reply; "
-                    "read the current delivery or conversation state"
+                    f"event {for_event!r} takes no reply; "
+                    + (held or f"this page's log holds no event {for_event!r}")
                 )
             if to is None:
                 to = expected["to"]
         assert to is not None
-        root_id, root = _thread_root(events, to)
+        root_id, root = _thread_root(page_dir, events, to)
         if root and (root.get("response") or {}).get("kind") == "version":
             if skip_if_settled:
                 return None
@@ -545,7 +552,7 @@ def cmd_reply(
                 )
         else:
             reply_roots = {
-                _thread_root(events, response["to"])[0]
+                _thread_root(page_dir, events, response["to"])[0]
                 for response in responses.values()
                 if response["kind"] == "reply"
             }
@@ -716,7 +723,7 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         events = page.events
-        target = _message(events, to)
+        target = _message(page_dir, events, to)
         if target["author"] != "agent":
             sys.exit(f"message {to!r} is not agent-authored")
         identity = message_identity()
@@ -744,7 +751,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
         events = page.events
-        root_id, root = _thread_root(events, to)
+        root_id, root = _thread_root(page_dir, events, to)
         if (
             root
             and (root.get("response") or {}).get("kind") == "version"

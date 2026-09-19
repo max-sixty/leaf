@@ -11,7 +11,8 @@ file says which script owns what, and the rules that hold across them.
 ## Examples and previews
 
 - `preview.py [page]` serves one public example or developer fixture as a live page
-  under `.tmp/previews/<source-stem>`, watching the fixture and the selected runtime.
+  under `.tmp/previews/<source-stem>`, or under `LEAF_PREVIEWS_ROOT` where that names
+  a directory, watching the fixture and the selected runtime.
   It re-vendors when the layer it watches changed or the source asked for different
   packages, and copies the source alone otherwise, because vendoring mints a fresh
   layer generation and the generation is part of what a revision is as executable code.

@@ -617,10 +617,13 @@ class HostedTurn:
 
         However it ended, the turn has ended: its reply seat is given up, its Leaf
         turn is closed, its live reading comes off the page, and any move it was
-        carrying that still has no answer is receipted. The receipts run last
+        carrying that still has no answer is receipted. The first of those can
+        fault — closing the turn re-reads the page, which the turn's own work may
+        have left unopenable — and the reader is owed the rest whether or not it
+        does, so the last two run from the `finally`. They can be left until then
         because the seat has to be free before another writer can use it, and they
-        run at all because this turn's pickup is what stops every other writer from
-        answering for it.
+        have to run at all because this turn's pickup is what stops every other
+        writer from answering for its move.
         """
         try:
             if self.leaf_turn is not None:
@@ -642,9 +645,9 @@ class HostedTurn:
                 release_delivery_reply(
                     self.thread_id, self.delivery_id, self.reply_target
                 )
-            self._receipt_unanswered()
         finally:
             clear_stream_activity(self.thread_id, self.turn_id)
+            self._receipt_unanswered()
 
     def _receipt_unanswered(self) -> None:
         """Tell the reader no answer is coming, for each move still owed one.

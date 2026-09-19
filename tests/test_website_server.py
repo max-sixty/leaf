@@ -1412,6 +1412,37 @@ def test_a_turn_that_completes_without_an_answer_is_still_receipted(
     assert website_server.full_state(page_dir, events)["activity"]["obligations"] == []
 
 
+def test_a_turn_that_will_not_stop_leaves_the_thread_rather_than_the_reader(
+    page_dir, monkeypatch
+):
+    """A dispatch holds the reader's request open, so it does not wait forever.
+
+    The turn being stopped belongs to a container that is already gone. If App
+    Server does not report it ended, this start raises, the Worker receipts the
+    message as one the agent could not be started for, and the thread is left to
+    whichever container start meets it next.
+    """
+    append_event(page_dir, {"kind": "comment", "author": "user", "text": "hello"})
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(website_server, "TURN_ABORT_WAIT", 0.0)
+    sent = []
+
+    class Socket:
+        def recv(self, timeout):
+            raise TimeoutError
+
+    def send(socket, method, params, pending=None):
+        sent.append(method)
+        return {}
+
+    monkeypatch.setattr(host, "_send", send)
+
+    with pytest.raises(RuntimeError, match="did not stop"):
+        host._end_unfollowed_turn(Socket(), "hosted-thread", [], "reader-event")
+
+    assert sent == ["turn/interrupt"]
+
+
 def test_an_interrupt_refused_by_an_idle_thread_is_recorded_not_raised(
     page_dir, monkeypatch, capsys
 ):
@@ -2337,6 +2368,11 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
         "Done.",
         False,
     )
+    # The page the turn left cannot take the answer, and closing the turn on it is
+    # what raised — so the receipt is the only thing the reader can still be given,
+    # and it is owed exactly where the rest of the account failed.
+    [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert receipt["failure"] == "turn_failed"
     assert socket.closed
 
 

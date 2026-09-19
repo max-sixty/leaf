@@ -924,6 +924,95 @@ def served_preview(tmp_path, preview_slot):
     yield from watching(tmp_path, preview_slot, reader=True)
 
 
+def test_a_preview_states_a_lifetime_every_reading_of_a_claim_can_judge(
+    tmp_path, preview_slot, codex_program, codex_env, spawn, request
+):
+    """The preview is the second writer of a claim's lifetime fields, so its
+    record has to answer `claim_is_active` for every shape a harness states.
+
+    A claim `PageTransaction` wrote carries `ts` whatever shape follows it, and
+    the `activity` reading needs it: Codex's ChatGPT app multiplexes every
+    conversation through one `app-server`, so such a session names no process and
+    is judged live by when its page was last touched. Building the record from
+    `Harness.lifetime()` alone left that host raising `KeyError: 'ts'` on the
+    watcher's first liveness poll — a quarter of a second after `--background`
+    had already handed the URL over, with the traceback only in the slot's log.
+    """
+    source = tmp_path / "multiplexed.html"
+    source.write_text(REPLAYED_PAGE, encoding="utf-8")
+    slot, directory = preview_slot
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--slot",
+        slot,
+        "--background",
+    ]
+    request.addfinalizer(
+        lambda: subprocess.run(
+            [*command[:-1], "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    )
+    ready = tmp_path / "started.json"
+    # `app-server` in the host's own argv is the whole of what `CodexHarness`
+    # looks at to tell the multiplexed shape from a per-conversation `codex`.
+    owner = spawn(
+        [
+            str(codex_program),
+            "-c",
+            (
+                "import json, pathlib, subprocess, sys; "
+                "result = subprocess.run(sys.argv[3:], capture_output=True, text=True); "
+                "pathlib.Path(sys.argv[2]).write_text(json.dumps([result.returncode, result.stdout, result.stderr])); "
+                "sys.stdin.read()"
+            ),
+            "app-server",
+            str(ready),
+            *command,
+        ],
+        env=codex_env
+        | {"CODEX_THREAD_ID": "preview-multiplexed", "PYTHONHOME": sys.base_prefix},
+        stdin=subprocess.PIPE,
+    )
+    wait_for(
+        ready.exists,
+        bool,
+        failure="the preview command did not report its result",
+        timeout=90,
+    )
+    result = json.loads(ready.read_text())
+    assert result[0] == 0, result
+    url = result[1].splitlines()[-1]
+    assert service_model.page_claim(directory) is None
+    log = directory.with_name(f"{directory.name}.preview.log")
+
+    # A reload is several liveness polls later, so it is what says the watcher
+    # read its own lifetime and lived: the first poll lands about 250ms in, well
+    # before this edit.
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "Rollout", "Multiplexed revision", 1
+        ),
+        encoding="utf-8",
+    )
+    wait_for(
+        log.read_text,
+        lambda output: "Reloaded" in output or "Traceback" in output,
+        failure="the detached preview neither reloaded nor reported why not",
+        timeout=30,
+    )
+    assert "Traceback" not in log.read_text(), log.read_text()
+    assert _reachable(url)
+    owner.terminate()
+
+
 def test_a_detached_preview_restarts_under_its_original_codex_claim(
     tmp_path, preview_slot, codex_program, codex_env, spawn
 ):

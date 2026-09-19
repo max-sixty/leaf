@@ -162,8 +162,11 @@ A page directory holds:
                          optional commit/dirty state — into preview-only browser
                          chrome, and nothing else: the rest is the watcher's own
                          identity for the slot, including the absolute fixture and
-                         checkout paths it follows, and the server serves neither this
-                         file nor a path out of it. Its presence is the one statement
+                         checkout paths it follows, and `url` and `note`, where the
+                         slot answers and what ends it, rewritten at every transition
+                         because a watcher that has detached is the only thing that
+                         knows either. The server serves neither this file nor a path
+                         out of it. Its presence is the one statement
                          "this page is a preview, not a handoff", so the loop guard
                          also reads it and asks no watcher of the page
     service.json         {"host", "bind", "port", "enabled", "lifetime", "runtime"}:

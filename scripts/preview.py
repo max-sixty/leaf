@@ -671,6 +671,7 @@ class PreviewService:
     """
 
     def __init__(self, page: Path, launcher: Path, runtime: Path, reader: bool):
+        from leaf.event_log import now_iso
         from leaf.host import session_harness
 
         self.page = page
@@ -688,11 +689,22 @@ class PreviewService:
         # and a harness states the fields it consumes. Outside an agent host
         # there is no session to outlive and the watcher runs until it is
         # stopped.
+        # `ts` because this is the second writer of a claim's lifetime fields, and
+        # a claim `PageTransaction` wrote carries it whatever shape follows: the
+        # `activity` reading, which is a Codex session multiplexed through one
+        # app-server and so names no process, judges liveness from when the page
+        # was last touched and takes this as the floor for a slot nothing has
+        # written to yet.
         harness = None if reader else session_harness()
         self.lifetime = (
             None
             if harness is None
-            else {"released": None, "page": str(page), **harness.lifetime()}
+            else {
+                "released": None,
+                "page": str(page),
+                "ts": now_iso(),
+                **harness.lifetime(),
+            }
         )
 
     def start(self) -> tuple[str, str] | None:

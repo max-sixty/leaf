@@ -905,6 +905,19 @@ pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-ra
       line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
       font-variant-ligatures: none; }
 pre code { background: none; padding: 0; font-size: 100%; }
+/* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
+   wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
+   makes for its rows. `anywhere` because what runs long in source is paths, URLs and
+   minified data, none of which offer the line box a break to find. `overflow-x` is left
+   alone: once the line wraps there is nothing to scroll, and releasing the clip would
+   only let what cannot wrap paint out through the block's own border. A rule that
+   restates `white-space` for its own box states the paper half beside itself, because
+   naming that box here would tie on specificity and lose on source order, and `@media`
+   contributes nothing to break the tie. Nothing caught this: `paperWords` reads
+   `checkVisibility()`, and a clipped line is visible right up to the edge. */
+@media print {
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+}
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
    tokenizer's scopes into six of leaf's own first. Styled at document level like
@@ -1810,7 +1823,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
             color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;
             font-size: var(--t-5); white-space: normal; --lf-block-frame: 1; }
+/* The box sets `white-space: normal`, so the source inside it restores preformatting —
+   and, being later and equally specific, outranks the sheet's print wrap above until it
+   answers paper itself. */
 .lf-error pre { margin: 8px 0 0; white-space: pre; }
+@media print { .lf-error pre { white-space: pre-wrap; } }
 
 /* Reduced motion: one global guard covers every animation and transition in the
  * theme and the injected layers (!important outranks inline styles, so

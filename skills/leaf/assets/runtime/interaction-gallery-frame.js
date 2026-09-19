@@ -70,7 +70,7 @@ window.leafInteractionGalleryFrame = {
       commands.fabInput.value,
     );
     commands.detachComposer();
-    return () => commands.openInlineThread(threadId, transition);
+    return () => commands.openInlineThread(threadId, { transition });
   },
   resetThreads() {
     neutralChrome();

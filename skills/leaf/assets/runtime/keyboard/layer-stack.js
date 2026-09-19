@@ -205,6 +205,17 @@ export function pressOrigin() {
   return pressed ? capturePlace(pressed.control) : capturePlace();
 }
 
+// The place a reader holds when the control they are in goes with the gesture: an
+// accepted comment takes its composer off the page and puts the thread card up in its
+// stead, so the page they were reading is all its frame can hand back. Naming the box
+// would cost `restoreReturnPlace` a frame's retry before it fell back to this same
+// reading.
+export function readingPlace() {
+  if (!capturePlace)
+    throw new Error("leaf: readingPlace read before the keyboard mounted");
+  return capturePlace(null);
+}
+
 // The stack itself. Commands declare their second half as `returnFrame`; the dispatcher
 // is the only code that captures and pushes it, which keeps one entry one frame and one
 // successful Escape one pop, instead of asking the resulting scene to guess how it arose.

@@ -5828,10 +5828,15 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         assert passage_after[coordinate] == pytest.approx(
             passage_before[coordinate], abs=1
         )
-    if width == 760:
+    if not panel_open:
+        # The send took the reader into the card, so its Escape takes them back out to the
+        # page. Handing focus to the margin entry the card hangs from — or, where no rail
+        # stands, to the Page Map button — lands them on a control they never stood on,
+        # and a margin entry arrived at that way says its transient label, so the reader
+        # finishes a comment reading a tooltip.
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
-        expect(page.locator(".lf-page-map-toggle")).to_be_focused()
+        expect(page.locator("body")).to_be_focused()
 
 
 # Read the card with the selected target's whole control cluster. A card the rail cannot

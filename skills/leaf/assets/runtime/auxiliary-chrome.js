@@ -21,8 +21,8 @@ export function createAuxiliaryChromeNavigation({
       const id = inline.dataset.thread;
       return () => {
         document.body.focus({ preventScroll: true });
-        openInlineThread(id, null, (thread) => {
-          thread.focus({ preventScroll: true });
+        openInlineThread(id, {
+          onPositioned: (thread) => thread.focus({ preventScroll: true }),
         });
         return document.body;
       };

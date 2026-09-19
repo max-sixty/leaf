@@ -32,6 +32,7 @@ import { threadsBox } from "../conversation/panel-elements.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
+import { readingPlace } from "../keyboard/layer-stack.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
@@ -146,10 +147,10 @@ export function createSelectionComposer({
   wireInput,
 }) {
   const closeReactions = () => setReact(false);
-  const openInlineThread = (id, ...rest) => {
+  const openInlineThread = (id, options) => {
     const local = focusSurface(id);
     return (
-      local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, ...rest)
+      local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, options)
     );
   };
 
@@ -641,11 +642,20 @@ export function createSelectionComposer({
           mayLandTyping(reply, composerInput);
         // Continue in the surface already in use. Closing an open panel here reflows the
         // passage just as the reader's comment moves across it to a new floating card.
+        // The card is a layer the send takes the reader into, so it enters the stack with
+        // the place the send displaced: the page they were reading, since the composer
+        // goes with the gesture. Without an origin Escape had nothing to hand back and
+        // fell to the margin's scene-derived rung, which focused the entry the card hangs
+        // from — a control the reader never stood on, saying its transient label as they
+        // arrived there.
         const inlineThread =
           shouldLand && !panelIsOpen()
-            ? openInlineThread(sent.id, transition, (thread) =>
-                landTyping(thread.querySelector("textarea"), composerInput),
-              )
+            ? openInlineThread(sent.id, {
+                transition,
+                onPositioned: (thread) =>
+                  landTyping(thread.querySelector("textarea"), composerInput),
+                origin: readingPlace(),
+              })
             : null;
         const inlineReply = inlineThread?.querySelector("textarea") ?? null;
         // Expand the destination before placement so Floating UI measures the final card.

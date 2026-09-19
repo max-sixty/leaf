@@ -84,7 +84,11 @@ note — is a command too, and records its frame with the place the press displa
 before the press moved focus: the Escape out of a clicked-open panel or conversation
 view hands back the page the reader was reading, never the control the click happened
 to focus, and a keyboard activation of the same control, whose place was that control,
-comes back to it. A close by pointer is the one way out that lands on a control the
+comes back to it. A gesture whose result is a layer records the same frame: an accepted
+comment puts its thread card up where the composer stood, and that card's Escape hands
+back the page rather than the margin entry it hangs from. The composer goes with the
+gesture, so such a frame names the reading rather than a control — `readingPlace`, beside
+`pressOrigin`. A close by pointer is the one way out that lands on a control the
 reader never stood on — the surviving control that reopens what closed — because the
 pointer is already there. `layer-stack.js` carries the mechanism.
 

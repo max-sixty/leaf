@@ -748,6 +748,53 @@ def test_a_follower_that_faults_still_hands_the_page_on(page_dir, monkeypatch):
     assert "hosted-thread" not in host.following_threads
 
 
+def test_an_ending_on_an_unopenable_page_still_answers_every_move(
+    page_dir, monkeypatch
+):
+    """The page a turn left unopenable is the one whose ending has the most to say.
+
+    Closing the turn re-reads the source, so a turn whose own work broke `index.html`
+    faults there — the named fault class that reaches the hand-on. The hand-on has to
+    answer for every move on that page, and it can: what it needs is the log, which
+    reads fine. Refusing the scan on activation instead put a start-door condition in
+    front of it, and it fired before any move was named, so none was receipted and
+    the scan's complaint replaced the ending's own fault on the way out.
+    """
+    comments = [
+        append_event(page_dir, {"kind": "comment", "author": "user", "text": text})
+        for text in ("edit the page", "and the title")
+    ]
+    (page_dir / "index.html").write_text(
+        "<!doctype html><html><body><main><section id='a'>hi</section></main>"
+        "</body></html>"
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    host.following_threads.add("hosted-thread")
+    ending = ValueError("closing the turn faulted on the page it left")
+
+    def fault(*_):
+        raise ending
+
+    monkeypatch.setattr(host, "_follow_turn", fault)
+    with pytest.raises(ValueError) as raised:
+        host._run_follow_turn(
+            "socket",
+            website_server.HostedTurn(
+                host, page_dir, "hosted-thread", "delivery-1", (), "provider-turn"
+            ),
+        )
+
+    # The ending's own fault, not the hand-on's complaint about the same page.
+    assert raised.value is ending
+    receipts = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [receipt["responds"] for receipt in receipts] == [
+        comment["id"] for comment in comments
+    ]
+    assert {receipt["failure"] for receipt in receipts} == {"startup_failed"}
+    state = website_server.full_state(page_dir, read_events(page_dir))
+    assert state["activity"]["obligations"] == []
+
+
 def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
     page_dir, monkeypatch, capsys
 ):

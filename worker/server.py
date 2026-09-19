@@ -378,11 +378,20 @@ def next_unaccepted_agent_event(
     *,
     excluding: tuple[str, ...] = (),
 ) -> str | None:
-    """Return the next obligation not already assigned to a provider delivery."""
+    """Return the next obligation not already assigned to a provider delivery.
+
+    This asks the log what the page still owes, and nothing more. It used to activate
+    the source first and refuse a page whose `index.html` no longer opens, which put a
+    start-door condition in front of a reading that does not need one: obligations and
+    interactions come out of the log either way. The refusing belongs at the door, and
+    the door already holds it — `attach` reaches `agent_event_pending`, which raises on
+    such a page — so a start there throws to a caller that receipts the move. Held here
+    instead, the refusal came before any move was named, which is the one shape that
+    answers none of them: a turn whose own work left the page unopenable faults while
+    closing, and the ending that has to tell its reader so cannot get as far as asking
+    who to tell.
+    """
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir, page.events)
-        if activation.error:
-            raise ValueError(activation.error)
         activity = full_state(page_dir, page.events)["activity"]
         sessions = {
             interaction.get("event"): interaction.get("delivery_session")

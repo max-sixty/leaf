@@ -43,7 +43,14 @@
    A covering auxiliary surface is not an entry. It takes modal semantics without entering
    the browser's top layer, and a frame entered while its panel stood beside the page has
    to survive a resize into the covering posture and back. The dispatcher reads that
-   surface as the floor when no modal entry stands; this stack never sees it.
+   surface as the floor when no modal entry stands; this stack never sees it stand. One
+   thing about it is recorded here all the same, because no frame can work it out for
+   itself: which press opened it. The surface says so as it opens (`auxiliaryOpened`), and
+   the opening belongs to the press in the middle of which it happened — the press whose
+   frame is being recorded, or, for a step that records no frame, the press the reader is
+   standing in, which is the walk's own. `openedByThisPress` is that reading, so a walk
+   takes off the panel its own step opened and leaves standing one the toggle or `g T`
+   put up.
 
    A press that takes the reader in pushes one layer. Escape pops one. The way out is
    therefore as deep as the way in, and the reader walks it back without having counted:
@@ -348,6 +355,48 @@ function descriptorFor(row, binding) {
   return frame;
 }
 
+// An auxiliary surface — the Threads panel, a tray — is not an entry on this stack: it
+// stands beside the page or covers it, and the dispatcher reads a covering one as the
+// floor. One thing about it is the stack's to record all the same, because no frame can
+// work it out for itself: which press opened it. The surface says when it opens, and the
+// press in the middle of which that happened owns the opening — the press whose frame is
+// being recorded, or, for a step of a walk, which records no frame of its own, the press
+// that recorded the frame the walk still stands on. An opening under no press at all, at
+// startup or as a frame's close restores the chrome its press displaced, is nobody's, and
+// the surface's own rungs answer for it.
+let presses = 0;
+let thisPress = 0;
+let openedBy = 0;
+
+export function auxiliaryOpened() {
+  openedBy = thisPress || standingPress();
+}
+
+export function auxiliaryClosed() {
+  openedBy = 0;
+}
+
+// Read as a frame is built, answered for as long as it stands: whether the auxiliary
+// surface standing now is this press's own doing.
+export function openedByThisPress() {
+  const mine = thisPress;
+  return () => mine !== 0 && openedBy === mine;
+}
+
+// The press the reader is standing in. A step that records no frame is a step of the
+// press that stood them where the step begins — the `t` walking on from the card a marker
+// press put up as much as from the card its own first press did — so what the step opens
+// is that press's to take off. Read while the step runs, before it has exchanged one
+// surface for the next.
+function standingPress() {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry.does && entry.holds() && word(entry.standing) !== false)
+      return entry.press ?? 0;
+  }
+  return 0;
+}
+
 // The caller captures the origin before the command runs. Evaluate the frame before the
 // run too, because its descriptor may preserve pre-entry auxiliary chrome state; publish it only
 // after the command has really entered the layer. A liveness guard that changed during
@@ -356,7 +405,14 @@ function descriptorFor(row, binding) {
 // several awaits — says so by returning its promise, and its frame is judged when that
 // settles, which is the first moment the layer it declared is either standing or not.
 export function invoke(row, binding, run, suppliedOrigin = null) {
+  // Named before the frame is built, so a frame can ask what this press goes on to open,
+  // and kept until the next press, so an opening the run reaches after an await is still
+  // this press's. A press that records no frame takes no name: what it opens is the walk's.
+  thisPress = presses + 1;
   const frame = descriptorFor(row, binding);
+  if (frame) presses = thisPress;
+  else thisPress = 0;
+  const press = thisPress;
   const origin = frame ? suppliedOrigin : null;
   // Read before the run, like the origin: what already answers Escape is older than this
   // press, whatever it goes on to open.
@@ -388,8 +444,18 @@ export function invoke(row, binding, run, suppliedOrigin = null) {
         older,
         active: top.active,
         holds: frame.active,
+        press,
+        row: row.id,
       });
-    else entries.push({ ...frame, origin, older, holds: frame.active });
+    else
+      entries.push({
+        ...frame,
+        origin,
+        older,
+        holds: frame.active,
+        press,
+        row: row.id,
+      });
   };
   if (frame && typeof result?.then === "function")
     result.then(

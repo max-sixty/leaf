@@ -2928,6 +2928,42 @@ def test_a_thread_walk_closes_the_panel_a_later_step_opened(browser, serve):
     expect(heading).to_be_focused()
 
 
+def test_a_walk_stepping_on_from_a_note_press_hands_the_note_back(browser, serve):
+    """A press made in the middle of a walk — the mark's note, naming the thread the card
+    already shows — is where the walk's next step begins, since the reader left the card's
+    thread to make it. The panel that step opens is that press's, so one Escape closes it
+    and hands back the note, rather than leaving a panel nobody's frame can take off."""
+    url = serve(ASK_PAGE)
+    placed = panel_comment(
+        serve.page_dir,
+        "The heater draws too much.",
+        {"section": "heater-p", "quote": "Frozen eleven"},
+    )
+    loose = panel_comment(serve.page_dir, "And the page as a whole?")
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    threads = page.locator(".lf-thread-panel")
+    card = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{placed}"]'
+    )
+    heading = page.locator("#sec-mounts h2")
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+
+    note = page.locator("#heater-p .lf-mark-note").first
+    note.evaluate("el => el.focus()")
+    page.keyboard.press("Enter")
+    expect(card).to_be_visible()
+
+    page.keyboard.press("t")
+    expect(threads.locator(f'.lf-thread[data-id="{loose}"]')).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(threads).to_be_hidden()
+    expect(note).to_be_focused()
+
+
 def test_a_frame_holds_only_the_standing_its_own_press_made(browser, serve):
     """A press that moved nobody, or landed on a floor or a chrome row, leaves what the
     reader then stands on theirs to let go of first: the `w` narrowing, and a tray

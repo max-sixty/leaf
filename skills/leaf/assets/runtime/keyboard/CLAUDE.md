@@ -79,9 +79,12 @@ because standing is the newest thing they did. A press that stood them there rec
 frame, and a frame holds the standing unless it says `standing: false` because its
 press stood the reader nowhere, so that frame answers in the stack's order instead; a
 walk pushes one such frame for however many steps it takes, and a panel any of those
-steps opened closes in that frame's one Escape (`openingPanel`). A pointer press that
-takes the reader into a layer — the Threads toggle, a margin marker or its option row, a
-page mark or its note — is a command too, and records its frame with the place the press
+steps opened closes in that frame's one Escape: the stack names the press each opening of
+an auxiliary surface belongs to — the press whose frame is being recorded, or, for a step
+that records none, the press the reader is standing in — and a frame asks it which
+(`openedByThisPress`). A pointer press that takes the reader into a layer — the Threads
+toggle, a margin marker or its option row, a page mark or its note — is a command too,
+and records its frame with the place the press
 displaced, read before the press moved focus: the Escape out of a clicked-open panel or
 conversation view hands back the page the reader was reading, never the control the
 click happened to focus, and a keyboard activation of the same control, whose place was
@@ -91,7 +94,8 @@ Escape takes off only what the press put up: a note pressed with Threads open la
 its thread in the list, and one Escape hands the note back and leaves the panel open. A
 card shows one thread, so a press that puts its own thread in a card already showing has
 put up the card the reader sees, and its one Escape closes that card and hands back the
-note or marker. A gesture whose result is a layer records the same frame: an accepted
+note or marker; when a later step walks that card on to a thread with no place on the
+page, the frame goes with the reader into the panel rather than down with the card. A gesture whose result is a layer records the same frame: an accepted
 comment carries the reader into the thread it became — a card put up where the composer
 stood, or the thread's place in a panel already open — and one Escape hands back the
 place the comment press displaced, the control `c` was pressed from or the page a

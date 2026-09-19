@@ -89,7 +89,12 @@ import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
-import { invoke, pressOrigin, readingPlace } from "./keyboard/layer-stack.js";
+import {
+  invoke,
+  openedByThisPress,
+  pressOrigin,
+  readingPlace,
+} from "./keyboard/layer-stack.js";
 import { landTyping } from "./composing/capture.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS, word } from "./keyboard/bindings.js";
@@ -2691,16 +2696,23 @@ export function createMarginProjection({
   // without a frame of its own, or the seated thread itself.
   //
   // Whether the press put up the card is decided once, at the stack's first look after
-  // the run, since `t` may walk the card on to a thread the press never named. `landedIn`
-  // names the thread the reader was taken into; the frame is built before the run, so it
-  // knows whether the panel was standing when the press came. Standing is read off nodes
-  // rather than ids, because a send's thread is drawn under its pending id and the log's
-  // answer renames that same node.
+  // the run, since `t` may walk that card on to a thread the press never named and it is
+  // still the card this press put up. Which half answers follows the surfaces: once the
+  // card has gone, because a later step walked on to a thread with no place on the page,
+  // the frame goes with the reader into the panel rather than down with the card — the
+  // frame is the press's, not the layer's. `landedIn` names the thread the press took the
+  // reader into. Standing is read off nodes rather than ids, because a send's thread is
+  // drawn under its pending id and the log's answer renames that same node.
   function threadFrame(landedIn) {
+    // Where the reader stands for this press is the thread it took them into, and the
+    // panel's list once the panel standing there is this press's own doing — its run
+    // opened it, or a step of the walk it began did, walking the card on into the list.
+    const openedThreads = openedByThisPress();
     const standsIn = () => {
       const thread = landedIn();
-      if (!panel.contains(thread)) return Boolean(thread?.matches(":focus-within"));
-      return panelIsOpen() && Boolean(panel.querySelector(".lf-thread:focus-within"));
+      if (panelIsOpen() && (openedThreads() || panel.contains(thread)))
+        return Boolean(panel.querySelector(".lf-thread:focus-within"));
+      return Boolean(thread?.matches(":focus-within"));
     };
     const view = {
       active: () => inlineThreadView.showing(),
@@ -2718,8 +2730,11 @@ export function createMarginProjection({
       standing: standsIn,
       surface: null,
     });
-    let put = null;
-    const half = () => (put ??= preview.contains(landedIn()) ? view : inPlace);
+    let putUp = null;
+    const half = () => {
+      putUp ??= preview.contains(landedIn());
+      return putUp && view.active() ? view : inPlace;
+    };
     return {
       active: () => Boolean(landedIn()) && half().active(),
       close: () => half().close(),

@@ -21,7 +21,13 @@ import {
   narrowingIntent,
   threadSearchActive,
 } from "./conversation/narrowing.js";
-import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
+import {
+  auxiliaryClosed,
+  auxiliaryOpened,
+  invoke,
+  openedByThisPress,
+  pressOrigin,
+} from "./keyboard/layer-stack.js";
 import { word } from "./keyboard/bindings.js";
 import { pageRung } from "./keyboard/register.js";
 
@@ -74,6 +80,14 @@ export function createThreadPanelController({
       invoker.focus({ preventScroll: true });
   }
   function setPanel(open, { remember = true } = {}) {
+    // The stack cannot see this surface open or shut, and which press opened it is what
+    // the frames below ask it, so each change says so — before the surfaces move, since
+    // the stack answers by reading which press the reader is standing in, and that is the
+    // press they were standing in when the panel came up.
+    if (open !== panelIsOpen()) {
+      if (open) auxiliaryOpened();
+      else auxiliaryClosed();
+    }
     if (open) hideTray({ remember });
     else modality.sync(false);
     // Closing while focus is inside would drop it on body, the user's place lost
@@ -138,7 +152,7 @@ export function createThreadPanelController({
   // Opening the list stands the reader nowhere; opening to a thread stands them on its
   // card, for as long as they stay on it — a Tab to another card is a standing of their
   // own, theirs to let go of first.
-  const panelFrameOf = ({
+  const panelFrame = ({
     carried = null,
     does = "Close the thread panel",
     line = "close threads",
@@ -162,40 +176,17 @@ export function createThreadPanelController({
         panel.querySelector(".lf-thread:focus-within")?.dataset.id === carried,
     };
   };
-  // The frames built here count their presses — `panelFrame`, which the toggle and `g T`
-  // record, and every `openingPanel` — so a frame can tell the panel's opening by its own
-  // press, or a later step of its walk, from one made under a newer frame of these. A
-  // frame that shows the panel by other means, as the page comment's does, is not counted.
-  let presses = 0;
-  const panelFrame = (options) => {
-    presses += 1;
-    return panelFrameOf(options);
-  };
-
   // The frame of a press that may open the panel on its way to where it stands the
-  // reader, whether its first step opens it or a later step of the same walk does. `own`
-  // is the press's frame while the panel stays as the press found it; once the press has
-  // opened the panel, the panel's frame answers instead, holding while the panel stands
-  // and holding the standing while `own` says it would. Read on every look rather than
-  // once, since a walk's later step opens the panel as often as its first; a walk's steps
-  // record no frame, so an opening with no newer press behind it is the walk's, and one
-  // made under a newer press's frame, the toggle's or `g T`'s, is that press's alone.
+  // reader, whether its own step opens it or a later step of its walk does. `own` answers
+  // while the panel is not this press's doing; once the stack says this press opened the
+  // panel standing now, the panel's frame answers instead, holding while the panel stands
+  // and holding the standing while `own` says it would. The stack is asked on every look
+  // rather than once, because a walk opens the panel at whichever step reaches a thread
+  // with no place on the page, and the panel may go and come back under the reader.
   const openingPanel = (own) => {
-    presses += 1;
-    const panelWasShut = !panelIsOpen();
-    let since = presses;
-    let mine = null;
-    const opened = { ...panelFrameOf(), standing: own.standing ?? true };
-    // Judged at the first look that finds the panel open, and again for each reopening
-    // after one this frame saw close.
-    const half = () => {
-      if (!panelIsOpen()) {
-        if (mine !== null) [since, mine] = [presses, null];
-        return own;
-      }
-      mine ??= panelWasShut && presses === since;
-      return mine ? opened : own;
-    };
+    const opened = { ...panelFrame(), standing: own.standing ?? true };
+    const mine = openedByThisPress();
+    const half = () => (panelIsOpen() && mine() ? opened : own);
     return {
       active: () => half().active(),
       close: () => half().close(),

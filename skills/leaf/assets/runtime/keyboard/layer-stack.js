@@ -166,20 +166,20 @@ export function restoreReturnPlace({ control, reading }) {
 }
 
 // The place a press displaced (see the header). `mountPressOrigin` is wired once by the
-// keyboard controller with the same capture the dispatcher uses for a key's origin. The
-// press is forgotten when it ends: a task after its release, since the browser dispatches
-// the release and the click it becomes in one task, so every door has read the origin by
-// then whatever order the document's click listeners were added in — and a release that
-// becomes no click, a right-click or a drag that ended elsewhere, is forgotten the same
-// way rather than lending its place to the keyboard activation that follows it. A
-// cancelled press is forgotten at the cancel.
+// keyboard controller with the same capture the dispatcher uses for a key's origin.
+//
+// Whether a click had a press behind it is the click's own fact: a keyboard or scripted
+// activation carries `detail` 0, and it forgets whatever press came before it, in the
+// capture phase, ahead of every door. So a press that became no click — a right-click, a
+// drag that ended elsewhere — never lends its place to the Enter that follows, and no
+// timer has to win a race against the reader's next key to say so: a key pressed straight
+// after a click reaches the page before a timeout queued at that click's release does. A
+// click that did have a press always follows its own pointerdown, which has already
+// replaced the record, so nothing else needs clearing.
 let capturePlace = null;
 let pressed = null;
 export function mountPressOrigin(capture) {
   capturePlace = capture;
-  const forget = () => {
-    pressed = null;
-  };
   document.addEventListener(
     "pointerdown",
     () => {
@@ -187,8 +187,13 @@ export function mountPressOrigin(capture) {
     },
     true,
   );
-  document.addEventListener("pointerup", () => setTimeout(forget), true);
-  document.addEventListener("pointercancel", forget, true);
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (!event.detail) pressed = null;
+    },
+    true,
+  );
 }
 export function pressOrigin() {
   if (!capturePlace)

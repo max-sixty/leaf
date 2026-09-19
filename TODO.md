@@ -31,6 +31,13 @@ it, and anything else goes to git history.
   spacing, framing, control hierarchy, and responsive behavior; avoid playful consumer-app
   ornament.
 
+- **Weigh the focus ring once, for every keyboard target.** The 2px accent ring
+  (`--here-ring` in `skills/leaf/assets/theme.css`) may be too strong on a large target:
+  a walked-to thread card or inline thread wears it inset over the quiet ground, and the
+  perimeter reads heavier there than around a button. The card was given the ring so that
+  a keyboard arrival looks the same everywhere, so whatever weight wins applies to every
+  target that wears it; do not soften it on the card alone.
+
 ## Make Leaf feel like a game
 
 `skills/leaf/SKILL.md` states the contract: the reader sees what the page wants of them

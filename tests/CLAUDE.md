@@ -284,10 +284,10 @@ Server ownership has two layers:
   temporary page and state roots, and stops every live leaf server it finds.
 - `preview_slot` sets `LEAF_PREVIEWS_ROOT` under `tmp_path`, so a preview test's
   pages are in the roots that sweep walks rather than in the checkout's shared
-  `.tmp/previews`. It then discards each of them through
+  `.tmp/previews`. It then retires each slot's watcher through
   `preview.retire_preview`, because a watcher is detached into a session of its
-  own: neither the sweep nor `spawn` reaches one, and the discard retires it
-  rather than pulling its page out from under it.
+  own: neither the sweep nor `spawn` reaches one, and retiring it waits for its
+  lease rather than pulling its page out from under it.
 
 The search is intentional: a cleanup list catches only the server a test
 remembered to register. A page server is spawned into its own process session,

@@ -63,7 +63,7 @@ ROOT = Path(__file__).parent.parent
 
 @pytest.fixture
 def preview_slot(tmp_path, monkeypatch):
-    """A previews root of this test's own, and every slot in it gone when it ends.
+    """A previews root of this test's own, and no watcher left running in it.
 
     `LEAF_PREVIEWS_ROOT` puts the slots under `tmp_path` instead of the checkout's
     `.tmp/previews`, which every run in this checkout shares. That settles both
@@ -73,16 +73,16 @@ def preview_slot(tmp_path, monkeypatch):
     its thirty-second reload — and a preview a developer has standing is not a page
     these tests find.
 
-    The servers then go the way every other page's do, since
-    `_no_page_outlives_its_test` walks `tmp_path` for them. A watcher does not: it
-    is detached into a session of its own, so `spawn` does not reach it either.
-    `retire_preview` does. It is the preview's own discard, holding the stop request
-    the watcher reads and waiting for the lease, so a watcher that outlived its test
-    is retired rather than having its page pulled out from under it. Whatever the
-    test named its slots — `{slot}-reader`, `{slot}-before` — they are all in here.
+    The files then go with `tmp_path`, and the servers the way every other page's
+    do, since `_no_page_outlives_its_test` walks `tmp_path` for them. A watcher does
+    not: it is detached into a session of its own, so `spawn` does not reach it
+    either. `retire_preview` does, holding the stop request the watcher reads and
+    waiting for its lease, so a watcher that outlived its test is retired rather
+    than having its page pulled out from under it. Whatever the test named its
+    slots — `{slot}-reader`, `{slot}-before` — they are all in here.
 
     The root comes back from `previews_root` rather than being spelled twice, so
-    the directory this discards is the one the script builds slots under.
+    the directory this sweeps is the one the script builds slots under.
     """
     monkeypatch.setenv("LEAF_PREVIEWS_ROOT", str(tmp_path / "previews"))
     root = preview_model.previews_root()
@@ -90,8 +90,7 @@ def preview_slot(tmp_path, monkeypatch):
     yield slot, root / slot
     for page in sorted(root.iterdir()) if root.is_dir() else ():
         if page.is_dir():
-            preview_model.retire_preview(page, discard=True)
-    assert not (root.is_dir() and list(root.iterdir()))
+            preview_model.retire_preview(page, discard=False)
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
@@ -949,6 +948,15 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
     assert reset.returncode == 0, reset.stdout + reset.stderr
     assert (directory / "index.html").read_bytes() == source.read_bytes()
     assert b'"kind": "action"' not in (directory / "events.jsonl").read_bytes()
+    # The log the reset names is the new watcher's, and only the new watcher's: the
+    # launcher cleared the old one's lines before the worker discarded the slot.
+    log = directory.with_name(f"{directory.name}.preview.log")
+    assert f"watch log {log}" in reset.stderr
+    wait_for(
+        lambda: log.read_text() if log.exists() else "",
+        lambda output: output.count("Watching ") == 1,
+        failure="the reset's watcher did not write to the log it was named",
+    )
 
     fresh = open_page(browser, reset.stdout.splitlines()[-1])
     expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")

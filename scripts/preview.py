@@ -47,10 +47,11 @@ out of the checkout and out of the way of a developer's standing preview.
 A slot is its page directory. The fixture it was built from, the digest of the
 source last stamped into it, and the browser chrome's own preview identity are
 one record in the page's `preview.json`, written only by the watcher that holds
-the slot; a background watcher's log sits beside the directory. The watcher's
-lifetime lease and a stop's request are page locks in the state home, where the
-page's transition lease already lives, so discarding a slot leaves nothing
-behind and a stop cannot end up waiting on an inode the discard replaced.
+the slot. A background watcher's log sits beside the directory and belongs to the
+launcher that names it, which clears it on `--reset`. The watcher's lifetime lease
+and a stop's request are page locks in the state home, where the page's transition
+lease already lives, so a discard removes the page and its claim and a stop cannot
+end up waiting on an inode the discard replaced.
 
 Usage: preview.py [page] [options]  (default: triage-board)
 Stop:  preview.py [page] [--slot name] --stop
@@ -716,7 +717,6 @@ def retire_preview(page: Path, *, discard: bool) -> None:
                 elif page.exists():
                     shutil.rmtree(page)
                 claim_path(page).unlink(missing_ok=True)
-                preview_log(page).unlink(missing_ok=True)
 
 
 def preview_ready(
@@ -970,6 +970,11 @@ def start_preview_worker(
     if automation:
         command.append("--automation")
     if reset:
+        # The log is the launcher's: it names it to the developer and hands it to the
+        # watcher as its output, so the old watcher's lines are cleared here rather
+        # than by the worker's discard, which would unlink the file this launcher has
+        # already opened for the new watcher and leave the name pointing nowhere.
+        preview_log(page).unlink(missing_ok=True)
         command.append("--reset")
     if stop:
         command.append("--stop")

@@ -5727,10 +5727,11 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     measurement no lint can make: a window with no margin to hold the row docks it
     into flow, under the block it decides rather than overlapping the page.
 
-    The margin the row hangs in is reserved, not left over, and the posture that
-    proves it is the one a user reads in: with the thread panel open, a
-    centred column left too little beside it and every row docked — above the
-    change it decides, which reads as the paragraph before's."""
+    The margin the row hangs in is reserved out of the page shell rather than left
+    over in the window, so the strip a panel takes is what decides the posture. With
+    Threads open at 1400 the shell is 980px and still holds the column and the rail,
+    and the rows keep their line; at 1200 it is 780px and cannot, so they dock under
+    the blocks they decide, the way they would in a window that narrow."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
@@ -5761,12 +5762,14 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         <= 5
     ), "the row must hang on the change's own line, not on the block it follows"
 
-    # The panel takes the right of the window, and the rail survives it: the rows
-    # keep their line, clear of the column on one side and of the panel on the
-    # other. Measured after the layout has moved, since opening the panel resizes
-    # the page and the rows re-place on the frame after that. Under full motion
-    # the rows used to dock for the length of the column's glide and come back at
-    # its end; there is no glide now, so both arms go straight to the settled page.
+    # The panel takes the right of the window, and the rail survives it wherever the
+    # shell it leaves can hold one: the rows keep their line, clear of the column on one
+    # side and of the panel on the other. Measured after the layout has moved, since
+    # opening the panel resizes the page and the rows re-place on the frame after that.
+    # Under full motion the rows used to dock for the length of the column's glide and
+    # come back at its end; there is no glide now, so both arms go straight to the
+    # settled page.
+    resized(page, 1400, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.wait_for_function(
@@ -5781,6 +5784,15 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         assert rect["left"] > narrowed and rect["right"] <= room, (
             "with the panel open the row must still hang between column and panel"
         )
+
+    # Take the room away without closing the panel: a 1200px window leaves a 780px
+    # shell, which cannot hold the column and the rail together, so every row docks on
+    # the strip alone — the window is as wide as it was when they hung.
+    resized(page, 1200, 900)
+    page.wait_for_function(
+        "() => [...document.querySelectorAll('[data-lf-margin-for]')]"
+        ".every(r => r.classList.contains('lf-docked'))"
+    )
 
     # No margin anywhere: every row docks, and nothing spills sideways. Docked is
     # the same box in flow where the row was hoisted to, so it reads as a control

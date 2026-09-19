@@ -326,6 +326,13 @@ export function measureBannerControls(measure) {
   }
 }
 
+// A control the shelf folded away stands behind a door this owner holds shut, so it
+// answers the layer's shared disclosure route: `reveal` walks the ancestors of what a
+// caller means to show, and this is the only one that can open for a folded control.
+overflowMenu.addEventListener("lf-reveal", () => {
+  if (!overflowMenu.matches(":popover-open")) overflowMenu.showPopover();
+});
+
 export function focusBannerControl(control) {
   const menu = control.closest("[popover]");
   if (menu && !menu.matches(":popover-open")) menu.showPopover();

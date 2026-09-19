@@ -3622,7 +3622,9 @@ def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, se
     down has grown taller and is expected to have moved.
     """
     page = open_page(browser, serve(LONG_PAGE, comments=2))
-    resized(page, 1000, 640)
+    # Narrow enough that the strip's share of the shell re-wraps this fixture's
+    # paragraphs: the assertion below says so rather than trusting the width.
+    resized(page, 900, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 900")
     # The reader's place: the page's own block under the window's visible top edge, which
     # the root states as scroll-padding for native focus navigation.

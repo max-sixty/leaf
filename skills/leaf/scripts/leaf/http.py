@@ -114,7 +114,9 @@ _ROOTED_PATH = (
     + b"|".join(re.escape(name.encode()) for name in VENDORED_FILES)
     + rb")"
 )
-_ROOTED_SCRIPT_ROUTE = re.compile(rb'(?P<before>["\'`])/(?P<path>' + _ROOTED_PATH + rb")")
+_ROOTED_SCRIPT_ROUTE = re.compile(
+    rb'(?P<before>["\'`])/(?P<path>' + _ROOTED_PATH + rb")"
+)
 _ROOTED_STYLESHEET_ROUTE = re.compile(
     rb'(?P<before>["\'`(])/(?P<path>' + _ROOTED_PATH + rb")"
 )

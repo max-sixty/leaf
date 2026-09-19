@@ -16,7 +16,7 @@ from .event_contracts import (
 from .event_log import AttemptConflict
 from .events import build_threads, undo_error
 from .files import latest_revision, list_revisions, version_revisions
-from .host import message_claude_code_session
+from .host import claim_harness
 from .leases import wait_is_live
 from .passages import active_enclosing
 from .projection import (
@@ -373,27 +373,24 @@ def _execute_event(
             event["author"] = "page" if event["kind"] == "error" else "user"
             page.append_event(event, registry)
             claim = page.active_claim
-            # Input no carrier will pick up: the claiming Claude Code session has
-            # no `leaf wait` holding its lease, and none of its turns is running,
-            # since a delivering wait and the prompt hook both reopen the turn
-            # the Stop hook closed. A running turn needs no message, because its
-            # Stop hook refuses to end with the input unpicked. A closed turn gets
-            # one message per page, so a reader ticking three boxes queues one
-            # turn or one approval rather than three. It is sent under the lock,
-            # so the mark it leaves is exact: a local socket accepts or refuses
-            # at once, and input after a refusal tries again.
+            # Input no carrier will pick up: the claiming session holds no wait
+            # lease, and none of its turns is running, since a delivering wait
+            # and the prompt hook both reopen the turn the Stop hook closed. A
+            # running turn needs no nudge, because its Stop hook refuses to end
+            # with the input unpicked. A closed turn gets one nudge per page, so
+            # a reader ticking three boxes queues one turn or one approval
+            # rather than three. The claimant's harness decides whether its
+            # session can be reached at all and what to say; a harness whose
+            # carrier is a process of its own has nowhere to put this and
+            # answers no. It is sent under the lock, so the mark it leaves is
+            # exact: a local socket accepts or refuses at once, and input after
+            # a refusal tries again.
             if (
                 claim
-                and claim["host"] == "claude-code"
                 and claim["turn_closed"]
                 and claim.get("messaged_turn") != claim["turn"]
-                and not wait_is_live(page_dir, claim)
-                and message_claude_code_session(
-                    claim["id"],
-                    f"leaf: {page_dir} has new input and no `leaf wait` is running "
-                    "for this session to deliver it. Start an unnamed `leaf wait` "
-                    "as a background task.",
-                )
+                and not wait_is_live(page_dir, claim["id"])
+                and claim_harness(claim).nudge(page_dir)
             ):
                 page.note_messaged_turn()
     return 200, {"ok": True, "state": state()}

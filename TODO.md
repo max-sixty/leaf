@@ -139,22 +139,6 @@ carries. A 2026-09-18 survey measured what remains and added #25 to #27; its evi
 the `leaf-simplification` page directory in the state home. Ids here share one space with
 the workspace research below, which reaches #23, so a new item starts above that.
 
-- **#4 — Delete the browser's second derivation of the server's semantics.** The server
-  already folds the Ask inventory, winner and retraction resolution, and each thread's
-  `awaits_reader`, and ships all three on `/api/state`; the browser discards them and
-  derives them again in `scripts/browser/application.ts` — `deriveAsks` across lines 342 to
-  517, `deriveThreadReaderObligations` 528 to 582, the ask predicates between them, plus a
-  re-fold of the `actions` and `desired` id lists the wire carries for exactly that purpose.
-  Roughly 750 lines, arrived in #746. The two copies of the `when` predicate already
-  disagree, Python testing presence and TypeScript testing non-null, so an attribute
-  recorded as `null` reads differently on each side. Nothing on either side compares them.
-  Keep the pending-attempt ledger and the DOM-captured authored baseline, which are the
-  browser's real work. Restore the ~35 lines of page-ask serialization
-  `served_state/document.py` computes and drops, and delete the ask payload
-  `served_state/conversation.py` ships that nothing reads. A shared parity corpus follows
-  this rather than preceding it: built first, it would police an implementation that is
-  about to go.
-
 - **#25 — Give the Worker one App Server client instead of two.** `worker/server.py`
   imports 16 symbols from `leaf.codex`, three of them private, and then re-implements the
   connection lifecycle `AppServerClient` owns: the `initialize`/`initialized`/`thread/resume`
@@ -205,6 +189,24 @@ the workspace research below, which reaches #23, so a new item starts above that
   `event_log` stamps an id and a timestamp and checks no schema, so whatever a caller
   hands it lands in the log. Validate once at the edge: one admission door the CLI writers
   share, not a validator added per caller.
+
+- **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
+  now keeps the reader's place through the browser's own scroll anchoring, and that hold
+  rests on an ordering rather than a guarantee: `main`'s `left` (via `--lf-shift`) and its
+  `width` do change when the strip is taken, both are on Chromium's suppression list, and
+  they escape it only because the container-query recalc that moves them runs inside
+  layout, after `ScrollAnchor::NotifyBeforeLayout` has walked the anchor's ancestors.
+  Measured 2026-09-18: across three pages and six widths, `left` changed at 1440 and 1200
+  and `width` at ≤1200, and the reader held within 2px in all 18 cases. Make `body` a
+  three-track grid for column placement only — keep the border strip, so every
+  `lf-shell` floor keeps its meaning — and give `main` `grid-column: 2; width: 100%`, so
+  its inset never changes. That deletes `--lf-shift`, `--lf-gutter`, `--lf-sidebar-edge`,
+  `left`, and the `50cqi ± --lf-shift` terms in `packages/default/theme.css`, with the same
+  layout at every width and the same sideways jump. Keep `main`'s `max-width`, or
+  `_column_width` (`scripts/leaf/styles.py`) silently falls back to 780. About half a day;
+  the space-bound arithmetic is where the 134px and 34px overlaps were measured, so expect
+  `test_render_margin.py` and the `withheldRoom` gate to need iteration. Low priority:
+  `--lf-shift` has been touched by two commits, so this is insurance, not accretion.
 
 ## Platform and dependency cutover
 

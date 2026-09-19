@@ -9,7 +9,7 @@ from typing import NamedTuple
 
 from .delivery import batch_data, freeze_delivery, read_delivery
 from .files import read_json, write_json
-from .host import host_identity
+from .host import Harness, session_harness
 from .hosting import start_server
 from .leases import take_waiter_lease, waiter_lease_path
 from .locations import path_location, paths_same
@@ -220,11 +220,11 @@ class Watch:
     down with no restart left to make.
     """
 
-    def __init__(self, identity: dict | None, named: Path | None = None):
-        self.identity = identity
-        self.session_id = identity["id"] if identity else None
+    def __init__(self, harness: Harness | None, named: Path | None = None):
+        self.harness = harness
+        self.session_id = harness.session if harness else None
         self.named = named
-        self.lease_path = waiter_lease_path(named, identity)
+        self.lease_path = waiter_lease_path(named, self.session_id)
         self.lease = None
         self._revived: set = set()
         self._lost: set = set()
@@ -243,7 +243,7 @@ class Watch:
         Naming one holds it in the set whatever the registry says — how a
         session picks up a leaf it didn't serve. A bare shell has no implicit
         ownership set, so it watches only a page explicitly named."""
-        watched = owned_pages(self.session_id) if self.identity is not None else []
+        watched = owned_pages(self.session_id) if self.harness is not None else []
         named_at = None if self.named is None else path_location(self.named)
         if named_at is not None and not any(
             path_location(d) == named_at for d in watched
@@ -299,7 +299,7 @@ class Watch:
     def _read(self, page: PageTransaction, observed: dict) -> tuple[PageTick, bool]:
         """Read one page transaction and say whether revival is due."""
         page_dir = page.page_dir
-        watch_state = page.watch_state(self.identity)
+        watch_state = page.watch_state(self.harness)
         status = observed if watch_state == "lost" else page.status
         live = status["state"] != "idle"
         batch = (
@@ -568,14 +568,14 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
     carries the recourse."""
     if page_dir is not None and claim_named:
         claim_page(page_dir)
-    identity = host_identity()
+    harness = session_harness()
     # A host re-arm resumes its session-wide watch. The page stays named only
     # for a public wait that claims it, or for the bare shell whose named page
     # is its whole watch set.
-    named = page_dir if claim_named or identity is None else None
-    watch = Watch(identity, named=named)
+    named = page_dir if claim_named or harness is None else None
+    watch = Watch(harness, named=named)
     if not watch.acquire():
-        target = "this session" if identity else str(page_dir)
+        target = "this session" if harness else str(page_dir)
         print(f"another `leaf wait` is already active for {target}", file=sys.stderr)
         return 2
     try:

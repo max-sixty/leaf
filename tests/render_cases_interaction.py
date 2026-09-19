@@ -58,7 +58,7 @@ LIST_RUNS = """() => [...document.querySelector(".lf-threads").children]
 def panel_comment(d, text, anchor=None, author="user"):
     """One thread's opening message, written straight to the log."""
     event = {"kind": "comment", "author": author, "revision": 1, "text": text}
-    if author == "claude":
+    if author == "agent":
         event["agent"] = "Claude"
     if anchor:
         event["anchor"] = anchor
@@ -468,18 +468,17 @@ SHORT_SUGGESTION = leaf_page(
 )
 # Every animation the page starts, held at time zero so a test can read it rather than
 # race it. What it catches is everything through `motion()`, which is the layer's only
-# caller of `animate` — folds, the board's FLIP, and final-page shell motion, each
-# started synchronously inside the gesture that causes it. CSS animations run outside it
+# caller of `animate` — folds and the board's FLIP, each started synchronously inside
+# the gesture that causes it. Opening a panel or tray starts none. CSS animations run outside it
 # and are never seen, `grow` among them. Installed before anything runs, so the first
 # frame is already held.
 #
 # `__lfHeld` is what is still held, which is what a test asks it: a count is "the gesture
 # started one motion", an index is "the motion this gesture started", and a sweep over it
 # steps or releases the frame the test is holding. A motion the test has already let go of
-# — a fold it finished, the shell carry `panel_settled` takes to its end on the way to the
-# gesture under test — answers none of those, and left standing it makes the count one too
-# many, the index one place out, and a sweep rewind a finished carry into the middle of a
-# move the page has made. So a motion drops out of the list when it finishes. Cancelling
+# — a fold it finished on the way to the gesture under test — answers none of those, and
+# left standing it makes the count one too many, the index one place out, and a sweep
+# rewind a finished motion into the middle of a move the page has made. So a motion drops out of the list when it finishes. Cancelling
 # is the other way to end one, and it stays: `motion()` cancels its own last frame after
 # the caller's cleanup, and a cancelled motion is the positive control for a gesture the
 # page took back, which the board's refusal case reads out of this list by play state.
@@ -1003,7 +1002,7 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
         page_dir,
         {
             "kind": "report",
-            "author": "claude",
+            "author": "agent",
             "agent": "wren",
             "widget": widget,
             "action": "state",
@@ -1484,7 +1483,7 @@ THREAD_ASKS = [
     {
         "kind": "comment",
         "id": "c-which",
-        "author": "claude",
+        "author": "agent",
         "revision": 1,
         "text": "Which store?",
         "markup": '<lf-ask id="tq-one-decision"><h3>Which store?</h3>'
@@ -1496,7 +1495,7 @@ THREAD_ASKS = [
     {
         "kind": "comment",
         "id": "c-any",
-        "author": "claude",
+        "author": "agent",
         "revision": 1,
         "text": "Pick any that apply.",
         "markup": '<lf-ask id="tq-set-decision"><h3>Which extras apply?</h3>'

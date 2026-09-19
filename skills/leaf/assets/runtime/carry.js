@@ -26,33 +26,35 @@
  * something inside it is theirs to keep standing in — and it is everything the live node
  * no longer agrees with the author about.
  *
- * Some controls answer for that themselves: `defaultValue` and `defaultChecked` are what
- * the author wrote, so a field still matching one holds nothing of anyone's, and the
- * arriving revision's text is the better answer. Only where the value is words, though.
- * The rest of the input family answers `value` with something the platform made up
- * against an empty `defaultValue` — which `focus.js`'s `holdsWords` is the question for.
+ * The baseline for every one of those facts is the authored markup of the revision the
+ * reader is standing in: the same `before` side `dom-children.js` diffs against, and for
+ * the reason it gives there — the live page differs from the author in everything the
+ * reader, the runtime and every module have done to it since it loaded, so the page is
+ * never one side of this comparison. The authored node is asked exactly what the live one
+ * is: whether it is open, what it holds, whether it is ticked. One platform answers both,
+ * so a range the author left unvalued reads its midpoint on either side and nothing
+ * crosses, while one the reader dragged reads differently and does.
  *
- * A disclosure answers nothing at all: `open` reflects, so the attribute moves with the
- * page. Its baseline is the authored markup of the revision the reader is standing in,
- * the same `before` side `dom-children.js` diffs against, and for the reason it gives
- * there: the live page differs from the author in everything the reader, the runtime and
- * every module have done to it since it loaded, so the page is never one side of this
- * comparison. Read the live box alone and a box nobody touched is carried over the
- * arriving revision that opened it, which arrives shut.
+ * The platform's own defaults are not that question. They answer for some facts and not
+ * others: a disclosure has none, since `open` reflects and moves with the page, and a
+ * tick the author gave no value answers `"on"` against an empty `defaultValue`.
  *
  * The baseline is also what the authored id means here. An id the outgoing source does
  * not carry was made by a module rather than by the author, and what a module makes is
  * the module's to put back from its own store; this carries nothing for it.
  *
  * Deliberately not carried: a `<select>`, whose authored default is an attribute on one
- * of its options rather than a property of the control, and a `contenteditable`, whose
- * value is markup and therefore the document's rather than the apparatus's. Neither has
- * a surface in Leaf today. State a module keeps for itself — the tab store's selection,
+ * of its options rather than a property of the control; a `contenteditable`, whose value
+ * is markup and therefore the document's rather than the apparatus's; and a file input,
+ * whose value is a path the page may read and never write. None has a surface in Leaf
+ * today. State a module keeps for itself — the tab store's selection,
  * the draft store's words — is already restored by that module reading its own store back
  * under the same id, and does not belong here.
  */
-import { focusDestination, holdsWords, readCaret } from "./focus.js";
+import { focusDestination, readCaret } from "./focus.js";
 
+const holdsValue = (node) =>
+  node.tagName === "TEXTAREA" || (node.tagName === "INPUT" && node.type !== "file");
 const holdsTick = (node) =>
   node.tagName === "INPUT" && (node.type === "checkbox" || node.type === "radio");
 
@@ -67,15 +69,15 @@ export function captureCarry(root, authored) {
   const held = new Map();
   for (const node of root.querySelectorAll("[id]")) {
     const wrote = authored.querySelector(`#${CSS.escape(node.id)}`);
-    if (!wrote) continue;
+    if (wrote?.localName !== node.localName) continue;
     const record = { id: node.id, name: node.localName };
     if (node === active) record.focus = true;
-    if (node.localName === "details" && node.open !== wrote.hasAttribute("open"))
+    if (node.localName === "details" && node.open !== wrote.open)
       record.open = node.open;
     if (node.scrollTop) record.scrollTop = node.scrollTop;
     if (node.scrollLeft) record.scrollLeft = node.scrollLeft;
-    if (holdsWords(node) && node.value !== node.defaultValue) record.value = node.value;
-    if (holdsTick(node) && node.checked !== node.defaultChecked)
+    if (holdsValue(node) && node.value !== wrote.value) record.value = node.value;
+    if (holdsTick(node) && node.checked !== wrote.checked)
       record.checked = node.checked;
     if (node === active) {
       const caret = readCaret(node);
@@ -102,7 +104,7 @@ export function restoreCarry(records, held = new Map()) {
     if (!arrived || arrived === held.get(record.id)) continue;
     if (arrived.localName !== record.name) continue;
     if (record.open !== undefined) arrived.open = record.open;
-    if (record.value !== undefined && holdsWords(arrived)) arrived.value = record.value;
+    if (record.value !== undefined && holdsValue(arrived)) arrived.value = record.value;
     if (record.checked !== undefined && holdsTick(arrived))
       arrived.checked = record.checked;
     if (record.scrollTop) arrived.scrollTop = record.scrollTop;

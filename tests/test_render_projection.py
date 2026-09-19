@@ -3641,13 +3641,13 @@ def test_a_revision_that_opens_a_box_the_reader_never_touched_arrives_open(
 
 
 def test_a_revision_gives_values_to_controls_the_reader_never_touched(browser, serve):
-    """`defaultValue` answers for the author only where the control's value is words.
+    """An untouched control is the author's to set, whatever kind of control it is.
 
     A tick the author gave no value of its own answers `"on"`, and a range answers its
-    midpoint, both against a `defaultValue` the author left empty. Compare those two and
-    every such control reads as reader state on the way out, and arrives written over
-    whatever the next revision authored — the disclosure's bug on the other side of the
-    same line. Only a control that holds the author's own word can be asked that way.
+    midpoint, both against a `defaultValue` the author left empty. Ask the platform's
+    default and every such control reads as reader state on the way out, and arrives
+    written over whatever the next revision authored. The authored node answers the same
+    way the live one does, so asking it instead finds nothing to carry.
     """
     unvalued = (
         '<p><label for="lk-tick">Also</label>'
@@ -3692,6 +3692,41 @@ def test_a_revision_gives_values_to_controls_the_reader_never_touched(browser, s
     assert page.locator("#lk-dial").evaluate("el => el.value") == "80"
     # While the field whose value is the reader's own words still crosses.
     expect(page.locator("#lk-note")).to_have_value("half a thought")
+
+
+def test_a_range_the_reader_moved_keeps_its_place_across_a_revision(browser, serve):
+    """The other side of that: a control the reader did move is theirs, whatever its kind.
+
+    The authored range still reads its midpoint, so a range the reader dragged disagrees
+    with it and crosses into the widget the revision replaced. A rule keyed on the kind of
+    control instead — words carry, the rest do not — keeps the untouched tick and range
+    of the test above from crossing only by leaving every range behind, the reader's drag
+    included.
+    """
+    unvalued = (
+        '<p><label for="lk-dial">How much</label>'
+        ' <input id="lk-dial" name="lk-dial" type="range"></p>'
+    )
+    first = LIVE_KEYS_APPARATUS.replace(
+        '<details id="lk-why">', unvalued + '<details id="lk-why">'
+    )
+    second = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
+        '<details id="lk-why">', unvalued + '<details id="lk-why">'
+    )
+
+    version_url = serve(first)
+    page = open_page(browser, live_url(version_url))
+    page.locator("#lk-dial").fill("17")
+    assert page.locator("#lk-dial").evaluate("el => el.value") == "17"
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The widget did go whole, so the carry is what decides the range.
+    expect(page.locator("#lk-decision h2")).to_have_text(
+        "Which one, now the costs are in?"
+    )
+    assert page.locator("#lk-dial").evaluate("el => el.value") == "17"
 
 
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):

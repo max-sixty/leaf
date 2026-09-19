@@ -21,10 +21,16 @@
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
 /* The press is out of the summary's flow, so that line holds a column open for it and a
-   long path wraps above it rather than running underneath. A copy with no press to make
-   room for takes its ordinary inset back. */
+   long path wraps above it rather than running underneath, and stands tall enough to
+   contain it. A path sets the line at 35px, which is what the bar and the room above and
+   below it come to with a mouse; under a finger the bar is the taller of the two and the
+   line follows it rather than letting it hang over the first row of the patch. A copy
+   with no press to make room for takes its ordinary inset back. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) > details > summary,
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
+                                     box-sizing: border-box;
+                                     min-height: calc(var(--lf-diff-action-h)
+                                                      + 2 * var(--lf-diff-action-top));
                                      padding-right: calc(var(--lf-diff-actions) + 18px); }
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
                  margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
@@ -39,7 +45,8 @@
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
                       white-space: nowrap; cursor: pointer; }
 .lf-diff-wrap { margin: 0; flex: none; cursor: pointer; }
-.lf-diff-next, .lf-diff-review, .lf-diff-comment { min-height: 30px; font: inherit; }
+.lf-diff-next, .lf-diff-review, .lf-diff-comment {
+                min-height: max(30px, var(--aim-floor)); font: inherit; }
 /* The file's row is a disclosure, and a disclosure is a control, so the review press
    cannot be a descendant of it (lf-diff.js). It is a sibling drawn over the summary
    line instead: a block in the flow ahead of the row, pushed to the right by its auto
@@ -64,28 +71,36 @@
    lifted alone it covered the press too, on every file, so a click on "Mark reviewed"
    opened and closed the file instead. */
 .lf-diff-file { position: relative; display: flow-root; margin: 8px 0;
-                --lf-diff-actions: 32px; --lf-diff-press: 110px; }
+                --lf-diff-actions: 32px; --lf-diff-press: 110px;
+                /* How tall the bar of presses on the file's name line stands, and how far
+                   down the name it starts. Both are said here because the pull below is
+                   the same distance in the other direction: the bar is laid out above the
+                   file's body and the body is drawn back over it, so a number restated
+                   there would put the presses off the name the moment either changed. A
+                   finger raises the floor and the pull follows on its own. */
+                --lf-diff-action-h: max(26px, var(--aim-floor));
+                --lf-diff-action-top: 6px; }
 .lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) { --lf-diff-actions: 150px; }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(details, .lf-diff-rename) {
-                margin-top: -32px; }
+                margin-top: calc(-1 * (var(--lf-diff-action-h)
+                                       + var(--lf-diff-action-top))); }
 .lf-diff-file-actions { position: relative; z-index: 3; display: flex;
                         align-items: center; justify-content: flex-end; gap: 6px;
-                        width: fit-content; height: 26px; margin: 6px 11px 0 auto;
+                        width: fit-content; height: var(--lf-diff-action-h);
+                        margin: var(--lf-diff-action-top) 11px 0 auto;
                         font-family: var(--sans); }
-.lf-diff-review, .lf-diff-reviewed { display: block; width: fit-content; height: 26px;
+.lf-diff-review, .lf-diff-reviewed { display: block; width: fit-content;
+                                     height: var(--lf-diff-action-h);
                                      font-family: inherit; }
 .lf-diff-review { box-sizing: border-box; width: var(--lf-diff-press);
-                  min-height: 26px; padding: 2px 8px;
-                  font-size: var(--t-6); }
-.lf-diff-reviewed { font-size: var(--t-5); line-height: 26px; }
+                  padding: 2px 8px; font-size: var(--t-6); }
+.lf-diff-reviewed { font-size: var(--t-5);
+                    line-height: var(--lf-diff-action-h); }
 .lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
                                                          font-weight: 650; }
-/* Bigger than the shared floor with a mouse, and never smaller than it under a
-   finger, which is what max() is doing in a minimum here and in the layer's own
-   faces (assets/shadow.css). */
-.lf-diff-file-comment { box-sizing: border-box; width: 26px; height: 26px;
-                        min-width: max(26px, var(--aim-floor));
-                        min-height: max(26px, var(--aim-floor)); padding: 0;
+/* Square, and the same height as the press beside it. */
+.lf-diff-file-comment { box-sizing: border-box; width: var(--lf-diff-action-h);
+                        height: var(--lf-diff-action-h); padding: 0;
                         border-color: transparent; border-radius: var(--r);
                         background: transparent; color: var(--muted);
                         font-size: 18px; line-height: 1; }

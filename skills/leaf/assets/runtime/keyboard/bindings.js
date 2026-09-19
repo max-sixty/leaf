@@ -51,6 +51,10 @@
    - `when` says whether the capability exists. When a destination surface is available
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.
+   - `covering`, on a row of the page's own scope, keeps that command reachable while an
+     auxiliary surface covers the document: the surface replaces the page the reader is
+     reading rather than ending the reading, so travel and the go-to sequence answer
+     inside it while the rest of page scope stays under the modal floor.
    - `at`, expressed by the current `readerIn` predicate, says whether this press can act
      at the reader's current position.
    - `run` performs one result. A run-less row names a press it does not make: the

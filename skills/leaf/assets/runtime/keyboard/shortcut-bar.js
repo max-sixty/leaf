@@ -69,7 +69,13 @@ import {
 import { el } from "../widget-elements.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 
-import { commandReferenceOpen, openCommandReference } from "./command-reference.js";
+import {
+  commandReferenceDialog,
+  commandReferenceOpen,
+  declareShelfBehindReference,
+  openCommandReference,
+} from "./command-reference.js";
+import { pageCommand, pageScope } from "./register.js";
 import {
   announce,
   noticeReading,
@@ -496,7 +502,7 @@ export function mountShortcutBar({ setGoToSequence, setReact, captureReturnPlace
   repaint();
 }
 
-export const SHORTCUT_HELP = {
+export const SHORTCUT_HELP = pageCommand({
   id: "command.reference.open",
   runFromCommandReference: false,
   keys: ["?"],
@@ -504,7 +510,7 @@ export const SHORTCUT_HELP = {
   line: () => (shortcutShelfOpen() ? "command reference" : "more"),
   control: () => shortcutBarMore,
   run: () => shortcutBarMore.click(),
-};
+});
 
 export const CLOSE_SHORTCUT_SHELF = {
   id: "shortcut.shelf.close",
@@ -515,6 +521,18 @@ export const CLOSE_SHORTCUT_SHELF = {
   runFromCommandReference: false,
   run: () => closeShortcutShelf(),
 };
+
+// The shelf stands inside the reference's own dialog box, and the reference claims the
+// keyboard whole while it is open, so this scope answers only in the state between the two
+// presses: the shelf unfolded, the reference not yet opened.
+pageScope("shortcut shelf", {
+  title: "In the shortcut shelf",
+  escape: "inner",
+  root: () => commandReferenceDialog,
+  at: () => Boolean(shortcutShelfOpen()),
+  rows: [CLOSE_SHORTCUT_SHELF],
+});
+declareShelfBehindReference(shortcutShelfOpen);
 
 export const beforeShortcutCommand = (row) => {
   if (

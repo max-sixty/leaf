@@ -649,12 +649,6 @@ export function createSelectionComposer({
           mayLandTyping(reply, composerInput);
         // Continue in the surface already in use. Closing an open panel here reflows the
         // passage just as the reader's comment moves across it to a new floating card.
-        // The card is a layer the send takes the reader into, so it enters the stack with
-        // the place the send displaced: the page they were reading, since the composer
-        // goes with the gesture. Without an origin Escape had nothing to hand back and
-        // fell to the margin's scene-derived rung, which focused the entry the card hangs
-        // from — a control the reader never stood on, saying its transient label as they
-        // arrived there.
         const inlineThread =
           shouldLand && !panelIsOpen()
             ? openInlineThread(sent.id, {

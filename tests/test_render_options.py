@@ -914,19 +914,23 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     the specimen suppressed them, not because the upgrade failed.
 
     Presentation and view state are not input, so they still run: a quoted
-    settled group collapses like any other."""
+    settled group collapses like any other. The log's door refuses input to quoted
+    material too, so a write that skips the page cannot answer the exhibit either."""
     url = serve(SPECIMEN_PAGE)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "quoted-suggestion",
-            "action": "accept",
-            "detail": {},
-        },
-    )
+    with pytest.raises(
+        events_model.EventRefused, match="quoted material takes no input"
+    ):
+        append_command(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "quoted-suggestion",
+                "action": "accept",
+                "detail": {},
+            },
+        )
     page = open_page(browser, url)
     assert page.locator(".lf-error").count() == 0
 
@@ -963,13 +967,11 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # wears its mark, with nothing to press.
     assert page.locator('#quoted-settled .lf-pick[role="img"]').count() == 1
 
-    # A quoted suggestion reconciles its semantic state while growing nothing to
-    # settle it with, so it is also not the banner's to count or Accept all's to
-    # decide.
-    expect(page.locator("#quoted-suggestion")).to_have_attribute(
-        "data-lf-state", "accept"
-    )
-    expect(page.locator("#quoted-suggestion lf-old")).to_be_hidden()
+    # A quoted suggestion exhibits a pending change: both marks stand, no outcome is
+    # painted, and nothing grows to settle it with, so an undecided one is still not
+    # the banner's to count or Accept all's to decide.
+    assert page.locator("#quoted-suggestion").get_attribute("data-lf-state") is None
+    expect(page.locator("#quoted-suggestion lf-old")).to_be_visible()
     expect(page.locator("#quoted-suggestion lf-new")).to_be_visible()
     assert (
         page.locator(

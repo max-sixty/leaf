@@ -299,7 +299,24 @@ def position_record_error(
             node = node["holder"]
         return None
 
-    if recording_owner(unit) is not current:
+    def positions_itself(node: dict) -> bool:
+        """Whether the node's own contract records where the node stands."""
+        return any(
+            spec.get("unit") == "widget"
+            and (spec.get("record") or {}).get("kind") == "position"
+            for _, _, spec in state_specs(registry.get(node["tag"], {}))
+        )
+
+    # A node has one place and one widget records it: the node itself when its own
+    # contract records its position, otherwise the nearest recording widget above it.
+    # State is keyed by its owning widget, so a part's other facets are its own
+    # coordinates and leave its placement with its container.
+    placer = (
+        unit
+        if unit is current or positions_itself(unit)
+        else recording_owner(unit["holder"])
+    )
+    if placer is not current:
         return (
             f"position record unit {unit_id!r} is not owned by action widget "
             f"{event['widget']!r}"

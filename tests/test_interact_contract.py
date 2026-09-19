@@ -3610,6 +3610,102 @@ def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page
         assert "inside itself or its descendant" in json.loads(body)["error"]
 
 
+def _value_verb(attr):
+    """A widget-unit verb that records one attribute's value."""
+    return {
+        "detail": {
+            "type": "object",
+            "properties": {attr: {"type": "string"}},
+            "required": [attr],
+            "additionalProperties": False,
+        },
+        "facet": attr,
+        "unit": "widget",
+        "record": {"kind": "value", "attr": attr, "value": attr},
+    }
+
+
+@pytest.mark.parametrize(
+    ("arrangement", "admitted"),
+    [("own-facet", True), ("recording-column", False), ("own-position", False)],
+)
+def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
+    server, page_dir, arrangement, admitted
+):
+    """A card has one place and one widget records it: the card itself when its own
+    contract records its position, otherwise the nearest recording widget above it. A
+    facet the card records of its own is a coordinate of the card's, so the board still
+    moves it. A column that records stands between the board and the card, and a card
+    that positions itself leaves the board nothing to place."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-column"]["properties"]["tint"] = {"type": "string"}
+    card_verbs = {"flag": _value_verb("flag")}
+    if arrangement == "own-position":
+        card_verbs["move"] = {
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "to": {"type": "string"},
+                    "index": {"type": "integer", "minimum": 0},
+                },
+                "required": ["to", "index"],
+                "additionalProperties": False,
+            },
+            "facet": "placement",
+            "unit": "widget",
+            "record": {
+                "kind": "position",
+                "within": "lf-column",
+                "value": "to",
+                "order": "index",
+            },
+        }
+    recorders = {"lf-card": ("flag", card_verbs)}
+    if arrangement == "recording-column":
+        recorders["lf-column"] = ("tint", {"tint": _value_verb("tint")})
+    for tag, (attr, verbs) in recorders.items():
+        entry = registry[tag]
+        entry["properties"] |= {
+            attr: {"type": "string"},
+            "restated": {"type": "boolean"},
+        }
+        entry["required"] = sorted({*entry["required"], attr})
+        entry["x-state"] = verbs
+        entry["x-upgrade"] = True
+        (page_dir / "widgets" / f"{tag}.js").write_text("export default class {}\n")
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+
+    board = (
+        '<lf-board id="board"><lf-column id="todo" label="To do" tint="plain">'
+        '<lf-card id="card" flag="no">Card</lf-card></lf-column>'
+        '<lf-column id="done" label="Done" tint="plain"></lf-column></lf-board>'
+    )
+    html = re.sub(r"<main>.*?</main>", f"<main>{board}</main>", PAGE, flags=re.DOTALL)
+    (page_dir / "index.html").write_text(html)
+    publish(page_dir)
+    revision = events_model.read_events(page_dir)[-1]["revision"]
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "revision": revision,
+                "widget": "board",
+                "action": "move",
+                "detail": {"card": "card", "to": "done", "index": 0},
+            }
+        ).encode(),
+    )
+    if admitted:
+        assert status == 200, body
+    else:
+        assert status == 400, body
+        assert "is not owned by action widget 'board'" in json.loads(body)["error"]
+
+
 @pytest.mark.parametrize(
     ("tag", "key", "value", "missing"),
     [

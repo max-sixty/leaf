@@ -129,10 +129,14 @@ ordering contract these items extend.
   answered and resolved, and `resolved` clears only on an explicit `unresolve`, so it is
   not a shortcut to one.
 
-- **Decide whether delegated work may hold a reader move open across turns.** The Stop
-  hook refuses to end a turn over an acknowledged move with no answer, so a coordinator
-  replies with what it started before its worker runs. A live worker claim on the move's
-  subject could count as handling instead, leaving one reply when the work finishes.
+- **Keep delegated work reading as running once the coordinator's turn ends.** Workers
+  leave the page to the session driving it (`conversation-loop.md`, "Long-running
+  work"), so when a coordinator ends its turn with workers running, its `working`
+  declaration reads as the turn's end two minutes later, though its watcher is live and
+  the work is moving. A declaration the coordinator marks as delegated could stand while
+  its watcher lease holds. The same fact could keep the reader move that started the
+  work handled across turns, where today the Stop hook makes the coordinator reply with
+  what it started before its turn can end.
 
 ## Architecture simplification
 

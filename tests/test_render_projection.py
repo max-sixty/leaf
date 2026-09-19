@@ -3729,6 +3729,45 @@ def test_a_range_the_reader_moved_keeps_its_place_across_a_revision(browser, ser
     assert page.locator("#lk-dial").evaluate("el => el.value") == "17"
 
 
+def test_a_revision_that_rewrites_a_draft_leaves_the_reader_where_they_stand(
+    browser, serve
+):
+    """A draft's unsent edit comes back with it, and does not take the reader with it.
+
+    Escape sets a draft's edit aside rather than discarding it, and the draft reads the
+    edit back from its own store whenever it connects — which a revision rewriting the
+    draft makes it do. Getting the words back is right. The editor taking the focus is
+    not, when the reader had put the edit away and gone to stand on something else: the
+    revision is news, and news with no gesture behind it moves nobody.
+    """
+    draft = '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft>'
+    first = LIVE_KEYS_V1.replace('<p id="lk-para">', draft + '\n<p id="lk-para">')
+    second = first.replace(
+        "<title>Live keys first</title>", "<title>Live keys rewritten</title>"
+    ).replace("<pre>Ship it.</pre>", "<pre>Ship it on Friday.</pre>")
+
+    page = open_page(browser, live_url(serve(first)))
+    page.locator(
+        '[data-lf-margin-entry-owner="draft:plan"][data-lf-margin-entry-key="edit"]:visible'
+    ).click()
+    editor = page.locator("lf-draft textarea")
+    expect(editor).to_be_focused()
+    editor.fill("Ship it, but louder.")
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    # The reader goes and stands on the question instead.
+    pick = page.locator("#lk-one .lf-pick")
+    pick.focus()
+    expect(pick).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Live keys rewritten")
+    # The rewritten draft has connected and read its edit back: the words are kept.
+    expect(editor).to_have_value("Ship it, but louder.")
+    expect(pick).to_be_focused()
+
+
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
     """A revision that opens a fresh document carries the same named state across.
 

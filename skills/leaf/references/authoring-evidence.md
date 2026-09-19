@@ -65,7 +65,9 @@ relationship becomes a class of its own, so a stray `accTitle: Checkout flow` dr
 box named `accTitle`. The three directives above are refused in a flowchart only: a
 `stateDiagram` refuses `click`, but reads `accTitle:` and `accDescr:` as one of its own
 `id : label` statements, so either one draws a loose state labelled with the text after
-the colon.
+the colon. A `stateDiagram` also refuses `classDef`, `class` and `style`: only the
+flowchart parser reads them, so the styling above is a flowchart's, and a state
+diagram takes the baseline surface.
 Use `lf-chart` for quantities that need Leaf's data-first
 chart vocabulary: a comparison across a few categories, a run over time, a ranking,
 a composition, or two numbers against each other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`

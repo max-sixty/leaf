@@ -31,8 +31,8 @@ diff --git a/src/index.ts b/src/index.ts
 +/**
 + * The source text this renderer would not read, for the grammars whose parsers
 + * report it — flowcharts and state diagrams. One entry per statement the parser
-+ * stopped reading before. An empty list means every statement was read whole; it
-+ * does not mean the drawing is the one the author had in mind.
++ * stopped reading before. An empty list means no parser gave up — not that every
++ * statement was read whole, and not that the drawing is the one the author meant.
 + */
 +export function unreadMermaidText(text: string): string[] {
 +  const decoded = decodeXML(text)

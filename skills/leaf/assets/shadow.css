@@ -4,6 +4,25 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
+/* The face every widget-injected control wears. `offer()` writes `lf-ui` on each one it
+ * builds, so this is the layer's answer for a control standing in the page's own prose:
+ * the chrome's family, size and ink rather than the document's serif. A widget seats
+ * those controls inside a declared tree as readily as in the page, so the face is one of
+ * the rules both sides of the boundary need.
+ *
+ * It is a default, and it stands at the head of this sheet so that it behaves like one.
+ * This sheet composes ahead of theme.css, so that one place is before every component
+ * rule in the layer — the ones stated below, the ones stated in theme.css, and the ones a
+ * package theme concatenates after both — and each of them wins on ordinary cascade
+ * order. Stated in theme.css it was after this sheet instead, and .lf-compose-submit's
+ * accent glyph and .lf-resolve's ink drew the default's near-black. It cannot live in
+ * runtime/chrome.css, which is adopted and so cascades after every one of them: the same
+ * declarations there beat every component's own rule, and .lf-ref drew ink at 14px where
+ * it asked for muted at 11.5px while .lf-worktree-head and .lf-swipe-progress drew sans
+ * where they asked for mono. Nothing catches that, because no test and no browser gate
+ * reads a rule that never applied. */
+.lf-ui { font-family: var(--sans); font-size: var(--t-5);
+    line-height: var(--lf-ui-lh); color: var(--ink); }
 .lf-external-mark { display: inline-block; width: .75em; height: .75em;
                     margin-inline-start: .24em; vertical-align: .03em;
                     fill: none; stroke: currentColor; stroke-width: 1.5;

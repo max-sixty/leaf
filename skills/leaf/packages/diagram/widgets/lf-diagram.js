@@ -85,9 +85,11 @@ const rejectCutLabel = (source) => {
  * an arrow and `A>flag]` as a shape. Walking past every label that does close keeps a
  * delimiter inside label text from reading as an opening, since the parser takes the
  * label lazily and `A[call foo(bar]`, `A>call foo(bar]` and `A -- pay(cash --> B` all
- * render today. Only `graph` and `flowchart` sources are read this way: a `stateDiagram`
- * body — the one other grammar this renderer reads — opens a brace on one line and
- * closes it on another, which is that grammar working. */
+ * render today. Only `graph` and `flowchart` sources are read this way. The renderer
+ * takes its grammar from the first line before any header check and reads five others —
+ * `stateDiagram`, `classDiagram`, `erDiagram`, `sequenceDiagram` and `xychart` — none of
+ * which is written in flowchart's statement shapes; a state or class body opens a brace
+ * on one line and closes it on another, which is those grammars working. */
 const FLOWCHART_HEADER = /^(?:graph|flowchart)\b/i;
 const LABEL_OPENING =
   /(?<![\w-])[\w][\w-]*(?<shape>[[({])|(?<pipe>\|)|(?<![-.=])(?<link>--|-\.|==)(?=\s)|(?<![-.=])(?<asym>>)/g;

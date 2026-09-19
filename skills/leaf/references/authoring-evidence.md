@@ -46,15 +46,14 @@ nodes, and a node label holding the delimiter that closes its own shape, such as
 and then drops the rest of the line; a shape whose closer is doubled carries the
 character whole, so `A[["names: list[str]"]]` and `A(["names: list[str]"])` both
 render, as does a subgraph title, which the renderer reads whole —
-`subgraph S["Stage [1]"]`. Every statement ends at the newline, so a label is
-single-line and one that does not close on the line that opens it is refused;
-carry a second line inside the label with `<br/>` or `\n`. A malformed statement the
+`subgraph S["Stage [1]"]`. A flowchart statement ends at the newline, so a label is
+single-line, and one that does not close on the line that opens it is refused; carry
+a second line inside the label with `<br/>` or `\n`. A malformed statement the
 renderer does not recognise can still render as a node or only in part, and
 `version check --render` reports renderer failures, not that partial output, so look
-at each flowchart once. Use `lf-chart` for
-quantities that need Leaf's data-first chart vocabulary: a comparison across a few
-categories, a run over time, a ranking, a composition, or two numbers against each
-other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`
+at each flowchart once. Use `lf-chart` for quantities that need Leaf's data-first
+chart vocabulary: a comparison across a few categories, a run over time, a ranking,
+a composition, or two numbers against each other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`
 package rather than in every page: initialize a page that wants one with
 `leaf page init --package diagram <page>`. `lf-chart` needs no selection. A handful of
 numbers the sentence beside them can carry is prose; a chart is for when the

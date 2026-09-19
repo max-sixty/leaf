@@ -1191,31 +1191,25 @@ _LAYER_SHEET_ORDER = [
 ]
 
 
-def test_the_injected_control_face_stands_before_every_rule_that_answers_it():
+def test_the_injected_control_face_is_a_default_the_page_side_states_once():
     """`.lf-ui` is a default. `offer()` writes it on every control a widget builds, and a
-    component that states the same property overrides it. Both are one class, so the
-    later rule wins, and the default has to stand first to lose.
+    component that states the same property overrides it. `:where()` gives it no
+    specificity, so it loses to every such rule wherever the composition puts either.
 
-    It stopped standing first when the components moved to shadow.css and the face
-    stayed in theme.css, which composes after it: Send and Add option asked for the
-    accent and drew near-black, and so did every other one-class component rule that
-    states a colour, a family, a size or a line height for a control a widget built.
-
-    The first rule that states a face, rather than the first rule in the file, because
-    a rule that states none cannot override this one."""
-    for sheet in _LAYER_SHEET_ORDER:
-        for _conditions, _enclosing, selector, declarations in _style_rules(sheet):
-            if not any(name in _FACE for name, _value in declarations):
-                continue
-            where = f"{sheet.parent.name}/{sheet.name}"
-            assert selector == ".lf-ui", (
-                f"`{selector}` states a face in {where} ahead of the layer's own "
-                ".lf-ui default, which every control it dresses then loses to"
-            )
-            return
-    raise AssertionError(
-        "no face was read from the layer's sheets — the reading is broken"
-    )
+    Rank by position broke once: the face stood early in theme.css, #830 moved the
+    components into shadow.css, which composes ahead of it, and Send and Add option asked
+    for the accent and drew near-black. Stated at the head of shadow.css instead, it
+    reached the declared trees too, where `offer()` builds lf-diff's line numbers and hunk
+    separators and the widget gives them its code face; they took the control's size and
+    ink. So the face is stated once, at no specificity, in the kernel's theme.css."""
+    defaults = [
+        (f"{sheet.parent.name}/{sheet.name}", selector)
+        for sheet in _LAYER_SHEET_ORDER
+        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        if selector in {".lf-ui", ":where(.lf-ui)"}
+        and any(name in _FACE for name, _value in declarations)
+    ]
+    assert defaults == [("assets/theme.css", ":where(.lf-ui)")], defaults
 
 
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():

@@ -630,8 +630,9 @@ def test_a_version_keeps_the_visual_parts_a_conversation_anchors_on(page_dir):
     """A declared part is held by the conversations pointing at it, not by having
     once been declared. The picture a diagram draws changes, so a part no thread
     holds is dropped like an element id no thread holds; one a thread still names
-    is refused by the same check that protects the id, and by the anchor contract
-    that would stop resolving with it."""
+    is refused by the same check that protects the id, and by that one alone —
+    naming the moves that release it, rather than repeating the refusal as a
+    vocabulary the layer no longer speaks."""
     assert drop_node_a(parted(page_dir)).exit_code == 0
 
     (page_dir / "index.html").write_text(PARTED)
@@ -645,7 +646,8 @@ def test_a_version_keeps_the_visual_parts_a_conversation_anchors_on(page_dir):
     assert refused.exit_code != 0
     assert "visual parts an open conversation anchors on" in refused.output
     assert "flow · node:A" in refused.output
-    assert "visual anchor 'node:A' is not declared" in refused.output
+    assert "move, detach, or resolve those threads first" in refused.output
+    assert "1 issue(s)" in refused.output
 
 
 def test_a_detached_conversation_releases_the_visual_part_it_left(page_dir):
@@ -767,6 +769,38 @@ def test_a_bare_reaction_holds_no_visual_part(page_dir):
 
     result = drop_node_a(page_dir)
     assert result.exit_code == 0, result.output
+
+
+def test_reopening_a_conversation_does_not_reclaim_a_released_visual_part(page_dir):
+    """A release is final. `unresolve` is a reader's own gesture and `resolve` is
+    undoable, so a closed conversation can come back after the author has already
+    published the part away on the licence the close granted. The coordinate cannot
+    be restored — no revision declares it any more — so re-asserting it would leave
+    `version check` refusing every later edit, and the only move out would be a
+    detach that overrides the decision the reader just made."""
+    root = json.loads(
+        comment(
+            parted(page_dir),
+            "--section",
+            "flow",
+            "--part",
+            "node:A",
+            "--text",
+            "Why this one?",
+        ).output
+    )
+    closed = CliRunner().invoke(
+        cli_model.cli, ["resolve", str(page_dir), "--to", root["id"]]
+    )
+    assert closed.exit_code == 0, closed.output
+    assert drop_node_a(page_dir).exit_code == 0
+    publish(page_dir, version=2)
+
+    events_model.append_event(
+        page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
+    )
+    reopened = check(page_dir)
+    assert reopened.exit_code == 0, reopened.output
 
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):

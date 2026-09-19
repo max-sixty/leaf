@@ -19,7 +19,9 @@ comment); ids are unique, and ids needed by anchored unresolved threads, standin
 reader actions, or effective standing reports survive from the previous revision. A
 declared visual part survives on the same terms as an id: while a live
 conversation's current anchor names it, and no longer once every thread on it
-has moved, detached, or closed. An agent reply may detach a thread in the same
+has moved, detached, or closed. That release is final — a revision the part has
+left cannot be asked for it back, so reopening the closed conversation restores
+the thread and not its target. An agent reply may detach a thread in the same
 transition that removes its subject. A declared retirement protects its holder and slots until its
 outcome licenses their removal. Other dropped ids are reported as advice. No fixed-pixel-width
 element is wider than the readable column (the rule that draws that column claims

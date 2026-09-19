@@ -4,8 +4,7 @@ from pathlib import Path
 
 from leaf import event_contracts
 from leaf.event_meaning import stored_meaning_error
-from leaf.events import current_anchors, taken_back
-from leaf.passages import enclosing_ids
+from leaf.events import taken_back
 from leaf.registry.contract import RegistryError, read_registry_declarations
 from leaf.registry.layer import merge_layer_declarations
 from leaf.registry.validation import validate_registry
@@ -95,13 +94,24 @@ def candidate_vocabulary_gaps(
         target = event.get("holds") or (event.get("anchor") or {}).get("section")
         return target in document.by_id
 
-    # A written anchor binds the candidate only while it is still a live
-    # conversation's target. A `holds` goal and a version response cannot move at
-    # all, so this narrows nothing for them; a visual coordinate is the one a
-    # reply routinely hands back, and validating the one a thread left — or the
-    # one a closed thread is remembered at — would hold the page to a part
-    # nothing points at any more.
-    current = current_anchors(events, enclosing_ids(document))
+    def visual_vocabulary_error(event):
+        """Whether the incoming layer still reads this anchor's part off the
+        revision the anchor was written on.
+
+        That is the only question this function owns: a gap is vocabulary the
+        selection takes away. Which parts a section declares is the candidate
+        author's to change, and `continuity_errors` is the reading that refuses a
+        drop a live conversation still needs — against the predecessor, naming the
+        moves that release it. Read against the candidate instead, a part a
+        conversation let go of and the author then dropped came back as vocabulary
+        the layer no longer speaks, which is not what happened: re-vendoring
+        refused, and a reader reopening the closed thread re-acquired a coordinate
+        no revision could restore.
+        """
+        source = (
+            page(event["revision"]) if type(event.get("revision")) is int else document
+        )
+        return event_contracts.visual_anchor_error(event, source.by_id, incoming)
 
     missing = {}
     withdrawn = taken_back(events)
@@ -135,27 +145,14 @@ def candidate_vocabulary_gaps(
                     )
                 )
             )
-            or (
-                kind == "comment"
-                and e["id"] in current
-                and (
-                    error := event_contracts.visual_anchor_error(
-                        e, document.by_id, incoming
-                    )
-                )
-            )
+            or (kind == "comment" and (error := visual_vocabulary_error(e)))
         ):
             key = f"comment contract: {error}"
         elif (
             kind == "reply"
             and (e.get("anchor") or {}).get("visual")
-            and e["id"] in current
             and anchor_participates(e)
-            and (
-                error := event_contracts.visual_anchor_error(
-                    e, document.by_id, incoming
-                )
-            )
+            and (error := visual_vocabulary_error(e))
         ):
             key = f"reply contract: {error}"
         elif e.get("markup") and (

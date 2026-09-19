@@ -1023,46 +1023,114 @@ def _selector_list(prelude):
 _HOLDS_RULES = {"media", "supports", "container", "scope", "layer"}
 
 
-def _stated_faces(sheet, *, only_top_level):
-    """{complex selector: {property}} for every rule stating a shared visual property.
+def _style_rules(sheet):
+    """(conditions, enclosing, complex selector, declarations) for each style rule.
 
-    A selector list is split because a rule dressing four shapes states the same fact
-    about each, and the other sheet's copy may name only one of them."""
-    stated = {}
+    `conditions` are the preludes of the @media, @supports, @container and @layer a rule
+    stands under; `enclosing` is every at-rule keyword around it, @scope included, so a
+    reading can ask for chrome.css's top level or for only what its `@scope` holds. A
+    selector list is split, because a rule dressing four shapes states the same fact
+    about each and another sheet's copy may name only one of them. Values are kept: a
+    rule that answers another with a different value is an override, not a copy."""
 
-    def visit(rules):
+    def visit(rules, conditions, enclosing):
         for rule in rules:
             if rule.type == "at-rule":
-                if rule.lower_at_keyword not in _HOLDS_RULES:
+                if rule.lower_at_keyword not in _HOLDS_RULES or rule.content is None:
                     continue
-                if only_top_level and rule.lower_at_keyword in {"scope", "layer"}:
-                    continue
-                if rule.content is not None:
-                    visit(
-                        tinycss2.parse_rule_list(
-                            rule.content, skip_comments=True, skip_whitespace=True
-                        )
-                    )
+                keyword = rule.lower_at_keyword
+                query = " ".join(tinycss2.serialize(rule.prelude).split())
+                yield from visit(
+                    tinycss2.parse_rule_list(
+                        rule.content, skip_comments=True, skip_whitespace=True
+                    ),
+                    conditions
+                    if keyword == "scope"
+                    else (*conditions, f"@{keyword} {query}"),
+                    enclosing | {keyword},
+                )
                 continue
             if rule.type != "qualified-rule":
                 continue
-            properties = {
-                declaration.lower_name
+            declarations = [
+                (declaration.lower_name, tinycss2.serialize(declaration.value).strip())
                 for declaration in tinycss2.parse_declaration_list(
                     rule.content, skip_comments=True, skip_whitespace=True
                 )
-                if declaration.type == "declaration" and declaration.lower_name in _FACE
-            }
-            if properties:
-                for selector in _selector_list(rule.prelude):
-                    stated.setdefault(selector, set()).update(properties)
+                if declaration.type == "declaration"
+            ]
+            for selector in _selector_list(rule.prelude):
+                yield conditions, enclosing, selector, declarations
 
-    visit(
+    yield from visit(
         tinycss2.parse_stylesheet(
             sheet.read_text(), skip_comments=True, skip_whitespace=True
-        )
+        ),
+        (),
+        frozenset(),
     )
+
+
+def _stated_faces(sheet, *, only_top_level):
+    """{complex selector: {property}} for every rule stating a shared visual property."""
+    stated = {}
+    for _conditions, enclosing, selector, declarations in _style_rules(sheet):
+        if only_top_level and enclosing & {"scope", "layer"}:
+            continue
+        properties = {name for name, _value in declarations if name in _FACE}
+        if properties:
+            stated.setdefault(selector, set()).update(properties)
     return stated
+
+
+_PAGE_SIDE_SHEETS = [
+    schema_model.ASSETS / "theme.css",
+    schema_model.ASSETS / "shadow.css",
+    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
+    *sorted(schema_model.BUNDLED_PACKAGES.glob("*/shadow.css")),
+]
+
+
+def _declared_rules(sheet, *, scoped):
+    """{(conditions, complex selector): [declarations]}; `scoped` keeps only what stands
+    inside chrome.css's `@scope`."""
+    found = {}
+    for conditions, enclosing, selector, declarations in _style_rules(sheet):
+        if scoped and "scope" not in enclosing:
+            continue
+        found.setdefault((conditions, selector), []).append(declarations)
+    return found
+
+
+def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
+    """A rule inside chrome.css's `@scope` reaches the chrome root; the same rule in
+    theme.css or shadow.css reaches the page, the widget trees, and the chrome root too.
+    Written in both, the shape has two statements to keep in step and the chrome's is the
+    one anybody reading the page's sheet cannot see — which is how the whole reaction
+    vocabulary came to be written twice, identically, in nineteen rules.
+
+    Equality is the reading, because a scoped rule that says something different is the
+    chrome answering the page on purpose: the margin projection's z-index above the
+    page's is that, and is not a copy."""
+    chrome = _declared_rules(
+        schema_model.ASSETS / "runtime" / "chrome.css", scoped=True
+    )
+    assert chrome, "no scoped rules read from chrome.css — the reading is broken"
+    restated = []
+    for sheet in _PAGE_SIDE_SHEETS:
+        for key, blocks in _declared_rules(sheet, scoped=False).items():
+            for block in blocks:
+                if block and block in chrome.get(key, []):
+                    conditions, selector = key
+                    where = f"{sheet.parent.name}/{sheet.name}"
+                    restated.append(
+                        f"`{' '.join((*conditions, selector))}` is stated identically "
+                        f"in chrome.css and {where}"
+                    )
+    assert not restated, (
+        "a rule written twice, once where the page cannot see it:\n"
+        + "\n".join(sorted(set(restated)))
+    )
 
 
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
@@ -1077,10 +1145,11 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     had drifted: theme.css's chip cleared the platform's button face and chrome.css's
     did not, so in the light DOM that reset had never once run.
 
-    Only chrome.css's top level is asked. A rule inside its `@scope` is private to the
-    chrome root and matches nothing a page-side sheet dresses, and a rule inside its
-    `@layer` loses to any unlayered choice whatever its specificity, so neither can win
-    this way.
+    Only chrome.css's top level is asked here. A rule inside its `@layer` loses to any
+    unlayered choice whatever its specificity, and a rule inside its `@scope` wins
+    inside the chrome root while the page-side copy still dresses the same shape
+    everywhere else — one statement in two files rather than one that never applies,
+    which the test above reads instead.
 
     One selector spelled the same on both sides is what this reads, which is the shape
     a copy takes. Two different selectors that tie on one element are the same defect
@@ -1091,10 +1160,7 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     )
     assert adopted, "no top-level faces read from chrome.css — the reading is broken"
     twice = []
-    for sheet in [
-        schema_model.ASSETS / "theme.css",
-        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/theme.css")),
-    ]:
+    for sheet in _PAGE_SIDE_SHEETS:
         for selector, properties in _stated_faces(sheet, only_top_level=False).items():
             both = properties & adopted.get(selector, set())
             if both:

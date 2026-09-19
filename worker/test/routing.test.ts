@@ -98,8 +98,16 @@ describe("website page routing", () => {
     expect(
       isPageSessionFileRequest(route("/examples/triage-board/versions/v3.html")),
     ).toBe(true);
+    // The layer's own files are routed to the page and served from it, rather than
+    // held as session files. Both sheets: a page reads /theme.css, and an x-shadow
+    // widget reads /shadow.css for the tree no document selector reaches.
+    expect(route("/examples/triage-board/theme.css")?.inside).toBe("theme.css");
+    expect(route("/examples/triage-board/shadow.css")?.inside).toBe("shadow.css");
     expect(
       isPageSessionFileRequest(route("/examples/triage-board/theme.css")),
+    ).toBe(false);
+    expect(
+      isPageSessionFileRequest(route("/examples/triage-board/shadow.css")),
     ).toBe(false);
     expect(route("/examples.html")).toBeNull();
     expect(route("/examples/missing/")).toBeNull();

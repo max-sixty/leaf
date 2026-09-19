@@ -2611,14 +2611,21 @@ export function createMarginProjection({
   // whichever margin control the view hangs from by then. The view shows one thread, so a
   // press that puts another in a view already showing has put up the view the reader now
   // sees, and records its frame the same way; the earlier press's frame leaves with it.
+  // A later step may walk the view this press put up on to a thread with no place on the
+  // page, which opens the panel and takes the view down; the way back is still this
+  // press's, so the frame follows the reader into the panel and the standing it holds
+  // there is a thread's card in the list.
   const OPENED_BY_PRESS = {
     id: "margin.conversation",
-    returnFrame: () => ({
-      active: () => inlineThreadView.showing(),
-      close: () => closePreview(),
-      does: "Dismiss the conversation view",
-      line: "dismiss conversation",
-    }),
+    returnFrame: () =>
+      openingPanel({
+        active: () => inlineThreadView.showing(),
+        close: () => closePreview(),
+        does: "Dismiss the conversation view",
+        line: "dismiss conversation",
+        standing: () =>
+          !panelIsOpen() || Boolean(panel.querySelector(".lf-thread:focus-within")),
+      }),
   };
   function togglePinned(entry, button) {
     if (pinnedKey === entry.key && previewMarginEntry === button) {

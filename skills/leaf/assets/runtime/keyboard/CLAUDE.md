@@ -84,8 +84,8 @@ an auxiliary surface belongs to — the press whose frame is being recorded, or,
 that records none, the press the reader is standing in — and a frame asks it which
 (`openedByThisPress`). A pointer press that takes the reader into a layer — the Threads
 toggle, a margin marker or its option row, a page mark or its note — is a command too,
-and records its frame with the place the press
-displaced, read before the press moved focus: the Escape out of a clicked-open panel or
+and records its frame with the place the press displaced, read before the press moved
+focus: the Escape out of a clicked-open panel or
 conversation view hands back the page the reader was reading, never the control the
 click happened to focus, and a keyboard activation of the same control, whose place was
 that control, comes back to it. The frame is the press's rather than the layer's, so a
@@ -95,9 +95,10 @@ its thread in the list, and one Escape hands the note back and leaves the panel 
 card shows one thread, so a press that puts its own thread in a card already showing has
 put up the card the reader sees, and its one Escape closes that card and hands back the
 note or marker; when a later step walks that card on to a thread with no place on the
-page, the frame goes with the reader into the panel rather than down with the card. A gesture whose result is a layer records the same frame: an accepted
-comment carries the reader into the thread it became — a card put up where the composer
-stood, or the thread's place in a panel already open — and one Escape hands back the
+page, the frame goes with the reader into the panel rather than down with the card. A
+gesture whose result is a layer records the same frame: an accepted comment carries the
+reader into the thread it became — a card put up where the composer stood, or the
+thread's place in a panel already open — and one Escape hands back the
 place the comment press displaced, the control `c` was pressed from or the page a
 pointer selection had already put the reader on, never the margin entry the card hangs
 from or the list around the thread. One press is one rung however many surfaces answer

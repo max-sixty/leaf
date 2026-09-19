@@ -317,7 +317,9 @@ watchLayers(document);
 // its surface is hidden under a modal, so no scope is standing inside it.
 export function nativeLayers() {
   prune();
-  return entries.filter((entry) => entry.root && entry.active());
+  // The layer's own liveness, not the entry's: an adopted entry may outlive its layer on
+  // the frame it carries, and a layer the browser has closed holds no keyboard.
+  return entries.filter((entry) => entry.root && (entry.stands ?? entry.active)());
 }
 
 // Modal owners close pre-existing popovers before establishing a new floor.
@@ -361,9 +363,12 @@ function descriptorFor(row, binding) {
 // work it out for itself: which press opened it. The surface says when it opens, and the
 // press in the middle of which that happened owns the opening — the press whose frame is
 // being recorded, or, for a step of a walk, which records no frame of its own, the press
-// that recorded the frame the walk still stands on. An opening under no press at all, at
-// startup or as a frame's close restores the chrome its press displaced, is nobody's, and
-// the surface's own rungs answer for it.
+// the reader is standing in, which is that walk's own. Before any press, at startup, the
+// opening is nobody's and the surface's own rungs answer for it. A command that records
+// no frame leaves the reading to the standing, so an opening a pointer route makes
+// without entering through `invoke` at all reads as that standing press's too; the routes
+// that do it — an Asks tray row, the answer-all control — are the ones still to record a
+// frame of their own for the place they displace.
 let presses = 0;
 let thisPress = 0;
 let openedBy = 0;
@@ -395,6 +400,12 @@ function standingPress() {
       return entry.press ?? 0;
   }
   return 0;
+}
+
+// Whether a frame adopted by `root`'s entry now answers for a surface outside that layer.
+function answersBeyond(root, frame) {
+  const surface = word(frame.surface);
+  return Boolean(surface) && !root.contains(surface) && frame.active();
 }
 
 // The caller captures the origin before the command runs. Evaluate the frame before the
@@ -442,10 +453,16 @@ export function invoke(row, binding, run, suppliedOrigin = null) {
       Object.assign(top, frame, {
         origin,
         older,
-        active: top.active,
+        // The entry stands as long as the surface its frame answers for. That is the layer
+        // it took over, for as long as the browser holds it open and whatever the frame
+        // says, so a frame whose guard has gone stops answering Escape without
+        // surrendering the popover's ownership of the keyboard. Once a later step has
+        // exchanged the card this press put up for the panel the next thread is indexed
+        // in, it is that panel: the frame is the press's rather than the layer's.
+        stands: top.active,
+        active: () => top.stands() || answersBeyond(top.root, frame),
         holds: frame.active,
         press,
-        row: row.id,
       });
     else
       entries.push({
@@ -454,7 +471,6 @@ export function invoke(row, binding, run, suppliedOrigin = null) {
         older,
         holds: frame.active,
         press,
-        row: row.id,
       });
   };
   if (frame && typeof result?.then === "function")

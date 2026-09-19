@@ -2964,6 +2964,102 @@ def test_a_walk_stepping_on_from_a_note_press_hands_the_note_back(browser, serve
     expect(note).to_be_focused()
 
 
+def test_a_note_press_that_put_up_its_own_card_hands_the_note_back(browser, serve):
+    """The same way back, for the press that put the card up itself rather than finding
+    one standing. The card's entry is the one that press's frame took over, and the step
+    that walks on to a thread with no place on the page takes that card down; the frame
+    goes with the reader into the panel rather than down with the card."""
+    url = serve(ASK_PAGE)
+    placed = panel_comment(
+        serve.page_dir,
+        "The heater draws too much.",
+        {"section": "heater-p", "quote": "Frozen eleven"},
+    )
+    loose = panel_comment(serve.page_dir, "And the page as a whole?")
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    threads = page.locator(".lf-thread-panel")
+    note = page.locator("#heater-p .lf-mark-note").first
+    note.evaluate("el => el.focus()")
+    page.keyboard.press("Enter")
+    expect(
+        page.locator(
+            f'.lf-margin-preview .lf-conversation-thread[data-thread="{placed}"]'
+        )
+    ).to_be_focused()
+
+    page.keyboard.press("t")
+    expect(threads.locator(f'.lf-thread[data-id="{loose}"]')).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(threads).to_be_hidden()
+    expect(note).to_be_focused()
+
+
+def test_a_marker_press_walked_on_into_threads_hands_the_marker_back(browser, serve):
+    """A margin marker puts the conversation view up, and `t` walks it on to a thread with
+    no place on the page, which opens Threads. The view went up under the marker press, so
+    the panel that replaced it is that press's too: one Escape closes Threads and hands
+    the marker back, rather than leaving the panel to the list's own rungs."""
+    url = serve(ASK_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "The heater draws too much.",
+        {"section": "heater-p", "quote": "Frozen eleven"},
+    )
+    loose = panel_comment(serve.page_dir, "And the page as a whole?")
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    threads = page.locator(".lf-thread-panel")
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').first
+    marker.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+
+    page.keyboard.press("t")
+    expect(threads.locator(f'.lf-thread[data-id="{loose}"]')).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(threads).to_be_hidden()
+    expect(marker).to_be_focused()
+
+
+def test_an_ask_walk_leaves_a_panel_it_found_standing(browser, serve):
+    """A walk takes off what its own presses put up. The panel standing when `a` was
+    pressed was not one of them, so the walk's Escape lets go of the Ask it reached and
+    leaves the panel where the reader had it."""
+    url = serve(ASK_PAGE)
+    root = panel_comment(serve.page_dir, "Which one first?", {"section": "sec-mounts"})
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Choose the first job.",
+        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="first-job" choose>'
+        '<lf-option id="first-mounts">The mounts</lf-option>'
+        '<lf-option id="first-heater">The heater</lf-option>'
+        "</lf-options></lf-ask>",
+        for_event=root,
+    )
+    page = open_page(browser, url)
+    threads = page.locator(".lf-thread-panel")
+    line = page.locator(".lf-shortcut-bar")
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.click()
+    expect(threads).to_be_visible()
+
+    heading = page.locator("#sec-heater h2")
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    page.keyboard.press("a")
+    expect(page.locator("#bracket-decision")).to_be_focused()
+    # Not "close threads": this walk opened nothing.
+    expect(line).to_contain_text("let go")
+
+    page.keyboard.press("Escape")
+    expect(threads).to_be_visible()
+    expect(heading).to_be_focused()
+
+
 def test_a_frame_holds_only_the_standing_its_own_press_made(browser, serve):
     """A press that moved nobody, or landed on a floor or a chrome row, leaves what the
     reader then stands on theirs to let go of first: the `w` narrowing, and a tray

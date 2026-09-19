@@ -43,11 +43,11 @@
  * not carry was made by a module rather than by the author, and what a module makes is
  * the module's to put back from its own store; this carries nothing for it.
  *
- * Deliberately not carried: a `<select>`, whose authored default is an attribute on one
- * of its options rather than a property of the control; a `contenteditable`, whose value
- * is markup and therefore the document's rather than the apparatus's; and a file input,
- * whose value is a path the page may read and never write. None has a surface in Leaf
- * today. State a module keeps for itself — the tab store's selection,
+ * Deliberately not carried: a `<select>`, whose `value` names only its first chosen
+ * option and so not the whole of a `multiple` one; a `contenteditable`, whose value is
+ * markup and therefore the document's rather than the apparatus's; and a file input, whose
+ * value is a path the page may read and never write. None has a surface in Leaf today.
+ * State a module keeps for itself — the tab store's selection,
  * the draft store's words — is already restored by that module reading its own store back
  * under the same id, and does not belong here.
  */

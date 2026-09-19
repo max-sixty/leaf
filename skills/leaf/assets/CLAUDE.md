@@ -66,7 +66,7 @@ reaction teardown when removing their surfaces;
 when needed, and the caret inside it, which an arrival that is a return reads before its
 element goes away and hands back in the same act;
 `runtime/carry.js` owns the mechanical reader state an install carries between two
-nodes the author gave the same id — a field's words and caret, a tick, a disclosure,
+nodes the author gave the same id — a control's value and caret, a tick, a disclosure,
 an inner scroll, and focus — reading each against what the author wrote for the revision
 the reader is standing in, so that what crosses is what the author did not write; it
 carries nothing for an element the author left unnamed;

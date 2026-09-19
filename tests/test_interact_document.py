@@ -2001,7 +2001,10 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
 
     with pytest.raises(SystemExit) as unknown_request:
         requests_model.cmd_receipt(page_dir, "no-such-request", "succeeded", "done")
-    assert "unknown request 'no-such-request'" in str(unknown_request.value)
+    assert (
+        "unknown request 'no-such-request'; this page has no open request to receipt"
+        in str(unknown_request.value)
+    )
 
     with pytest.raises(SystemExit) as unknown_widget:
         conversation_model.cmd_report(page_dir, "no-such-widget", "status", ())
@@ -2558,7 +2561,23 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         ["receipt", str(page_dir), "missing", "failed", "--text", "No request"],
     )
     assert unknown.exit_code == 1
-    assert "unknown request 'missing'" in unknown.output
+    assert f"unknown request 'missing'; open requests: {request['id']!r}" in (
+        unknown.output
+    )
+    # An id the log holds as something else is named as that, which is what tells
+    # an agent it was handed a move rather than a request.
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "and restart it"}
+    )
+    misdirected = CliRunner().invoke(
+        cli_model.cli,
+        ["receipt", str(page_dir), comment["id"], "failed", "--text", "No request"],
+    )
+    assert misdirected.exit_code == 1
+    assert (
+        f"{comment['id']!r} is a comment in this page's log, not a request; "
+        f"open requests: {request['id']!r}"
+    ) in misdirected.output
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "coordinator-1")
     monkeypatch.setenv("LEAF_AGENT", "Atlas lead")

@@ -168,13 +168,42 @@ def request_contract_error(
 
 
 def receipt_contract_error(event: dict, events: list) -> str | None:
-    """Why a terminal receipt cannot settle the request it names."""
+    """Why a terminal receipt cannot settle the request it names.
+
+    The id is a bare string, and nothing about it says which namespace it came
+    from, so an agent holding a comment's, a delivery's or a kind's name reaches
+    for `receipt` with it. Refused with only the id it sent, it has nothing to
+    change but the guess. The log settles both questions — what the id is, when
+    the log holds it, and which requests are still open — so the refusal says
+    them.
+    """
     request_id = event["request"]
     request = next(
         (candidate for candidate in events if candidate["id"] == request_id), None
     )
     if request is None or request["kind"] != "request":
-        return f"unknown request {request_id!r}"
+        receipted = {
+            candidate["request"]
+            for candidate in events
+            if candidate["kind"] == "receipt"
+        }
+        open_requests = [
+            candidate["id"]
+            for candidate in events
+            if candidate["kind"] == "request" and candidate["id"] not in receipted
+        ]
+        named = (
+            f"unknown request {request_id!r}"
+            if request is None
+            else f"{request_id!r} is a {request['kind']} in this page's log, "
+            "not a request"
+        )
+        waiting = (
+            "open requests: " + ", ".join(repr(open_id) for open_id in open_requests)
+            if open_requests
+            else "this page has no open request to receipt"
+        )
+        return f"{named}; {waiting}"
     receipt = next(
         (
             candidate

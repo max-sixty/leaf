@@ -117,13 +117,12 @@ ready raises with App Server's whole log, whose reason is at its end.
 The `turn_reply_first_text_published` record marks the first non-empty final-answer
 text written into the addressed thread, which is the user-visible response milestone;
 `turn_stream_completed` and `turn_reply_commit_failed` distinguish provider completion
-from Leaf's durable validation and append. `turn_stream_reconnect_failed` records each
-failed recovery attempt, and `turn_stream_reconnected` records recovery of the dropped
-App Server subscription. `turn_delivery_unbound` names a turn that ended before this
-follower bound its delivery to a provider turn — which says nothing about whether one
-ran, since the case it was written for had a turn running unobserved.
-`turn_failure_reported` follows it with how many of that delivery's moves the host
-settled with a failure receipt and how many it left to the turn already handling them.
+from Leaf's durable validation and append. `turn_interrupted` and
+`turn_interrupt_failed` record the follower stopping a turn it can no longer watch, and
+`turn_abandoned_interrupt_started` and `turn_abandoned_interrupt_completed` the same for
+a turn found running on a resumed thread. `turn_failure_reported` says how many of that
+delivery's moves the host settled with a failure receipt and how many it could not; a
+turn that answered everything it was given writes no such record.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
 first-byte, first-output, and completion records. Those records carry Codex's thread
@@ -192,10 +191,11 @@ Workers Observability is the operational log store. Request-path records carry t
 canonical `eventId`; Worker-side records also carry the public `reference` and `route`.
 The public reference finds every request from one reader session, and the event id
 follows one request across the Worker and Container datasets. `turn_start_acknowledged`
-records the RPC result and its Codex `turnId`; `turn_delivery_bound` records which
-reading named the turn that consumed the delivery, marking it `acknowledged` for that
-RPC result, `restarted` for a start the follower sent itself, `recovered` for a resumed
-thread, and none of the three for a provider notification. Model records carry that
+records the RPC result and its Codex `turnId`, and `turn_delivery_bound` the Leaf turn
+opened for it. A turn that ends without its reader's answer records
+`turn_failure_reported` with the receipts it wrote, and one stopped by its own follower
+records `turn_interrupted`, or `turn_interrupt_failed` where the provider refused —
+which is ordinarily the turn having ended first. Model records carry that
 turn id. Analytics Engine holds aggregate product events rather than a second
 debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
@@ -246,10 +246,10 @@ recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
 cold runtime-filesystem work before a model command. Each App Server turn is bound to
 one immutable delivery id carried by the direct request as `clientUserMessageId`, so
-the response to that request names the turn that took it and the follower binds on
-that answer. Only a start that was refused, lost, or never sent leaves a follower to
-learn its turn from the notification stream or a resumed thread, and only such a
-follower takes a fresh subscription to ask whether its turn exists at all.
+the response to that request names the turn that took it and the follower that watches
+it starts already knowing which turn is its own. A start that names no turn — refused,
+or lost — withdraws its delivery and raises, and the reader gets the Worker's
+`startup_failed` receipt, which invites them to send the message again.
 A bound delivery with one plain reply
 streams the final-answer item into its addressed thread and commits that
 same completed text through the canonical reply writer, even if its subscription drops,
@@ -262,16 +262,17 @@ reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 The bound final-answer message, a page revision closed with `leaf resolve`, or a `leaf
 receipt` settles accepted input.
-A failed, interrupted, or completed-but-unanswered provider turn closes its active
-claim turn without inventing a reply; its reader obligation remains unanswered. The
-follower owes that outcome for every way it can stop, so a fault of any shape closes
-the turn, and a subscription that goes quiet for longer than a running turn ever does
-is recovered like a dropped one: `thread/resume` reads the authoritative turn, which
-carries the terminal status a stream that stopped delivering never sent. Each of those
-endings belongs to a turn, so a follower binds on the first reading that names one.
-Holding no turn it has no terminal status to read, and neither a dropped subscription
-nor a silence recovers it while the page keeps the reading dispatch wrote. Neither a
-stalled stream nor a follower fault can leave a page reading working with no receipt.
+A turn is followed on the connection it was started on, which App Server subscribes for
+that connection's life; nothing reconnects or resumes. A completion notification is the
+ordinary ending, and a dropped connection, a silence past `STREAM_SILENCE`, and a fault
+of any shape are endings too: Leaf holds only a reader of the turn, so the follower
+interrupts the provider turn rather than leaving it running with its answer going
+nowhere. Every ending then accounts for the turn the same way — the claim turn closes
+without inventing a reply, the activity reading comes off the page, and a move still
+owed an answer gets the `turn_failed` receipt, which its own pickup would otherwise
+refuse every other writer. A thread found running a turn no follower holds, which means
+a container that died mid-turn, is interrupted before its next delivery starts. Neither
+a stalled stream nor a follower fault can leave a page reading working with no receipt.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the

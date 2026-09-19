@@ -138,14 +138,6 @@ lf-release-actions > .lf-request-render-root > .lf-request-status[data-status="f
   }
 }
 
-@media screen and (max-width: 640px) {
-  lf-monitor-region[zone="log"] lf-text-document pre {
-    overflow-x: visible;
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
-  }
-}
-
 html.lf-copy lf-monitor-grid {
   display: block !important;
   height: auto !important;

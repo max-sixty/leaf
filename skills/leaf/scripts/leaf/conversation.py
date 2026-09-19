@@ -6,7 +6,7 @@ from pathlib import Path
 
 from leaf.asks import local_ask_entry, page_awaiting_values
 from leaf.delivery import current_responses
-from leaf.event_contracts import report_contract_error
+from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import (
@@ -301,6 +301,38 @@ def _current_anchor(
     )
 
 
+def _foreign_id_recourse(events: list, section: str) -> str:
+    """Name the option that takes `--section`'s value, when the log holds it as an event.
+
+    The CLI names three kinds of id with bare strings — an element id anchors a thread,
+    a message id answers one, and a delivered event id addresses the response it owes —
+    and nothing about a value says which namespace it came from. An agent holding the id
+    of the move it was handed reaches for `--section` with it, and the anchor refusal
+    alone sends it looking through the page's markup for an id that was never there. The
+    log settles the question, so the refusal says which option the value belongs to.
+
+    `--for` is that option for every kind the log holds, not only a message: a reader's
+    press on a widget frozen into a reply owes its answer through the event's own id and
+    nowhere else. A message answers to `--to` as well, so it is the one kind that names
+    both.
+    """
+    carrier = next((event for event in events if event.get("id") == section), None)
+    if carrier is None:
+        return ""
+    kind = carrier.get("kind")
+    answering = (
+        " — `leaf reply <page> --to <id>` answers a message and `--for <event-id>` "
+        "addresses a delivered move"
+        if kind in MESSAGE_KINDS
+        else " — `leaf reply <page> --for <event-id>` addresses a delivered move"
+    )
+    article = "an" if kind[:1] in "aeiou" else "a"
+    return (
+        f"; {section} is {article} {kind} in this page's log{answering}, while "
+        "`--section` takes an element id the page's markup declares"
+    )
+
+
 def _capture_anchor(
     page_dir: Path,
     events: list,
@@ -330,7 +362,8 @@ def _capture_anchor(
             additions=generated_children(page.projection.desired, page.document.ids),
         )
     except ValueError as err:
-        sys.exit(f"can't anchor in revision r{revision}: {err}")
+        recourse = _foreign_id_recourse(events, section) if section else ""
+        sys.exit(f"can't anchor in revision r{revision}: {err}{recourse}")
     return anchor
 
 
@@ -363,7 +396,7 @@ def cmd_comment(
             event["anchor"] = anchor
         if markup:
             event["markup"] = markup
-        accepted = page.append_event(event)
+        accepted = append_admitted(page, event)
     print(json.dumps(accepted, ensure_ascii=False))
 
 
@@ -476,8 +509,8 @@ def cmd_reply(
                 sys.exit(
                     f"thread {root_id!r} requires a page version and cannot take a "
                     "reply; incorporate its request in the next version, or open a "
-                    "separate thread on the same Ask with `leaf comment --section "
-                    "<ask-id>` if you need an answer first"
+                    "separate thread on the same Ask with `leaf comment <page> "
+                    "--section <ask-id>` if you need an answer first"
                 )
             if expected is None or expected["kind"] != "reply":
                 if skip_if_settled:
@@ -496,8 +529,8 @@ def cmd_reply(
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
                 "incorporate its request in the next version, or open a separate "
-                "thread on the same Ask with `leaf comment --section <ask-id>` if "
-                "you need an answer first"
+                "thread on the same Ask with `leaf comment <page> --section "
+                "<ask-id>` if you need an answer first"
             )
         if for_event is not None:
             expected = responses.get(for_event)
@@ -675,7 +708,7 @@ def cmd_reply(
             event["revision"] = revision or latest_revision(page_dir)
         if relocating:
             event["anchor"] = anchor
-        return page.append_event(event)
+        return append_admitted(page, event)
 
 
 @contract_writer
@@ -701,7 +734,8 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
             sys.exit(f"message {to!r} has no agent session identity")
         if owner != identity.get("session"):
             sys.exit(f"message {to!r} belongs to agent session {owner!r}")
-        return page.append_event(
+        return append_admitted(
+            page,
             {
                 "kind": "edit",
                 "author": "agent",
@@ -736,7 +770,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
             **message_identity(),
             "parent": to,
         }
-        accepted = page.append_event(event)
+        accepted = append_admitted(page, event)
     print(json.dumps(accepted, ensure_ascii=False))
 
 
@@ -750,14 +784,13 @@ def cmd_report(
     references: str | None = None,
 ) -> None:
     """A worker's provisional news: a declared state change folded onto a page
-    widget, validated at this door the way the POST door validates an action,
+    widget, admitted the way the append door admits a reader's action,
     stamped with the posting session's voice, and made against the active revision —
     the page the reader is looking at. The runtime paints it live; it stands until
     a stamped revision absorbs or overrules it by id (see `version stamp`), and the
     page's watcher wakes to fold it in. Field values
     are strings — the declared detail schemas for reports speak in attribute
     values, which is all a report may move."""
-    from leaf.registry.storage import require_registry
     from leaf.revisioning import activate_source
 
     detail = {}
@@ -775,8 +808,6 @@ def cmd_report(
     with PageTransaction(page_dir) as page:
         events = page.events
         activate_source(page_dir, events)
-        revision = require_revision(page_dir)
-        registry = require_registry(page_dir)
         event = {
             "kind": "report",
             "author": "agent",
@@ -784,12 +815,8 @@ def cmd_report(
             "widget": widget,
             "action": verb,
             "detail": detail,
-            "revision": revision,
+            "revision": require_revision(page_dir),
             **({"references": parsed_references} if references is not None else {}),
         }
-        if error := report_contract_error(
-            event, parse_revision(page_dir, revision), registry
-        ):
-            sys.exit(error)
-        accepted = page.append_event(event, registry)
+        accepted = append_admitted(page, event)
     print(json.dumps(accepted, ensure_ascii=False))

@@ -325,15 +325,9 @@ export const semanticStoreOwnershipRule = {
       },
       ExportNamedDeclaration(node) {
         if (!browserFrameworkSource(node.source)) return;
+        // Only named specifiers reach here: `export * as ns from` is an
+        // ExportAllDeclaration below, which answers the whole-namespace reexport.
         for (const specifier of node.specifiers) {
-          if (specifier.type === "ExportNamespaceSpecifier") {
-            context.report({
-              node: specifier,
-              message:
-                "Reexport browser framework capabilities by name so semantic publisher ownership remains statically visible.",
-            });
-            continue;
-          }
           const name = specifier.local?.name;
           if (publisherExports.has(name)) report(specifier, name);
         }

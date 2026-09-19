@@ -278,6 +278,65 @@ def _tail(text: str, limit: int = 240) -> str:
     return line if len(line) <= limit else "…" + line[-(limit - 1) :]
 
 
+def recv_notification(
+    socket, silent_since: float, silence: float | None
+) -> dict | None:
+    """Read one App Server notification, or nothing while the stream is only quiet.
+
+    `socket.recv` raises `TimeoutError` every second a subscription has nothing to
+    say, and a turn that is thinking or running a command says nothing for a while.
+    A carrier that gives a silence bound lets that timeout through once the quiet
+    outlasts it, which ends the turn on the same path a dropped socket takes rather
+    than waiting on it for the carrier's life. A carrier whose task can sit waiting
+    on a person gives none: a terminal approval is silent for as long as nobody
+    answers it, and the turn is still running.
+    """
+    try:
+        return json.loads(socket.recv(timeout=1))
+    except TimeoutError:
+        if silence is None or time.monotonic() - silent_since < silence:
+            return None
+        raise
+
+
+class TurnStream:
+    """The notifications one subscribed connection carries, in order.
+
+    `thread/start` and `thread/resume` subscribe the connection that asked, for as
+    long as that connection lives, so the socket a turn was started on already
+    carries everything the turn will say. Nothing here reconnects: a connection
+    that drops takes its turn's remaining notifications with it, and the follower
+    treats that as the turn's ending rather than a gap to read across.
+
+    Notifications buffered behind a request arrive first. They were sent before the
+    response that carried them was read, so a turn's own `turn/started` is routinely
+    among them.
+    """
+
+    def __init__(self, socket, buffered=(), *, silence: float | None = None):
+        self.socket = socket
+        self.pending = list(buffered)
+        self.silence = silence
+        self.quiet_since = time.monotonic()
+        self.buffered = False
+
+    def next(self) -> dict | None:
+        """Take the next notification, or None while the stream is only quiet."""
+        if self.pending:
+            self.buffered = True
+            message = self.pending.pop(0)
+        else:
+            self.buffered = False
+            message = recv_notification(self.socket, self.quiet_since, self.silence)
+            if message is None:
+                return None
+        self.quiet_since = time.monotonic()
+        return message
+
+    def close(self) -> None:
+        self.socket.close()
+
+
 class AppServerEvents:
     """Fold one task's notifications into activity and terminal readings."""
 

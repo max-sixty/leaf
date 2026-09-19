@@ -927,7 +927,8 @@ async function startPage() {
 }
 
 startPage().catch((error) => {
-  window.dispatchEvent(new Event("lf-startup-failed"));
-  reportPageError(`page failed to start: ${error?.message ?? error}`);
+  const reason = `page failed to start: ${error?.message ?? error}`;
+  window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: { reason } }));
+  reportPageError(reason);
   renderStatus(error);
 });

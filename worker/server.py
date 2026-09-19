@@ -27,6 +27,7 @@ from leaf.codex import (
     AppServerEvents,
     AppServerReplyStream,
     AppServerRequestRejected,
+    TurnStream,
     abandon_codex_delivery,
     app_server_connect,
     app_server_handshake,
@@ -406,60 +407,6 @@ def next_unaccepted_agent_event(
             ),
             None,
         )
-
-
-def recv_notification(socket, silent_since: float) -> dict | None:
-    """Read one App Server notification, or nothing while the stream is only quiet.
-
-    `socket.recv` raises `TimeoutError` every second a subscription has nothing to
-    say, and a turn that is thinking or running a command says nothing for a while.
-    Letting one through once the silence outlasts `STREAM_SILENCE` ends the turn on
-    the same path a dropped socket takes, rather than waiting on it for the
-    container's life.
-    """
-    try:
-        return json.loads(socket.recv(timeout=1))
-    except TimeoutError:
-        if time.monotonic() - silent_since < STREAM_SILENCE:
-            return None
-        raise
-
-
-class TurnStream:
-    """The notifications one subscribed connection carries, in order.
-
-    `thread/start` and `thread/resume` subscribe the connection that asked, for as
-    long as that connection lives, so the socket a turn was started on already
-    carries everything the turn will say. Nothing here reconnects: a connection
-    that drops takes its turn's remaining notifications with it, and the follower
-    treats that as the turn's ending rather than a gap to read across.
-
-    Notifications buffered behind a request arrive first. They were sent before the
-    response that carried them was read, so a turn's own `turn/started` is routinely
-    among them.
-    """
-
-    def __init__(self, socket, buffered):
-        self.socket = socket
-        self.pending = list(buffered)
-        self.quiet_since = time.monotonic()
-        self.buffered = False
-
-    def next(self) -> dict | None:
-        """Take the next notification, or None while the stream is only quiet."""
-        if self.pending:
-            self.buffered = True
-            message = self.pending.pop(0)
-        else:
-            self.buffered = False
-            message = recv_notification(self.socket, self.quiet_since)
-            if message is None:
-                return None
-        self.quiet_since = time.monotonic()
-        return message
-
-    def close(self) -> None:
-        self.socket.close()
 
 
 class HostedTurn:
@@ -1020,7 +967,7 @@ class WebsiteCodexHost:
         initial_messages: tuple[dict, ...] = (),
     ) -> None:
         """Project notifications and account for the turn's terminal outcome."""
-        stream = TurnStream(socket, initial_messages)
+        stream = TurnStream(socket, initial_messages, silence=STREAM_SILENCE)
         turn.record("turn_following_started")
         terminal: dict
         fault: dict | None = None

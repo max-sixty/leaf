@@ -29,7 +29,11 @@ const documentLayer = runtimeScript?.dataset.lfLayer;
 const release = runtimeScript?.dataset.lfRelease;
 
 if (documentLayer && documentLayer !== layerGeneration) {
-  window.dispatchEvent(new Event("lf-startup-failed"));
+  window.dispatchEvent(
+    new CustomEvent("lf-startup-failed", {
+      detail: { reason: "document and runtime belong to different layers" },
+    }),
+  );
   throw new Error("Leaf's document and runtime belong to different layers");
 }
 

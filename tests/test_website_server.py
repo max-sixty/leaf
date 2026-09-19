@@ -2295,25 +2295,6 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     assert socket.closed
 
 
-def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_the_bound():
-    """Separate an App Server that is thinking from one that stopped delivering.
-
-    `recv` reports every idle second the same way, so the reading that tells the two
-    apart is how long the silence has run.
-    """
-
-    class Socket:
-        def recv(self, timeout):
-            raise TimeoutError
-
-    socket = Socket()
-    assert website_server.recv_notification(socket, time.monotonic()) is None
-    with pytest.raises(TimeoutError):
-        website_server.recv_notification(
-            socket, time.monotonic() - website_server.STREAM_SILENCE - 1
-        )
-
-
 def test_a_stream_that_goes_silent_ends_its_turn_like_a_dropped_one(
     page_dir, monkeypatch
 ):

@@ -4,6 +4,9 @@
 lf-margin-entry-gallery {
   display: block;
   margin-block: var(--sp-4);
+  /* The specimen rows stack from the room the gallery has. A gallery in a narrow
+   * column or beside an open panel has less than the page shell does. */
+  container: lf-margin-entry-gallery / inline-size;
 }
 
 .margin-entry-gallery-group {
@@ -112,7 +115,7 @@ lf-margin-entry-gallery
   border-inline-start: 2px solid var(--accent);
 }
 
-@container lf-shell (max-width: 620px) {
+@container lf-margin-entry-gallery (width <= 36rem) {
   .margin-entry-gallery-group {
     grid-template-columns: 1fr;
   }

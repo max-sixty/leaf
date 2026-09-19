@@ -186,10 +186,16 @@ queue record records that receipt so
 reinitializing the same page path cannot revive old transport work; a
 reinitialized page whose events no longer match retires its old batch. The
 adapter has a second lease because a generic wait lease cannot prove its output can
-enter a later Codex turn. Leaf's unobserved queue command never calls `turn/start`. An
-App Server observer instead resumes the task, subscribes to notifications, and waits
-for the active turn to complete before starting the frozen delivery itself. The CLI
-remains the interactive client for every approval and user-input request.
+enter a later Codex turn. Leaf's unobserved queue command never calls `turn/start`.
+With an App Server the adapter holds two connections instead. One observes: it resumes
+the task, keeps the subscription that resume opens, and projects the turns Leaf did not
+start — the user's own work in the terminal, and a queued pointer the task picks up by
+itself. The other belongs to one delivery for one turn: it resumes, reads the task's
+status, starts the turn while the task is idle, and follows that turn to its reply on
+the connection it started it on. Two connections may resume one thread and both then
+receive everything it says, so the observer passes over a delivery this process is
+carrying rather than answering for it a second time. The CLI remains the interactive
+client for every approval and user-input request.
 Once every batch is acknowledged, only the queue record moves under `history/`;
 `leaf delivery read <id>` continues to resolve the immutable envelope.
 
@@ -206,9 +212,14 @@ steering or adding it to App Server's queue. Its subscription spans the active t
 the delivery turn's opening, and that turn's terminal notification, recording both
 `opened` and the exact turn close. A host
 that owns a starting connection closes only the matching Leaf claim turn on its
-terminal notification. A direct start carries the delivery id as its client message id
-and retains the structured delivery in the transcript. The transcript therefore
-restores the same binding after a lost subscription. The adapter keeps the delivery's
+terminal notification. A direct start binds from its own answer. The request carries
+the delivery id as its client message id, and App Server answers with the turn it made
+from it, so the starter knows its turn before reading a notification. The structured
+delivery also stays in the transcript, which is how a client that did not start a turn
+recovers the same binding — one resuming a task after the fact, or reading the turn the
+task opened for a queued pointer. A lost subscription is not one of those cases. An
+embedded host follows its turn on the connection it started on, and losing that
+connection ends the turn rather than opening a gap to read across. The adapter keeps the delivery's
 chronological prefix through the first
 plain reply and leaves any later plain reply for the next turn. The connection streams
 the assistant final message into that thread and commits the completed message through

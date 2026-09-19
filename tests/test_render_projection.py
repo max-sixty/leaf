@@ -404,7 +404,6 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
     finally:
         while held:
             held.pop(0).continue_()
-        page.close()
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -1236,9 +1235,6 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     finally:
         while held:
             held.pop(0).abort()
-        if page:
-            page.close()
-        context.close()
 
 
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
@@ -3571,7 +3567,6 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         # passed.
         release_the_held_read()
         page.unroute("**/api/state*")
-        page.close()
 
 
 def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
@@ -5897,9 +5892,6 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     expect(
         third.get_by_role("button", name="Move: Wire the importer — Done", exact=True)
     ).to_be_visible()
-
-    for tab in (page, second, third):
-        tab.close()
 
 
 def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve):

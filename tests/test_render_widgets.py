@@ -1514,7 +1514,6 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
     finally:
         if "cdp" in locals():
             cdp.detach()
-        context.close()
 
 
 def test_live_widget_subscription_releases_and_reconnects(browser, serve):
@@ -6677,8 +6676,6 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     for tab in (first, second, third):
         told(tab)
         expect(tab.locator("#sug-thistle lf-new")).to_be_hidden()
-    for tab in (first, second, third):
-        tab.close()
 
 
 def test_the_banner_counts_completed_asks_against_the_active_total(browser, serve):
@@ -9146,7 +9143,6 @@ def test_no_two_of_a_chart_s_words_land_in_the_same_place(browser, serve):
             )
             > 0
         )
-        page.close()
 
 
 def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(

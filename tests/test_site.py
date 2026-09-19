@@ -697,7 +697,6 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
     finally:
         for page in (leader, follower):
             page.unroute_all(behavior="ignoreErrors")
-        context.close()
 
 
 def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
@@ -861,7 +860,6 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        page.close()
 
 
 @pytest.mark.parametrize("name", framed_root_examples())
@@ -1501,7 +1499,6 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
     finally:
         for route in held:
             route.abort()
-        context.close()
 
 
 def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
@@ -1685,7 +1682,6 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
         for route in state:
             route.continue_()
         page.unroute_all(behavior="wait")
-        page.close()
 
 
 def test_a_published_example_has_no_agent_claim(served_example, browser):

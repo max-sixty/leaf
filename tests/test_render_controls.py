@@ -6394,6 +6394,3 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
         f"{'coarse' if touch else 'fine'} pointer asks for:\n  "
         + "\n  ".join(sorted(set(small)))
     )
-    page.close()
-    if context:
-        context.close()

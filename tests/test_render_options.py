@@ -2222,7 +2222,6 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
             "el => getComputedStyle(el).borderLeftColor"
         )
         assert gutter not in ("rgba(0, 0, 0, 0)", "transparent"), f"[{scheme}] {gutter}"
-        page.close()
 
 
 @pytest.mark.parametrize(

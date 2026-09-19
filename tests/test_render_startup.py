@@ -453,7 +453,6 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        context.close()
 
 
 @pytest.mark.parametrize(
@@ -512,7 +511,6 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
         for route in held:
             route.continue_()
         page.unroute_all(behavior="wait")
-        context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
@@ -2278,7 +2276,6 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         for route in held:
             route.continue_()
         page.unroute_all(behavior="wait")
-        page.close()
 
 
 def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):

@@ -208,7 +208,6 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
     finally:
         for route in holding:
             route.abort()
-        page.close()
 
     assert holding, "the page asked for no runtime module, so nothing was held"
     path = urlsplit(holding[0].request.url).path
@@ -241,7 +240,6 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     finally:
         for route in holding:
             route.abort()
-        page.close()
 
     assert holding, "the page asked for no theme stylesheet, so nothing was held"
     path = urlsplit(holding[0].request.url).path
@@ -291,7 +289,6 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
             ).path
         finally:
             release.set()
-            page.close()
 
     assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
     assert str(stopped.value) == (

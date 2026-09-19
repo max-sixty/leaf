@@ -473,9 +473,10 @@ A close inside a test is a different thing, and it stays: a second tab shut to s
 what the first one still holds is the gesture the test is about, and the assertions
 after it are what read the close. So the rule is the ending, not the call, and
 `test_the_resources_a_fixture_owns_are_taken_from_that_fixture` reads for exactly
-that — a `finally` whose whole body is a close, or a close as a test's last
-statement, on anything the browser fixture handed over. Its one exception is the page that keeps making
-the fault its test is about, where the consume has to follow a close of its own.
+that — a close anywhere in a `finally`, or on the line a test ends on, followed down
+through the loop or branch it ends inside — on anything the browser fixture handed
+over, however it travelled. Its one exception is the page that keeps making the
+fault its test is about, where the consume has to follow a close of its own.
 
 For the same reason nothing installs them a second time. `watched` returns the list a
 page already has, because a second list would take `lf_errors` with it and leave the
@@ -689,8 +690,8 @@ as long as the route stands.
 
 Every hold has a release path. If the verdict depends on a response remaining
 lost, make the assertion first, then continue or fulfill the route, wait for the
-handler to finish, remove the route, and only then close the page. Put release
-and `unroute` in cleanup that also runs when the assertion fails. When a handler
+handler to finish, and remove the route; the fixture closes the page after that.
+Put release and `unroute` in cleanup that also runs when the assertion fails. When a handler
 calls `route.fetch()`, use `page.unroute_all(behavior="wait")` before teardown,
 because the fetched body belongs to that page and ordinary close can dispose it
 while a handler is still reading it.

@@ -1781,7 +1781,6 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     finally:
         page.evaluate("failedAskRegion.disconnect()")
         round_trip(page)
-        page.close()
 
 
 def test_a_delayed_ask_reveal_yields_to_programmatic_reader_focus(browser, serve):

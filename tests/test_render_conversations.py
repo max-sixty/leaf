@@ -3940,7 +3940,6 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
             f"{where}: the accepted change took its own anchor off the page "
             f"({settled}) — its other half is still showing"
         )
-        page.close()
 
 
 def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, serve):

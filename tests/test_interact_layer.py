@@ -1505,8 +1505,8 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
 
     The end of the loan is read for too. A page or context the `browser` fixture
     made is closed by that fixture, after it has read what the page reported; a
-    `finally` that closes one in the test body does the same work a step early, and
-    the reading it cuts short is its own. The exception is a page that keeps making
+    close where the test ends with it does the same work a step early, and the
+    reading it cuts short is its own. The exception is a page that keeps making
     the fault its test is about, where the consume has to follow a close of its own
     (tests/CLAUDE.md, "A page is ready when it says what has finished").
     """
@@ -1539,46 +1539,63 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
         for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
             if function.name in closes_to_stop_a_repeating_fault:
                 continue
-            # A fixture's own teardown is the owner ending what it lent.
-            if any("fixture" in ast.unparse(d) for d in function.decorator_list):
+            # A fixture's own teardown is the owner ending what it lent. Read what
+            # the decorator calls, not its whole text, which also carries a
+            # `parametrize` whose ids can say "fixture".
+            if any(
+                ast.unparse(d).split("(")[0].endswith("fixture")
+                for d in function.decorator_list
+            ):
                 continue
             # What the fixture owns is what came from it, however far the value
             # travelled and whatever the function was handed it as:
             # `host, app = open_snapshot_app(browser, page_dir)` hands back a page
-            # as surely as `browser.new_page()` does, and `browser, held =
-            # held_events` hands over the browser itself. A list of the spellings
-            # that count would read some and miss the next, so the names are
-            # followed until nothing new is reached.
+            # as surely as `browser.new_page()` does, `browser, held = held_events`
+            # hands over the browser itself, and `for tab in (first, second)` walks
+            # pages. A list of the spellings that count would read some and miss
+            # the next, so the names are followed until nothing new is reached.
+            bindings = []
+            for node in ast.walk(function):
+                if isinstance(node, ast.Assign):
+                    bindings.append((node.value, node.targets))
+                elif isinstance(node, ast.For):
+                    bindings.append((node.iter, [node.target]))
+                elif isinstance(node, ast.With):
+                    bindings += [
+                        (item.context_expr, [item.optional_vars])
+                        for item in node.items
+                        if item.optional_vars is not None
+                    ]
             lent = set(lending)
-            assignments = [n for n in ast.walk(function) if isinstance(n, ast.Assign)]
             while True:
                 reached = {
                     name.id
-                    for statement in assignments
-                    if lent
-                    & {
-                        n.id
-                        for n in ast.walk(statement.value)
-                        if isinstance(n, ast.Name)
-                    }
-                    for target in statement.targets
+                    for value, targets in bindings
+                    if lent & {n.id for n in ast.walk(value) if isinstance(n, ast.Name)}
+                    for target in targets
                     for name in ast.walk(target)
                     if isinstance(name, ast.Name)
                 }
                 if reached <= lent:
                     break
                 lent |= reached
-            # Only where the test is finished with the page: a `finally`, which is
-            # the end of the block the page was used in, or the function's last
-            # line. A close written anywhere else is the gesture under test — a
-            # second tab shut to show what the first one still holds — and the
-            # assertions after it are what read it.
+            # Only where the test is finished with the page: anywhere in a `finally`,
+            # which is the end of the block the page was used in, and the function's
+            # last line, followed down through a block it ends on. A close written
+            # anywhere else is the gesture under test — a second tab shut to show
+            # what the first one still holds — and the assertions after it are what
+            # read it.
             endings = [
-                node.finalbody[0]
+                statement
                 for node in ast.walk(function)
-                if isinstance(node, ast.Try) and len(node.finalbody) == 1
+                if isinstance(node, ast.Try)
+                for final in node.finalbody
+                for statement in ast.walk(final)
             ]
-            endings.append(function.body[-1])
+            last = function.body[-1]
+            while isinstance(last, (ast.For, ast.If, ast.With)):
+                last = last.body[-1]
+            endings.append(last)
             for node in endings:
                 if not isinstance(node, ast.Expr):
                     continue

@@ -1409,6 +1409,48 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     page.unroute("**/api/event")
 
 
+def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, serve):
+    """`503` is a wait the reader is told about, not an answer the page could not read.
+
+    leaf.page's edge refuses every event with `503` and a plain-text body for the
+    minutes a container image takes to reach a reader's allocation, and the outbox has
+    always retried through it. What it said meanwhile came from the JSON decode that
+    body fails, which reports the page failing to read an answer the server never sent.
+    """
+    page = open_page(browser, serve(BOARD_PAGE))
+    starting = {"rollout": True}
+    refused = []
+
+    def still_starting(route):
+        if not starting["rollout"]:
+            route.continue_()
+            return
+        refused.append(route.request.post_data_json["attempt"])
+        route.fulfill(
+            status=503,
+            body="this release is still starting",
+            headers={"Retry-After": "5", "Content-Type": "text/plain;charset=UTF-8"},
+        )
+
+    page.route("**/api/event", still_starting)
+    page.locator("#card-baffle .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        page.keyboard.press(key)
+    holding(page, refused, 2, "the move the rollout would not take")
+    expect(page.locator(".lf-notice")).to_contain_text("isn't ready yet")
+    # The same gesture throughout: a refusal that admits nothing cannot mint a second.
+    assert len(set(refused)) == 1
+
+    starting["rollout"] = False
+    round_trip(page)
+    page.unroute("**/api/event")
+    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+        "card-baffle"
+    ]
+    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    consume_browser_errors(page, "503")
+
+
 def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
     """A complete read containing an attempt is authoritative delivery evidence. Once
     it accounts for A, the ordered outbox may send queued B even if A's original browser

@@ -25,17 +25,23 @@
    promotion when two local actions on the current state belong together; the binding
    remains live and stays in the reference.
 
-   The ladder at the foot of `STACK` is Escape's fallback for state the reader reached
-   without a registered entry: a pointer-opened panel, a captured target, ordinary focus
-   traversal. One rung is one scope, so one press takes one step and the dispatcher's own
-   walk picks the innermost live rung; a commanded entry returns through RETURN, which
-   `escapeOrder` already ranks ahead of every fallback. */
-import { bindings, checked } from "./bindings.js";
-import { RETURN } from "./layer-stack.js";
+   `RUNG_LADDER` is Escape's fallback for state the reader reached without a registered
+   entry: a pointer-opened panel, a captured target, ordinary focus traversal. Its rungs
+   are contributed like everything else, each by the owner of the state it takes off, and
+   `pageRungs` resolves them into the one `navigation.back` row every surface reads. One
+   row rather than one per rung, because the ladder is one capability whose sentence
+   changes: a reference listing each rung whose own condition happens to hold would
+   promise presses the innermost rung has already taken, and a guard on each rung against
+   the rungs behind it would be this list written six more times. Being the fallback is
+   also what its `when` says — no rung answers while a commanded entry stands, because
+   that entry is the registered way back. */
+import { bindings, checked, word } from "./bindings.js";
+import { current, RETURN } from "./layer-stack.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
 const PAGE = Symbol("the page's own keys");
 const COVERING = Symbol("the page's keys inside a covering auxiliary surface");
+const RUNGS = Symbol("Escape's fallback ladder");
 
 // The universal route out of a native layer's keyboard boundary, named here because the
 // boundary is the dispatcher's rather than the shortcut bar's.
@@ -63,14 +69,18 @@ const STACK = [
   "draw mode",
   "design mode",
   PAGE,
-  // The Escape ladder, outermost, so a page command still ranks ahead of it on the line.
-  // Each rung names what the press takes off, innermost first.
-  "selection rung", // the selection, or the target a click captured
-  "standing rung", // what the reader is standing on, out on the page
-  "tray rung", // the tray that holds the edge
-  "narrowing rung", // the narrowing the reader put on the thread list
-  "panel rung", // the thread panel
-  "page rung", // whatever is left, in the chrome, and back onto the page
+  // Outermost, so a page command still ranks ahead of the way out on the line.
+  RUNGS,
+];
+
+// Each rung names what the press takes off, innermost first.
+const RUNG_LADDER = [
+  "selection", // the selection, or the target a click captured
+  "standing", // what the reader is standing on, out on the page
+  "tray", // the tray that holds the edge
+  "narrowing", // the narrowing the reader put on the thread list
+  "panel", // the thread panel
+  "page", // whatever is left, in the chrome, and back onto the page
 ];
 
 const PAGE_COMMANDS = [
@@ -104,6 +114,7 @@ const PAGE_COMMANDS = [
 
 const scopes = new Map();
 const commands = new Map();
+const rungs = new Map();
 let resolved = null;
 let validated = false;
 let auxiliaryModality = null;
@@ -138,17 +149,62 @@ export function pageCommand(row) {
   return row;
 }
 
+/** Declare one step of Escape's fallback ladder: a function answering what the press would
+ * take off right now, as `{says, does, out}` plus an optional `root` for the surface the
+ * step is inside and the `lineWhen` and `promoteEscape` this step wants on the compact
+ * line, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
+export function pageRung(name, reading) {
+  place(RUNG_LADDER, name);
+  if (rungs.has(name)) throw new Error(`leaf: the ${name} rung is declared twice`);
+  rungs.set(name, reading);
+  return reading;
+}
+
+// The innermost step the reader can still take. Read fresh by every projection, so the
+// sentence the reference lists, the word the line paints, and the press the dispatcher
+// runs are one answer rather than three readings of the ladder.
+function rung() {
+  for (const name of RUNG_LADDER) {
+    const step = rungs.get(name)();
+    if (step) return step;
+  }
+  return null;
+}
+
+// The page's own Escape, said and run off that one object: each rung states the act, the
+// word the line paints over it, and the sentence the reference lists. The sentence is the
+// rung's for the reason `c`'s is the destination's — the reader can see which branch they
+// are in, so a word covering all of them tells them nothing.
+const BACK_OUT = {
+  id: "navigation.back",
+  keys: ["Escape"],
+  does: () => rung()?.does,
+  line: () => rung()?.says,
+  lineWhen: () => word(rung()?.lineWhen) !== false,
+  promoteEscape: () => word(rung()?.promoteEscape) !== false,
+  when: () => !current() && Boolean(rung()),
+  run: () => rung().out(),
+};
+
 const missing = (where, held) =>
   where.filter((name) => typeof name === "string" && !held.has(name)).map(String);
 
 function assemble() {
-  const absent = [...missing(STACK, scopes), ...missing(PAGE_COMMANDS, commands)];
+  const absent = [
+    ...missing(STACK, scopes),
+    ...missing(PAGE_COMMANDS, commands),
+    ...missing(RUNG_LADDER, rungs),
+  ];
   if (absent.length)
     throw new Error(`leaf: the page's keyboard has no owner for ${absent.join(", ")}`);
   const rows = PAGE_COMMANDS.map((id) => commands.get(id));
   const covering = rows.filter((row) => row.covering);
   return STACK.map((name) => {
     if (name === PAGE) return { rows };
+    // Rooted at the surface the live step is inside, so a step off a covering panel or
+    // tray survives the floor that surface establishes while the page below it does not.
+    if (name === RUNGS)
+      return { root: () => rung()?.root ?? document, rows: [BACK_OUT] };
     if (name === COVERING)
       return {
         title: "In the covering auxiliary surface",

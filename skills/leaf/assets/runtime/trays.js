@@ -6,7 +6,7 @@ import { drawnEdge } from "./drawn-edge.js";
 import { motion } from "./motion.js";
 import { readerStore } from "./storage.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { pageScope } from "./keyboard/register.js";
+import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
 import { allAsks } from "./asks/model.js";
 import { walkRows } from "./keyboard/bindings.js";
@@ -319,27 +319,22 @@ export function createTrays({
     );
   }
   // A standing tray is one layer of the page the reader put on by pressing its button, so
-  // Escape takes it off again. Whichever tray holds the edge is named by the rung, so the
+  // Escape takes it off again. Whichever tray holds the edge is named by the step, so the
   // reader is told what the press will take rather than being told "close the tray" over
   // two of them; the tray's key is the runtime's, and the reader knows the strip by the
-  // banner's word. Rooted at the open tray, so the rung survives the width at which that
-  // tray covers the page and becomes the floor.
-  pageScope("tray rung", {
-    // A remembered key that no longer names a tray leaves the rung rooted at the document,
-    // where `restoreTrays` has already left `openTrayKey` standing for a strip nothing
-    // paints. The rung's own liveness is unchanged; only its floor is.
-    root: () => trays.get(openTrayKey)?.panel ?? document,
-    rows: [
-      {
-        id: "navigation.tray.close",
-        keys: ["Escape"],
-        does: () => `Close the ${currentTray()} tray`,
-        line: () => `close ${currentTray()}`,
-        when: () => Boolean(currentTray()),
-        run: () => setOpenTray(null),
-      },
-    ],
-  });
+  // banner's word. Rooted at the open tray, so the step survives the width at which that
+  // tray covers the page and becomes the floor — and a remembered key that no longer names
+  // a tray, which `restoreTrays` can leave standing, roots at the document instead.
+  pageRung("tray", () =>
+    currentTray()
+      ? {
+          root: trays.get(openTrayKey)?.panel ?? document,
+          says: `close ${currentTray()}`,
+          does: `Close the ${currentTray()} tray`,
+          out: () => setOpenTray(null),
+        }
+      : null,
+  );
 
   return { setOpenTray, restoreTray, restoreTrays, traysEdge, trayNames, mountTrays };
 }

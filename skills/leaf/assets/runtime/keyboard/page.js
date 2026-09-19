@@ -12,7 +12,7 @@ import { letGo } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { documentFocused, focused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
-import { pageCommand, pageScope } from "./register.js";
+import { pageCommand, pageRung, pageScope } from "./register.js";
 
 // Where the reader is standing, when what they are standing on is one of the page's own
 // parts rather than a widget's own declaration. A widget's control scope cannot cover
@@ -91,9 +91,10 @@ pageCommand({
   does: "Caret browsing (the browser's): select text by keyboard, then c",
 });
 
-// The two rungs that are the page's own. Between them stand the surfaces a reader can put
-// on — a captured target, a tray, a narrowing, the thread panel — each declared by its
-// owner, so this ladder is read off the stack's order rather than written out anywhere.
+// The two steps of Escape's ladder that are the page's own. Between them stand the
+// surfaces a reader can put on — a captured target, a tray, a narrowing, the thread
+// panel — each contributed by its owner, so the ladder is read off `RUNG_LADDER` rather
+// than written out anywhere.
 //
 // The first is theirs: out on the page, the innermost thing the reader is in is whatever
 // they are standing on, and a panel behind them is a layer they are not in. Nothing said
@@ -107,27 +108,17 @@ const holding = () => {
   const active = documentFocused();
   return Boolean(active) && active !== document.body;
 };
-pageScope("standing rung", {
-  rows: [
-    {
-      id: "navigation.let-go",
-      keys: ["Escape"],
-      does: "Let go of what you are standing on",
-      line: "let go",
-      when: () => holding() && !inChrome(documentFocused()),
-      run: letGo,
-    },
-  ],
-});
-pageScope("page rung", {
-  rows: [
-    {
-      id: "navigation.back-to-page",
-      keys: ["Escape"],
-      does: "Back out onto the page",
-      line: "back to the page",
-      when: holding,
-      run: letGo,
-    },
-  ],
-});
+pageRung("standing", () =>
+  holding() && !inChrome(documentFocused())
+    ? {
+        says: "let go",
+        does: "Let go of what you are standing on",
+        out: letGo,
+      }
+    : null,
+);
+pageRung("page", () =>
+  holding()
+    ? { says: "back to the page", does: "Back out onto the page", out: letGo }
+    : null,
+);

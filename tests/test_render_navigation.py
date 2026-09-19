@@ -6249,6 +6249,21 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
     expect(line).to_contain_text("dismiss conversation")
+    # The fallback ladder is one way out however many of its steps could act. Standing
+    # here, letting go and backing onto the page both hold, and the reference names the
+    # innermost once rather than listing every step whose own condition is true.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    way_out = help_el.locator('tr[data-lf-command="navigation.back"]')
+    expect(way_out).to_have_count(1)
+    expect(way_out).to_contain_text("Back out onto the page")
+    # Out of the reference, then the shelf it was opened from, and the reader is back on
+    # the card with the ladder's own press still ahead of them.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
+    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()

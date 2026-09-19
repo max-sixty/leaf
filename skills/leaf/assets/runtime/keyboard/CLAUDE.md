@@ -25,7 +25,8 @@ module enumerates another's capabilities to do it. A widget or a generated contr
 the element register — `keys(element, …)` and `commandScope(…)` in `scopes.js` — which
 applies while focus is inside that element. A core owner whose condition is the page's
 rather than the reader's position uses `register.js`: `pageScope(name, …)` for a scope of
-its own, and `pageCommand(row)` for a row of the page's own scope. Contribution runs as
+its own, `pageCommand(row)` for a row of the page's own scope, and `pageRung(name, …)`
+for a step of Escape's fallback ladder. Contribution runs as
 the owner is constructed, so a row closes over that owner's state and the register never
 holds a capability. Adding a command to a surface a feature already declares costs
 nothing outside that feature; a new page-level letter, or a new scope, takes its rank in
@@ -51,10 +52,13 @@ that order. One press closes one layer.
 
 Those fallbacks are the ladder at the foot of the stack, for state the reader reached
 without a registered keyboard entry: a captured target, a pointer-opened tray or panel,
-ordinary focus traversal. Each rung is an ordinary Escape row in a scope of its owner's,
-rooted at the surface it takes off, and the dispatcher's own walk picks the innermost
-live one. No rung tests whether a return frame stands: `escapeOrder` already ranks that
-frame ahead of every unmarked fallback.
+ordinary focus traversal. Each step is contributed through `pageRung` by the owner of
+the state it takes off and says what that press would take; `register.js` orders them
+and resolves the innermost into the one command every surface reads, rooted at the
+surface that step is inside. One command rather than one per step, because a reference
+listing each step whose own condition holds would promise presses the innermost step has
+already taken, and because being the fallback is a fact about the ladder rather than
+about any step: no step answers while a commanded entry stands.
 
 ## Page grammar
 
@@ -79,8 +83,9 @@ binding invoke the original command through its stable identity and source scope
 - `bindings.js` owns spelling, parsing, row fields, routes, and declaration checks.
 - `scopes.js` owns element scopes and the shared command sections derived from them.
 - `register.js` owns the page's keyboard: the order core's scopes shadow one another in,
-  the rank of the page's own commands, the door each owner contributes through, and the
-  auxiliary-layer readings the dispatcher reads without an edge to their owner.
+  the rank of the page's own commands, Escape's fallback ladder and the one command it
+  resolves to, the three doors owners contribute through, and the auxiliary-layer
+  readings the dispatcher reads without an edge to their owner.
 - `dispatch.js` owns precedence and platform-default handling; `controller.js` owns the
   physical input lifecycle; `text-entry.js` owns native editing claims.
 - `layer-stack.js` owns the ordered layers standing over the page: the popovers and modal

@@ -86,7 +86,7 @@ import {
   standingConversation,
 } from "../conversation/landing.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
-import { pageCommand, pageScope } from "../keyboard/register.js";
+import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
 import { elementById, inChrome, pageRange, pageText, pageWords } from "../passages.js";
 import {
@@ -1489,24 +1489,21 @@ export function createResponseSurface({
     ],
   });
 
-  // The first rung of the page's Escape ladder: a selection or a captured target is the
+  // The first step of the page's Escape ladder: a selection or a captured target is the
   // innermost thing the reader is holding, and letting it go is one press. Clearing a
   // captured target is still available while c and r are the two actions on the thing the
   // reader just chose, so it keeps its binding and its place in the reference while
   // yielding the short line's promoted slot to them.
-  pageScope("selection rung", {
-    rows: [
-      {
-        id: "navigation.selection.clear",
-        keys: ["Escape"],
-        does: "Clear the selection",
-        line: "unselect",
-        promoteEscape: () => !Boolean(fabAnchorAt()) || reactionTokens().length === 0,
-        when: () => Boolean(pageSelection() || fabAnchorAt()),
-        run: dismissFab,
-      },
-    ],
-  });
+  pageRung("selection", () =>
+    pageSelection() || fabAnchorAt()
+      ? {
+          says: "unselect",
+          does: "Clear the selection",
+          promoteEscape: !Boolean(fabAnchorAt()) || reactionTokens().length === 0,
+          out: dismissFab,
+        }
+      : null,
+  );
 
   return {
     commentHint,

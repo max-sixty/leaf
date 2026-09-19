@@ -13,7 +13,7 @@
  * backing out of. */
 import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
 import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
-import { pageScope } from "./keyboard/register.js";
+import { pageRung } from "./keyboard/register.js";
 
 export const THREAD_PANEL_KEY = "lf-thread-panel-open";
 
@@ -132,41 +132,36 @@ export function createThreadPanelController({
   }
 
   // Search repeat is the useful contextual hint after Enter accepts the first result, so
-  // both rungs yield the compact line there. Escape remains live and stays in the complete
-  // reference without occupying that slot.
+  // both steps yield the compact line there. Escape remains live and stays in the complete
+  // reference without occupying that slot. Both are rooted at the panel, so they survive
+  // the width at which it covers the page and becomes the floor.
   const yieldsToSearch = () =>
     !threadSearchActive() || !panelFocusIsInside(panelIsOpen);
-  pageScope("narrowing rung", {
-    root: () => panel,
-    rows: [
-      {
-        id: "navigation.narrowing.clear",
-        keys: ["Escape"],
-        does: "Show every thread again",
-        line: "show all",
-        lineWhen: yieldsToSearch,
-        when: () => panelIsOpen() && narrowed(),
-        run: (...args) => widen(...args),
-      },
-    ],
-  });
+  pageRung("narrowing", () =>
+    panelIsOpen() && narrowed()
+      ? {
+          root: panel,
+          says: "show all",
+          does: "Show every thread again",
+          lineWhen: yieldsToSearch(),
+          out: (...args) => widen(...args),
+        }
+      : null,
+  );
   // Last of the panel's layers, and the one that leaves the chrome: closing the panel does
   // not put the reader back on the page, it lands them on the control that closes it,
   // deliberately (setPanel says why).
-  pageScope("panel rung", {
-    root: () => panel,
-    rows: [
-      {
-        id: "navigation.panel.close",
-        keys: ["Escape"],
-        does: "Close the thread panel",
-        line: "close threads",
-        lineWhen: yieldsToSearch,
-        when: () => panelIsOpen(),
-        run: () => setPanel(false),
-      },
-    ],
-  });
+  pageRung("panel", () =>
+    panelIsOpen()
+      ? {
+          root: panel,
+          says: "close threads",
+          does: "Close the thread panel",
+          lineWhen: yieldsToSearch(),
+          out: () => setPanel(false),
+        }
+      : null,
+  );
 
   return { setPanel, mountThreadPanel };
 }

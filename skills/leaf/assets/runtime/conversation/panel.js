@@ -279,11 +279,9 @@ export function createPanelComposer({
   }
 
   return {
-    generalHint,
     syncGeneral,
     pageComposerDrawing,
     openPageDrawing,
-    PANEL_SAY,
     mount,
   };
 }

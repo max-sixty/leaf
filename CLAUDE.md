@@ -35,9 +35,24 @@ better app, and say in the commit which behavior moved.
 The code is post-vibe-coded: written fast, with weak abstractions, and it
 produces a steady supply of small bugs. Most of them are one missing primitive,
 one boundary drawn in the wrong place, or one rule nothing states, surfacing
-again under a different name. So when fixing a bug, ask what underlying
-abstraction it betrays, then fix that abstraction at the highest reasonable
-level. Do not add another patch on top of the ones already there.
+again under a different name. So a problem is evidence about the code that
+produced it rather than a defect to close. Ask what underlying issue it
+betrays, ask the same of that answer, and keep asking until an answer names
+nothing above itself; that last answer is what the change is against, fixed at
+the highest reasonable level.
+
+Do not add another patch on top of the ones already there. A change that
+settles the immediate symptom and leaves the code harder to maintain does not
+go in, and filing the real fix behind it does not redeem it: the patch is what
+the next reader has to undo first. The shapes that recur are a second special
+case beside the first, a caller repeating what its callee should settle, a
+guard restating a rule nothing states, and a flag threaded through a stack to
+reach one call site. Deferring is for an underlying problem the change leaves
+as easy to fix as it found it, and a change that defers names it.
+
+Ask the same question of a change under review. A diff whose fix stops at the
+symptom is incomplete however small it is, and naming what produced the problem
+is the review.
 
 Use this freedom to try coherent new features and learn from them without
 settling every product detail first. Surface architectural problems, but fix

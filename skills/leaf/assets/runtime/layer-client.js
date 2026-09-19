@@ -85,9 +85,10 @@ function reloadNow(message) {
 // Each foreign answer gets its own reading of the source, because the source may move
 // while the page waits — this very page can be re-vendored during the hold — and an
 // answer carried over from an earlier reading would leave the tab with no way back. One
-// probe is in the air at a time, so a burst of refusals costs one. The words are the
-// exception: a standing condition explained once is enough, and repeating a transient
-// status line would hold the page's foot for as long as the disagreement lasts.
+// probe is in the air at a time, so a burst of refusals costs one. The words are said
+// once for the page rather than once an answer: a standing condition explained once is
+// enough, and repeating a transient status line would hold the page's foot for as long
+// as the disagreement lasts.
 let asking = false;
 let saidWaiting = false;
 function reloadDelivery(message) {

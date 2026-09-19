@@ -492,6 +492,7 @@ selectionComposer = createSelectionComposer({
   reactionTokens,
   designModeActive: designMode.active,
   marginOpenInlineThread: app.margin.openInlineThread,
+  marginThreadFrame: app.margin.threadFrame,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
   anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),

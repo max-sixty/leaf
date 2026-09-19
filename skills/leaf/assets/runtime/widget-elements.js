@@ -9,10 +9,12 @@
    changes, and geometry consumers listen to this signal instead of watching every DOM
    mutation.
 
-   A control is built by `offer` as the corresponding native element, so activation,
-   disabled state, focus, and accessibility stay the browser's. The explicit
-   `selectableOffer` exception is for a page word whose text must remain selectable,
-   such as a tab name or chosen option; its widget owns the complete keyboard pattern.
+   A control is built so the browser does as much of it as it can. `offer` builds the
+   corresponding native element, so activation, disabled state, focus, and
+   accessibility stay the browser's. A page word that is also a control — a tab name, a
+   chosen option — has to stay selectable, which Chromium does not begin inside a form
+   control, so `selectableOffer` builds it as a span with the role, and its widget
+   supplies the complete keyboard pattern the native element would have.
    Both constructors mark generated chrome consistently. The shared drag guard
    (`reachedForWords`) distinguishes a click from the mouseup ending an active text
    selection by comparing the selection's focus end with the release. It does not
@@ -39,9 +41,11 @@
    `worksInside` decides whether a container gesture may take a click. It treats
    platform interactive elements as their own controls and uses `x-owners` to
    distinguish a container's declared member widgets from nested widgets that own their
-   own interaction. Containers may name their own generated apparatus as an exception.
-   The general answer fails closed: declining one ambiguous container gesture is safer
-   than recording a choice while the reader operates nested evidence. */
+   own interaction. What it cannot know is which of the controls it finds the
+   container's own module put there — an option's pick mark, a gloss's own mark — so the
+   caller names that apparatus, which is the container's to press. The answer otherwise
+   fails closed: declining one ambiguous container gesture is safer than recording a
+   choice while the reader operates nested evidence. */
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";

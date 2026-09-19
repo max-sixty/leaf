@@ -5,7 +5,8 @@ import {
   panelWouldCover,
 } from "./conversation/panel-elements.js";
 import { openThreads } from "./conversation/thread-list.js";
-import { narrowed } from "./conversation/narrowing.js";
+import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
+import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./conversation/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
@@ -184,14 +185,82 @@ export function stopGlide(box) {
   glide = null;
 }
 
-export function createNavigation({ panelIsOpen, coveringAuxiliaryScroller }) {
+export function createNavigation({
+  panelIsOpen,
+  coveringAuxiliaryScroller,
+  threadDestinations,
+}) {
   const panelCovers = () => panelIsOpen() && panelWouldCover();
   const inPanel = () => panelFocusIsInside(panelIsOpen);
+  const move = (amount, unit) =>
+    stepReading(amount, unit, coveringAuxiliaryScroller, inPanel);
+  const walkThreads = (dir) => stepThread(dir, threadDestinations, panelIsOpen);
+
+  // Travel's own page keys. All three remain reachable inside a covering auxiliary
+  // surface: the surface replaces the page the reader is reading rather than ending the
+  // reading, and t/T follows whichever surface is presenting the threads.
+  pageCommand({
+    id: "thread.walk",
+    // A walk's letter names its category; Shift reverses it. The page's walks therefore
+    // share one compact, repeatable grammar.
+    keys: ["t", "Shift+t"],
+    routes: [
+      { id: "thread.next", binding: "t", does: "Next open thread" },
+      { id: "thread.previous", binding: "Shift+t", does: "Previous open thread" },
+    ],
+    does: "Next / previous open thread",
+    line: "threads",
+    covering: true,
+    // Once textual search owns the panel, n/N are the canonical walk there. Keep t/T as
+    // the page's open-thread walk without leaving two spellings for the same panel action.
+    when: () =>
+      openThreads({ visibleOnly: panelIsOpen() }).length > 0 &&
+      (!coveringAuxiliarySurface() || inPanel()) &&
+      !(threadSearchActive() && inPanel()),
+    repeat: true,
+    run: (binding) => walkThreads(binding === "t" ? 1 : -1),
+  });
+  pageCommand({
+    id: "page.move",
+    keys: ["d", "u"],
+    routes: [
+      {
+        id: "page.down",
+        binding: "d",
+        does: "Move 60% of a page down",
+        line: "page down",
+      },
+      { id: "page.up", binding: "u", does: "Move 60% of a page up", line: "page up" },
+    ],
+    does: "Move 60% of a page down or up",
+    line: "page down / up",
+    covering: true,
+    repeat: true,
+    run: (binding) => move(binding === "d" ? 0.6 : -0.6, "page"),
+  });
+  pageCommand({
+    id: "scroll.move",
+    keys: ["j", "k"],
+    routes: [
+      {
+        id: "scroll.down",
+        binding: "j",
+        does: "Scroll down a little",
+        line: "scroll down",
+      },
+      { id: "scroll.up", binding: "k", does: "Scroll up a little", line: "scroll up" },
+    ],
+    does: "Scroll down or up a little",
+    line: "scroll down / up",
+    covering: true,
+    repeat: true,
+    run: (binding) => move(binding === "j" ? 60 : -60, "pixel"),
+  });
+
   return {
     panelCovers,
     seenScroller: () => seenScroller(coveringAuxiliaryScroller),
-    stepReading: (amount, unit) =>
-      stepReading(amount, unit, coveringAuxiliaryScroller, inPanel),
-    stepThread: (dir, commands) => stepThread(dir, commands, panelIsOpen),
+    stepReading: move,
+    stepThread: walkThreads,
   };
 }

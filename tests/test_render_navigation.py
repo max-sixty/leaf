@@ -2491,7 +2491,7 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
         serve.page_dir,
         "Is this the passage you meant?",
         {"section": "p2", "quote": "neighbouring block"},
-        "claude",
+        "agent",
     )
     page = open_page(browser, url)
     page.set_viewport_size({"width": 1200, "height": 844})
@@ -2608,7 +2608,7 @@ def test_a_frame_holds_only_the_standing_its_own_press_made(browser, serve):
         serve.page_dir,
         "Is this the passage you meant?",
         {"section": "p2", "quote": "neighbouring block"},
-        "claude",
+        "agent",
     )
     page = open_page(browser, url)
     page.set_viewport_size({"width": 1200, "height": 844})

@@ -26,7 +26,6 @@ from interact_support import STATED_TIMEOUT, append_command, running_http_server
 from leaf import codex as leaf_codex
 from leaf.codex import accept_codex_delivery
 from leaf.codex import queue_records as codex_queues
-from leaf.delivery import DELIVERY_FORMAT
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
@@ -1693,11 +1692,17 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
 def test_notifications_before_start_response_reach_the_turn_follower(
     page_dir, monkeypatch
 ):
-    payload = {
-        "format": DELIVERY_FORMAT,
-        "id": "delivery-1",
-        "batches": [{"events": [{"id": "reader-event"}]}],
-    }
+    # A real delivery, because the follower reads it back by id when it accounts for
+    # the turn, and a made-up id is refused there rather than at the send.
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    prepared = website_server.prepare_codex_delivery(
+        page_dir,
+        website_server.website_harness("hosted-thread", os.getpid()),
+    )
+    payload = prepared.payload
     messages = iter(
         [
             json.dumps({"id": 0, "result": {}}),
@@ -1765,9 +1770,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
     host = website_server.WebsiteCodexHost("codex")
     monkeypatch.setattr(host, "_hold_waiter", lambda *args: None)
     monkeypatch.setattr(
-        website_server,
-        "prepare_codex_delivery",
-        lambda *args: SimpleNamespace(payload=payload),
+        website_server, "prepare_codex_delivery", lambda *args: prepared
     )
     monkeypatch.setattr(
         website_server,
@@ -1789,8 +1792,8 @@ def test_notifications_before_start_response_reach_the_turn_follower(
     assert (
         host._start_thread(
             page_dir,
-            type("Process", (), {"pid": 41})(),
-            "reader-event",
+            type("Process", (), {"pid": os.getpid()})(),
+            comment["id"],
         )
         == "hosted-thread"
     )

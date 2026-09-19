@@ -66,6 +66,18 @@ killed the command, or when a message from Leaf says a page has new input and no
 `leaf wait` is running for this session. That message comes through Claude
 Code's session messaging, so it is presented as coming from another session.
 
+## Subagents
+
+A subagent runs with this session's id and process, and nothing in its
+environment tells Leaf otherwise, so to Leaf it is this session. A page it
+claims, by serving it or naming it to `leaf wait`, is this session's, and this
+session's Stop hook holds its turns open for every reader move there. A
+`leaf wait` it starts competes for this session's one watcher: it is refused
+while yours runs, and otherwise takes the batches from every page you hold into
+the subagent's context instead of yours. That is why the page stays with you
+(`references/conversation-loop.md`, "Long-running work"). A separate Claude Code
+session has its own id and can drive a page of its own.
+
 ## Review fixtures
 
 A page put up to be looked at — a preview of an example, a fixture for a visual

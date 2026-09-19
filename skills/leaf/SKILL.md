@@ -44,7 +44,8 @@ it, as a UI thread handles input before background work. Put each step on the pa
 before starting it, and acknowledge reader input on the page before acting on it. Keep
 the watcher running, and hand work longer than a few minutes to background workers
 rather than waiting on it yourself, so a new comment reaches you in time to change the
-next step. `references/conversation-loop.md` names the surfaces and when to write each.
+next step. The page stays yours while they run. `references/conversation-loop.md` names
+the surfaces, when to write each, and what a worker may touch.
 
 ## Start here
 

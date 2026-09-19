@@ -1042,6 +1042,30 @@ def button_radius(page):
     )
 
 
+def glyph_action_face(control):
+    """What a reader sees of a glyph action, as one reading both its tests share.
+
+    Send and Add option are the same face: a bare glyph in the action's own ink over a
+    28px disc that stays clear at rest and takes the action's tint under the pointer.
+    The press paints nothing of its own in either state, so `press` is the claim that
+    the disc is the whole of the paint and `discWidth` is why it does not grow with the
+    hit box around it.
+    """
+    return control.evaluate(
+        """el => {
+             const press = getComputedStyle(el);
+             const disc = getComputedStyle(el, '::before');
+             return {
+               press: press.backgroundColor,
+               glyph: press.color,
+               disc: disc.backgroundColor,
+               discWidth: disc.width,
+               discRadius: disc.borderRadius,
+             };
+           }"""
+    )
+
+
 def mark_edges(page, ident, ink):
     """How wide the mark is painted on each side of an element, in device pixels.
 

@@ -70,17 +70,18 @@ def preview_slot(tmp_path):
 
     `.tmp/previews` is shared by every run in this checkout and
     `_no_page_outlives_its_test` does not reach it, so what a run leaves there
-    stays: a slot is a page directory plus its metadata, its log, and its two
-    locks, and at a few hundred entries
+    stays: a slot is a page directory plus a background watcher's log, and at a
+    few hundred entries
     `test_a_detached_preview_restarts_under_its_original_codex_claim` stops
     meeting its thirty-second reload.
 
-    Through `retire_preview`, which is the preview's own discard: it writes the
-    stop flag the watcher polls and waits for the lease, so it retires a watcher
-    that outlived its test instead of pulling the page out from under one. A
-    second preview a test opens is named `{slot}-reader`, `{slot}-before`, or
-    `{slot}-after`, and is this fixture's to discard too. The separator matters:
-    without it the sweep for `…1` would take the `…10` slot beside it.
+    Through `retire_preview`, which is the preview's own discard: it holds the
+    stop request the watcher reads and waits for the lease, so it retires a
+    watcher that outlived its test instead of pulling the page out from under
+    one, and leaves the directory clean. A second preview a test opens is named
+    `{slot}-reader`, `{slot}-before`, or `{slot}-after`, and is this fixture's to
+    discard too. The separator matters: without it the sweep for `…1` would take
+    the `…10` slot beside it.
     """
     slot = f"pytest-{os.getpid()}-{tmp_path.name}"
     page = ROOT / ".tmp" / "previews" / slot
@@ -89,13 +90,8 @@ def preview_slot(tmp_path):
         path.name.split(".preview.")[0] for path in page.parent.glob(f"{slot}[.-]*")
     }
     for name in sorted(named):
-        retired = page.parent / name
-        preview_model.retire_preview(retired, discard=True)
-        # The two locks outlive that discard on purpose — a concurrent `--stop`
-        # is excluded by the inode it waits on, and replacing it would exclude
-        # nobody. These slots are the run's alone, with nothing left waiting.
-        for path in page.parent.glob(f"{name}.preview.*"):
-            path.unlink(missing_ok=True)
+        preview_model.retire_preview(page.parent / name, discard=True)
+    assert not list(page.parent.glob(f"{slot}[.-]*"))
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
@@ -238,6 +234,35 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
         )
     ] == []
     assert [root for root in watched.roots if ".tmp" in root.parts] == []
+
+
+def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
+    """An edit made while nobody is reading the subscription is still in it.
+
+    watchfiles starts its rust watcher on the subscription's first read, and the
+    read a preview's loop makes comes after the preview has announced its URL —
+    so the edit a developer makes the moment that URL appears used to land in a
+    window nothing was watching. The interval here is that announcement: long
+    enough that the write is over and reported by the platform before anything
+    reads, which is what an unstarted subscription cannot survive.
+    """
+    edited = tmp_path / "source.html"
+    edited.write_text("<p>authored</p>", encoding="utf-8")
+    changes = preview_model.watch_changes(
+        preview_model.Watched((tmp_path,), frozenset(), frozenset())
+    )
+    try:
+        edited.write_text("<p>edited</p>", encoding="utf-8")
+        time.sleep(1)
+        reported = set()
+        deadline = time.monotonic() + 10
+        while str(edited) not in reported:
+            assert time.monotonic() < deadline, (
+                f"the edit was never reported: {reported}"
+            )
+            reported |= {path for _, path in next(changes)}
+    finally:
+        changes.close()
 
 
 def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_path):
@@ -549,8 +574,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     )
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    watcher_metadata = page_dir.with_name(f"{page_dir.name}.preview.json")
-    assert json.loads(watcher_metadata.read_text())["url"] == automation_url
+    assert json.loads((page_dir / "preview.json").read_text())["url"] == automation_url
     assert page_dir not in service_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
@@ -689,6 +713,15 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert "Traceback" not in reset_stderr
 
 
+def _reachable(url: str) -> bool:
+    """Whether a preview's published address still answers."""
+    try:
+        with urllib.request.urlopen(url, timeout=5) as answer:
+            return answer.status == 200
+    except (urllib.error.URLError, OSError):
+        return False
+
+
 def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
     tmp_path, preview_slot, request, capsys
 ):
@@ -697,8 +730,7 @@ def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
     Interaction and detachment are separate choices. While they were one, the only
     backgroundable preview was the claimed one, and a session driving four of them
     through browser proof read its own presses back as reader input: six Stop hooks
-    blocked on `.tmp/previews/` slots inside subagent worktrees that no reader
-    could see.
+    blocked on `.tmp/previews/` slots inside subagent worktrees no reader could see.
 
     A claimed preview still reports its reader, which is the reading
     `test_a_preview_owes_no_watcher_but_still_carries_its_reader` holds. The
@@ -717,10 +749,11 @@ def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
         str(runtime),
         "--slot",
         slot,
+        "--automation",
     ]
     request.addfinalizer(
         lambda: subprocess.run(
-            [*command, "--automation", "--stop"],
+            [*command, "--stop"],
             cwd=ROOT,
             capture_output=True,
             check=False,
@@ -729,7 +762,7 @@ def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
         )
     )
     started = subprocess.run(
-        [*command, "--automation", "--background"],
+        [*command, "--background"],
         cwd=ROOT,
         capture_output=True,
         check=False,
@@ -742,13 +775,14 @@ def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
     url = started.stdout.splitlines()[-1]
     assert url.startswith("http://127.0.0.1:")
     assert preview_model.AUTOMATION_NOTE in started.stderr
-    assert urllib.request.urlopen(url, timeout=30).status == 200
+    assert _reachable(url)
 
-    # The address is the one thing a caller cannot rebuild, and a temporary server
-    # writes no `service.json` to read it off, so a second invocation answers from
-    # the watcher's own state rather than starting a rival.
+    # The address is the one thing a caller cannot rebuild, and a temporary
+    # server writes no `service.json` to read it off, so a second invocation
+    # answers from the slot's own record rather than starting a rival. A string
+    # alone would also come back from a watcher that has since died.
     resumed = subprocess.run(
-        [*command, "--automation", "--background"],
+        [*command, "--background"],
         cwd=ROOT,
         capture_output=True,
         check=False,
@@ -756,10 +790,8 @@ def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
         timeout=90,
     )
     assert resumed.returncode == 0, resumed.stderr
-    # A published URL names a server that answers. The address alone would be
-    # satisfied by the state file remembering a watcher that has since died.
     assert resumed.stdout.splitlines()[-1] == url
-    assert urllib.request.urlopen(url, timeout=30).status == 200
+    assert _reachable(url)
 
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     assert service_model.page_claim(page_dir) is None
@@ -772,26 +804,17 @@ def test_a_detached_automation_preview_keeps_its_gestures_out_of_the_stop_hook(
     assert capsys.readouterr().out == ""
 
 
-def _reachable(url: str) -> bool:
-    """Whether a preview's published address still answers."""
-    try:
-        with urllib.request.urlopen(url, timeout=5) as answer:
-            return answer.status == 200
-    except (urllib.error.URLError, OSError):
-        return False
-
-
 def test_a_detached_automation_preview_ends_with_the_session_that_started_it(
     tmp_path, preview_slot, spawn, request
 ):
     """Every preview is reaped by the session's lifetime; only the route differs.
 
     A reader preview is reaped through its claim: the serving process exits when
-    the lifetime ends, and the watcher's liveness check sees an empty service.
-    An automation preview holds its server in its own thread and takes no claim,
-    so nothing outside it would ever notice. Detached, that left a Python
-    process and a loopback port standing after the session, the terminal and the
-    host were gone — and the baseline/candidate recipe starts two of them.
+    the lifetime ends, and the watcher sees an empty service. An automation
+    preview holds its server in its own thread and takes no claim, so nothing
+    outside it would ever notice. Detached, that left a Python process and a
+    loopback port standing after the session, the terminal and the host were
+    gone — and the baseline/candidate recipe starts two of them.
     """
     slot, page_dir = preview_slot
     source = tmp_path / "reaped.html"
@@ -834,19 +857,19 @@ def test_a_detached_automation_preview_ends_with_the_session_that_started_it(
         f"stdout:\n{started.stdout}\nstderr:\n{started.stderr}"
     )
     url = started.stdout.splitlines()[-1]
-    assert urllib.request.urlopen(url, timeout=30).status == 200
+    assert _reachable(url)
 
     host.terminate()
     host.wait(timeout=10)
+    # The record is the later fact: the server's socket closes inside the stop
+    # that then writes it, so waiting on the address would race the write.
     wait_for(
-        lambda: _reachable(url),
-        lambda answering: not answering,
+        lambda: json.loads((page_dir / "preview.json").read_text())["url"],
+        lambda recorded: recorded is None,
         failure="the detached automation preview outlived its session",
         timeout=30,
     )
-    metadata = page_dir.with_name(f"{page_dir.name}.preview.json")
-    retired = json.loads(metadata.read_text())
-    assert (retired["enabled"], retired["url"]) == (False, None)
+    assert not _reachable(url)
 
 
 @pytest.fixture
@@ -959,14 +982,16 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
         )
         assert server_model.running_server(directory) is None
         assert service_model.page_claim(directory)["released"] is not None
-        lease = directory.with_name(f"{directory.name}.preview.lock")
+        lease, _ = preview_model.preview_locks(directory)
         wait_for(
             lambda: leases_model.lock_is_held(lease),
             lambda held: not held,
             failure="the released session left its watcher alive",
         )
-        metadata = directory.with_name(f"{directory.name}.preview.json")
-        assert json.loads(metadata.read_text())["enabled"] is False
+        # The slot's own record outlives the watcher, so a later start resumes it.
+        assert json.loads((directory / "preview.json").read_text())["source"] == str(
+            source
+        )
     finally:
         subprocess.run(
             [*command[:-1], "--stop"], check=True, capture_output=True, timeout=30
@@ -1307,7 +1332,7 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
 def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spawn):
     """Stop intent survives an update's own stopped-service interval and returns last."""
     source, runtime, directory, command, _ = watched_preview
-    metadata = directory.with_name(f"{directory.name}.preview.json")
+    _, stop_request = preview_model.preview_locks(directory)
     # Real page-transaction contention pauses init after the watcher stops the service.
     # The stop command must wait for that work and suppress its pending restart.
     with events_model.flocked(directory / "events.jsonl"):
@@ -1325,14 +1350,15 @@ def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spaw
             stderr=subprocess.PIPE,
             text=True,
         )
-        while json.loads(metadata.read_text())["enabled"]:
+        while not leases_model.lock_is_held(stop_request):
             assert time.monotonic() < deadline, "stop did not record its intent"
             time.sleep(0.05)
         assert stopping.poll() is None
     stdout, stderr = stopping.communicate(timeout=30)
     assert stopping.returncode == 0, stdout + stderr
     assert server_model.running_server(directory) is None
-    assert not json.loads(metadata.read_text())["enabled"]
+    # The request is the stop command's own; nothing is left holding it afterwards.
+    assert not leases_model.lock_is_held(stop_request)
     assert (directory / "events.jsonl").is_file()
     assert (directory / "index.html").read_bytes() == source.read_bytes()
 

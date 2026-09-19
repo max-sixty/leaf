@@ -424,6 +424,19 @@ manual navigations as well; the `upgraded=False` escape in `open_page` is only
 for a test whose subject is the interval before those stamps, waits for the
 banner module to exist, and must make its later readiness explicit.
 
+A test whose subject is the page before the runtime lands needs the other end of
+that distinction, and element visibility does not carry it. A forced layout —
+`bounding_box`, and `to_be_visible` with it — answers from the stylesheets that
+have arrived, so an element has a box while the render-blocking theme is still in
+flight, and the geometry read behind it is the user agent's own. `displayed` waits
+on first contentful paint, the browser's record that the head has been applied and
+what it composed is on screen. Every pre-runtime measurement takes it first, in
+`test_authored_html_paints_while_runtime_startup_is_held`,
+`test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads`, and
+the two site shells: the reading it excludes is the unstyled document, which
+differs from the presented page by the whole theme and arrives as a report that
+startup moved the shell.
+
 `watched` must be installed before navigation. It collects console warnings, console
 errors, and `pageerror`, and calls `leaf.render_checks.install_window_errors` so browser
 `error` events without an exception reach the same list. That script is shared

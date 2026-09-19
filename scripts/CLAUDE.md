@@ -18,9 +18,7 @@ file says which script owns what, and the rules that hold across them.
   layer generation and the generation is part of what a revision is as executable code.
   A preview that re-vendored on every save could therefore only ever show a revision
   arriving as a fresh document, which is the half of the behavior a reader is least
-  likely to be looking for. Re-vendoring is also the one update that takes the server
-  down, since `page init` refuses a page whose service is enabled; a source edit is
-  stamped into the page the reader is standing in.
+  likely to be looking for.
   `--export` writes the browser-drawn result as one standalone file instead.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
   companion data from the examples, regression pages under `tests/fixtures/pages/`, and the developer feature gallery.

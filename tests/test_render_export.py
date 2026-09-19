@@ -443,7 +443,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
         REPLAYED_PAGE.replace("Rollout", "Shared runtime comparison", 1),
         encoding="utf-8",
     )
-    # Both slots sit in the fixture's own previews root, so its teardown discards them.
+    # Both slots sit in the fixture's own previews root, so its teardown retires them.
     prefix, default = preview_slot
     installed = install_payload(tmp_path / "other-runtime")
     runtime_marker = "/* preview runtime marker */"
@@ -592,17 +592,16 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     feedback = (page_dir / "events.jsonl").read_bytes()
     inode = (page_dir / "events.jsonl").stat().st_ino
 
-    # A source edit takes down neither kind of server, so the temporary one an
-    # automation slot holds keeps answering across it, exactly as the durable one does.
-    source.write_text(
-        source.read_text(encoding="utf-8").replace(
-            "Rollout", "Automation follows source edits", 1
-        ),
-        encoding="utf-8",
-    )
-    expect(
-        automation.get_by_role("heading", name="Automation follows source edits")
-    ).to_be_visible(timeout=30000)
+    with restarting(automation):
+        source.write_text(
+            source.read_text(encoding="utf-8").replace(
+                "Rollout", "Automation follows source edits", 1
+            ),
+            encoding="utf-8",
+        )
+        expect(
+            automation.get_by_role("heading", name="Automation follows source edits")
+        ).to_be_visible(timeout=30000)
     expect(automation.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
@@ -779,7 +778,11 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
             *command,
         ],
         env=codex_env
-        | {"CODEX_THREAD_ID": "preview-codex", "PYTHONHOME": sys.base_prefix},
+        | {
+            "CODEX_THREAD_ID": "preview-codex",
+            "PYTHONHOME": sys.base_prefix,
+            "LEAF_PREVIEWS_ROOT": str(directory.parent),
+        },
         stdin=subprocess.PIPE,
     )
     wait_for(
@@ -793,34 +796,25 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
     claim = service_model.page_claim(directory)
     assert claim["pid"] == owner.pid
     try:
-        # A source edit re-vendors nothing, so it is stamped into the page the
-        # reader is standing in and the service is never taken down. Every stop
-        # and every start replaces service.json, so the inode it kept is the
-        # reading that says the server the reader has is the one that was up.
-        service = directory / "service.json"
-        serving = service.stat().st_ino
         revised = source.read_text().replace("Rollout", "Detached revision")
         source.write_text(revised)
         log = directory.with_name(f"{directory.name}.preview.log")
         wait_for(
             log.read_text,
-            lambda output: "Revised detached" in output,
-            failure="the detached preview did not revise its source",
+            lambda output: "Reloaded detached" in output,
+            failure="the detached preview did not reload its source",
             timeout=30,
         )
-        assert service.stat().st_ino == serving
         assert server_model.running_server(directory)
         assert service_model.page_claim(directory) == claim
 
-        # SessionEnd can win while recompose waits for the page transaction. A
-        # selection the source did not vendor is the edit that re-vendors, which
-        # is the one update `page init` needs the service down for.
+        # SessionEnd can win while recompose waits for the page transaction.
         with service_model.PageTransaction(directory) as transaction:
-            (source.parent / "layer.json").write_text("[]", encoding="utf-8")
+            source.write_text(revised.replace("Detached revision", "Released revision"))
             wait_for(
                 lambda: server_model.running_server(directory),
                 lambda running: not running,
-                failure="the re-vendor did not stop the service",
+                failure="the refresh did not stop the service",
                 timeout=30,
             )
             transaction.release_claim()
@@ -879,50 +873,52 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
 
-    # The rest are source edits, which re-vendor nothing and so never take the
-    # server down. No `restarting` block covers them: the reader keeps the page
-    # they are standing in, and anything the browser complains about across one
-    # of these is a complaint this preview caused for real.
-    service = (directory / "service.json").stat().st_ino
     revised = original.replace("Rollout", "A watched source revision", 1)
-    source.write_text(revised, encoding="utf-8")
-    expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
-        timeout=30000
-    )
+    with restarting(page):
+        source.write_text(revised, encoding="utf-8")
+        expect(
+            page.get_by_role("heading", name="A watched source revision")
+        ).to_be_visible(timeout=30000)
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    source.write_text("<p>invalid source</p>", encoding="utf-8")
-    log_path = directory.with_name(f"{directory.name}.preview.log")
-    wait_for(
-        log_path.read_text,
-        lambda output: "Preview update refused" in output,
-        failure="the invalid preview update was not refused",
-        timeout=30,
-    )
+    with restarting(page):
+        source.write_text("<p>invalid source</p>", encoding="utf-8")
+        log_path = directory.with_name(f"{directory.name}.preview.log")
+        wait_for(
+            log_path.read_text,
+            lambda output: "Preview update refused" in output,
+            failure="the invalid preview update was not refused",
+            timeout=30,
+        )
+        refused_generation = json.loads((directory / "registry.json").read_text())[
+            "$layer"
+        ]["generation"]
+        expect(page.locator("script[data-lf-server]")).to_have_attribute(
+            "data-lf-layer", refused_generation, timeout=30000
+        )
     expect(
         page.get_by_role("heading", name="A watched source revision")
     ).to_be_visible()
     assert (directory / "index.html").read_text() == revised
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    source.write_text(
-        revised.replace("A watched source revision", "Recovered watched source"),
-        encoding="utf-8",
-    )
-    expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
-        timeout=30000
-    )
-    repeated = subprocess.run(
-        command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=30
-    )
-    assert repeated.returncode == 0, repeated.stdout + repeated.stderr
-    assert repeated.stdout.splitlines()[-1] == url
+    with restarting(page):
+        source.write_text(
+            revised.replace("A watched source revision", "Recovered watched source"),
+            encoding="utf-8",
+        )
+        expect(
+            page.get_by_role("heading", name="Recovered watched source")
+        ).to_be_visible(timeout=30000)
+        repeated = subprocess.run(
+            command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=30
+        )
+        assert repeated.returncode == 0, repeated.stdout + repeated.stderr
+        assert repeated.stdout.splitlines()[-1] == url
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
-    # One server answered every one of those edits, as it does for a reader.
-    assert (directory / "service.json").stat().st_ino == service
 
 
 def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(

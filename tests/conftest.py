@@ -36,12 +36,12 @@ pytest_plugins = (
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it
-# is made of is what a copy costs: an initialized page is 146 files, 99 of them
-# runtime modules, and the suite wants one page per test. Copying them all makes
-# a complete nightly run 2,272 pages and 393,473 directory entries, which is the
-# number a filesystem event watcher charges for — hard links share the bytes but
-# not the entry. So the layer is written once per shape and lent, and only what
-# a test actually changed is put back.
+# is made of is what a copy costs: an initialized page is 195 files, 158 of them
+# runtime modules, and the suite wants one page per test. Measured when a page
+# was 146, copying them all made a complete nightly run 2,272 pages and 393,473
+# directory entries, which is the number a filesystem event watcher charges for
+# — hard links share the bytes but not the entry. So the layer is written once
+# per shape and lent, and only what a test actually changed is put back.
 LENT_LINKED_DIRS = frozenset({"runtime", "vendor"})
 
 

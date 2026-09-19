@@ -33,11 +33,18 @@ browser gate and the shared chrome contracts whose regressions must block a pull
 uv run pytest tests
 ```
 
-The `test_render_*.py` modules and `test_site.py` are marked nightly;
-`test_chrome_contracts.py` holds the small browser surface in the everyday gate. Broad
-discovery skips nightly tests. An explicit file, node id, `-k`, `-m`, or `--lf`
-selection runs what it names. During development, select the owning file or one named
-case and use `-n 0` so the trace and process tree stay local:
+A test is nightly when a pull request can land without it: the broad browser corpus in
+most `test_render_*.py` modules, and the published site in `test_site.py`. The everyday
+gate keeps `test_chrome_contracts.py`, `test_render_mcp.py`, and
+`test_render_application_boundary.py`, so the `test_render_` prefix does not say which
+run a file belongs to. A test does not become nightly because it is expensive. The
+expensive copying is already there: `test_site.py` builds and stages the published site,
+and its `staged_site` fixture records what that costs. Every `copytree` left in the
+everyday suite duplicates one initialized page or one source directory instead — 195
+files and under 4M at the largest, in under 0.1s. Broad discovery skips nightly tests.
+An explicit file, node id, `-k`, `-m`, or `--lf` selection runs what it names. During
+development, select the owning file or one named case and use `-n 0` so the trace and
+process tree stay local:
 
 ```sh
 uv run pytest tests/test_render_widgets.py -q -n0 -k board
@@ -367,9 +374,10 @@ initialized layer the same way.
 page moved to the path it asked for, and when the test ends the page goes back
 to the pool, where the next loan resets it: every file whose inode, size or
 modification time moved is put back from the shape, and everything the test
-added is removed. Copying the layer instead cost 146 files a test, which put
-2,272 pages and 393,473 directory entries through a nightly run — bytes a hard
-link shares, but a directory entry is what a filesystem event watcher counts.
+added is removed. Copying the layer instead costs 195 files a test. Measured when
+a page was 146, that put 2,272 pages and 393,473 directory entries through a
+nightly run — bytes a hard link shares, but a directory entry is what a
+filesystem event watcher counts.
 
 Runtime and vendor files are immutable fixture inputs and are hard links into
 the shape; the rest is a private copy. Nothing may write a page's layer in

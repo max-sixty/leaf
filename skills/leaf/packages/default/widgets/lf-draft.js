@@ -262,9 +262,16 @@ customElements.define(
       // the first complete controller publication, after renderState established the
       // source-authored body. A live revision's replacement nodes connect before their
       // atomic document adoption and deliberately receive no partial semantic reading.
+      //
+      // An edit coming back is not the reader arriving, though, so the box does not take
+      // the focus. A revision that rewrote this draft connects it again while the reader
+      // stands somewhere else, and news with no gesture behind it moves nobody — the same
+      // reason `#watchDraft` leaves a closed box closed. On a page that has just loaded,
+      // startup hands the focus to the page after this runs either way.
       const pending = loadEdit(this.id);
       const authored = reading.authored.body.value;
-      if (pending !== null && pending !== authored) this.#open(pending);
+      if (pending !== null && pending !== authored)
+        this.#open(pending, undefined, false);
       else if (pending === authored) clearEdit(this.id);
     }
 
@@ -590,7 +597,7 @@ customElements.define(
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
-    #open(seed, at) {
+    #open(seed, at, arrive = true) {
       if (this.#ta) return;
       if (this.#sending) {
         notice("Wait for the current edit to finish sending");
@@ -619,7 +626,7 @@ customElements.define(
       commands(ta, this.#commandScope);
       this.#body.after(ta);
       this.#refreshMargin();
-      ta.focus();
+      if (arrive) ta.focus();
       // Only the pointer names a place; the pencil and a recovered draft leave the
       // caret where focus put it, at the start of the text. The range was measured
       // in the body's text, so it names a word only in a box holding that text — a

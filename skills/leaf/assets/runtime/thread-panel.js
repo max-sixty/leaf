@@ -1,8 +1,14 @@
 /* Open, close, and toggle the thread panel. The panel must be shown before
  * synchronous conversation reconciliation: hidden-dialog geometry is zero. Opening
- * preserves the invoker's focus; closing hands focus to the surviving toggle.
+ * preserves the invoker's focus. A press on the toggle is a command like `g T`: it
+ * enters the layer stack with the place the reader held before the press, so the
+ * Escape that closes the panel hands that place back — the page, for a reader who
+ * clicked — rather than the toggle the click happened to focus. A close by pointer
+ * hands focus to the surviving toggle when it was inside.
  * Layout receives no surface commands, and refreshConversation is supplied by the
  * application so this owner never imports a presenter. */
+import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
+
 export const THREAD_PANEL_KEY = "lf-thread-panel-open";
 
 // Visibility is application state, while the dialog, class, and body attribute are its
@@ -53,8 +59,9 @@ export function createThreadPanelController({
   function setPanel(open, { remember = true } = {}) {
     if (open) hideTray({ remember });
     else modality.sync(false);
-    // Closing while focus is inside would drop it on body, the user's place
-    // lost silently; it lands on the one control that reopens what just closed.
+    // Closing while focus is inside would drop it on body, the user's place lost
+    // silently; it lands on the one control that reopens what just closed. A close that
+    // pops a return frame then restores the frame's own origin over this.
     if (!open && panel.contains(document.activeElement))
       toggleBtn.focus({ preventScroll: true });
     // Twice, the two readers being on opposite sides of the chrome's own scope: the class
@@ -96,6 +103,19 @@ export function createThreadPanelController({
   }
   function mountThreadPanel() {
     let pressedInlineThread = null;
+    let opensTo = null;
+    const TOGGLE = {
+      id: "threads.toggle",
+      returnFrame: () => ({
+        active: () => panelIsOpen(),
+        close: () => setPanel(false),
+        does: "Close the thread panel",
+        line: "close threads",
+        // Opening the list stands the reader nowhere; opening to the thread the view was
+        // showing stands them on it.
+        standing: opensTo !== null,
+      }),
+    };
     toggleBtn.addEventListener("pointerdown", () => {
       pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
     });
@@ -112,8 +132,13 @@ export function createThreadPanelController({
       }
       const inlineThread = pressedInlineThread ?? activeInlineThread()?.dataset.thread;
       pressedInlineThread = null;
-      if (inlineThread) showThread(inlineThread, { focus: "thread" });
-      else setPanel(true);
+      opensTo = inlineThread ?? null;
+      invoke(
+        TOGGLE,
+        null,
+        () => (opensTo ? showThread(opensTo, { focus: "thread" }) : setPanel(true)),
+        pressOrigin(),
+      );
     };
     addEventListener("resize", closeReactionMode);
   }

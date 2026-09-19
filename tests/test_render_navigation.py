@@ -2578,6 +2578,90 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
     expect(threads_list).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_a_press_that_opens_a_layer_returns_the_place_it_displaced(browser, serve):
+    """A pointer press that opens the panel or the conversation view is a command like
+    `g T` or `t`: Escape hands back the place the reader held before the press, never
+    the control the click happened to focus.
+
+    From the page, a click on Threads and a click on a margin marker both come back to
+    the page, however far a `t` walk went inside, with one Escape per press on the way
+    out. The page mark and its note are the same door as the marker. A press from the
+    keyboard, where the control was the reader's place, comes back to that control.
+    """
+    url = serve(
+        INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1200, "height": 844})
+    on_body = "() => document.activeElement === document.body"
+    line = page.locator(".lf-shortcut-bar")
+    preview = page.locator(".lf-margin-preview")
+    panel = page.locator(".lf-thread-panel")
+    toggle = page.locator(".lf-threads-toggle")
+    marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
+    threads = [
+        page.locator(
+            f'.lf-margin-preview .lf-conversation-thread[data-thread="{root}"]'
+        )
+        for root in roots
+    ]
+
+    # Threads by pointer, a walk inside, and one Escape per press on the way out: the
+    # walk's press displaced the toggle the click had focused, the click displaced the page.
+    toggle.click()
+    panel_settled(page, True)
+    expect(toggle).to_be_focused()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])").first).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(toggle).to_be_focused()
+    expect(panel).to_be_visible()
+    expect(line).to_contain_text("close threads")
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+    assert page.evaluate(on_body)
+
+    # A margin marker by pointer, a walk on to the next thread, and one Escape to the page.
+    marker.click()
+    expect(preview).to_be_visible()
+    expect(threads[0]).to_be_focused()
+    page.keyboard.press("t")
+    expect(threads[1]).to_be_focused()
+    expect(line).to_contain_text("dismiss conversation")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    assert page.evaluate(on_body)
+
+    # The mark on the page is the same door.
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    expect(preview).to_be_visible()
+    expect(threads[0]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    assert page.evaluate(on_body)
+
+    # From the keyboard, the control was the place, and it is handed back.
+    marker.focus()
+    page.keyboard.press("Enter")
+    expect(preview).to_be_visible()
+    expect(threads[0]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(marker).to_be_focused()
+    toggle.focus()
+    page.keyboard.press("Enter")
+    panel_settled(page, True)
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+    expect(toggle).to_be_focused()
 
 
 def test_an_ask_walk_that_opens_the_panel_closes_it_in_one_escape(browser, serve):

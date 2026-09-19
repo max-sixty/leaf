@@ -3330,19 +3330,16 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Closing the panel lands focus on the toggle on purpose, since dropping it on
-    `<body>` loses a keyboard reader's place with nothing said. The bill for that lands
-    on the reader who opened the panel with the pointer and never asked for a keyboard
-    place at all: the press that closes is a keypress, so the browser rings a control
-    they did not choose, and their next Space is that button rather than the page's
-    scroll — the panel they just dismissed comes back and nothing says why.
+    """Closing the panel hands the reader back the place they held before they opened it.
 
-    Both halves are asserted, because the ring alone reads as cosmetic and the reopening
-    alone reads as a stray press. The rung answers both, and it is Escape because the
-    reader is already holding it: the same key that unwound the chrome takes them out
-    of it.
+    Opened with the pointer from the page, the panel's Escape lands on the page. The click
+    put focus on the toggle, but the reader never chose that button: leaving them on it
+    rang a control they did not stand on and handed their next Space to it, so the panel
+    they had just dismissed came back and nothing said why. Opened from the keyboard, the
+    toggle was the reader's place, and the same press hands it back — ringed, since a
+    keypress closed — with the rung below that takes them off the chrome.
 
-    The scroll is what the rung has to hand back. Root scrolling is native now, but a
+    The scroll is what the landing has to hand back. Root scrolling is native now, but a
     focused button still owns Space; focus therefore returns to the page rather than
     merely blurring to nowhere."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
@@ -3352,6 +3349,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
         "() => document.querySelector('.lf-threads-toggle').matches(':focus-visible')"
     )
     top = "() => document.scrollingElement.scrollTop"
+    on_body = "() => document.activeElement === document.body"
 
     # A reader reading: native Space still pages through the document from body.
     page.keyboard.press("Space")
@@ -3365,22 +3363,11 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     expect(toggle).to_be_focused()
     assert not page.evaluate(ringed)
 
-    # Closed with the key, the ring comes on — the reader's report, and the smaller half.
+    # Closed with the key, the reader is back on the page: nothing rings, and Space is
+    # the page's again rather than the button's.
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
-    expect(toggle).to_be_focused()
-    assert page.evaluate(ringed), "the control the reader is standing on says nothing"
-
-    # The larger half: the same press that scrolled a moment ago is now the button's.
-    page.keyboard.press("Space")
-    expect(panel).to_be_visible()
-    assert page.evaluate(top) == was, "the page scrolled as well as reopening"
-    page.keyboard.press("Escape")
-
-    # The rung, and what it is worth: off the chrome, and Space is the page's again.
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to the page")
-    page.keyboard.press("Escape")
-    assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate(on_body)
     assert not page.evaluate(ringed)
     # And body wears no ring of its own, which is the thing a focus does that a blur
     # cannot: the reader has to be somewhere, and the somewhere must not be drawn.
@@ -3392,6 +3379,22 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     page.wait_for_function(
         "(was) => document.scrollingElement.scrollTop > was", arg=was
     )
+    page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+
+    # Opened from the keyboard, the toggle was the place, and Escape hands it back.
+    toggle.focus()
+    page.keyboard.press("Enter")
+    expect(panel).to_be_visible()
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    expect(toggle).to_be_focused()
+    assert page.evaluate(ringed), "the control the reader is standing on says nothing"
+
+    # The rung, and what it is worth: off the chrome, and Space is the page's again.
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to the page")
+    page.keyboard.press("Escape")
+    assert page.evaluate(on_body)
+    assert not page.evaluate(ringed)
 
 
 @pytest.mark.parametrize("width", [500, 1200])

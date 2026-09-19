@@ -47,9 +47,14 @@ the layer they are in, the panel's list or the page's body, and it is an inner s
 because standing is the newest thing they did. A press that stood them there records a
 frame, and a frame holds the standing unless it says `standing: false` because its
 press stood the reader nowhere, so that frame answers in the stack's order instead; a
-walk pushes one such frame for however many steps it takes. A keyboard press's way out
-never lands the reader on a control they never stood on; a pointer's way out lands on
-the control the pointer pressed. `layer-stack.js` carries the mechanism.
+walk pushes one such frame for however many steps it takes. A pointer press that opens
+a layer — the Threads toggle, a margin marker, a page mark or its note — is a command
+too, and records its frame with the place the press displaced, read before the click
+moved focus: the way out of a clicked-open panel or conversation view is the page the
+reader was reading, never the control the click happened to focus, and a keyboard
+activation of the same control, whose place was that control, comes back to it. No way
+out lands the reader on a control they never stood on. `layer-stack.js` carries the
+mechanism.
 
 ## Page grammar
 

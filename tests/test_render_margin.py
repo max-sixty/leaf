@@ -3281,7 +3281,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()
-    expect(thread_margin_entry).to_be_focused()
+    # Back where the reader stood before the press, which was the accept control the
+    # pointer's click displaced, not the option the click focused.
+    expect(accept).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
@@ -4819,7 +4821,9 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(thread).to_be_focused()
+    # The pointer's press displaced the page, and Escape hands the page back; the card's
+    # ownership is read off the control's aria state above, not off where focus lands.
+    assert page.evaluate("() => document.activeElement === document.body")
 
     resized(page, 1440, 900)
     expect(thread).to_have_attribute("aria-controls", "lf-margin-preview")
@@ -4829,9 +4833,11 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     thread.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(thread).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(thread).to_be_focused()
+    expect(thread).to_have_attribute("aria-expanded", "false")
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(

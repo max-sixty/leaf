@@ -80,6 +80,7 @@ import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
+import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
@@ -2542,22 +2543,43 @@ export function createMarginProjection({
     return positioned;
   }
 
+  // A press on a margin control is a command like `t`: it enters the layer stack with
+  // the place the reader held before the press, so the Escape that dismisses the view
+  // hands that place back — the page, for a reader who clicked a marker — rather than
+  // whichever margin control the view hangs from by then. A view already standing keeps
+  // the entry that opened it; the press only changes what it shows.
+  const OPENED_BY_PRESS = {
+    id: "margin.conversation",
+    returnFrame: () => ({
+      active: () => inlineThreadView.showing(),
+      close: () => closePreview(),
+      does: "Dismiss the conversation view",
+      line: "dismiss conversation",
+    }),
+  };
   function togglePinned(entry, button) {
     if (pinnedKey === entry.key && previewMarginEntry === button) {
       pinnedKey = null;
       closePreview();
       return;
     }
-    pinnedKey = entry.key;
-    const positioned = showPreview(entry, button);
-    if (previewList.querySelector(".lf-conversation-thread"))
-      deferThreadPreviewFocus(positioned, () => {
-        if (previewEntry?.key !== entry.key) return;
-        const thread = previewList.querySelector(".lf-conversation-thread");
-        if (!thread) return;
-        thread.focus({ preventScroll: true });
-        revealConversation(thread, thread);
-      });
+    const open = () => {
+      pinnedKey = entry.key;
+      const positioned = showPreview(entry, button);
+      if (previewList.querySelector(".lf-conversation-thread"))
+        deferThreadPreviewFocus(positioned, () => {
+          if (previewEntry?.key !== entry.key) return;
+          const thread = previewList.querySelector(".lf-conversation-thread");
+          if (!thread) return;
+          thread.focus({ preventScroll: true });
+          revealConversation(thread, thread);
+        });
+    };
+    if (inlineThreadView.showing()) {
+      open();
+      return;
+    }
+    invoke(OPENED_BY_PRESS, null, open, pressOrigin());
   }
 
   function closePreview(returnFocus = false) {
@@ -2591,10 +2613,11 @@ export function createMarginProjection({
     paintKeys();
   }
 
-  // The way back out of the conversation view a walk opened from the page. The pointer's
-  // close hands focus to the margin entry the view hangs from, because that is where the
-  // pointer pressed; a `t` from the page never stood there, so its frame closes the view
-  // and leaves the reader's place to the frame that captured it.
+  // The way back out of the conversation view a walk opened from the page: a `t` from the
+  // page never stood on the margin, so its frame closes the view and leaves the reader's
+  // place to the frame that captured it. The view's own close control, pressed by pointer,
+  // hands focus to the margin entry the view hangs from, since that is where the pointer
+  // is; a press that opened the view has a frame of its own (`togglePinned`).
   const inlineThreadView = {
     showing: () =>
       preview.matches(":popover-open") && preview.hasAttribute("data-lf-thread"),
@@ -2733,7 +2756,11 @@ export function createMarginProjection({
   // A press on marked words passes `travel: false`: the words are already under the
   // reader's hand, and centring them moves everything the reader was looking at. The
   // card needs no trip, since placeThreadPreview keeps it inside the viewport.
-  function openPageThread(id, { focus = "reply", travel = true } = {}) {
+  //
+  // A press — on the mark, or on its note — passes `origin`, the place it displaced, and
+  // the view it opens enters the layer stack with it, as a marker press does in
+  // togglePinned. The `t` walk passes none: its own frame holds the walk.
+  function openPageThread(id, { focus = "reply", travel = true, origin = null } = {}) {
     if (!panelIsOpen()) {
       const local = focusSurface(id, { focus });
       if (local) {
@@ -2741,14 +2768,19 @@ export function createMarginProjection({
         if (travel) scrollToThread(id);
         return local;
       }
-      const thread = openInlineThread(id, null, (positionedThread) => {
-        positionedThread.focus({ preventScroll: true });
-        positionedThread.scrollIntoView({
-          behavior: scrollBehavior(),
-          block: "nearest",
+      const open = () =>
+        openInlineThread(id, null, (positionedThread) => {
+          positionedThread.focus({ preventScroll: true });
+          positionedThread.scrollIntoView({
+            behavior: scrollBehavior(),
+            block: "nearest",
+          });
+          if (travel) scrollToThread(id);
         });
-        if (travel) scrollToThread(id);
-      });
+      const thread =
+        origin && !inlineThreadView.showing()
+          ? invoke(OPENED_BY_PRESS, null, open, origin)
+          : open();
       if (thread) return thread;
     }
     showThread(id, { focus });

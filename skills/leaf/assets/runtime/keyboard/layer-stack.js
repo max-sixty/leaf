@@ -116,8 +116,18 @@
    alone. Focus rather than blur hands Space, PageDown, arrows, Home, and End back to the
    page's actual scroll box. `letGo` also runs synchronously during module evaluation so a
    fresh page accepts native scrolling before asynchronous upgrade, without stealing focus
-   from a control the reader reaches during that upgrade. */
+   from a control the reader reaches during that upgrade.
+
+   A pointer press that opens a layer is a command too, and enters through `invoke` with
+   the place it displaced: the Threads toggle, a margin marker, a page mark, its note. A
+   pointer moves focus onto what it pressed before the click arrives, so that place is
+   read at pointerdown and handed out by `pressOrigin`; a keyboard activation's click
+   finds no press in flight and reads focus at the click, which is the control the reader
+   stood on. The way out of a clicked-open panel or conversation view is therefore the
+   reader's place before the click — the page, for a reader who was reading — and never
+   the control the click happened to focus. */
 import { word } from "./bindings.js";
+import { focused } from "./scopes.js";
 import { focusDestination } from "../focus.js";
 import { repaint } from "../repaint.js";
 
@@ -138,6 +148,36 @@ export function restoreReturnPlace({ control, reading }) {
     return;
   }
   document.body.focus({ preventScroll: true });
+}
+
+// The place a press displaced (see the header). `mountPressOrigin` is wired once by the
+// keyboard controller with the same capture the dispatcher uses for a key's origin. The
+// press is forgotten at its click, after the door that opens on it has read the origin;
+// at a cancel that never becomes one; and at the next key, since a press that never
+// clicked — a right-click, a drag that ended elsewhere — must not lend its place to the
+// keyboard activation that follows it.
+let capturePlace = null;
+let pressed = null;
+export function mountPressOrigin(capture) {
+  capturePlace = capture;
+  const forget = () => {
+    pressed = null;
+  };
+  document.addEventListener(
+    "pointerdown",
+    () => {
+      pressed = { control: focused() };
+    },
+    true,
+  );
+  document.addEventListener("click", forget);
+  document.addEventListener("pointercancel", forget, true);
+  document.addEventListener("keydown", forget, true);
+}
+export function pressOrigin() {
+  if (!capturePlace)
+    throw new Error("leaf: pressOrigin read before the keyboard mounted");
+  return pressed ? capturePlace(pressed.control) : capturePlace();
 }
 
 // The stack itself. Commands declare their second half as `returnFrame`; the dispatcher

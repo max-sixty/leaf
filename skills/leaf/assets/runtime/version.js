@@ -1605,8 +1605,8 @@ export function createVersionController({
   // same expression written out twice.
   const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 
-  function captureReturnPlace() {
-    const control = focused();
+  // `control` is what the caller saw focused, for a press that has already moved it.
+  function captureReturnPlace(control = focused()) {
     return control && control !== document.body
       ? { control, reading: null }
       : { control: null, reading: readingBlock() };

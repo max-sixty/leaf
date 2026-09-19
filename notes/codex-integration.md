@@ -18,8 +18,8 @@ response-routing design that supplies those facts.
 
 `leaf codex launch` starts a private Codex App Server and an interactive Codex
 terminal connected to it. From that task, `leaf codex start <page>` starts a
-detached adapter that subscribes to the same task and watches every Leaf page the
-task claims.
+detached adapter that subscribes to the same task, watches every Leaf page the task
+claims, and carries each delivery into a turn of its own.
 
 The adapter now provides:
 
@@ -146,15 +146,17 @@ adapter streams only agent-message items whose task and turn match that record. 
 browser projects them only into the bound conversation. A normal turn started from
 Codex has no Leaf delivery binding, so Leaf does not display its response.
 
-If `turn/started` reaches Leaf before the `turn/start` response, the adapter buffers
-events under that turn id until the response commits the delivery binding. It then
-publishes or discards them according to the table above.
+`turn/started` routinely reaches Leaf before the `turn/start` response, because App
+Server sends it behind the response that carried it. The adapter holds those
+notifications until the response names the turn, then folds them in arrival order.
+The binding comes from that response, not from reading the delivery back out of the
+notifications.
 
-While that Leaf turn is active, another message in the same conversation enters it
-through `turn/start` with another `toolOutput`; App Server treats that request as a
-steer. Leaf requires the returned turn id to match the binding. Any other delivery
-uses the fallback path. This rule avoids general audience routing while keeping every
-event durable.
+While a Leaf turn is running, another message in the same conversation is collected
+into a delivery of its own and waits. It is not steered into the running turn: that
+turn has one final answer, and it is an answer to the delivery already in it. A
+message arriving while the *user's* turn is running waits for the same reason and is
+the case the wait is really for.
 
 ## Response streaming implementation
 
@@ -321,17 +323,20 @@ This removes the model's preliminary read of the epoch file from the direct path
 The adapter still records transport acceptance, entry into a named Codex turn, and
 settlement by Leaf operations as three separate facts.
 
-`turn/steer` remains an alternative for more feedback from the same conversation.
-The current path sends another `turn/start` with `toolOutput`; App Server steers it
-into the active turn. Leaf requires the returned turn id to match, and any other
-delivery takes the existing fallback path.
+`turn/steer` is the open alternative for more feedback in the same conversation, and
+since 0.155 it carries the precondition this note once said the API lacked:
+`expectedTurnId` is a "Required active turn id precondition. The request fails when it
+does not match the currently active turn." Leaf does not use it. Adding it is not a
+transport change but a reply-routing decision — a turn steered into has one final
+answer, and two deliveries sharing it would share that answer — so it waits on what
+the reader should be told when their comment joins a turn already answering someone.
 
-The current documented API has no compare-and-start operation that atomically requires
-an idle task. If the interactive client starts a turn between Leaf's idle check and
-`turn/start`, App Server may queue the tool output into that turn. Leaf can detect the
-returned turn contents and suppress the live Leaf reply because the turn now has mixed
-audiences. The feedback remains present in that Codex turn and can settle through
-ordinary Leaf operations.
+`turn/start` still has no such precondition, and against a running turn it steers
+rather than refusing: App Server says of `turnTrigger` that it is "Ignored when this
+request steers an already-active turn". Leaf reads the task's status on the same
+connection one request before starting, which narrows that race to the window between
+the two but does not close it. A delivery that lands in the user's turn this way is
+present in that Codex turn and settles through ordinary Leaf operations.
 
 The current Codex queue remains the recovery path while direct App Server delivery is
 experimental or the server is disconnected. Once direct delivery proves the same
@@ -438,13 +443,20 @@ page and feedback layer.
 ## Relevant App Server primitives
 
 The [Codex App Server documentation](https://developers.openai.com/codex/app-server/)
-defines the primitives behind this plan. `thread/resume` subscribes a client to an
-existing task. `turn/start` starts a turn. `turn/steer` appends input to the active
-turn and requires its id. `item/agentMessage/delta` streams text, while
-`item/completed` supplies the authoritative item. A standalone `toolOutput` can start
-a turn or queue into an active one. App Server can also expose client-defined
-`dynamicTools` to Codex, but its current event schema supplies complete tool arguments
-rather than tool-argument deltas.
+defines the primitives behind this plan, and `codex app-server generate-json-schema`
+prints the installed build's own contract, which is the version to read against.
+`thread/resume` subscribes a client to an existing task, and two connections may
+resume one thread and both then receive everything it says — measured against 0.155,
+by renaming a thread from one connection and reading the notification on both.
+`thread/status/changed` reports `idle`, `active` with flags, `notLoaded` or
+`systemError`. `turn/start` starts a turn, or steers one already running.
+`turn/steer` appends input to the active turn and takes `expectedTurnId` as a
+precondition. `thread/unsubscribe` gives up a subscription without dropping the
+connection. `item/agentMessage/delta` streams text, while `item/completed` supplies
+the authoritative item. A standalone `toolOutput` can start a turn or queue into an
+active one. App Server can also expose client-defined `dynamicTools` to Codex, but its
+current event schema supplies complete tool arguments rather than tool-argument
+deltas.
 
 App Server supplies the transport and lifecycle. Leaf still defines which conversation
 receives a live reply, when that reply becomes durable, which page events entered the

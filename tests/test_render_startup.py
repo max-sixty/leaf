@@ -3092,8 +3092,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # written by a model's turn, and a turn ends without running anything — so
         # nothing writes its close, and the page could only ever find an abandoned
         # claim by outwaiting the rope above. The Stop hook watches that ending, and a
-        # claim written before it is one no next turn and no delegate renewed across
-        # it. Dated by the ending and not by the claim's own last word: "last checked
+        # claim written before it is one no later turn renewed across it. Dated by the
+        # ending and not by the claim's own last word: "last checked
         # in just now" under an amber dot is the line arguing with the dot.
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
@@ -3114,18 +3114,18 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             " 1 update is saved."
         )
 
-        # A turn that has only just ended still holds it. The agent claims the work,
-        # hands it to a delegate and ends the turn in the same second, and the
-        # delegate's first note is a minute or so behind that — with no margin the
-        # page would report every handoff as an abandonment and take it back again.
+        # A turn that has only just ended still holds it. An agent that ends its turn
+        # with work running can be back a minute later, woken by that work's result
+        # or the reader, and with no margin the page would report every such gap as
+        # an abandonment and take it back again.
         declare("working", "revising the plan", quiet_for=60, turn_ended=30)
         expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-        # And a delegate that does check in carries the claim past the ending on its
-        # own: its note is written after the turn closed, by the one command that
-        # writes both. The claim stops being the closed turn's to answer for, and the
-        # rope above is what judges it from there.
+        # And a status written after the turn closed carries the claim past the ending
+        # on its own, through the one command that writes both. The claim stops being
+        # the closed turn's to answer for, and the rope above is what judges it from
+        # there.
         declare("working", "revising the plan", quiet_for=60, turn_ended=5 * 60)
         expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
 

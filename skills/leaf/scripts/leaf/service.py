@@ -352,10 +352,9 @@ class PageTransaction:
 
         A local line is the same sentence read at a second seat: the page's one
         line says what the agent is doing, and a typed subject says so where the
-        work lives. One command writes both because they are one claim — a
-        delegate reporting its subject is also the agent checking in, which is
-        what keeps `working` believed across a turn boundary the session itself
-        cannot write across.
+        work lives. One command writes both because they are one claim, so a
+        write after a turn has ended renews the page line and the subject line
+        together.
 
         Standing work carries across every other status write, so a page-wide
         status update does not silently drop what a helper is holding. Exact
@@ -407,11 +406,11 @@ class PageTransaction:
 
     def voice(self) -> dict:
         """Who a line written on this page speaks as: the posting session where
-        one is running, and the page's claimant otherwise — a delegate reporting
-        its own subject speaks in its own name, while a line written by a server
-        speaks in the name of whoever holds the page. `UNCLAIMED_AGENT` covers a
-        page nothing has claimed, where there is no name to use and inventing
-        one would put words in a program's mouth."""
+        one is running, which need not be the claimant, and the page's claimant
+        otherwise — a line written by a server speaks in the name of whoever
+        holds the page. `UNCLAIMED_AGENT` covers a page nothing has claimed,
+        where there is no name to use and inventing one would put words in a
+        program's mouth."""
         identity = message_identity()
         claim = self.claim
         return {

@@ -4,6 +4,29 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
+/* The face every widget-injected control wears. `offer()` writes `lf-ui` on each one it
+ * builds, so this is the layer's answer for a control standing in the page's own prose:
+ * the chrome's family, size and ink rather than the document's serif.
+ *
+ * It is a default, and three things make it behave like one. It stands at this sheet's
+ * head, which composes ahead of theme.css and every package sheet, so each component rule
+ * that names the same property wins on ordinary cascade order; stated in theme.css, after
+ * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
+ * option instead of the accent. It keeps a class's specificity, so the page's own element
+ * rules lose to it: a page dressing its `button` and `a` is dressing its prose, and at no
+ * specificity those rules took the family and ink of 131 of corpus.html's 264 widget
+ * controls. And it matches only under the document's root: a declared tree copies this
+ * sheet, but no element in a shadow tree descends from `:root`, so what a widget draws
+ * there keeps its host's face. lf-diff marks its line numbers and hunk separators `lf-ui`,
+ * and a plain `.lf-ui` repainted them at the control's size and ink.
+ *
+ * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
+ * them: the same declarations there beat every component's own rule, and .lf-ref drew
+ * ink at 14px where it asked for muted at 11.5px while .lf-worktree-head and
+ * .lf-swipe-progress drew sans where they asked for mono. Nothing catches that, because
+ * no test and no browser gate reads a rule that never applied. */
+:where(:root) .lf-ui { font-family: var(--sans); font-size: var(--t-5);
+    line-height: var(--lf-ui-lh); color: var(--ink); }
 .lf-external-mark { display: inline-block; width: .75em; height: .75em;
                     margin-inline-start: .24em; vertical-align: .03em;
                     fill: none; stroke: currentColor; stroke-width: 1.5;

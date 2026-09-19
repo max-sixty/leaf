@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from leaf.event_contracts import append_admitted
 from leaf.files import (
     revision_path,
     stamped_version,
@@ -150,7 +151,7 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
         event = _stamp_event(
             body, version, revision, parser, settled_reports, completed
         )
-        accepted = page.append_event(event)
+        accepted = append_admitted(page, event)
         committed = True
         return accepted
     finally:

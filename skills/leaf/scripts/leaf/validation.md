@@ -1,5 +1,19 @@
 # Validation contract
 
+## Event admission
+
+Every event is validated where it enters the log, at the one append door every
+writer shares, and not at the writer that happens to send it. The door runs under
+the page transaction's lease, so the standing log a gate reads, the meaning derived
+from it, and the write are one transaction, and two tabs cannot both validate
+against the same standing target. It ends by checking the finished record against
+the stored-record contract of its kind, which is what `page init` re-checks over
+the whole log before a layer may replace another: a record no writer could produce
+is a record no re-vendor has to carry. `events.md` owns the order and the per-kind
+gates. What stays with a transport is what only that transport knows — which kinds
+a browser may post, which fields it may send, how a retry is answered, and whether
+it resolved its own anchors.
+
 ## Static validation
 
 `version check` is a deterministic check of the exact mutable `index.html` (no

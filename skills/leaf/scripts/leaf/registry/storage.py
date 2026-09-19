@@ -31,8 +31,16 @@ def read_registry(path: Path):
 
 
 def load_registry(page_dir: Path):
-    """The page's complete vendored vocabulary, or None before `page init`."""
-    return read_registry(page_dir / "registry.json")
+    """The page's complete vendored vocabulary, or None before `page init`.
+
+    The layer is `page init`'s own output rather than anything an author writes, so a
+    reader that rejects it wants a re-vendor rather than an edit."""
+    try:
+        return read_registry(page_dir / "registry.json")
+    except RegistryError as error:
+        raise RegistryError(
+            f"{error}; run `leaf page init {page_dir}` to re-vendor it"
+        ) from None
 
 
 def read_page_registry(page_dir: Path):

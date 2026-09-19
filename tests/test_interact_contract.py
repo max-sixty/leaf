@@ -559,10 +559,12 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     assert "no longer speaks" in result.output and "`shorten`" in result.output
 
 
-def test_init_refuses_a_historical_event_record_outside_its_declared_schema(
+def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     page_dir,
 ):
-    """The captured $events contract remains the readable shape of the log."""
+    """A record shape is not a gap re-vendoring creates, unlike the dropped token and
+    retired verb above: admission is the schema's only reader, and the logged event
+    replays the same either way."""
     publish(page_dir)
     events_model.append_event(
         page_dir,
@@ -578,9 +580,10 @@ def test_init_refuses_a_historical_event_record_outside_its_declared_schema(
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    assert result.exit_code != 0
-    assert "kind `comment` record" in result.output
-    assert "mood" in result.output
+    assert result.exit_code == 0, result.output
+    after = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    assert after.exit_code == 0, after.output
+    assert "Does this still mean anything?" in after.output
 
 
 def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):

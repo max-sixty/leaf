@@ -2692,6 +2692,83 @@ def test_a_press_that_opens_a_layer_returns_the_place_it_displaced(browser, serv
     expect(toggle).not_to_be_focused()
 
 
+def test_what_the_reader_put_on_after_the_panel_comes_off_before_it(browser, serve):
+    """A press that opens the panel leaves a frame that stood the reader nowhere, and it
+    outranks only what is inside the panel. A selection made out on the page afterwards,
+    and the page composer a click opened on it, are newer than that frame and have no
+    frame of their own, so Escape takes them off first and the panel stays for the next
+    press. Before the frame knew its surface it answered first, closed Threads around a
+    reader who was typing a comment, and pulled the focus out of their box.
+
+    The Threads mnemonic pressed over an open panel closes it whatever narrowing is on:
+    a frame's way out unwinds the narrowing first, the mnemonic's does not.
+    """
+    url = serve(
+        INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
+    )
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1200, "height": 844})
+    panel = page.locator(".lf-thread-panel")
+    toggle = page.locator(".lf-threads-toggle")
+    bar = page.locator(".lf-fab-bar")
+    composer = page.locator(".lf-composer")
+
+    def select_some_words():
+        box = page.locator("#compound").bounding_box()
+        select(
+            page,
+            (box["x"] + 1, box["y"] + 4),
+            (box["x"] + box["width"] / 2, box["y"] + 4),
+        )
+        expect(bar).to_be_visible()
+
+    # A selection, made after the click that opened the panel.
+    toggle.click()
+    panel_settled(page, True)
+    select_some_words()
+    page.keyboard.press("Escape")
+    expect(bar).to_be_hidden()
+    expect(panel).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+
+    # The page composer, opened by a click on that selection's bar and typed into.
+    toggle.click()
+    panel_settled(page, True)
+    select_some_words()
+    page.locator(".lf-fab-input").click()
+    expect(composer.locator("textarea")).to_be_focused()
+    page.keyboard.type("half a thought")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    expect(panel).to_be_visible()
+
+    # `g T` over an open panel closes it, with a narrowing on.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.keyboard.press("/")
+    page.keyboard.type("About")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])").first).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(panel).to_be_hidden()
+
+    # That narrowing is still on the list when the panel comes back. It stood before this
+    # press, so it is part of what the press opened rather than a layer put on since, and
+    # the one Escape still undoes the one press.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    expect(page.locator(".lf-find-box")).to_have_value("About")
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+
+
 def test_an_ask_walk_that_opens_the_panel_closes_it_in_one_escape(browser, serve):
     """`a` from the page reaches an Ask seated in a thread through the panel, so the
     press opens the panel on the way. That opening is the press's own to undo: one

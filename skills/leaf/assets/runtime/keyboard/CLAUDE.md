@@ -48,11 +48,16 @@ as Mod+Enter or its own Escape step.
 Escape follows semantic unwind order instead of ordinary reservation. The focused
 control or active mode may consume one inner step, followed by the latest eligible return
 frame and then containing fallbacks. A frame that stood the reader nowhere — `g T`, the
-Threads toggle, a tray — comes after the scope standing at the focus, since a box the
-reader then entered is the newer layer; a frame that holds the standing is the press that
-put them there and keeps its place. A frame whose layer holds a layer of its own — the
-panel's narrowing — takes that off first and stays for the next press. Browser modal and
-popover boundaries remain outside that order. One press closes one layer.
+Threads toggle, a tray — names the surface its press entered, and comes after what the
+reader did next: the scope standing at the focus, since a box they then entered is the
+newer layer, and any step rooted outside that surface that was not already answering
+when the press was made — a selection, the page composer or an unfolded margin cluster
+put on since; the fallback ladder stays live under such a frame for exactly those steps,
+and what stood before the press stays behind it. A frame that holds the standing is the
+press that put the reader there and keeps its place. A frame whose surface holds a layer
+of its own — the panel's narrowing — takes that off first, says so in its words, and
+stays for the next press. Browser modal and popover boundaries remain outside that
+order. One press closes one layer.
 
 Those fallbacks are the ladder at the foot of the stack, for state the reader reached
 without a registered entry: a captured target, a pointer-opened tray, a panel that was
@@ -114,8 +119,9 @@ binding invoke the original command through its stable identity and source scope
 - `layer-stack.js` owns the ordered layers standing over the page: the popovers and modal
   dialogs their openers declare, across the document and declared shadow roots, and the
   inverse of commands that enter temporary layers.
-- `page.js` declares the page's own parts — a link, a disclosure, caret browsing, and the
-  two ends of the Escape ladder — and exports nothing.
+- `page.js` declares the page's own parts — a link, a disclosure, caret browsing, the
+  standing scope's let-go, and the foot of the Escape ladder. Its one export is
+  `declareStanding`, which the boot entry calls with the readings the let-go consults.
 - `control-keys.js` paints the shortcut a visible control advertises, from the row that
   reaches it.
 - `presentation.js` projects immutable key-sequence readings through the shared Lit

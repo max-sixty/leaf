@@ -132,7 +132,9 @@
 import { word } from "./bindings.js";
 import { focused } from "./scopes.js";
 import { focusDestination } from "../focus.js";
+import { retainReaderIntent } from "../reader-intent.js";
 import { repaint } from "../repaint.js";
+import { under } from "../shadow.js";
 
 export function restoreReturnPlace({ control, reading }) {
   const landed = () => {
@@ -149,9 +151,11 @@ export function restoreReturnPlace({ control, reading }) {
     // when the toggle carries its thread into the panel — and the place is the block the
     // reader was reading, which every origin carries beside its control. A control that
     // is there to see and still refused focus keeps the one retry and nothing more:
-    // taking the reader somewhere else over it would be a second guess.
+    // taking the reader somewhere else over it would be a second guess. Neither happens
+    // to a reader who has moved on inside that frame: their next press is the newer word.
+    const mayLand = retainReaderIntent();
     requestAnimationFrame(() => {
-      if (landed()) return;
+      if (!mayLand() || landed()) return;
       if (!control.isConnected || !control.checkVisibility())
         restoreReturnPlace({ control: null, reading });
     });
@@ -311,6 +315,10 @@ function descriptorFor(row, binding) {
     throw new TypeError(
       `leaf: ${row.id} must return ownEntry as a boolean from returnFrame`,
     );
+  if (!["undefined", "object", "function"].includes(typeof frame.surface))
+    throw new TypeError(
+      `leaf: ${row.id} must return surface as an element or a function from returnFrame`,
+    );
   return frame;
 }
 
@@ -324,6 +332,9 @@ function descriptorFor(row, binding) {
 export function invoke(row, binding, run, suppliedOrigin = null) {
   const frame = descriptorFor(row, binding);
   const origin = frame ? suppliedOrigin : null;
+  // Read before the run, like the origin: what already answers Escape is older than this
+  // press, whatever it goes on to open.
+  const older = frame?.surface === undefined ? null : escapeCensus();
   const before = new Set(entries);
   const result = run();
   // What the run itself pushed, read now: a settle that lands later must not adopt a
@@ -346,8 +357,13 @@ export function invoke(row, binding, run, suppliedOrigin = null) {
       !before.has(top) &&
       !frame.ownEntry
     )
-      Object.assign(top, frame, { origin, active: top.active, holds: frame.active });
-    else entries.push({ ...frame, origin, holds: frame.active });
+      Object.assign(top, frame, {
+        origin,
+        older,
+        active: top.active,
+        holds: frame.active,
+      });
+    else entries.push({ ...frame, origin, older, holds: frame.active });
   };
   if (frame && typeof result?.then === "function")
     result.then(
@@ -378,6 +394,30 @@ export function heldStanding() {
   return entries.some(
     (entry) => entry.does && word(entry.standing) !== false && entry.holds(),
   );
+}
+
+// Whether an Escape step rooted at `root` takes off something newer than the current
+// frame. A frame that stood the reader nowhere says which surface its press entered —
+// the panel, a tray — and what the reader has since put on outside that surface came
+// after it without a frame of its own: a selection, the page composer a click opened, a
+// margin cluster they unfolded, a mode. Those unwind first. Since, and not merely
+// outside: a target captured before `g T` is older than the panel, and the one Escape
+// still closes the panel over it. Unframed state records no time of its own, so the
+// stack takes a census of the steps already answering Escape as each such press is made
+// (`mountEscapeCensus`, installed by the dispatcher, which is the one that can name
+// them), and a step in that census is not newer. A step inside the surface is the
+// frame's own to order (its `close` takes an inner layer off and says false), and a
+// frame that names no surface, or holds the standing, yields to nothing.
+let escapeCensus = () => new Set();
+export function mountEscapeCensus(read) {
+  escapeCensus = read;
+}
+export function outsideCurrentFrame(root, steps) {
+  const frame = current();
+  if (!frame || heldStanding()) return false;
+  const surface = word(frame.surface);
+  if (!surface || under(root, surface)) return false;
+  return steps.some((step) => !frame.older?.has(step));
 }
 
 function back() {

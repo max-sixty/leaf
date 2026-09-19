@@ -16,7 +16,11 @@
  * standing. The find box binds the same step for itself, being the one place the reader
  * can see what they are backing out of. */
 import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
-import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
+import {
+  narrowed,
+  narrowingIntent,
+  threadSearchActive,
+} from "./conversation/narrowing.js";
 import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
 import { pageRung } from "./keyboard/register.js";
 
@@ -113,32 +117,56 @@ export function createThreadPanelController({
     // (thread-list.js's postPaint); this is the half that has no render.
     refreshHover();
   }
-  // The way a frame leaves the panel, whichever press pushed it — `g T`, the toggle. A
-  // narrowing the reader put on inside the panel is the newer layer, by a chip they
-  // clicked or a `w` whose own frame has already gone, so it comes off first and the frame
-  // stays for the next press (`back` reads the false); then the panel closes. The rungs
-  // below take the same two steps for a panel no press opened.
-  function leavePanel() {
-    if (widen()) return false;
-    setPanel(false);
-  }
+  // The frame of a press that opened the panel, one shape for every door: the toggle,
+  // `g T`, a page mark whose thread has no place on the page. `carried` is the thread the
+  // press stood the reader on, if it did.
+  //
+  // A narrowing the reader put on inside the panel is the newer layer, by a chip they
+  // clicked or a `w` whose own frame has already gone, so the frame's close takes that
+  // off first and stays for the next press (`back` reads the false), and its words say
+  // which of the two the press will do; then the panel closes. The rungs below take the
+  // same two steps for a panel no press opened. The frame names the panel as the surface
+  // it entered, so what the reader has since put on out on the page unwinds before it.
+  //
+  // Only a narrowing put on since the press is that newer layer. One that stood on the
+  // list before the press, or that the arrival itself chose so its thread would show, is
+  // part of what the press opened, and the one Escape still undoes the one press. So the
+  // frame keeps the narrowing as the press left it, read on the stack's first look after
+  // the run, and compares by identity, the way the narrowing's own holders do.
+  //
+  // Opening the list stands the reader nowhere; opening to a thread stands them on its
+  // card, for as long as they stay on it — a Tab to another card is a standing of their
+  // own, theirs to let go of first.
+  const panelFrame = ({
+    carried = null,
+    does = "Close the thread panel",
+    line = "close threads",
+  } = {}) => {
+    let entered;
+    const narrowedSince = () => narrowed() && narrowingIntent() !== entered;
+    return {
+      active: () => {
+        entered ??= narrowingIntent();
+        return panelIsOpen();
+      },
+      close: () => {
+        if (narrowedSince() && widen()) return false;
+        setPanel(false);
+      },
+      does: () => (narrowedSince() ? "Show every thread again" : does),
+      line: () => (narrowedSince() ? "show all" : line),
+      surface: panel,
+      standing: () =>
+        carried !== null &&
+        panel.querySelector(".lf-thread:focus-within")?.dataset.id === carried,
+    };
+  };
   function mountThreadPanel() {
     let pressedInlineThread = null;
     let opensTo = null;
     const TOGGLE = {
       id: "threads.toggle",
-      returnFrame: () => ({
-        active: () => panelIsOpen(),
-        close: leavePanel,
-        does: "Close the thread panel",
-        line: "close threads",
-        // Opening the list stands the reader nowhere; opening to the thread the view was
-        // showing stands them on its card, for as long as they stay on it — a Tab to
-        // another card is a standing of their own, theirs to let go of first.
-        standing: () =>
-          opensTo !== null &&
-          panel.querySelector(".lf-thread:focus-within")?.dataset.id === opensTo,
-      }),
+      returnFrame: () => panelFrame({ carried: opensTo }),
     };
     toggleBtn.addEventListener("pointerdown", () => {
       pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
@@ -201,5 +229,5 @@ export function createThreadPanelController({
       : null,
   );
 
-  return { setPanel, leavePanel, mountThreadPanel };
+  return { setPanel, panelFrame, mountThreadPanel };
 }

@@ -100,7 +100,14 @@ import {
 import { EVERYTHING } from "./text-entry.js";
 import { takesLetters } from "../focus.js";
 import { focused, recoveredLabelFocus, scopesAt, scopesFor } from "./scopes.js";
-import { RETURN, heldStanding, invoke, nativeLayers } from "./layer-stack.js";
+import {
+  RETURN,
+  heldStanding,
+  invoke,
+  mountEscapeCensus,
+  nativeLayers,
+  outsideCurrentFrame,
+} from "./layer-stack.js";
 import { under } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
@@ -146,11 +153,20 @@ const innerEscape = (scope, active) => {
 // could be seen.
 //
 // The frame stands right after the inner steps, except when it stood the reader nowhere:
-// `g T`, the Threads toggle, a tray land on a floor, and a box the reader then entered
-// by Tab or by pointer is the newer layer, so the scope standing at the focus — the text
-// box's own way back out — answers ahead of that frame. A frame that holds the standing
+// `g T`, the Threads toggle, a tray land on a floor, and what the reader did next is the
+// newer layer. Two kinds of step answer ahead of such a frame: the scope standing at the
+// focus — the text box's own way back out, for a box they entered by Tab or by pointer —
+// and any step rooted outside the surface the frame entered, which is whatever they have
+// since put on out on the page (`outsideCurrentFrame`). A frame that holds the standing
 // — `c` into its box, `r`, the walks — is the press that put them there, and keeps its
 // place ahead of the generic box escape so one Escape undoes the one press.
+// The Escape steps a scope is offering right now, by name. A row names its step where
+// one row stands for several — the fallback ladder's one command — and is otherwise its
+// own id.
+const escapeSteps = (scope) =>
+  scope.rows
+    .filter((row) => bindings(row).includes("Escape") && live(row))
+    .map((row) => word(row.escapeStep) ?? row.id);
 const escapeOrder = (scopes, active) => {
   const boundaryAt = scopes.findIndex((scope) => scope.escapeBoundary);
   const end = boundaryAt < 0 ? scopes.length : boundaryAt;
@@ -161,11 +177,25 @@ const escapeOrder = (scopes, active) => {
   // With no frame standing there is nothing to yield to, and the fallbacks keep the
   // order the register gives them: the Page Map's rung dismisses a conversation view
   // ahead of the reply box inside it.
-  const atFocus = (scope) => scopeRoot(scope) === active;
-  const newer = causal.length && !heldStanding() ? fallback.filter(atFocus) : [];
+  const newerThanFrame = (scope) =>
+    scopeRoot(scope) === active ||
+    outsideCurrentFrame(scopeRoot(scope), escapeSteps(scope));
+  const newer = causal.length && !heldStanding() ? fallback.filter(newerThanFrame) : [];
   const rest = fallback.filter((scope) => !newer.includes(scope));
   return [...inner, ...newer, ...causal, ...rest, ...scopes.slice(end)];
 };
+
+// The census the layer stack takes as a framed press is made: every step already
+// answering Escape, so the frame can tell what the reader put on since from what was
+// standing before.
+mountEscapeCensus(
+  () =>
+    new Set(
+      stack("Escape")
+        .filter((scope) => scope !== RETURN)
+        .flatMap(escapeSteps),
+    ),
+);
 
 export function stack(binding = null) {
   const active = focused();

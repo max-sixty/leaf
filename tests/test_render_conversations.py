@@ -2331,10 +2331,16 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(page.get_by_role("button", name="Reset thread filters")).to_be_hidden()
     page.keyboard.press("Space")
     page.locator('[data-filter-value="agent"]').click()
-    # Escape still clears the query from the list.
+    # Escape still clears the query from the list. The click that opened the panel left a
+    # frame, and the narrowing is the newer layer inside it: the frame's words say the
+    # press will show every thread rather than promising a close, the press does that,
+    # and the panel is still standing for the next one.
     page.locator(".lf-threads").focus()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("show all")
     page.keyboard.press("Escape")
     expect(visible).to_have_count(4)
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close threads")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"

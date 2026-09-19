@@ -84,7 +84,7 @@ import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
 import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
-import { clampedRow, PRESS } from "./keyboard/bindings.js";
+import { clampedRow, PRESS, word } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
@@ -139,7 +139,7 @@ export function createMarginProjection({
   bottomChromeBoxes,
   placedAt,
   showThread,
-  leavePanel,
+  panelFrame,
   goToAsk,
   scrollToElement,
   scrollToThread,
@@ -2831,17 +2831,29 @@ export function createMarginProjection({
       return null;
     };
     if (!origin || inlineThreadView.showing()) return open();
-    const inPanel = () => opened === "panel";
+    // The panel's half is the panel's own frame, the one its toggle pushes, with this
+    // thread as the one the press stood the reader on; the view's half holds the
+    // standing the way a marker press does.
+    const panelHalf = panelFrame({ carried: id });
+    const viewHalf = {
+      active: () => opened === "view" && inlineThreadView.showing(),
+      close: () => closePreview(),
+      does: "Dismiss the conversation view",
+      line: "dismiss conversation",
+      standing: true,
+      surface: null,
+    };
+    const half = () => (opened === "panel" ? panelHalf : viewHalf);
     return invoke(
       {
         id: "margin.thread",
         returnFrame: () => ({
-          active: () =>
-            inPanel() ? panelIsOpen() : opened === "view" && inlineThreadView.showing(),
-          close: () => (inPanel() ? leavePanel() : closePreview()),
-          does: () =>
-            inPanel() ? "Close the thread panel" : "Dismiss the conversation view",
-          line: () => (inPanel() ? "close threads" : "dismiss conversation"),
+          active: () => half().active(),
+          close: () => half().close(),
+          does: () => word(half().does),
+          line: () => word(half().line),
+          standing: () => word(half().standing),
+          surface: () => word(half().surface),
         }),
       },
       null,

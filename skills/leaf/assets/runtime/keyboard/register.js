@@ -39,7 +39,7 @@
    `when` says — no step answers while a commanded entry stands, because that entry is the
    registered way back. */
 import { bindings, checked, word } from "./bindings.js";
-import { current, RETURN } from "./layer-stack.js";
+import { current, outsideCurrentFrame, RETURN } from "./layer-stack.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
 const PAGE = Symbol("the page's own keys");
@@ -172,10 +172,11 @@ export function pageRung(name, reading) {
 function rung() {
   for (const name of RUNG_LADDER) {
     const step = rungs.get(name)();
-    if (step) return step;
+    if (step) return { ...step, name };
   }
   return null;
 }
+const stepName = () => `navigation.back:${rung()?.name}`;
 
 // The page's own Escape, said and run off that one object: each rung states the act, the
 // word the line paints over it, and the sentence the reference lists. The sentence is the
@@ -188,7 +189,18 @@ const BACK_OUT = {
   line: () => rung()?.says,
   lineWhen: () => word(rung()?.lineWhen) !== false,
   promoteEscape: () => word(rung()?.promoteEscape) !== false,
-  when: () => !current() && Boolean(rung()),
+  // The fallback, so silent while a commanded entry stands — except for a step that
+  // takes off something the reader put on outside the surface that entry entered, which
+  // is newer than the entry and not its to undo.
+  when: () => {
+    const step = rung();
+    return (
+      Boolean(step) &&
+      (!current() || outsideCurrentFrame(step.root ?? document, [stepName()]))
+    );
+  },
+  // One command for the whole ladder, so the step it stands for says which it is.
+  escapeStep: stepName,
   run: () => rung().out(),
 };
 

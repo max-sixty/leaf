@@ -257,8 +257,10 @@ again, so anything winning on position rather than on its selectors is a failure
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
 `theme.css` is the render-blocking default theme: the live shell's final page claims,
-tokens, element styles, class idioms, and the element-widgets CSS alone renders, with the
-shadow slice widgets adopt; a package's `theme.css` is appended after it;
+tokens, element styles, class idioms, and the element-widgets CSS alone renders; a
+package's `theme.css` is appended after it. `shadow.css` holds the rules a declared shadow
+tree needs as well as the document: every root's copy is composed into `/shadow.css` for
+the stage, and into `/theme.css` just ahead of that root's `theme.css`;
 `runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
 into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;
@@ -269,16 +271,18 @@ and trays, and page repaint caused by shell motion or reflow. It does not own th
 place across that reflow: the shell yields its strip as a transparent border rather than a
 margin, which keeps the change off the scroll-anchoring suppression list, so the browser
 holds the place and nothing here may take that back (theme.css, at the body strip);
-`runtime/thread-panel.js` owns panel visibility, workspace transitions, and the two Escape
-rungs the panel offers a reader who reached it without a keyboard entry — the narrowing,
-then the panel itself;
+`runtime/thread-panel.js` owns panel visibility, workspace transitions, the one return
+frame every press that opens the panel records — the toggle's click, `g T`, and a page
+thread carried in — and the two Escape rungs it offers a reader whose panel no press
+opened, a Tab into the list or a panel open when the page arrived: the narrowing, then the
+panel itself;
 `runtime/auxiliary-chrome.js` captures and restores the reader's workspace for navigation;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
 the words it projects;
 `runtime/reach.js` owns keyboard access to overflow, the containing block a
 scroller owes what it scrolls, and the mark a box wears while it shows less
 than it holds across;
-`runtime/shadow.js` owns declared shadow roots, their theme slice, shared
+`runtime/shadow.js` owns declared shadow roots, their `shadow.css` rules, shared
 highlight rules, the parent walk that crosses a root, and the chrome question
 (`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
 owns the stage an x-shadow widget renders into;
@@ -395,7 +399,7 @@ Each mutable fact has one writer:
 | the margin card's place in its transcript | the card list's own scroll, which the browser holds through reflow | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
 | tray visibility | `trayIsOpenKey` | `setOpenTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
-| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and return frames pushed; inner Escape steps, an eligible causal return frame, then fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
+| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and return frames pushed; inner Escape steps, then whatever the reader put on since a frame that stood them nowhere, then an eligible causal return frame, then the remaining fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
 
 Reader state that a document replacement would otherwise destroy has four routes, and

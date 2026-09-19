@@ -98,6 +98,7 @@ import {
 import { repaint } from "../repaint.js";
 import { focusDestination, letGo, readCaret, takesLetters } from "../focus.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
+import { pressOrigin } from "../keyboard/layer-stack.js";
 
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
@@ -1320,6 +1321,7 @@ export function createResponseSurface({
         return openPageThread(threadId, {
           focus: panel.classList.contains("open") ? "reply" : "thread",
           travel: false,
+          origin: pressOrigin(),
         });
     });
     wireFabInput();

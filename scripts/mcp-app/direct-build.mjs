@@ -26,7 +26,7 @@ const loaders = widgets
 const assets = {};
 for (const [url, type] of [
   ["/registry.json", "application/json"],
-  ["/theme.css", "text/css"],
+  ["/shadow.css", "text/css"],
   ["/icon.svg", "image/svg+xml"],
 ]) {
   assets[url] = { body: await fs.readFile(path.join(page, url), "utf8"), type };

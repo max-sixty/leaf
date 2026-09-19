@@ -160,6 +160,12 @@ function backFromBox() {
   const route = backFromConversation(focused());
   return route?.target?.isConnected ? route : null;
 }
+// Whether the box the reader is typing in has somewhere to hand them back: the
+// conversation it belongs to, or the panel's list where it is the chrome's own box. The
+// page's standing scope asks the same question, since a box with nowhere to go back to
+// is a control the reader is standing on, theirs to let go of.
+export const boxHandsBack = () =>
+  Boolean(backFromBox()) || panel.contains(documentFocused());
 
 // A box words are typed into takes character keys and the keys that edit it: Enter,
 // deletion, caret movement, Home/End, and page movement, including their modified forms.
@@ -184,7 +190,7 @@ pageScope("text entry", {
       // The conversation the box belongs to, or the panel's list where it is the chrome's
       // own box. A page textarea that is neither leaves the row dead and the page's rung
       // standing, which is the honest answer: nothing there to go back to.
-      when: () => Boolean(backFromBox()) || panel.contains(documentFocused()),
+      when: boxHandsBack,
       run: () => {
         const back = backFromBox();
         document.activeElement.blur();

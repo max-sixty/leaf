@@ -1194,11 +1194,14 @@ export function createAskView({
       );
     // The walk reads the standing destination, so begin it after asynchronous reveal
     // has moved focus. A failed reveal has not arrived and must not register the prior
-    // focused Ask as this walk's destination.
+    // focused Ask as this walk's destination. The arrival is returned so the keyboard's
+    // layer stack judges the press's return frame once the panel it may have opened is
+    // standing.
     const ready = goToAsk(next, asks).then((arrived) => {
       if (arrived) begin();
     });
     void ready.catch(() => {});
+    return ready;
   }
 
   let mounted = false;
@@ -1252,6 +1255,26 @@ export function createAskView({
     line: "asks",
     when: () => openAsks().length > 0,
     repeat: true,
+    // The same shape as the thread walk: the press made off the Asks is the entry and
+    // hands back the place it displaced, a later press made standing on an Ask is a step
+    // within that standing. An Ask seated in a thread is reached through the panel, so a
+    // press made with the panel shut opens it on the way, and that opening is the press's
+    // own to undo in the same one Escape. The arrival is asynchronous, and `run` returns
+    // it, so the stack judges this frame once the reader is standing.
+    returnFrame: () => {
+      if (standingAsk()) return null;
+      const panelWasShut = !panelIsOpen();
+      const opened = () => panelWasShut && panelIsOpen();
+      return {
+        active: () => Boolean(standingAsk()),
+        close: () => {
+          if (opened()) setPanel(false);
+        },
+        does: () =>
+          opened() ? "Close the thread panel" : "Let go of what you are standing on",
+        line: () => (opened() ? "close threads" : "let go"),
+      };
+    },
     run: (binding) => stepAsk(binding === "a" ? 1 : -1),
   });
 

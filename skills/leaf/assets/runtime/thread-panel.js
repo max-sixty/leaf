@@ -1,18 +1,27 @@
 /* Open, close, and toggle the thread panel. The panel must be shown before
  * synchronous conversation reconciliation: hidden-dialog geometry is zero. Opening
- * preserves the invoker's focus; closing hands focus to the surviving toggle.
+ * preserves the invoker's focus. A press on the toggle is a command like `g T`: it
+ * enters the layer stack with the place the reader held before the press, so the
+ * Escape that closes the panel hands that place back — the page, for a reader who
+ * clicked — rather than the toggle the click happened to focus. A close by pointer
+ * hands focus to the surviving toggle when it was inside.
  * Layout receives no surface commands, and refreshConversation is supplied by the
  * application so this owner never imports a presenter.
  *
  * This owner also declares what Escape takes off the panel, layer by layer, for a reader
- * who got here without a registered keyboard entry — a pointer press on Threads, or a Tab
- * into the list. A narrowing is a layer of the panel the way a tray is a layer of the page:
- * the reader put it on, and the list in front of them is not the whole of the conversation
- * until it comes off, so it unwinds first and from wherever they are standing. The find box
- * binds the same step for itself, being the one place the reader can see what they are
- * backing out of. */
+ * who got here without a registered entry — a Tab into the list, or a panel that was open
+ * when the page arrived. A narrowing is a layer of the panel the way a tray is a layer of
+ * the page: the reader put it on, and the list in front of them is not the whole of the
+ * conversation until it comes off, so it unwinds first and from wherever they are
+ * standing. The find box binds the same step for itself, being the one place the reader
+ * can see what they are backing out of. */
 import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
-import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
+import {
+  narrowed,
+  narrowingIntent,
+  threadSearchActive,
+} from "./conversation/narrowing.js";
+import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
 import { pageRung } from "./keyboard/register.js";
 
 export const THREAD_PANEL_KEY = "lf-thread-panel-open";
@@ -66,8 +75,9 @@ export function createThreadPanelController({
   function setPanel(open, { remember = true } = {}) {
     if (open) hideTray({ remember });
     else modality.sync(false);
-    // Closing while focus is inside would drop it on body, the user's place
-    // lost silently; it lands on the one control that reopens what just closed.
+    // Closing while focus is inside would drop it on body, the user's place lost
+    // silently; it lands on the one control that reopens what just closed. A close that
+    // pops a return frame then restores the frame's own origin over this.
     if (!open && panel.contains(document.activeElement))
       toggleBtn.focus({ preventScroll: true });
     // Twice, the two readers being on opposite sides of the chrome's own scope: the class
@@ -107,8 +117,57 @@ export function createThreadPanelController({
     // (thread-list.js's postPaint); this is the half that has no render.
     refreshHover();
   }
+  // The frame of a press that opened the panel, one shape for every door: the toggle,
+  // `g T`, a page mark whose thread has no place on the page. `carried` is the thread the
+  // press stood the reader on, if it did.
+  //
+  // A narrowing the reader put on inside the panel is the newer layer, by a chip they
+  // clicked or a `w` whose own frame has already gone, so the frame's close takes that
+  // off first and stays for the next press (`back` reads the false), and its words say
+  // which of the two the press will do; then the panel closes. The rungs below take the
+  // same two steps for a panel no press opened. The frame names the panel as the surface
+  // it entered, so what the reader has since put on out on the page unwinds before it.
+  //
+  // Only a narrowing put on since the press is that newer layer. One that stood on the
+  // list before the press, or that the arrival itself chose so its thread would show, is
+  // part of what the press opened, and the one Escape still undoes the one press. So the
+  // frame keeps the narrowing as the press left it, read on the stack's first look after
+  // the run, and compares by identity, the way the narrowing's own holders do.
+  //
+  // Opening the list stands the reader nowhere; opening to a thread stands them on its
+  // card, for as long as they stay on it — a Tab to another card is a standing of their
+  // own, theirs to let go of first.
+  const panelFrame = ({
+    carried = null,
+    does = "Close the thread panel",
+    line = "close threads",
+  } = {}) => {
+    let entered;
+    const narrowedSince = () => narrowed() && narrowingIntent() !== entered;
+    return {
+      active: () => {
+        entered ??= narrowingIntent();
+        return panelIsOpen();
+      },
+      close: () => {
+        if (narrowedSince() && widen()) return false;
+        setPanel(false);
+      },
+      does: () => (narrowedSince() ? "Show every thread again" : does),
+      line: () => (narrowedSince() ? "show all" : line),
+      surface: panel,
+      standing: () =>
+        carried !== null &&
+        panel.querySelector(".lf-thread:focus-within")?.dataset.id === carried,
+    };
+  };
   function mountThreadPanel() {
     let pressedInlineThread = null;
+    let opensTo = null;
+    const TOGGLE = {
+      id: "threads.toggle",
+      returnFrame: () => panelFrame({ carried: opensTo }),
+    };
     toggleBtn.addEventListener("pointerdown", () => {
       pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
     });
@@ -125,8 +184,13 @@ export function createThreadPanelController({
       }
       const inlineThread = pressedInlineThread ?? activeInlineThread()?.dataset.thread;
       pressedInlineThread = null;
-      if (inlineThread) showThread(inlineThread, { focus: "thread" });
-      else setPanel(true);
+      opensTo = inlineThread ?? null;
+      invoke(
+        TOGGLE,
+        null,
+        () => (opensTo ? showThread(opensTo, { focus: "thread" }) : setPanel(true)),
+        pressOrigin(),
+      );
     };
     addEventListener("resize", closeReactionMode);
   }
@@ -148,9 +212,11 @@ export function createThreadPanelController({
         }
       : null,
   );
-  // Last of the panel's layers, and the one that leaves the chrome: closing the panel does
-  // not put the reader back on the page, it lands them on the control that closes it,
-  // deliberately (setPanel says why).
+  // Last of the panel's layers, and the one that leaves the chrome. A panel a press
+  // opened, by key or by pointer, has a frame that hands back the place the press
+  // displaced; this rung is for the panel no press opened — open on arrival, or entered
+  // by Tab — and closing it lands the reader on the control that closes it, deliberately
+  // (setPanel says why).
   pageRung("panel", () =>
     panelIsOpen()
       ? {
@@ -163,5 +229,5 @@ export function createThreadPanelController({
       : null,
   );
 
-  return { setPanel, mountThreadPanel };
+  return { setPanel, panelFrame, mountThreadPanel };
 }

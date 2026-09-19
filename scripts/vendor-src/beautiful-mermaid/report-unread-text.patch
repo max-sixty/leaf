@@ -1,0 +1,121 @@
+Report the source text the parser did not read.
+
+Beautiful Mermaid's line-at-a-time parsers are total. Every statement they
+cannot read has a defined silent reading: the flowchart's `consumeNode` falls
+back to `BARE_NODE_REGEX` and takes the leading word, `parseEdgeLine` drops
+whatever it could not advance past, and `parseStateDiagram`'s loop falls off the
+end of its last pattern. So the graph they hand back cannot tell a statement
+that was read from one that was guessed, and a host has nothing to check: a
+source this renderer does not implement draws a box labelled with its own id
+beside a node nobody wrote, with no error anywhere.
+
+This records the text each parser walked away from, on the graph it returns, and
+exports one function that answers it for a whole source. No statement reads
+differently and no drawing changes; a source the parser reads whole reports an
+empty list. The leftovers are the parser's own — it is the only thing that knows
+what it read — which is why this is a patch to it rather than a grammar written
+beside it.
+
+Leaf's own, not upstream's. It goes away when a release carries the reading:
+delete this file and the `unreadMermaidText` export in `vendor.py`'s entry, and
+`lf-diagram.js` keeps calling the same name. The same silence is behind
+lukilabs/beautiful-mermaid#140, where `A-->B` draws one node named `A--`.
+
+diff --git a/src/index.ts b/src/index.ts
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -80,6 +80,18 @@ function buildColors(options: RenderOptions): DiagramColors {
+   }
+ }
+ 
++/**
++ * The source text this renderer would not read, for the grammars whose parsers
++ * report it — flowcharts and state diagrams. One entry per statement the parser
++ * stopped reading before. An empty list means every statement was read whole; it
++ * does not mean the drawing is the one the author had in mind.
++ */
++export function unreadMermaidText(text: string): string[] {
++  const decoded = decodeXML(text)
++  if (detectDiagramType(decoded) !== 'flowchart') return []
++  return parseMermaid(decoded).unread
++}
++
+ /**
+  * Render Mermaid diagram text to an SVG string — synchronously.
+  *
+diff --git a/src/parser.ts b/src/parser.ts
+--- a/src/parser.ts
++++ b/src/parser.ts
+@@ -57,6 +57,7 @@ function parseFlowchart(lines: string[]): MermaidGraph {
+     classAssignments: new Map(),
+     nodeStyles: new Map(),
+     linkStyles: new Map(),
++    unread: [],
+   }
+ 
+   // Subgraph stack for nested subgraphs.
+@@ -189,6 +190,7 @@ function parseStateDiagram(lines: string[]): MermaidGraph {
+     classAssignments: new Map(),
+     nodeStyles: new Map(),
+     linkStyles: new Map(),
++    unread: [],
+   }
+ 
+   // Track composite state nesting (like subgraphs)
+@@ -314,6 +316,8 @@ function parseStateDiagram(lines: string[]): MermaidGraph {
+       registerStateNode(graph, compositeStack, { id, label, shape: 'rounded' })
+       continue
+     }
++
++    graph.unread.push(line)
+   }
+ 
+   return graph
+@@ -456,7 +460,10 @@ function parseEdgeLine(
+ 
+   // Parse the first node group (possibly with & separators)
+   const firstGroup = consumeNodeGroup(remaining, graph, subgraphStack)
+-  if (!firstGroup || firstGroup.ids.length === 0) return
++  if (!firstGroup || firstGroup.ids.length === 0) {
++    graph.unread.push(remaining)
++    return
++  }
+ 
+   remaining = firstGroup.remaining.trim()
+   let prevGroupIds = firstGroup.ids
+@@ -480,7 +487,10 @@ function parseEdgeLine(
+     } else {
+       // Fallback: text-embedded label syntax (-- Yes -->, -. Maybe .->, == Sure ==>)
+       const textMatch = remaining.match(TEXT_ARROW_REGEX)
+-      if (!textMatch) break
++      if (!textMatch) {
++        graph.unread.push(remaining)
++        break
++      }
+       hasArrowStart = Boolean(textMatch[1])
+       const rawLabel = textMatch[3]!.trim()
+       edgeLabel = rawLabel ? normalizeBrTags(rawLabel) : undefined
+@@ -493,7 +503,10 @@ function parseEdgeLine(
+ 
+     // Parse the next node group
+     const nextGroup = consumeNodeGroup(remaining, graph, subgraphStack)
+-    if (!nextGroup || nextGroup.ids.length === 0) break
++    if (!nextGroup || nextGroup.ids.length === 0) {
++      graph.unread.push(remaining)
++      break
++    }
+ 
+     remaining = nextGroup.remaining.trim()
+ 
+diff --git a/src/types.ts b/src/types.ts
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -14,6 +14,8 @@ export interface MermaidGraph {
+   nodeStyles: Map<string, Record<string, string>>
+   /** Maps edge indices (or 'default') to inline styles from `linkStyle` directives */
+   linkStyles: Map<number | 'default', Record<string, string>>
++  /** Source text a parser stopped reading before, one entry per statement */
++  unread: string[]
+ }
+ 
+ export type Direction = 'TD' | 'TB' | 'LR' | 'BT' | 'RL'

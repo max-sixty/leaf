@@ -39,19 +39,18 @@ Flowcharts accept Mermaid's classic node shapes. Unstyled nodes already use Leaf
 accent surface. Use `classDef` only for nodes that need to stand apart from that
 baseline, and copy the whole `fill`/`stroke`/`color` set from the element declaration, such
 as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Beautiful Mermaid also
-honors `stroke-width`; other properties are ignored. The widget refuses the
-`click`, `accTitle`, and `accDescr` directives, which the renderer would draw as
-nodes, and a node label holding the delimiter that closes its own shape, such as
-`A["names: list[str]"]`, which the renderer cuts at that character, quoted or not,
-and then drops the rest of the line; a shape whose closer is doubled carries the
-character whole, so `A[["names: list[str]"]]` and `A(["names: list[str]"])` both
-render, as does a subgraph title, which the renderer reads whole —
-`subgraph S["Stage [1]"]`. A flowchart statement ends at the newline, so a label is
-single-line, and one that does not close on the line that opens it is refused; carry
-a second line inside the label with `<br/>` or `\n`. A malformed statement the
-renderer does not recognise can still render as a node or only in part, and
-`version check --render` reports renderer failures, not that partial output, so look
-at each flowchart once. Use `lf-chart` for quantities that need Leaf's data-first
+honors `stroke-width`; other properties are ignored. The widget refuses any source
+this renderer would read only part of, and the refusal quotes the text it stopped at,
+so `version check --render` reports a statement the renderer does not implement rather
+than passing the partial drawing it would otherwise make. Three shapes account for most
+of them. The `click`, `accTitle`, and `accDescr` directives are not implemented at all.
+A label holding the delimiter that closes its own shape, such as `A["names: list[str]"]`,
+is cut at that character, quoted or not — while a shape whose closer is doubled carries
+it whole, so `A[["names: list[str]"]]` and `A(["names: list[str]"])` both render, as
+does a subgraph title, which the renderer reads with its own end-anchored regex:
+`subgraph S["Stage [1]"]`. And every statement ends at the newline, with no
+continuation, so a label opened on one line has to close on it; carry a second line
+inside the label with `<br/>` or `\n`. Use `lf-chart` for quantities that need Leaf's data-first
 chart vocabulary: a comparison across a few categories, a run over time, a ranking,
 a composition, or two numbers against each other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`
 package rather than in every page: initialize a page that wants one with

@@ -33,6 +33,7 @@ ASSETS = ROOT / "skills/leaf/assets"
 PACKAGES = ROOT / "skills/leaf/packages"
 MCP_APP = ROOT / "skills/leaf/mcp-app"
 PIERRE_SOURCE = ROOT / "scripts/vendor-src/pierre"
+MERMAID_SOURCE = ROOT / "scripts/vendor-src/beautiful-mermaid"
 
 
 def package_vendor(package: str) -> Path:
@@ -264,6 +265,17 @@ def build_beautiful_mermaid(work: Path) -> list[Path]:
     Upstream's ESM keeps `entities` and `elkjs` as bare imports. Leaf loads one
     self-contained file under its self-only CSP, so esbuild resolves the exact pinned
     dependency set and leaves no runtime chunk or package lookup behind.
+
+    The bundle is built from upstream's published TypeScript rather than its published
+    `dist/`, because one patch under `scripts/vendor-src/beautiful-mermaid/` applies to
+    it. Upstream's parsers read every statement they do not implement as something
+    else and never say so, so a page carrying a source this renderer does not read has
+    no way to tell; the patch records what each parser walked away from, and
+    `lf-diagram` refuses a source rather than drawing the part that was read. The patch
+    file says what it changes and when it goes away. A new pin that moves the lines it
+    names fails the build rather than the page, which is the point of keeping it a
+    patch: this stays upstream's code with a stated change to it, not a fork nobody
+    rereads.
     """
     out = package_vendor("diagram") / "beautiful-mermaid.esm.js"
     notices = package_vendor("diagram") / "beautiful-mermaid.LICENSES.txt"
@@ -278,8 +290,21 @@ def build_beautiful_mermaid(work: Path) -> list[Path]:
         spec("esbuild"),
         cwd=work,
     )
+    run(
+        # `patch`, not `git apply`: this directory is not a repository, and where the
+        # host has put the build inside one, `git apply` resolves the patch's paths
+        # against that repository's root and quietly applies nothing.
+        "patch",
+        "-p1",
+        "--batch",
+        "--forward",
+        "-i",
+        str(MERMAID_SOURCE / "report-unread-text.patch"),
+        cwd=work / "node_modules/beautiful-mermaid",
+    )
     (work / "entry.mjs").write_text(
-        'export { renderMermaidSVG } from "beautiful-mermaid";\n',
+        "export { renderMermaidSVG, unreadMermaidText } from"
+        ' "./node_modules/beautiful-mermaid/src/index.ts";\n',
         encoding="utf-8",
     )
     esbuild(

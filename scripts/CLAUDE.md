@@ -111,6 +111,15 @@ ones you name. Every pinned version sits in one table there, and each bundle lan
 imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 
+`scripts/vendor-src/` holds what a bundle needs beyond its published package.
+`beautiful-mermaid/` holds one patch to upstream's own TypeScript, which is why that
+bundle is built from the published `src/` rather than the published `dist/`: upstream's
+parsers read every statement they do not implement as something else and say nothing,
+and the patch has them record what they walked away from so `lf-diagram` can refuse a
+source rather than draw half of it. A new pin that moves the lines the patch names
+fails the build; re-cut the patch against the new source rather than working around
+that, and delete it when a release carries the reading.
+
 `scripts/vendor-src/pierre/` is Pierre's native generator source. Its `shiki-leaf.mjs`
 contains exactly one `/* LEAF_PIERRE_LANGUAGES */` sentinel; `vendor.py` replaces it
 with one `"<name>": () => import("@shikijs/langs/<name>"),` entry for every registry

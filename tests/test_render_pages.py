@@ -1328,12 +1328,34 @@ flowchart LR
     assert not page.evaluate("() => !!window.lfInjected")
 
 
-def test_unsupported_directives_fail_without_rejecting_keyword_nodes(browser, serve):
-    """Unsupported Mermaid statements cannot corrupt or disappear from a drawing."""
-    directives = leaf_page(
-        "diagram directives",
+def test_a_source_the_renderer_does_not_read_whole_is_refused(browser, serve):
+    """A diagram goes down rather than drawing the part its renderer could read.
+
+    Beautiful Mermaid's parsers are total, so a source written for Mermaid proper
+    rather than for this subset has a defined silent reading: the flowchart's
+    bare-id fallback takes the leading word of a line it cannot parse and drops
+    the rest, and the state diagram's loop ends. The reader sees a box labelled
+    with its own id beside a node the source never names, and no error anywhere.
+    The vendored bundle carries a patch that records what each parser walked away
+    from, and the widget refuses on that reading alone.
+
+    One reading covers what four hand-written guards covered separately and the
+    divergences none of them named: the unsupported directives, a label cut at the
+    delimiter that closes its own shape, a label split across two lines in any of
+    the four places Mermaid carries label text, an arrowhead this renderer has no
+    pattern for, and an arrow with no space before it — which drew a lone node
+    named `A--` while every label guard called the source clean.
+
+    What must keep rendering is the other half. A delimiter inside a label that
+    does close is text the renderer draws, a doubled closer carries its character
+    whole, a subgraph title is read by its own end-anchored regex, a comment is
+    dropped before any pattern sees it, and `click`, `accTitle` and `accDescr` are
+    ordinary node ids when nothing follows them.
+    """
+    sources = leaf_page(
+        "diagram sources",
         """
-<h1 id="title">Diagram directives</h1>
+<h1 id="title">Diagram sources</h1>
 <lf-diagram id="click-directive"><pre>
 flowchart LR
   A[Alpha] --&gt; B[Beta]
@@ -1351,52 +1373,6 @@ flowchart LR
   }
   Queued[Queued] --&gt; Complete[Complete]
 </pre></lf-diagram>
-<lf-diagram id="keyword-nodes" parts="node:click node:accTitle node:accDescr"><pre>
-flowchart LR
-  click --&gt; done
-  accTitle --&gt; done
-  accDescr --&gt; done
-</pre></lf-diagram>
-""",
-    )
-    page = open_page(browser, serve(directives))
-
-    for diagram, source in (
-        ("click-directive", "click A href"),
-        ("acc-title", "accTitle: Checkout flow"),
-        ("acc-description", "accDescr {"),
-    ):
-        expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(
-            "click, accTitle and accDescr directives are not supported"
-        )
-        expect(page.locator(f"#{diagram} svg")).to_have_count(0)
-        expect(page.locator(f"#{diagram} .lf-error pre")).to_contain_text(source)
-
-    for node in ("click", "accTitle", "accDescr"):
-        expect(page.locator(f'#keyword-nodes g[data-id="{node}"]')).to_be_visible()
-    expect(page.locator("#keyword-nodes .lf-error")).to_have_count(0)
-
-
-def test_a_quoted_label_holding_its_own_closer_is_refused(browser, serve):
-    """A label the renderer would cut takes the diagram down rather than a node.
-
-    Beautiful Mermaid reads a node label as the text up to the first closing
-    delimiter and never notices the quotes Mermaid uses to hold one, so
-    `A["list[str]"]` is cut at the inner bracket and the rest of the line — the
-    node the edge points at included — is dropped. A reader cannot see that a box
-    is missing, so the source is refused instead. The refusal is exact: a label
-    whose closer is doubled, a pipe-delimited edge label, and a subgraph title —
-    which the parser reads with its own end-anchored regex rather than through the
-    node patterns — and a commented-out line, which the parser drops before any
-    pattern sees it, all reach the renderer whole. A pipe inside a pipe-delimited
-    edge label is this same cut, so it is diagnosed as one: the label walk that
-    runs after would call the trailing pipe an unclosed label and offer a line
-    break to an author whose label is already on one line.
-    """
-    labels = leaf_page(
-        "diagram labels",
-        """
-<h1 id="title">Diagram labels</h1>
 <lf-diagram id="cut-rectangle"><pre>
 flowchart LR
   A["names: list[str]"] --&gt; B[plain]
@@ -1409,73 +1385,6 @@ flowchart LR
 flowchart LR
   A --&gt;|"a|b"| B
 </pre></lf-diagram>
-<lf-diagram id="doubled-closer" parts="node:A node:B"><pre>
-flowchart LR
-  A[["names: list[str]"]] --&gt; B[plain]
-</pre></lf-diagram>
-<lf-diagram id="edge-label" parts="node:A node:B"><pre>
-flowchart LR
-  A --&gt;|"list[str]"| B
-</pre></lf-diagram>
-<lf-diagram id="subgraph-title" parts="node:S node:A node:B"><pre>
-flowchart LR
-  subgraph S["Stage [1]"]
-    A[x] --&gt; B[y]
-  end
-</pre></lf-diagram>
-<lf-diagram id="commented-out" parts="node:A node:B"><pre>
-flowchart LR
-  %% A["names: list[str]"] --&gt; B[plain]
-  A[x] --&gt; B[y]
-</pre></lf-diagram>
-""",
-    )
-    page = open_page(browser, serve(labels))
-
-    for diagram, label in (
-        ("cut-rectangle", "names: list[str]"),
-        ("cut-diamond", "m{k}"),
-        ("cut-edge-label", "a|b"),
-    ):
-        expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(label)
-        expect(page.locator(f"#{diagram} svg")).to_have_count(0)
-    expect(page.locator("#cut-edge-label .lf-error")).to_contain_text("cannot hold |")
-
-    for diagram in ("doubled-closer", "edge-label", "subgraph-title", "commented-out"):
-        expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)
-        expect(page.locator(f'#{diagram} g[data-id="B"]')).to_be_visible()
-    expect(page.locator('#doubled-closer g[data-id="A"] text')).to_have_text(
-        "names: list[str]"
-    )
-    expect(page.locator('#subgraph-title g[data-id="S"] text')).to_have_text(
-        "Stage [1]"
-    )
-
-
-def test_a_label_that_does_not_close_on_its_line_is_refused(browser, serve):
-    """A label the renderer never finishes reading takes the diagram down.
-
-    Beautiful Mermaid splits the source into lines and reads each one as a
-    complete statement; there is no continuation. A label opened on one line and
-    closed on the next therefore matches no shape pattern, so the bare-id
-    fallback takes the id alone and drops the rest of the line, and the
-    continuation is read as a fresh statement whose first word becomes a node.
-    Both halves are silent: the reader sees a box showing an id beside a node the
-    source never names. The refusal is about the delimiter, not the quotes — an
-    unquoted label and a subgraph title break the same way, while a lone quote
-    inside a label that does close is text the renderer draws. Mermaid carries
-    label text in four places, so all four are read: a node's bracket shape, the
-    asymmetric shape's `>`, an edge's pipes, and the text a link opens before its
-    terminator. A label that does close is walked past whatever it holds, so an
-    unpaired delimiter inside one stays the text the renderer draws it as — which
-    is what the asymmetric shape adds to the reading twice over: `A>first` split
-    across lines drew a node `A` beside a node `second` before this walk knew the
-    opener, and `A>call foo(bar]` renders and so must not be refused.
-    """
-    spans = leaf_page(
-        "diagram spans",
-        """
-<h1 id="title">Diagram spans</h1>
 <lf-diagram id="quoted-span"><pre>
 flowchart LR
   A["first line
@@ -1509,6 +1418,39 @@ flowchart LR
   A&gt;first line
 second line] --&gt; B[plain]
 </pre></lf-diagram>
+<lf-diagram id="unsupported-arrowhead"><pre>
+flowchart LR
+  A --o B
+</pre></lf-diagram>
+<lf-diagram id="spaceless-arrow"><pre>
+flowchart LR
+  A--&gt;B
+</pre></lf-diagram>
+<lf-diagram id="keyword-nodes" parts="node:click node:accTitle node:accDescr"><pre>
+flowchart LR
+  click --&gt; done
+  accTitle --&gt; done
+  accDescr --&gt; done
+</pre></lf-diagram>
+<lf-diagram id="doubled-closer" parts="node:A node:B"><pre>
+flowchart LR
+  A[["names: list[str]"]] --&gt; B[plain]
+</pre></lf-diagram>
+<lf-diagram id="edge-label" parts="node:A node:B"><pre>
+flowchart LR
+  A --&gt;|"list[str]"| B
+</pre></lf-diagram>
+<lf-diagram id="subgraph-title" parts="node:S node:A node:B"><pre>
+flowchart LR
+  subgraph S["Stage [1]"]
+    A[x] --&gt; B[y]
+  end
+</pre></lf-diagram>
+<lf-diagram id="commented-out" parts="node:A node:B"><pre>
+flowchart LR
+  %% A["names: list[str]"] --&gt; B[plain]
+  A[x] --&gt; B[y]
+</pre></lf-diagram>
 <lf-diagram id="line-break" parts="node:A node:B"><pre>
 flowchart LR
   A["first line&lt;br/&gt;second line"] --&gt; B["b"]
@@ -1533,6 +1475,17 @@ flowchart LR
 flowchart LR
   A&gt;call foo(bar] --&gt; B[plain]
 </pre></lf-diagram>
+<lf-diagram id="styled-statements" parts="node:A node:B"><pre>
+flowchart LR
+  classDef hot fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
+  style B fill:var(--ok-tint)
+  linkStyle 0 stroke:var(--ok)
+  A[x]:::hot --&gt; B[y]
+</pre></lf-diagram>
+<lf-diagram id="parallel-links" parts="node:A node:B node:C node:D"><pre>
+flowchart LR
+  A[a] &amp; B[b] --&gt; C[c] &amp; D[d]
+</pre></lf-diagram>
 <lf-diagram id="composite-state" parts="node:Active node:Idle node:Busy"><pre>
 stateDiagram-v2
   state Active {
@@ -1542,50 +1495,78 @@ stateDiagram-v2
 </pre></lf-diagram>
 """,
     )
-    page = open_page(browser, serve(spans))
+    page = open_page(browser, serve(sources))
 
-    for diagram in (
-        "quoted-span",
-        "plain-span",
-        "subgraph-span",
-        "edge-span",
-        "edge-text-span",
-        "asymmetric-span",
+    # The refusal names the text the renderer stopped at, which is the whole of
+    # what the reader otherwise never sees. Each of these is the parser's own
+    # leftover, so the pairing is what the fixture is for: the source beside it in
+    # the controls below differs only in closing what it opened.
+    for diagram, unread in (
+        ("click-directive", 'A href "https://example.com" "Open"'),
+        ("acc-title", ": Checkout flow"),
+        ("acc-description", "{"),
+        ("cut-rectangle", '"] --> B[plain]'),
+        ("cut-diamond", '"} --> B[plain]'),
+        ("cut-edge-label", '"| B'),
+        ("quoted-span", '["first line'),
+        ("plain-span", "[first line"),
+        ("subgraph-span", '"]'),
+        ("edge-span", '|"carries'),
+        ("edge-text-span", "-- carries"),
+        ("asymmetric-span", ">first line"),
+        ("unsupported-arrowhead", "--o B"),
+        ("spaceless-arrow", ">B"),
     ):
         expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(
-            "a label must close on the line that opens it"
+            f'would draw the diagram without it: "{unread}"'
         )
         expect(page.locator(f"#{diagram} svg")).to_have_count(0)
 
-    # The line-oriented reading is the fault, so the refusal names the two ways
-    # Mermaid actually carries a second line inside one label.
-    expect(page.locator("#quoted-span .lf-error")).to_contain_text("<br/>")
-
     for diagram in (
+        "keyword-nodes",
+        "doubled-closer",
+        "edge-label",
+        "subgraph-title",
+        "commented-out",
         "line-break",
         "lone-quote",
         "unclosed-inside-label",
         "unclosed-inside-edge-text",
         "pipe-inside-edge-text",
         "unclosed-inside-asymmetric",
+        "styled-statements",
+        "parallel-links",
         "composite-state",
     ):
         expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)
         expect(page.locator(f"#{diagram} svg")).to_have_count(1)
+
+    # What the renderer draws for the controls, where the drawing is the claim: a
+    # delimiter the parser walks over stays label text, and a node the reading
+    # would have dropped is the one that says the whole statement was read.
+    for node in ("click", "accTitle", "accDescr"):
+        expect(page.locator(f'#keyword-nodes g[data-id="{node}"]')).to_be_visible()
+    expect(page.locator('#doubled-closer g[data-id="A"] text')).to_have_text(
+        "names: list[str]"
+    )
+    expect(page.locator('#subgraph-title g[data-id="S"] text')).to_have_text(
+        "Stage [1]"
+    )
     expect(page.locator('#line-break g[data-id="A"] tspan')).to_have_count(2)
     expect(page.locator('#lone-quote g[data-id="A"] text')).to_have_text('5" pipe')
     for diagram in ("unclosed-inside-label", "unclosed-inside-asymmetric"):
         expect(page.locator(f'#{diagram} g[data-id="A"] text')).to_have_text(
             "call foo(bar"
         )
-    # The node an edge-text link points at is what the renderer drops when it stops
-    # reading the line, so B standing is what says the whole statement was read.
     for diagram in (
+        "commented-out",
+        "edge-label",
         "unclosed-inside-edge-text",
         "pipe-inside-edge-text",
         "unclosed-inside-asymmetric",
     ):
         expect(page.locator(f'#{diagram} g[data-id="B"]')).to_be_visible()
+    expect(page.locator('#parallel-links g[data-id="D"]')).to_be_visible()
     expect(page.locator('#composite-state g[data-id="Busy"]')).to_be_visible()
 
 

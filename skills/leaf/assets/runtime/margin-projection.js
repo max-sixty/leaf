@@ -2597,8 +2597,9 @@ export function createMarginProjection({
   // A press on a margin control is a command like `t`: it enters the layer stack with
   // the place the reader held before the press, so the Escape that dismisses the view
   // hands that place back — the page, for a reader who clicked a marker — rather than
-  // whichever margin control the view hangs from by then. A view already showing takes
-  // the thread in under whatever entry it has; the press only changes what it shows.
+  // whichever margin control the view hangs from by then. The view shows one thread, so a
+  // press that puts another in a view already showing has put up the view the reader now
+  // sees, and records its frame the same way; the earlier press's frame leaves with it.
   const OPENED_BY_PRESS = {
     id: "margin.conversation",
     returnFrame: () => ({
@@ -2626,10 +2627,6 @@ export function createMarginProjection({
           revealConversation(thread, thread);
         });
     };
-    if (inlineThreadView.showing()) {
-      open();
-      return;
-    }
     invoke(OPENED_BY_PRESS, null, open, pressOrigin());
   }
 
@@ -2679,8 +2676,9 @@ export function createMarginProjection({
   // The way back out of a thread a press took the reader into, wherever it came up. One
   // frame, whose Escape takes off what the press put up and then lets the stack hand back
   // the place the press displaced. The card it put up goes, and stays this press's to take
-  // off while it shows, whichever thread `t` or another press has since put in it. The
-  // panel it opened goes too, by the panel's own frame, which holds while the panel stands.
+  // off while `t` walks it on to other threads; a later press that puts its own thread in
+  // the card has put up the card the reader then sees, as `togglePinned` says. The panel
+  // it opened goes too, by the panel's own frame, which holds while the panel stands.
   // A press into a surface that already stood — the panel, or a thread seated in a widget —
   // puts nothing up and has moved the reader all the same, so it hands back that place
   // while they stand on a thread there: any card in the panel's list, which `t` walks
@@ -2900,9 +2898,8 @@ export function createMarginProjection({
   // the thread it takes the reader into enters the layer stack with it, as a marker press
   // does in togglePinned: the view where the thread has a place on the page, else the
   // panel, which is where a thread with none is indexed. `threadFrame` reads where the
-  // run landed, so Escape takes off what came up and hands back the place. A view already
-  // showing takes the thread in without a new entry. The `t` walk passes no origin: its
-  // own frame holds the walk.
+  // run landed, so Escape takes off what came up and hands back the place. The `t` walk
+  // passes no origin: its own frame holds the walk.
   function openPageThread(id, { focus = "reply", travel = true, origin = null } = {}) {
     let landed = null;
     const open = () => {
@@ -2930,7 +2927,7 @@ export function createMarginProjection({
         landed = panel.querySelector(`.lf-thread[data-id="${CSS.escape(id)}"]`);
       });
     };
-    if (!origin || inlineThreadView.showing()) return open();
+    if (!origin) return open();
     return invoke(
       { id: "margin.thread", returnFrame: () => threadFrame(() => landed) },
       null,

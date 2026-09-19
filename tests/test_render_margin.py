@@ -6001,6 +6001,44 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     expect(stood).to_be_focused()
 
 
+@pytest.mark.parametrize("second", ["note", "marker"])
+def test_a_press_that_puts_its_thread_in_a_standing_card_hands_itself_back(
+    browser, serve, second
+):
+    """A press from outside the card that puts its thread there is the card's way out.
+
+    The card shows one thread, so the second press has put up the card the reader now
+    sees, as a pointer press would have after the first card light-dismissed. One Escape
+    closes it and hands back the second note or marker, never the first note, whose
+    card the second press already replaced.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+    seeded_thread(page, serve.page_dir, "#mounts-p")
+    seeded_thread(page, serve.page_dir, "#heater-p")
+    preview = page.locator(".lf-margin-preview")
+    card = preview.locator(".lf-conversation-thread")
+    first = page.locator("#mounts-p .lf-mark-note")
+    first.focus()
+    page.keyboard.press("Enter")
+    expect(card).to_be_focused()
+    shown = card.get_attribute("data-thread")
+
+    stood = (
+        page.locator("#heater-p .lf-mark-note")
+        if second == "note"
+        else page.locator('[data-lf-margin-for="heater-p"] .lf-margin-marker')
+    )
+    stood.focus()
+    page.keyboard.press("Enter")
+    expect(card).not_to_have_attribute("data-thread", shown)
+    expect(card).to_be_focused()
+
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(stood).to_be_focused()
+
+
 # Read the card with the selected target's whole control cluster. A card the rail cannot
 # hold beside that cluster keeps it clear, takes the card's minimum measure, and puts
 # its right edge on the visible edge, so it crosses the column by only what the rail lacks.

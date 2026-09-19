@@ -88,19 +88,21 @@ that control, comes back to it. The frame is the press's rather than the layer's
 press that carries the reader into a layer already standing records one too, and its
 Escape takes off only what the press put up: a note pressed with Threads open lands on
 its thread in the list, and one Escape hands the note back and leaves the panel open. A
-gesture whose result is a layer records the same frame: an accepted comment carries the
-reader into the thread it became — a card put up where the composer stood, or the
-thread's place in a panel already open — and one Escape hands back the place the comment
-press displaced, the control `c` was pressed from or the page a pointer selection had
-already put the reader on, never the margin entry the card hangs from or the list around
-the thread. One press is one rung however many surfaces answer it, so the composer's
-frame says `handsOn`, and the send reads the place it recorded through `currentOrigin`
-while the box still stands; where no frame stands, because the pointer had put the
-reader on the page, `readingPlace`, beside `pressOrigin`, is that page as a place. A
-close by pointer — the view's ×, the panel's Close — takes the layer off without handing
-back the place its press displaced: the pointer is already on the surface that is
-closing, so focus lands on the surviving control that reopens it. `layer-stack.js`
-carries the mechanism.
+card shows one thread, so a press that puts its own thread in a card already showing has
+put up the card the reader sees, and its one Escape closes that card and hands back the
+note or marker. A gesture whose result is a layer records the same frame: an accepted
+comment carries the reader into the thread it became — a card put up where the composer
+stood, or the thread's place in a panel already open — and one Escape hands back the
+place the comment press displaced, the control `c` was pressed from or the page a
+pointer selection had already put the reader on, never the margin entry the card hangs
+from or the list around the thread. One press is one rung however many surfaces answer
+it, so the composer's frame says `handsOn`, and the send reads the place it recorded
+through `currentOrigin` while the box still stands; where no frame stands, because the
+pointer had put the reader on the page, `readingPlace`, beside `pressOrigin`, is that
+page as a place. A close by pointer — the view's ×, the panel's Close — takes the layer
+off without handing back the place its press displaced: the pointer is already on the
+surface that is closing, so focus lands on the surviving control that reopens it.
+`layer-stack.js` carries the mechanism.
 
 ## Page grammar
 

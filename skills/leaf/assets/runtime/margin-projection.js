@@ -86,8 +86,6 @@ import {
   readingRegionFor,
   shownRegionBounds,
 } from "./reading-regions.js";
-import { panelWouldCover } from "./conversation/panel-elements.js";
-import { COVERING } from "./chrome-layout.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
@@ -112,6 +110,18 @@ import { anchorLabel } from "./conversation/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
+
+// Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
+// posture on `main` where it claims the rail, and this reads that answer rather than
+// deriving one of its own from a width. It resolves a container query, so a read after a
+// write forces layout; renderNow reads it once, before its writes.
+const railStands = () => {
+  const main = document.querySelector("main");
+  return (
+    Boolean(main) &&
+    getComputedStyle(main).getPropertyValue("--lf-rail-posture").trim() === "margin"
+  );
+};
 
 let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
@@ -290,13 +300,13 @@ export function createMarginProjection({
     };
   }
 
-  function changePosture() {
+  function changePosture(stands) {
     const marginHeld =
       toolbar.contains(document.activeElement) ||
       preview.contains(document.activeElement);
-    if (panelWouldCover() && preview.matches(":popover-open")) closePreview();
-    if (panelWouldCover() && marginHeld) requestAnimationFrame(() => focusMapControl());
-    renderMargin.refresh();
+    if (!stands && preview.matches(":popover-open")) closePreview();
+    if (!stands && marginHeld) requestAnimationFrame(() => focusMapControl());
+    requestAnimationFrame(() => renderMargin.refresh());
   }
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = "lf-margin-preview";
@@ -1422,7 +1432,7 @@ export function createMarginProjection({
       // The compact margin projection has no page rail. Dock every contributed entry even when a
       // positioned widget happens to leave enough local room for the absolute
       // prototype; that accident must not give one nested target a desktop posture.
-      hangs: () => !readingRegionFor(row.lfEntry?.target) && !panelWouldCover(),
+      hangs: () => !readingRegionFor(row.lfEntry?.target) && railStands(),
       // A wide row is hoisted into main's positioning context. If its live width no
       // longer fits the rail, move the same node beside its target before static flow
       // takes over; restore the hoist before measuring whether it fits again.
@@ -1819,7 +1829,7 @@ export function createMarginProjection({
     }
   }
 
-  function externalPerch(target, main, flow = panelWouldCover()) {
+  function externalPerch(target, main, flow) {
     if (!main) return target;
     // A hanging item must be a child of main's own positioning context. In flow it
     // belongs immediately after the rendered block that owns its target. A declared
@@ -1840,7 +1850,7 @@ export function createMarginProjection({
   function moveExternalHost(host, flow) {
     const main = document.querySelector("main");
     const target = host.lfEntry?.target;
-    if (!main || !target || panelWouldCover()) return;
+    if (!main || !target || !railStands()) return;
     const perch = externalPerch(target, main, flow);
     let after = perch;
     for (const entry of pageInventory) {
@@ -2231,6 +2241,7 @@ export function createMarginProjection({
     const main = document.querySelector("main");
     if (!nav.isConnected) chromeRoot.append(nav);
     const mainRect = main?.getBoundingClientRect();
+    const flow = !railStands();
     measureMargin(mainRect)?.();
     syncInlineOffers();
     pageInventory = collectEntries().filter((entry) => entry.target);
@@ -2388,7 +2399,7 @@ export function createMarginProjection({
       const primary = presentCluster(host, marker, more, entry, projection);
       if (entry.offers.length || readingRegionFor(entry.target)) {
         keeps(host, "data-lf-external", "1");
-        const perch = externalPerch(entry.target, main);
+        const perch = externalPerch(entry.target, main, flow);
         const dock = externalDocks.get(perch) ?? perch;
         if (dock.nextSibling !== host) moveHost(host, () => dock.after(host));
         externalDocks.set(perch, host);
@@ -3026,7 +3037,16 @@ export function createMarginProjection({
       schedulePostureRender();
     });
     renderMargin();
-    matchMedia(COVERING).addEventListener("change", changePosture);
+    // The rail stands or falls with the shell, which a resize and a strip taken or
+    // given back both move. The repaint that follows a flip waits a frame, since this
+    // observer must not move body itself.
+    let railStood = railStands();
+    new ResizeObserver(() => {
+      const stands = railStands();
+      if (stands === railStood) return;
+      railStood = stands;
+      changePosture(stands);
+    }).observe(document.body);
     chromeRoot.append(nav, preview);
   }
   return {

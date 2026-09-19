@@ -62,15 +62,12 @@
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the reader can quote.
 
-   Which question a floor asks belongs to the posture it grants. A floor asking how much
-   room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1496
-   for the sidebar and sidenote strips. The margin projection's 900 asks the window instead,
-   because it is half of a pair — `@media
-   screen and (max-width: 899px)` stops drawing the margin at all, and a marker's presence
-   is not something a container can be asked about without the answer depending on the
-   strip the marker is asking for. Both halves of such a pair ask the same medium, or a
-   panel narrowing `body` under the floor withdraws the strip while the window keeps the
-   markers on screen with nothing reserved for them.
+   A floor asks about the room its rule governs. One granting a posture out of the room
+   left beside a panel or tray is a container query on `lf-shell`, inside `@media screen`
+   since paper has no panel and no margin to grant: 1152 and 1496 for the sidebar and
+   sidenote strips, 840 for the margin projection's rail, 640 for a narrow column's facts.
+   One answering to the device, such as a phone's vertical rhythm, asks the window, and a
+   package's widget asks its own box (references/packages.md).
 
    Text may break at any character needed to keep the page inside its column.
    `overflow-wrap` is inherited from the page. Any token that must remain one unit, such
@@ -815,6 +812,7 @@ main {
   }
   main > * { --lf-room: inherit; }
 }
+/* A phone's vertical rhythm is a fact about the device, so this asks the window. */
 @media screen and (max-width: 640px) {
   main { padding-top: 28px; padding-bottom: 72px; }
 }
@@ -1372,12 +1370,15 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
 .facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5); }
 .facts dd { margin: 0; }
-@media screen and (max-width: 640px) {
-  /* A long term must not spend most of a phone's line on the first column and leave
-     its explanation as a one-word ribbon. Stack each fact while the reading column is
-     narrow; later terms keep the ordinary block rhythm through the row gap. */
-  .facts { grid-template-columns: minmax(0, 1fr); align-items: start; }
-  .facts dd + dt { margin-top: var(--sp-2); }
+@media screen {
+  @container lf-shell (width <= 640px) {
+    /* A long term must not spend most of a phone's line on the first column and leave
+       its explanation as a one-word ribbon. Stack each fact while the reading column is
+       narrow, which a panel standing beside makes it at any window; later terms keep
+       the ordinary block rhythm through the row gap. */
+    .facts { grid-template-columns: minmax(0, 1fr); align-items: start; }
+    .facts dd + dt { margin-top: var(--sp-2); }
+  }
 }
 /* A column of quantities lines up on its last digit — the comparison a table of
    numbers is there for, and one tabular figures alone don't make. Said per cell,
@@ -2165,31 +2166,41 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-/* The one floor that asks the window rather than the page's own box, because it is the
- * half of a pair: below it the rule further down stops drawing the margin projection at all,
- * and that rule is a media query because a marker's presence is not a thing a container
- * can be asked about without the answer depending on the strip the marker is asking for.
- * Two readings of one 900 is the page showing markers it has reserved no room for — the
- * panel narrowing body under the floor took the strip away while the window kept the
- * markers, and every row docked beside an empty rail. The floors below stay container
- * queries: those ask how much room is left beside the panel, which is the question the
- * runtime's old cramped veto asked, and the answer moves with the panel by design. */
-@media screen and (min-width: 900px) {
-  :is(
-    :root[data-lf-rail],
-    html[data-lf-live]
-  ) main {
-    /* The floor is the generated marker: 32px of glyph hanging 22px off the column,
-       with the shared focus-ring room at the outer edge. Claim all three, or opening a
-       side panel leaves that last band past body's room and the layout hides the
-       marker. Over that floor stands the widest stable contribution the shared layout
-       has measured, which is wider wherever a contributed control takes the marker's
-       place. What the condition reads is stated with the rest of the claim below. */
-    --claim-rail: max(calc(54px + var(--here-ring-room)), var(--rail, 0px));
+/* The rail stands in a shell wider than 840px. The rule that claims it says so on `main`
+ * as `--lf-rail-posture`, and that reading is the whole answer: the runtime places rows by
+ * it (margin-projection.js) and a copy's dock rule below asks it, so neither derives the
+ * posture again from a width. The rail itself needs 827 — the column (720), its padding
+ * (2 x 24) and the claim (59) — and 840 is where the banner folds and offers the Page Map
+ * (chrome.css), so with no strip taken the page goes compact at one width, less a classic
+ * scrollbar's gutter, since those ask the window. This asks `lf-shell` because the rail is
+ * drawn in the shell, and a panel standing beside takes its room as surely as a narrow
+ * window does. Asking the window read a room the page did not have: with the panel beside
+ * it a 900px window is a 480px shell, the claim still spent 59 of them, and that left a
+ * 373px column with every marker flush against the panel's edge.
+ *
+ * The claim cannot feed back into the answer. It comes out of `main`'s room inside the
+ * shell (--strip-r, at the column), while the shell's own inline size is the window less
+ * whatever strips a panel and a tray hold, so the container answers the same whether a
+ * marker stands in the rail or not. */
+@media screen {
+  @container lf-shell (width > 840px) {
+    :is(
+      :root[data-lf-rail],
+      html[data-lf-live]
+    ) main {
+      /* The floor is the generated marker: 32px of glyph hanging 22px off the column,
+         with the shared focus-ring room at the outer edge. Claim all three, or opening a
+         side panel leaves that last band past body's room and the layout hides the
+         marker. Over that floor stands the widest stable contribution the shared layout
+         has measured, which is wider wherever a contributed control takes the marker's
+         place. What the condition reads is stated with the rest of the claim below. */
+      --claim-rail: max(calc(54px + var(--here-ring-room)), var(--rail, 0px));
+      --lf-rail-posture: margin;
+    }
   }
-}
-@media screen and (max-width: 899px) {
-  .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none; }
+  @container lf-shell (width <= 840px) {
+    .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none; }
+  }
 }
 /* A file cannot dock. The runtime's packing pass measured the rail once, at the width
  * the page was exported at, and left with the scripts; the record a copy keeps stands
@@ -2206,8 +2217,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * only thing standing a record beside a passage the file was folding away when
  * exported. Paper later unfolds that passage through CSS, but a script-free copy
  * cannot rerun the packing pass; changing the serialized `lf-withheld` reading belongs
- * to the live and copied layouts together, not to this export override. */
-@media screen and (max-width: 899px), print {
+ * to the live and copied layouts together, not to this export override.
+ *
+ * Where the rail is not drawn is the page's own reading, stated with the claim above, and
+ * paper never states it, so one rule answers a narrow screen and a sheet alike. */
+@container lf-content-frame not style(--lf-rail-posture: margin) {
   html.lf-copy .lf-margin-cluster:not(.lf-withheld) { position: static; display: flex;
       width: fit-content;
       max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
@@ -2252,7 +2266,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * feeds the reservation decision back into itself. Asking whether an item stands there at
  * all put the reflow on the gesture that raised the first one, and a second reflow on the
  * gesture that took it back. */
-@media screen and (min-width: 900px) {
+@container lf-content-frame style(--lf-rail-posture: margin) {
   /* And the right margin is spoken for where a row hangs in it, so a wide widget level
      with one grows to the left alone. The row hangs 22px off the column and the strip is
      reserved out of the far side of the page, which are not the same place once the

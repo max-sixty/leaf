@@ -302,11 +302,11 @@ thread panel's touch grip has its own item under Later.
   targets the keyboard does.
 
 - **Show a phone reader that a passage has a thread.** Margin markers and pickup receipts
-  are hidden below 900px (`runtime/margin-projection.js`'s `hide` fallback,
-  `assets/theme.css`), so a comment beside a task is invisible, although tapping the text
-  still opens it and Threads still lists it. The reaction row already moves into the text
-  flow when the margin has no room; the same reflow for markers would keep the page
-  honest about what it holds.
+  are hidden wherever the page shell is 840px or narrower (`runtime/margin-projection.js`'s
+  `hide` fallback, `assets/theme.css`), so a comment beside a task is invisible, although
+  tapping the text still opens it and Threads still lists it. The reaction row already
+  moves into the text flow when the margin has no room; the same reflow for markers
+  would keep the page honest about what it holds.
 
 - **Make a delivered document declare its viewport.** `references/page-authoring.md` puts
   `<meta name="viewport">` in the authoring template and nothing checks for it, so a page

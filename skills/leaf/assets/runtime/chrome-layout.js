@@ -32,8 +32,9 @@
 // inert boundary outside this geometry owner; the reference and Page Map keep native
 // `showModal()`. The shell's
 // inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`,
-// `--lf-room`, and `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is
-// the named `lf-content-frame` style container a margin resident asks for them; `--lf-shell-inset-left`
+// `--lf-room`, `--lf-sidebar-posture`, and `--lf-rail-posture` are CSS-owned readings
+// resolved on `main`, which is the named `lf-content-frame` style container a margin
+// resident asks for them; `--lf-shell-inset-left`
 // carries the left auxiliary-surface offset to viewport-fixed page furniture, and `--lf-bottom-chrome-clear`
 // carries the bottom chrome's band to whatever has to end above it; `--lf-claim-right` is the
 // project-layer extension claim. A script-free copy therefore answers the same layout

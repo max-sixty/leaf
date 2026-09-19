@@ -625,8 +625,8 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     test proves what receives the pointer; the click proves that the decision, rather
     than the floating response UI, handles it."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    # Wide enough that the suggestion still hangs its row in the margin — below 900 it
-    # docks under its block and is out of the bar's way again.
+    # Wide enough that the suggestion still hangs its row in the margin — in a shell of
+    # 840px or less it docks under its block and is out of the bar's way again.
     resized(page, 930, 900)
     box = page.locator("#replace").bounding_box()
     select(

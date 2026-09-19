@@ -1635,8 +1635,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-group:first-child { border-top: 0; }
   .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }
   .lf-page-map-actions { display: grid; gap: 2px; }
-  @media (max-width: 899px) {
-    .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
+  /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
+     same floor the rail does, of the same box: theme.css, at the margin projection. A
+     panel takes its strip out of the shell, so a window wide enough for both is not a
+     page with room for both, and a reader who opened one would otherwise lose the map
+     and the markers together. */
+  @media screen {
+    @container lf-shell (width <= 840px) {
+      .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
+    }
+  }
+  /* The sheet the Map opens in stands over the whole window and is sized to it, so its
+     compact shape asks the window, at the width the banner folds. */
+  @media (width <= 840px) {
     .lf-page-map-dialog { inset: auto 8px 8px; width: calc(100vw - 16px);
       max-height: min(82vh, 720px); margin: 0; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
     .lf-page-map-action { min-height: 44px; }

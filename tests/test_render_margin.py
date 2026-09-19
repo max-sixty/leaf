@@ -622,8 +622,8 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     dock them withholds them as `lf-withheld` instead; the gallery stands still too
     now, but it docks no row at that viewport at all — measured, none of the
     eighteen it draws wears `lf-docked`. The posture is therefore reached directly:
-    under `COVERING` a contributed row cannot hang whatever the local room, and a
-    page with one target settles.
+    where the rail does not stand a contributed row cannot hang whatever the local
+    room, and a page with one target settles.
 
     The guard must not cost the mark, so the narrowing is read too — the row
     arrives hanging, and it is the pass that docks it. The pass itself is counted
@@ -648,7 +648,7 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     row = page.locator(".lf-margin-cluster")
     expect(row).to_have_count(1)
     expect(row).not_to_have_class(re.compile(r"lf-docked"))
-    # Inside the covering boundary, which is 840px wide.
+    # Under the rail's floor, a shell of 840px or less.
     resized(page, 800, 900)
     margins_laid_out(page)
     expect(row).to_have_class(re.compile(r"lf-docked"))

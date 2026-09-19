@@ -1473,7 +1473,6 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     held_events[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    page.close()
 
 
 def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, serve):
@@ -1721,7 +1720,6 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
 
     expect(page.locator(".lf-threads")).to_contain_text("Approved")
     expect(approve).to_have_text("✓ Version approved")
-    page.close()
 
 
 def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
@@ -1795,7 +1793,6 @@ def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
     after = page.evaluate("conversationPresentation.readApplicationPresentation()")
     assert after["semanticEpoch"] == before["semanticEpoch"]
     assert after["presentedEpoch"] == before["presentedEpoch"]
-    page.close()
 
 
 def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve):
@@ -4357,7 +4354,6 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
         )
         == "none"
     )
-    page.close()
 
 
 def thread_mark_fault(reading):
@@ -4539,8 +4535,6 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     )
     assert not faults, "\n  ".join([f"{len(faults)} faults:"] + faults)
 
-    page.close()
-
 
 def test_go_page_returns_without_unwinding_the_panel(browser, serve):
     """Leaving a panel beside the document to compare a comment is not backing out:
@@ -4593,7 +4587,6 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    page.close()
 
 
 def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
@@ -4664,7 +4657,6 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
     )
     expect(target).to_be_focused()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_page
-    page.close()
 
 
 # What the burial below is aiming at: how deep the heading stands over the first card,
@@ -4781,8 +4773,6 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         f"{page.evaluate(COVERED_TOP)}"
     )
 
-    page.close()
-
 
 def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser, serve):
     """The same gesture as the test above, from the state the reader is actually in when
@@ -4835,8 +4825,6 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
     assert not ring_faults(
         rings_drawn(page), "after a press on the card already standing in"
     )
-
-    page.close()
 
 
 def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
@@ -4909,8 +4897,6 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
         "the cancelled press suppressed the next focus landing and left the card "
         f"under its heading: {page.evaluate(COVERED_TOP)}"
     )
-
-    page.close()
 
 
 def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serve):
@@ -4990,8 +4976,6 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
         "the control away rather than the drag"
     )
 
-    page.close()
-
 
 def test_a_drag_across_a_comments_words_leaves_the_list_where_it_was_read(
     browser, serve
@@ -5047,8 +5031,6 @@ def test_a_drag_across_a_comments_words_leaves_the_list_where_it_was_read(
     assert len(drawn) > 4, (
         f"the drag selected {drawn!r}, so this asserts nothing about a selection"
     )
-
-    page.close()
 
 
 def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
@@ -5133,7 +5115,6 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
     assert page.evaluate(
         "() => Boolean(document.activeElement?.closest?.('.lf-threads > .lf-thread'))"
     ), "the walk ends outside the list, so the landings proved nothing"
-    page.close()
 
 
 def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(

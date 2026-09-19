@@ -200,7 +200,6 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     round_trip(page)
     order = page.locator("#page-local").get_attribute("data-render-order")
     assert re.fullmatch(r"(?:render,subscribe,)+", order), order
-    page.close()
 
 
 def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve):
@@ -351,7 +350,6 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve)
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
-    page.close()
 
 
 PAGE_DECLARATION = {
@@ -677,7 +675,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         "data-readings", str(readings + 1)
     )
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
-    page.close()
 
 
 def test_widget_controller_owns_presentation_across_values_and_lifetimes(
@@ -876,7 +873,6 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
     ]
-    page.close()
 
 
 def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, serve):
@@ -1054,7 +1050,6 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
-    page.close()
 
 
 def test_a_failed_list_candidate_restores_its_complete_committed_reading(
@@ -1247,7 +1242,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "leaf: State presentation failed: Thread list presentation retry failed",
         "leaf: read failed: Thread list presentation retry failed",
     )
-    page.close()
 
 
 def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
@@ -1335,4 +1329,3 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
     held_events[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    page.close()

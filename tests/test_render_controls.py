@@ -838,7 +838,6 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     assert news_size["shown"] >= news_size["needed"], (
         f"the shown desktop news control clipped its words: {news_size}"
     )
-    pinned.close()
 
 
 def test_banner_status_is_compact_with_accessible_details(browser, serve, other_leaf):
@@ -1199,7 +1198,6 @@ def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
     assert published_again == published, (
         f"returning to publication created a parallel status surface: {published_again}"
     )
-    page.close()
 
 
 WEBSITE_LINE = (
@@ -1345,7 +1343,6 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
         assert install.evaluate("el => el.clientWidth === el.scrollWidth")
         install.focus()
         expect(install).to_be_focused()
-    site.close()
 
 
 def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
@@ -1679,7 +1676,6 @@ def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
         """() => document.activeElement !== document.body &&
           Boolean(document.activeElement.closest('.lf-banner-actions'))"""
     ), "closing an emptied overflow lost focus when its door retired"
-    page.close()
 
 
 def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, serve):
@@ -2985,7 +2981,6 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
         "semanticEpoch": before["semanticEpoch"],
         "presentedEpoch": before["presentedEpoch"],
     }
-    page.close()
 
 
 def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
@@ -3064,7 +3059,6 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
     assert destination is not None and destination.startswith(f"{second_url}/?t=")
     tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
     tab.close()
-    page.close()
 
 
 def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
@@ -3149,7 +3143,6 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
           return [reading.semanticEpoch, reading.presentedEpoch];
         }"""
     ) == [before["semanticEpoch"], before["presentedEpoch"]]
-    page.close()
 
 
 def test_a_failed_leaves_restore_keeps_application_presentation_pending(
@@ -3199,7 +3192,6 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           return !presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
-    page.close()
 
 
 def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reader):
@@ -4826,8 +4818,6 @@ customElements.define("lf-quota", class extends HTMLElement {
         "decrease",
     ]
     consume_browser_errors(stale, "400")
-    stale.close()
-    current.close()
 
 
 def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
@@ -5343,8 +5333,6 @@ def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
         "nothing here was ever going to move"
     )
 
-    page.close()
-
 
 def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box(
     browser, serve
@@ -5815,8 +5803,6 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         f"landing seen ({lost})"
     )
 
-    page.close()
-
 
 def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve):
     """Every stop in each selected page's ordinary Tab order shows keyboard focus."""
@@ -6246,7 +6232,6 @@ def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink
         f"both schemes cast their shadows in {shade!r}, so routing them through a token "
         f"bought the dark page nothing it did not already have"
     )
-    dark.close()
 
 
 # Every box the layer promises a press on, wherever it stands. Not a list of class names:

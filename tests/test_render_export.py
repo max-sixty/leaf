@@ -940,7 +940,6 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
 
     fresh = open_page(browser, reset.stdout.splitlines()[-1])
     expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")
-    fresh.close()
 
 
 @pytest.mark.parametrize(
@@ -1359,7 +1358,6 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
         "data-lf-presented", "1", timeout=10000
     )
     expect(page.locator(".lf-chrome")).to_have_count(0)
-    page.close()
 
 
 def test_interactive_export_runs_captured_local_behavior_without_a_host(
@@ -1466,7 +1464,6 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert refused == [None, None, None]
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     assert external == []
-    page.close()
 
 
 def test_interactive_export_hydrates_captured_data_fragments_offline(
@@ -1520,7 +1517,6 @@ def test_interactive_export_hydrates_captured_data_fragments_offline(
         page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     ).to_have_count(1)
     assert external == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -1621,7 +1617,6 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
             "style", re.compile(r"width: 420px")
         )
     assert external == []
-    offline.close()
 
 
 def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
@@ -2135,7 +2130,6 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
     expect(copy.locator("lf-gloss")).to_contain_text(
         "walking skeletonA thin path through the real system."
     )
-    copy.close()
 
 
 def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
@@ -2255,7 +2249,6 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         expect(thread.locator(".lf-conversation-body")).to_be_hidden()
     copy.emulate_media(media="print")
     expect(thread.locator(".lf-conversation-body")).to_be_visible()
-    copy.close()
 
 
 RECEIPT_DRAFT = leaf_page(
@@ -2411,7 +2404,6 @@ def test_a_copy_keeps_generated_native_controls_and_their_labels(
     expect(copy.get_by_role("textbox", name="Review note")).to_have_value(
         "Retained native input"
     )
-    copy.close()
 
 
 def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
@@ -2869,4 +2861,3 @@ def test_a_copy_drops_live_element_projection_state(browser, serve, tmp_path):
     expect(copy.locator("#fig")).not_to_have_class(
         re.compile(r"\blf-(?:mark-el|projected-mark)\b")
     )
-    copy.close()

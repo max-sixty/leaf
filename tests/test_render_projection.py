@@ -3369,8 +3369,6 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     expect(pinned).to_have_title("Live first")
     expect(pinned).to_have_url(re.compile(r"/versions/v1\.html"))
     expect(pinned.locator(".lf-version")).to_contain_text("v1")
-    pinned.close()
-    live.close()
 
 
 def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, serve):
@@ -5455,8 +5453,6 @@ customElements.define("lf-token", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('token-c')")
     assert render_checks_model.evaluate_probe(page, "relativeReplays") == []
     told(sender)
-    page.close()
-    sender.close()
 
 
 def test_the_render_gate_catches_a_relative_state_renderer(
@@ -7644,7 +7640,6 @@ def test_request_controls_join_presentation_without_replacing_authored_items(
         page.unroute("**/api/event")
 
     round_trip(page)
-    page.close()
 
 
 def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):

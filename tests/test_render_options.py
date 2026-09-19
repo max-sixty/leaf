@@ -458,7 +458,6 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     )
     page.wait_for_function("reconnectedOptionsReady")
     assert page.evaluate("optionIdentityHeld()") is True
-    page.close()
 
 
 def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(

@@ -464,14 +464,19 @@ a page of their own and never asked for the readings, and every one of them was 
 about a page whose console, `pageerror` and window `error` channels nothing read.
 A page must therefore come from that fixture, or from a context it made.
 
-The fixture ends it too, so no test closes its own page. It closes every context
-after reading what the pages reported, in that order and for this reason: closing
-stops event delivery, so a `try/finally` that closed a page at the end of a test
-body cut the reading short — its own reading, a step before the fixture took it.
-Eighty-nine of those blocks are gone. What remains is the page that keeps making
-the fault its test is about, where the consume follows a close of its own; both are
-named in `test_the_resources_a_fixture_owns_are_taken_from_that_fixture`, which
-reads the suite for the rest.
+The fixture ends it too, so a test that has finished with a page leaves it open. It
+closes every context after reading what the pages reported, in that order and for
+this reason: closing stops event delivery, so a close written at the end of a test
+cut the reading short — its own reading, a step before the fixture took it. 191 of
+them are gone, 89 spelled `try/finally` and 102 written as the test's last line.
+
+A close inside a test is a different thing, and it stays: a second tab shut to show
+what the first one still holds is the gesture the test is about, and the assertions
+after it are what read the close. So the rule is the ending, not the call, and
+`test_the_resources_a_fixture_owns_are_taken_from_that_fixture` reads for exactly
+that — a close in a `finally`, or a close as a test's last statement, on anything
+the browser fixture handed over. Its one exception is the page that keeps making
+the fault its test is about, where the consume has to follow a close of its own.
 
 For the same reason nothing installs them a second time. `watched` returns the list a
 page already has, because a second list would take `lf_errors` with it and leave the

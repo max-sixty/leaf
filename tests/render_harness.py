@@ -1461,12 +1461,12 @@ def opened_tab(page, destination, press, timeout=10_000):
         finally:
             browser_session.detach()
 
-    tab = page.context.new_page()
-    try:
-        tab.goto(destination)
-    except Exception:
-        tab.close()
-        raise
+    # `page.context` is Playwright's own context, not the `WatchedContext` the fixture
+    # handed over, so the tab this makes is readable only because it is made readable
+    # here — and before the navigation, which is the only side of it an init script
+    # reaches.
+    tab = readable(page.context.new_page())
+    tab.goto(destination)
     return tab
 
 

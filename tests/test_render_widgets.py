@@ -1553,7 +1553,6 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
     expect(page.locator("#watched-draft .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"
     )
-    page.close()
 
 
 def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
@@ -1658,7 +1657,6 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
         "heading => { const box = heading.getBoundingClientRect(); "
         "return box.top >= 0 && box.bottom <= innerHeight; }"
     )
-    direct.close()
 
 
 def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serve):
@@ -2510,7 +2508,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert coarse.evaluate("document.scrollingElement.scrollTop") == 0, (
         "the in-flow ToC stole a wheel from its own overflowing sidebar"
     )
-    coarse.close()
 
 
 def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve):
@@ -2910,7 +2907,6 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     expect(touch_bubble).to_be_visible()
     touch.locator("h1").tap()
     expect(touch_bubble).to_be_hidden()
-    touch.close()
 
 
 def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
@@ -3630,7 +3626,6 @@ def test_notification_playground_admits_only_its_exact_page_configuration(
     assert off_step.status == 400
     assert "2.5" in off_step.json()["error"]
     assert actions(serve.page_dir) == []
-    page.close()
 
 
 def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
@@ -3778,8 +3773,6 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     assert page.evaluate("document.documentElement.scrollWidth") == 480
     resized(page, 1100, 320)
     expect(page.locator("#release-query-ask")).to_be_visible()
-    page.close()
-    context.close()
 
 
 def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
@@ -3895,8 +3888,6 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     )
     resized(page, 1100, 320)
     expect(page.locator("#code-comparison-ask")).to_be_visible()
-    page.close()
-    context.close()
 
 
 def test_playground_composed_structural_target_resolves_in_the_next_revision(
@@ -3945,7 +3936,6 @@ def test_playground_composed_structural_target_resolves_in_the_next_revision(
     expect(page.locator(".reader-treatment-title")).to_have_text(
         "Built reader treatment"
     )
-    page.close()
 
 
 def test_notification_configuration_becomes_a_commentable_local_artifact(
@@ -4340,7 +4330,6 @@ def test_a_playground_export_keeps_the_chosen_preview_and_instruction(
     expect(copy.locator("#playground-card")).to_have_css("border-radius", "17px")
     expect(copy.locator("#playground-card")).to_have_css("padding", "8px")
     expect(copy.locator("#card-instruction")).to_contain_text("Ridge note")
-    copy.close()
 
 
 def test_notification_playground_export_flows_at_another_width_and_on_paper(
@@ -4400,7 +4389,6 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
           .every(body => getComputedStyle(body).overflowY === 'visible'
             && body.scrollHeight === body.clientHeight)"""
     )
-    copy.close()
 
 
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
@@ -4586,7 +4574,6 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     workbench.get_by_role("button", name="Revert draft").click()
     assert page.locator("#hero").evaluate("element => element.style.padding") == ""
     expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
-    page.close()
 
 
 def test_targeting_controller_keeps_unresolved_targets_visible_and_blocks_submit(
@@ -5479,7 +5466,6 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     expect(touch.locator("#session-keep > #swipe-b")).to_have_count(1)
     round_trip(touch)
-    touch.close()
 
 
 def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
@@ -5658,7 +5644,6 @@ def test_a_swipe_deck_export_is_a_static_labeled_copy(browser, serve, tmp_path):
         "PASSED · 1",
         "KEPT · 1",
     ]
-    copy.close()
 
 
 def test_a_reduced_motion_swipe_moves_without_an_exit_animation(browser, serve):
@@ -5849,7 +5834,6 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
                 f"[{medium}] with no row on the page, `{q['word']}` is the only thing "
                 f"saying the change is unmade, and it is not on screen: {q}"
             )
-    copy.close()
 
 
 def test_a_moved_change_takes_its_controls_with_it(browser, serve):
@@ -6069,7 +6053,6 @@ def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
             abs(row["top"] - loose.locator(f"#{widget} lf-old").evaluate(box)["top"])
             <= 5
         ), f"{widget}'s row lost its change's line without its script"
-    loose.close()
 
 
 def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
@@ -8345,7 +8328,6 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
     expect(page.locator("#honored-decision")).to_be_focused()
     expect(page.locator(".lf-live")).to_have_text("Ask 5 of 5 answered")
     assert "Ask 5 of 5 answered" in page.evaluate("window.__lfLiveRegionChanges")
-    page.close()
 
 
 def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
@@ -8498,7 +8480,6 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    page.close()
 
 
 def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
@@ -8559,7 +8540,6 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    page.close()
 
 
 def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(

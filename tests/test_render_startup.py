@@ -396,7 +396,6 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert f"fingerprint: {layer['fingerprint']}" in diagnostics
     if producer.get("commit"):
         assert f"commit: {producer['commit']}" in diagnostics
-    ordinary.close()
 
 
 @pytest.mark.parametrize(
@@ -4411,7 +4410,6 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         "# Leaf\n\nOriginal instructions.\n"
     )
     assert copy.locator("script").count() == 0
-    copy.close()
 
 
 def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
@@ -4994,7 +4992,6 @@ def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, se
         }"""
     )
     assert result is True
-    page.close()
 
 
 def test_data_written_during_fresh_revision_startup_waits_for_activation(

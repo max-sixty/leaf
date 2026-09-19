@@ -7879,7 +7879,6 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
         "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
     )
     assert reserved != "0px" and float(reserved.removesuffix("px")) > 20, reserved
-    fine.close()
 
 
 FOOT_CONTROL_PAGE = NOTED_PAGE.replace(
@@ -8533,7 +8532,6 @@ def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
         "prevented": False,
         "selection": selected,
     }
-    page.close()
 
 
 def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, serve):
@@ -9570,7 +9568,6 @@ def test_target_chooser_reveals_a_clipped_board_card_before_commenting(browser, 
     expect(page.locator(".lf-fab-input")).to_have_attribute(
         "aria-label", re.compile("Digest email uses server timezone")
     )
-    page.close()
 
 
 def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):

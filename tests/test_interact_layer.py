@@ -1514,13 +1514,6 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
         "test_a_website_session_reference_survives_a_failed_first_read",
         "test_a_malformed_first_state_keeps_interaction_unresolved",
     }
-    from_browser = (
-        "browser.new_page",
-        "browser.new_context",
-        "browser.unwatched.new_page",
-        "browser.unwatched.new_context",
-        "open_page(browser",
-    )
     owners = {
         "Popen": ("spawn", {"conftest.py"}),
         "mkdtemp": ("socket_dir", {"interact_support.py"}),
@@ -1544,19 +1537,34 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
                 continue
             if function.name in closes_to_stop_a_repeating_fault:
                 continue
+            # What the fixture owns is what came from it, however far the value
+            # travelled: `host, app = open_snapshot_app(browser, page_dir)` hands
+            # back a page as surely as `browser.new_page()` does, and a list of the
+            # spellings that count would have read the second and missed the first.
             lent = {
-                target.id: ast.unparse(statement.value)
+                name.id
                 for statement in ast.walk(function)
                 if isinstance(statement, ast.Assign)
+                and "browser"
+                in {n.id for n in ast.walk(statement.value) if isinstance(n, ast.Name)}
                 for target in statement.targets
-                if isinstance(target, ast.Name)
+                for name in ast.walk(target)
+                if isinstance(name, ast.Name)
             }
-            for node in ast.walk(function):
-                if not isinstance(node, ast.Try) or len(node.finalbody) != 1:
+            # Only where the test is finished with the page. A close it writes in the
+            # middle is the gesture under test — a second tab shut to show what the
+            # first one still holds — and the assertions after it are what read it.
+            endings = [
+                node.finalbody[0]
+                for node in ast.walk(function)
+                if isinstance(node, ast.Try) and len(node.finalbody) == 1
+            ]
+            endings.append(function.body[-1])
+            for node in endings:
+                if not isinstance(node, ast.Expr):
                     continue
-                ending = ast.unparse(node.finalbody[0])
-                held = lent.get(ending.removesuffix(".close()"), "")
-                if ending.endswith(".close()") and held.startswith(from_browser):
+                ending = ast.unparse(node)
+                if ending.endswith(".close()") and ending[: -len(".close()")] in lent:
                     bypassed.append(
                         f"{path.name}:{node.lineno} {ending} — the browser fixture does"
                     )

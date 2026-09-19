@@ -571,7 +571,6 @@ def test_current_presentation_probe_reopens_and_ignores_superseded_work(browser,
     page.evaluate("() => probeOlder")
     assert render_checks_model.evaluate_probe(page, "currentPresented") is True
     page.evaluate("() => probePresentation.disconnect()")
-    page.close()
 
 
 def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):

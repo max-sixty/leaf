@@ -550,4 +550,3 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert capture_key not in standalone
     assert capture_key not in data_text
     assert "?t=" not in data_text
-    reader.close()

@@ -3021,8 +3021,6 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
             f"board {wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
         )
 
-    copy.close()
-
 
 def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
     """An authored note sets the right-side strip and the page's axis.
@@ -3464,7 +3462,6 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert copied["padding"] == {"left": 0, "right": 384}
     assert copied["column"]["width"] == 720
     assert copied["sideways"] == 0
-    copy.close()
 
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):

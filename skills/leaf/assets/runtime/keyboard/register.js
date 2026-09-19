@@ -189,9 +189,9 @@ const BACK_OUT = {
   line: () => rung()?.says,
   lineWhen: () => word(rung()?.lineWhen) !== false,
   promoteEscape: () => word(rung()?.promoteEscape) !== false,
-  // The fallback, so silent while a commanded entry stands — except for a step that
-  // takes off something the reader put on outside the surface that entry entered, which
-  // is newer than the entry and not its to undo.
+  // The fallback, for what no commanded entry is the way back from. While one stands,
+  // that is only a step taking off something the reader put on outside the surface the
+  // entry entered, which is newer than the entry and not its to undo.
   when: () => {
     const step = rung();
     return (

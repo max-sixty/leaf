@@ -55,10 +55,10 @@ function stepThread(
     );
     return;
   }
-  // Landing the thread is the list's, off the focus it is about to take. A press at
-  // either end of the walk is the exception the list cannot answer: it names the thread
-  // the reader already stands on, so no focus moves and nothing fires, while the page
-  // half of the press still travels. Both halves therefore go where they were pointed.
+  // Both halves of the press go where they were pointed. The list lands the thread off
+  // the focus it is about to take, so a press at either end of the walk, which names the
+  // thread the reader already stands on, moves no focus and gives the list nothing to
+  // land: the press lands that thread itself. The page half travels either way.
   const standing = next === document.activeElement;
   next.focus({ preventScroll: true });
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });

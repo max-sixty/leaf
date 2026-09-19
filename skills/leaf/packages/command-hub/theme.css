@@ -65,6 +65,9 @@ lf-agent[state="reaped"] > strong { color: var(--ink-2); }
  * the milestone's, plus `review` in the warn tint: finished by its holder and
  * ready to be reviewed. A nested Decision assigns that review. */
 lf-tasks, lf-command { display: block; margin: 14px 0; }
+/* A command's head stacks from the room the command has, which a command inside a
+   worker's disclosure or beside an open panel has less of than the window says. */
+lf-command { container: lf-command / inline-size; }
 lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
 lf-task::before { content: ""; position: absolute; left: 6px; top: 5px;
                   width: 10px; height: 10px; border-radius: 50%;
@@ -178,9 +181,9 @@ lf-record > ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid 
 lf-record > ol > li { padding: var(--sp-2) 0; border-bottom: 1px solid var(--rule);
   color: var(--muted); font: var(--t-6) var(--mono); overflow-wrap: anywhere; }
 
-@media (max-width: 520px) {
+@container lf-command (width <= 520px) {
   lf-command > .lf-command-head { grid-template-columns: 1fr; align-items: start; }
-  .lf-command-facts { justify-content: flex-start; }
+  lf-command .lf-command-facts { justify-content: flex-start; }
   lf-command [data-lf-command-goal] { grid-template-columns: minmax(0, 1fr); }
   lf-command [data-lf-command-goal] > .lf-task-meta {
     grid-column: 1; justify-content: flex-start; flex-wrap: wrap;

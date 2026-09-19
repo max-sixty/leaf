@@ -440,6 +440,7 @@ declareStanding({
   designModeActive: designMode.active,
   drawModeActive: () => drawing.drawModeActive(),
   pageMapRung: () => Boolean(app.margin.keyboardRung()),
+  askHeld: () => Boolean(asks?.heldAsk()),
 });
 
 pageMapDialog = createPageMapDialog({

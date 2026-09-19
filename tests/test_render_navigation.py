@@ -6713,20 +6713,21 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    # And the state where letting go and backing onto the page both hold: standing on a
-    # mark out on the page. Letting go is the standing scope's own inner step, and the
-    # ladder's foot stands down behind it, so the reference names the innermost press
-    # once rather than listing every step whose own condition is true.
+    # And a mark note out on the page. It is one of Leaf's controls, placed beside the
+    # words it marks rather than in the chrome, so the ladder's foot backs out of it
+    # onto the page and the standing scope, which lets go of a destination, does not
+    # stand: the reference names that one press rather than listing every step whose
+    # own condition is true.
     page.keyboard.press("Tab")
     page.keyboard.press("Tab")
     expect(page.locator(".lf-mark-note")).to_be_focused()
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    standing_out = help_el.locator('tr[data-lf-command="navigation.release"]')
-    expect(standing_out).to_have_count(1)
-    expect(standing_out).to_contain_text("Let go of what you are standing on")
-    expect(help_el.locator('tr[data-lf-command="navigation.back"]')).to_have_count(0)
+    backing_out = help_el.locator('tr[data-lf-command="navigation.back"]')
+    expect(backing_out).to_have_count(1)
+    expect(backing_out).to_contain_text("Back out onto the page")
+    expect(help_el.locator('tr[data-lf-command="navigation.release"]')).to_have_count(0)
 
 
 def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
@@ -8694,6 +8695,54 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
         expect(page.locator(".lf-shortcut-bar")).to_contain_text("close threads")
         page.keyboard.press("Escape")
         expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+
+def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):
+    """A margin marker is placed in the document beside the words it marks, outside
+    `.lf-chrome`, and the standing floor used to read that container to tell a
+    destination from a control. So a marker reached by Tab wore the let-go of an Ask
+    or a heading — "let go" — where the Threads toggle beside it, which is a control
+    of the same standing, backs out onto the page. The floor asks `inUi` now, the one
+    reading of which layer a node is in, and a marker gets the same word as the toggle.
+    A folded cluster is the case: an unfolded one has the Page Map's own rung over it,
+    which answered before either word."""
+    url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1200, "height": 844})
+    line = page.locator(".lf-shortcut-bar")
+    marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
+    expect(marker).to_be_visible()
+
+    for control in (page.locator(".lf-threads-toggle"), marker):
+        control.focus()
+        expect(control).to_be_focused()
+        expect(line).to_contain_text("back to the page")
+        expect(line).not_to_contain_text("let go")
+        page.keyboard.press("Escape")
+        assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_an_asks_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
+    """A pick inside an Ask wears the chrome face, as a margin marker does, and is not
+    a control of Leaf's for all that: it is inside a destination, so Escape lets go of
+    it onto the page. The Ask is the asks view's own reading rather than the ring's
+    paint, which only the Ask the walk stands at wears, so the word does not change
+    under an unmoved focus when Space answers the Ask and the ring comes off."""
+    page = open_page(browser, serve(BINDING_BADGE_PAGE))
+    line = page.locator(".lf-shortcut-bar")
+    pick = page.locator("#cards .lf-pick").first
+    pick.focus()
+    expect(pick).to_be_focused()
+    expect(line).to_contain_text("let go")
+
+    page.keyboard.press("Space")
+    expect(page.locator("#c-heater .lf-pick")).to_have_attribute("aria-checked", "true")
+    assert page.evaluate(
+        "() => document.activeElement.closest('#cards-decision') !== null"
+    )
+    expect(line).to_contain_text("let go")
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):

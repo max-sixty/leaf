@@ -540,6 +540,11 @@ export function createAskView({
       : null;
   }
   const standingIn = () => askNode(standingAsk());
+  // Whether the reader holds an Ask at all, answered or not: the standing floor's
+  // question, which is where letting go lands rather than which Ask is the walk's. The
+  // same resolution as above, so a control hoisted into the margin holds the Ask it
+  // serves, and an answered Ask keeps its picks a place to stand.
+  const heldAsk = () => Boolean(askAt(allAsks(), documentFocused()));
 
   // The Ask-local action map. A package contributes exact controls through the same
   // command scopes dispatch and Help already consume. Each action receives a contextual
@@ -1286,6 +1291,7 @@ export function createAskView({
     standsWith,
     askPlace,
     standingIn,
+    heldAsk,
     captureStanding,
     restoreStanding,
     markHere,

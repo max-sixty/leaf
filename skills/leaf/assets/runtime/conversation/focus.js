@@ -17,3 +17,10 @@ export function focusedThread() {
 export function focusedThreadOf() {
   return documentFocused()?.closest?.(".lf-thread");
 }
+
+// The thread the reader is standing in, on either side — a card in the panel, a seat on
+// the page — and a control inside one stands in it too: the standing floor's question,
+// which is where letting go lands rather than which passage to paint.
+export function standingThreadOf() {
+  return documentFocused()?.closest?.(".lf-thread, .lf-conversation-thread");
+}

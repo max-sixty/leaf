@@ -33,6 +33,10 @@ A private revision with changed executable code needs a fresh browser document b
 the current document cannot redefine custom elements or re-evaluate its module graph.
 The runtime marks that one reload with `_leaf-revision`; the Worker serves it from the
 current release's container, and the arriving runtime immediately removes the marker.
+Startup recovery marks the one replacement document it asks for with `_leaf-recovered`,
+which the runtime removes the same way. That mark asks nothing of the Worker: routing
+reads the path, so the edge answers a marked document as it answers any other, and what
+bounds recovery to one replacement is the runtime reading its own mark.
 Every ordinary visit and reload continues to use the edge document. The container
 composes the private document against `/<page>/revisions/rN-<hash>/`, which is
 content-addressed over the document and its resources.
@@ -224,9 +228,24 @@ Each public document emits one `component=leaf-startup` record from the inline
 bootstrap, including when the module graph fails. It identifies the route, release,
 browser family and major version, platform, and navigation type. `serverMs`,
 `firstByteMs`, `firstContentfulPaintMs`, and `presentedMs` separate Worker, network,
-browser paint, and Leaf startup time. The payload contains no page content, URL details,
-cookies, IP addresses, or private session id. Filter Observability by the public session
-reference, route, browser, or `loadId`.
+browser paint, and Leaf startup time. `outcome` says how the load ended, not how far it
+got: `presented` where the page came up and the document went on to finish loading,
+`failed` where the page declared it could not start, `timeout` where fifteen seconds
+passed without either, and `abandoned` where the reader left first. A page that comes up
+and then stalls on a subresource reports `timeout`, and one the reader leaves in that
+window reports `abandoned`, both with `presentedMs` set — so `presentedMs` is what says
+whether the page came up, and `outcome` is what says how the record was closed. A startup fault adds `reason`, at most 300 characters, and it
+rides on whichever of those the load reached — the entry module, the theme, the message
+and source position of a script that threw before presentation, or what the runtime said
+when it reported it could not start. A page that recovers and presents still carries it,
+which is the reading that finds a fault nobody here can reproduce; these records come
+from browsers this repository cannot run. Apart from that reason the payload contains no
+page content, URL details, cookies, IP addresses, or private session id, and the reason
+itself is the runtime's own words and the release-addressed script they came from, not
+anything the reader wrote — though an exception thrown while handling a value can quote
+it, so treat the field as the page's words rather than as certainly none of the
+reader's. Filter Observability by the public session reference, route, browser, or
+`loadId`.
 
 The deployed site answers that beacon at the edge, so the container never sees it. A site
 served straight from `server.py` — the test suite, a local preview — has no edge in front

@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import time
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -48,6 +49,7 @@ from render_harness import (
     open_page,
     select,
     sending,
+    take_browser_errors,
 )
 
 ROOT = Path(__file__).parent.parent
@@ -649,6 +651,134 @@ def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, brow
     assert page.evaluate("() => window.__leafStartupFailures") == 1
     # The mismatch this planted is what the page says on the console too.
     consume_browser_errors(page, "belong to different layers")
+
+
+def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, browser):
+    """A document whose release is gone asks for a newer one once, not in a loop.
+
+    Nothing this document names can load once its release is gone, so recovery has to
+    go and get another document. Where what answers is a copy of the same one — an edge
+    or intermediary cache, a reader offline — asking again lands on that same copy, and
+    the page asked for it as fast as the network could carry it. The count is the
+    assertion: one replacement, then the probe's own cadence.
+    """
+    _, url = served_example("triage-board")
+    page = browser.new_page()
+    documents = []
+
+    def answer(route):
+        request = route.request
+        if request.resource_type == "document":
+            documents.append(request.url)
+            route.continue_()
+        else:
+            route.fulfill(status=404, content_type="text/plain", body="")
+
+    # The entry module and the probe are the release's own two addresses: one says the
+    # page cannot start, the other says the release it belongs to is no longer served.
+    page.route("**/leaf.js", answer)
+    page.route("**/registry.json", answer)
+    page.route(url, answer)
+    page.route(url + "?*", answer)
+    page.goto(url, wait_until="load")
+    banner = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    expect(banner).to_be_visible()
+    # The probe answers every second, so this window holds several rounds of the loop
+    # this test is about.
+    page.wait_for_timeout(4000)
+    assert len(documents) == 2, documents
+    assert "_leaf-recovered" in documents[1], documents
+    # The mark is the runtime's own and does not stay in front of the reader.
+    assert "_leaf-recovered" not in page.evaluate("location.href")
+    expect(banner).to_be_visible()
+    consume_browser_errors(page, "404", "Failed to load resource", "error loading")
+
+
+def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
+    served_example, browser
+):
+    """A fault the page recovers from leaves the reader a working page, not a notice.
+
+    The supervisor's notice says the page has not started. A page that loses something
+    on the way up and presents anyway has started, so a reader who is using the page
+    would otherwise be reading that Leaf could not start, over a probe request a second
+    that no answer ends. The record keeps the fault instead.
+    """
+    _, url = served_example("triage-board")
+    page = browser.new_page()
+    # One uncaught error before presentation, which is every startup fault this
+    # supervisor watches for that the page can still come up without.
+    page.add_init_script("setTimeout(() => { throw new Error('planted fault'); }, 50);")
+    probes = []
+    page.on("request", lambda request: probes.append(request.url))
+
+    page.goto(url, wait_until="load")
+    notice = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(notice).to_have_count(0)
+    expect(page.locator("#lf-banner .lf-threads-toggle")).to_be_visible()
+
+    # The probe stops with it: a page that started has nothing left to ask the source.
+    before = sum("registry.json" in probe for probe in probes)
+    page.wait_for_timeout(3000)
+    assert sum("registry.json" in probe for probe in probes) == before
+    consume_browser_errors(page, "planted fault")
+
+
+def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, browser):
+    """The round that was already asking when the page came up does not navigate it.
+
+    A probe round begins at the fault and ends whenever the source answers, which can
+    be after the page has presented. By then the reader is using the page, so what that
+    round learned is no longer worth a navigation: it would take a working page out
+    from under them.
+
+    Both halves are planted, because the two the page would produce cannot be ordered
+    against each other here: the supervisor's probe and the runtime's own widget read
+    are the same address, so holding one holds the other and nothing presents. The
+    fault and `data-lf-presented` are the supervisor's two inputs, and the test lands
+    the second one while its first round is still asking.
+    """
+    _, url = served_example("triage-board")
+    page = browser.new_page()
+    page.add_init_script(
+        """
+        setTimeout(() => { throw new Error('planted fault'); }, 10);
+        setTimeout(() => document.body?.setAttribute('data-lf-presented', '1'), 600);
+        """
+    )
+    documents = []
+    page.on(
+        "request",
+        lambda request: (
+            documents.append(request.url)
+            if request.resource_type == "document"
+            else None
+        ),
+    )
+    held = []
+
+    def hold_the_first_round(route):
+        if held:
+            route.continue_()
+            return
+        held.append(route.request.url)
+        # Answered well past that attribute, as a release that has rolled past — the
+        # answer that would otherwise replace the document.
+        time.sleep(2)
+        route.fulfill(status=404, content_type="text/plain", body="")
+
+    page.route("**/registry.json", hold_the_first_round)
+    page.goto(url, wait_until="domcontentloaded")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.wait_for_timeout(4000)
+
+    assert held, "the supervisor never asked the probe"
+    assert len(documents) == 1, documents
+    expect(
+        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    ).to_have_count(0)
+    take_browser_errors(page)
 
 
 def test_session_activation_reaches_other_tabs(served_example, browser):

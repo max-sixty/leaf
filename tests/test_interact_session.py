@@ -6651,14 +6651,14 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     page = tmp_path / "concurrent-page"
     reached_layer = threading.Event()
     resume = threading.Event()
-    original_composed_theme = layer_model.composed_theme
+    original_composed_sheets = layer_model.composed_sheets
 
-    def held_composed_theme(sources):
+    def held_composed_sheets(sources):
         reached_layer.set()
         assert resume.wait(timeout=10), "the concurrent init never released its peer"
-        return original_composed_theme(sources)
+        return original_composed_sheets(sources)
 
-    monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
+    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
@@ -7352,6 +7352,35 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     record_claim(claimed, id="s2")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
+
+
+def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
+    claimed, tmp_path, capsys
+):
+    """Each page states its own debt; the protocol they share is stated once.
+
+    Every debt used to carry the whole protocol with it, so a session holding
+    three pages that owed the same thing spent three copies of the same ninety
+    words saying so — most of what the blocking message weighed, and all of it
+    between one page's line and the next.
+    """
+    second = tmp_path / "second-page"
+    shutil.copytree(claimed, second)
+    assert service_model.claim_page(second)
+    for page in (claimed, second):
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "look at this"}
+        )
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
+
+    assert str(claimed) in reason and str(second) in reason
+    assert reason.count("you haven't picked up") == 2
+    assert reason.count(schema_model.ACK_BATCH_INSTRUCTION) == 1
+    # The lines stand together, so the reader reaches every page before the
+    # first protocol rather than one page per protocol.
+    assert reason.index(str(second)) < reason.index(schema_model.ACK_BATCH_INSTRUCTION)
 
 
 def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys):

@@ -11,6 +11,7 @@ export function createStanding({
   paintGoToHints,
   paintTargetChooserHints,
   paintCoreControls,
+  paintVersionShortcuts,
   paintInputs,
 }) {
   // Content whose resulting boxes chrome layout must measure.
@@ -39,6 +40,7 @@ export function createStanding({
     paintGoToHints();
     paintTargetChooserHints();
     paintCoreControls();
+    paintVersionShortcuts();
     paintInputs();
   }
 

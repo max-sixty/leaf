@@ -326,7 +326,7 @@ def build_floating_ui(work: Path) -> list[Path]:
         cwd=work,
     )
     (work / "entry.mjs").write_text(
-        "export { autoUpdate, computePosition, flip, hide, offset, shift, size } "
+        "export { autoUpdate, computePosition, flip, offset, shift, size } "
         'from "@floating-ui/dom";\n',
         encoding="utf-8",
     )

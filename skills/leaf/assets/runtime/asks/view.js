@@ -140,6 +140,7 @@ import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { ASK_AT } from "./tray-list.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
+import { pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainReaderIntent } from "../reader-intent.js";
 import {
@@ -269,8 +270,9 @@ export function createAskView({
       });
     });
   }
-  // The banner's reading of that one list. Every semantic publication refreshes it:
-  // that is where both the fold and a send whose optimism was taken back change.
+  // The banner's reading of that one list. Every semantic publication refreshes it,
+  // and a publication is where the server's Ask reading changes, so a send moves
+  // these counts once the state its POST returns has been adopted.
   let shortcutsOffered = false;
   let rowWalkOffered = false;
   const ANSWER_CAP = 120;
@@ -1195,6 +1197,29 @@ export function createAskView({
     lend(null);
   }
 
+  pageCommand(actionRow);
+  pageCommand({
+    id: "ask.walk",
+    keys: ["a", "Shift+a"],
+    routes: [
+      {
+        id: "ask.next",
+        binding: "a",
+        does: "Next ask this page is waiting on you for",
+      },
+      {
+        id: "ask.previous",
+        binding: "Shift+a",
+        does: "Previous ask this page is waiting on you for",
+      },
+    ],
+    does: "Next / previous ask this page is waiting on you for",
+    line: "asks",
+    when: () => openAsks().length > 0,
+    repeat: true,
+    run: (binding) => stepAsk(binding === "a" ? 1 : -1),
+  });
+
   return {
     mount,
     destroy,
@@ -1203,7 +1228,6 @@ export function createAskView({
     standsWith,
     askPlace,
     standingIn,
-    actionRow,
     markHere,
     goToAsk,
     stepAsk,

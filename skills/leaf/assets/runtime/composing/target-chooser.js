@@ -33,7 +33,11 @@ import {
 import { announce } from "../notifications.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
-import { allButCommandReference } from "../keyboard/register.js";
+import {
+  allButCommandReference,
+  pageCommand,
+  pageScope,
+} from "../keyboard/register.js";
 
 // The target chooser and page search have separate faces. Hints and the active search result are paint only;
 // the search box is a real control, kept beside them so its focus and accessible name are
@@ -69,7 +73,8 @@ pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 // one containment chain stay at the same depth and the shared placement pass separates
 // their chips. Both the seat and that step are read off one box per paint, which is why
 // the reading here is a member's whole box rather than the corner the Go-to map hangs a
-// chip on; a member the bottom chrome's lane covers has no box left and leaves the map.
+// chip on. What either of them is left with once chrome is out of the way is one answer,
+// in key-badge-placement.js.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
 // page or from the visible target hints. Tab walks repeated occurrences and Enter makes a
@@ -107,16 +112,6 @@ export function createTargetChooser({
   // over their common ancestors are walked once, and admission, exposure, and paint read
   // the same boxes.
   const room = keyBadgePlacement;
-  // A fixed sheet can cover a page box without clipping it. Hints live above the chrome,
-  // so geometry alone would put a key on the thread panel for a card hidden behind it.
-  // Ask the rendered stack at the hint's corner; pointer-events:none keeps an existing
-  // hint from answering this question itself.
-  const exposed = (box) => {
-    if (!box) return false;
-    const x = Math.max(0, Math.min(innerWidth - 1, box.left + 1));
-    const y = Math.max(chromeTop(), Math.min(innerHeight - 1, box.top + 1));
-    return !inChrome(document.elementFromPoint(x, y));
-  };
   // Chromium retains geometry for descendants suppressed by a closed disclosure. Ask
   // visibility before geometry so those descendants cost no box reads. A display: contents
   // addressable has no box of its own and stays eligible through a visible child.
@@ -131,7 +126,7 @@ export function createTargetChooser({
     return (
       [...range.getClientRects()]
         .map((box) => reading.clearPart(box, clip))
-        .find(exposed) ?? null
+        .find((part) => reading.exposes(null, part)) ?? null
     );
   }
 
@@ -150,7 +145,7 @@ export function createTargetChooser({
         ...target,
         rect: reading.visibleBounds(target.element),
       }))
-      .filter(({ rect }) => exposed(rect))
+      .filter(({ element, rect }) => reading.exposes(element, rect))
       .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
     // Direct aiming chooses the innermost stable addressable under the pointer. When an
     // ancestor and descendant paint the same visible box, naming both would offer two
@@ -173,6 +168,14 @@ export function createTargetChooser({
   // paint. Two corners in the same place would name two different targets, so each
   // enclosed chip steps right once per box around it. Strictly larger in one dimension,
   // because an equal box is the same place rather than a box around it.
+  //
+  // TODO(2026-09-18): seat these chips outside their member's box. A nested member's
+  // corner is where its own state icon and first word are, so a chip standing there
+  // covers them; `HINT_INDENT` is half a chip wide, so one level of nesting does not
+  // clear the parent's chip either, and the placement pass then separates the two
+  // downwards onto the member's first line. Widening the step only trades the icon for
+  // the words. The left margin, where a top-level member's chip already sits, is clear
+  // of both.
   const enclosedBy = (box, boxes) =>
     boxes.filter(
       (outer) =>
@@ -464,7 +467,7 @@ export function createTargetChooser({
           target,
           targetShown(target) ? reading.visibleBounds(target.element) : null,
         ])
-        .filter(([, rect]) => exposed(rect));
+        .filter(([target, rect]) => reading.exposes(target.element, rect));
       const boxes = seated.map(([, rect]) => rect);
       const top = chromeTop();
       return seated.map(([target, rect]) => {
@@ -497,7 +500,6 @@ export function createTargetChooser({
       all: "All target hints.",
     },
     chrome: hintChrome,
-    followsScroll: true,
   });
 
   function paintSearchMatches() {
@@ -509,7 +511,7 @@ export function createTargetChooser({
     if (clip)
       for (const [index, box] of [...rangeOf(segments).getClientRects()].entries()) {
         const rect = reading.clearPart(box, clip);
-        if (!exposed(rect)) continue;
+        if (!reading.exposes(null, rect)) continue;
         plans.push({
           key: matchRenderKey(
             matchIdentity(pageSearchInput.value.trim(), segments),
@@ -711,13 +713,28 @@ export function createTargetChooser({
     addEventListener("resize", followMatch);
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
+  pageScope("page search", PAGE_SEARCH_SCOPE);
+  pageScope("target chooser", TARGET_CHOOSER_SCOPE);
+  // The page itself is already a Comment target; `s` plus a hint names a more particular
+  // one. Either route opens Comment, while reactions wait for a target.
+  pageCommand({
+    id: "target.chooser.open",
+    keys: ["s"],
+    does: "Comment on a visible target by hint",
+    line: "comment on target",
+    // Once the field is open, its typing scope owns character keys. This gate also keeps
+    // the route off the short line while a target is in hand.
+    lineWhen: () => !Boolean(fabAnchorAt()),
+    when: anchoringIsReady,
+    run: (...args) => openTargetChooser(...args),
+  });
+  // Search remains one press from the shelf and named in full by the reference.
+  pageCommand(PAGE_SEARCH);
+  pageCommand(REPEAT_PAGE_SEARCH);
+
   return {
     visibleTargets,
     paintTargetChooserHints,
-    PAGE_SEARCH,
-    REPEAT_PAGE_SEARCH,
-    TARGET_CHOOSER_SCOPE,
-    PAGE_SEARCH_SCOPE,
     targetChooserOpen,
     openTargetChooser,
     closeTargetChooser,

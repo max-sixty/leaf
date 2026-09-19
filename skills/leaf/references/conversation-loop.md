@@ -16,8 +16,8 @@ The reader follows your work on the page:
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf version stamp` |
 | Request | the outcome of a request the reader made | `leaf receipt` |
 
-Leaf itself marks each reader move **Sent**, **Queued**, and **Picked up**, and a Codex
-App Server shows its current tool step in the banner. Chat stays in the host and never
+Leaf itself marks each reader move **Sent**, **Queued**, and **Picked up**. Your host
+contract may add its own current step to the banner. Chat stays in the host and never
 reaches the page.
 
 ## When to write
@@ -75,8 +75,8 @@ widget with neither an unsettled action receipt nor an active `x-work` seat; use
 the page-wide detail when neither admits a local claim.
 
 An inline delivery advances each included reader move to **Picked up** and the page
-to **handling** when it enters this turn. A queued Codex pointer remains **Queued**;
-reading its envelope does not prove an App Server turn opened it.
+to **handling** when it enters this turn. A queued pointer remains **Queued** until your
+host contract's own confirmation step opens it; reading its envelope alone does not.
 
 UI feedback is the first operation for every delivery:
 
@@ -103,10 +103,9 @@ fold continues to report the stronger exact handling evidence.
 
 ## Long-running work
 
-New reader input reaches you only between your own operations: in Claude Code at the
-next tool result, and in Codex once the current turn ends. A long foreground
-operation, such as a test suite or a subagent you wait on, leaves the reader's comment
-unanswered for its whole length.
+New reader input reaches you only between your own operations; your host contract
+names exactly when. A long foreground operation, such as a test suite or a subagent
+you wait on, leaves the reader's comment unanswered for its whole length.
 
 For work that will run longer than a few minutes, coordinate it rather than perform
 it. Hand the reading, editing, and testing to background subagents or background

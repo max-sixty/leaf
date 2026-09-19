@@ -307,7 +307,7 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": root,
             "revision": 1,
             "text": "\n\n".join(
@@ -1001,7 +1001,7 @@ def test_command_hub_exercises_request_failure_retry_and_success(browser, serve)
         serve.page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": request["id"],
             "status": "failed",
             "text": "The branch is protected by another review",
@@ -1024,7 +1024,7 @@ def test_command_hub_exercises_request_failure_retry_and_success(browser, serve)
         serve.page_dir,
         {
             "kind": "receipt",
-            "author": "claude",
+            "author": "agent",
             "request": retried["id"],
             "status": "succeeded",
             "text": "Started a fresh worker",
@@ -1200,9 +1200,13 @@ def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve
     )
     assert geometry["box"]["left"] >= 0, geometry
     assert geometry["box"]["right"] <= geometry["viewport"]["width"], geometry
+    # The card stands beside the header's docked cluster, above the body it would have
+    # been clamped into had the body been its boundary.
     assert (
         geometry["box"]["left"] < geometry["pane"]["left"]
         or geometry["box"]["right"] > geometry["pane"]["right"]
+        or geometry["box"]["top"] < geometry["pane"]["top"]
+        or geometry["box"]["bottom"] > geometry["pane"]["bottom"]
     ), geometry
 
 
@@ -2157,7 +2161,7 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
         serve.page_dir,
         {
             "kind": "reply",
-            "author": "claude",
+            "author": "agent",
             "parent": root,
             "revision": 1,
             "text": "\n\n".join(
@@ -2684,7 +2688,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             serve.page_dir,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "parent": root,
                 "revision": 1,
                 "text": "\n\n".join(
@@ -3852,6 +3856,78 @@ def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
     assert len(piles["drawn"]) == 5, piles
     page.keyboard.type(address_code(page, "Link", "fn1"))
     page.wait_for_url(re.compile(r"#s1$"))
+
+
+def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
+    """A map that blanked while the page moved would take the codes off the screen the
+    reader is reading them from, though every one of them still works: membership is
+    frozen for the length of the scroll either way, so nothing is gained by hiding it.
+    The chips ride with the things they name instead, in both maps, dropping out one by
+    one as their members leave the screen."""
+    links = "".join(
+        f'<p><a id="lk{i}" href="#top">Link number {i} on a dense page</a></p>'
+        for i in range(120)
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("dense links", f'<h1 id="top">Dense</h1>{links}')),
+    )
+    resized(page, 1280, 900)
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    # Longer than the session's settle, so the map has stood still and the reader has had
+    # the chance to read it. A map armed into a page already moving is a different case,
+    # covered by test_inflight_native_paging_hides_hints_until_the_scene_settles.
+    page.wait_for_timeout(200)
+
+    # A smooth scroll is the case that holds the session in motion: a programmatic step
+    # ends in its own frame, and Chrome sends `scrollend` for each one.
+    travel = page.evaluate(
+        """async () => {
+          const sel = '.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]';
+          // A chip whose target sits well inside the room, so neither reading is held
+          // against the banner at one end or the window's foot at the other.
+          const code = [...document.querySelectorAll(sel)]
+            .map(chip => chip.dataset.lfGoToTarget)
+            .find(id => {
+              const top = document.querySelector('#' + id).getBoundingClientRect().top;
+              return top > 300 && top < 500;
+            });
+          const chipTop = () => {
+            const chip = document.querySelector(
+              `.lf-go-to-hint[data-lf-go-to-target="${code}"]`);
+            return chip ? chip.getBoundingClientRect().top : null;
+          };
+          const targetTop = () =>
+            document.querySelector('#' + code).getBoundingClientRect().top;
+          const before = {chip: chipTop(), target: targetTop()};
+          const standing = [];
+          document.scrollingElement.scrollTo({top: 260, behavior: 'smooth'});
+          for (let frame = 0; frame < 8; frame++) {
+            // After the frame's own callbacks, not inside one: a reading taken from a
+            // callback registered a frame earlier is queued ahead of the runtime's
+            // repaint, and reads the chip where the last frame put it against a target
+            // already at this frame's offset — one frame's travel of pure measurement.
+            await new Promise(painted =>
+              requestAnimationFrame(() => setTimeout(painted, 0)));
+            if (frame >= 3)
+              standing.push({
+                chips: document.querySelectorAll(sel).length,
+                gap: chipTop() === null ? null : targetTop() - chipTop(),
+              });
+          }
+          return {before, standing};
+        }"""
+    )
+
+    assert travel["before"]["chip"] is not None, travel
+    blank = [seen for seen in travel["standing"] if not seen["chips"]]
+    assert not blank, f"the map blanked while the page was still moving: {travel}"
+    # The chip keeps the offset it had at rest, to the pixel, every frame of the way.
+    resting = travel["before"]["target"] - travel["before"]["chip"]
+    assert all(abs(seen["gap"] - resting) < 2 for seen in travel["standing"]), (
+        f"a chip came off the target it names while the page moved: {travel}"
+    )
 
 
 def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
@@ -5827,7 +5903,7 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
         {
             "kind": "comment",
             "id": "c-diff",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "The patch, for the record.",
             "markup": '<lf-diff id="msg-diff"><pre>'
@@ -6177,9 +6253,37 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
     expect(line).to_contain_text("dismiss conversation")
+    # The reference names the ladder once. Inside the preview the reader is in the chrome,
+    # so the innermost step that still holds is backing out onto the page.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    way_out = help_el.locator('tr[data-lf-command="navigation.back"]')
+    expect(way_out).to_have_count(1)
+    expect(way_out).to_contain_text("Back out onto the page")
+    # Out of the reference, then the shelf it was opened from, and the card is back under
+    # the reader with its own dismissal the next press.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
+    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
+    expect(line).to_contain_text("dismiss conversation")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+    # And the state the one row is for: standing on a mark out on the page, where letting
+    # go and backing onto the page both hold. The reference still names the innermost once,
+    # rather than listing every step whose own condition is true.
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-mark-note")).to_be_focused()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    standing_out = help_el.locator('tr[data-lf-command="navigation.back"]')
+    expect(standing_out).to_have_count(1)
+    expect(standing_out).to_contain_text("Let go of what you are standing on")
 
 
 def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
@@ -7501,7 +7605,7 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "claude",
+            "author": "agent",
             "revision": 1,
             "text": "And one for you in here.",
             "markup": '<lf-ask id="reply-decision"><h3>Which baffle?</h3>'
@@ -8904,7 +9008,7 @@ def test_r_resolves_a_thread_from_wherever_the_reader_stands_in_it(browser, serv
             d,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "agent": "Claude",
                 "parent": root,
                 "revision": 1,
@@ -8936,7 +9040,7 @@ def test_r_resolves_a_thread_from_wherever_the_reader_stands_in_it(browser, serv
     expect(card(0)).to_be_focused()
 
     # A pointer on the reply's words stands the reader on the message, not the card.
-    message = card(0).locator(".lf-msg.claude")
+    message = card(0).locator(".lf-msg.agent")
     message.locator(".lf-msg-head").click()
     expect(message).to_be_focused()
     assert "resolve" in shortcut_bar_text(page)
@@ -9230,7 +9334,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             d,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "parent": root,
                 "text": "Sealing is an afternoon.",
@@ -9374,7 +9478,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
             d,
             {
                 "kind": "reply",
-                "author": "claude",
+                "author": "agent",
                 "revision": 1,
                 "parent": said[-1],
                 "text": "Noted.",

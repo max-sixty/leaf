@@ -56,6 +56,7 @@ from .schema import (
     KEY_COOKIE,
     NO_KEY,
     SERVED_PATH,
+    VENDORED_FILES,
     VIEWED_FILE,
 )
 from .served_state import reading as served_reading
@@ -105,25 +106,21 @@ def _query_int(raw, name: str, minimum: int) -> int:
     return value
 
 
-_ROOTED_SCRIPT_ROUTE = re.compile(
-    rb'(?P<before>["\'`])/(?P<path>'
-    rb"(?:api|page|runtime|widgets|vendor|media)/|"
-    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
-    rb")"
+# A rooted path the page's own layer answers: its directories and its vendored files.
+# A page served under a prefix has these rebased onto it wherever a script, a
+# stylesheet or an attribute names one, so the list is the vendoring contract's.
+_ROOTED_PATH = (
+    rb"(?:api|page|runtime|widgets|vendor|media)/|(?:"
+    + b"|".join(re.escape(name.encode()) for name in VENDORED_FILES)
+    + rb")"
 )
+_ROOTED_SCRIPT_ROUTE = re.compile(rb'(?P<before>["\'`])/(?P<path>' + _ROOTED_PATH + rb")")
 _ROOTED_STYLESHEET_ROUTE = re.compile(
-    rb'(?P<before>["\'`(])/(?P<path>'
-    rb"(?:api|page|runtime|widgets|vendor|media)/|"
-    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
-    rb")"
+    rb'(?P<before>["\'`(])/(?P<path>' + _ROOTED_PATH + rb")"
 )
 
 _ROOTED_PAGE_ATTRIBUTE = re.compile(
-    rb'(?P<before>=\s*["\'])/(?P<path>'
-    rb"(?:api|page|runtime|widgets|vendor|media)/|"
-    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
-    rb")",
-    re.IGNORECASE,
+    rb'(?P<before>=\s*["\'])/(?P<path>' + _ROOTED_PATH + rb")", re.IGNORECASE
 )
 _HTML_START_TAG = re.compile(rb"<[A-Za-z](?:[^<>\"']|\"[^\"]*\"|'[^']*')*>", re.DOTALL)
 _STYLE_ATTRIBUTE = re.compile(

@@ -55,6 +55,7 @@ from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import take_waiter_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
+from leaf.schema import VENDORED_FILES
 from leaf.served_state.page import full_state
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
@@ -90,7 +91,7 @@ SITE_ORIGIN = "https://leaf.page"
 SITE_NAME = "leaf"
 PAGE_RESOURCE = re.compile(
     r"^/(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:/|$)"
-    r"|^/(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$"
+    rf"|^/(?:{'|'.join(map(re.escape, (*VENDORED_FILES, 'sitenote.js')))})$"
 )
 AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 # A healthy App Server stream is quiet between items, so a running turn says nothing

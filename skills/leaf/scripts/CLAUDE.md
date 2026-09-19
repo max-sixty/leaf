@@ -52,12 +52,13 @@ The main owners are:
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
-- `codex`: the Codex App Server connection every carrier speaks, its activity and
-  final-answer readings, the page writers those readings reach a reader through, and
-  the durable delivery records a carrier prepares, accepts, opens, and abandons;
+- `codex`: the Codex App Server connection every carrier speaks, the turn each one
+  carries on the connection that started it, its activity and final-answer readings,
+  the page writers those readings reach a reader through, and the durable delivery
+  records a carrier prepares, accepts, opens, and abandons;
 - `codex_adapter`: the detached carrier behind `leaf codex start` — its observing App
-  Server client, its `codex queue` fallback, page receipts, adapter leases, and the
-  private App Server terminal launcher;
+  Server client, the turns it carries for that task, its `codex queue` fallback, page
+  receipts, adapter leases, and the private App Server terminal launcher;
 - `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only
   snapshot fallback;
 - `presence`: page, claim, and neighboring-leaf presence readings;

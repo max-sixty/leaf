@@ -154,21 +154,33 @@ class DeliveryReply:
         state: str,
         completed_text: str | None = None,
     ) -> BaseException | None:
-        """Commit only a completed final, retaining rejected or partial text."""
-        if state == "completed" and completed_text:
-            try:
-                self._commit(completed_text)
-            except (OSError, RuntimeError, SystemExit, ValueError) as error:
-                self._set_state("failed", completed_text)
-                self._release_binding()
-                return error
+        """Commit only a completed final, retaining rejected or partial text.
+
+        The binding is given up on every way out but a commit, which clears it in
+        the transaction that appends the reply. That includes the ways out that
+        raise: recording the draft's last state re-reads a page the turn's own work
+        may have left unopenable, and a binding left standing refuses every other
+        writer the delivery's move — the carrier's receipt that no answer is coming
+        among them — until the claim itself goes.
+        """
+        committed = False
+        try:
+            if state == "completed" and completed_text:
+                try:
+                    self._commit(completed_text)
+                    committed = True
+                    return None
+                except (OSError, RuntimeError, SystemExit, ValueError) as error:
+                    self._set_state("failed", completed_text)
+                    return error
+            self._set_state(
+                state if state != "completed" else "partial",
+                self.text,
+            )
             return None
-        self._set_state(
-            state if state != "completed" else "partial",
-            self.text,
-        )
-        self._release_binding()
-        return None
+        finally:
+            if not committed:
+                self._release_binding()
 
     def disconnect(self) -> None:
         """Keep partial text visible while its provider connection recovers."""

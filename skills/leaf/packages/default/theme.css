@@ -2221,6 +2221,10 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
    UA-clearing and the chrome face .lf-ui would otherwise put on it. */
 .lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
            font: inherit; min-height: 0; max-height: none; overflow: hidden; }
+/* The editor is a field, so on a touch screen it stands on --entry-floor (shadow.css);
+   the box holds its shown words on the same floor, or a draft in a 14px sidenote opens a
+   size larger than the words it showed. */
+lf-draft { font-size: max(var(--entry-floor), 1em); }
 .lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
            --lf-here-ring: none; }
 .lf-draft-history { display: none; }

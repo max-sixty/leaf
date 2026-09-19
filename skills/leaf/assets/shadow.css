@@ -135,6 +135,17 @@
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); min-width: var(--aim-floor); }
+/* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
+   the page onto a text field set under 16px as the field takes focus, and leaves the page
+   zoomed once it is done: tapping the comment field jumped the view, then left the reader
+   panning sideways across a page wider than the screen. The zoom answers the field's
+   computed size, so the floor outranks every face a field is given — the layer's own
+   13px find box and 14px response field among them — and 1em keeps a field no smaller
+   than the type around it. The query gates the rule rather than leaving it to the token,
+   because at a zero floor the rule would still pull every field to its surroundings. */
+@media (pointer: coarse) {
+  :is(input, textarea, select) { font-size: max(var(--entry-floor), 1em) !important; }
+}
 /* The shared boxes of a registry-declared widget conversation. The widget places it.
    The same Thread view may be seated inside an x-thread-surface shadow tree, so this
    whole vocabulary is in this file. */

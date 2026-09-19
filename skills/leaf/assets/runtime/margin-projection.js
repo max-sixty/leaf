@@ -125,18 +125,31 @@ import { anchorLabel } from "./conversation/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
+import { bannerControlDoor } from "./banner-shelf.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 
 // Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
 // posture on `main` where it claims the rail, and this reads that answer rather than
 // deriving one of its own from a width. It resolves a container query, so a read after a
-// write forces layout; renderNow reads it once, before its writes.
-const railStands = () => {
+// write forces layout, and the layout pass calls it from inside its write loops, once
+// per row. So the answer is read once per task and reused: a pass is synchronous, and
+// nothing it writes can change the reading, since the claim comes out of `main`'s room
+// inside the shell while the container answers on the shell itself. The microtask that
+// clears it runs before anything outside the pass can ask.
+const readRailPosture = () => {
   const main = document.querySelector("main");
   return (
     Boolean(main) &&
     getComputedStyle(main).getPropertyValue("--lf-rail-posture").trim() === "margin"
   );
+};
+let railReading = null;
+const railStands = () => {
+  if (railReading === null) {
+    railReading = readRailPosture();
+    queueMicrotask(() => (railReading = null));
+  }
+  return railReading;
 };
 
 export function createMarginProjection({
@@ -318,24 +331,33 @@ export function createMarginProjection({
   // the control holding it, and the browser takes focus off a hidden element itself,
   // onto body — sometimes before this owner hears that the shell moved and sometimes
   // after, since what decides it is whether the focus fixup lands before the resize
-  // observation. Measured on the reading this replaces, a held marker reached the Page
-  // Map on four of five narrowings and body on the fifth. A blur to nothing writes
-  // nothing here, so this reading survives the hide and the handoff stops being a race.
+  // observation. Measured on the live reading alone, a held marker reached the Page Map
+  // on four of five narrowings and body on the fifth. A blur to nothing writes nothing
+  // here, so the remembered reading survives the hide.
   let marginHeld = false;
+  const holdsMargin = () =>
+    toolbar.contains(document.activeElement) ||
+    preview.contains(document.activeElement);
   document.addEventListener(
     "focusin",
     () => {
-      marginHeld =
-        toolbar.contains(document.activeElement) ||
-        preview.contains(document.activeElement);
+      marginHeld = holdsMargin();
     },
     { capture: true },
   );
 
   function changePosture(stands) {
     if (!stands && preview.matches(":popover-open")) closePreview();
-    if (!stands && marginHeld) requestAnimationFrame(() => focusMapControl());
-    requestAnimationFrame(() => renderMargin.refresh());
+    // Both orderings answer: where the fixup has not landed the live reading holds, and
+    // where it has, the remembered one does. Requiring body of the remembered reading
+    // bounds the handoff to the hide — a reader who left the margin some other way,
+    // with no `focusin` to land anywhere, keeps wherever they went.
+    if (
+      !stands &&
+      (holdsMargin() || (marginHeld && document.activeElement === document.body))
+    )
+      requestAnimationFrame(() => focusMapControl());
+    schedulePostureRender();
   }
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = "lf-margin-preview";
@@ -1574,14 +1596,19 @@ export function createMarginProjection({
       marker.focus({ preventScroll: true });
       return;
     }
-    if (mapButton.isConnected && mapButton.checkVisibility()) {
-      mapButton.focus({ preventScroll: true });
+    // The Map is a shelf control, so at a width that folds it the button itself is
+    // behind a shut door and cannot take focus. Ask the shelf for the way in.
+    const door = bannerControlDoor(mapButton);
+    if (door) {
+      door.focus({ preventScroll: true });
       return;
     }
     const visible = visibleRows();
-    (visible.find((row) => row.tabIndex === 0) ?? visible[0] ?? versionBtn).focus({
-      preventScroll: true,
-    });
+    const last =
+      visible.find((row) => row.tabIndex === 0) ??
+      visible[0] ??
+      bannerControlDoor(versionBtn);
+    last?.focus({ preventScroll: true });
   }
 
   // The rail holds one tab stop: the way in from the page, not the reading position,

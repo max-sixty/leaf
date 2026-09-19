@@ -333,6 +333,17 @@ overflowMenu.addEventListener("lf-reveal", () => {
   if (!overflowMenu.matches(":popover-open")) overflowMenu.showPopover();
 });
 
+// The node a reader can actually put focus on to reach this control: the control
+// itself while it stands on the row, and otherwise the More door holding it. A folded
+// control fails `checkVisibility()` inside a shut popover, and `focus()` on it is a
+// no-op, so a caller that hands the reader somewhere has to ask this rather than the
+// control. Null means the shelf offers no way in, which happens only off the banner.
+export function bannerControlDoor(control) {
+  if (control.isConnected && control.checkVisibility()) return control;
+  const menu = control.closest(".lf-banner-menu");
+  return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
+}
+
 export function focusBannerControl(control) {
   const menu = control.closest("[popover]");
   if (menu && !menu.matches(":popover-open")) menu.showPopover();

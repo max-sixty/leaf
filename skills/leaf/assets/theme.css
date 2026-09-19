@@ -1717,9 +1717,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * it (margin-projection.js) and a copy's dock rule below asks it, so neither derives the
  * posture again from a width. The rail itself needs 827 — the column (720), its padding
  * (2 x 24) and the claim (59), or 839 where a finger raises the marker to the aim floor —
- * and 840 is where the banner folds and offers the Page Map (chrome.css), so with no strip
- * taken the page goes compact at one width, less a classic scrollbar's gutter, since those
- * ask the window. This asks `lf-shell` because the rail is drawn in the shell, and a panel
+ * and 840 is also where the banner folds, which asks the window, so with no strip taken
+ * the page goes compact at one width, less a classic scrollbar's gutter. The Page Map the
+ * folded banner then offers asks this floor of this box (chrome.css), so a panel that
+ * takes the markers away hands the reader the map in their place. This asks `lf-shell` because the rail is drawn in the shell, and a panel
  * standing beside takes its room as surely as a narrow window does. Asking the window read
  * a room the page did not have: with the panel beside it a 900px window is a 480px shell,
  * the claim still spent 59 of them, and that left a 373px column with every marker flush

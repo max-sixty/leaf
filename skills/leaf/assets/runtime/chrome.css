@@ -1576,13 +1576,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
     }
   }
-  /* The sheet the Map opens in stands over the whole window and is sized to it, so its
-     compact shape asks the window, at the width the banner folds. */
-  @media (width <= 840px) {
-    .lf-page-map-dialog { inset: auto 8px 8px; width: calc(100vw - 16px);
-      max-height: min(82vh, 720px); margin: 0; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
-    .lf-page-map-action { min-height: 44px; }
-  }
   @media (forced-colors: active) {
     .lf-margin-preview, .lf-page-map-dialog { border: 1px solid CanvasText; box-shadow: none; }
     .lf-page-map-action:focus-visible {
@@ -1797,6 +1790,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        above still keeps the far edge inside the phone. */
     .lf-version-menu { right: auto;
       left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
+    /* The sheet the Map opens in stands over the whole window and is sized to it, so
+       its compact shape belongs to the folded banner rather than to the rail: it asks
+       the window, and this is the block that asks it. */
+    .lf-page-map-dialog { inset: auto 8px 8px; width: calc(100vw - 16px);
+      max-height: min(82vh, 720px); margin: 0;
+      padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+    .lf-page-map-action { min-height: max(40px, var(--aim-floor)); }
   }
   /* Coarse pointers get physical room without making the mouse layout pay for it.
      Margin actions and reaction tokens remain visually compact; their boxes, panel

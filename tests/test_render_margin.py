@@ -713,6 +713,124 @@ def test_a_held_marker_hands_the_reader_to_the_page_map_when_the_rail_falls(
     expect(page.locator(".lf-page-map-toggle")).to_be_focused()
 
 
+def test_a_held_marker_reaches_a_folded_map_through_the_door_that_holds_it(
+    browser, serve
+):
+    """The Map is a banner control, so at a width that folds it the button stands behind
+    a shut door: it fails `checkVisibility()` and takes no focus. A handoff that asked
+    the button rather than the shelf left the reader on body, since by then the rail has
+    fallen and there is no margin row to fall back to either, and the Versions button the
+    last resort named can be folded away just as easily. Asking the shelf answers with
+    the door the reader can actually press."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    # The gallery docks most of its clusters even with a rail, and a docked marker is
+    # not in the rail to lose. Hold one that hangs.
+    marker = page.locator(
+        ".lf-margin-cluster:not(.lf-docked) .lf-margin-marker.lf-margin-entry:visible"
+    ).first
+    marker.focus()
+    expect(marker).to_be_focused()
+
+    resized(page, 390, 700)
+    expect(marker).to_be_hidden()
+    more = page.get_by_role("button", name="More page controls", exact=True)
+    expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
+    expect(more).to_be_focused()
+
+
+def test_a_panel_takes_the_markers_and_hands_the_reader_the_map(browser, serve):
+    """The rail is drawn in the shell, so what decides whether the margin stands is the
+    room a panel leaves rather than the room the window has. This is the case the
+    container query exists for and the one no window query can answer: the window does
+    not move, the markers go, and the Page Map arrives in their place.
+
+    1100 does both halves. The panel's 420px strip leaves a 680px shell, well under the
+    floor, while the window stays 260px clear of it — so a reading taken from the window
+    would keep drawing markers in a rail the page has no room for, which is exactly what
+    it used to do. The Map is read as offered rather than as visible, since the shelf may
+    fold it behind the More door at a width the banner is crowded at; folded or not, the
+    page is stating that the whole map is the way to what the markers held."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "A thread the margin draws a marker for.",
+        "anchor": {"section": "how-cap"},
+    }
+    page = open_page(browser, serve(PANEL_PAGE, events=[comment]))
+    offered = """() => {
+      const map = document.querySelector('.lf-page-map-toggle');
+      return Boolean(map) && !map.hidden && getComputedStyle(map).display !== 'none';
+    }"""
+    marker = page.locator(".lf-margin-marker.lf-margin-entry").first
+
+    resized(page, 1100, 900)
+    margins_laid_out(page)
+    expect(marker).to_be_visible()
+    assert not page.evaluate(offered), (
+        "a page with a rail offers the map in the margin, not in the banner"
+    )
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    margins_laid_out(page)
+    expect(marker).to_be_hidden()
+    assert page.evaluate(offered), (
+        "the panel took the rail's room at an unchanged window and the page offered "
+        "the reader nothing in its place"
+    )
+
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    margins_laid_out(page)
+    expect(marker).to_be_visible()
+    assert not page.evaluate(offered), "the room came back and the margin did not"
+
+
+def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
+    """The floor grants the rail out of the shell, so the shell has to hold what it
+    grants: the column (720), its padding (2 x 24) and the claim. A finger raises the
+    claim from 59 to 71, which puts the requirement at 839 against a floor of 840 — one
+    pixel, and until now nothing but the prose beside the rule stood behind it. So this
+    walks the shell down through the flip with the aim floor at the value a coarse
+    pointer gives it, and holds the column whole wherever the rail stands.
+
+    A floor set too low reads here as a column narrower than its measure, which is the
+    bug the floor exists to stop: the markers go flush against whatever took the room."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    page.evaluate(
+        "() => document.documentElement.style.setProperty('--aim-floor', '44px')"
+    )
+    stood = []
+    for width in range(880, 815, -5):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        reading = page.evaluate(
+            """() => {
+              const main = document.querySelector('main');
+              const style = getComputedStyle(main);
+              return {
+                posture: style.getPropertyValue('--lf-rail-posture').trim(),
+                column: Math.round(parseFloat(style.width)),
+                shell: Math.round(document.body.clientWidth),
+              };
+            }"""
+        )
+        if reading["posture"] != "margin":
+            continue
+        stood.append(reading)
+        assert reading["column"] >= 720, (
+            f"a {reading['shell']}px shell claimed the rail and left a "
+            f"{reading['column']}px column: the floor granted room the page lacks"
+        )
+    assert stood, "no width in this sweep claimed the rail, so nothing here was tested"
+    assert min(r["shell"] for r in stood) <= 850, (
+        "the sweep stopped above the flip, so the narrowest claim went untested"
+    )
+
+
 def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
     browser, serve
 ):

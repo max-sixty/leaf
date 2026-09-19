@@ -91,29 +91,40 @@ ORDER BY timestamp
 ```
 
 Leaf uses three Cloudflare tokens, one for each holder. None is stored in this
-repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used:
+repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used. The
+permissions below are Cloudflare's permission groups under the names its token API
+reports:
 
-| Token | Permissions | Held by |
+| Token | Reaches | Held by |
 | --- | --- | --- |
-| `Leaf agent administration` | `Account Analytics: Read`, `Workers Scripts: Edit`, `Workers Containers: Edit`, `Workers Tail: Read`, `Workers Observability: Edit`, and `Workers Routes: Edit` on the `leaf.page` zone | Agents on the maintainer's machine |
-| `leaf-ci-worker-deploy` | `Workers Scripts: Edit`, `Workers Containers: Edit`, `Account Settings: Read`, and `Workers Routes: Edit` on the `leaf.page` zone | `publish-site`, through the `cloudflare-deploy` environment |
-| `Leaf observability (Tend CI)` | `Account Analytics: Read`, `Workers Tail: Read`, `Workers Observability: Read` | Tend's agent, through the `tend` environment |
+| `Leaf agent administration` | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine |
+| `Leaf site deploy (CI)` | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account | `publish-site`, through the `cloudflare-deploy` environment |
+| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account | Tend's agent, through the `tend` environment |
 
-The account also serves Workers and zones that are not Leaf's. Cloudflare applies
-Workers permissions to the whole account, so both tokens that edit Workers can change
-any Worker in it. Zone permissions apply only to the zones a token names, so no token
-here can read or change another zone's DNS records or settings. None can manage DNS,
-members, billing, or API tokens; changing a domain or minting a token takes the account
-owner's own login.
+The account also serves Workers and zones that are not Leaf's, so each token that edits
+a Worker names the Workers it may edit. `Individual Workers Editor` deploys and
+configures the Workers its policy lists and refuses every other Worker in the account;
+it cannot delete one. Cloudflare keys the policy to the Worker's script tag rather than
+its name, so a Worker that is deleted and recreated needs its tokens re-scoped.
 
-On the maintainer's machine, the `Cloudflare Leaf diagnostics` item in the `Max`
-1Password vault holds `Leaf agent administration`. An agent reads it through the
+The account-wide entries are the ones Cloudflare offers in no narrower form. Container
+images, the Observability query below, and Analytics Engine are account-level APIs. A
+deploy publishes the Worker and its custom domain through per-Worker endpoints, but a
+deploy to `workers.dev` also reads the account's `workers.dev` subdomain. Only
+`leaf-website-dev` deploys there, so only the agent token holds
+`Workers Metadata Read-Only`, which covers that read and stops short of any Worker's
+code. Zone permissions apply only to the zones a token names. No token here writes to a
+Worker outside Leaf, reads another Worker's code, or manages DNS, members, billing, or
+API tokens; changing a domain or minting a token takes the account owner's own login.
+
+On the maintainer's machine, the `Cloudflare Leaf agent administration` item in the
+`Max` 1Password vault holds the token of the same name. An agent reads it through the
 1Password service account, which needs no approval. It loads the token into the process
 that uses it and never prints it or writes it to a file:
 
 ```sh
 export CLOUDFLARE_API_TOKEN=$(~/.claude/skills/using-1password/scripts/op-read.sh \
-  "op://Max/Cloudflare Leaf diagnostics/credential")
+  "op://Max/Cloudflare Leaf agent administration/credential")
 ```
 
 A bare `op` command signs in as the person instead and waits for an approval that an
@@ -334,7 +345,7 @@ npm run deploy:dev --prefix worker
 
 The deploy requires a Cloudflare Workers Paid account with Containers enabled, a
 `cloudflare-deploy` GitHub environment in `max-sixty/leaf` whose deployment branch
-policy allows only `main`, and `leaf-ci-worker-deploy` as that environment's
+policy allows only `main`, and `Leaf site deploy (CI)` as that environment's
 `CLOUDFLARE_API_TOKEN` secret. The `tend` environment holds `Leaf observability (Tend
 CI)` under the same name and branch policy, so manual workflow dispatches from other
 branches cannot read either token. The domain already uses Cloudflare nameservers; a
@@ -361,11 +372,13 @@ cd worker
 npx wrangler secret put OPENAI_API_KEY
 ```
 
-Create each token as a custom token with exactly the permissions in the token table
-above. The deploy workflow gives each build attempt its own release identity, builds and
-pushes the container before it activates the Worker, and deploys the image by its
-immutable registry digest. It then requests an immediate container rollout and drives
-the public site in Chrome. The gate accepts only the exact build release: it checks the
-passive edge presentation, immutable module URLs, and browser errors, then activates
-that reader's private container and verifies that its state has the same release
-identity. A coherent old release cannot satisfy the gate.
+Create each token from **Manage Account → Account API Tokens** with exactly the
+permissions in the token table above, setting the Workers scope to the named Workers
+rather than to all of them. Cloudflare refuses a per-Worker scope on a user-owned token.
+The deploy workflow gives each build attempt its own release identity, builds and pushes
+the container before it activates the Worker, and deploys the image by its immutable
+registry digest. It then requests an immediate container rollout and drives the public
+site in Chrome. The gate accepts only the exact build release: it checks the passive
+edge presentation, immutable module URLs, and browser errors, then activates that
+reader's private container and verifies that its state has the same release identity. A
+coherent old release cannot satisfy the gate.

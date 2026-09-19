@@ -604,6 +604,53 @@ def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypat
     assert continued == [(page_dir, "next-event")]
 
 
+def test_a_continuation_that_cannot_start_receipts_the_move_it_was_for(
+    page_dir, monkeypatch, capsys
+):
+    """A move that arrived while a turn was running is the container's to answer for.
+
+    Its own request was answered `started` on the running turn's thread, so the
+    Worker's dispatch is over and the `startup_failed` receipt it writes when a start
+    throws cannot reach this one. Nothing scans for the move again either — the scan
+    that would find it is the one that just produced it — so a start that throws here
+    leaves the reader on a turn that never began unless this writes the receipt.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    host.following_threads.add("hosted-thread")
+    monkeypatch.setattr(host, "_follow_turn", lambda *_: None)
+
+    def attach(target, event_id):
+        raise RuntimeError("Codex App Server did not start a turn: refused")
+
+    monkeypatch.setattr(host, "attach", attach)
+    host._run_follow_turn(
+        "socket",
+        website_server.HostedTurn(
+            host,
+            page_dir,
+            "hosted-thread",
+            "delivery-1",
+            ("first-event",),
+            "provider-turn",
+        ),
+    )
+
+    [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert receipt["responds"] == comment["id"]
+    assert receipt["failure"] == "startup_failed"
+    assert "Send it again to retry" in receipt["text"]
+    [record] = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if json.loads(line)["event"] == "container_continuation_receipted"
+    ]
+    assert (record["eventId"], record["settled"]) == (comment["id"], True)
+
+
 def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     host = website_server.WebsiteCodexHost("codex")
     requests = []

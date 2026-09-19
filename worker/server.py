@@ -890,7 +890,26 @@ class WebsiteCodexHost:
                         excluding=event_ids,
                     )
         if continuation is not None and not self.stop_event.is_set():
-            self.attach(page_dir, continuation)
+            try:
+                self.attach(page_dir, continuation)
+            except (OSError, RuntimeError, ValueError):
+                # This is the one attachment nobody is holding. A move that arrives
+                # while a turn is already being followed is answered `started` on the
+                # thread that turn is on, so the Worker's dispatch — and the
+                # `startup_failed` receipt it writes when a start throws — ended with
+                # that answer. Here the start is the container's own, so without a
+                # receipt the move keeps its reader waiting on a turn that never
+                # began, and the scan that would find it again is the one that just
+                # produced it. `attach` has already recorded the fault; what this
+                # adds is which of the two owners answered for it.
+                accepted = self.failure_receipt(
+                    page_dir, continuation, "startup_failed"
+                )
+                log_agent(
+                    "container_continuation_receipted",
+                    eventId=continuation,
+                    settled=accepted is not None,
+                )
 
     def _finish_turn(
         self,

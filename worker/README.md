@@ -166,6 +166,10 @@ from Leaf's durable validation and append. `turn_interrupted` and
 a turn found running on a resumed thread. `turn_failure_reported` says how many of that
 delivery's moves the host settled with a failure receipt and how many it could not; a
 turn that answered everything it was given writes no such record.
+`container_continuation_receipted` marks the one start the Worker's dispatch is not
+holding — the move a follower found waiting when its turn ended — and says whether the
+`startup_failed` receipt it wrote settled that move, so a `container_start_failed` on
+either caller can be read for which of the two answered the reader.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
 first-byte, first-output, and completion records. Those records carry Codex's thread
@@ -289,8 +293,11 @@ cold runtime-filesystem work before a model command. Each App Server turn is bou
 one immutable delivery id carried by the direct request as `clientUserMessageId`, so
 the response to that request names the turn that took it and the follower that watches
 it starts already knowing which turn is its own. A start that names no turn — refused,
-or lost — withdraws its delivery and raises, and the reader gets the Worker's
-`startup_failed` receipt, which invites them to send the message again.
+or lost — withdraws its delivery and raises, and the reader gets a `startup_failed`
+receipt inviting them to send the message again. Which side writes it follows who
+asked: the Worker's dispatch for the request it is still holding, and the container
+itself for a move a follower took up when its own turn ended, whose request was
+answered `started` on the turn that was already running.
 A bound delivery with one plain reply
 streams the final-answer item into its addressed thread and commits that
 same completed text through the canonical reply writer, even if its subscription drops,

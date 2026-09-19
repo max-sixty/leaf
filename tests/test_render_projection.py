@@ -116,7 +116,6 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
-    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -396,7 +395,6 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
     page = browser.new_page(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
     )
-    watched(page)
     held = []
     page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
     try:
@@ -410,7 +408,6 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
     finally:
         while held:
             held.pop(0).continue_()
-        page.close()
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -1242,9 +1239,6 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     finally:
         while held:
             held.pop(0).abort()
-        if page:
-            page.close()
-        context.close()
 
 
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
@@ -3375,8 +3369,6 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     expect(pinned).to_have_title("Live first")
     expect(pinned).to_have_url(re.compile(r"/versions/v1\.html"))
     expect(pinned.locator(".lf-version")).to_contain_text("v1")
-    pinned.close()
-    live.close()
 
 
 def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, serve):
@@ -3898,7 +3890,6 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         # passed.
         release_the_held_read()
         page.unroute("**/api/state*")
-        page.close()
 
 
 def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
@@ -5780,8 +5771,6 @@ customElements.define("lf-token", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('token-c')")
     assert render_checks_model.evaluate_probe(page, "relativeReplays") == []
     told(sender)
-    page.close()
-    sender.close()
 
 
 def test_the_render_gate_catches_a_relative_state_renderer(
@@ -5963,6 +5952,8 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     assert page.evaluate("() => document.body.dataset.lfPresented") is None, (
         "the page presented anyway, so the words with nothing over them are in it"
     )
+    # The refusal asserted above reaches the collector as well.
+    consume_browser_errors(page, '<lf-drift id="drift-note">')
 
 
 def test_the_render_gate_reads_a_page_that_has_finished_arriving(
@@ -6224,9 +6215,6 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     expect(
         third.get_by_role("button", name="Move: Wire the importer — Done", exact=True)
     ).to_be_visible()
-
-    for tab in (page, second, third):
-        tab.close()
 
 
 def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve):
@@ -7967,7 +7955,6 @@ def test_request_controls_join_presentation_without_replacing_authored_items(
         page.unroute("**/api/event")
 
     round_trip(page)
-    page.close()
 
 
 def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):

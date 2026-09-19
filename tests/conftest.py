@@ -12,6 +12,7 @@ import pytest
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import machine as machine_model
+from leaf.mcp_page import ProcessPageServer
 from playwright.sync_api import sync_playwright
 
 # The canonical subprocess command. Tests of the installed host boundary invoke
@@ -213,6 +214,20 @@ def initialized_page(_page_pool):
         _page_pool.give_back(name, page)
 
 
+@pytest.fixture
+def page_server():
+    """The one HTTP origin an MCP host reads a run's pages through.
+
+    `ProcessPageServer` holds a socket and the thread serving it until it is
+    closed, and nine tests each made one and closed it in a `finally` of their
+    own. `close` is idempotent, so a test whose subject is the server going away
+    still closes it where the assertion after it reads that.
+    """
+    pages = ProcessPageServer()
+    yield pages
+    pages.close()
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--run-nightly",
@@ -373,12 +388,16 @@ def browser(_browser):
     teardown makes health and lifetime fixture guarantees instead of conventions
     repeated at the end of each journey. Closing may itself cancel outstanding requests,
     so it happens after the health reading.
+
+    Handed over wrapped, because the health half of that guarantee has to be installed
+    on each page before it navigates: a test that makes its own page gets one already
+    reporting to the collector this reads (`render_harness.WatchedBrowser`).
     """
-    from render_harness import clean_browser
+    from render_harness import WatchedBrowser, clean_browser
 
     try:
         with clean_browser():
-            yield _browser
+            yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
             context.close()
@@ -389,13 +408,13 @@ def iphone(_playwright):
     """A WebKit context shaped like an iPhone: its viewport, pixel ratio, touch, and
     user agent. WebKit is the engine iPhone browsers run on, so this is what a phone
     reader meets whichever browser they open the page in. Browser problems are rejected
-    as in `browser`."""
-    from render_harness import clean_browser
+    as in `browser`, and its pages arrive readable for the same reason."""
+    from render_harness import WatchedContext, clean_browser
 
     webkit = _playwright.webkit.launch()
     try:
         with clean_browser():
-            yield webkit.new_context(**_playwright.devices["iPhone 15"])
+            yield WatchedContext(webkit.new_context(**_playwright.devices["iPhone 15"]))
     finally:
         webkit.close()
 

@@ -53,10 +53,13 @@ does a subgraph title, which the renderer reads with its own end-anchored regex:
 continuation, so a label opened on one line has to close on it; carry a second line
 inside the label with `<br/>` or `\n`. A sequence, class, ER, or XY source carries no
 such reading: its parser drops or guesses at a statement it cannot read and draws the
-rest, and nothing reports that, so look at one of those once. A relationship, a note,
-or a participant the renderer does not implement is missing from the drawing, and a
-member inside a `class` body is drawn however the parser managed to split it, so read
-what a class or ER body rendered rather than only checking that it is there.
+rest, and nothing reports that — the three directives above included, which are
+refused in a flowchart and a `stateDiagram` only. So look at one of those once, and
+look at what it drew rather than only for what is missing. A relationship, a note, or
+a participant the renderer does not implement is absent; a member inside a `class`
+body is drawn however the parser managed to split it; and a top-level line a class
+diagram cannot read as a relationship becomes a class of its own, so a stray
+`accTitle: Checkout flow` draws a box named `accTitle`.
 Use `lf-chart` for quantities that need Leaf's data-first
 chart vocabulary: a comparison across a few categories, a run over time, a ranking,
 a composition, or two numbers against each other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`

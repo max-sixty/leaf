@@ -555,8 +555,14 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                 finally:
                     response.dispose()
 
+            baked = evaluate_probe(page, "bake")
+            # The bake took the chrome off this document, and the runtime behind it
+            # goes on reading state: a read answered now presents into a leaves tray
+            # that is gone. The copy is the string in hand, and the assets below are
+            # read through the context rather than the document, so the page ends here.
+            page.goto("about:blank")
             return UTF8_BOM + inline_assets(
-                evaluate_probe(page, "bake"),
+                baked,
                 read_resource=read_resource,
                 document_url=urljoin(asset_root, "index.html"),
             )

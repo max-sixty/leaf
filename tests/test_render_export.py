@@ -32,6 +32,7 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.structure import UTF8_BOM, SourceDocument
 from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     REPORT_PAGE,
@@ -49,6 +50,7 @@ from render_harness import (
     REPLAYED_PAGE,
     consume_browser_errors,
     leaf_page,
+    nudge,
     open_page,
     panel_settled,
     primed,
@@ -3011,6 +3013,48 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     expect(page.locator("#t-parser")).to_have_attribute("status", "done")
     expect(page.locator("#t-feeders > .lf-chips")).to_contain_text("2/2 done")
     expect(page.locator("#t-parser > .lf-quiet")).to_contain_text("reported update")
+
+
+def test_a_baked_page_asks_for_nothing_more(browser, serve, monkeypatch):
+    """`bake` takes the chrome off the page it is handed, the leaves tray with it, and
+    export then reads every asset the copy inlines. A state read the page answered in
+    that window presented into a leaves list whose tray was gone, and said so on the
+    console; a loaded machine put the 2s tick there, and the nightly failed on it. The
+    baked page stops before those reads, so news that would make a live page ask at once
+    finds nothing to ask.
+
+    The wait is the absence window: a live page asks within a turn of the news, and the
+    2s tick behind it is covered with room to spare."""
+    url = serve(REPORT_PAGE)
+    pages = []
+    asked = []
+
+    def watch(page):
+        pages.append(page)
+        page.on(
+            "request",
+            lambda request: "/api/state" in request.url and asked.append(request.url),
+        )
+
+    inline_assets = exporting_model.inline_assets
+
+    def inline_after_news(html, **kwargs):
+        before = len(asked)
+        nudge(serve.page_dir)
+        try:
+            pages[0].wait_for_event(
+                "request",
+                predicate=lambda request: "/api/state" in request.url,
+                timeout=3_000,
+            )
+        except PlaywrightTimeout:
+            pass
+        assert asked[before:] == [], "the baked page went on reading state"
+        return inline_assets(html, **kwargs)
+
+    monkeypatch.setattr(exporting_model, "inline_assets", inline_after_news)
+    exporting_model.export_page(primed(browser, watch), url, serve.page_dir, "v1.html")
+    assert pages, "export opened no page to watch"
 
 
 def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_path):

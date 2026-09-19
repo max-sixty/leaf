@@ -21,10 +21,11 @@
   const entry = new URL(script.dataset.lfEntry, location.href).href;
   const theme = new URL(script.dataset.lfTheme, location.href).href;
   let recovering = false;
-  // What the profile says when startup fails. A page that never starts is the one
-  // reading nobody can reproduce from a desk, so the record has to name the thing that
-  // did not load rather than only that the page gave up waiting for it.
-  let reportStartupFailure = () => {};
+  // What the profile says about a startup fault. A page that would not start is the one
+  // reading nobody here can reproduce, so the record has to name the thing that did not
+  // load. A fault the page recovers from is worth the name too, so the outcome that
+  // eventually wins carries it rather than a separate record standing for it.
+  let recordStartupFault = () => {};
 
   // A small public-site profile distinguishes server delay, browser paint, and Leaf
   // presentation. It starts here so failed module graphs report too.
@@ -32,9 +33,10 @@
     if (!release) return;
     let sent = false;
     let presentedMs = null;
+    let fault = null;
     const rounded = (value) =>
       Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
-    const report = (outcome, reason = null) => {
+    const report = (outcome) => {
       if (sent) return;
       sent = true;
       observer.disconnect();
@@ -50,7 +52,7 @@
           release,
           layer,
           outcome,
-          ...(reason && { reason: String(reason).slice(0, 300) }),
+          ...(fault && { reason: String(fault).slice(0, 300) }),
           navigationType: navigation?.type ?? "unknown",
           serverMs: rounded(
             navigation?.serverTiming?.find((entry) => entry.name === "leaf")?.duration,
@@ -75,9 +77,17 @@
       childList: true,
       subtree: true,
     });
+    // The supervisor's own `lf-startup-failed` listener is registered before this
+    // function runs, so a declared failure has already named its fault by the time
+    // `failed` is reported here.
+    window.addEventListener("lf-startup-failed", () => report("failed"), {
+      once: true,
+    });
     window.addEventListener("pagehide", () => report("abandoned"), { once: true });
     setTimeout(() => report("timeout"), 15000);
-    reportStartupFailure = (reason) => report("failed", reason);
+    recordStartupFault = (reason) => {
+      fault ??= reason;
+    };
   }
 
   // Reader-arranged workspaces are page geometry, so their saved shape must reach the
@@ -98,22 +108,49 @@
     // A page that cannot remember still starts in the default arrangement.
   }
 
-  function recover(reason) {
+  // `awaits` is whether a replacement server would answer this fault. A resource the
+  // page needs and does not have — its entry module, its theme — leaves it incomplete
+  // however far it gets, and a page that declares it cannot start says so itself; both
+  // wait, and the notice stands until a server that can start the page replaces this
+  // one. An uncaught error in code that did load leaves nothing to wait for: the same
+  // server would serve the same bytes, so if the page presents it has started with
+  // everything it is going to get.
+  function recover(reason, awaits = true) {
+    recordStartupFault(reason);
     if (recovering) return;
     recovering = true;
-    reportStartupFailure(reason);
+    let started = false;
+    const status = document.createElement("p");
+    status.className = "lf-chrome";
+    status.setAttribute("data-lf-runtime", "");
+    status.setAttribute("role", "status");
+    status.textContent = "Leaf couldn't start. Waiting for the server to update.";
     const show = () => {
-      const status = document.createElement("p");
-      status.className = "lf-chrome";
-      status.setAttribute("data-lf-runtime", "");
-      status.setAttribute("role", "status");
-      status.textContent = "Leaf couldn't start. Waiting for the server to update.";
-      document.body.prepend(status);
+      if (!started) document.body.prepend(status);
     };
     if (document.body) show();
     else document.addEventListener("DOMContentLoaded", show, { once: true });
 
+    // The notice says the page has not started, and a page that presents has started,
+    // so a reader who is using the page would otherwise be reading that Leaf could not
+    // start, over a request a second that no answer ends.
+    if (!awaits) {
+      const presentation = new MutationObserver(() => {
+        if (!document.body?.hasAttribute("data-lf-presented")) return;
+        presentation.disconnect();
+        started = true;
+        status.remove();
+      });
+      presentation.observe(document, {
+        attributes: true,
+        attributeFilter: ["data-lf-presented"],
+        childList: true,
+        subtree: true,
+      });
+    }
+
     const check = async () => {
+      if (started) return;
       try {
         const response = await fetch(script.dataset.lfProbe, { cache: "no-store" });
         if (response.status === 404) {
@@ -166,7 +203,13 @@
       else if (target instanceof HTMLLinkElement && target.href === theme)
         recover("theme stylesheet did not load");
       else if (target === window && !document.body?.hasAttribute("data-lf-presented"))
-        recover(event.message || "uncaught error before presentation");
+        // A browser that treats the script as another origin gives "Script error." and
+        // nothing else, so the file and line ride along: between them they are enough
+        // to find the fault in a build nobody here can run.
+        recover(
+          `${event.message || "uncaught error"} (${event.filename || "?"}:${event.lineno ?? "?"})`,
+          false,
+        );
     },
     true,
   );

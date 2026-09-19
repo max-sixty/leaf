@@ -692,6 +692,37 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     consume_browser_errors(page, "404", "Failed to load resource", "error loading")
 
 
+def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
+    served_example, browser
+):
+    """A fault the page recovers from leaves the reader a working page, not a notice.
+
+    The supervisor's notice says the page has not started. A page that loses something
+    on the way up and presents anyway has started, so a reader who is using the page
+    would otherwise be reading that Leaf could not start, over a probe request a second
+    that no answer ends. The record keeps the fault instead.
+    """
+    _, url = served_example("triage-board")
+    page = browser.new_page()
+    # One uncaught error before presentation, which is every startup fault this
+    # supervisor watches for that the page can still come up without.
+    page.add_init_script("setTimeout(() => { throw new Error('planted fault'); }, 50);")
+    probes = []
+    page.on("request", lambda request: probes.append(request.url))
+
+    page.goto(url, wait_until="load")
+    notice = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(notice).to_have_count(0)
+    expect(page.locator("#lf-banner .lf-threads-toggle")).to_be_visible()
+
+    # The probe stops with it: a page that started has nothing left to ask the source.
+    before = sum("registry.json" in probe for probe in probes)
+    page.wait_for_timeout(3000)
+    assert sum("registry.json" in probe for probe in probes) == before
+    consume_browser_errors(page, "planted fault")
+
+
 def test_session_activation_reaches_other_tabs(served_example, browser):
     """One tab's first private request wakes its already-open peers."""
     _, url = served_example("triage-board")

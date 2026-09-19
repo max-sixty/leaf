@@ -1222,8 +1222,12 @@ def test_the_rail_s_floor_is_one_width_in_every_sheet():
         theme,
     ).group(1)
     spelled = f"@container lf-shell (width <= {floor}px) {{"
-    assert spelled in theme, "the margin is drawn under a different floor than it is claimed"
-    assert spelled in chrome, "the Page Map toggle appears at a different floor than the rail"
+    assert spelled in theme, (
+        "the margin is drawn under a different floor than it is claimed"
+    )
+    assert spelled in chrome, (
+        "the Page Map toggle appears at a different floor than the rail"
+    )
 
 
 def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():

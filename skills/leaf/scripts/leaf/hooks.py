@@ -36,7 +36,9 @@ def _stream_answers(reply: dict | None, obligation: dict, state: dict) -> bool:
     )
 
 
-def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
+def unattended_pages(
+    session_id: str, *, prompt_open: bool = False
+) -> list[tuple[str, str | None]]:
     """The pages this session owes something, each with what to do about it.
 
     A `(line, protocol)` pair per debt. The line is this page's — its path, its

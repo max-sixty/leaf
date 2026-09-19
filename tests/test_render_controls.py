@@ -3057,8 +3057,7 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
     expect(rows.nth(1)).to_be_focused()
     destination = rows.nth(1).get_attribute("href")
     assert destination is not None and destination.startswith(f"{second_url}/?t=")
-    tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
-    tab.close()
+    opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
 
 
 def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(

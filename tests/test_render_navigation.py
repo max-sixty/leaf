@@ -1297,7 +1297,6 @@ def test_an_external_link_says_and_opens_where_it_goes(
     tab = opened_tab(page, destination, external.click)
     expect(tab).to_have_url(destination)
     expect(page).to_have_url(url)
-    tab.close()
 
 
 def test_an_addressed_link_leaves_the_reader_at_its_destination(
@@ -1336,7 +1335,6 @@ def test_an_addressed_link_leaves_the_reader_at_its_destination(
     tab = opened_tab(page, destination, lambda: page.keyboard.type(external_code))
     expect(tab).to_have_url(destination)
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
-    tab.close()
 
 
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):

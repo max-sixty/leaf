@@ -8377,7 +8377,6 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     round_trip(page)
     page.wait_for_function("() => __lfReadAskApplication().unresolved.length === 0")
     expect(row.locator(".lf-asks-answer")).to_have_text("Pause offline editing")
-    page.close()
 
 
 def test_pending_action_waits_for_the_ask_banner_paint_before_retiring(
@@ -8425,7 +8424,6 @@ def test_pending_action_waits_for_the_ask_banner_paint_before_retiring(
     round_trip(page)
     page.wait_for_function("() => __lfReadAskApplication().unresolved.length === 0")
     expect(progress).to_have_text("Asks 1/1")
-    page.close()
 
 
 def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(

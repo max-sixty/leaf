@@ -467,8 +467,7 @@ A page must therefore come from that fixture, or from a context it made.
 The fixture ends it too, so a test that has finished with a page leaves it open. It
 closes every context after reading what the pages reported, in that order and for
 this reason: closing stops event delivery, so a close written at the end of a test
-cut the reading short — its own reading, a step before the fixture took it. 191 of
-them are gone, 89 spelled `try/finally` and 102 written as the test's last line.
+cuts the reading short — its own reading, a step before the fixture takes it.
 
 A close inside a test is a different thing, and it stays: a second tab shut to show
 what the first one still holds is the gesture the test is about, and the assertions

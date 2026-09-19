@@ -1684,7 +1684,6 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     )
     expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_be_visible()
     expect(page.get_by_role("button", name="Reopen", exact=True)).to_be_visible()
-    page.close()
 
 
 def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, serve):

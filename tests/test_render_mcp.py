@@ -1103,25 +1103,22 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
     ]
 
     host, app = open_snapshot_app(browser, page_dir)
-    try:
-        for sent, (selector, quote, section) in enumerate(cases, 1):
-            posted = send_selection(host, app, selector, f"on {quote}", sent)
-            assert posted["anchor"] == {
-                "quote": quote,
-                "section": section,
-            }, f"{selector} posted {posted['anchor']}"
-            result = apply_event(str(page_dir), posted, posted["revision"])
-            assert result.is_error is False, result.content[0].text
-            stored = [
-                event["anchor"]
-                for event in read_events(page_dir)
-                if event["kind"] == "comment"
-            ][-1]
-            assert stored == capture_anchor(
-                SourceDocument(source), registry, quote, section
-            ), f"{selector} stored {stored}"
-    finally:
-        host.close()
+    for sent, (selector, quote, section) in enumerate(cases, 1):
+        posted = send_selection(host, app, selector, f"on {quote}", sent)
+        assert posted["anchor"] == {
+            "quote": quote,
+            "section": section,
+        }, f"{selector} posted {posted['anchor']}"
+        result = apply_event(str(page_dir), posted, posted["revision"])
+        assert result.is_error is False, result.content[0].text
+        stored = [
+            event["anchor"]
+            for event in read_events(page_dir)
+            if event["kind"] == "comment"
+        ][-1]
+        assert stored == capture_anchor(
+            SourceDocument(source), registry, quote, section
+        ), f"{selector} stored {stored}"
 
     page = open_page(browser, live_url(url))
     expect(page.locator(".lf-thread")).to_have_count(3)
@@ -1165,24 +1162,21 @@ def test_an_element_anchor_names_the_page_and_never_the_apps_own_shell(browser, 
     runs out through this app's shell — whose ids belong to the app, not to any version of
     the page. Reaching one would post a section the append gate can only refuse."""
     serve(SNAPSHOT_READING_PAGE)
-    host, app = open_snapshot_app(browser, serve.page_dir)
-    try:
-        press = """(selector) => {
+    _, app = open_snapshot_app(browser, serve.page_dir)
+    press = """(selector) => {
           const root = document.querySelector('#page-host').shadowRoot;
           root.querySelector(selector).dispatchEvent(
             new MouseEvent('dblclick', {bubbles: true, composed: true}),
           );
         }"""
-        app.evaluate(press, "p.loose")
-        assert not app.locator("#composer").evaluate(
-            "form => form.classList.contains('open')"
-        )
+    app.evaluate(press, "p.loose")
+    assert not app.locator("#composer").evaluate(
+        "form => form.classList.contains('open')"
+    )
 
-        app.evaluate(press, "#wrapped")
-        expect(app.locator("#composer")).to_have_class("composer open")
-        assert app.locator("#quote").text_content() == "On § wrapped"
-    finally:
-        host.close()
+    app.evaluate(press, "#wrapped")
+    expect(app.locator("#composer")).to_have_class("composer open")
+    assert app.locator("#quote").text_content() == "On § wrapped"
 
 
 TWICE_PAGE = leaf_page(
@@ -1220,24 +1214,21 @@ def test_a_refused_anchor_reaches_the_reader_with_their_draft_intact(browser, se
     ] == []
 
     host, app = open_snapshot_app(browser, page_dir)
-    try:
-        host.evaluate("text => window.toolError = text", refusal.content[0].text)
-        posted = send_selection(
-            host,
-            app,
-            "#plan p:last-of-type",
-            "Which one?",
-            1,
-            phrase="The flag is off",
-        )
-        # The app posted the very anchor the gate turned down above, so the message the
-        # host is handing back is that event's own answer.
-        assert posted["anchor"] == ambiguous
-        expect(app.locator("#status")).to_have_class("status show error")
-        status = app.locator("#status").text_content()
-        assert "says 'The flag is off' 2 times" in status
-        assert status.count("\n  - ") == 2
-        expect(app.locator("#composer")).to_have_class("composer open")
-        assert app.locator("#comment").input_value() == "Which one?"
-    finally:
-        host.close()
+    host.evaluate("text => window.toolError = text", refusal.content[0].text)
+    posted = send_selection(
+        host,
+        app,
+        "#plan p:last-of-type",
+        "Which one?",
+        1,
+        phrase="The flag is off",
+    )
+    # The app posted the very anchor the gate turned down above, so the message the
+    # host is handing back is that event's own answer.
+    assert posted["anchor"] == ambiguous
+    expect(app.locator("#status")).to_have_class("status show error")
+    status = app.locator("#status").text_content()
+    assert "says 'The flag is off' 2 times" in status
+    assert status.count("\n  - ") == 2
+    expect(app.locator("#composer")).to_have_class("composer open")
+    assert app.locator("#comment").input_value() == "Which one?"

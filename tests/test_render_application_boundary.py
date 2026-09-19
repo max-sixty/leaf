@@ -470,8 +470,6 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
     historical = open_page(browser, version_url, pin=True)
     expect(historical.locator("html")).to_have_attribute("data-page-module", "first:1")
-    historical.close()
-    page.close()
 
 
 def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, serve):

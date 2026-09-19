@@ -1514,6 +1514,10 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
         "test_a_website_session_reference_survives_a_failed_first_read",
         "test_a_malformed_first_state_keeps_interaction_unresolved",
     }
+    # What hands a test something the browser fixture will close: the fixtures built
+    # on it, and `opened_tab`, whose tab is made readable and so reports into the
+    # collector that fixture reads.
+    lending = {"browser", "iphone", "held_events", "one_reader", "opened_tab"}
     owners = {
         "Popen": ("spawn", {"conftest.py"}),
         "mkdtemp": ("socket_dir", {"interact_support.py"}),
@@ -1533,27 +1537,42 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
                 owner = owners[called][0]
                 bypassed.append(f"{path.name}:{node.lineno} {called} — {owner} owns it")
         for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
-            if "browser" not in [argument.arg for argument in function.args.args]:
-                continue
             if function.name in closes_to_stop_a_repeating_fault:
                 continue
+            # A fixture's own teardown is the owner ending what it lent.
+            if any("fixture" in ast.unparse(d) for d in function.decorator_list):
+                continue
             # What the fixture owns is what came from it, however far the value
-            # travelled: `host, app = open_snapshot_app(browser, page_dir)` hands
-            # back a page as surely as `browser.new_page()` does, and a list of the
-            # spellings that count would have read the second and missed the first.
-            lent = {
-                name.id
-                for statement in ast.walk(function)
-                if isinstance(statement, ast.Assign)
-                and "browser"
-                in {n.id for n in ast.walk(statement.value) if isinstance(n, ast.Name)}
-                for target in statement.targets
-                for name in ast.walk(target)
-                if isinstance(name, ast.Name)
-            }
-            # Only where the test is finished with the page. A close it writes in the
-            # middle is the gesture under test — a second tab shut to show what the
-            # first one still holds — and the assertions after it are what read it.
+            # travelled and whatever the function was handed it as:
+            # `host, app = open_snapshot_app(browser, page_dir)` hands back a page
+            # as surely as `browser.new_page()` does, and `browser, held =
+            # held_events` hands over the browser itself. A list of the spellings
+            # that count would read some and miss the next, so the names are
+            # followed until nothing new is reached.
+            lent = set(lending)
+            assignments = [n for n in ast.walk(function) if isinstance(n, ast.Assign)]
+            while True:
+                reached = {
+                    name.id
+                    for statement in assignments
+                    if lent
+                    & {
+                        n.id
+                        for n in ast.walk(statement.value)
+                        if isinstance(n, ast.Name)
+                    }
+                    for target in statement.targets
+                    for name in ast.walk(target)
+                    if isinstance(name, ast.Name)
+                }
+                if reached <= lent:
+                    break
+                lent |= reached
+            # Only where the test is finished with the page: a `finally`, which is
+            # the end of the block the page was used in, or the function's last
+            # line. A close written anywhere else is the gesture under test — a
+            # second tab shut to show what the first one still holds — and the
+            # assertions after it are what read it.
             endings = [
                 node.finalbody[0]
                 for node in ast.walk(function)

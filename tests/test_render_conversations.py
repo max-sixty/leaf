@@ -3359,6 +3359,44 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
 
 
+def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serve):
+    """A page dressing its own `button` and `a` is dressing its prose. The controls a
+    widget builds wear the layer's face instead, because `.lf-ui` holds a class's rank
+    over the page's element rules; at no specificity the page took the family and ink of
+    half corpus.html's widget controls."""
+    board = (
+        '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
+        '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
+        '<lf-column id="c2" label="Done"></lf-column></lf-board>'
+        '<p>See <a href="#b">the board</a>.</p>'
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "t",
+                board,
+                head="<style>button, a { font-family: cursive; color: rgb(255, 0, 0); }"
+                "</style>",
+            )
+        ),
+    )
+    faces = page.evaluate("""() => {
+        const face = el => [el.className, getComputedStyle(el).fontFamily,
+                            getComputedStyle(el).color];
+        return {
+            controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
+            prose: face(document.querySelector('main p > a')),
+        };
+    }""")
+    # The control: the page's rule reaches the page's own link.
+    assert faces["prose"][1:] == ["cursive", "rgb(255, 0, 0)"], faces["prose"]
+    assert faces["controls"], "the board built no control to read"
+    assert not [face for face in faces["controls"] if "cursive" in face[1]], faces[
+        "controls"
+    ]
+
+
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of

@@ -3955,6 +3955,13 @@ def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
         f"the card spans {card[0]:.0f}\u2013{card[1]:.0f} over the pressed words at "
         f"{words[0]:.0f}\u2013{words[1]:.0f}"
     )
+    # The same box decides when the card has outlived its subject. An empty one sits
+    # above the boundary's top edge, so the card read as detached from the first
+    # placement, never recorded that it had ever stood by anything, and so could never
+    # take the dismissal a scroll offers it: at these widths it hung there for the rest
+    # of the page's life. Anchored to the passage, it leaves when the passage does.
+    page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
+    expect(page.locator("[data-lf-thread]")).to_be_hidden()
 
 
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):

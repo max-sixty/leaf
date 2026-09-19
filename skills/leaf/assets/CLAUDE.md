@@ -846,6 +846,13 @@ transitions answer to the same ceiling.
 `.lf-copy`. Anything meant to survive must be present in markup and CSS.
 Module handlers do not survive.
 
+Baking removes `.lf-chrome` from the live page the copy is taken from, and that page's
+state stream goes on running until its tab closes. So a chrome paint has to survive its
+own region leaving the document: a reading that lands after the tray or panel it draws
+has gone has nothing to draw and reports nothing, the way `tickClock` already culls a
+clocked paint whose owner has left. Throwing instead takes the whole state application
+down with chrome the page no longer has.
+
 Widget affordances fall into three groups:
 
 - A control whose state and behavior are native HTML and CSS may remain

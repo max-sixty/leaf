@@ -5,10 +5,12 @@ import re
 from urllib.parse import urljoin
 
 import pytest
+from interact_support import append_command
 from leaf import event_log as events_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    REPORT_PAGE,
     SUGGESTION_PAGE,
     live_url,
     panel_comment,
@@ -30,6 +32,7 @@ from render_harness import (
     panel_settled,
     resized,
     sending,
+    take_browser_errors,
     told,
     watched,
 )
@@ -138,6 +141,40 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
         """() => window.__lfFavicon ===
           document.querySelector('link[rel=icon][data-lf-runtime]')"""
     ), "in-place activation replaced or removed the runtime favicon"
+
+
+def test_a_state_read_outlives_the_chrome_the_copy_takes_out(browser, serve):
+    """Baking a copy removes `.lf-chrome` from the live page while its state stream is
+    still running, so the reads that land in the gap before the tab closes find the
+    Leaves tray gone. A tray that has left the document has no region to present into,
+    and a reading that arrives after it leaves is not the reading's fault: the read must
+    still apply, and the page must report nothing.
+
+    It reported twice per read — `State presentation failed` and `read failed`, both
+    naming the tray — because the list threw for the handle its own
+    `disconnectedCallback` had dropped, and that throw came back out of the whole state
+    application. Which read lands in the gap is a matter of the machine's load, so the
+    copy tests saw it as an occasional error on a page whose copy was correct. Here the
+    chrome is taken out directly and the read is provoked, so the gap is the
+    arrangement rather than the weather."""
+    page = open_page(browser, serve(REPORT_PAGE))
+    page.evaluate(
+        "() => document.querySelectorAll('.lf-chrome').forEach(node => node.remove())"
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A word said after the chrome went.",
+        },
+    )
+    # `told` reads the page's own applied reading, which state application writes only
+    # once it has presented, so this is the assertion that the read landed rather than a
+    # wait for one that quietly failed.
+    told(page)
+    assert take_browser_errors(page) == []
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])

@@ -162,9 +162,10 @@ export function createThreadPanelController({
         panel.querySelector(".lf-thread:focus-within")?.dataset.id === carried,
     };
   };
-  // Every press that records a frame able to take the panel off counts itself here, so a
-  // frame can tell the panel's opening by its own press, or a later step of its walk,
-  // from one made by a newer press that took the panel on as its own.
+  // The frames built here count their presses — `panelFrame`, which the toggle and `g T`
+  // record, and every `openingPanel` — so a frame can tell the panel's opening by its own
+  // press, or a later step of its walk, from one made under a newer frame of these. A
+  // frame that shows the panel by other means, as the page comment's does, is not counted.
   let presses = 0;
   const panelFrame = (options) => {
     presses += 1;

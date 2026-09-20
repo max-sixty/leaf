@@ -37,8 +37,6 @@ from render_cases_layout import (
     NEIGHBOURHOOD,
     PANEL_DIFF_MARKUP,
     RING_NAMES,
-    SCROLL_SETTLE_MS,
-    SCROLL_STILL,
     SHOT_SRC,
     SHOTS,
     UNBREAKABLE_PAGE,
@@ -88,6 +86,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     stamp_page,
@@ -3287,7 +3286,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
             )
         # And then the rest of the glide, so the next key's reset lands on a scroll
         # that is over rather than on one still on its way somewhere.
-        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+        scroll_settled(page)
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
@@ -3315,7 +3314,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     # A reader reading: native Space still pages through the document from body.
     page.keyboard.press("Space")
     page.wait_for_function(SCROLLED)
-    page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     was = page.evaluate(top)
 
     # Opened with the pointer, the button holds focus and the browser withholds the ring.
@@ -3340,7 +3339,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     page.wait_for_function(
         "(was) => document.scrollingElement.scrollTop > was", arg=was
     )
-    page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     # Opened from the keyboard, the toggle was the place, and Escape hands it back.
     toggle.focus()

@@ -21,8 +21,6 @@ from render_cases_layout import (
     BADGE_CHROME,
     PAINTED_IN_SILENCE_PAGE,
     PRINT_LOSS_PAGE,
-    SCROLL_SETTLE_MS,
-    SCROLL_STILL,
     SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
@@ -47,6 +45,7 @@ from render_harness import (
     page_registry,
     primed,
     resized,
+    scroll_settled,
     shortcut_bar_text,
 )
 
@@ -710,7 +709,7 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
         was_checked = box.is_checked()
         scroll_before = page.evaluate("document.scrollingElement.scrollTop")
         page.mouse.click(*image_point)
-        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+        scroll_settled(page)
         assert box.is_checked() is not was_checked
         assert (
             abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)

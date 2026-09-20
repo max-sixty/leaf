@@ -612,6 +612,15 @@ The causal helpers:
   fault draws before consuming it. A fault is named by every boundary that
   carried it, and the later words can trail the first by whatever the page does
   between them, so an equality assertion taken on the first word is a race.
+- `scroll_settled(page)` waits for a scroller to have arrived rather than for it to
+  pause on the way. A gesture's travel is two moves — the runtime places the
+  element's nested scrollports at once and then glides the scroller that owns it
+  to the centring position — so the page holds still for a frame or more between
+  them. The hold is counted in animation frames, not milliseconds, because the
+  compositor advances a glide on every frame it runs: a still frame can only be
+  one the glide has not started on, and a slower machine takes fewer frames
+  through the pause rather than more. `scroller=` and `axis=` name a nested
+  scrollport; the helper clears its own record, so no caller resets it.
 - `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
   frame. `repaint` coalesces to a `requestAnimationFrame`, so a read taken in
   the same round-trip as the press is a read of the frame before.
@@ -685,8 +694,13 @@ published in the update after the one the event arrived in. An observer or proto
 record that outlives a motion is read after `moving` says finite motion has ended. An
 element-anchored quote can cause an instant document scroll
 followed by a smooth scroll, so its first `scrollend` is a real edge but not the
-destination; wait for the mark to reach the computed position or for the final
-document scroll to stop.
+destination; wait for the mark to reach the computed position, or use
+`scroll_settled`, which holds for animation frames the glide would have moved on.
+Do not measure that hold in milliseconds. The window then has to be shorter than
+a pause the machine decides the length of, and it answers with the place the
+instant move left as soon as the runner's frames are further apart than the
+window — which is how a 50ms hold read the page before its glide on the nightly
+run and held on every desk.
 
 Absence usually has no completion event of its own. Anchor it after the positive
 edge that would have caused the forbidden behavior, then read once. If the

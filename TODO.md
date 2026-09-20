@@ -171,29 +171,38 @@ is now stated under #6.
   per-reader container turn, so merging them is a restructure with no deletion and is
   worth doing only under that same product condition.
 
-- **#7 — Test model rules without rebuilding whole browser journeys.** The fixtures landed
-  in #862 and #863: `interact_support.ModelPage` states a page for the append door, and
-  `tests/model_folds.py` folds one through `browser_state`, both from literal markup and a
-  literal log. The thread-settlement rules, the multi-revision folds and the door's
-  refusals on authored markup are all stated through them now. What remains is not a
-  sweep. The premise this item
-  carried — 325 browser tests across 14,750 lines that a model fixture would replace — did
-  not survive measurement. In a seeded random sample of 40 of those, none was a pure Python
-  fold: 17 were JavaScript folds, 22 browser facts, 1 mixed, putting pure folds at no more
-  than about 7.5% of the group. A full sweep of all 25 render files then examined 1,421
-  test functions and found zero convertible; every one depends on painted DOM, geometry,
-  focus, a gesture, a route, or a widget module's own output. Those modules are the
-  interaction corpus, where the page under test is the subject.
+- **#7 — Test model rules without rebuilding whole browser journeys.** Both runtimes now
+  have a place to state one: `interact_support.ModelPage` and `tests/model_folds.py` on
+  the Python side, from literal markup and a literal log through the real append door,
+  and `tests/runtime/*.test.mjs` on the JavaScript side, importing a runtime module the
+  way a served page imports it. Python's share is finished — a sweep of all 25 render
+  files and 1,421 test functions found nothing left to convert, and the 14 tests that
+  were Python-decided but filed in nightly browser modules have moved. What remains is
+  JavaScript, under two rules the pilot established:
 
-  The sweep did find a second group, and that one is now closed: 14 tests were decided by
-  Python alone but filed in browser modules, running nightly only because `pytestmark` is
-  file-level. All 14 have moved to the everyday gate, the seven preview readings into
-  `test_interact_preview.py` of their own.
+  - A fold whose answer comes from an engine-supplied primitive is a browser fact
+    wearing a fold's clothes. `text-alignment.js` is the case: measured on Node 26 and
+    Chrome 151, `Intl.Segmenter` at word granularity splits `request.remote_addr` into
+    one segment and three respectively, so `alignText` answers differently in the two
+    engines and its test stays in the browser suite. The criterion is not "reads no DOM";
+    ask both engines rather than reading the module.
+  - The remaining folds are not sitting in convertible tests. Of the 140 browser tests
+    that reach a runtime module, 15 use the page only as a JavaScript engine; the other
+    125 assert a painted fact in the same breath. Converting one of those means splitting
+    a journey rather than moving a test, which is a larger job, and is worth doing for
+    the fold's own sake rather than for the browser time it saves.
 
-  So what remains is the JavaScript folds, which `scripts/browser/*.test.mjs` already has
-  a home for and which no Python fixture can reach. That is the group worth measuring
-  next, and it needs a reading of which runtime and widget modules run without a DOM. It
-  does not depend on #5.
+  The next step has a known size. `tests/runtime/dom.mjs` loads 151 of the 195 modules a
+  page can serve — the runtime's 155, the layer's own `widgets/lf-suggestion.js`, and the
+  packages' 39 widget modules — and almost every one of the rest refuses for one reason,
+  which is that `stylesheets.js` wants the carrier every delivery writes (`delivery_sheets`
+  in `revision_delivery.py`, one `script[data-lf-runtime][data-lf-sheets]` keyed `chrome`
+  and `marks` over `runtime/chrome.css` and `runtime/marks.css`). Everything importing
+  `runtime/widget-api.js` comes through it, and that facade is what 118 browser test
+  functions reach through. Putting that element in the document takes the count to 190,
+  and the five left are `bootstrap.js` and the four command-hub widgets, which want a
+  loaded vocabulary rather than a served path. No test needs the carrier yet, so the
+  harness does not write one. This does not depend on #5.
 
 - **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
   now keeps the reader's place through the browser's own scroll anchoring, and that hold

@@ -8,12 +8,15 @@
   "scripts": {
     "build:browser": "node scripts/browser/build.mjs",
     "check:browser": "node scripts/browser/build.mjs --check",
-    "test:browser": "node --test scripts/browser/*.test.mjs"
+    "test:browser": "node --test scripts/browser/*.test.mjs",
+    "test:runtime": "node --import ./tests/runtime/dom.mjs --test tests/runtime/*.test.mjs"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "20.14.5",
     "@preact/signals-core": "1.14.4",
     "acorn": "8.18.0",
     "esbuild": "0.28.2",
+    "happy-dom": "20.14.5",
     "lit": "3.3.3",
     "typescript": "7.0.2"
   }

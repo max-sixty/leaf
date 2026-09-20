@@ -82,7 +82,8 @@ Claude Code and Codex install the tracked tree whole. Its main parts are:
 - `hooks/hooks.json`: the shared host hooks.
 
 `examples/` is the authored-page and render corpus. `tests/` covers the file,
-CLI, browser, and published-site boundaries. `scripts/` owns developer preview,
+CLI, browser, and published-site boundaries, and in `tests/runtime/` the folds the
+shipped runtime performs, which Node runs without one. `scripts/` owns developer preview,
 site, demo, vendor, and browser-framework tooling. `worker/` is the Cloudflare
 Worker behind <https://leaf.page/> — it serves the built site and routes each
 example to the canonical Python server in a per-reader container. Its container
@@ -290,6 +291,12 @@ npm ci --prefix worker
 npm run typecheck --prefix worker
 npm test --prefix worker
 ```
+
+`tests/runtime/` is the other thing `uv run pytest tests` does not reach, and the one
+both landing paths run anyway: the shipped runtime's folds, which `npm run test:runtime`
+answers in under a second against the modules under `skills/leaf/assets/runtime/`
+without a browser. `wt merge` runs it beside the suite in its second pre-merge block,
+and a pull request runs it in `test`.
 
 Treat website performance as a phase profile, not one score. For a change that can
 alter browser startup, compare the base and candidate readings from

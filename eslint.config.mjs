@@ -104,6 +104,9 @@ const entryBoundary = {
   ],
 };
 
+const entryMessage =
+  "A fold test imports the owner it is about, never the page's entry.";
+
 const publicRuntimeBoundary = {
   "no-restricted-imports": [
     "error",
@@ -661,6 +664,7 @@ export default [
   // but a bare `npx eslint .` walks it.
   {
     ignores: [
+      ".tmp/**",
       ".venv/**",
       "examples/corpus.html",
       "skills/leaf/assets/vendor/**",
@@ -672,6 +676,30 @@ export default [
     files: ["**/*.{js,mjs}"],
     languageOptions: { ecmaVersion: "latest", sourceType: "module" },
     rules: publicRuntimeBoundary,
+  },
+  {
+    // The runtime's own fold tests. A private owner is what they are about, so the
+    // facade rule would forbid their subject; the entry stays out of reach, because a
+    // test is not a page and booting one would import the whole layer to read one fold.
+    files: ["tests/runtime/**/*.mjs"],
+    languageOptions: { globals: browserGlobals },
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [{ name: "/leaf.js", message: entryMessage }],
+          patterns: [{ regex: "^\\.{1,2}/(?:.*/)?leaf\\.js$", message: entryMessage }],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'ImportExpression[source.value="/leaf.js"]',
+          message: entryMessage,
+        },
+      ],
+      "no-undef": "error",
+    },
   },
   {
     files: ["scripts/vendor-src/pierre/*.mjs"],

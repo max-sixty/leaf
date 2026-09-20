@@ -192,14 +192,14 @@ is now stated under #6.
     a journey rather than moving a test, which is a larger job, and is worth doing for
     the fold's own sake rather than for the browser time it saves.
 
-  The next step has a known size. `tests/runtime/dom.mjs` loads 151 of the 194 modules a
-  page can serve — the runtime's 155 and the packages' 39 widget modules — and almost
-  every one of the rest refuses for one reason, which is that `stylesheets.js` wants the
-  carrier every delivery writes (`delivery_sheets` in `revision_delivery.py`, one
-  `script[data-lf-runtime][data-lf-sheets]` keyed `chrome` and `marks` over
-  `runtime/chrome.css` and `runtime/marks.css`). Everything importing
+  The next step has a known size. `tests/runtime/dom.mjs` loads 151 of the 195 modules a
+  page can serve — the runtime's 155, the layer's own `widgets/lf-suggestion.js`, and the
+  packages' 39 widget modules — and almost every one of the rest refuses for one reason,
+  which is that `stylesheets.js` wants the carrier every delivery writes (`delivery_sheets`
+  in `revision_delivery.py`, one `script[data-lf-runtime][data-lf-sheets]` keyed `chrome`
+  and `marks` over `runtime/chrome.css` and `runtime/marks.css`). Everything importing
   `runtime/widget-api.js` comes through it, and that facade is what 118 browser test
-  functions reach through. Putting that element in the document takes the count to 189,
+  functions reach through. Putting that element in the document takes the count to 190,
   and the five left are `bootstrap.js` and the four command-hub widgets, which want a
   loaded vocabulary rather than a served path. No test needs the carrier yet, so the
   harness does not write one. This does not depend on #5.

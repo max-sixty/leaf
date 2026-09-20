@@ -183,14 +183,15 @@ is now stated under #6.
   focus, a gesture, a route, or a widget module's own output. Those modules are the
   interaction corpus, where the page under test is the subject.
 
-  So the remaining work is in two other places. The larger is the JavaScript folds, which
-  `scripts/browser/*.test.mjs` already has a home for and which no Python fixture can
-  reach — that is the group worth measuring next, and it needs a reading of which runtime
-  and widget modules run without a DOM. The smaller is tests already decided by Python but
-  filed in browser modules, which run nightly only because `pytestmark` is file-level: 14
-  found, 6 moved to the everyday gate in #863, 8 left, mostly preview and launcher
-  subjects in `test_render_export.py` and `test_render_commands.py`. Neither depends on
-  #5.
+  The sweep did find a second group, and that one is now closed: 14 tests were decided by
+  Python alone but filed in browser modules, running nightly only because `pytestmark` is
+  file-level. All 14 have moved to the everyday gate, the seven preview readings into
+  `test_interact_preview.py` of their own.
+
+  So what remains is the JavaScript folds, which `scripts/browser/*.test.mjs` already has
+  a home for and which no Python fixture can reach. That is the group worth measuring
+  next, and it needs a reading of which runtime and widget modules run without a DOM. It
+  does not depend on #5.
 
 - **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
   now keeps the reader's place through the browser's own scroll anchoring, and that hold

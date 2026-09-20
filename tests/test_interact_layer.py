@@ -713,6 +713,38 @@ def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
                 parent.rmdir()
 
 
+def test_every_tracked_experiment_screenshot_is_named_by_its_written_up_result():
+    """The archive keeps the screenshots its prose reads, and no others.
+
+    The probe's evidence is scratch, and `scripts/mcp-app/README.md` says what a
+    maintainer copies back out of it: "a screenshot earns its megabyte only where
+    the prose points at it." Nothing held that rule over what was already tracked,
+    so the archive carried a re-render of the same fixture for each run of a chain
+    of repeats — 4.0M across eleven files no write-up mentioned, three of them
+    byte-identical to another tracked screenshot. A copied-back file is a
+    maintainer's `git add` rather than a script's output, so the payload test above
+    cannot see it coming; this reads the rule off the archive itself. The prose that
+    licenses a screenshot is its own experiment's, not the archive's as a whole,
+    or one write-up's citation would license every other run's copy of the shot.
+    """
+    archive = PLUGIN_ROOT / "notes" / "mcp-apps" / "experiments"
+    unread = []
+    for path in shipped_payload():
+        if path.suffix != ".png" or not path.is_relative_to(archive):
+            continue
+        experiment = path.relative_to(archive).parts[0]
+        prose = "".join(
+            note.read_text(encoding="utf-8")
+            for note in sorted((archive / experiment).glob("*.md"))
+        )
+        if path.name not in prose:
+            unread.append(path.relative_to(PLUGIN_ROOT).as_posix())
+    assert unread == [], (
+        "these screenshots ship in the payload and no write-up reads them: "
+        + ", ".join(unread)
+    )
+
+
 def test_claude_and_codex_read_the_same_repository_skills():
     claude_skills = ROOT / ".claude" / "skills"
     codex_skills = ROOT / ".agents" / "skills"

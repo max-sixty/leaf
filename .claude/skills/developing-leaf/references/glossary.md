@@ -147,8 +147,9 @@ spine instead.
 | **Walk** | Ordered semantic movement among same-kind destinations |
 | **Standing** | Holding a destination inside a layer, or a control inside one: a thread, an Ask, or the page's own content, including an authored control; Leaf's own apparatus outside those — a banner or panel-head control, a margin marker, a mark note, a contents outline's link — is not one |
 | **Floor** | The place in a layer where the reader stands on nothing: the page's body, the thread panel's list |
-| **Return** | Restoration of the origin captured before an entered transition, by key or by pointer press — for a press, the place focus held before the press moved it; Escape first unwinds an inner interaction, and whatever the reader has put on since outside the surface the transition entered |
-| **Layer stack** | The one ordered record of the popovers, modal dialogs, and return frames standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |
+| **Unwind** | What Escape takes off, read from what stands in front of the reader rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/CLAUDE.md` states, with containment before kind, each landing them at the parent of what it closed |
+| **Landing** | Where a step leaves the reader: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |
+| **Layer stack** | The one ordered record of the popovers and modal dialogs standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |
 | **Key badge** | A keycap-shaped carrier for a binding or transient hint code |
 | **Binding badge** | A key badge showing a command's currently resolved binding |
 

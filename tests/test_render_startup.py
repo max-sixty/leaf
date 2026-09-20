@@ -4013,7 +4013,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(page.locator(".lf-general textarea")).to_be_focused()
     round_trip(page)
     assert not [event for event in sent_events(serve.page_dir) if event.get("token")]
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # out of the box, onto the list
+    page.keyboard.press("Escape")  # and out of the panel that holds it
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the reader's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so the margin's
     # thread margin entry and each passage's comment count open the fallback card and Threads

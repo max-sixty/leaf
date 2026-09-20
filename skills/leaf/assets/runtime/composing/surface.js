@@ -77,17 +77,8 @@ import {
 } from "../keyboard/command-reference.js";
 
 import { paintReactionStanding } from "../reaction-standing.js";
-import {
-  generalInput,
-  generalRow,
-  panel,
-  threadsBox,
-} from "../conversation/panel-elements.js";
-import {
-  boxReturnFrame,
-  conversationInput,
-  standingConversation,
-} from "../conversation/landing.js";
+import { generalInput, panel, threadsBox } from "../conversation/panel-elements.js";
+import { conversationInput, standingConversation } from "../conversation/landing.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
@@ -100,8 +91,7 @@ import {
 } from "./capture.js";
 import { repaint } from "../repaint.js";
 import { focusDestination, letGo, readCaret, takesLetters } from "../focus.js";
-import { documentFocused, focused } from "../keyboard/scopes.js";
-import { pressOrigin } from "../keyboard/layer-stack.js";
+import { focused } from "../keyboard/scopes.js";
 
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
@@ -130,8 +120,6 @@ export function createResponseSurface({
   panelCovers,
   landIn,
   setPanel,
-  captureAuxiliaryChromeState,
-  restoreAuxiliaryChromeState,
   activeInlineThread,
   standingElement,
   composerHolds,
@@ -719,6 +707,17 @@ export function createResponseSurface({
       });
     return true;
   }
+  // Where a bar on this anchor hands the reader back: the control the gesture stood them
+  // on, or the margin's own proxy for the same anchor where that control has gone, found
+  // by identity so a repaint cannot strand it. A bar no gesture stood them on has nowhere
+  // of its own and the reader lands on the page — the element the bar is about is not a
+  // landing merely for being named, an ⌥-aimed press having never stood them on it.
+  const handBackTo = (anchor, origin) =>
+    anchor && !anchor.quote && origin
+      ? origin.isConnected
+        ? origin
+        : visualActionAnchor(anchor)
+      : null;
   function showFab(
     anchor,
     target = null,
@@ -729,14 +728,7 @@ export function createResponseSurface({
     const previousFloating = fabFloating;
     const leavingBar = !anchor && fabBar.contains(fabFocused());
     const returnToPanel = leavingBar && panelCovers() && !fabFits();
-    const returnTarget =
-      leavingBar && previous && !previous.quote
-        ? previousOrigin?.isConnected
-          ? previousOrigin
-          : previousOrigin
-            ? visualActionAnchor(previous)
-            : null
-        : null;
+    const returnTarget = leavingBar ? handBackTo(previous, previousOrigin) : null;
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&
       anchor &&
@@ -757,7 +749,17 @@ export function createResponseSurface({
       stopFabPositioning({ reset: true });
     fabAnchor = anchor;
     fabFloating = !fabAnchor || (place && !keptInline);
-    fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
+    // A call that names the anchor already standing and supplies no control is the same
+    // bar being re-placed — the other-responses toggle, leaving react mode, a scroll —
+    // rather than a fresh gesture that stood the reader nowhere. It keeps the control the
+    // opening gesture stood them on; otherwise the way out of a bar the reader opened
+    // from a proxy would depend on what they did inside it.
+    fabOrigin =
+      fabAnchor && origin?.isConnected
+        ? origin
+        : fabAnchor && previous && sameAnchor(previous, fabAnchor)
+          ? previousOrigin
+          : null;
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
     fabBar.style.display = fabAnchor ? "inline-flex" : "none";
     fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
@@ -793,9 +795,14 @@ export function createResponseSurface({
     repaint(); // the c row names this anchor, so the line is one more rendering of it
     if (!fabAnchor && returnFocus !== "none") {
       if (returnToPanel) threadsBox.focus({ preventScroll: true });
-      else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected)
+      else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected) {
         returnTarget.focus({ preventScroll: true });
-      else if (
+        // The proxy may have gone hidden since the gesture opened the box — a fold that
+        // closed under it, a row that re-rendered — and focus on a hidden control does
+        // nothing and reports nothing. The page is the landing then, as it is for a box
+        // that had no proxy to begin with.
+        if (!returnTarget.matches(":focus")) letGo();
+      } else if (
         leavingBar ||
         (returnFocus === "page" && document.activeElement === previousOrigin)
       )
@@ -839,12 +846,7 @@ export function createResponseSurface({
     return root instanceof ShadowRoot ? root.host : place;
   };
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
-  const fabReturnTo = () =>
-    fabAnchor && !fabAnchor.quote
-      ? fabOrigin?.isConnected
-        ? fabOrigin
-        : visualActionAnchor(fabAnchor)
-      : null;
+  const fabReturnTo = () => handBackTo(fabAnchor, fabOrigin);
 
   // Where a comment about this item is written: the composer, on the item, which is what a
   // click through the ⌥ aim already opens. It reached for the widget's own conversation seat
@@ -1374,7 +1376,6 @@ export function createResponseSurface({
         return openPageThread(threadId, {
           focus: panel.classList.contains("open") ? "reply" : "thread",
           travel: false,
-          origin: pressOrigin(),
         });
     });
     wireFabInput();
@@ -1403,20 +1404,6 @@ export function createResponseSurface({
     does: `Comment on the ${word}`,
     line: `comment on the ${word}`,
   });
-  // The box this press opens is the first of the comment gesture's two surfaces: a send
-  // takes it off the page and carries the reader into the thread it became, a card put up
-  // in its place or that thread in an open panel. So this frame retires with the box, and
-  // hands the place it recorded to the thread's frame, which enters on it as the same one
-  // rung. Without the handover the card entered with no place at all, and the margin's
-  // own fallback rung answered for it with the entry the card hangs from — a control the
-  // reader never stood on, saying its transient label as they arrived.
-  const composerReturnFrame = () => ({
-    active: () => composerOpen,
-    close: dismissFab,
-    does: "Return to where you were",
-    line: "back",
-    handsOn: true,
-  });
   function commentDestination() {
     const anchor = fabAnchorAt();
     if (anchor)
@@ -1428,7 +1415,6 @@ export function createResponseSurface({
         ),
         box: fabInput,
         go: focusFabComment,
-        returnFrame: composerReturnFrame,
       };
     const inline = activeInlineThread();
     const inlineBox = inline && conversationInput(inline);
@@ -1439,7 +1425,6 @@ export function createResponseSurface({
         ...commenting("thread"),
         box: said.box,
         go: () => landIn(said),
-        returnFrame: () => boxReturnFrame(said.held, said.box),
       };
     const here = standingElement();
     if (here)
@@ -1447,23 +1432,15 @@ export function createResponseSurface({
         ...commenting(addressableWord(here)),
         box: fabInput,
         go: () => commentOnAddressable(here),
-        returnFrame: composerReturnFrame,
       };
     return {
       ...commenting("page"),
       box: generalInput,
+      // Two steps down and two back: the box hands the reader to the list it belongs
+      // to, and the panel hands them to the page.
       go: () => {
         setPanel(true);
         generalInput.focus({ preventScroll: true });
-      },
-      returnFrame: () => {
-        const previousAuxiliaryChrome = captureAuxiliaryChromeState();
-        return {
-          active: () => generalRow.contains(documentFocused()),
-          close: () => restoreAuxiliaryChromeState(previousAuxiliaryChrome),
-          does: "Return to where you were",
-          line: "back",
-        };
       },
     };
   }
@@ -1482,7 +1459,7 @@ export function createResponseSurface({
   // belonging to it, and otherwise the page's general box. That box lives in Threads, but c
   // names and focuses the box directly; g T independently names the list. Never the panel's
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
-  // promised “comment” answered “close”. Backing out is the entry's return frame.
+  // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //
   // Standing outranks the page and not the pointer: a reader who has just selected words or
   // raised the 💬 on something has said what they mean more recently than the focus they
@@ -1499,10 +1476,6 @@ export function createResponseSurface({
     // row's own liveness is where that is said rather than a refusal inside run that no
     // surface can see.
     when: () => anchoringIsReady() || !pageSelection(),
-    returnFrame: () => {
-      updateFab();
-      return commentDestination().returnFrame?.() ?? null;
-    },
     run: () => {
       updateFab(); // the selection may be newer than the mouseup that last placed the bar
       commentDestination().go();

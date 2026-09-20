@@ -18,9 +18,9 @@
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
    Page Map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
    panel destination toggles that panel, matching its visible control. Completing one that
-   opens a surface exchanges the transient sequence for a return frame which restores the
-   standing and auxiliary chrome state captured before `g` armed; completing it again closes the
-   surface without adding a frame. These destinations remain available when an auxiliary surface
+   opens a surface leaves the reader in that surface, whose own Escape step is the way out
+   of it — the same step for a surface the reader already had, and none of this sequence's
+   to declare; completing the mnemonic again closes it. These destinations remain available when an auxiliary surface
    covers the page: the sequence belongs to that modal surface while the inert document's
    ordinary scopes remain unavailable.
 
@@ -49,13 +49,11 @@
    and keeps both the panel and its narrowing. A panel covering the document cannot make
    that promise, so its ordinary Escape rung remains the route back.
 
-   Keyboard destinations also capture the auxiliary chrome state they replace. `g T`, `g A`, and
-   `g L` may exchange a standing panel or tray for another; their return frame restores
-   that prior auxiliary surface and re-resolves its semantic row when reconciliation rebuilt it.
-   `g M` uses the same frame for the Page Map dialog. `g V` contributes the
-   version menu's own return frame to that destination vocabulary. Direct destinations
-   therefore restore the standing their owner displaced rather than merely focusing the
-   destination's banner control after closing it.
+   A destination declares no way back. `g T`, `g A` and `g L` may exchange a standing
+   panel or tray for another, and the surface the reader ends in owns the one step that
+   takes it off again — the same step whichever door opened it, and the same for a
+   surface they already had. Exchanging one for another is lateral, so the one replaced
+   is not put back; the reader reaches it the way they reached it the first time.
 
    The Go-to sequence has no timeout. The reader is not charged a time limit for reading
    the hints just painted. */
@@ -108,10 +106,7 @@ export function createGoToSequence({
   elements: { banner, toggleBtn },
   hintChrome,
   directDestinations,
-  captureAuxiliaryChromeState,
-  restoreAuxiliaryChromeState,
   setPanel,
-  panelFrame,
   setOpenTray,
   scrollToElement,
   showThread,
@@ -242,18 +237,10 @@ export function createGoToSequence({
         }
       },
       active: (...args) => panelIsOpen(...args),
-      // The mnemonic pressed over an open panel closes it outright. The frame is the
-      // panel's own, the one the toggle pushes: its arrival is the list, the panel's
-      // floor, so what the reader then stands on is theirs to let go of before it answers
-      // — unless the press carried an inline thread in and stood them on its card, which
-      // the one Escape then gives back.
+      // The mnemonic pressed over an open panel closes it outright. The way back out of
+      // one it opened is the panel's own step, which is the same step for a panel the
+      // reader already had.
       close: () => setPanel(false),
-      frame: () =>
-        panelFrame({
-          carried: activeInlineThread()?.dataset.thread ?? null,
-          does: "Return from Threads panel",
-          line: "back",
-        }),
       toggle: true,
     },
     {
@@ -270,7 +257,6 @@ export function createGoToSequence({
       },
       active: () => currentTray() === "asks",
       close: () => setOpenTray(null),
-      surface: () => asksPanel,
       toggle: true,
     },
     {
@@ -287,7 +273,6 @@ export function createGoToSequence({
       },
       active: () => currentTray() === "leaves",
       close: () => setOpenTray(null),
-      surface: () => othersPanel,
       toggle: true,
     },
     {
@@ -748,30 +733,8 @@ export function createGoToSequence({
           line: destination.line,
           control: destination.control,
           when: () => atGoToTargets() && destination.when(),
-          returnFrame: () => {
-            const previousAuxiliaryChrome = captureAuxiliaryChromeState();
-            // A destination whose surface has a frame of its own — the panel's — hands
-            // it over, read before the run as every frame is. Its close may take a layer
-            // off inside the surface and say false, and the frame stays for the press
-            // that closes it.
-            const own = destination.frame?.() ?? {};
-            const leave = own.close ?? destination.close;
-            return {
-              active: destination.active,
-              does: `Return from ${word(destination.line)}`,
-              line: "back",
-              // A direct destination lands on a floor or a chrome row — the list, a tray's
-              // first row, a version — so what the reader then stands on is theirs to let
-              // go of first, unless the destination says its arrival was a standing.
-              standing: destination.standing?.() ?? false,
-              surface: destination.surface,
-              ...own,
-              close: () => {
-                if (leave?.() === false) return false;
-                return restoreAuxiliaryChromeState(previousAuxiliaryChrome);
-              },
-            };
-          },
+          // No way back of its own: the surface the mnemonic travels to owns the step
+          // that takes it off again, and it is the same step whichever door opened it.
           run: () => {
             const closing = destination.toggle && destination.active();
             setGoToSequence(false);

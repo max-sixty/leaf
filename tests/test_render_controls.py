@@ -3342,17 +3342,18 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     )
     page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
 
-    # Opened from the keyboard, the toggle was the place, and Escape hands it back.
+    # Opened from the keyboard, and left the same way one opened by pointer is: the
+    # panel's parent is the document, so Escape lands the reader there rather than on
+    # the toggle that reopens it.
     toggle.focus()
+    assert page.evaluate(ringed), "the control the reader is standing on says nothing"
     page.keyboard.press("Enter")
     expect(panel).to_be_visible()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
-    expect(toggle).to_be_focused()
-    assert page.evaluate(ringed), "the control the reader is standing on says nothing"
+    assert page.evaluate("() => document.activeElement === document.body")
 
-    # The rung, and what it is worth: off the chrome, and Space is the page's again.
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to the page")
+    # And Space is the page's again.
     page.keyboard.press("Escape")
     assert page.evaluate(on_body)
     assert not page.evaluate(ringed)
@@ -3737,7 +3738,7 @@ def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serv
 
     page.keyboard.press("Escape")
     expect(tray).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(".lf-asks")).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
     assert not page.locator("main").evaluate("el => el.inert")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
 
@@ -3888,7 +3889,9 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(
         panel_settled(page, open=False)
     else:
         expect(page.locator(surface)).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(origin).to_be_focused()
+    # The surface's parent is the document, so that is the landing whichever width it
+    # was left at and whatever the reader was standing on before they asked for it.
+    assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("g")
     page.keyboard.press(key)

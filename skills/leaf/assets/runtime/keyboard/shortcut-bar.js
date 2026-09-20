@@ -281,18 +281,16 @@ const arrange = (rows) => {
       : [...rows.slice(0, referenceAt), ...rows.slice(referenceAt + 1)];
   const candidates = withoutReference;
   const first = candidates[0];
-  const wayOut = candidates
-    .slice(1)
-    .find(
-      (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false,
-    );
-  const short = new Set(
-    [first, wayOut ?? candidates.find((row) => row !== first)].filter(Boolean),
+  const wayOut = candidates.find(
+    (row) => bindings(row).includes("Escape") && word(row.promoteEscape) !== false,
   );
+  const second =
+    wayOut && wayOut !== first ? wayOut : candidates.find((row) => row !== first);
+  const short = new Set([first, second].filter(Boolean));
   const tail = withoutReference.includes(CLOSE_SHORTCUT_SHELF)
     ? CLOSE_SHORTCUT_SHELF
     : null;
-  return { candidates, reference, short, tail };
+  return { candidates, reference, short, tail, wayOut };
 };
 const completeLine = (scopes, candidates) => {
   const scope = scopes.find((candidate) => candidate.sequence);
@@ -307,19 +305,14 @@ const completeLine = (scopes, candidates) => {
     rows,
   };
 };
-const openCompleteReference = (captureReturnPlace) =>
-  openCommandReference(
-    (id, origin) => executeCommand(id, origin, beforeShortcutCommand),
-    captureReturnPlace,
-  );
-function advanceShortcutHelp(captureReturnPlace) {
-  if (!shortcutHelpAvailable() || shortcutShelfIsOpen)
-    return openCompleteReference(captureReturnPlace);
+const openCompleteReference = () =>
+  openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+function advanceShortcutHelp() {
+  if (!shortcutHelpAvailable() || shortcutShelfIsOpen) return openCompleteReference();
   const scopes = stack();
   const { candidates, short } = arrange(lineRows(scopes));
   const shown = completeLine(scopes, candidates)?.rows ?? short;
-  if (!candidates.some((row) => !shown.has(row)))
-    return openCompleteReference(captureReturnPlace);
+  if (!candidates.some((row) => !shown.has(row))) return openCompleteReference();
   shortcutShelfIsOpen = true;
   repaint();
   announce(
@@ -342,7 +335,7 @@ export function renderShortcutBar(goToStatus) {
   // `?` has its own permanent More control, so its ordinary row remains in the DOM only as
   // the register's hidden projection. In the shelf, the current Escape is drawn after that
   // control so both disclosure choices finish the second row.
-  const { candidates, reference, short, tail } = arrange(rows);
+  const { candidates, reference, short, tail, wayOut } = arrange(rows);
   const complete = completeLine(scopes, candidates);
   const shown = complete?.rows ?? short;
   const position = walkPosition();
@@ -403,6 +396,7 @@ export function renderShortcutBar(goToStatus) {
       commandIds: commandPresentations(row, active)
         .map(({ id }) => id)
         .join(" "),
+      wayOut: row === wayOut,
       hidden: sourceRow(row) === SHORTCUT_HELP || (!shelf && !shown.has(row)),
     });
   });
@@ -464,8 +458,12 @@ export function renderShortcutBar(goToStatus) {
   // hidden rows remain available to inspection and the reference. Active sequences return
   // below before any row can yield.
   if (shelf) {
+    // The way out is the one row the trim may not spend. A shelf covering the page at a
+    // narrow width is exactly where the reader needs it, and the ordinary line already
+    // keeps it whatever its rank: the way out sits last in the register's order, so a
+    // trim that only counts from the end would drop it first of all.
     const removable = drawn
-      .filter(({ span }) => !span.hidden)
+      .filter(({ span, presentation }) => !span.hidden && !presentation.wayOut)
       .map(({ span }) => span)
       .toReversed();
     while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
@@ -491,11 +489,11 @@ export const shortcutShelfOpen = () => shortcutShelfIsOpen && shortcutHelpAvaila
 
 // Boot supplies the two transient interactions More closes. The shelf renderer and its
 // reference rows never import those command owners to draw their current declarations.
-export function mountShortcutBar({ setGoToSequence, setReact, captureReturnPlace }) {
+export function mountShortcutBar({ setGoToSequence, setReact }) {
   activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);
-    advanceShortcutHelp(captureReturnPlace);
+    advanceShortcutHelp();
   };
   // A narrower window changes which rows fit even without another reader input.
   addEventListener("resize", repaint);

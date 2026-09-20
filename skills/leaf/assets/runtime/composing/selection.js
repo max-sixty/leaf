@@ -32,7 +32,6 @@ import { threadsBox } from "../conversation/panel-elements.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { currentOrigin, invoke, readingPlace } from "../keyboard/layer-stack.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
@@ -129,7 +128,6 @@ export function createSelectionComposer({
   reactionTokens,
   designModeActive,
   marginOpenInlineThread,
-  marginThreadFrame,
   threadTransitionOrigin,
   anchorStands,
   anchorTargetAt,
@@ -569,12 +567,6 @@ export function createSelectionComposer({
     does: "Go to the draft you have not sent",
     line: "your draft",
     when: () => !composerOpen && keptDraft() !== null,
-    returnFrame: () => ({
-      active: () => composerOpen,
-      close: () => hideComposer(),
-      does: "Return from the draft",
-      line: "back",
-    }),
     run: () => {
       const record = keptDraft();
       if (!record) return;
@@ -615,13 +607,6 @@ export function createSelectionComposer({
         // can carry that box into its new surface after the draft settlement has removed
         // the composer from the page.
         const transition = threadTransitionOrigin(composerInput, visible);
-        // And keep the place that press displaced, while the box's own frame still stands
-        // to be asked for it. The thread is the press's second surface rather than a
-        // second press: `c` from a control opens the box on what the reader is standing
-        // in, so one Escape from the thread it becomes owes them that control back. Where
-        // the press displaced no control — the pointer had already put the reader on the
-        // page to select the words it is about — that same place is the page.
-        const entered = currentOrigin() ?? readingPlace();
         const epoch = composerEpoch;
         const sent = sendMessage(
           ctx,
@@ -652,9 +637,7 @@ export function createSelectionComposer({
           mayLandTyping(reply, composerInput);
         // Continue in the surface already in use. Closing an open panel here reflows the
         // passage just as the reader's comment moves across it to a new floating card.
-        // Whichever surface that is, the comment press took the reader there, so the
-        // landing enters the stack with the place that press displaced.
-        let landedIn = null;
+        // Whichever surface that is, its own Escape step is the way back out of it.
         const land = async () => {
           const inlineThread =
             shouldLand && !panelIsOpen()
@@ -679,17 +662,8 @@ export function createSelectionComposer({
           // The composer this was sent from is gone with the send; the thread it became
           // carries the same conversation, so its reply box is where typing continues.
           if (shouldLand && !inlineReply) landTyping(reply, composerInput);
-          if (shouldLand) landedIn = inlineThread ?? reply?.closest(".lf-thread");
         };
-        await invoke(
-          {
-            id: "comment.sent",
-            returnFrame: () => marginThreadFrame(() => landedIn),
-          },
-          null,
-          land,
-          entered,
-        );
+        await land();
       },
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);

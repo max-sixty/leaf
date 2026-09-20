@@ -3222,7 +3222,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     back = reference.locator(
-        '.lf-command-reference-command[data-lf-command="margin.back"]'
+        '.lf-command-reference-command[data-lf-command="navigation.back"]'
     )
     expect(back).to_have_text("Fold the secondary page actions")
     back.click()
@@ -3431,9 +3431,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()
-    # Back where the reader stood before the press, which was the accept control the
-    # pointer's click displaced, not the option the click focused.
-    expect(accept).to_be_focused()
+    # Back on the entry the card hung from, the cluster the reader unfolded being the
+    # level under it and the one the next press folds.
+    expect(thread_margin_entry).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
@@ -5574,12 +5574,18 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(preview.locator("textarea")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(marker).to_be_focused()
+    # The card is anchored to a passage and hoisted into the chrome, so it lands the
+    # reader on the page rather than on the marker it hung from, which a `t` from the
+    # page would never have stood them on.
+    assert page.evaluate("() => document.activeElement === document.body")
     # The walk is over the markers the viewport holds and never scrolls to reach one,
     # which is what this case is named for. So it starts at the first of them and steps
     # down, against the count the walk itself publishes, rather than pressing from
-    # wherever the preview left focus: from the last marker on screen the press clamps,
-    # and this case used to read that clamp as a walk that had failed to move.
+    # wherever the card left the reader: from the last marker on screen the press
+    # clamps, and this case used to read that clamp as a walk that had failed to move.
+    # Home is the margin's own key, so the reader has to be in the margin to press it —
+    # the card handed them back to the page, which is not.
+    marker.focus()
     page.keyboard.press("Home")
     position = page.locator(".lf-walk-position")
     expect(position).to_have_text(re.compile(r"^Marker 1 of \d+$"))
@@ -5816,7 +5822,9 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
-        expect(page.locator(".lf-shortcut-bar")).to_contain_text("dismiss conversation")
+        # The send left the reader in the new thread's reply box, so the line names the
+        # box's own way out; the card it stands in is the press after that.
+        expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to thread")
         preview_box = preview.bounding_box()
         assert preview_box["x"] >= 0, preview_box
         assert preview_box["x"] + preview_box["width"] <= width, preview_box
@@ -5828,35 +5836,36 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         assert passage_after[coordinate] == pytest.approx(
             passage_before[coordinate], abs=1
         )
-    # A pointer selection displaced whatever the reader was on before the comment
-    # began, so the page is the place this gesture has to hand back, and one Escape
-    # takes off only what the send put up: the card goes, and a panel that was already
-    # open stays. What it must not do is focus the margin entry the card hangs from — or,
-    # where no rail stands, the Page Map button — or walk the reader out through the
-    # thread and the list, none of which they stood on; a margin entry arrived at that
-    # way says its transient label, finishing a comment on a tooltip.
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    expect(page.locator("body")).to_be_focused()
-    threads = expect(page.locator(".lf-thread-panel"))
+    # The send left the reader in the new thread's reply box, and the way out is the
+    # levels it stands in: the box hands them to the thread, and then the surface
+    # holding that thread. A card goes straight onto the page it is anchored to; a panel
+    # card lets go onto its list first. What neither does is focus the margin entry the
+    # card hangs from — or, where no rail stands, the Page Map button — which the reader
+    # never stood on and which says its transient label as they arrive.
+    page.keyboard.press("Escape")  # out of the reply box the send landed in
+    page.keyboard.press("Escape")  # and off the thread it belongs to
     if panel_open:
-        threads.to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-threads")).to_be_focused()
+        expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     else:
-        threads.not_to_have_class(re.compile(r"\bopen\b"))
+        expect(preview).to_be_hidden()
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
+        assert page.evaluate("() => document.activeElement === document.body")
 
 
 @pytest.mark.parametrize("panel_open", [False, True])
-def test_a_comment_sent_from_a_control_hands_that_control_back(
+def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     browser, serve, panel_open
 ):
-    """One press comments, and one Escape returns the control that press displaced.
+    """The send leaves the reader two levels down, and each press takes off one.
 
     `c` opens the box on whatever the reader is standing in without moving them off it,
-    and the send carries the reader on into the thread the comment became: a card it
-    puts up, or the thread's place in a panel that was already open. Both surfaces
-    answer the one press, so one Escape hands back the place it displaced, taking off
-    the card and leaving the panel, rather than landing the reader wherever the thread
-    happens to hang or walking them out through the list.
+    and the send carries them into the thread the comment became: a card it puts up, or
+    the thread's place in a panel that was already open. The box hands them to the
+    thread, and the surface holding that thread is the next step, so leaving costs the
+    two presses the descent did. The control `c` was pressed from is not a landing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -5883,12 +5892,15 @@ def test_a_comment_sent_from_a_control_hands_that_control_back(
     else:
         expect(preview).to_be_visible()
 
+    # The send left the reader in the new thread's reply box: the box hands them to the
+    # thread it belongs to, and the surface holding that thread is the next step.
     page.keyboard.press("Escape")
-    expect(stood).to_be_focused()
+    page.keyboard.press("Escape")
     if panel_open:
         expect(threads).to_have_class(re.compile(r"\bopen\b"))
     else:
         expect(preview).to_be_hidden()
+        assert page.evaluate("() => document.activeElement === document.body")
 
 
 def seeded_thread(page, page_dir, passage):
@@ -5899,20 +5911,22 @@ def seeded_thread(page, page_dir, passage):
     with sending(page, f"the comment on {passage}"):
         page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(page_dir)[-1]
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # out of the reply box the send landed in
+    page.keyboard.press("Escape")  # and off the card holding it
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     return sent
 
 
-def test_a_note_pressed_into_an_open_panel_hands_the_note_back(browser, serve):
-    """A press that moves the reader into a panel already standing still owes them their place.
+def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
+    browser, serve
+):
+    """A thread reached through the panel is left by the list it sits in.
 
     The note opens its thread where the thread is indexed: the card with Threads shut,
-    and the thread's card in the list with them open. That second press puts nothing up,
-    and it has still taken the reader off the note, so one Escape gives the note back and
-    leaves the panel open, as the one it opened would have been taken off. The way back
-    holds while the reader walks the list from there, since `t` from a thread records no
-    frame of its own.
+    and the thread's place in the list with them open. `t` then walks the reader on to a
+    second thread. Letting go of that one lands on the list holding it — the level it is
+    part of — and leaves the panel standing. The note is on the page they left when they
+    entered the panel, and a walk is not a descent to rewind.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -5929,17 +5943,20 @@ def test_a_note_pressed_into_an_open_panel_hands_the_note_back(browser, serve):
     page.keyboard.press("t")
     expect(threads.locator(f'.lf-thread[data-id="{second["id"]}"]')).to_be_focused()
 
+    # The walk moved the reader laterally to a second card; letting go of it lands on
+    # the list it is in, and the note that took them into the panel is not a landing.
     page.keyboard.press("Escape")
-    expect(note).to_be_focused()
+    expect(page.locator(".lf-threads")).to_be_focused()
     expect(threads).to_have_class(re.compile(r"\bopen\b"))
 
 
-def test_a_margin_marker_pressed_with_threads_open_hands_itself_back(browser, serve):
-    """The marker lands its thread in an open panel, and one Escape gives the marker back.
+def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve):
+    """The marker lands the reader in a reply box, and the box's level is the thread.
 
-    With Threads shut the marker puts the card up, as its own press; with them open it
-    carries the reader into the thread's place in the list, which puts nothing up, and
-    the panel that was already open stays.
+    With Threads open the marker carries them to the thread's place in the list and into
+    its reply box. Letting go of the box hands them to the thread it belongs to, and the
+    panel that was already open stays. The marker is Leaf's own control beside the words
+    it marks rather than a place they were standing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -5955,19 +5972,21 @@ def test_a_margin_marker_pressed_with_threads_open_hands_itself_back(browser, se
         threads.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')
     ).to_be_focused()
 
+    # The box hands the reader back to the thread it belongs to; the marker is Leaf's
+    # own control beside the words it marks rather than a place they were standing.
     page.keyboard.press("Escape")
-    expect(marker).to_be_focused()
+    expect(threads.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_be_focused()
     expect(threads).to_have_class(re.compile(r"\bopen\b"))
 
 
 @pytest.mark.parametrize("entry", ["note", "comment"])
 def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, entry):
-    """The card a press put up is that press's to take off whatever thread it shows.
+    """The card a press put up is one level to take off whatever thread it shows.
 
-    `t` from the card walks it on to the next thread without a frame of its own, so the
-    one Escape still closes the card and hands back the place the press that put it up
-    displaced: the note, or the control `c` was pressed from. It must not land the reader
-    on the margin entry the card hangs from, which they never stood on.
+    `t` walks the card on to the next thread without adding a level, so the one Escape
+    still closes it. The landing is the page: neither the note nor the control `c` was
+    pressed from is standing any more, and the margin entry the card now hangs from is
+    one the reader never stood on.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -5996,21 +6015,83 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     expect(card).not_to_have_attribute("data-thread", shown)
     expect(card).to_be_focused()
 
+    # The card is the one level standing, and it lands the reader on the page it is
+    # anchored to rather than on the margin control it hangs from.
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
-    expect(stood).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve):
+    """A cluster unfolded on another entry stands beside the card, not under it.
+
+    The card holds the margin's context while it is up, so a cluster the reader unfolded
+    stays open as `t` walks the card on to a thread on a different entry. Landing on the
+    entry the card now hangs from would hand the next press a fold belonging to an entry
+    somewhere else, so the card lands on the page and the cluster answers after it, at
+    the entry the reader actually unfolded.
+    """
+    page = open_page(
+        browser,
+        serve(
+            ACTION_PAGE,
+            events=[
+                COMMENT_ON_SUGGESTION,
+                {
+                    "kind": "comment",
+                    "author": "agent",
+                    "revision": 1,
+                    "text": "The plain paragraph carries a thread of its own.",
+                    "anchor": {"section": "insert"},
+                },
+            ],
+        ),
+    )
+    resized(page, 1440, 900)
+    unfolded = page.locator('[data-lf-margin-for="sug-refill"]')
+    more = unfolded.locator(":scope > .lf-margin-more")
+    options = unfolded.locator(":scope > .lf-margin-options")
+    more.click()
+    expect(options).to_be_visible()
+
+    thread_margin_entry = options.locator(
+        '.lf-margin-reading-option[data-lf-kinds="comment"]'
+    )
+    thread_margin_entry.click()
+    preview = page.locator(".lf-margin-preview")
+    card = preview.locator(".lf-conversation-thread")
+    expect(preview).to_be_visible()
+    card.focus()
+    shown = card.get_attribute("data-thread")
+
+    # The walk carries the card to a thread whose own margin entry is already standing,
+    # so nothing unfolds to hang it from and nothing folds the cluster: the card holds
+    # the margin's context, so the reader's cluster is still open behind it.
+    page.keyboard.press("t")
+    expect(card).not_to_have_attribute("data-thread", shown)
+    expect(options).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+    expect(options).to_be_visible()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
+
+    page.keyboard.press("Escape")
+    expect(options).to_be_hidden()
+    expect(more).to_be_focused()
 
 
 @pytest.mark.parametrize("second", ["note", "marker"])
-def test_a_press_that_puts_its_thread_in_a_standing_card_hands_itself_back(
+def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     browser, serve, second
 ):
-    """A press from outside the card that puts its thread there is the card's way out.
+    """A press from outside replaces what the card shows rather than stacking a level.
 
-    The card shows one thread, so the second press has put up the card the reader now
-    sees, as a pointer press would have after the first card light-dismissed. One Escape
-    closes it and hands back the second note or marker, never the first note, whose
-    card the second press already replaced.
+    The card shows one thread, so the second note or marker changes its contents and
+    leaves one card standing, as a pointer press would have after the first card
+    light-dismissed. One Escape closes it, and the landing is the page it is anchored
+    to: neither note nor marker is a place the reader was standing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -6034,9 +6115,11 @@ def test_a_press_that_puts_its_thread_in_a_standing_card_hands_itself_back(
     expect(card).not_to_have_attribute("data-thread", shown)
     expect(card).to_be_focused()
 
+    # One card is standing whichever press put this thread in it, so there is one way
+    # out of it: the page it is anchored to.
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
-    expect(stood).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 # Read the card with the selected target's whole control cluster. A card the rail cannot
@@ -6299,7 +6382,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     page.keyboard.press("Shift+a")
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
+    # Exchanging one auxiliary surface for another is lateral, so the tray's Escape
+    # lands on the page and the card it displaced is not put back up.
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-asks-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(preview).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+    marker.click()
     expect(preview).to_be_visible()
     expect(thread.locator(".lf-conversation-thread")).to_be_focused()
 
@@ -6356,7 +6445,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
-    expect(marker).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
@@ -6690,15 +6779,20 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         if violation["impact"] in {"serious", "critical"}
     ] == []
 
+    # A modal's parent is the page it stands over, so Escape lands the reader there
+    # whichever door opened the dialog.
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
-    return_focus = page.locator("body") if opener == "keyboard" else toggle
-    expect(return_focus).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
 
 
-def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
-    """A dialog returns to the visible door that exposed its folded Page Map control."""
+def test_a_folded_compact_map_closes_its_banner_overflow_with_it(browser, serve):
+    """A dialog reached through the banner's overflow leaves that overflow folded.
+
+    Escape lands the reader on the page rather than on the control that exposed the
+    door, the dialog's parent being the page it stands over; what the overflow must not
+    do is stay open behind it, promising a door the reader has already been through."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
     more = page.get_by_role("button", name="More page controls", exact=True)
@@ -6710,7 +6804,7 @@ def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
     expect(dialog).to_be_visible()
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
-    expect(more).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
     expect(more).to_have_attribute("aria-expanded", "false")
 
 

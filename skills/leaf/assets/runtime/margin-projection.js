@@ -88,10 +88,9 @@ import {
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
-import { focusDestination } from "./focus.js";
-import { invoke, pressOrigin } from "./keyboard/layer-stack.js";
+import { focusDestination, letGo } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
-import { clampedRow, PRESS, word } from "./keyboard/bindings.js";
+import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
@@ -102,7 +101,7 @@ import {
 } from "./reading-regions.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
-import { pageScope } from "./keyboard/register.js";
+import { pageRung, pageScope } from "./keyboard/register.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
@@ -169,7 +168,6 @@ export function createMarginProjection({
   bottomChromeBoxes,
   placedAt,
   showThread,
-  panelFrame,
   goToAsk,
   scrollToElement,
   scrollToThread,
@@ -2594,21 +2592,6 @@ export function createMarginProjection({
     return positioned;
   }
 
-  // A press on a margin control is a command like `t`: it enters the layer stack with
-  // the place the reader held before the press, so the Escape that dismisses the view
-  // hands that place back — the page, for a reader who clicked a marker — rather than
-  // whichever margin control the view hangs from by then. The view shows one thread, so a
-  // press that puts another in a view already showing has put up the view the reader now
-  // sees, and records its frame the same way; the earlier press's frame leaves with it.
-  const OPENED_BY_PRESS = {
-    id: "margin.conversation",
-    returnFrame: () => ({
-      active: () => inlineThreadView.showing(),
-      close: () => closePreview(),
-      does: "Dismiss the conversation view",
-      line: "dismiss conversation",
-    }),
-  };
   function togglePinned(entry, button) {
     if (pinnedKey === entry.key && previewMarginEntry === button) {
       pinnedKey = null;
@@ -2627,7 +2610,7 @@ export function createMarginProjection({
           revealConversation(thread, thread);
         });
     };
-    invoke(OPENED_BY_PRESS, null, open, pressOrigin());
+    open();
   }
 
   function closePreview(returnFocus = false) {
@@ -2661,119 +2644,103 @@ export function createMarginProjection({
     paintKeys();
   }
 
-  // The way back out of the conversation view a walk opened from the page: a `t` from the
-  // page never stood on the margin, so its frame closes the view and leaves the reader's
-  // place to the frame that captured it. The view's own close control, pressed by pointer,
-  // hands focus to the margin entry the view hangs from, since that is where the pointer
-  // is; a press that opened the view has a frame of its own (`togglePinned`,
-  // `threadFrame`).
+  // The conversation view, for the owners that open and close it from outside. What
+  // takes it off again is the Page Map's own Escape step, read off the card standing
+  // rather than off whatever put it up. The view's own close control, pressed by
+  // pointer, hands focus to the margin entry the view hangs from, since that is where
+  // the pointer is.
   const inlineThreadView = {
     showing: () =>
       preview.matches(":popover-open") && preview.hasAttribute("data-lf-thread"),
     dismiss: () => closePreview(),
   };
 
-  // The way back out of a thread a press took the reader into, wherever it came up. One
-  // frame, whose Escape takes off what the press put up and then lets the stack hand back
-  // the place the press displaced. The card it put up goes, and stays this press's to take
-  // off while `t` walks it on to other threads; a later press that puts its own thread in
-  // the card has put up the card the reader then sees, as `togglePinned` says. The panel
-  // it opened goes too, by the panel's own frame, which holds while the panel stands.
-  // A press into a surface that already stood — the panel, or a thread seated in a widget —
-  // puts nothing up and has moved the reader all the same, so it hands back that place
-  // while they stand on a thread there: any card in the panel's list, which `t` walks
-  // without a frame of its own, or the seated thread itself.
-  //
-  // Which of the three the press was is decided once, at the stack's first look after the
-  // run. `landedIn` names the thread the reader was taken into; the frame is built before
-  // the run, so it knows whether the panel was standing when the press came. Standing is
-  // read off nodes rather than ids, because a send's thread is drawn under its pending id
-  // and the log's answer renames that same node.
-  function threadFrame(landedIn) {
-    const panelWasShut = !panelIsOpen();
-    const standsIn = () => {
-      const thread = landedIn();
-      if (!panel.contains(thread)) return Boolean(thread?.matches(":focus-within"));
-      return panelIsOpen() && Boolean(panel.querySelector(".lf-thread:focus-within"));
-    };
-    const view = {
-      active: () => inlineThreadView.showing(),
-      close: () => closePreview(),
-      does: "Dismiss the conversation view",
-      line: "dismiss conversation",
-      standing: true,
-      surface: null,
-    };
-    const opened = { ...panelFrame(), standing: standsIn };
-    const stood = {
-      active: standsIn,
-      close: () => {},
-      does: "Return to where you were",
-      line: "back",
-      standing: true,
-      surface: null,
-    };
-    let put = null;
-    const half = () =>
-      (put ??= preview.contains(landedIn())
-        ? view
-        : panelWasShut && panelIsOpen()
-          ? opened
-          : stood);
-    return {
-      active: () => Boolean(landedIn()) && half().active(),
-      close: () => half().close(),
-      does: () => word(half().does),
-      line: () => word(half().line),
-      standing: () => word(half().standing),
-      surface: () => word(half().surface),
-    };
-  }
-
-  // The card and its owning margin entry cluster are one page-map stack even though the card
-  // is hoisted into the chrome. Expose the current rung to the one keyboard register so
-  // it can stand ahead of reaction and navigation modes, preserving the local surface's
-  // old order without another keydown listener. One press closes only the deepest rung.
+  // The card, which is a native layer the reader is either inside or standing at the
+  // entry of. It is hoisted into the chrome while anchored to a passage, so it counts as
+  // chrome for which surface holds focus and as page-anchored for where the reader
+  // lands, and one press closes it.
   function keyboardRung({ atFocus = true } = {}) {
     const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
     if (
-      preview.matches(":popover-open") &&
-      (!atFocus ||
-        preview.contains(active) ||
-        (previewMarginEntry && host?.contains(previewMarginEntry)))
+      !preview.matches(":popover-open") ||
+      (atFocus &&
+        !preview.contains(active) &&
+        !(previewMarginEntry && host?.contains(previewMarginEntry)))
     )
-      return {
-        root: preview,
-        does: "Dismiss the conversation view",
-        says: "dismiss conversation",
-        out: () => closePreview(true),
-      };
-    const optionsHost = atFocus ? host : hosts.get(expandedOptionsKey);
-    // Once a contribution is engaged, its complete/escape controls are open because
-    // of semantic state rather than because the reader disclosed the secondary tray.
-    // That state consumes the earlier disclosure rung: Escape leaves the action the
-    // reader is standing on instead of first pretending to close controls that remain
-    // open by contract.
-    if (
-      optionsHost?.lfEntry?.key === expandedOptionsKey &&
-      !entryEngaged(optionsHost.lfEntry)
-    )
-      return {
-        root: optionsHost,
-        does: "Fold the secondary page actions",
-        says: "close options",
-        out: () => setOptionsOpen(optionsHost.lfEntry, false, { returnFocus: true }),
-      };
-    return null;
+      return null;
+    return {
+      root: preview,
+      does: "Dismiss the conversation view",
+      says: "dismiss conversation",
+      // Where it lands turns on whether a level of the reader's own stands under it. A
+      // cluster they unfolded themselves is that level, and it folds the moment focus
+      // leaves the margin, so the close hands them back to the entry the card hangs
+      // from and the fold is the next press. With no such cluster — the walk's own
+      // reveal folds with the card, and a bare marker has none — the entry is a control
+      // they may never have stood on, a `t` from the page having put the card up
+      // without going near the margin, so the landing is the page it is anchored to.
+      //
+      // Under it means on the entry this card would land on. A cluster left unfolded on
+      // another entry stands beside the card, not beneath it — the card retains the
+      // margin's focus while it is up, so a `t` walk carries the card away from the
+      // cluster and leaves it open — and landing on this entry would hand the next
+      // press a fold that teleports focus somewhere third. So the question goes to
+      // `optionsRung`, the step that would actually answer next, which also declines
+      // for a host that has gone or an entry whose own state holds its actions open.
+      // Hiding the popover hands focus back to the control that opened it, which after
+      // a walk is a control in the cluster the card has since left. That return is
+      // transit rather than the reader arriving, and the landing below moves them on
+      // from it in the same press, so the cluster is told not to read it as their
+      // leaving — otherwise one press would take the card and the cluster together.
+      out: () => {
+        const entry = previewMarginEntry?.lfEntry;
+        const standing = Boolean(
+          entry &&
+          expandedOptionsKey === entry.key &&
+          expandedOptionsKey !== forcedInlineOptionsKey &&
+          optionsRung(),
+        );
+        const wasSettlingOptionsFocus = settlingOptionsFocus;
+        settlingOptionsFocus = true;
+        try {
+          closePreview(standing);
+          if (!standing) letGo();
+        } finally {
+          settlingOptionsFocus = wasSettlingOptionsFocus;
+        }
+      },
+    };
   }
 
-  // A thread card and the unfolded margin entry cluster that owns it are one page-map
-  // stack, though the card itself is hoisted into the chrome. This is a scene-derived
-  // fallback: a later keyboard entry returns through its captured frame before this rung.
-  // Without one, the registered rung precedes the reaction and navigation fallbacks just as
-  // the surface's old local listener did: Escape closes the card first, then folds the
-  // cluster on a second press.
+  // The cluster the reader unfolded is page-side state rather than a layer of the card,
+  // so it answers from the ladder wherever they are standing — the card they opened from
+  // it lands them out on the page, and the fold would otherwise be reachable only by
+  // Tabbing back into the margin. It comes off after anything standing over the page and
+  // before the page itself, beside the selection, and lands on the entry it hangs from,
+  // which is the container it is part of.
+  //
+  // Once a contribution is engaged, its complete and escape controls are open because of
+  // semantic state rather than because the reader disclosed the secondary tray. That
+  // state consumes the earlier disclosure step: Escape leaves the action the reader is
+  // standing on instead of first pretending to close controls that remain open by
+  // contract.
+  function optionsRung() {
+    const host = hosts.get(expandedOptionsKey);
+    if (!host?.lfEntry || host.lfEntry.key !== expandedOptionsKey) return null;
+    if (entryEngaged(host.lfEntry)) return null;
+    return {
+      root: host,
+      does: "Fold the secondary page actions",
+      says: "close options",
+      out: () => setOptionsOpen(host.lfEntry, false, { returnFocus: true }),
+    };
+  }
+  pageRung("margin options", optionsRung);
+
+  // The card is a native layer over the page, so this scope stands ahead of the reaction
+  // and navigation modes, as the surface's old local listener did, without another
+  // keydown listener of its own.
   const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
   pageScope("page map", {
     title: "In the Page Map",
@@ -2811,13 +2778,13 @@ export function createMarginProjection({
     const choice = threadReading(entry);
     if (!choice) return;
     // With Threads open the marker lands its thread there, a press into the panel like a
-    // note's, so it goes through the same door and hands the marker back on Escape.
+    // note's, so it goes through the same door.
     if (panelIsOpen()) {
       if (expandedOptionsKey && expandedOptionsKey !== entry.key)
         setOptionsOpen(entry, false);
       closePreview();
       leavePageMap();
-      openPageThread(choice.items[0].thread.root.id, { origin: pressOrigin() });
+      openPageThread(choice.items[0].thread.root.id);
       return;
     }
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
@@ -2893,47 +2860,27 @@ export function createMarginProjection({
   // A press on marked words passes `travel: false`: the words are already under the
   // reader's hand, and centring them moves everything the reader was looking at. The
   // card needs no trip, since placeThreadPreview keeps it inside the viewport.
-  //
-  // A press — on the mark, or on its note — passes `origin`, the place it displaced, and
-  // the thread it takes the reader into enters the layer stack with it, as a marker press
-  // does in togglePinned: the view where the thread has a place on the page, else the
-  // panel, which is where a thread with none is indexed. `threadFrame` reads where the
-  // run landed, so Escape takes off what came up and hands back the place. The `t` walk
-  // passes no origin: its own frame holds the walk.
-  function openPageThread(id, { focus = "reply", travel = true, origin = null } = {}) {
-    let landed = null;
-    const open = () => {
-      if (!panelIsOpen()) {
-        const local = focusSurface(id, { focus });
-        if (local) {
-          closePreview();
-          if (travel) scrollToThread(id);
-          landed = local.closest(".lf-conversation-thread");
-          return local;
-        }
-        const thread = openInlineThread(id, {
-          onPositioned: (positionedThread) => {
-            positionedThread.focus({ preventScroll: true });
-            positionedThread.scrollIntoView({
-              behavior: scrollBehavior(),
-              block: "nearest",
-            });
-            if (travel) scrollToThread(id);
-          },
-        });
-        if (thread) return (landed = thread);
+  function openPageThread(id, { focus = "reply", travel = true } = {}) {
+    if (!panelIsOpen()) {
+      const local = focusSurface(id, { focus });
+      if (local) {
+        closePreview();
+        if (travel) scrollToThread(id);
+        return local;
       }
-      return showThread(id, { focus }).then(() => {
-        landed = panel.querySelector(`.lf-thread[data-id="${CSS.escape(id)}"]`);
+      const thread = openInlineThread(id, {
+        onPositioned: (positionedThread) => {
+          positionedThread.focus({ preventScroll: true });
+          positionedThread.scrollIntoView({
+            behavior: scrollBehavior(),
+            block: "nearest",
+          });
+          if (travel) scrollToThread(id);
+        },
       });
-    };
-    if (!origin) return open();
-    return invoke(
-      { id: "margin.thread", returnFrame: () => threadFrame(() => landed) },
-      null,
-      open,
-      origin,
-    );
+      if (thread) return thread;
+    }
+    return showThread(id, { focus });
   }
 
   // The row's acknowledgment face is read out of the published state projection rather
@@ -3153,9 +3100,9 @@ export function createMarginProjection({
     closePreview,
     inlineThreadView,
     keyboardRung,
+    optionsRung,
     openInlineThread,
     openPageThread,
-    threadFrame,
     paintSelectedMarginEntries,
     marginEntryChoices,
     unfoldedMarginEntries,

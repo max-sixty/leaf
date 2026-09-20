@@ -117,9 +117,8 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * (null for one the reference has no room to name), `rows` are its bindings, and the
  * optional configuration carries `when` (whether the page has this scope at all),
  * `answer` (the concise current answer when this scope belongs to an Ask), and
- * `escape: "inner"` when an ancestor scope owns a cancellation step inside an eligible
- * command return frame. A function in the fourth position is shorthand for
- * `{when: function}`.
+ * `escape: "inner"` when this scope owns a cancellation step ahead of every step the
+ * ladder offers. A function in the fourth position is shorthand for `{when: function}`.
  *
  * A scope's `when` and a row's `when` are different questions, and keeping them apart is
  * what lets one declaration feed both surfaces. The scope's is the capability — does this

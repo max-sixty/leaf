@@ -7,6 +7,7 @@ import {
   beginWalk,
   dataBody,
   failSoft,
+  focusDestination,
   focused,
   inChrome,
   commands,
@@ -509,34 +510,41 @@ customElements.define(
               keys: ["/"],
               does: "Filter the files in this diff",
               line: "filter files",
-              returnFrame: () => ({
-                active: () => {
-                  const search = this.diffTools?.search;
-                  const held = focused();
-                  const inDiff =
-                    this.contains(held) || Boolean(this.shadowRoot?.contains(held));
-                  return Boolean(
-                    search &&
-                    inDiff &&
-                    (search.value || this.diffTools.node.contains(held)),
-                  );
-                },
-                close: () => {
-                  const search = this.diffTools?.search;
-                  if (search?.value) {
-                    this.clearFilter();
-                    search.focus({ preventScroll: true });
-                    return false;
-                  }
-                  search?.blur();
-                },
-                does: () =>
-                  this.diffTools?.search.value
-                    ? "Show every file again"
-                    : "Leave the diff filter",
-                line: () => (this.diffTools?.search.value ? "show all files" : "back"),
-              }),
               run: () => this.diffTools?.search.focus(),
+            },
+            // The filter is a layer of this widget, so its way out is read off the
+            // filter rather than off the press that put it on: a live query goes
+            // first, from anywhere in the patch, and then the box itself.
+            {
+              id: "diff.search.back",
+              keys: ["Escape"],
+              when: () => {
+                const search = this.diffTools?.search;
+                if (!search) return false;
+                const held = focused();
+                const inDiff =
+                  this.contains(held) || Boolean(this.shadowRoot?.contains(held));
+                return Boolean(
+                  inDiff && (search.value || this.diffTools.node.contains(held)),
+                );
+              },
+              does: () =>
+                this.diffTools?.search.value
+                  ? "Show every file again"
+                  : "Leave the diff filter",
+              line: () => (this.diffTools?.search.value ? "show all files" : "back"),
+              run: () => {
+                const search = this.diffTools?.search;
+                if (search?.value) {
+                  this.clearFilter();
+                  search.focus({ preventScroll: true });
+                  return;
+                }
+                // The box's container is the patch it filters, so that is where it hands
+                // the reader back: a blur alone would drop them out of this widget's
+                // scope with no ring anywhere, and the file walk would stop answering.
+                focusDestination(this);
+              },
             },
             {
               id: "diff.next-unreviewed",

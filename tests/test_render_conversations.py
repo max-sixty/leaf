@@ -5231,9 +5231,11 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
 
     shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
     expect(shown).to_have_count(2)
-    # The entry's exact inverse leads, then the list's first local key.
-    expect(shown.nth(0)).to_contain_text("back")
-    expect(shown.nth(1)).to_contain_text("waiting on you")
+    # The list's own first key leads and the way out of the surface follows it, which is
+    # what the line is for: the reader can see the panel around them, and what they came
+    # here to do is the press worth naming first.
+    expect(shown.nth(0)).to_contain_text("waiting on you")
+    expect(shown.nth(1)).to_contain_text("close threads")
 
     # And the press it displaced still works, from the placeholder that advertises it.
     expect(page.locator(".lf-general textarea")).to_have_attribute(

@@ -7061,8 +7061,14 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     expect(inspect).not_to_have_attribute("data-activated", "1")
 
 
-def test_an_ask_alias_preserves_the_original_commands_return_frame(browser, serve):
-    """A projected digit enters and leaves through the widget command's own contract."""
+def test_an_ask_alias_runs_the_original_command_in_its_own_scope(browser, serve):
+    """A projected digit enters through the widget command's own declaration, and the
+    layer it opens declares its own way out.
+
+    Nothing records which press opened the layer: Escape reads the layer standing in
+    front of the reader, so the widget owning it owns the step that takes it off, and
+    that step is the same one whether the digit, the control, or a Tab put the reader
+    inside."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
 
     page.evaluate(
@@ -7082,12 +7088,11 @@ def test_an_ask_alias_preserves_the_original_commands_return_frame(browser, serv
             id: 'test.configure', keys: [], control,
             decision: 'Configure', does: 'Open configuration', line: 'configure',
             run: () => { layer.hidden = false; inside.focus(); },
-            returnFrame: () => ({
-              active: () => !layer.hidden,
-              close: () => { layer.hidden = true; },
-              does: 'Close configuration',
-              line: 'close configuration',
-            }),
+          }]);
+          commands(inside, 'In the configuration layer', [{
+            id: 'test.configure.close', keys: ['Escape'],
+            does: 'Close configuration', line: 'close configuration',
+            run: () => { layer.hidden = true; control.focus(); },
           }]);
         }"""
     )
@@ -7096,9 +7101,10 @@ def test_an_ask_alias_preserves_the_original_commands_return_frame(browser, serv
     expect(page.locator("#sug")).to_be_focused()
     page.keyboard.press("3")
     expect(page.get_by_role("button", name="Inside configuration")).to_be_focused()
+    assert "close configuration" in shortcut_bar_text(page)
     page.keyboard.press("Escape")
     expect(page.locator("#test-command-layer")).to_be_hidden()
-    expect(page.locator("#sug")).to_be_focused()
+    expect(page.get_by_role("button", name="Configure")).to_be_focused()
 
 
 def test_ask_action_name_functions_must_return_text(browser, serve):
@@ -8782,12 +8788,11 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 
-    # The destination captured the covering tray it replaced, so the first Escape
-    # returns there; the second closes that one standing tray.
+    # Exchanging one covering tray for another is lateral, so one Escape closes the
+    # tray standing and lands the reader on the page; the tray it replaced is not put
+    # back, and they reach it the way they reached it the first time.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
-    expect(leaves).to_be_visible()
-    page.keyboard.press("Escape")
     expect(leaves).to_be_hidden()
 
 

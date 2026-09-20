@@ -103,7 +103,6 @@ import {
   othersPanel,
   reserveListClearance,
 } from "./runtime/trays.js";
-import { createAuxiliaryChromeNavigation } from "./runtime/auxiliary-chrome.js";
 import { createAuxiliaryModality } from "./runtime/auxiliary-modality.js";
 import { restoreReaderView } from "./runtime/restore-state.js";
 import { readerStore } from "./runtime/storage.js";
@@ -170,7 +169,12 @@ import {
   glideTo,
   stopGlide,
 } from "./runtime/navigation.js";
-import { focusDestination, letGo } from "./runtime/focus.js";
+import {
+  declareCovering,
+  declareReading,
+  focusDestination,
+  releaseFocus,
+} from "./runtime/focus.js";
 import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
@@ -379,7 +383,6 @@ app = mountApplication({
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  panelFrame: (...args) => threadPanelController.panelFrame(...args),
   panelIsOpen,
   panelCovers: () => layout.panelCovers(),
   onConversationChanged: repaint,
@@ -432,15 +435,33 @@ app = mountApplication({
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
 
-// The let-go reads state four owners hold; all four stand by now, and the first input is
+// Where a landing in the document goes, which is version continuity's reading of what is
+// on screen. Declared beside the let-go that uses it, for the same reason: the owner
+// stands by now and nothing has read the register yet.
+declareReading(version.readingBlock);
+
+// And where it goes instead while a surface covers the page: the page is inert under one,
+// so the reading above cannot take the reader and a step that let go would leave them
+// wherever the closing layer happened to drop them. The modality that covers already
+// answers both halves for whichever surface is standing — the panel, either tray — and
+// the keyboard register carries the same pair to the dispatcher.
+declareCovering({
+  surface: auxiliaryModality.coveringSurface,
+  landing: auxiliaryModality.coveringFocus,
+});
+
+// The let-go reads what five owners hold; all five stand by now, and the first input is
 // wired further down, so the scope is declared before anything reads the register.
 declareStanding({
   panelIsOpen,
-  fabAnchorAt: () => responseSurface.fabAnchorAt(),
-  designModeActive: designMode.active,
-  drawModeActive: () => drawing.drawModeActive(),
-  pageMapRung: () => Boolean(app.margin.keyboardRung()),
   askHeld: () => Boolean(asks?.heldAsk()),
+  pageState: () =>
+    Boolean(
+      responseSurface.fabAnchorAt() ||
+      designMode.active() ||
+      drawing.drawModeActive() ||
+      app.margin.optionsRung(),
+    ),
 });
 
 pageMapDialog = createPageMapDialog({
@@ -492,7 +513,6 @@ selectionComposer = createSelectionComposer({
   reactionTokens,
   designModeActive: designMode.active,
   marginOpenInlineThread: app.margin.openInlineThread,
-  marginThreadFrame: app.margin.threadFrame,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
   anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
@@ -515,10 +535,6 @@ responseSurface = createResponseSurface({
   panelCovers: navigation.panelCovers,
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  captureAuxiliaryChromeState: (...args) =>
-    auxiliaryChrome.captureAuxiliaryChromeState(...args),
-  restoreAuxiliaryChromeState: (...args) =>
-    auxiliaryChrome.restoreAuxiliaryChromeState(...args),
   activeInlineThread: () => app.margin.activeInlineThread(),
   standingElement,
   composerHolds: selectionComposer.composerHolds,
@@ -566,7 +582,6 @@ reactions = createReactionController({
   showFab: responseSurface.showFab,
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
-  visualActionAnchor: anchorControls.visualActionAnchor,
   standingConversation,
   standingElement,
 });
@@ -657,22 +672,12 @@ trays = createTrays({
   renderMargin: app.margin.renderMargin,
   registerAuxiliarySurface: auxiliaryModality.registerAuxiliarySurface,
 });
-const auxiliaryChrome = createAuxiliaryChromeNavigation({
-  panelIsOpen,
-  setPanel: threadPanelController.setPanel,
-  setOpenTray: trays.setOpenTray,
-  openInlineThread: app.margin.openInlineThread,
-  restoreAskFocus: asks.restoreTrayFocus,
-});
 goToSequence = createGoToSequence({
   panelIsOpen,
   panelCovers: navigation.panelCovers,
   elements: { banner, toggleBtn },
-  panelFrame: threadPanelController.panelFrame,
   hintChrome,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
-  captureAuxiliaryChromeState: auxiliaryChrome.captureAuxiliaryChromeState,
-  restoreAuxiliaryChromeState: auxiliaryChrome.restoreAuxiliaryChromeState,
   setPanel: threadPanelController.setPanel,
   setOpenTray: trays.setOpenTray,
   scrollToElement: anchorTravel.scrollToElement,
@@ -789,14 +794,12 @@ if (!offlineInteractive) {
   mountShortcutBar({
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
-    captureReturnPlace: version.captureReturnPlace,
   });
   mountKeyboard({
     goToSequenceActive: goToSequence.goToSequenceActive,
     setGoToSequence: goToSequence.setGoToSequence,
     reactArmed: reactions.isReactArmed,
     setReact: reactions.setReact,
-    captureReturnPlace: version.captureReturnPlace,
   });
   declareLeavesKeys();
   watchDisclosures(document);
@@ -858,7 +861,10 @@ if (!containedPage && !offlineInteractive) {
     restoreTrays: trays.restoreTrays,
     setDesignMode: designMode.setActive,
   });
-  letGo();
+  // The page has just arrived, so nothing holds focus and the first Tab starts at the
+  // skip link. Not the reading landing: a reader who has read nothing has no position
+  // for the browser to carry on from.
+  releaseFocus();
 }
 const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }

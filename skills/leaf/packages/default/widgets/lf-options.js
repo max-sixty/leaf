@@ -498,18 +498,10 @@ customElements.define(
             does: "Reply in this thread",
             line: "reply",
             when: () => Boolean(this.#reply()),
-            returnFrame: () => {
-              const box = this.#reply();
-              const thread = box?.closest(
-                ".lf-thread, .lf-conversation-thread, .lf-conversation",
-              );
-              return {
-                active: () => Boolean(thread?.contains(focused())),
-                close: () => box?.blur(),
-                does: "Return to the option",
-                line: "back to option",
-              };
-            },
+            // The box hands the reader back to the conversation it belongs to, and to
+            // this option where that conversation is nowhere to stand — the route
+            // `landInConversation` records for exactly that case, and the one Escape
+            // out of a text box reads.
             run: () =>
               landInConversation(this.#reply(), {
                 target: mark,

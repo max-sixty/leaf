@@ -54,10 +54,6 @@ class AskTrayList extends LitElement {
     return this.#committed;
   }
 
-  focusAfterPaint(id) {
-    this.#focusAfterPaint = id;
-  }
-
   async scheduleUpdate() {
     try {
       await super.scheduleUpdate();

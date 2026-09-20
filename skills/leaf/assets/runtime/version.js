@@ -12,9 +12,8 @@
  * landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `comparisonBase`,
  * `comparisonChanges`, and the pair the margin's Change reading discloses with,
- * `inlineComparison` and `toggleInlineComparison`); `readingBlock`, the block the decision
- * walk and the command reference start from; and `captureReturnPlace`, the control or
- * reading landmark a keyboard entry returns to.
+ * `inlineComparison` and `toggleInlineComparison`); and `readingBlock`, the block the
+ * decision walk starts from and the one an Escape out of the chrome lands the reader on.
  *
  * A comparison has two depths and both are this owner's. The marks say which blocks
  * changed; the inline comparison splices dropped text into one of them and paints its
@@ -131,6 +130,7 @@ import {
 
 import { captureCarry, restoreCarry } from "./carry.js";
 import { patchTree } from "./dom-children.js";
+import { letGo } from "./focus.js";
 import { clippedRect, shownBox } from "./geometry.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
@@ -518,11 +518,11 @@ export function createVersionController({
         when: () => atVersionBoundary(0),
         run: closeVersionMenu,
       },
-      // A pointer-opened menu closes on the platform's own Escape, and the line said
-      // nothing about it: the page's Escape rung stands down under an open popover
-      // (browserDismissesTopLayer) and the return frame only exists for a keyboard entry.
-      // The row names the press; RETURN stands nearer in the scope order and takes the key
-      // whenever a frame is live, so "back" and "close" never print together.
+      // The menu is a layer over the page and its parent is the page, so the one press
+      // that closes it lands the reader back there rather than on the chooser in the
+      // banner, which is chrome they may never have stood on: `g V` runs the press from
+      // the chooser, and the browser would hand focus back to it. Leaf performs the whole
+      // result — close, then land — so the press is not the platform's to complete.
       {
         id: "version.close",
         keys: ["Escape"],
@@ -532,8 +532,10 @@ export function createVersionController({
         // second slot from either door. Escape remains live and stays in the complete
         // reference as the platform-standard close.
         promoteEscape: false,
-        native: true,
-        run: closeVersionMenu,
+        run: () => {
+          closeVersionMenu();
+          letGo();
+        },
       },
     ],
   };
@@ -551,19 +553,6 @@ export function createVersionController({
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
-    // The popover is the control's own press, while the keyboard register owns the route
-    // back to the place that pressed g V. Programmatically focusing the chooser first made
-    // the browser return there instead, discarding the real origin before the menu opened.
-    returnFrame: () => ({
-      active: versionMenuIsOpen,
-      close: closeVersionMenu,
-      does: "Return from the versions menu",
-      line: "back",
-      // Arrow comparison and exact numbered travel are the two unfamiliar menu actions;
-      // keep both on the compact line. Escape remains the platform-standard way back and
-      // stays in the complete reference.
-      promoteEscape: false,
-    }),
     run: () => versionBtn.click(),
   };
 
@@ -1638,14 +1627,6 @@ export function createVersionController({
   // same expression written out twice.
   const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 
-  // `control` is what the caller saw focused, for a press that has already moved it.
-  function captureReturnPlace(control = focused()) {
-    return {
-      control: control && control !== document.body ? control : null,
-      reading: readingBlock(),
-    };
-  }
-
   // The quote and the section it's searched in come from the same block, or the search is
   // filtered to a section the text isn't in and can only ever fail — restore then falls back
   // to the section, which doesn't absorb content added above the reader inside it.
@@ -2034,7 +2015,6 @@ export function createVersionController({
     comparisonChanges,
     prepareActivation,
     readingBlock,
-    captureReturnPlace,
     installArrival,
     mount,
   };

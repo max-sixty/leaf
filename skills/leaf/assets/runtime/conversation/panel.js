@@ -21,13 +21,12 @@ import {
   closeBtn,
   findInput,
   generalInput,
-  generalRow,
   generalSend,
   inPanel as panelFocusIsInside,
   narrowingView,
   threadsBox,
 } from "./panel-elements.js";
-import { documentFocused, focused, keys } from "../keyboard/scopes.js";
+import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { narrowed, needsYou, threadSearchActive } from "./narrowing.js";
 import { awaitsReader } from "./model.js";
@@ -140,12 +139,6 @@ export function createPanelComposer({
     // answer, and standingConversation reads the box rather than the class, so the press
     // there is the general box's after all.
     when: () => !fabAnchorAt() && !standingConversation(),
-    returnFrame: () => ({
-      active: () => generalRow.contains(documentFocused()),
-      close: () => generalInput.blur(),
-      does: "Return to the thread panel",
-      line: "back to threads",
-    }),
     run: () => generalInput.focus({ preventScroll: true }),
   };
 
@@ -197,15 +190,6 @@ export function createPanelComposer({
         when: () =>
           runtime.statePhase === "ready" &&
           (needsYou() || threadList().some((...args) => awaitsReader(...args))),
-        returnFrame: () => ({
-          active: () => panelIsOpen() && needsYou(),
-          close: () => narrowingView.readerControl.click(),
-          does: "Show every thread again",
-          line: "show all",
-          // The narrowing moves nobody, so a card the reader then stands on is theirs
-          // to let go of before the narrowing comes off.
-          standing: false,
-        }),
         run: () => narrowingView.readerControl.click(),
       },
       {
@@ -217,18 +201,6 @@ export function createPanelComposer({
         does: "Find in the threads",
         line: "find",
         control: () => findInput,
-        returnFrame: () => ({
-          active: () =>
-            panelIsOpen() && (findInput === documentFocused() || narrowed()),
-          lineWhen: () => !threadSearchActive() || !inPanel(),
-          close: () => {
-            if (widen()) return false;
-            findInput.blur();
-          },
-          does: () =>
-            narrowed() ? "Show every thread again" : "Leave the thread search",
-          line: () => (narrowed() ? "show all" : "back to threads"),
-        }),
         run: () => {
           findInput.focus();
           findInput.select();

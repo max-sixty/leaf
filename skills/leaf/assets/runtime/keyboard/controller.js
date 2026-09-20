@@ -1,7 +1,6 @@
 /* Browser input lifecycle. The dispatcher resolves declarations; this owner applies
-   page policy around a real input (transient modes, shelf, and return origins). */
+   page policy around a real input (transient modes and the shelf). */
 import { dispatchKey } from "./dispatch.js";
-import { mountPressOrigin } from "./layer-stack.js";
 import { MODIFIER_KEYS } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
 import { claimsEsc, focused } from "./scopes.js";
@@ -13,14 +12,8 @@ export function mountKeyboard({
   setGoToSequence,
   reactArmed,
   setReact,
-  captureReturnPlace,
 }) {
-  mountPressOrigin(captureReturnPlace);
-  const run = (event) =>
-    dispatchKey(event, {
-      beforeCommand: beforeShortcutCommand,
-      captureOrigin: captureReturnPlace,
-    });
+  const run = (event) => dispatchKey(event, { beforeCommand: beforeShortcutCommand });
   document.addEventListener("keydown", (ev) => {
     if (ev.isComposing) return;
     if (run(ev)) return;

@@ -103,7 +103,6 @@ import {
   othersPanel,
   reserveListClearance,
 } from "./runtime/trays.js";
-import { createAuxiliaryChromeNavigation } from "./runtime/auxiliary-chrome.js";
 import { createAuxiliaryModality } from "./runtime/auxiliary-modality.js";
 import { restoreReaderView } from "./runtime/restore-state.js";
 import { readerStore } from "./runtime/storage.js";
@@ -170,7 +169,7 @@ import {
   glideTo,
   stopGlide,
 } from "./runtime/navigation.js";
-import { focusDestination, letGo } from "./runtime/focus.js";
+import { declareReading, focusDestination, letGo } from "./runtime/focus.js";
 import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
@@ -379,7 +378,6 @@ app = mountApplication({
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  panelFrame: (...args) => threadPanelController.panelFrame(...args),
   panelIsOpen,
   panelCovers: () => layout.panelCovers(),
   onConversationChanged: repaint,
@@ -431,6 +429,11 @@ app = mountApplication({
   },
 });
 if (offlineInteractive) applicationState.setHostAvailable(false);
+
+// Where a landing in the document goes, which is version continuity's reading of what is
+// on screen. Declared beside the let-go that uses it, for the same reason: the owner
+// stands by now and nothing has read the register yet.
+declareReading(version.readingBlock);
 
 // The let-go reads state four owners hold; all four stand by now, and the first input is
 // wired further down, so the scope is declared before anything reads the register.
@@ -492,7 +495,6 @@ selectionComposer = createSelectionComposer({
   reactionTokens,
   designModeActive: designMode.active,
   marginOpenInlineThread: app.margin.openInlineThread,
-  marginThreadFrame: app.margin.threadFrame,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
   anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
@@ -514,10 +516,6 @@ responseSurface = createResponseSurface({
   panelCovers: navigation.panelCovers,
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  captureAuxiliaryChromeState: (...args) =>
-    auxiliaryChrome.captureAuxiliaryChromeState(...args),
-  restoreAuxiliaryChromeState: (...args) =>
-    auxiliaryChrome.restoreAuxiliaryChromeState(...args),
   activeInlineThread: () => app.margin.activeInlineThread(),
   standingElement,
   composerHolds: selectionComposer.composerHolds,
@@ -656,22 +654,12 @@ trays = createTrays({
   renderMargin: app.margin.renderMargin,
   registerAuxiliarySurface: auxiliaryModality.registerAuxiliarySurface,
 });
-const auxiliaryChrome = createAuxiliaryChromeNavigation({
-  panelIsOpen,
-  setPanel: threadPanelController.setPanel,
-  setOpenTray: trays.setOpenTray,
-  openInlineThread: app.margin.openInlineThread,
-  restoreAskFocus: asks.restoreTrayFocus,
-});
 goToSequence = createGoToSequence({
   panelIsOpen,
   panelCovers: navigation.panelCovers,
   elements: { banner, toggleBtn },
-  panelFrame: threadPanelController.panelFrame,
   hintChrome,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
-  captureAuxiliaryChromeState: auxiliaryChrome.captureAuxiliaryChromeState,
-  restoreAuxiliaryChromeState: auxiliaryChrome.restoreAuxiliaryChromeState,
   setPanel: threadPanelController.setPanel,
   setOpenTray: trays.setOpenTray,
   scrollToElement: anchorTravel.scrollToElement,
@@ -788,14 +776,12 @@ if (!offlineInteractive) {
   mountShortcutBar({
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
-    captureReturnPlace: version.captureReturnPlace,
   });
   mountKeyboard({
     goToSequenceActive: goToSequence.goToSequenceActive,
     setGoToSequence: goToSequence.setGoToSequence,
     reactArmed: reactions.isReactArmed,
     setReact: reactions.setReact,
-    captureReturnPlace: version.captureReturnPlace,
   });
   declareLeavesKeys();
   watchDisclosures(document);

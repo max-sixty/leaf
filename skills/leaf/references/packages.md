@@ -500,8 +500,8 @@ rather than a blank keycap.
 Every ordered Decision receives one of the Ask's contextual `1` through `9` routes while
 capacity remains, independently of any intrinsic widget binding. The Ask digit and the
 widget binding share one command id and source-scoped command reference. Invoking either
-therefore rechecks the original scope and liveness, calls the original `run` (or clicks a
-run-less native control), and preserves its return frame. A focused widget declaration
+therefore rechecks the original scope and liveness and calls the original `run` (or
+clicks a run-less native control). A focused widget declaration
 wins when it collides with an Ask digit; undeclared digits continue to the Ask.
 
 `bindingBadge` may name an empty face a widget already positions. Each supplied face

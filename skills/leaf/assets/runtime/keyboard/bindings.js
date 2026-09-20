@@ -59,19 +59,9 @@
      at the reader's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
-   - `returnFrame`, when the result enters a temporary layer, returns its `active`,
-     `close`, `does`, and `line` contract. It may also return `lineWhen` to keep Escape
-     live while yielding the compact line to a more useful action in that layer, and
-     `standing: false` when its arrival is a floor the reader stands on nothing in, so
-     that what they then stand on there is let go of before this frame answers. The
-     dispatcher captures the origin before `run`, validates the descriptor, and pushes it
-     only if the layer is active afterwards — after `run`'s promise settles, where the
-     entry lands asynchronously and `run` returns it. Do not call the return stack from a command
-     or restore focus in the command's close path; declaring the frame is what makes
-     keyboard invocation and command-reference invocation obey the same stack. A command surface
-     that already displaced the reader, such as the modal command reference, passes its saved
-     origin into dispatcher invocation instead of letting a closing implementation
-     control become the origin.
+   - A command that enters a layer declares no way back out of it. The layer's own
+     owner declares that step, against the layer standing rather than against the press
+     that opened it, so one state has one way out however the reader reached it.
    - `native: true` performs `run` without preventing the platform default. Use it when
      Leaf must change state before the browser completes the same press, not to leave an
      otherwise owned press half-handled. Off by default: a row normally owns the press it
@@ -456,14 +446,6 @@ export function checked(rows, where) {
     if (row.decision !== undefined && row.control == null)
       throw new Error(
         `leaf: ${row.id ?? `row ${i} of ${where}`} is a Decision command with no control`,
-      );
-    if (row.returnFrame !== undefined && typeof row.returnFrame !== "function")
-      throw new Error(
-        `leaf: ${row.id ?? `row ${i} of ${where}`} has a returnFrame that is not a function`,
-      );
-    if (row.returnFrame && !row.run)
-      throw new Error(
-        `leaf: ${row.id ?? `row ${i} of ${where}`} declares a return frame but runs no entry`,
       );
     if (row.native && !row.run)
       throw new Error(

@@ -46,63 +46,78 @@ keys ahead of ancestor widget scopes. An exact control may still declare a seque
 as Mod+Enter or its own Escape step.
 
 Escape follows semantic unwind order instead of ordinary reservation. The focused
-control or active mode may consume one inner step, followed by the latest eligible return
-frame and then containing fallbacks. A frame that stood the reader nowhere — `g T`, the
-Threads toggle, a tray — names the surface its press entered, and comes after what the
-reader did next: the scope standing at the focus, since a box they then entered is the
-newer layer, and any step rooted outside that surface that was not already answering
-when the press was made — a selection, the page composer or an unfolded margin cluster
-put on since; the fallback ladder stays live under such a frame for exactly those steps,
-and what stood before the press stays behind it. A frame that holds the standing is the
-press that put the reader there and keeps its place. A frame whose surface holds a layer
-of its own — the panel's narrowing — takes that off first, says so in its words, and
-stays for the next press. Browser modal and popover boundaries remain outside that
-order. One press closes one layer.
+control or active mode may consume one inner step; then the surface holding focus, with
+whatever the reader has put on inside it; then every step rooted outside that surface,
+in the register's order. Browser modal and popover boundaries remain outside that order.
+One press closes one layer.
 
-Those fallbacks are the ladder at the foot of the stack, for state the reader reached
-without a registered entry: a captured target, a pointer-opened tray, a panel that was
-open when the page arrived, ordinary focus traversal. Each step is contributed through
-`pageRung` by the owner of the state it takes off and says what that press would take;
-`register.js` orders them and resolves the innermost into the one command every surface
-reads, rooted at the surface that step is inside. One command rather than one per step,
-because a reference listing each step whose own condition holds would promise presses
-the innermost step has already taken, and because being the fallback is a fact about
-the ladder rather than about any step: no step answers while a commanded entry stands.
+## Escape unwinds the hierarchy, not the history
 
-The way out is as deep as the way in, counted in the reader's presses. A press's whole
-effect is one rung: a command that opens a container and stands the reader in it is
-undone by one Escape, which closes the container and restores the place the press
-displaced. Standing on a destination — a card in the list, an Ask or a heading on the
-page — is one rung whatever put the reader there: letting go lands them on the floor of
-the layer they are in, the panel's list or the page's body, and it is an inner step
-because standing is the newest thing they did. A press that stood them there records a
-frame, and a frame holds the standing unless it says `standing: false` because its
-press stood the reader nowhere, so that frame answers in the stack's order instead; a
-walk pushes one such frame for however many steps it takes. A pointer press that takes
-the reader into a layer — the Threads toggle, a margin marker or its option row, a page
-mark or its note — is a command too, and records its frame with the place the press
-displaced, read before the press moved focus: the Escape out of a clicked-open panel or
-conversation view hands back the page the reader was reading, never the control the
-click happened to focus, and a keyboard activation of the same control, whose place was
-that control, comes back to it. The frame is the press's rather than the layer's, so a
-press that carries the reader into a layer already standing records one too, and its
-Escape takes off only what the press put up: a note pressed with Threads open lands on
-its thread in the list, and one Escape hands the note back and leaves the panel open. A
-card shows one thread, so a press that puts its own thread in a card already showing has
-put up the card the reader sees, and its one Escape closes that card and hands back the
-note or marker. A gesture whose result is a layer records the same frame: an accepted
-comment carries the reader into the thread it became — a card put up where the composer
-stood, or the thread's place in a panel already open — and one Escape hands back the
-place the comment press displaced, the control `c` was pressed from or the page a
-pointer selection had already put the reader on, never the margin entry the card hangs
-from or the list around the thread. One press is one rung however many surfaces answer
-it, so the composer's frame says `handsOn`, and the send reads the place it recorded
-through `currentOrigin` while the box still stands; where no frame stands, because the
-pointer had put the reader on the page, `readingPlace`, beside `pressOrigin`, is that
-page as a place. A close by pointer — the view's ×, the panel's Close — takes the layer
-off without handing back the place its press displaced: the pointer is already on the
-surface that is closing, so focus lands on the surviving control that reopens it.
-`layer-stack.js` carries the mechanism.
+**The canonical keyboard route down to a state is matched, step for step, by the Escape
+route back out of it.** That is what Leaf guarantees a reader, and the sentence that
+decides any case.
+
+It is stated over what stands in front of the reader rather than over how they got
+there. Nothing records a press, so one state has one way out however it was reached, and
+a pointer press or a Tab is an arbitrary jump into the hierarchy rather than a descent
+through it: it gets the same unwind, and is owed no return to the control it landed on.
+
+The levels, outermost in:
+
+1. **The document** — the reader's position in the authored page, and the destinations
+   they can stand on. This is the floor; Escape's job ends here.
+2. **Page-side state** put on without entering chrome: a selection, a captured target,
+   an unfolded margin cluster, the page composer.
+3. **Auxiliary surfaces**: the Threads panel, the trays.
+4. **Layers of a surface**: the panel's narrowing, a widget's filter.
+5. **Native layers**: a margin card, the versions menu, a modal dialog.
+6. **Boxes**: a composer, a reply box, a find box, which their surface contains.
+
+A bounded interaction — the Go-to sequence, the target chooser, page search, reactions,
+the command reference, draw and design mode — owns the keyboard while it stands and
+unwinds itself. It is not a level, and it hands the reader back itself.
+
+Levels alone do not order two steps standing at once, because a reader inside the panel
+may have left a selection on the page behind them. **Containment comes before kind**: a
+step rooted inside the surface holding focus answers before that surface, and a step
+rooted outside it answers after. The register's orders — `STACK` and `RUNG_LADDER` —
+rank siblings, which is the only order they can state.
+
+Each step lands the reader at the parent of what it closed: a box at its container, a
+standing at its floor, a surface at the document. **A landing in the document is the
+block the reader is reading**, focused and then blurred (`letGo`), read off the current
+scroll rather than remembered from before the press: a surface closing moves the page
+under them, and what they can see once it has gone is the answer. The focus moves the
+browser's sequential focus navigation starting point there, so their next Tab carries on
+from what they are reading; the blur hands Space and PageDown back to the page's own
+scroll box. A chrome control — the Threads toggle, a margin marker, a mark's note, a tray
+row — is never the landing for a step whose parent is the document. A step whose parent
+really is a control does land there: a reply box hands back to its thread, an unfolded
+margin cluster to the entry it hangs from.
+
+Standing on a destination — a card in the list, an Ask or a heading on the page — is one
+step of its own, whatever put the reader there: letting go lands them on the floor of the
+layer they are in, the panel's list or the page, and it is an inner step because standing
+is the newest thing they did.
+
+What this gives up, each a rule the reader can learn: a surface they already had open
+closes on the way out, because no state distinguishes one this press opened from one it
+found; `g A` from Threads leaves Threads shut; a press that opens a container only to
+hold its content costs two Escapes, so `c` from the page leaves the box and then the
+panel; a walk is not rewound, and the reader lands in the document where they now are; a
+control reached by Tab or by click is not returned to.
+
+A close by pointer — the view's ×, the panel's Close — is not an Escape and takes the
+layer off without a landing: the pointer is already on the surface that is closing, so
+focus lands on the surviving control that reopens it.
+
+Those steps are contributed through `pageRung` by the owner of the state each one takes
+off; `register.js` orders them and resolves the innermost into the one `navigation.back`
+command every surface reads, rooted at the surface that step is inside. One command
+rather than one per step, because a reference listing each step whose own condition holds
+would promise presses the innermost step has already taken. `layer-stack.js` holds only
+the native layers the browser is standing, in the order they opened, because that is the
+one fact about the scene its own DOM cannot be asked for in order.
 
 ## Page grammar
 
@@ -127,17 +142,18 @@ binding invoke the original command through its stable identity and source scope
 - `bindings.js` owns spelling, parsing, row fields, routes, and declaration checks.
 - `scopes.js` owns element scopes and the shared command sections derived from them.
 - `register.js` owns the page's keyboard: the order core's scopes shadow one another in,
-  the rank of the page's own commands, Escape's fallback ladder and the one command it
+  the rank of the page's own commands, Escape's ladder and the one command it
   resolves to, the doors owners contribute through, and the auxiliary-layer readings the
   dispatcher reads without an edge to their owner.
 - `dispatch.js` owns precedence and platform-default handling; `controller.js` owns the
   physical input lifecycle; `text-entry.js` owns native editing claims.
 - `layer-stack.js` owns the ordered layers standing over the page: the popovers and modal
-  dialogs their openers declare, across the document and declared shadow roots, and the
-  inverse of commands that enter temporary layers.
+  dialogs their openers declare, across the document and declared shadow roots.
 - `page.js` declares the page's own parts — a link, a disclosure, caret browsing, the
   standing scope's let-go, and the foot of the Escape ladder. Its one export is
   `declareStanding`, which the boot entry calls with the readings the let-go consults.
+  `focus.js` owns the landing itself (`letGo`), against the reading the boot entry
+  declares with `declareReading`.
 - `control-keys.js` paints the shortcut a visible control advertises, from the row that
   reaches it.
 - `presentation.js` projects immutable key-sequence readings through the shared Lit

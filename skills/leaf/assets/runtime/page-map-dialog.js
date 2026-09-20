@@ -17,6 +17,7 @@
    install application callbacks or activate the map. */
 
 import { blockAt, says } from "./passages.js";
+import { letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { focused, paintKeys } from "./keyboard/scopes.js";
@@ -422,6 +423,18 @@ export function createPageMapDialog({
   function mount(root) {
     dialogSearch.addEventListener("input", renderSheet);
     mapButton.onclick = enterPageMap;
+    // Escape is one step of the page's unwind, and a modal's parent is the page it
+    // stands over, so this press lands the reader there. Leaf performs the whole step
+    // rather than letting the platform close the dialog and this owner land the reader
+    // from the `close` event: that event arrives a task later, and a reader whose next
+    // press is `g` would arm the sequence before the focus moved and disarm it on
+    // arrival. The Close button is the other way out and keeps the invoker, the pointer
+    // being already on the control that reopens the dialog.
+    dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      leavePageMap();
+      letGo();
+    });
     dialog.addEventListener("close", () => {
       const returnTo = from;
       const focusOwned = closeOwnsFocus;

@@ -12,12 +12,12 @@
    reader is standing.
 
    The orders below are what no single owner can state. `STACK` is the order the
-   dispatcher walks, innermost first: element scopes splice in where ELEMENTS stands and
-   the return stack where RETURN does. For Escape the dispatcher reads an explicit
-   `escape: "inner"` on active modes and the exact focused element, then RETURN, then every
-   unmarked fallback, so a place in this list grants no causal priority over those. Every
-   reading starts from these scopes, and the reference walks them backwards, so a mode this
-   list leaves out is one the reference never names.
+   dispatcher walks, innermost first: element scopes splice in where ELEMENTS stands. For
+   Escape the dispatcher reads an explicit `escape: "inner"` on active modes and the exact
+   focused element, then the surface holding focus, then everything outside it, so a place
+   in this list grants no causal priority over those. Every reading starts from these
+   scopes, and the reference walks them backwards, so a mode this list leaves out is one
+   the reference never names.
 
    `PAGE_COMMANDS` is the page's own scope, and table order is the line's priority order —
    a total order every row has already, rather than a field one can forget — so the first
@@ -26,23 +26,26 @@
    promotion when two local actions on the current state belong together; the binding
    remains live and stays in the reference.
 
-   `RUNG_LADDER` is Escape's fallback for state the reader reached without a registered
-   entry: a captured target, a pointer-opened tray, a panel open on arrival, ordinary
-   focus traversal. It is the order among siblings rather than the whole order: `rung`
-   reads containment over it, so a surface the reader is standing in comes off before one
-   they are not, and a selection left out on the page waits behind the panel they are
-   reading a thread in. Standing on something is not a rung but the "standing" scope ahead
-   of the frames, since letting go is the newest thing the reader can undo. Its rungs
-   are contributed like everything else, each by the owner of the state it takes off, and
-   `rung` resolves them into the one `navigation.back` row every surface reads. One row
-   rather than one per step, because the ladder is one capability whose sentence changes:
-   a reference listing each step whose own condition happens to hold would promise presses
-   the innermost step has already taken, and a guard on each step against the steps behind
-   it would be this list written out once per step. Being the fallback is also what its
-   `when` says — no step answers while a commanded entry stands, because that entry is the
-   registered way back. */
+   `RUNG_LADDER` is Escape's ladder out of the state standing over the page: a captured
+   target, a tray, a narrowing, the panel, and the chrome itself. It is the order among
+   siblings rather than the whole order: `rung` reads containment over it, so a surface
+   the reader is standing in comes off before one they are not, and a selection left out
+   on the page waits behind the panel they are reading a thread in. Standing on something
+   is not a rung but the "standing" scope ahead of it, since letting go is the newest
+   thing the reader can undo. Its rungs are contributed like everything else, each by the
+   owner of the state it takes off, and `rung` resolves them into the one
+   `navigation.back` row every surface reads. One row rather than one per step, because
+   the ladder is one capability whose sentence changes: a reference listing each step
+   whose own condition happens to hold would promise presses the innermost step has
+   already taken, and a guard on each step against the steps behind it would be this list
+   written out once per step.
+
+   Nothing here records how the reader arrived. Every step is read off what stands in
+   front of them, so one state has one way out however they reached it, and the canonical
+   keyboard route down to a state is matched step for step by the Escape route back out
+   of it. A pointer press or a Tab is an arbitrary jump into that order rather than a
+   descent through it, and gets the same way out. */
 import { bindings, checked, word } from "./bindings.js";
-import { current, outsideCurrentFrame, RETURN } from "./layer-stack.js";
 import { focused } from "./scopes.js";
 import { under } from "../shadow.js";
 
@@ -65,10 +68,8 @@ const STACK = [
   "page search",
   "target chooser",
   ELEMENTS,
-  RETURN,
-  // Right after the frames, so the line's Escape chip keeps the front of the line
-  // whichever of the two owns it; among inner scopes the order is moot, since the modes
-  // and the Page Map stand it down themselves.
+  // Among inner scopes the order is moot, since the modes and the Page Map stand it down
+  // themselves.
   "standing",
   "versions",
   "composer",
@@ -81,6 +82,10 @@ const STACK = [
   "draw mode",
   "design mode",
   PAGE,
+  // The modes declare their Escape on the ladder rather than here, because a mode is
+  // page-side state the reader put on and a surface opened over it is newer: a send
+  // made in Design mode opens Threads, and the panel comes off before the mode does.
+  // Their own letters stay in these scopes.
   // Outermost, so a page command still ranks ahead of the way out on the line.
   RUNGS,
 ];
@@ -93,6 +98,8 @@ const RUNG_LADDER = [
   "tray", // the tray that holds the edge
   "narrowing", // the narrowing the reader put on the thread list
   "panel", // the thread panel
+  "draw mode", // the drawing surface over the page
+  "design mode", // the mode that comments on the layer
   "page", // whatever is left, in the chrome, and back onto the page
 ];
 
@@ -212,16 +219,7 @@ const BACK_OUT = {
   line: () => rung()?.says,
   lineWhen: () => word(rung()?.lineWhen) !== false,
   promoteEscape: () => word(rung()?.promoteEscape) !== false,
-  // The fallback, for what no commanded entry is the way back from. While one stands,
-  // that is only a step taking off something the reader put on outside the surface the
-  // entry entered, which is newer than the entry and not its to undo.
-  when: () => {
-    const step = rung();
-    return (
-      Boolean(step) &&
-      (!current() || outsideCurrentFrame(step.root ?? document, [stepName()]))
-    );
-  },
+  when: () => Boolean(rung()),
   // One command for the whole ladder, so the step it stands for says which it is.
   escapeStep: stepName,
   run: () => rung().out(),

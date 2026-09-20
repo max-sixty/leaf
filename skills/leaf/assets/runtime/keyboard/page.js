@@ -23,7 +23,7 @@ import {
 } from "../conversation/panel-elements.js";
 import { claimsEsc, documentFocused, focused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
-import { heldStanding, nativeLayers } from "./layer-stack.js";
+import { nativeLayers } from "./layer-stack.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
 
 // Where the reader is standing, when what they are standing on is one of the page's own
@@ -155,7 +155,7 @@ export function declareStanding({
     if (!holding()) return null;
     if (pageSelection() || fabAnchorAt()) return null;
     if (designModeActive() || drawModeActive() || pageMapRung()) return null;
-    if (nativeLayers().length || heldStanding()) return null;
+    if (nativeLayers().length) return null;
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;
     if (panelFocusIsInside(panelIsOpen)) return focusedThreadOf() ? threadsBox : null;
@@ -186,13 +186,16 @@ export function declareStanding({
 }
 
 // The foot of Escape's ladder, the page's own. Above it stand the surfaces a reader can
-// put on — a captured target, a tray, a narrowing, the thread panel — each contributed by
-// its owner, so the ladder is read off `RUNG_LADDER` rather than written out anywhere.
-// This step leaves the chrome, after every surface has had its turn, and stands down
-// while the let-go above answers, so the reference names one press rather than two
-// spellings of it. CLAUDE.md's "The reader has to be standing somewhere" holds the rest.
+// put on — a captured target, a tray, a narrowing, the thread panel, a page mode — each
+// contributed by its owner, so the ladder is read off `RUNG_LADDER` rather than written
+// out anywhere. This step leaves the chrome, after every surface has had its turn, and
+// stands down while the let-go above answers, so the reference names one press rather
+// than two spellings of it. It stands down under a native layer too: a popover or a
+// modal is the browser's own mode, its own scope is the way out of it, and the page
+// beneath is not somewhere a press can reach from inside it.
+// CLAUDE.md's "The reader has to be standing somewhere" holds the rest.
 pageRung("page", () =>
-  holding() && !standingFloor()
+  holding() && !standingFloor() && !nativeLayers().length
     ? { says: "back to the page", does: "Back out onto the page", out: letGo }
     : null,
 );

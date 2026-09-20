@@ -276,12 +276,9 @@ and trays, and page repaint caused by shell motion or reflow. It does not own th
 place across that reflow: the shell yields its strip as a transparent border rather than a
 margin, which keeps the change off the scroll-anchoring suppression list, so the browser
 holds the place and nothing here may take that back (theme.css, at the body strip);
-`runtime/thread-panel.js` owns panel visibility, workspace transitions, the one return
-frame every press that opens the panel records — the toggle's click, `g T`, and a page
-thread carried in — and the two Escape rungs it offers a reader whose panel no press
-opened, a Tab into the list or a panel open when the page arrived: the narrowing, then the
-panel itself;
-`runtime/auxiliary-chrome.js` captures and restores the reader's workspace for navigation;
+`runtime/thread-panel.js` owns panel visibility, workspace transitions, and the two
+Escape steps the panel offers however the reader reached it: the narrowing, then the
+panel itself, which lands them back on the page;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
 the words it projects;
 `runtime/reach.js` owns keyboard access to overflow, the containing block a
@@ -404,7 +401,7 @@ Each mutable fact has one writer:
 | the margin card's place in its transcript | the card list's own scroll, which the browser holds through reflow | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
 | tray visibility | `trayIsOpenKey` | `setOpenTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
-| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and return frames pushed; inner Escape steps, then whatever the reader put on since a frame that stood them nowhere, then an eligible causal return frame, then the remaining fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
+| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers and modal dialogs pushed; for Escape, inner steps, then the surface holding focus with whatever stands inside it, then every step rooted outside it | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
 
 Reader state that a document replacement would otherwise destroy has four routes, and

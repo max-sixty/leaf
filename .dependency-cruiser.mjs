@@ -59,7 +59,6 @@ const applicationOwners = [
   "projection/commands.js",
   "state-application.js",
   "state-feed.js",
-  "auxiliary-chrome.js",
 ];
 
 // The renderers. Each receives the semantic commands it uses; one that reaches an

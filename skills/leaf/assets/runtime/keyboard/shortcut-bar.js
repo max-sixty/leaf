@@ -307,19 +307,14 @@ const completeLine = (scopes, candidates) => {
     rows,
   };
 };
-const openCompleteReference = (captureReturnPlace) =>
-  openCommandReference(
-    (id, origin) => executeCommand(id, origin, beforeShortcutCommand),
-    captureReturnPlace,
-  );
-function advanceShortcutHelp(captureReturnPlace) {
-  if (!shortcutHelpAvailable() || shortcutShelfIsOpen)
-    return openCompleteReference(captureReturnPlace);
+const openCompleteReference = () =>
+  openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+function advanceShortcutHelp() {
+  if (!shortcutHelpAvailable() || shortcutShelfIsOpen) return openCompleteReference();
   const scopes = stack();
   const { candidates, short } = arrange(lineRows(scopes));
   const shown = completeLine(scopes, candidates)?.rows ?? short;
-  if (!candidates.some((row) => !shown.has(row)))
-    return openCompleteReference(captureReturnPlace);
+  if (!candidates.some((row) => !shown.has(row))) return openCompleteReference();
   shortcutShelfIsOpen = true;
   repaint();
   announce(
@@ -491,11 +486,11 @@ export const shortcutShelfOpen = () => shortcutShelfIsOpen && shortcutHelpAvaila
 
 // Boot supplies the two transient interactions More closes. The shelf renderer and its
 // reference rows never import those command owners to draw their current declarations.
-export function mountShortcutBar({ setGoToSequence, setReact, captureReturnPlace }) {
+export function mountShortcutBar({ setGoToSequence, setReact }) {
   activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);
-    advanceShortcutHelp(captureReturnPlace);
+    advanceShortcutHelp();
   };
   // A narrower window changes which rows fit even without another reader input.
   addEventListener("resize", repaint);

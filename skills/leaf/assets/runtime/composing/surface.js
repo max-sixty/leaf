@@ -77,17 +77,8 @@ import {
 } from "../keyboard/command-reference.js";
 
 import { paintReactionStanding } from "../reaction-standing.js";
-import {
-  generalInput,
-  generalRow,
-  panel,
-  threadsBox,
-} from "../conversation/panel-elements.js";
-import {
-  boxReturnFrame,
-  conversationInput,
-  standingConversation,
-} from "../conversation/landing.js";
+import { generalInput, panel, threadsBox } from "../conversation/panel-elements.js";
+import { conversationInput, standingConversation } from "../conversation/landing.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
@@ -100,8 +91,7 @@ import {
 } from "./capture.js";
 import { repaint } from "../repaint.js";
 import { focusDestination, letGo, readCaret, takesLetters } from "../focus.js";
-import { documentFocused, focused } from "../keyboard/scopes.js";
-import { pressOrigin } from "../keyboard/layer-stack.js";
+import { focused } from "../keyboard/scopes.js";
 
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
@@ -729,13 +719,16 @@ export function createResponseSurface({
     const previousFloating = fabFloating;
     const leavingBar = !anchor && fabBar.contains(fabFocused());
     const returnToPanel = leavingBar && panelCovers() && !fabFits();
+    // Where the box hands the reader back: what it is about. An element anchor is a
+    // destination they could stand on, and the box was opened on it, so closing it puts
+    // them back there — the visual proxy a gesture supplied, else the authored element
+    // itself, else the proxy the margin drew for it. A passage anchor is words rather
+    // than a destination, so that box lands the reader on the page instead.
     const returnTarget =
       leavingBar && previous && !previous.quote
-        ? previousOrigin?.isConnected
-          ? previousOrigin
-          : previousOrigin
-            ? visualActionAnchor(previous)
-            : null
+        ? ((previousOrigin?.isConnected ? previousOrigin : null) ??
+          elementById(previous.section) ??
+          visualActionAnchor(previous))
         : null;
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&
@@ -794,7 +787,9 @@ export function createResponseSurface({
     if (!fabAnchor && returnFocus !== "none") {
       if (returnToPanel) threadsBox.focus({ preventScroll: true });
       else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected)
-        returnTarget.focus({ preventScroll: true });
+        // Through `focusDestination`, because an authored element the box was about is
+        // a destination rather than a control and may have no tab stop of its own.
+        focusDestination(returnTarget);
       else if (
         leavingBar ||
         (returnFocus === "page" && document.activeElement === previousOrigin)
@@ -1350,7 +1345,6 @@ export function createResponseSurface({
         return openPageThread(threadId, {
           focus: panel.classList.contains("open") ? "reply" : "thread",
           travel: false,
-          origin: pressOrigin(),
         });
     });
     wireFabInput();
@@ -1379,20 +1373,6 @@ export function createResponseSurface({
     does: `Comment on the ${word}`,
     line: `comment on the ${word}`,
   });
-  // The box this press opens is the first of the comment gesture's two surfaces: a send
-  // takes it off the page and carries the reader into the thread it became, a card put up
-  // in its place or that thread in an open panel. So this frame retires with the box, and
-  // hands the place it recorded to the thread's frame, which enters on it as the same one
-  // rung. Without the handover the card entered with no place at all, and the margin's
-  // own fallback rung answered for it with the entry the card hangs from — a control the
-  // reader never stood on, saying its transient label as they arrived.
-  const composerReturnFrame = () => ({
-    active: () => composerOpen,
-    close: dismissFab,
-    does: "Return to where you were",
-    line: "back",
-    handsOn: true,
-  });
   function commentDestination() {
     const anchor = fabAnchorAt();
     if (anchor)
@@ -1404,7 +1384,6 @@ export function createResponseSurface({
         ),
         box: fabInput,
         go: focusFabComment,
-        returnFrame: composerReturnFrame,
       };
     const inline = activeInlineThread();
     const inlineBox = inline && conversationInput(inline);
@@ -1415,7 +1394,6 @@ export function createResponseSurface({
         ...commenting("thread"),
         box: said.box,
         go: () => landIn(said),
-        returnFrame: () => boxReturnFrame(said.held, said.box),
       };
     const here = standingElement();
     if (here)
@@ -1423,23 +1401,15 @@ export function createResponseSurface({
         ...commenting(addressableWord(here)),
         box: fabInput,
         go: () => commentOnAddressable(here),
-        returnFrame: composerReturnFrame,
       };
     return {
       ...commenting("page"),
       box: generalInput,
+      // Two steps down and two back: the box hands the reader to the list it belongs
+      // to, and the panel hands them to the page.
       go: () => {
         setPanel(true);
         generalInput.focus({ preventScroll: true });
-      },
-      returnFrame: () => {
-        const previousAuxiliaryChrome = captureAuxiliaryChromeState();
-        return {
-          active: () => generalRow.contains(documentFocused()),
-          close: () => restoreAuxiliaryChromeState(previousAuxiliaryChrome),
-          does: "Return to where you were",
-          line: "back",
-        };
       },
     };
   }
@@ -1475,10 +1445,6 @@ export function createResponseSurface({
     // row's own liveness is where that is said rather than a refusal inside run that no
     // surface can see.
     when: () => anchoringIsReady() || !pageSelection(),
-    returnFrame: () => {
-      updateFab();
-      return commentDestination().returnFrame?.() ?? null;
-    },
     run: () => {
       updateFab(); // the selection may be newer than the mouseup that last placed the bar
       commentDestination().go();

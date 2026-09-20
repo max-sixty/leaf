@@ -155,18 +155,6 @@ const above = (node, active) => {
   }
   return -1;
 };
-// The innermost surface the reader is standing in, among the ones offering a step. A
-// scope rooted at the reader's own focus, or at the document, names no surface: the first
-// is wherever they are and the second is everywhere.
-const holdingSurface = (scopes, active) => {
-  let inner = null;
-  for (const scope of scopes) {
-    const root = scopeRoot(scope);
-    if (!root || root === document || root === active || !under(active, root)) continue;
-    if (!inner || under(root, inner)) inner = root;
-  }
-  return inner;
-};
 // Containment before kind, the same rule the ladder reads over its own steps. The
 // register's order says which of two steps is the inner one; it cannot say which of them
 // the reader is inside, and a composer left open out on the page is older than the panel
@@ -174,16 +162,28 @@ const holdingSurface = (scopes, active) => {
 // focus answers first, with every step rooted inside it, innermost root first — the reply
 // box in a margin card is inside the card, so leaving the box comes before dismissing it
 // — and the steps rooted outside that surface keep the register's order behind them.
+//
+// One reading of each root, because a root may be a thunk over the whole ladder.
 const escapeOrder = (scopes, active) => {
   const boundaryAt = scopes.findIndex((scope) => scope.escapeBoundary);
   const end = boundaryAt < 0 ? scopes.length : boundaryAt;
   const layer = scopes.slice(0, end);
   const inner = layer.filter((scope) => innerEscape(scope, active));
   const outer = layer.filter((scope) => !inner.includes(scope));
-  const surface = holdingSurface(outer, active);
-  const within = surface ? outer.filter((s) => under(scopeRoot(s), surface)) : [];
+  const root = new Map(outer.map((scope) => [scope, scopeRoot(scope)]));
+  const depth = new Map(outer.map((scope) => [scope, above(root.get(scope), active)]));
+  // The innermost surface the reader is standing in, among the ones offering a step. A
+  // scope rooted at the reader's own focus, or at the document, names no surface: the
+  // first is wherever they are and the second is everywhere.
+  let surface = null;
+  for (const scope of outer) {
+    const at = root.get(scope);
+    if (depth.get(scope) < 1 || at === document) continue;
+    if (!surface || under(at, surface)) surface = at;
+  }
+  const within = surface ? outer.filter((s) => under(root.get(s), surface)) : [];
   // Stable, so two scopes rooted at the same node keep the register's order.
-  within.sort((a, b) => above(scopeRoot(a), active) - above(scopeRoot(b), active));
+  within.sort((a, b) => depth.get(a) - depth.get(b));
   const rest = outer.filter((scope) => !within.includes(scope));
   return [...inner, ...within, ...rest, ...scopes.slice(end)];
 };

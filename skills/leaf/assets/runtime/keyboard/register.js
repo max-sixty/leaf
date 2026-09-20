@@ -206,8 +206,6 @@ function rung() {
   const holds = (step) => under(step.root ?? document, surface);
   return (surface && steps.find(holds)) ?? steps[0] ?? null;
 }
-const stepName = () => `navigation.back:${rung()?.name}`;
-
 // The page's own Escape, said and run off that one object: each rung states the act, the
 // word the line paints over it, and the sentence the reference lists. The sentence is the
 // rung's for the reason `c`'s is the destination's — the reader can see which branch they
@@ -220,8 +218,6 @@ const BACK_OUT = {
   lineWhen: () => word(rung()?.lineWhen) !== false,
   promoteEscape: () => word(rung()?.promoteEscape) !== false,
   when: () => Boolean(rung()),
-  // One command for the whole ladder, so the step it stands for says which it is.
-  escapeStep: stepName,
   run: () => rung().out(),
 };
 

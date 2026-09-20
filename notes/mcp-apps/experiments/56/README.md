@@ -15,9 +15,11 @@ Passed from a fresh reference checkout with locked installation and no upstream
 source changes. The portable runner completed all 21 HTTP host/origin checks,
 then the same browser checks as experiment 53:
 
-- Canonical Leaf theme/runtime presented directly in the MCP resource.
+- Canonical Leaf theme/runtime presented directly in the MCP resource;
+  `results/direct-leaf.png` is the presented page.
 - A keyboard option choice and uniquely marked anchored comment reached the
-  canonical log; the comment was visible in Leaf's normal Threads panel.
+  canonical log; the comment was visible in Leaf's normal Threads panel, as
+  `results/direct-comment.png` shows.
 - No nested Leaf iframe or external resource requests; empty declared connect,
   resource, and frame domains. Browser error capture was empty.
 - The reference host accepted `ui/message`; this is not idle-wake evidence.

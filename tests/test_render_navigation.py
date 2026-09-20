@@ -5862,7 +5862,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#note-decision")).to_be_focused()
-    assert "1\nEdit" in shortcut_bar_text(page)
+    assert "1\nAsk actions" in shortcut_bar_text(page)
 
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -5875,7 +5875,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     save.focus()
     expect(save).to_be_focused()
     page.keyboard.press("?")
-    assert "1–2\nSave / Cancel" in shortcut_bar_text(page)
+    assert "1–2\nAsk actions" in shortcut_bar_text(page)
     expect(save).to_have_attribute(
         "aria-keyshortcuts", "Escape Meta+Enter Control+Enter 1"
     )

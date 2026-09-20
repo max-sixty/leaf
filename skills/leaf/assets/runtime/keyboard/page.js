@@ -15,6 +15,7 @@ import { letGo, takesLetters } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
+import { threadSearchActive } from "../conversation/narrowing.js";
 import { focusedThreadOf, standingThreadOf } from "../conversation/focus.js";
 import { boxHandsBack } from "../conversation/landing.js";
 import {
@@ -143,17 +144,18 @@ let standingFloor = () => null;
 export function declareStanding({ panelIsOpen, askHeld, pageState }) {
   standingFloor = () => {
     if (!holding()) return null;
-    // State the reader put on out on the page — a selection, a captured target, an
-    // unfolded margin cluster, a page mode — is inside the page they are standing in,
-    // so it comes off before they let go of anything: the drag that takes words out of
-    // a label is answered on its first glyph, while the control it started from is
-    // still theirs. Letting go is the last step before the surfaces around the page.
-    if (pageSelection() || pageState()) return null;
     if (nativeLayers().length) return null;
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;
     if (panelFocusIsInside(panelIsOpen)) return focusedThreadOf() ? threadsBox : null;
     if (inChrome(documentFocused())) return null;
+    // Out on the page, where state the reader put on here is inside the page they are
+    // standing in and comes off before they let go of anything: the drag that takes
+    // words out of a label is answered on its first glyph, while the control it started
+    // from is still theirs. A reader inside a surface is past all of it — a mode left
+    // standing out on the page waits behind the panel they are reading a thread in —
+    // which is why this asks after the branches above rather than before them.
+    if (pageSelection() || pageState()) return null;
     if (standingThreadOf() || askHeld()) return document.body;
     return inUi(focused()) ? null : document.body;
   };
@@ -168,6 +170,10 @@ export function declareStanding({ panelIsOpen, askHeld, pageState }) {
         keys: ["Escape"],
         does: "Let go of what you are standing on",
         line: () => (standingFloor() === threadsBox ? "back to list" : "let go"),
+        // Search repeat is the useful contextual hint once Enter has accepted the first
+        // result, so this step yields the compact line there as the panel's own steps
+        // do. Escape stays live and keeps its place in the complete reference.
+        lineWhen: () => !threadSearchActive() || standingFloor() !== threadsBox,
         when: () => Boolean(standingFloor()),
         run: () => {
           const floor = standingFloor();

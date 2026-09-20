@@ -717,16 +717,18 @@ export function createResponseSurface({
     const previousFloating = fabFloating;
     const leavingBar = !anchor && fabBar.contains(fabFocused());
     const returnToPanel = leavingBar && panelCovers() && !fabFits();
-    // Where the box hands the reader back: what it is about. An element anchor is a
-    // destination they could stand on, and the box was opened on it, so closing it puts
-    // them back there — the visual proxy a gesture supplied, else the authored element
-    // itself, else the proxy the margin drew for it. A passage anchor is words rather
-    // than a destination, so that box lands the reader on the page instead.
+    // Where the box hands the reader back, when a gesture supplied a visual proxy to
+    // open it from: that control, or the margin's own proxy for the same anchor where
+    // it has gone. Without one the box has nowhere of its own and the reader lands on
+    // the page — the element the box is about is not a landing merely for being named,
+    // an ⌥-aimed press having never stood them on it.
     const returnTarget =
       leavingBar && previous && !previous.quote
-        ? ((previousOrigin?.isConnected ? previousOrigin : null) ??
-          elementById(previous.section) ??
-          visualActionAnchor(previous))
+        ? previousOrigin?.isConnected
+          ? previousOrigin
+          : previousOrigin
+            ? visualActionAnchor(previous)
+            : null
         : null;
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&
@@ -784,11 +786,15 @@ export function createResponseSurface({
     repaint(); // the c row names this anchor, so the line is one more rendering of it
     if (!fabAnchor && returnFocus !== "none") {
       if (returnToPanel) threadsBox.focus({ preventScroll: true });
-      else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected)
-        // Through `focusDestination`, because an authored element the box was about is
-        // a destination rather than a control and may have no tab stop of its own.
-        focusDestination(returnTarget);
-      else if (
+      else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected) {
+        returnTarget.focus({ preventScroll: true });
+        // Its own tab stop or nothing: the box lands the reader back on what it was
+        // about where that is something they could have been standing on, and on the
+        // page where it is a passage or a container they could not. Lending a stop to
+        // an author's element here would leave `tabindex` on the page for as long as
+        // the reader stayed there, which is a change to the document they never made.
+        if (!returnTarget.matches(":focus")) letGo();
+      } else if (
         leavingBar ||
         (returnFocus === "page" && document.activeElement === previousOrigin)
       )

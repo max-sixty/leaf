@@ -239,13 +239,15 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # c keeps its page-wide meaning: it comments on the focused option rather than adding
-    # an answer. Its own Escape restores the same mark.
+    # c keeps its page-wide meaning: it comments on the focused option rather than
+    # adding an answer. Closing the box lands the reader on the page, the question it
+    # was opened about being a group rather than something they could stand on.
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
     page.keyboard.press("Escape")
-    expect(mark).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):

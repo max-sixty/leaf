@@ -474,7 +474,11 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.keyboard.press("a")
     mark = page.locator("#storage-evict .lf-pick")
     line = shortcut_bar_text(page)
-    assert "Drop the oldest documents / Pause offline editing" in line, line
+    # The Ask's own numbered actions are what the line offers, under the one context the
+    # question owns, with the way out of the standing ahead of them as it is anywhere
+    # the reader is holding something.
+    assert "1–3" in line and "Ask actions" in line, line
+    assert "let go" in line, line
     option_hints = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()

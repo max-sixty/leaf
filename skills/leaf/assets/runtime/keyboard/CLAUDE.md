@@ -62,26 +62,33 @@ there. Nothing records a press, so one state has one way out however it was reac
 a pointer press or a Tab is an arbitrary jump into the hierarchy rather than a descent
 through it: it gets the same unwind, and is owed no return to the control it landed on.
 
-The levels, outermost in:
+The levels, from the floor up:
 
 1. **The document** — the reader's position in the authored page, and the destinations
    they can stand on. This is the floor; Escape's job ends here.
-2. **Page-side state** put on without entering chrome: a selection, a captured target,
-   an unfolded margin cluster, the page composer.
+2. **Page-side state**, put on out on the page without entering chrome: a selection, a
+   captured target, an unfolded margin cluster, the page composer, Draw and Design mode.
+   Standing on a destination is not one of these: a reader puts page-side state on while
+   already standing where they are, so it comes off before the let-go, which is the last
+   step before the surfaces.
 3. **Auxiliary surfaces**: the Threads panel, the trays.
 4. **Layers of a surface**: the panel's narrowing, a widget's filter.
 5. **Native layers**: a margin card, the versions menu, a modal dialog.
 6. **Boxes**: a composer, a reply box, a find box, which their surface contains.
 
-A bounded interaction — the Go-to sequence, the target chooser, page search, reactions,
-the command reference, draw and design mode — owns the keyboard while it stands and
-unwinds itself. It is not a level, and it hands the reader back itself.
+Levels 2 and 3 are not nested: a reader can hold a selection out on the page and have
+the panel open beside it, and neither is inside the other. What decides them, and any
+other two steps standing at once, is **containment before kind**: a step rooted inside
+the surface holding focus answers before that surface, and a step rooted outside it
+answers after — so a selection left on the page waits behind the thread the reader is
+reading, and answers first when they are out on the page. The register's orders, `STACK`
+and `RUNG_LADDER`, rank siblings, which is the only order they can state.
 
-Levels alone do not order two steps standing at once, because a reader inside the panel
-may have left a selection on the page behind them. **Containment comes before kind**: a
-step rooted inside the surface holding focus answers before that surface, and a step
-rooted outside it answers after. The register's orders — `STACK` and `RUNG_LADDER` —
-rank siblings, which is the only order they can state.
+A bounded interaction — the Go-to sequence, the target chooser, page search, reactions,
+the command reference — owns the keyboard while it stands and unwinds itself. It is not
+a level, and it hands the reader back itself. Draw and Design mode are not of that kind:
+they persist until the reader leaves them, so they come off the ladder at level 2, and
+a panel a send opened while one stood closes before the mode does.
 
 Each step lands the reader at the parent of what it closed: a box at its container, a
 standing at its floor, a surface at the document. **A landing in the document is the

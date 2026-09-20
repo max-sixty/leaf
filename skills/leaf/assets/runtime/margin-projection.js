@@ -2673,13 +2673,18 @@ export function createMarginProjection({
       root: preview,
       does: "Dismiss the conversation view",
       says: "dismiss conversation",
-      // The margin entry the card hangs from is a control the reader may never have
-      // stood on — a `t` from the page put the card up without going near the margin —
-      // so it lands them on the page it is about. The × pressed by pointer is the other
-      // case, and keeps the entry (`closePreview`'s own `returnFocus`).
+      // Where it lands turns on whether a level of the reader's own stands under it. A
+      // cluster they unfolded themselves is that level, and it folds the moment focus
+      // leaves the margin, so the close hands them back to the entry the card hangs
+      // from and the fold is the next press. With no such cluster — the walk's own
+      // reveal folds with the card, and a bare marker has none — the entry is a control
+      // they may never have stood on, a `t` from the page having put the card up
+      // without going near the margin, so the landing is the page it is anchored to.
       out: () => {
-        closePreview();
-        letGo();
+        const standing =
+          expandedOptionsKey && expandedOptionsKey !== forcedInlineOptionsKey;
+        closePreview(Boolean(standing));
+        if (!standing) letGo();
       },
     };
   }

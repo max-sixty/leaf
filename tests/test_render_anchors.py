@@ -428,7 +428,9 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         )
         # Put the card the send opened away before selecting the next passage. The
         # thread stands in the page margin over this narrow document, so the case after
-        # it would reach for a composer under that card and press the card instead.
+        # it would reach for a composer under that card and press the card instead. Two
+        # presses: the reply box the send landed in, then the card holding it.
+        page.keyboard.press("Escape")
         page.keyboard.press("Escape")
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -3546,15 +3548,18 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(menu).not_to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # A keyboard-opened popover returns to the real origin, not to the chooser used as
-    # its implementation door.
+    # A menu opened from the keyboard leaves the same way one opened by pointer does:
+    # the menu is a layer over the page, so its one press lands the reader on the page
+    # rather than on the chooser that is its implementation door — or on the heading
+    # they happened to be standing on when they asked for it.
     origin = page.locator("h1")
     origin.evaluate("node => node.tabIndex = -1")
     origin.focus()
     open_versions(page)
     expect(menu).to_be_visible()
     page.keyboard.press("Escape")
-    expect(origin).to_be_focused()
+    expect(menu).not_to_be_visible()
+    assert page.evaluate("() => document.activeElement === document.body")
 
     # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
     # offers neither a walk nor an exact-version shortcut that would reopen the page the
@@ -3701,14 +3706,14 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_text("v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
-    # Escape closes and hands focus back to the press, so the next Tab carries on
-    # from the banner rather than from the top of the document. This is the standing the
-    # reference handed back above, so the way out has been through a round trip the
-    # platform's own hand-back does not survive on its own: a popover restores focus to
-    # whatever had it when it showed, and the dialog closing leaves that as the body.
+    # Escape closes the menu and lands the reader on the page it stood over, whatever
+    # door they came through and whatever the reference did on the way. A popover
+    # restores focus to whatever had it when it showed, which after a reference round
+    # trip is the body; Leaf performs the whole step instead, so the landing is the same
+    # one every time.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    expect(btn).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
 
     # g V opens it from anywhere on the page, the way g L opens the leaves tray, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
@@ -3736,10 +3741,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_text("v2")
     expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
-    # it navigates — so Escape is what closes this.
+    # it navigates — so Escape is what closes this, onto the page the menu stood over.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    expect(btn).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
     open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")
@@ -4971,9 +4976,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(panel_thread).to_be_focused()
+    # Standing on the card is one step and the panel around it is the next; the seat on
+    # the page is not put back, the reader having left it to come here.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    expect(thread).to_be_focused()
 
     note = page.locator("lf-diff .lf-mark-note")
     expect(note).to_have_count(1)
@@ -4988,10 +4996,13 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     note.press("Enter")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    # The note carried the reader into a thread the diff already seats, so the press put
-    # nothing up, and one Escape hands the note back. Enter goes in again.
+    # The note carried the reader into a thread the diff already seats, so what they
+    # are standing on is that thread and one Escape lets go of it, onto the page. The
+    # note is Leaf's own control beside the words it marks rather than a landing; Enter
+    # from it goes in again.
     page.keyboard.press("Escape")
-    expect(note).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
+    note.focus()
     note.press("Enter")
     expect(thread).to_be_focused()
 

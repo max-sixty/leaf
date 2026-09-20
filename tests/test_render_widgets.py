@@ -8787,12 +8787,11 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 
-    # The destination captured the covering tray it replaced, so the first Escape
-    # returns there; the second closes that one standing tray.
+    # Exchanging one covering tray for another is lateral, so one Escape closes the
+    # tray standing and lands the reader on the page; the tray it replaced is not put
+    # back, and they reach it the way they reached it the first time.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
-    expect(leaves).to_be_visible()
-    page.keyboard.press("Escape")
     expect(leaves).to_be_hidden()
 
 

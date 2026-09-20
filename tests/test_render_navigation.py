@@ -8729,7 +8729,8 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-composer")).to_contain_text("flip")
     page.keyboard.press("Escape")
-    expect(page.locator("#flip")).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
 
     # The box beside it, where every one of those letters is the reader's. The line
     # names none of them, which is the same register saying so.

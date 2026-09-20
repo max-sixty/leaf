@@ -1628,8 +1628,9 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(search).to_have_value("second")
     expect(search).not_to_be_focused()
 
-    # Filtering is a nested state of the one / entry: the first Escape clears it, and
-    # the second restores the file header that opened the field.
+    # The filter is a layer of the patch and the box is inside it: the first Escape
+    # clears a live query, and the second leaves the box for the patch it filters, which
+    # is the box's container rather than the file header the reader pressed `/` from.
     summaries.nth(1).focus()
     page.keyboard.press("/")
     expect(search).to_be_focused()
@@ -1640,7 +1641,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     for index in range(3):
         expect(summaries.nth(index)).to_be_visible()
     page.keyboard.press("Escape")
-    expect(summaries.nth(1)).to_be_focused()
+    expect(page.locator("lf-diff")).to_be_focused()
 
     page.keyboard.press("/")
     search.fill("second")
@@ -4295,14 +4296,17 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
-    # The chrome's own control, reached the way a frame hands a reader back to it: opened
-    # by key from the control, closed by key, which is what earns the ring at all. A
-    # pointer open hands back the page instead
-    # (test_a_press_that_opens_a_layer_returns_the_place_it_displaced).
+    # The chrome's own control, which the reader reaches by Tab or by the banner's own
+    # keys rather than by backing out of the panel — a surface lands them on the page,
+    # never on the control that reopens it. What is asserted here is the band the ring
+    # is drawn in while they stand there.
     toggle = page.locator(".lf-threads-toggle")
     toggle.focus()
-    page.keyboard.press("Enter")
-    page.keyboard.press("Escape")
+    # Back onto it by keyboard, which is what earns the ring: the browser draws
+    # `:focus-visible` off the last input, and a pointer press before this one would
+    # leave the control standing without it.
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(toggle).to_be_focused()
     assert toggle.evaluate(RING) == decision_ring, (
         "the reader standing in the chrome is drawn in some other band than the "
@@ -7311,8 +7315,10 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
+    # The box hands the reader back to the conversation it belongs to, which is the
+    # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
-    expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
+    expect(page.locator(".lf-thread:has(#tq-one)")).to_be_focused()
 
     # The group's hairline belongs to the upper neighbour, so the Done press keeps its
     # own frame whole. Drawn by the lower neighbour instead, the divider recolored the

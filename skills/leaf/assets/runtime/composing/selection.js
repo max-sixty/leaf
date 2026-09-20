@@ -29,7 +29,13 @@ import {
 } from "../drafts.js";
 
 import { threadsBox } from "../conversation/panel-elements.js";
-import { landTyping, mayLandTyping } from "./capture.js";
+import {
+  landTyping,
+  mayLandTyping,
+  pageSelection,
+  selectionAnchor,
+} from "./capture.js";
+import { sameAnchor } from "../anchor-coordinate.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { currentOrigin, invoke, readingPlace } from "../keyboard/layer-stack.js";
@@ -459,6 +465,18 @@ export function createSelectionComposer({
     if (focus) {
       const focusEpoch = composerEpoch;
       void fabPositioned().then((positioned) => {
+        // The handoff is marked at once and lands a frame or more later, and the reader
+        // owns the page for the whole of that gap. Words standing in it now that this
+        // composer did not open on are theirs, taken since: focusing the field would
+        // collapse them, and the passage they were offering would be gone before
+        // anything could read it. Standing down releases the handoff as well, so the
+        // collapse this mark holds out cannot outlive the focus it was holding it for.
+        const taken = pageSelection();
+        const words = taken ? selectionAnchor(taken) : null;
+        if (words?.quote?.trim() && !sameAnchor(words, pendingAnchor)) {
+          endFabFocus();
+          return;
+        }
         if (positioned && composerOpen && focusEpoch === composerEpoch)
           composerInput.focus();
       });

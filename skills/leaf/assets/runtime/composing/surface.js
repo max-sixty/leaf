@@ -1234,12 +1234,14 @@ export function createResponseSurface({
         }
         return;
       }
-      if (
-        actionPress ||
-        targetActivation ||
-        fabHoldsCapturedPassage() ||
-        takesLetters(document.activeElement)
-      )
+      // The captured passage is not asked about here. What the handoff has to survive is
+      // the collapse focusing the field causes, and `updateFab` holds that out at the one
+      // branch that acts on an empty selection. Restated here it also swallowed the
+      // opposite event: a passage the reader went on to select, arriving while the bar
+      // still held focus or while its focus was in flight, read as the collapse and was
+      // dropped — and the handoff then landed on the field and collapsed the selection,
+      // so nothing was left to re-read and the target never moved.
+      if (actionPress || targetActivation || takesLetters(document.activeElement))
         return;
       scheduleSelectionUpdate();
     });

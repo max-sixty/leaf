@@ -1823,13 +1823,41 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
 def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     """Selection changes can come from touch handles and browser commands without a
     mouseup or keyup in the page. The new passage replaces the visual target, and
-    clearing that passage dismisses the shared action surface."""
+    clearing that passage dismisses the shared action surface.
+
+    The reader takes the page back while the composer's focus handoff is still in
+    flight, which is the state the press leaves behind: opening Comment marks the
+    handoff at once and lands the focus on a later frame. Holding the page's frames
+    keeps that gap open for the whole of the selection rather than leaving its width to
+    the machine — measured here, the handoff lands about eight milliseconds after the
+    press returns, which is the same span the driver spends making the next call. The
+    passage is the bar's whether or not the handoff has landed, and it was the ordering
+    below that CI lost on.
+    """
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
     start = page.locator('#flow g[data-id="S"]')
+    page.evaluate(
+        """() => {
+          const frame = window.requestAnimationFrame.bind(window);
+          const cancel = window.cancelAnimationFrame.bind(window);
+          const held = new Map();
+          let handle = 1e6;
+          window.requestAnimationFrame = (callback) => {
+            held.set((handle += 1), callback);
+            return handle;
+          };
+          window.cancelAnimationFrame = (given) => { held.delete(given); };
+          window.leafReleaseFrames = () => {
+            window.requestAnimationFrame = frame;
+            window.cancelAnimationFrame = cancel;
+            for (const callback of held.values()) frame(callback);
+            held.clear();
+          };
+        }"""
+    )
     control.focus()
     page.keyboard.press("Enter")
-    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         """() => {
@@ -1842,6 +1870,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
           selection.addRange(range);
         }"""
     )
+    page.evaluate("() => window.leafReleaseFrames()")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
     expect(bar).to_be_visible()

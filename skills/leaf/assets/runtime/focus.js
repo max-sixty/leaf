@@ -103,32 +103,39 @@ export function takesLetters(node) {
 //
 // A surface covering the page makes it inert, so neither half of this reaches it: the
 // page is not somewhere the reader can be while it is covered, and the surface is the
-// floor they are standing on. The closing layer usually leaves focus inside that surface
-// on its own — the platform hands a popover's focus back to whoever held it when the
-// popover showed — but that is the platform's courtesy and not a landing: it does not
-// arrive when the node it remembered has been replaced by a repaint since, and then focus
-// falls to the body, which no let-go on an inert page can take back. So the surface says
-// where it stands the reader, and letting go asks it before the page.
+// floor they are standing on. The closing layer often leaves focus inside that surface on
+// its own — the platform hands a popover's focus back to whoever held it when the popover
+// showed — but that is the platform's courtesy rather than a landing, and where it does
+// not arrive focus falls to the body, which no let-go on an inert page can take back. So
+// letting go asks the covering surface before the page.
+//
+// Two readings, not one. The surface is the whole of what covers, and answers whether the
+// reader is already somewhere inside it — a tray's close button, the panel's find box —
+// where nothing is owed them. The landing is the one place within it that takes a reader
+// who is nowhere. Both are the modality's, which is the thing that inerted the page: a
+// layout predicate of its own would be a second answer, disagreeing with it across a
+// width change until the next sync, and it would know only the surfaces it was written
+// for rather than every one that covers.
 let readingBlock = () => null;
 export function declareReading(read) {
   readingBlock = read;
 }
-let coveringFloor = () => null;
-export function declareCovering(read) {
-  coveringFloor = read;
+let coveringSurface = () => null;
+let coveringLanding = () => null;
+export function declareCovering({ surface, landing }) {
+  coveringSurface = surface;
+  coveringLanding = landing;
 }
-const deepestFocus = () => {
-  let node = document.activeElement;
-  while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
-  return node;
-};
 export function releaseFocus() {
   document.body.focus({ preventScroll: true });
 }
 export function letGo() {
-  const covering = coveringFloor();
+  const covering = coveringSurface();
   if (covering) {
-    if (!covering.contains(deepestFocus())) focusDestination(covering);
+    // `contains` stops at a shadow boundary and `document.activeElement` is the host of
+    // the tree holding focus, so the two meet: a reader standing inside a widget's shadow
+    // tree reads as inside the surface holding that widget, which is what is being asked.
+    if (!covering.contains(document.activeElement)) focusDestination(coveringLanding());
     return;
   }
   const block = readingBlock();

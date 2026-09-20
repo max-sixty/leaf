@@ -6599,13 +6599,17 @@ def test_reference_does_not_restore_a_popover_across_modal_entry(browser, serve)
 
     resized(page, 500, 800)
     panel_settled(page)
-    # Both Escapes below land the reader while the panel covers the page, and the page is
-    # inert under it, so what lands them is the panel rather than anything on the page.
-    # The platform also hands a popover's focus back to whoever held it when the popover
-    # showed, which arrives at the same place and hides whether Leaf landed them at all.
-    # Throttling takes that courtesy away — it does not survive a machine too busy to run
-    # the close in one go, which is how the nightly found this on a saturated runner — so
-    # these assertions read Leaf's own landing rather than the browser's.
+    # Every Escape from here lands the reader while the panel covers the page, which is
+    # inert under it, so the panel is what can take them. The platform also hands a
+    # popover's focus back to whoever held it when the popover showed; that arrives at the
+    # same place and hides whether Leaf landed them at all. Throttling takes the courtesy
+    # away, so these assertions read Leaf's own landing — a saturated nightly runner took
+    # it away about one run in three, which is how this was found. It has to span the
+    # presses rather than sit on the last one: the state the final press lands from is
+    # built by the ones before it, and throttling only that press does not reproduce. The
+    # rate is the measured one: at 20 the whole case takes about four seconds, where a
+    # gentler 6 takes seventeen, because the courtesy sometimes still arrives and the
+    # waits below sit through it.
     page.context.new_cdp_session(page).send(
         "Emulation.setCPUThrottlingRate", {"rate": 20}
     )

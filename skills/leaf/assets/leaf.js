@@ -440,10 +440,15 @@ if (offlineInteractive) applicationState.setHostAvailable(false);
 // stands by now and nothing has read the register yet.
 declareReading(version.readingBlock);
 
-// And where it goes instead while a surface covers the page, which is that surface: the
-// page is inert under it, so the reading above cannot take the reader and a step that let
-// go would leave them wherever the closing layer happened to drop them.
-declareCovering(() => (navigation.panelCovers() ? threadsBox : null));
+// And where it goes instead while a surface covers the page: the page is inert under one,
+// so the reading above cannot take the reader and a step that let go would leave them
+// wherever the closing layer happened to drop them. The modality that covers already
+// answers both halves for whichever surface is standing — the panel, either tray — and
+// the keyboard register carries the same pair to the dispatcher.
+declareCovering({
+  surface: auxiliaryModality.coveringSurface,
+  landing: auxiliaryModality.coveringFocus,
+});
 
 // The let-go reads what five owners hold; all five stand by now, and the first input is
 // wired further down, so the scope is declared before anything reads the register.

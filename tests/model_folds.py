@@ -93,9 +93,7 @@ def reading(
     Each one then goes through the same append door the server admits it through,
     so what this folds is a log the page could really have. A command the door
     would refuse raises `EventRefused` here rather than folding: the fixture cannot
-    state a premise the product would not have accepted. An event carrying its own
-    `meaning` is taken as written, which is how a test states a log an older
-    vocabulary admitted.
+    state a premise the product would not have accepted.
     """
     if isinstance(documents, str):
         documents = {1: documents}
@@ -112,10 +110,7 @@ def reading(
         stamped = {"id": f"e{seq}", "seq": seq, "ts": NOW, "author": "user"}
         if "revision" in carries.get("properties", {}):
             stamped["revision"] = 1
-        event = {**stamped, **command}
-        if "meaning" not in event:
-            event = admitted_event(door, log, event)
-        log.append(event)
+        log.append(admitted_event(door, log, {**stamped, **command}))
     active_revision = revision if revision is not None else max(parsed)
     active = {
         "revision": active_revision,

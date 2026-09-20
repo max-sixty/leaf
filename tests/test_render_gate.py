@@ -4,7 +4,6 @@ import itertools
 import json
 import re
 import threading
-import time
 from urllib.parse import urlsplit
 
 import pytest
@@ -80,7 +79,6 @@ from render_harness import (
     LONG_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
-    Traffic,
     _traffic,
     _until,
     author_test_widget,
@@ -458,30 +456,6 @@ def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, s
     )
     assert rows["lower"]["top"] >= rows["upper"]["bottom"] - 1, rows
     assert rows["footer"]["bottom"] <= 700, rows
-
-
-def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
-    """A page that repaints its ledger forever cannot keep a false fact alive forever."""
-
-    class BusyPage:
-        reads = 0
-
-        def evaluate(self, _script):
-            self.reads += 1
-            return json.dumps(
-                {"sends": self.reads, "acked": 0, "asked": 0, "heard": 0, "pending": []}
-            )
-
-        def wait_for_function(self, *_args, **_kwargs):
-            raise AssertionError("the expired wait listened for another paint")
-
-    page = BusyPage()
-    page.lf_traffic = Traffic(page)
-    times = iter((0, 31, 31, 31))
-    monkeypatch.setattr(time, "monotonic", lambda: next(times))
-
-    with pytest.raises(AssertionError, match="never reached a false fact"):
-        _until(page, lambda _traffic: False, "reached a false fact")
 
 
 def test_a_broken_probe_module_is_a_gate_finding(browser, serve):

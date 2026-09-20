@@ -1,417 +1,116 @@
 # TODO
 
-Items are ordered by priority. Each names the result. When an item needs active
-investigation detail, keep it in a linked note. Item ids are one space shared with
-`notes/`, so a new item takes the next id free in both rather than the next one here.
-Completed work and rejected alternatives remain in git history. An item decided against
-leaves rather than staying with its reasoning attached: a dependency, platform, or
-storage choice goes to the Rejected table in
-[the survey note](notes/dependency-survey.md) as one line and the number that decided
-it, and anything else goes to git history.
+Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
+each priority; bullets are outcomes, not implementation plans. Linked notes hold the
+evidence and detailed briefs. Numbered items keep the ids shared with `notes/`.
+Completed work and rejected ideas live in git history or the relevant research note.
 
 ## Now
 
-- **Establish the first agent-usability baseline.** Build the cold-authoring,
-  reading-parity, and resume fixtures described in
-  [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use
-  their failures to choose any new reading interface.
-
-- **Give conversations a clear, stable reading hierarchy.** Retain the current thread
-  context while scrolling, disclose search and filters together with the active query,
-  keep agent activity beside the comment it belongs to, and preserve selection and reply
-  editing. Verify populated short and long threads in light and dark at wide and narrow
-  widths. Keep document prose calm and the working chrome compact rather than decorative.
-
-- **Prototype region-aware annotation placement.** Compare a pinned marker card with a
-  sparse left-comment layout across one ordinary document and one workspace. Keep complete
-  history and search in Threads, use the existing Page Map dialog on narrow pages, and
-  never leave both margin presentations visible at once.
-
-- **Audit visual coherence across complete reader journeys.** Compare an ordinary
-  document, a workspace, a dense table or board, and a populated conversation against the
-  intended editorial and technical aesthetic. Fix repeated system-level gaps in type,
-  spacing, framing, control hierarchy, and responsive behavior; avoid playful consumer-app
-  ornament.
-
-- **Weigh the focus ring once, for every keyboard target.** The 2px accent ring
-  (`--here-ring` in `skills/leaf/assets/theme.css`) may be too strong on a large target:
-  a walked-to thread card or inline thread wears it inset over the quiet ground, and the
-  perimeter reads heavier there than around a button. The card was given the ring so that
-  a keyboard arrival looks the same everywhere, so whatever weight wins applies to every
-  target that wears it; do not soften it on the card alone.
-
-## Make Leaf feel like a game
-
-`skills/leaf/SKILL.md` states the contract: the reader sees what the page wants of them
-without reading it first, every state offers a move, and a move shows its result at
-once. This is about what a page asks of a reader, not about ornament — the visual
-coherence audit above still rules out consumer-app decoration, and the two agree that a
-reader should never have to work out what to do next.
-
-- **Play each shipped example through as a sequence of moves.** At every state a reader
-  can reach in `review-a-plan`, `triage-board`, `pr-walkthrough` and `ship-review`, ask
-  what the page wants next and whether a move is visible that does it. Record the dead
-  ends: a state that offers nothing, a move whose result is not visible, and a page whose
-  objective only appears after reading. The phone survey's first item is one such dead
-  end — a touch reader cannot target an element at all.
-
-- **Give a page one reading of how far the reader has got.** The banner's `Asks 0/1` is
-  the only score Leaf keeps, so a page carrying a board, several Asks and a version to
-  approve has no single answer to "how much of this is still mine". Decide what counts
-  toward that reading before adding a second counter beside the first.
-
-- **Show the plan as well as the step.** App Server's plan updates and Claude Code's task
-  list both say how far along the work is, and Leaf keeps only the current step. A short
-  checklist in the status disclosure would let a reader see progress without asking.
-
-- **Find a specific first task for the public home page.** A visitor's first move is the
-  tutorial level, and the current page starts with the comment-and-revise loop: a visitor
-  asks Leaf guide to edit their private copy. Replace that interim prompt only after
-  testing a task a new visitor would actually bring; avoid canned choices that
-  manufacture work for the guide.
-
-- **Measure a pending count in the favicon.** Prototype the count at 16px and keep it
-  only if it remains legible beside the existing status treatment.
-
-## Agent activity on the page
-
-The reader should always be able to tell what the agent is doing and whether it is still
-doing it. [The responsiveness note](notes/reader-feedback-responsiveness.md) holds the
-ordering contract these items extend.
-
-- **Measure whether agents keep the banner current.** Run the agent evals the
-  responsiveness note describes against the current guidance: a delivery, a multi-step
-  task, and a task long enough to delegate. Score whether a status write precedes each
-  step and whether the reader's new input is claimed before the work continues.
-
-- **Observe Claude Code's tool steps as App Server observes Codex's.** A `PreToolUse` hook
-  could record the current step for pages the session holds, so the banner stays current
-  when the agent does not write. The existing hook's `uv run` takes about 0.2 s even for a
-  session holding no page (measured 2026-09-17), which every tool call in every session
-  would pay, so the hook needs a check that exits at once for such a session. The row and
-  disclosure already divide the two readings the way Codex's stream now uses, so a hook
-  would write `observed` and change no wording.
-
-- **Teach the hosted website agent to declare its steps.** Its banner sentence comes from
-  the tool steps App Server watches, so the reader gets the step verbatim — `Running
-  /bin/zsh -lc '$LEAF delivery claim … && rg --files …'` — which is the whole argument for
-  the agent saying it in its own words. A "declare each step before you start it"
-  paragraph in `worker/server.py` wrote four good sentences and cost the turn its reply
-  (2026-09-17), so any wording has to leave the turn's response operations exactly as they
-  were, and `verify_site.py local` is the check that says whether it did.
-
-- **Decide the banner's pick when several subject claims stand.** The guidance now has
-  the coordinator write one sentence covering its workers, which leaves this to the
-  threads and widgets that legitimately hold claims at once: with a reader move
-  outstanding the fold takes the claim with the highest log floor rather than the newest
-  write (`activity.py`), so which one the banner names is close to arbitrary. Either
-  choose deliberately or list the standing claims in the status disclosure with their
-  subjects and ages.
-
-- **Settle what a margin entry's colour says about whose turn it is.** A thread reading
-  is now blue while `awaitsReader` holds and green while the agent is working on it, and
-  those two colours were chosen one at a time. Decide the scheme as one thing: whether
-  the reader's turn deserves a hue of its own rather than the accent's, and whether a
-  thread on nobody should say so at all. The third surface is the Threads panel's On you
-  facet chip, which declares an `lf-needs` class (`conversation/narrowing.js`) that no
-  stylesheet reads — a hook left for the colour this decision would give it.
-
-- **Decide whether a later agent turn should hide an earlier agent question.** With no
-  structural Ask, `_thread_awaits_reader` reads only the latest spoken turn, so a thread
-  whose root is an agent comment and whose latest spoken turn is an agent reply carrying
-  no `awaits` reads as on nobody, however plainly the root asked. A structural Ask
-  deliberately survives a later plain turn; the comment-is-a-question rule does not.
-  Either make the two agree or say why they should differ. This decides the banner's
-  count and the panel's On you filter as well as the margin, so it is one change in
-  `events.py`'s projection rather than a second reading beside it. No page in the corpus
-  stands that shape today, so seeding one is the first step and the evidence the
-  decision needs. The nearest thread, the feature gallery's `bg-resolved-text`, is both
-  answered and resolved, and `resolved` clears only on an explicit `unresolve`, so it is
-  not a shortcut to one.
-
-- **Keep delegated work reading as running once the coordinator's turn ends.** Workers
-  leave the page to the session driving it (`conversation-loop.md`, "Long-running
-  work"), so when a coordinator ends its turn with workers running, its `working`
-  declaration reads as the turn's end two minutes later, though its watcher is live and
-  the work is moving. A declaration the coordinator marks as delegated could stand while
-  its watcher lease holds. The same fact could keep the reader move that started the
-  work handled across turns, where today the Stop hook makes the coordinator reply with
-  what it started before its turn can end.
-
-## Architecture simplification
-
-The 2026-09-13 to 09-17 Lit application arc closed #1 and #3, which git history now
-carries. A 2026-09-18 survey measured what remains and raised the items below; its
-evidence is the `leaf-simplification` page directory in the state home. #4 landed in
-#808, #8 in #815 and #27 in #797. #25 — one App Server client for the Worker — is
-closed: #811, #813 and #834 dissolved the duplication it named, and what survived it
-is now stated under #6.
-
-- **#5 — Separate the pure margin model from stateful presentation.** Produce the complete
-  cluster and Page Map reading as immutable data, then let retained-control presentation
-  and placement consume it independently. `margin-projection.js` is 3,133 lines built
-  around one `createMarginProjection` factory — the largest runtime module by a thousand
-  lines over the next; roughly 650 would move and what it deletes directly is small. The
-  return is that the model becomes testable without Chrome, which `test_render_margin.py`
-  currently spends 6,802 lines on, and that an entry's identity and focus standing stop
-  living on `dataset.lfMarginEntry*`. Measured 2026-09-19: the runtime and bundled packages
-  carry `lf` state on DOM nodes at 305 sites under 104 keys across 77 of 194 modules, and
-  `margin-projection.js` holds the largest single share at 25.
-
-- **#6 — Separate Codex delivery protocol, durable state, and process supervision.** Keep
-  App Server message interpretation, the queue and receipt ledger, and adapter process and
-  lease management in distinct layers if hosted-agent delivery remains a product priority.
-  #811, #813 and #834 already did the protocol half by hand: `codex.py` exports
-  `app_server_connect`, `app_server_handshake` and `app_server_request`, `AppServerClient`
-  moved out to `codex_adapter.py`, and `worker/server.py` imports 17 public names and no
-  private one. What remains is two turn supervisors over that one protocol —
-  `HostedTurn` and `WebsiteCodexHost` in `worker/server.py`, about 900 lines, against
-  `TaskObserver` and `DeliveryTurn` in `codex_adapter.py`, about 1,000. They supervise
-  different things, a local Codex process with a queue and a lease against a hosted
-  per-reader container turn, so merging them is a restructure with no deletion and is
-  worth doing only under that same product condition.
-
-- **#7 — Test model rules without rebuilding whole browser journeys.** Both runtimes now
-  have a place to state one: `interact_support.ModelPage` and `tests/model_folds.py` on
-  the Python side, from literal markup and a literal log through the real append door,
-  and `tests/runtime/*.test.mjs` on the JavaScript side, importing a runtime module the
-  way a served page imports it. Python's share is finished — a sweep of all 25 render
-  files and 1,421 test functions found nothing left to convert, and the 14 tests that
-  were Python-decided but filed in nightly browser modules have moved. What remains is
-  JavaScript, under two rules the pilot established:
-
-  - A fold whose answer comes from an engine-supplied primitive is a browser fact
-    wearing a fold's clothes. `text-alignment.js` is the case: measured on Node 26 and
-    Chrome 151, `Intl.Segmenter` at word granularity splits `request.remote_addr` into
-    one segment and three respectively, so `alignText` answers differently in the two
-    engines and its test stays in the browser suite. The criterion is not "reads no DOM";
-    ask both engines rather than reading the module.
-  - The remaining folds are not sitting in convertible tests. Of the 140 browser tests
-    that reach a runtime module, 15 use the page only as a JavaScript engine; the other
-    125 assert a painted fact in the same breath. Converting one of those means splitting
-    a journey rather than moving a test, which is a larger job, and is worth doing for
-    the fold's own sake rather than for the browser time it saves.
-
-  The next step has a known size. `tests/runtime/dom.mjs` loads 151 of the 195 modules a
-  page can serve — the runtime's 155, the layer's own `widgets/lf-suggestion.js`, and the
-  packages' 39 widget modules — and almost every one of the rest refuses for one reason,
-  which is that `stylesheets.js` wants the carrier every delivery writes (`delivery_sheets`
-  in `revision_delivery.py`, one `script[data-lf-runtime][data-lf-sheets]` keyed `chrome`
-  and `marks` over `runtime/chrome.css` and `runtime/marks.css`). Everything importing
-  `runtime/widget-api.js` comes through it, and that facade is what 118 browser test
-  functions reach through. Putting that element in the document takes the count to 190,
-  and the five left are `bootstrap.js` and the four command-hub widgets, which want a
-  loaded vocabulary rather than a served path. No test needs the carrier yet, so the
-  harness does not write one. This does not depend on #5.
-
-- **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
-  now keeps the reader's place through the browser's own scroll anchoring, and that hold
-  rests on an ordering rather than a guarantee: `main`'s `left` (via `--lf-shift`) and its
-  `width` do change when the strip is taken, both are on Chromium's suppression list, and
-  they escape it only because the container-query recalc that moves them runs inside
-  layout, after `ScrollAnchor::NotifyBeforeLayout` has walked the anchor's ancestors.
-  Measured 2026-09-18: across three pages and six widths, `left` changed at 1440 and 1200
-  and `width` at ≤1200, and the reader held within 2px in all 18 cases. Make `body` a
-  three-track grid for column placement only — keep the border strip, so every
-  `lf-shell` floor keeps its meaning — and give `main` `grid-column: 2; width: 100%`, so
-  its inset never changes. That deletes `--lf-shift`, `--lf-gutter`, `--lf-sidebar-edge`,
-  `left`, and the `50cqi ± --lf-shift` terms in `packages/default/theme.css`, with the same
-  layout at every width and the same sideways jump. Keep `main`'s `max-width`, or
-  `_column_width` (`scripts/leaf/styles.py`) silently falls back to 780. About half a day;
-  the space-bound arithmetic is where the 134px and 34px overlaps were measured, so expect
-  `test_render_margin.py` and the `withheldRoom` gate to need iteration. Low priority:
-  `--lf-shift` has been touched by two commits, so this is insurance, not accretion.
-
-## Platform and dependency cutover
-
-The 2026-09-16 survey of what Leaf could hand to a dependency found the browser defect
-record concentrated in margin placement, geometry timing, and the keyboard register, which
-no library owns; a component library would have covered 15 to 20 of the last 175 fixes. The
-direction chosen: keep Lit, and replace hand-built behavior with settled libraries and
-browser features one at a time as each proves out. The evidence, the rejected
-candidates, and the Leaf choices worth reconsidering are in
-[the survey note](notes/dependency-survey.md).
-
-Effort is S (under two days), M (two to ten), or L (weeks). Saving is lines deleted,
-measured unless marked est., plus the defect class removed. A measured figure is the size
-of the region a library would take over, not what it deletes: the landed swaps (#753)
-deleted 56 of a measured 130 for psutil, 6 of 262 for unidiff, 3 of ~100 for watchfiles,
-and 78 of ~180 for dependency-cruiser, because the refusals, contracts, and definitions
-around a mechanism stay. A deletion well under the scored figure can still be worth
-taking for the kind of code it removes: psutil's 56 lines were two platform doors of
-hand-laid `proc_pidinfo` and `sysctl` struct layouts through ctypes. Confidence is how likely the
-swap works as described without a spike, weighing adopter evidence and Baseline status.
-Effort and confidence are estimates unless the row cites a measurement. Each table is
-ordered by confidence, then effort.
-
-### JavaScript
-
-| Change | Effort | Saving | Confidence | Risk |
-|---|---|---|---|---|
-| Order the cascade with `@layer` (theme, package, page). Needs the chrome isolated from page CSS first — a shadow root, or Leaf wrapping page styles in `@scope … to (.lf-chrome)` — because a page's unlayered `<style>` otherwise outranks the chrome: tried 2026-09-16 and backed out when one page rule moved 53 chrome boxes. | M | ~50 `!important` and the specificity contests | Low-Med | Every rung assignment re-decides a tuned contest, and only the suite finds which |
-| Invoker commands (`command`, `commandfor`, Chrome 135) for the eight runtime modules that call `showModal` or the popover methods, so the control that opens a surface declares the opening. Today `keyboard/layer-stack.js` learns of a pointer-opened surface from the `showModal` and `showPopover` patches and the `beforetoggle` listeners, so the entry carries no origin to restore; an invoker could hand it one. | S-M | ~50 to 100 est. | Low-Med | Chromium-only, so below Chrome 135 the button does nothing unless the module keeps its handler |
-
-### Both
-
-| Change | Effort | Saving | Confidence | Risk |
-|---|---|---|---|---|
-| Bind one loopback port per MCP page with a wildcard-port `frame_domains`, removing MCP multiplexing under `/p/<capability>` as one of the two callers of the route-scoping regexes in `http.py`; the 69 rooted URL literals under `assets/` and `packages/` go relative. | M | ~75 of 155 | Low-Med | The wildcard needs an MCP-host check; leaf.page's example roots keep the mechanism |
-
-## General reader continuity
-
-- **#11 — [Let newer navigation win over revision
-  restoration](notes/workspace-followups.md#item-11).** Use navigation intent to prevent
-  an old reading capture from overwriting input made during revision activation. The
-  race belongs to version travel generally; independent pane scrollports only exposed
-  more instances of it.
-
-## Workspace follow-ups
-
-The workspace research after [PR #455](https://github.com/max-sixty/leaf/pull/455)
-produced the following backlog. IDs match the research discussion, not GitHub issues.
-The [research briefs](notes/workspace-followups.md) retain evidence, completion
-criteria, dependencies, and Sol/Astra assignments. Items are ordered within each group.
-
-Continue with the remaining composition verification.
-Keep the current primitives; let those uses establish demand for more. Defer the
-authoring evaluation until Leaf's shape is stable enough for the comparison to last.
-
-### Composition verification
-
-- **#14 — [Verify the complete keyboard and accessibility
-  route](notes/workspace-followups.md#item-14).** Exercise the workspace as one keyboard
-  task, including reading, pane furniture, local comments and Threads.
-
-### Authoring and product boundary
-
-- **#19 — [Measure what Leaf saves an authoring
-  agent](notes/workspace-followups.md#item-19).** Run a small blind authoring comparison
-  against plain HTML, including the cost of the subsequent feedback cycle. Extend the
-  existing agent-usability evaluation plan with this comparison.
-
-- **#20 — [Teach the few compositions that earn their
-  place](notes/workspace-followups.md#item-20).** Put tested document, configuration and
-  queue/detail recipes into the existing package guidance.
-
-- **#22 — [Verify workspaces at the experimental MCP
-  boundary](notes/workspace-followups.md#item-22).** Check the same workspace in a full
-  iframe, a constrained host and the existing snapshot/browser handoff.
-
-- **#23 — [Find out whether people return to a
-  workspace](notes/workspace-followups.md#item-23).** Run repeated real tasks to decide
-  how much persistence and workspace customization Leaf should own. Requires Max to
-  choose and participate in real recurring tasks.
-
-## Reading on a phone
-
-Leaf's focus is desktop, and a phone reader now gets a working page: since b0e78287 the
-runtime starts in WebKit, and selecting text, commenting, replying, answering an option
-and moving a board card all work at 393px, with no shipped example scrolling sideways.
-The items below are what a survey of `review-a-plan`, `triage-board`, `pr-walkthrough`
-and `ship-review` found missing in an emulated iPhone. Emulation does not show iOS's own
-selection callout, the software keyboard, Safari's collapsing toolbars, or a real
-long-press or pinch, so settle anything that depends on those on a device first. The
-thread panel's touch grip has its own item under Later.
-
-- **Keep the comment field out from under iOS's selection menu.** On a real iPhone, the
-  Copy / Look Up menu still covers the field that opens on a selection. A page cannot
-  remove that menu without also dropping the selection (`-webkit-touch-callout` reaches
-  only links and images), and readers need Copy and Look Up, so the field has to stay out
-  of the menu's way. Since 9adc3e16 a touch screen puts the field below the selected
-  block, as the Hypothesis annotation client's adder does for the same reason
-  (`src/annotator/adder.tsx`). In emulated iPhone WebKit, across 83 selections in
-  `how-it-works` and `review-a-plan`, the field stayed out of the band just above the
-  selection, where iOS usually draws the menu, in all but 3. The collision on the device
-  therefore comes from something emulation does not show; take a screenshot there before
-  choosing a fix. Two weaknesses already show in emulation. The field keeps clear of the
-  whole block rather than the selected words (`keepClear` in `placeFab`,
-  `runtime/composing/surface.js`), so when a tall paragraph runs past the bottom of the
-  screen, the field is held at the screen's edge over the paragraph's lower lines, where
-  it can cover the selected words. And 6px under the block, the field can cover the end
-  handle when the selection ends on the block's last line. If no place beside the
-  selection holds on the device, dock the field at an edge of the screen on a touch
-  screen.
-
-- **Let a touch reader comment on an element, not only on selected text.** The routes to
-  an element target are Alt-click, the `s` key, and a "Respond to…" button that appears
-  on keyboard focus alone (`skills/leaf/assets/runtime/chrome.css`), while the shortcut
-  bar that teaches `s` is hidden at a coarse pointer — which also removes the only
-  pointer route to the command list. Tapping a board card, a diagram, a diff line or a
-  disclosure therefore does nothing. Decide what a phone reader may target before
-  choosing the affordance; the `s` target picker behind the ⋯ menu would reach the same
-  targets the keyboard does.
-
-- **Show a phone reader that a passage has a thread.** Margin markers and pickup receipts
-  are hidden wherever the page shell is 840px or narrower (`runtime/margin-projection.js`'s
-  `hide` fallback, `assets/theme.css`), so a comment beside a task is invisible, although
-  tapping the text still opens it and Threads still lists it. The reaction row already
-  moves into the text flow when the margin has no room; the same reflow for markers
-  would keep the page honest about what it holds.
-
-- **Make a delivered document declare its viewport.** `references/page-authoring.md` puts
-  `<meta name="viewport">` in the authoring template and nothing checks for it, so a page
-  authored without one lays out at 980px on a phone and none of the runtime's
-  coarse-pointer or narrow-width rules apply. Supplying it at delivery, beside the
-  encoding, CSP, theme and stylesheets a delivery already adds, would make the phone
-  layout a property of the runtime rather than of the author's memory.
-
-- **Find out whether the interactive-reply crash reaches real hardware.** In emulated
-  iPhone WebKit, opening a thread's interactive reply
-  (`runtime/conversation/messages.js`) crashes the page process every time between 393px
-  and 540px and never at 560px or wider, while Chromium at the same size is unaffected.
-  The panel focuses the message and scrolls it into view smoothly twice, and the crash
-  lands about eight frames later; reduced motion does not prevent it, so the smooth
-  scroll may not be the cause. Reproduce it on a device before choosing a fix.
-
-- **Finish the phone polish the same survey listed.** Placeholders and badges name keys a
-  phone cannot press (`Comment… · c` and `Reply · ⌘⏎` from `runtime/composing/input.js`,
-  and the `1 2 3` badges a pick control paints); a disabled "Approve version" keeps its
-  reason in a hover tooltip (`runtime/banner.js`); `pr-walkthrough` opens a 1026px
-  diagram in a 295px box, and its diffs open with soft wrap off, cutting code at about 30
-  columns; and the diff "+", the thread "Add reaction" and `<summary>` rows sit under the
-  44px touch minimum. Each is small alone, and together they decide whether a phone
-  reader can finish what the page asks.
-
-## Later
-
-- **Prefer a release tag when Leaf adopts named versions.** When the running payload's
-  commit has an exact Git tag, report that tag as its version and keep the commit hash as
-  the fallback for untagged builds.
-
-- **Let readers disable character bindings.** One route filter with a complete persistence
-  and accessibility contract. Commands, non-character routes, and visible controls stay
-  available.
-
-- **Open visual-review targets beside Leaf through the host.** Coordinate the exact case
-  URL in a real browser pane and report mutable-preview staleness, without treating
-  arbitrary iframes as live evidence.
-
-- **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow for
-  any host that can run a command, then define a shared host adapter only if another
-  integration needs it.
-
-- **Give the touch grip room of its own, then fit more thread cards.** At a coarse pointer
-  the panel's 44px resize grip lies over the list with nothing reserving its space, so
-  whether its focus ring lands on a button is luck. A full-height gutter would contradict
-  a local handle, and spacing alone cannot fit a third card — the reply box and
-  Send/Resolve row every card carries already exceed a third of the list. Collapse a card
-  to a single Reply affordance until the reader enters it.
-
-- **Make the experimental direct MCP bundle fail loud on an evaluation-order fault.**
-  Esbuild hoists cross-module `let`/`const` into `var`s in
-  `scripts/mcp-app/direct-build.mjs`, so a fault the ordinary page throws reads `undefined`
-  in that experimental bundle. Give its probe a reading that sees the fault, or preserve
-  the dead zone.
-
-Parked until something triggers them:
-
-- **A proper diff for suggested replacements**, if a before-and-after view in Threads and
-  inline conversations reviews nontrivial edits better than the plain replacement.
-- **Expanded inspection for visual review**, if focused workspaces turn out not to cover
-  the real tasks; package-owned until a second interactive object proves the lifecycle.
-- **Author-facing "tabbed section" vocabulary**, if a real page exposes an ambiguity that
-  root and embedded placement cannot resolve.
-- **Disclosed masks in visual-review evidence**, once repeated reviews establish the
-  smallest disclosure and export contract.
-- **Typed motion evidence**, once Leaf core has durable video, poster, caption, transcript,
-  and chapter handling.
+### Reader experience
+
+- **Make complete reading journeys feel coherent.** Audit a document, workspace,
+  board or table, and populated conversation in light and dark at wide and narrow
+  widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
+  behavior. Set one focus-ring weight for every keyboard target.
+- **Give conversations a stable hierarchy.** Keep thread context visible while
+  scrolling; make search, filters, agent activity, selection, and reply editing clear
+  in short and long threads.
+- **Test annotation placement in context.** Compare a pinned marker card with a
+  sparse left-comment layout on a document and a workspace. Keep full history and
+  search in Threads and use Page Map on narrow pages; show only one margin treatment
+  at a time.
+- **Make the next move and its result apparent.** Play through `review-a-plan`,
+  `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
+  result is hidden. Decide whether a page needs one progress reading across Asks,
+  board work, and version approval. Test a concrete first task before changing the
+  public home page's prompt.
+- **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
+  Follow one task through reading, panes, comments, and Threads.
+
+### Agent and author experience
+
+- **Run the first agent-usability baseline, including #19.** Execute the
+  [cold-authoring, reading-parity, and resume cases](notes/agent-usability-evals.md#first-executable-slice).
+  Compare authoring and a feedback cycle with plain HTML before improving Leaf's
+  authoring guidance. Use observed failures to choose new reading interfaces;
+  **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20).
+- **Keep agent activity intelligible throughout a task.** Run the
+  [status evaluations](notes/reader-feedback-responsiveness.md) for delivery,
+  multi-step work, and delegation. Show the plan as well as the current step;
+  check that the hosted website agent's status is readable without delaying its
+  reply. Keep delegated work visible while its watcher is live.
+- **Settle who owes the next move.** Make the banner, margin, and Threads agree
+  when several subject claims stand or an agent question is followed by another
+  agent turn. Seed that thread shape before changing its projection; choose one
+  colour scheme for reader, agent, and unclaimed work.
+
+## Next
+
+### Reader continuity and mobile access
+
+- **#11 — [Let newer navigation win over revision restoration](notes/workspace-followups.md#item-11).**
+  Preserve input made while a revision activates.
+- **Make a phone reading journey complete.** Give touch readers an element-target
+  route and visible passage threads; supply the document viewport at delivery.
+  Check the selection-menu collision and interactive-reply crash on a real iPhone
+  before choosing those fixes. Then remove keyboard-only hints, hover-only reasons,
+  clipped diagram and diff content, and undersized touch targets.
+- **Give the thread panel's touch grip its own space.** Reserve room for the grip
+  and collapse inactive reply controls if more thread cards should fit.
+
+### Architecture and verification
+
+- **#5 — Separate the margin model from presentation.** Derive clusters and Page
+  Map entries as immutable data, then let placement and retained controls consume
+  them. This removes semantic identity from DOM attributes and lets model rules be
+  tested without Chrome.
+## Etc
+
+Revisit these when their stated trigger becomes real; they are not an active queue.
+
+### Product and host ideas
+
+- **#23 — Workspace persistence:** use repeated real tasks to decide whether
+  readers return and how much customization Leaf should own.
+- **Visual review beside Leaf:** coordinate a real browser target through the host
+  when review work needs it; expand inspection only when focused workspaces fail a
+  real task.
+- **Other hosts:** add a blocking `leaf wait` route when another agent host needs
+  foreground handoff.
+- **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
+  browser handoff when an inline-hosting task calls for it. See the
+  [research brief](notes/workspace-followups.md#item-22).
+- **Favicon count:** keep a pending count only if it reads clearly at 16px.
+- **Character bindings:** let readers disable them when real use calls for it.
+- **Authoring vocabulary:** add tabbed sections only when root and embedded
+  placement cannot express a real page.
+- **Replacement diffs and visual masks:** add them when repeated reviews need
+  more than plain replacement and focused inspection.
+- **Motion evidence:** define video, caption, and transcript handling when core
+  gains durable video.
+
+### Implementation candidates
+
+- **#6 — Codex supervision:** separate hosted and local turn supervision only
+  if hosted delivery becomes a product priority; the App Server protocol is
+  already shared.
+- **#7 — Runtime fold tests:** add focused Node tests as rules change; extend
+  `tests/runtime/dom.mjs` only when a test needs another module.
+- **Claude Code tool observation:** consider a cheap hook for sessions holding
+  pages if status evaluations show that agent declarations are insufficient.
+- **#28 — Reading-column grid:** replace `main`'s `left` offset if panel
+  movement causes scroll or maintenance trouble; current measured layouts held
+  the reader's place.
+- **CSS cascade layers:** isolate Leaf chrome from page CSS before reconsidering
+  `@layer`; the earlier trial changed chrome styling. See the
+  [dependency survey](notes/dependency-survey.md).
+- **Invoker commands:** revisit when the browser support Leaf needs can replace
+  the current dialog and popover handlers. See the
+  [dependency survey](notes/dependency-survey.md).
+- **MCP page ports:** test wildcard-port `frame_domains` in a host before replacing
+  `/p/<capability>` multiplexing. See the
+  [dependency survey](notes/dependency-survey.md).
+- **Direct MCP bundle:** make evaluation-order faults fail visibly if the
+  experimental bundle becomes a supported path.
+- **Release labels:** prefer an exact tag when Leaf adopts named releases.

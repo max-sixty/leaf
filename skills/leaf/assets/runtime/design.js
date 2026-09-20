@@ -319,10 +319,11 @@ export function createDesignMode({
       },
     ],
   });
-  // The mode is page-side state the reader put on, so Escape takes it off from the
-  // ladder, after every surface standing over the page and before the page itself: a
-  // composer opened in the mode closes first, its own scope being nearer, then a panel
-  // the mode's own send opened, then the mode.
+  // A mode is the stance the whole page is in rather than something standing on part of
+  // it, so everything the reader puts up while it holds is put up inside it and Escape
+  // takes it off from the ladder last, before the page itself: a composer opened in the
+  // mode closes first, its own scope being nearer, then a panel the mode's own send
+  // opened, then the mode.
   pageRung("design mode", () =>
     designModeOn
       ? {

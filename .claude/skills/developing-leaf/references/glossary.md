@@ -147,7 +147,7 @@ spine instead.
 | **Walk** | Ordered semantic movement among same-kind destinations |
 | **Standing** | Holding a destination inside a layer, or a control inside one: a thread, an Ask, or the page's own content, including an authored control; Leaf's own apparatus outside those — a banner or panel-head control, a margin marker, a mark note, a contents outline's link — is not one |
 | **Floor** | The place in a layer where the reader stands on nothing: the page's body, the thread panel's list |
-| **Unwind** | What Escape takes off, read from what stands in front of the reader rather than from how they reached it: the innermost step of the hierarchy — document, page-side state, auxiliary surface, a surface's own layer, native layer, box — with containment before kind, each landing them at the parent of what it closed |
+| **Unwind** | What Escape takes off, read from what stands in front of the reader rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/CLAUDE.md` states, with containment before kind, each landing them at the parent of what it closed |
 | **Landing** | Where a step leaves the reader: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |
 | **Layer stack** | The one ordered record of the popovers and modal dialogs standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |
 | **Key badge** | A keycap-shaped carrier for a binding or transient hint code |

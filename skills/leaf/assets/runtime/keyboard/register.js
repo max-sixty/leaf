@@ -80,8 +80,9 @@ const STACK = [
   "link",
   "disclosure",
   // The modes keep their own letters here and declare their Escape on the ladder,
-  // because a mode is page-side state the reader put on and a surface opened over it is
-  // newer: a send made in Design mode opens Threads, and the panel comes off first.
+  // because a mode is the stance the whole page is in and a surface opened while one
+  // holds is opened inside it: a send made in Design mode opens Threads, and the panel
+  // comes off first.
   "draw mode",
   "design mode",
   PAGE,

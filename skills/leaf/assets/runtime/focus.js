@@ -101,18 +101,36 @@ export function takesLetters(node) {
 // tall bounded region, a run of figures — where the honest answer is that the reader has
 // no reading position for the browser to continue from.
 //
-// A surface covering the page makes it inert, so neither half of this reaches it and
-// focus stays where the closing layer leaves it, inside that surface. That is the right
-// answer rather than a gap: the page is not somewhere the reader can be while it is
-// covered, and the surface is the floor they are standing on.
+// A surface covering the page makes it inert, so neither half of this reaches it: the
+// page is not somewhere the reader can be while it is covered, and the surface is the
+// floor they are standing on. The closing layer usually leaves focus inside that surface
+// on its own — the platform hands a popover's focus back to whoever held it when the
+// popover showed — but that is the platform's courtesy and not a landing: it does not
+// arrive when the node it remembered has been replaced by a repaint since, and then focus
+// falls to the body, which no let-go on an inert page can take back. So the surface says
+// where it stands the reader, and letting go asks it before the page.
 let readingBlock = () => null;
 export function declareReading(read) {
   readingBlock = read;
 }
+let coveringFloor = () => null;
+export function declareCovering(read) {
+  coveringFloor = read;
+}
+const deepestFocus = () => {
+  let node = document.activeElement;
+  while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+  return node;
+};
 export function releaseFocus() {
   document.body.focus({ preventScroll: true });
 }
 export function letGo() {
+  const covering = coveringFloor();
+  if (covering) {
+    if (!covering.contains(deepestFocus())) focusDestination(covering);
+    return;
+  }
   const block = readingBlock();
   if (!block?.isConnected) {
     releaseFocus();

@@ -169,7 +169,12 @@ import {
   glideTo,
   stopGlide,
 } from "./runtime/navigation.js";
-import { declareReading, focusDestination, releaseFocus } from "./runtime/focus.js";
+import {
+  declareCovering,
+  declareReading,
+  focusDestination,
+  releaseFocus,
+} from "./runtime/focus.js";
 import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
@@ -434,6 +439,11 @@ if (offlineInteractive) applicationState.setHostAvailable(false);
 // on screen. Declared beside the let-go that uses it, for the same reason: the owner
 // stands by now and nothing has read the register yet.
 declareReading(version.readingBlock);
+
+// And where it goes instead while a surface covers the page, which is that surface: the
+// page is inert under it, so the reading above cannot take the reader and a step that let
+// go would leave them wherever the closing layer happened to drop them.
+declareCovering(() => (navigation.panelCovers() ? threadsBox : null));
 
 // The let-go reads what five owners hold; all five stand by now, and the first input is
 // wired further down, so the scope is declared before anything reads the register.
